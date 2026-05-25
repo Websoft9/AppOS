@@ -708,3 +708,38 @@ func TestMonitorServerContainerTelemetryReturnsServerScopedItems(t *testing.T) {
 		t.Fatalf("unexpected telemetry response: %s", rec.Body.String())
 	}
 }
+
+func TestMonitorServerContainerTelemetryAllowsLocalSyntheticServerID(t *testing.T) {
+	te := newMonitorTestEnv(t)
+	defer te.cleanup()
+
+	restore := monitormetrics.SetContainerTelemetryQueryFuncForTest(func(_ context.Context, serverID string, targets []monitormetrics.ContainerTelemetryTarget, window string) (*monitormetrics.ContainerTelemetryResponse, error) {
+		if serverID != "local" {
+			t.Fatalf("unexpected server id: %s", serverID)
+		}
+		if len(targets) != 1 || targets[0].ID != "ctr-local-1" || targets[0].Name != "demo-web" {
+			t.Fatalf("unexpected container telemetry targets: %+v", targets)
+		}
+		return &monitormetrics.ContainerTelemetryResponse{
+			ServerID: serverID,
+			Window:   window,
+			Items: []monitormetrics.ContainerTelemetryItem{{
+				ContainerID:   "ctr-local-1",
+				ContainerName: "demo-web",
+			}},
+		}, nil
+	})
+	defer restore()
+
+	rec := te.doMonitor(t, http.MethodGet, "/api/monitor/servers/local/container-telemetry?window=15m&containerId=ctr-local-1&containerName=demo-web", "", te.token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp monitormetrics.ContainerTelemetryResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.ServerID != "local" || len(resp.Items) != 1 || resp.Items[0].ContainerID != "ctr-local-1" {
+		t.Fatalf("unexpected telemetry response: %s", rec.Body.String())
+	}
+}

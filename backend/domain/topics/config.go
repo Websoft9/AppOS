@@ -3,7 +3,7 @@ package topics
 import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
+	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 )
 
 // Settings identifiers for the topic domain.
@@ -14,7 +14,7 @@ const (
 
 // defaultShareConfig is the code-level safety net when the DB row is missing.
 // Canonical defaults also live in catalog.go under "topic/share".
-var defaultShareConfig = settingscatalog.DefaultGroup(SettingsModule, SettingsKey)
+var defaultShareConfig = settingsschema.DefaultGroup(SettingsModule, SettingsKey)
 
 // ShareConfig holds effective share policy values loaded from sysconfig.
 type ShareConfig struct {

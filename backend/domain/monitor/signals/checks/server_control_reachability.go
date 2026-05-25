@@ -30,6 +30,10 @@ type ServerControlReachabilityResult struct {
 }
 
 func ProbeServerControlReachability(record *core.Record) ServerControlReachabilityResult {
+	return ProbeServerControlReachabilityWithTimeout(record, serverControlProbeTimeout)
+}
+
+func ProbeServerControlReachabilityWithTimeout(record *core.Record, timeout time.Duration) ServerControlReachabilityResult {
 	server := servers.ManagedServerFromRecord(record)
 	if server == nil || strings.TrimSpace(server.ID) == "" {
 		return ServerControlReachabilityResult{
@@ -40,12 +44,12 @@ func ProbeServerControlReachability(record *core.Record) ServerControlReachabili
 	}
 
 	if server.ConnectType == servers.ConnectionModeTunnel {
-		return probeTunnelControlReachability(record)
+		return probeTunnelControlReachability(record, timeout)
 	}
-	return probeDirectControlReachability(server.Host, server.Port, "ssh")
+	return probeDirectControlReachability(server.Host, server.Port, "ssh", timeout)
 }
 
-func probeTunnelControlReachability(record *core.Record) ServerControlReachabilityResult {
+func probeTunnelControlReachability(record *core.Record, timeout time.Duration) ServerControlReachabilityResult {
 	runtime := servers.TunnelRuntimeFromRecord(record)
 	if runtime.Status != servers.TunnelStatusOnline {
 		return ServerControlReachabilityResult{
@@ -62,10 +66,10 @@ func probeTunnelControlReachability(record *core.Record) ServerControlReachabili
 			Protocol: "tunnel",
 		}
 	}
-	return probeDirectControlReachability("127.0.0.1", port, "tunnel")
+	return probeDirectControlReachability("127.0.0.1", port, "tunnel", timeout)
 }
 
-func probeDirectControlReachability(host string, port int, protocol string) ServerControlReachabilityResult {
+func probeDirectControlReachability(host string, port int, protocol string, timeout time.Duration) ServerControlReachabilityResult {
 	host = strings.TrimSpace(host)
 	if protocol == "" {
 		protocol = "ssh"
@@ -85,9 +89,12 @@ func probeDirectControlReachability(host string, port int, protocol string) Serv
 		port = 22
 		result.Port = port
 	}
+	if timeout <= 0 {
+		timeout = serverControlProbeTimeout
+	}
 
 	start := time.Now()
-	conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, strconv.Itoa(port)), serverControlProbeTimeout)
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, strconv.Itoa(port)), timeout)
 	if err != nil {
 		result.Reason = err.Error()
 		return result

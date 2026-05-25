@@ -36,6 +36,8 @@ export interface TerminalPanelProps {
   isActive?: boolean
   /** Called when the backend confirms the active session id */
   onSessionEstablished?: (sessionId: string) => void
+  /** Called when a previously stored session id is no longer resumable */
+  onSessionInvalidated?: (sessionId: string) => void
 }
 
 // ─── Control frame helpers ────────────────────────────────────────────────────
@@ -92,7 +94,17 @@ const TERMINAL_SCREEN_PADDING = '1em 1ch 8px 10px'
 
 export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>(
   function TerminalPanel(
-    { serverId, sessionId, containerId, shell, dockerServerId, className, isActive, onSessionEstablished },
+    {
+      serverId,
+      sessionId,
+      containerId,
+      shell,
+      dockerServerId,
+      className,
+      isActive,
+      onSessionEstablished,
+      onSessionInvalidated,
+    },
     ref
   ) {
     const frameRef = useRef<HTMLDivElement>(null)
@@ -109,6 +121,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     const connectionAttemptRef = useRef(0)
     const latestSessionIdRef = useRef<string | undefined>(sessionId)
     const onSessionEstablishedRef = useRef(onSessionEstablished)
+    const onSessionInvalidatedRef = useRef(onSessionInvalidated)
 
     useEffect(() => {
       isActiveRef.current = !!isActive
@@ -121,6 +134,10 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     useEffect(() => {
       onSessionEstablishedRef.current = onSessionEstablished
     }, [onSessionEstablished])
+
+    useEffect(() => {
+      onSessionInvalidatedRef.current = onSessionInvalidated
+    }, [onSessionInvalidated])
 
     const clearFitTimers = useCallback(() => {
       for (const timer of fitTimersRef.current) {
@@ -259,9 +276,11 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         return
       }
 
+      const requestedSessionId = latestSessionIdRef.current
+
       const url = new URL(wsUrl)
-      if (latestSessionIdRef.current && (serverId || containerId)) {
-        url.searchParams.set('session_id', latestSessionIdRef.current)
+      if (requestedSessionId && (serverId || containerId)) {
+        url.searchParams.set('session_id', requestedSessionId)
       }
       if (containerId) {
         url.searchParams.set('_', String(Date.now()))
@@ -344,6 +363,24 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
                 return
               }
               if (ctrl.type === 'error' || ctrl.type === 'close') {
+                if (requestedSessionId && ctrl.message === 'terminal session not found') {
+                  latestSessionIdRef.current = undefined
+                  onSessionInvalidatedRef.current?.(requestedSessionId)
+                  structuredErrorRef.current = false
+                  setError(null)
+                  setErrorCategory(null)
+                  if (wsRef.current === ws) {
+                    wsRef.current = null
+                  }
+                  detachSocketHandlers(ws)
+                  ws.close(1000, 'stale-session')
+                  window.setTimeout(() => {
+                    if (!isStaleAttempt()) {
+                      connect()
+                    }
+                  }, 0)
+                  return
+                }
                 structuredErrorRef.current = true
                 setError(ctrl.message ?? `Connection ${ctrl.type}`)
                 if (ctrl.category && ctrl.category in categoryMeta) {

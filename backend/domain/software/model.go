@@ -34,8 +34,8 @@ const (
 	ComponentKeyDocker       ComponentKey = "docker"
 	ComponentKeyReverseProxy ComponentKey = "reverse-proxy"
 	ComponentKeyTelegraf     ComponentKey = "telegraf"
-	// Local-target components are purely catalog-data-driven: their component_key strings
-	// are defined in catalog/catalog_local.yaml and flow through the system as opaque values.
+	// Local-target components are projected from catalog/components_local.yaml; their
+	// component_key strings flow through the system as opaque values.
 	// No Go constants are needed here unless code logic must reference a specific key.
 )
 

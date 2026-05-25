@@ -25,8 +25,6 @@ tags:
       name: Catalog
     - description: Certificate template, self-signed issuance, renewal, and native record CRUD APIs.
       name: Certificates
-    - description: Installed component inventory and diagnostics registry APIs.
-      name: Components
     - description: Connector catalog, template, and native record CRUD APIs.
       name: Connectors
     - description: Docker operations including compose, image, container, network, volume, and image-pull activity management.
@@ -59,8 +57,6 @@ tags:
       name: Servers
     - description: Service instance catalog and template APIs for managed external services.
       name: Service Instances
-    - description: Service lifecycle operations exposed via supervisord integration.
-      name: Services
     - description: Configuration management spanning System and Workspace settings APIs.
       name: Settings
     - description: Initial setup and login bootstrap workflows for AppOS.
@@ -3691,143 +3687,6 @@ paths:
             summary: Request verification email
             tags:
                 - Auth
-    /api/components:
-        get:
-            description: Returns the installed component inventory with version and availability status. Auth required.
-            operationId: get_api_components
-            parameters:
-                - in: query
-                  name: force
-                  required: false
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                additionalProperties: true
-                                type: object
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                additionalProperties: true
-                                type: object
-                    description: Unauthorized
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                additionalProperties: true
-                                type: object
-                    description: Internal Server Error
-            security:
-                - bearerAuth: []
-            summary: List components
-            tags:
-                - Components
-    /api/components/services:
-        get:
-            description: Returns runtime services under the components domain. Auth required.
-            operationId: get_api_components_services
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                additionalProperties: true
-                                type: object
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                additionalProperties: true
-                                type: object
-                    description: Unauthorized
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                additionalProperties: true
-                                type: object
-                    description: Internal Server Error
-            security:
-                - bearerAuth: []
-            summary: List component services
-            tags:
-                - Services
-    /api/components/services/{name}/logs:
-        get:
-            description: Returns service logs for one component service. Auth required.
-            operationId: get_api_components_services_name_logs
-            parameters:
-                - description: service name
-                  in: path
-                  name: name
-                  required: true
-                  schema:
-                    type: string
-                - description: stdout or stderr
-                  in: query
-                  name: stream
-                  required: false
-                  schema:
-                    type: string
-                - description: approximate line count
-                  in: query
-                  name: tail
-                  required: false
-                  schema:
-                    type: integer
-                - in: query
-                  name: type
-                  required: false
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                additionalProperties: true
-                                type: object
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                additionalProperties: true
-                                type: object
-                    description: Unauthorized
-                "404":
-                    content:
-                        application/json:
-                            schema:
-                                additionalProperties: true
-                                type: object
-                    description: Not Found
-                "409":
-                    content:
-                        application/json:
-                            schema:
-                                additionalProperties: true
-                                type: object
-                    description: Conflict
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                additionalProperties: true
-                                type: object
-                    description: Internal Server Error
-            security:
-                - bearerAuth: []
-            summary: Get component service logs
-            tags:
-                - Services
     /api/connectors:
         get:
             description: Returns connectors visible to the authenticated user. Use the optional kind query parameter to filter by one or more connector kinds.
@@ -10233,6 +10092,99 @@ paths:
             security:
                 - bearerAuth: []
             summary: Get one AppOS-local software component
+            tags:
+                - Software
+    /api/software/local/services:
+        get:
+            description: Returns Monitor-observed runtime state for AppOS-local built-in services.
+            operationId: get_api_software_local_services
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: List AppOS-local software services
+            tags:
+                - Software
+    /api/software/local/services/{name}/logs:
+        get:
+            description: Returns service logs for one AppOS-local built-in service.
+            operationId: get_api_software_local_services_name_logs
+            parameters:
+                - description: service name
+                  in: path
+                  name: name
+                  required: true
+                  schema:
+                    type: string
+                - description: stdout or stderr
+                  in: query
+                  name: stream
+                  required: false
+                  schema:
+                    type: string
+                - description: approximate line count
+                  in: query
+                  name: tail
+                  required: false
+                  schema:
+                    type: integer
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Conflict
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Get AppOS-local software service logs
             tags:
                 - Software
     /api/software/server-catalog:

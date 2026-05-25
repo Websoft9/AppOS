@@ -214,7 +214,7 @@ describe('Sidebar', () => {
     expect(assignMock).toHaveBeenCalledWith({ to: '/status' })
   })
 
-  it('shows Shared Envs and Orchestration Files after System Crons under the System section for superusers', () => {
+  it('shows Platform Runtime after Status and keeps the remaining System order for superusers', () => {
     pathname = '/status'
     assignMock.mockReset()
 
@@ -226,14 +226,27 @@ describe('Sidebar', () => {
       .map(link => link.textContent?.trim())
       .filter((label): label is string => Boolean(label))
 
-    expect(within(adminNav).getByRole('link', { name: 'System Crons' })).toBeInTheDocument()
+    expect(within(adminNav).getByRole('link', { name: 'Platform Runtime' })).toBeInTheDocument()
+    expect(within(adminNav).getByRole('link', { name: 'Platform Crons' })).toBeInTheDocument()
     expect(within(adminNav).getByRole('link', { name: 'Shared Envs' })).toBeInTheDocument()
     expect(within(adminNav).getByRole('link', { name: 'Orchestration Files' })).toBeInTheDocument()
     expect(within(adminNav).getByRole('link', { name: 'Audit' })).toBeInTheDocument()
     expect(within(adminNav).getByRole('link', { name: 'Logs' })).toBeInTheDocument()
+    expect(links.indexOf('Status')).toBeLessThan(links.indexOf('Platform Runtime'))
+    expect(links.indexOf('Platform Runtime')).toBeLessThan(links.indexOf('Tunnels'))
     expect(links.indexOf('Audit')).toBeLessThan(links.indexOf('Logs'))
-    expect(links.indexOf('System Crons')).toBeLessThan(links.indexOf('Shared Envs'))
+    expect(links.indexOf('Platform Crons')).toBeLessThan(links.indexOf('Shared Envs'))
     expect(links.indexOf('Shared Envs')).toBeLessThan(links.indexOf('Orchestration Files'))
+  })
+
+  it('uses Platform Components as the basic system entry', () => {
+    const groups = SidebarModule.buildNavGroups(false)
+    const platformGroup = groups.find(group => group.label === 'Platform')
+    const systemItem = platformGroup?.items.find(item => item.id === 'system')
+
+    expect(systemItem?.href).toBe('/platform-components')
+    expect(systemItem?.children?.[0]?.label).toBe('Platform Components')
+    expect(systemItem?.children?.[0]?.href).toBe('/platform-components')
   })
 
   it('closes the mobile drawer when a child link is clicked', () => {

@@ -3,7 +3,7 @@ package iac
 import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
+	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 )
 
 const (
@@ -14,7 +14,7 @@ const (
 	DefaultExtensionBlacklist = ".exe,.dll,.so,.bin,.deb,.rpm,.apk,.msi,.dmg,.pkg"
 )
 
-var defaultLimits = settingscatalog.DefaultGroup(SettingsModule, SettingsKey)
+var defaultLimits = settingsschema.DefaultGroup(SettingsModule, SettingsKey)
 
 // Limits holds the effective upload and read constraints for the IaC workspace.
 type Limits struct {

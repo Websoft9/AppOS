@@ -11,7 +11,7 @@ import (
 	"github.com/domodwyer/mailyak/v3"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
+	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	persistence "github.com/websoft9/appos/backend/infra/persistence"
 )
@@ -84,7 +84,7 @@ func loadRuntimeSMTPConfig(app core.App) (*connectors.SMTPConfig, error) {
 }
 
 func loadLegacySMTPConfig(app core.App) (*connectors.SMTPConfig, error) {
-	entry, ok := settingscatalog.FindEntry("smtp")
+	entry, ok := settingsschema.FindEntry("smtp")
 	if !ok {
 		return nil, fmt.Errorf("smtp settings entry not found")
 	}

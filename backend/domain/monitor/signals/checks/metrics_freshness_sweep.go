@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/monitor"
 	"github.com/websoft9/appos/backend/domain/monitor/metrics"
 	monitorstatus "github.com/websoft9/appos/backend/domain/monitor/status"
 	"github.com/websoft9/appos/backend/domain/resource/servers"
@@ -16,19 +17,20 @@ func RunServerMetricsFreshnessSweep(app core.App, now time.Time) error {
 	if err != nil {
 		return err
 	}
+	policy := monitor.LoadPolicySettings(app)
 	var sweepErrors []error
 	ctx := context.Background()
 	for _, server := range items {
 		if server == nil || server.ID == "" {
 			continue
 		}
-		observation, err := metrics.QueryServerMetricsFreshness(ctx, server.ID, now)
+		observation, err := metrics.QueryServerMetricsFreshnessWithin(ctx, server.ID, now, policy.MetricsFreshnessLookback)
 		var projection monitorstatus.MetricsFreshnessProjection
 		if err != nil {
 			projection = monitorstatus.MetricsFreshnessUnknown(err.Error())
 			sweepErrors = append(sweepErrors, err)
 		} else {
-			projection = monitorstatus.EvaluateMetricsFreshness(observation.ObservedAt, observation.HasSample, now)
+			projection = monitorstatus.EvaluateMetricsFreshnessWithThresholds(observation.ObservedAt, observation.HasSample, now, policy.MetricsStaleThreshold, policy.MetricsMissingThreshold)
 		}
 		displayName := server.Name
 		if displayName == "" {

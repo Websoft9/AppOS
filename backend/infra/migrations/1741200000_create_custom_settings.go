@@ -4,7 +4,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	m "github.com/pocketbase/pocketbase/migrations"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
+	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 )
 
 // Story 13 MVP: Create and seed custom_settings for the current unified settings model.
@@ -43,7 +43,7 @@ func init() {
 			return err
 		}
 
-		for _, row := range settingscatalog.SeedRows() {
+		for _, row := range settingsschema.SeedRows() {
 			if err := sysconfig.SetGroup(app, row.Module, row.Key, row.Value); err != nil {
 				return err
 			}

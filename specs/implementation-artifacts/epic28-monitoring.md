@@ -10,6 +10,8 @@ Migration note: Epic 28 supersedes the runtime-observation portion of Epic 6. In
 
 **Scope note**: Monitor observes the runtime state of running software (is it alive, is it healthy). Version detection, install, upgrade, and reinstall of those same software components are owned by Software Delivery (Epic 29), not Monitor.
 
+For AppOS-local built-in services, Monitor is also not the owner of the service catalog itself. Service identity, component-to-service bindings, and log-access metadata belong to Software Delivery local inventory. Monitor consumes those definitions and projects live service observations such as state, uptime, resource usage, freshness, and degraded reason.
+
 This epic adopts a managed-collector-plus-control-plane-pull model:
 
 - AppOS self-observation uses an AppOS-owned local collector (`platform observer`), not Telegraf

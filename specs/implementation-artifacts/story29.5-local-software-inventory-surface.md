@@ -18,6 +18,8 @@ This story consolidates the AppOS-local slice that was previously spread across 
 - keep AppOS-local software visible as a first-class inventory surface under `Resources`
 - reuse the same component language as server-target software where possible
 - show truthful local installed state, versions, verification summary, and support notes
+- expose the built-in service list for each AppOS-local component when that service contract is meaningful
+- define log access metadata for built-in services as part of the local software contract
 - keep the surface read-only for this epic split
 - keep AppOS-local inventory separate from both server operations and supported-software discovery
 - preserve the lightweight, admin-facing inventory feel from the old Epic 6 scope without reviving a standalone `System / Components` domain
@@ -31,12 +33,15 @@ This page answers:
 - what version AppOS currently has locally
 - whether that local component is present or degraded
 - when AppOS last detected the local component state
+- which built-in services are owned by that local component
+- how logs for those built-in services can be reached
 
 This page does not answer:
 
 - what can be installed on a remote server
 - what action is currently running on a remote server
 - runtime telemetry that belongs to Monitor
+- whether a built-in service is running right now, what its uptime is, or what CPU/memory it is consuming
 
 ## Migration Note
 
@@ -61,7 +66,24 @@ Rules:
 - AppOS-local routes remain read-only in this story
 - DTOs should stay as close as practical to server inventory DTOs so operators do not learn two vocabularies
 - local inventory should not pretend to be a server instance list
+- local inventory may include built-in service definitions and log-access metadata as static/read-mostly contract data
+- local inventory must not own live service runtime status such as running state, uptime, CPU, or memory
 - legacy compatibility adapters may temporarily project the old lightweight `id` / `name` / `version` / `available` / `last_detected_at` view from the canonical local-software model, but that shape is transitional rather than the long-term contract
+
+Suggested local built-in component fields when richer projection is needed:
+
+- `componentKey`
+- `label`
+- `installedState`
+- `detectedVersion`
+- `availability`
+- `services[]`
+	- `name`
+	- `role`
+	- `logAccess`
+		- `type`
+		- `service` or file-path metadata
+		- `defaultStream`
 
 ## UI Contract
 
@@ -74,6 +96,8 @@ Show:
 - verification or health summary in Software Delivery terms
 - short note describing the component's role inside AppOS
 - last detected or last updated time when available
+- built-in service definitions when they help explain AppOS-local composition
+- log access entry metadata for those built-in services
 
 Do not show:
 
@@ -81,6 +105,7 @@ Do not show:
 - per-server readiness
 - supported-software discovery rows for components that are not locally bundled
 - Monitor runtime telemetry panels
+- active-service runtime state as if it were owned by local inventory
 
 Presentation rules:
 
@@ -100,8 +125,14 @@ State rules:
 Initial baseline intent:
 
 - the first-pass local inventory should cover the AppOS runtime composition already managed by the platform
-- typical examples include the AppOS backend, dashboard bundle, reverse proxy, supervisor/process manager, Redis, Docker tooling, Terraform CLI, Node.js, npm, bundled library/plugin artifacts, and the base runtime image
+- typical examples include the AppOS backend, dashboard bundle, reverse proxy, supervisor/process manager, Redis, Docker tooling, Node.js, npm, bundled library/plugin artifacts, and the base runtime image
 - the exact managed set remains catalog-driven rather than hard-coded in the page
+
+Boundary note:
+
+- `Built-in Components` belongs here as a Software Delivery projection for AppOS-local inventory.
+- built-in service definitions and log-access metadata also belong here.
+- `Active Services` runtime state belongs to Monitor and should consume these service definitions rather than redefine them.
 
 ## Technical Context
 
@@ -138,7 +169,7 @@ The page should be treated as the forward path for any remaining Epic 6 `Install
 ## Guardrails
 
 - no server lifecycle actions on this page
-- no runtime-monitoring charts or service logs
+- no runtime-monitoring charts or live service-status panels
 - no drift into a generic system-settings page
 - no separate vocabulary for local inventory if the shared contract already covers the field
 

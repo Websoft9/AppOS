@@ -10,7 +10,7 @@ import (
 
 func listNetworkInterfaces(ctx context.Context, service *monitortsdb.Service, targetType, targetID string, start, end time.Time) ([]string, error) {
 	selector := fmt.Sprintf(`appos_host_network_rx_bytes_per_second{target_type="server",target_id=%q,network_interface!=""}`, targetID)
-	if isNetdataPlatformTarget(targetType, targetID) {
+	if isAppOSCorePlatformTarget(targetType, targetID) {
 		selector = fmt.Sprintf(`appos_platform_network_rx_bytes_per_second{target_type="platform",target_id=%q,network_interface!=""}`, targetID)
 	}
 	return service.ListNetworkInterfaces(ctx, selector, start, end)

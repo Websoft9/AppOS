@@ -163,7 +163,7 @@ describe('OverviewPage', () => {
       }
       if (
         path ===
-        '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork'
+        '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic'
       ) {
         return Promise.resolve({
           targetType: 'platform',
@@ -222,6 +222,14 @@ describe('OverviewPage', () => {
                 { name: 'out', points: [[1713096000, 768], [1713096060, 1280]] },
               ],
             },
+            {
+              name: 'network_traffic',
+              unit: 'bytes',
+              segments: [
+                { name: 'in', points: [[1713096000, 8192], [1713096060, 9728]] },
+                { name: 'out', points: [[1713096000, 6144], [1713096060, 7424]] },
+              ],
+            },
           ],
         })
       }
@@ -266,7 +274,7 @@ describe('OverviewPage', () => {
     expect(await screen.findByText('Needs Attention')).toBeInTheDocument()
     expect(await screen.findByText('1H Trends')).toBeInTheDocument()
     expect(
-      await screen.findByText('AppOS control-plane CPU, memory, disk, and network over the last hour.')
+      await screen.findByText('AppOS control-plane CPU, memory usage versus limit, disk, and network over the last hour.')
     ).toBeInTheDocument()
     expect(await screen.findByRole('link', { name: 'View system status' })).toHaveAttribute(
       'href',
@@ -277,6 +285,7 @@ describe('OverviewPage', () => {
     expect(await screen.findByLabelText('disk_usage time series chart')).toBeInTheDocument()
     expect(await screen.findByLabelText('disk time series chart')).toBeInTheDocument()
     expect(await screen.findByLabelText('network time series chart')).toBeInTheDocument()
+    expect(await screen.findByLabelText('network_traffic time series chart')).toBeInTheDocument()
     expect(await screen.findByText('Recent App Changes')).toBeInTheDocument()
     expect(await screen.findByRole('link', { name: /Manage Servers/i })).toHaveAttribute(
       'href',
@@ -296,7 +305,7 @@ describe('OverviewPage', () => {
       expect(sendMock).toHaveBeenCalledWith('/api/monitor/overview', { method: 'GET' })
       expect(sendMock).toHaveBeenCalledWith('/api/tunnel/overview', { method: 'GET' })
       expect(sendMock).toHaveBeenCalledWith(
-        '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork',
+        '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
         { method: 'GET' }
       )
     })

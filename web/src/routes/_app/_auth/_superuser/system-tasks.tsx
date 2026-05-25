@@ -69,11 +69,17 @@ interface CronLogsResponse {
   items: CronLogItem[]
 }
 
+type CronJobType = 'Core' | 'Platform'
+
 // ─── Helpers ─────────────────────────────────────────────
 
 function formatDate(iso: string | null | undefined) {
   if (!iso) return '—'
   return new Date(iso).toLocaleString()
+}
+
+function getCronJobType(jobId: string): CronJobType {
+  return jobId.startsWith('__pb') ? 'Core' : 'Platform'
 }
 
 function levelBadge(level: number) {
@@ -499,15 +505,15 @@ export function SystemCronsContent() {
     <div>
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">System Crons</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Platform Crons</h1>
           <p className="mt-1 text-muted-foreground">
-            Native cron jobs registered in PocketBase. Manage schedules via PocketBase Admin.
+            Review platform scheduled jobs across PocketBase core tasks and AppOS platform tasks.
           </p>
         </div>
         <Button
           variant="outline"
           size="icon"
-          aria-label="Refresh system crons"
+          aria-label="Refresh platform crons"
           title="Refresh"
           onClick={fetchJobs}
           disabled={loading}
@@ -585,6 +591,7 @@ export function SystemCronsContent() {
                   onSort={handleSort}
                 />
               </TableHead>
+              <TableHead className="w-[110px]">Type</TableHead>
               <TableHead className="w-[100px]">Last Status</TableHead>
               <TableHead className="w-[150px] hidden md:table-cell">Last Run</TableHead>
               <TableHead className="w-[60px]">Action</TableHead>
@@ -598,6 +605,9 @@ export function SystemCronsContent() {
                 </TableCell>
                 <TableCell className="font-mono text-sm text-muted-foreground">
                   {job.expression}
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline">{getCronJobType(job.id)}</Badge>
                 </TableCell>
                 <TableCell>
                   {(() => {

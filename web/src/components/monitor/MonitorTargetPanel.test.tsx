@@ -1,8 +1,15 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MonitorTargetPanel } from './MonitorTargetPanel'
 
 const sendMock = vi.fn()
+let visibilityStateValue: DocumentVisibilityState = 'visible'
+const originalVisibilityStateDescriptor = Object.getOwnPropertyDescriptor(document, 'visibilityState')
+
+Object.defineProperty(document, 'visibilityState', {
+  configurable: true,
+  get: () => visibilityStateValue,
+})
 
 vi.mock('@/lib/pb', () => ({
   pb: {
@@ -19,10 +26,18 @@ vi.mock('@/components/monitor/TimeSeriesChart', () => ({
 describe('MonitorTargetPanel', () => {
   beforeEach(() => {
     sendMock.mockReset()
+    visibilityStateValue = 'visible'
   })
 
   afterEach(() => {
     cleanup()
+    vi.useRealTimers()
+  })
+
+  afterAll(() => {
+    if (originalVisibilityStateDescriptor) {
+      Object.defineProperty(document, 'visibilityState', originalVisibilityStateDescriptor)
+    }
   })
 
   it('renders target detail fields and summary', async () => {
@@ -321,9 +336,9 @@ describe('MonitorTargetPanel', () => {
           {
             name: 'memory',
             unit: 'bytes',
-            points: [
-              [1713096000, 268435456],
-              [1713096060, 272629760],
+            segments: [
+              { name: 'used', points: [[1713096000, 268435456], [1713096060, 272629760]] },
+              { name: 'available', points: [[1713096000, 805306368], [1713096060, 801112064]] },
             ],
           },
         ],
@@ -341,6 +356,73 @@ describe('MonitorTargetPanel', () => {
       '/api/monitor/targets/app/app-1/series?window=1h&series=cpu%2Cmemory',
       { method: 'GET', requestKey: null }
     )
+  })
+
+  it('falls back to summary cpu and memory when latest series are empty', async () => {
+    sendMock
+      .mockResolvedValueOnce({
+        hasData: true,
+        targetType: 'platform',
+        targetId: 'appos-core',
+        displayName: 'AppOS Core',
+        status: 'healthy',
+        reason: null,
+        signalSource: 'appos_self',
+        lastTransitionAt: '2026-04-14T12:03:00Z',
+        lastSuccessAt: '2026-04-14T12:03:00Z',
+        lastFailureAt: null,
+        lastCheckedAt: '2026-04-14T12:03:00Z',
+        lastReportedAt: '2026-04-14T12:03:00Z',
+        consecutiveFailures: 0,
+        summary: {
+          cpu_percent: 28,
+          memory_bytes: 3221225472,
+          memory_available_bytes: 1073741824,
+        },
+      })
+      .mockResolvedValueOnce({
+        targetType: 'platform',
+        targetId: 'appos-core',
+        window: '1h',
+        series: [
+          { name: 'cpu', unit: 'percent', points: [] },
+          {
+            name: 'memory',
+            unit: 'bytes',
+            segments: [
+              { name: 'used', points: [] },
+              { name: 'available', points: [] },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        targetType: 'platform',
+        targetId: 'appos-core',
+        cadenceSeconds: 10,
+        series: [
+          { name: 'cpu', unit: 'percent', points: [] },
+          {
+            name: 'memory',
+            unit: 'bytes',
+            segments: [
+              { name: 'used', points: [] },
+              { name: 'available', points: [] },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        targetType: 'platform',
+        targetId: 'appos-core',
+        window: '1h',
+        series: [],
+      })
+
+    render(<MonitorTargetPanel targetType="platform" targetId="appos-core" layout="detail" />)
+
+    expect(await screen.findByText('28')).toBeInTheDocument()
+    expect(await screen.findByText('3.0 GB used / 4.0 GB limit')).toBeInTheDocument()
   })
 
   it('shows extended resource trends for appos-core platform targets', async () => {
@@ -427,8 +509,9 @@ describe('MonitorTargetPanel', () => {
           {
             name: 'memory',
             unit: 'bytes',
-            points: [
-              [1713096060, 272629760],
+            segments: [
+              { name: 'used', points: [[1713096060, 272629760]] },
+              { name: 'available', points: [[1713096060, 801112064]] },
             ],
           },
           {
@@ -470,19 +553,19 @@ describe('MonitorTargetPanel', () => {
 
     expect(await screen.findByText('AppOS Core')).toBeInTheDocument()
     expect(await screen.findByText('Trend History')).toBeInTheDocument()
-  expect(screen.getByText('Disk Usage')).toBeInTheDocument()
-  expect(screen.getByText('Network Traffic')).toBeInTheDocument()
-  expect(screen.getByLabelText('Network interface')).toBeInTheDocument()
+    expect(screen.getByText('Disk Usage')).toBeInTheDocument()
+    expect(screen.getByText('Network Traffic')).toBeInTheDocument()
+    expect(screen.getByLabelText('Network interface')).toBeInTheDocument()
     expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/platform/appos-core', {
       method: 'GET',
       requestKey: null,
     })
     expect(sendMock).toHaveBeenCalledWith(
-    '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork',
-    { method: 'GET', requestKey: null }
-  )
-  expect(sendMock).toHaveBeenCalledWith(
-    '/api/monitor/targets/platform/appos-core/latest?series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
+      '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork',
+      { method: 'GET', requestKey: null }
+    )
+    expect(sendMock).toHaveBeenCalledWith(
+      '/api/monitor/targets/platform/appos-core/latest?series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
       { method: 'GET', requestKey: null }
     )
   })
@@ -920,6 +1003,76 @@ describe('MonitorTargetPanel', () => {
         { method: 'GET', requestKey: null }
       )
     })
+  })
+
+  it('pauses latest stat polling while the document is hidden and resumes on visibility restore', async () => {
+    visibilityStateValue = 'hidden'
+
+    sendMock.mockImplementation((url: unknown) => {
+      const request = String(url)
+      if (request === '/api/monitor/targets/server/srv-hidden') {
+        return Promise.resolve({
+          hasData: true,
+          targetType: 'server',
+          targetId: 'srv-hidden',
+          displayName: 'hidden-server',
+          status: 'healthy',
+          reason: null,
+          signalSource: 'agent',
+          lastTransitionAt: '2026-04-14T12:03:00Z',
+          lastSuccessAt: '2026-04-14T12:03:00Z',
+          lastFailureAt: null,
+          lastCheckedAt: null,
+          lastReportedAt: '2026-04-14T12:03:00Z',
+          consecutiveFailures: 0,
+          summary: {},
+        })
+      }
+      if (request.includes('/latest?')) {
+        return Promise.resolve({
+          targetType: 'server',
+          targetId: 'srv-hidden',
+          cadenceSeconds: 10,
+          selectedNetworkInterface: 'all',
+          series: [{ name: 'cpu', unit: 'percent', points: [[1713096120, 21]] }],
+        })
+      }
+      if (request.includes('series=network_traffic')) {
+        return Promise.resolve({
+          targetType: 'server',
+          targetId: 'srv-hidden',
+          window: '1h',
+          availableNetworkInterfaces: ['eth0'],
+          selectedNetworkInterface: 'all',
+          series: [],
+        })
+      }
+      return Promise.resolve({
+        targetType: 'server',
+        targetId: 'srv-hidden',
+        window: '1h',
+        selectedNetworkInterface: 'all',
+        series: [{ name: 'cpu', unit: 'percent', points: [[1713096000, 20], [1713096120, 21]] }],
+      })
+    })
+
+    render(<MonitorTargetPanel targetType="server" targetId="srv-hidden" layout="detail" />)
+
+    expect(await screen.findByText('Latest Stat')).toBeInTheDocument()
+  vi.useFakeTimers()
+    const latestCallsBefore = sendMock.mock.calls.filter(call => String(call[0]).includes('/latest?')).length
+
+    await vi.advanceTimersByTimeAsync(12000)
+
+    expect(sendMock.mock.calls.filter(call => String(call[0]).includes('/latest?')).length).toBe(latestCallsBefore)
+
+    visibilityStateValue = 'visible'
+    fireEvent(document, new Event('visibilitychange'))
+
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(sendMock.mock.calls.filter(call => String(call[0]).includes('/latest?')).length).toBe(latestCallsBefore + 1)
   })
 
   it('shows a write-path warning when monitor status reports missing metrics', async () => {

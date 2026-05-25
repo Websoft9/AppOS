@@ -14,6 +14,7 @@ import (
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
+	"github.com/websoft9/appos/backend/domain/monitor"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/domain/software"
 )
@@ -1013,7 +1014,7 @@ func TestRunSoftwarePhaseLoopSuccessClearsStaleFailureFields(t *testing.T) {
 }
 
 func TestBuildSoftwareTelegrafConfigIncludesManagedServerTag(t *testing.T) {
-	config, err := buildSoftwareTelegrafConfig("srv-telegraf", "https://console.example.com/api/monitor/write", "srv-telegraf", "secret-token")
+	config, err := buildSoftwareTelegrafConfig(monitor.DefaultManagedCollectorPolicySettings(), "srv-telegraf", "https://console.example.com/api/monitor/write", "srv-telegraf", "secret-token")
 	if err != nil {
 		t.Fatalf("buildSoftwareTelegrafConfig: %v", err)
 	}
@@ -1031,6 +1032,32 @@ func TestBuildSoftwareTelegrafConfigIncludesManagedServerTag(t *testing.T) {
 	}
 	if !strings.Contains(config, "url = \"https://console.example.com/api/monitor/write\"") {
 		t.Fatalf("expected telegraf output url in config, got %q", config)
+	}
+}
+
+func TestBuildSoftwareTelegrafConfigUsesManagedCollectorSettings(t *testing.T) {
+	config, err := buildSoftwareTelegrafConfig(monitor.ManagedCollectorPolicySettings{
+		CollectionInterval: 15 * time.Second,
+		FlushInterval:      20 * time.Second,
+		MetricBatchSize:    1500,
+		MetricBufferLimit:  6000,
+		CollectionJitter:   2 * time.Second,
+		FlushJitter:        3 * time.Second,
+	}, "srv-telegraf", "https://console.example.com/api/monitor/write", "srv-telegraf", "secret-token")
+	if err != nil {
+		t.Fatalf("buildSoftwareTelegrafConfig: %v", err)
+	}
+	for _, expected := range []string{
+		`interval = "15s"`,
+		`flush_interval = "20s"`,
+		`metric_batch_size = 1500`,
+		`metric_buffer_limit = 6000`,
+		`collection_jitter = "2s"`,
+		`flush_jitter = "3s"`,
+	} {
+		if !strings.Contains(config, expected) {
+			t.Fatalf("expected %q in config, got %q", expected, config)
+		}
 	}
 }
 

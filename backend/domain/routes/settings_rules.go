@@ -7,7 +7,10 @@ import (
 	"strconv"
 	"strings"
 
-	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
+	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/config/sysconfig"
+	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
+	"github.com/websoft9/appos/backend/domain/monitor"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
 )
@@ -20,7 +23,7 @@ var sensitiveFields = buildSensitiveFieldSet()
 
 func buildSensitiveFieldSet() map[string]bool {
 	m := map[string]bool{}
-	for _, entry := range settingscatalog.Entries() {
+	for _, entry := range settingsschema.Entries() {
 		for _, f := range entry.Fields {
 			if f.Sensitive {
 				m[f.ID] = true
@@ -33,7 +36,7 @@ func buildSensitiveFieldSet() map[string]bool {
 
 const defaultTunnelSSHPort = 2222
 
-var iacDefaultBlacklist = settingscatalog.DefaultGroup("files", "limits")["extensionBlacklist"]
+var iacDefaultBlacklist = settingsschema.DefaultGroup("files", "limits")["extensionBlacklist"]
 
 // ─── Validation functions ──────────────────────────────────────────────────
 
@@ -128,6 +131,30 @@ func parseIntWithDefault(raw any, defaultValue int) (int, error) {
 		return i, nil
 	default:
 		return 0, fmt.Errorf("must be an integer")
+	}
+}
+
+func parseBoolWithDefault(raw any, defaultValue bool) (bool, error) {
+	if raw == nil {
+		return defaultValue, nil
+	}
+
+	switch value := raw.(type) {
+	case bool:
+		return value, nil
+	case string:
+		switch strings.ToLower(strings.TrimSpace(value)) {
+		case "":
+			return defaultValue, nil
+		case "true", "1", "yes", "on":
+			return true, nil
+		case "false", "0", "no", "off":
+			return false, nil
+		default:
+			return false, fmt.Errorf("must be a boolean")
+		}
+	default:
+		return false, fmt.Errorf("must be a boolean")
 	}
 }
 
@@ -272,11 +299,230 @@ func validateConnectSftp(v map[string]any) map[string]string {
 	return errors
 }
 
+func validateMonitorScheduling(v map[string]any) map[string]string {
+	errors := map[string]string{}
+	for _, field := range []string{
+		"reachabilityIntervalMinutes",
+		"metricsFreshnessIntervalMinutes",
+		"controlReachabilityIntervalMinutes",
+		"runtimeSnapshotIntervalMinutes",
+		"credentialSweepIntervalMinutes",
+		"appHealthIntervalMinutes",
+		"factsPullIntervalMinutes",
+	} {
+		value, err := parseIntWithDefault(v[field], 1)
+		if err != nil {
+			errors[field] = "must be an integer"
+		} else if value < 1 {
+			errors[field] = "must be >= 1"
+		} else {
+			v[field] = value
+		}
+	}
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
+}
+
+func validateMonitorPolicy(v map[string]any) map[string]string {
+	errors := map[string]string{}
+	lookback, err := parseIntWithDefault(v["metricsFreshnessLookbackSeconds"], 300)
+	if err != nil {
+		errors["metricsFreshnessLookbackSeconds"] = "must be an integer"
+	} else if lookback < 1 {
+		errors["metricsFreshnessLookbackSeconds"] = "must be >= 1"
+	} else {
+		v["metricsFreshnessLookbackSeconds"] = lookback
+	}
+
+	stale, err := parseIntWithDefault(v["metricsStaleSeconds"], 90)
+	if err != nil {
+		errors["metricsStaleSeconds"] = "must be an integer"
+	} else if stale < 30 {
+		errors["metricsStaleSeconds"] = "must be >= 30"
+	} else {
+		v["metricsStaleSeconds"] = stale
+	}
+
+	missing, err := parseIntWithDefault(v["metricsMissingSeconds"], 180)
+	if err != nil {
+		errors["metricsMissingSeconds"] = "must be an integer"
+	} else if missing < 31 {
+		errors["metricsMissingSeconds"] = "must be >= 31"
+	} else {
+		v["metricsMissingSeconds"] = missing
+	}
+
+	for _, field := range []string{"controlProbeTimeoutSeconds", "factsPullTimeoutSeconds", "runtimePullTimeoutSeconds"} {
+		value, err := parseIntWithDefault(v[field], 1)
+		if err != nil {
+			errors[field] = "must be an integer"
+		} else if value < 1 || value > 300 {
+			errors[field] = "must be between 1 and 300"
+		} else {
+			v[field] = value
+		}
+	}
+
+	for _, field := range []string{"factsPullConcurrency", "runtimePullConcurrency"} {
+		value, err := parseIntWithDefault(v[field], 1)
+		if err != nil {
+			errors[field] = "must be an integer"
+		} else if value < 1 || value > 50 {
+			errors[field] = "must be between 1 and 50"
+		} else {
+			v[field] = value
+		}
+	}
+
+	if len(errors) == 0 {
+		if missing <= stale {
+			errors["metricsMissingSeconds"] = "must be greater than metricsStaleSeconds"
+		}
+		if lookback < missing {
+			errors["metricsFreshnessLookbackSeconds"] = "must be >= metricsMissingSeconds"
+		}
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
+}
+
+func validateMonitorPlatformSelfObservation(app core.App, v map[string]any) map[string]string {
+	errors := map[string]string{}
+
+	observerInterval, err := parseIntWithDefault(v["platformObserverIntervalSeconds"], 30)
+	if err != nil {
+		errors["platformObserverIntervalSeconds"] = "must be an integer"
+	} else if observerInterval < 5 || observerInterval > 300 {
+		errors["platformObserverIntervalSeconds"] = "must be between 5 and 300"
+	} else {
+		v["platformObserverIntervalSeconds"] = observerInterval
+	}
+
+	schedulerThreshold, err := parseIntWithDefault(v["platformSchedulerStaleThresholdSeconds"], 10)
+	if err != nil {
+		errors["platformSchedulerStaleThresholdSeconds"] = "must be an integer"
+	} else if schedulerThreshold < 5 || schedulerThreshold > 300 {
+		errors["platformSchedulerStaleThresholdSeconds"] = "must be between 5 and 300"
+	} else {
+		v["platformSchedulerStaleThresholdSeconds"] = schedulerThreshold
+	}
+
+	for _, field := range []string{"enableHostTelemetry", "enableContainerTelemetry"} {
+		value, err := parseBoolWithDefault(v[field], false)
+		if err != nil {
+			errors[field] = "must be a boolean"
+		} else {
+			v[field] = value
+		}
+	}
+
+	policyGroup, _ := sysconfig.GetGroup(app, monitor.SettingsModule, monitor.PolicySettingsKey, settingsschema.DefaultGroup(monitor.SettingsModule, monitor.PolicySettingsKey))
+	metricsStale := sysconfig.Int(policyGroup, "metricsStaleSeconds", 90)
+	metricsMissing := sysconfig.Int(policyGroup, "metricsMissingSeconds", 180)
+
+	if len(errors) == 0 {
+		if schedulerThreshold >= metricsMissing {
+			errors["platformSchedulerStaleThresholdSeconds"] = "must be less than metricsMissingSeconds"
+		}
+		if metricsStale < observerInterval*2 {
+			errors["platformObserverIntervalSeconds"] = "must allow metricsStaleSeconds >= 2x observer interval"
+		}
+		if metricsMissing < observerInterval*3 {
+			errors["platformObserverIntervalSeconds"] = "must allow metricsMissingSeconds >= 3x observer interval"
+		}
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
+}
+
+func validateMonitorManagedCollectorPolicy(v map[string]any) map[string]string {
+	errors := map[string]string{}
+
+	collectionIntervalSeconds, err := parseIntWithDefault(v["collectionIntervalSeconds"], 10)
+	if err != nil {
+		errors["collectionIntervalSeconds"] = "must be an integer"
+	} else if collectionIntervalSeconds < 5 || collectionIntervalSeconds > 300 {
+		errors["collectionIntervalSeconds"] = "must be between 5 and 300"
+	} else {
+		v["collectionIntervalSeconds"] = collectionIntervalSeconds
+	}
+
+	flushIntervalSeconds, err := parseIntWithDefault(v["flushIntervalSeconds"], 10)
+	if err != nil {
+		errors["flushIntervalSeconds"] = "must be an integer"
+	} else if flushIntervalSeconds < 5 || flushIntervalSeconds > 300 {
+		errors["flushIntervalSeconds"] = "must be between 5 and 300"
+	} else {
+		v["flushIntervalSeconds"] = flushIntervalSeconds
+	}
+
+	metricBatchSize, err := parseIntWithDefault(v["metricBatchSize"], 1000)
+	if err != nil {
+		errors["metricBatchSize"] = "must be an integer"
+	} else if metricBatchSize < 1 || metricBatchSize > 10000 {
+		errors["metricBatchSize"] = "must be between 1 and 10000"
+	} else {
+		v["metricBatchSize"] = metricBatchSize
+	}
+
+	metricBufferLimit, err := parseIntWithDefault(v["metricBufferLimit"], 5000)
+	if err != nil {
+		errors["metricBufferLimit"] = "must be an integer"
+	} else if metricBufferLimit < 1 || metricBufferLimit > 50000 {
+		errors["metricBufferLimit"] = "must be between 1 and 50000"
+	} else {
+		v["metricBufferLimit"] = metricBufferLimit
+	}
+
+	collectionJitterSeconds, err := parseIntWithDefault(v["collectionJitterSeconds"], 1)
+	if err != nil {
+		errors["collectionJitterSeconds"] = "must be an integer"
+	} else if collectionJitterSeconds < 0 || collectionJitterSeconds > 300 {
+		errors["collectionJitterSeconds"] = "must be between 0 and 300"
+	} else {
+		v["collectionJitterSeconds"] = collectionJitterSeconds
+	}
+
+	flushJitterSeconds, err := parseIntWithDefault(v["flushJitterSeconds"], 1)
+	if err != nil {
+		errors["flushJitterSeconds"] = "must be an integer"
+	} else if flushJitterSeconds < 0 || flushJitterSeconds > 300 {
+		errors["flushJitterSeconds"] = "must be between 0 and 300"
+	} else {
+		v["flushJitterSeconds"] = flushJitterSeconds
+	}
+
+	if len(errors) == 0 {
+		if metricBufferLimit < metricBatchSize {
+			errors["metricBufferLimit"] = "must be >= metricBatchSize"
+		}
+		if collectionJitterSeconds > collectionIntervalSeconds {
+			errors["collectionJitterSeconds"] = "must be <= collectionIntervalSeconds"
+		}
+		if flushJitterSeconds > flushIntervalSeconds {
+			errors["flushJitterSeconds"] = "must be <= flushIntervalSeconds"
+		}
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
+}
+
 // ─── Defaults ──────────────────────────────────────────────────────────────
 
 // fallbackForKey returns the code-level fallback for a given (module, key) pair.
 func fallbackForKey(module, key string) map[string]any {
-	fallback := settingscatalog.DefaultGroup(module, key)
+	fallback := settingsschema.DefaultGroup(module, key)
 	if len(fallback) != 0 {
 		return fallback
 	}

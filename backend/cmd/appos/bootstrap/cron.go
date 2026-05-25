@@ -3,9 +3,12 @@ package bootstrap
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/hibiken/asynq"
-	comp "github.com/websoft9/appos/backend/domain/components"
+	"github.com/websoft9/appos/backend/domain/monitor"
+	swcatalog "github.com/websoft9/appos/backend/domain/software/catalog"
+	swinventory "github.com/websoft9/appos/backend/domain/software/inventory"
 	"github.com/websoft9/appos/backend/domain/worker"
 	"github.com/websoft9/appos/backend/infra/cronutil"
 
@@ -26,7 +29,7 @@ func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 		componentsInventoryCronJobID,
 		"*/15 * * * *",
 		cronutil.Wrap(app, componentsInventoryCronJobID, func() {
-			if err := runComponentsInventoryProbe(); err != nil {
+			if err := runComponentsInventoryProbe(app); err != nil {
 				panic(err)
 			}
 		}),
@@ -40,6 +43,9 @@ func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 		monitorReachabilityCronJobID,
 		"*/1 * * * *",
 		cronutil.Wrap(app, monitorReachabilityCronJobID, func() {
+			if !shouldRunMonitorInterval(time.Now().UTC(), monitor.LoadSchedulingSettings(app).ReachabilityIntervalMinutes) {
+				return
+			}
 			if err := worker.EnqueueMonitorReachabilitySweep(asynqClient); err != nil {
 				panic(err)
 			}
@@ -50,6 +56,9 @@ func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 		monitorMetricsFreshnessCronJobID,
 		"*/1 * * * *",
 		cronutil.Wrap(app, monitorMetricsFreshnessCronJobID, func() {
+			if !shouldRunMonitorInterval(time.Now().UTC(), monitor.LoadSchedulingSettings(app).MetricsFreshnessIntervalMinutes) {
+				return
+			}
 			if err := worker.EnqueueMonitorMetricsFreshness(asynqClient); err != nil {
 				panic(err)
 			}
@@ -60,6 +69,9 @@ func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 		monitorControlReachabilityCronJobID,
 		"*/1 * * * *",
 		cronutil.Wrap(app, monitorControlReachabilityCronJobID, func() {
+			if !shouldRunMonitorInterval(time.Now().UTC(), monitor.LoadSchedulingSettings(app).ControlReachabilityIntervalMinutes) {
+				return
+			}
 			if err := worker.EnqueueMonitorControlReachability(asynqClient); err != nil {
 				panic(err)
 			}
@@ -68,8 +80,11 @@ func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 
 	app.Cron().MustAdd(
 		monitorFactsPullCronJobID,
-		"*/15 * * * *",
+		"*/1 * * * *",
 		cronutil.Wrap(app, monitorFactsPullCronJobID, func() {
+			if !shouldRunMonitorInterval(time.Now().UTC(), monitor.LoadSchedulingSettings(app).FactsPullIntervalMinutes) {
+				return
+			}
 			if err := worker.EnqueueMonitorFactsPull(asynqClient); err != nil {
 				panic(err)
 			}
@@ -80,6 +95,9 @@ func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 		monitorRuntimeSnapshotPullCronJobID,
 		"*/1 * * * *",
 		cronutil.Wrap(app, monitorRuntimeSnapshotPullCronJobID, func() {
+			if !shouldRunMonitorInterval(time.Now().UTC(), monitor.LoadSchedulingSettings(app).RuntimeSnapshotIntervalMinutes) {
+				return
+			}
 			if err := worker.EnqueueMonitorRuntimeSnapshotPull(asynqClient); err != nil {
 				panic(err)
 			}
@@ -88,8 +106,11 @@ func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 
 	app.Cron().MustAdd(
 		monitorCredentialCronJobID,
-		"*/5 * * * *",
+		"*/1 * * * *",
 		cronutil.Wrap(app, monitorCredentialCronJobID, func() {
+			if !shouldRunMonitorInterval(time.Now().UTC(), monitor.LoadSchedulingSettings(app).CredentialSweepIntervalMinutes) {
+				return
+			}
 			if err := worker.EnqueueMonitorCredentialSweep(asynqClient); err != nil {
 				panic(err)
 			}
@@ -100,6 +121,9 @@ func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 		monitorAppHealthCronJobID,
 		"*/1 * * * *",
 		cronutil.Wrap(app, monitorAppHealthCronJobID, func() {
+			if !shouldRunMonitorInterval(time.Now().UTC(), monitor.LoadSchedulingSettings(app).AppHealthIntervalMinutes) {
+				return
+			}
 			if err := worker.EnqueueMonitorAppHealthSweep(asynqClient); err != nil {
 				panic(err)
 			}
@@ -107,21 +131,30 @@ func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 	)
 }
 
-func runComponentsInventoryProbe() error {
-	registry, err := comp.LoadRegistry()
+func shouldRunMonitorInterval(now time.Time, intervalMinutes int) bool {
+	if intervalMinutes <= 1 {
+		return true
+	}
+	now = now.UTC()
+	totalMinutes := now.Hour()*60 + now.Minute()
+	return totalMinutes%intervalMinutes == 0
+}
+
+func runComponentsInventoryProbe(app *pocketbase.PocketBase) error {
+	registry, err := swcatalog.LoadLocalRegistry()
 	if err != nil {
 		return err
 	}
 
 	var probeErrors []error
 	for _, component := range registry.EnabledComponents() {
-		if _, err := comp.DetectVersion(component.VersionProbe); err != nil {
+		if _, err := swinventory.DetectVersion(app, component.VersionProbe); err != nil {
 			probeErrors = append(probeErrors, fmt.Errorf("%s version probe: %w", component.ID, err))
 		}
-		if _, err := comp.CheckAvailability(component.AvailabilityProbe); err != nil {
+		if _, err := swinventory.CheckAvailability(app, component.AvailabilityProbe); err != nil {
 			probeErrors = append(probeErrors, fmt.Errorf("%s availability probe: %w", component.ID, err))
 		}
-		_ = comp.DetectUpdateTime(component.UpdateProbe)
+		_ = swinventory.DetectUpdateTime(component.UpdateProbe)
 	}
 
 	return errors.Join(probeErrors...)

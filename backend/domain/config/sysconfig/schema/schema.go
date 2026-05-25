@@ -1,4 +1,4 @@
-package catalog
+package schema
 
 import (
 	"encoding/json"
@@ -222,13 +222,14 @@ var entryCatalog = []EntrySchema{
 	{
 		ID:      "docker-mirror",
 		Title:   "Docker Mirrors",
+			Description: "Speed up AppOS image pulls. Does not change server Docker settings.",
 		Section: SectionWorkspace,
 		Source:  SourceCustom,
 		Module:  "docker",
 		Key:     "mirror",
 		Fields: []FieldSchema{
-			{ID: "mirrors", Label: "Mirrors", Type: "string-list"},
-			{ID: "insecureRegistries", Label: "Insecure Registries", Type: "string-list"},
+				{ID: "mirrors", Label: "Pull Sources", Type: "string-list"},
+				{ID: "allowInsecureRegistries", Label: "Allow Insecure Registries", Type: "boolean"},
 		},
 	},
 	{
@@ -253,6 +254,71 @@ var entryCatalog = []EntrySchema{
 			{ID: "shareDefaultMinutes", Label: "Share Default Minutes", Type: "integer"},
 		},
 	},
+	{
+		ID:      "monitor-scheduling",
+		Title:   "Monitor Scheduling",
+		Section: SectionSystem,
+		Source:  SourceCustom,
+		Module:  "monitor",
+		Key:     "scheduling",
+		Fields: []FieldSchema{
+			{ID: "reachabilityIntervalMinutes", Label: "Reachability Interval Minutes", Type: "integer"},
+			{ID: "metricsFreshnessIntervalMinutes", Label: "Metrics Freshness Interval Minutes", Type: "integer"},
+			{ID: "controlReachabilityIntervalMinutes", Label: "Control Reachability Interval Minutes", Type: "integer"},
+			{ID: "runtimeSnapshotIntervalMinutes", Label: "Runtime Snapshot Interval Minutes", Type: "integer"},
+			{ID: "credentialSweepIntervalMinutes", Label: "Credential Sweep Interval Minutes", Type: "integer"},
+			{ID: "appHealthIntervalMinutes", Label: "App Health Interval Minutes", Type: "integer"},
+			{ID: "factsPullIntervalMinutes", Label: "Facts Pull Interval Minutes", Type: "integer"},
+		},
+	},
+	{
+		ID:      "monitor-policy",
+		Title:   "Monitor Policy",
+		Section: SectionSystem,
+		Source:  SourceCustom,
+		Module:  "monitor",
+		Key:     "policy",
+		Fields: []FieldSchema{
+			{ID: "metricsFreshnessLookbackSeconds", Label: "Metrics Freshness Lookback Seconds", Type: "integer"},
+			{ID: "metricsStaleSeconds", Label: "Metrics Stale Seconds", Type: "integer"},
+			{ID: "metricsMissingSeconds", Label: "Metrics Missing Seconds", Type: "integer"},
+			{ID: "controlProbeTimeoutSeconds", Label: "Control Probe Timeout Seconds", Type: "integer"},
+			{ID: "factsPullTimeoutSeconds", Label: "Facts Pull Timeout Seconds", Type: "integer"},
+			{ID: "runtimePullTimeoutSeconds", Label: "Runtime Pull Timeout Seconds", Type: "integer"},
+			{ID: "factsPullConcurrency", Label: "Facts Pull Concurrency", Type: "integer"},
+			{ID: "runtimePullConcurrency", Label: "Runtime Pull Concurrency", Type: "integer"},
+		},
+	},
+	{
+		ID:      "monitor-platform-self-observation",
+		Title:   "Platform Self-Observation",
+		Section: SectionSystem,
+		Source:  SourceCustom,
+		Module:  "monitor",
+		Key:     "platform-self-observation",
+		Fields: []FieldSchema{
+			{ID: "platformObserverIntervalSeconds", Label: "Platform Observer Interval Seconds", Type: "integer", HelpText: "Cadence for AppOS-local self-observation writes."},
+			{ID: "platformSchedulerStaleThresholdSeconds", Label: "Platform Scheduler Stale Threshold Seconds", Type: "integer", HelpText: "Mark the scheduler degraded when its latest tick is older than this threshold."},
+			{ID: "enableHostTelemetry", Label: "Enable Host Telemetry", Type: "boolean", HelpText: "Collect AppOS-local host telemetry when runtime capability is available."},
+			{ID: "enableContainerTelemetry", Label: "Enable Container Telemetry", Type: "boolean", HelpText: "Collect AppOS-local container telemetry when runtime capability is available."},
+		},
+	},
+	{
+		ID:      "monitor-managed-collector-policy",
+		Title:   "Managed Collector Policy",
+		Section: SectionSystem,
+		Source:  SourceCustom,
+		Module:  "monitor",
+		Key:     "managed-collector-policy",
+		Fields: []FieldSchema{
+			{ID: "collectionIntervalSeconds", Label: "Collection Interval Seconds", Type: "integer", HelpText: "Cadence for managed monitor-agent metric collection on remote servers."},
+			{ID: "flushIntervalSeconds", Label: "Flush Interval Seconds", Type: "integer", HelpText: "Cadence for batched writes from monitor-agent to AppOS."},
+			{ID: "metricBatchSize", Label: "Metric Batch Size", Type: "integer", HelpText: "Maximum metrics sent in a single write batch."},
+			{ID: "metricBufferLimit", Label: "Metric Buffer Limit", Type: "integer", HelpText: "Maximum buffered metrics retained before backpressure and drops."},
+			{ID: "collectionJitterSeconds", Label: "Collection Jitter Seconds", Type: "integer", HelpText: "Randomized collection delay used to avoid synchronized bursts."},
+			{ID: "flushJitterSeconds", Label: "Flush Jitter Seconds", Type: "integer", HelpText: "Randomized flush delay used to smooth write bursts toward AppOS."},
+		},
+	},
 }
 
 var customSettingDefaults = map[string]map[string]any{
@@ -268,7 +334,7 @@ var customSettingDefaults = map[string]map[string]any{
 		"httpProxy": "", "httpsProxy": "", "noProxy": "", "username": "", "password": "",
 	},
 	"docker/mirror": {
-		"mirrors": []any{}, "insecureRegistries": []any{},
+		"mirrors": []any{}, "allowInsecureRegistries": false,
 	},
 	"docker/registries": {"items": []any{}},
 	"connect/sftp":      {"maxUploadFiles": 10},
@@ -288,6 +354,39 @@ var customSettingDefaults = map[string]map[string]any{
 	"topic/share": {
 		"shareMaxMinutes":     60,
 		"shareDefaultMinutes": 30,
+	},
+	"monitor/scheduling": {
+		"reachabilityIntervalMinutes":        1,
+		"metricsFreshnessIntervalMinutes":    1,
+		"controlReachabilityIntervalMinutes": 1,
+		"runtimeSnapshotIntervalMinutes":     1,
+		"credentialSweepIntervalMinutes":     5,
+		"appHealthIntervalMinutes":           1,
+		"factsPullIntervalMinutes":           15,
+	},
+	"monitor/policy": {
+		"metricsFreshnessLookbackSeconds": 300,
+		"metricsStaleSeconds":             90,
+		"metricsMissingSeconds":           180,
+		"controlProbeTimeoutSeconds":      5,
+		"factsPullTimeoutSeconds":         20,
+		"runtimePullTimeoutSeconds":       20,
+		"factsPullConcurrency":            5,
+		"runtimePullConcurrency":          5,
+	},
+	"monitor/platform-self-observation": {
+		"platformObserverIntervalSeconds":        30,
+		"platformSchedulerStaleThresholdSeconds": 10,
+		"enableHostTelemetry":                    false,
+		"enableContainerTelemetry":               false,
+	},
+	"monitor/managed-collector-policy": {
+		"collectionIntervalSeconds": 10,
+		"flushIntervalSeconds":      10,
+		"metricBatchSize":           1000,
+		"metricBufferLimit":         5000,
+		"collectionJitterSeconds":   1,
+		"flushJitterSeconds":        1,
 	},
 }
 
@@ -347,12 +446,12 @@ func cloneMap(input map[string]any) map[string]any {
 	if err != nil {
 		return map[string]any{}
 	}
-	var output map[string]any
-	if err := json.Unmarshal(raw, &output); err != nil {
+	var out map[string]any
+	if err := json.Unmarshal(raw, &out); err != nil {
 		return map[string]any{}
 	}
-	if output == nil {
+	if out == nil {
 		return map[string]any{}
 	}
-	return output
+	return out
 }

@@ -57,7 +57,7 @@ func buildNetworkTrafficSeries(ctx context.Context, service *monitortsdb.Service
 }
 
 func buildNetworkQueriesForTarget(targetType, targetID, selectedInterface string) (string, string, map[string]string) {
-	if isNetdataPlatformTarget(targetType, targetID) {
+	if isAppOSCorePlatformTarget(targetType, targetID) {
 		selected := selectedInterface
 		if selected == "" {
 			selected = monitortsdb.AllNetworkInterfaces

@@ -9,7 +9,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
+	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 )
 
 const (
@@ -173,7 +173,7 @@ func GetPolicy(app core.App) Policy {
 	if app == nil {
 		return DefaultPolicy()
 	}
-	policy, _ := sysconfig.GetGroup(app, SettingsModule, PolicySettingsKey, settingscatalog.DefaultGroup(SettingsModule, PolicySettingsKey))
+	policy, _ := sysconfig.GetGroup(app, SettingsModule, PolicySettingsKey, settingsschema.DefaultGroup(SettingsModule, PolicySettingsKey))
 	return NormalizePolicy(policy)
 }
 

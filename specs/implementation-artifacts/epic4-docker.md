@@ -18,7 +18,7 @@ It answers:
 
 It does not own runtime telemetry trends or health judgment. Those belong to Epic 28 Monitoring.
 
-**Status**: Stories 4.1-4.3 Complete, 4.4 Ready for Dev, 4.5 Deferred, 4.6 Proposed | **Priority**: P0 | **Depends on**: Epic 1, Epic 3
+**Status**: Stories 4.1-4.3 Complete, 4.4 Ready for Dev, 4.5 Deferred, 4.6 Proposed, 4.7 Draft, 4.8 Proposed | **Priority**: P0 | **Depends on**: Epic 1, Epic 3
 
 ## API Direction
 
@@ -153,7 +153,7 @@ List responses may still include `host` or `server_id` fields for operator clari
 |--------|------|-------------|
 | POST | `/api/servers/{serverId}/docker/exec` | Execute arbitrary docker command (body: `{command}`) |
 
-## Stories (5)
+## Stories (7)
 
 ### 4.1: Executor Interface ✅
 - Define `Executor` interface (`Run`, `RunStream`, `Ping`, `Host`) — wraps any shell command
@@ -206,11 +206,26 @@ Historical delivery note: the originally implemented standalone `/docker` dashbo
 - keep existing submit (`POST /images/pull`) and single-operation detail (`GET /image-pull-operations/{operationId}`) contracts unchanged
 - keep cancellation narrow to queued pull operations only
 
+### 4.7: Docker Volume Files
+- add a minimal `Open files` action in `Server Detail > Docker > Volumes`
+- reuse the existing Files experience for one volume mountpoint instead of creating a Docker-specific editor
+- lock navigation and write operations to the selected volume root
+- prefer existing server file access paths over adding Docker-volume-specific backend APIs
+
+### 4.8: Docker Settings
+- keep Docker settings intentionally narrow and platform-oriented
+- preserve `Docker Mirrors` as the source-routing setting
+- add `Image Pull Network Policy` for pull timeout and retry behavior
+- keep `docker-registries` as a reference-only transitional entry instead of a full editable settings surface
+- avoid broadening Docker settings into proxy, default registry, or daemon expert controls
+
 ## Implementation Order
 
 ```
 4.1 (Executor + Compose) → 4.2 (Resources) → 4.3 (Frontend workspace) → 4.4 (Overview simplification) → 4.5 (Remote, future)
-                                                                                                    └→ 4.6 (Pull activity)
+                                                                                                    ├→ 4.6 (Pull activity)
+                                                                                                    ├→ 4.7 (Volume files)
+                                                                                                    └→ 4.8 (Docker settings)
 ```
 
 ## Definition of Done
@@ -269,6 +284,20 @@ Target follow-up still pending for Story 4.3 scope:
 - [x] `POST /api/servers/{serverId}/docker/image-pull-operations/{operationId}/cancel` cancels one queued pull
 - [x] Images tab shows both current pulls and recent pulls from the shared list contract
 - [x] existing submit/detail contracts remain unchanged
+
+### Story 4.7
+- [ ] Volumes rows expose an `Open files` action for one selected volume
+- [ ] The volume files dialog opens at the volume `Mountpoint`
+- [ ] Navigation and path-based mutations stay locked to the selected volume root
+- [ ] Existing shared file APIs and editor flows are reused where possible
+- [ ] No Docker-volume-specific backend route family is introduced unless shared file access proves insufficient
+
+### Story 4.8
+- [ ] Docker settings remain narrow and contain only `Docker Mirrors` plus `Image Pull Network Policy` as first-class Docker behavior entries
+- [ ] `Image Pull Network Policy` is limited to timeout and retry semantics
+- [ ] `docker-registries` remains a reference-only transitional entry rather than a full editable Docker settings card
+- [ ] No global `default registry` setting is introduced
+- [ ] Docker settings do not absorb proxy or raw daemon expert controls
 
 ## Technical Notes
 

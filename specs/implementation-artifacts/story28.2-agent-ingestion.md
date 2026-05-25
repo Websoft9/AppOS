@@ -268,7 +268,7 @@ Read-model contract derived from those TSDB series:
 
 Migration note for current prototype code:
 
-- existing provisional names such as `appos_container_cpu_usage` and `appos_container_memory_bytes` should be treated as interim implementation names, not the Story 28.2 final contract
+- legacy pre-canonical container series names should be treated as interim implementation details, not the Story 28.2 final contract
 - Story 28.2 should close only after write allowlists, query mappings, and read APIs converge on the canonical series listed above
 
 Storage semantics guidance:

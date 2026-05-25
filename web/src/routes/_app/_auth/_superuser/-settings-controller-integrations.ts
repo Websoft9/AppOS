@@ -6,13 +6,13 @@ import { type ShowToast } from './-settings-controller-shared'
 
 export function useIntegrationSettingsController(showToast: ShowToast) {
   const [mirrors, setMirrors] = useState<string[]>([])
-  const [insecureRegs, setInsecureRegs] = useState<string[]>([])
+  const [allowInsecureRegistries, setAllowInsecureRegistries] = useState(false)
   const [mirrorsSaving, setMirrorsSaving] = useState(false)
 
   const hydrateIntegrationEntries = useCallback((entryMap: Map<string, unknown>) => {
     const mirror = (entryMap.get('docker-mirror') as Partial<DockerMirror>) ?? {}
     setMirrors(Array.isArray(mirror.mirrors) ? mirror.mirrors : [])
-    setInsecureRegs(Array.isArray(mirror.insecureRegistries) ? mirror.insecureRegistries : [])
+    setAllowInsecureRegistries(Boolean(mirror.allowInsecureRegistries))
   }, [])
 
   const saveDockerMirrors = async () => {
@@ -22,7 +22,7 @@ export function useIntegrationSettingsController(showToast: ShowToast) {
         method: 'PATCH',
         body: {
           mirrors: mirrors.filter(Boolean),
-          insecureRegistries: insecureRegs.filter(Boolean),
+          allowInsecureRegistries,
         },
       })
       showToast('Docker mirror settings saved')
@@ -35,10 +35,10 @@ export function useIntegrationSettingsController(showToast: ShowToast) {
 
   return {
     mirrors,
-    insecureRegs,
+    allowInsecureRegistries,
     mirrorsSaving,
     setMirrors,
-    setInsecureRegs,
+    setAllowInsecureRegistries,
     saveDockerMirrors,
     hydrateIntegrationEntries,
   }

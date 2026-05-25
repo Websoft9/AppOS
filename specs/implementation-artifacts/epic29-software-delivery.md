@@ -11,6 +11,8 @@ Migration note: Epic 29 supersedes the installed-component and detection-pipelin
 This epic covers:
 
 - what software components AppOS owns
+- which built-in platform services each local software component defines
+- how service identity and log-access metadata are described for AppOS-owned software
 - how AppOS-local software and server-target software stay under one domain language
 - how they are delivered, installed, upgraded, and verified
 - whether a target node is ready to satisfy required capabilities
@@ -25,6 +27,8 @@ For the MVP phase, keep one epic only. Software Delivery owns target readiness a
 ### In
 
 - AppOS-local bundled software inventory and metadata
+- built-in service definitions owned by AppOS-local software components
+- service-to-component bindings and log-access metadata for AppOS-owned services
 - component catalog and software identity
 - target-scoped installed component snapshots (for both `local` and `server` targets)
 - install, upgrade, verify, and reinstall actions
@@ -46,9 +50,30 @@ For the same software component, the split is:
 
 - **Software Delivery** answers: what is installed, at what version, and is it available?
   This applies to both `local` targets (AppOS container components) and `server` targets.
+- **Software Delivery** also answers: which built-in services belong to that component,
+  how those services should be named in operator-facing inventory, and how logs for
+  those services can be accessed.
 - **Monitor** answers: is it running right now, and is it healthy?
   Monitor is a consumer of Software Delivery inventory events. It does not own
   install, upgrade, or readiness workflows.
+
+For AppOS-local built-in services, the contract split should remain:
+
+- **Software Delivery owns service definitions**
+  - service identity
+  - component-to-service binding
+  - role description
+  - log access metadata such as supervisor/file access details
+- **Monitor owns service observations**
+  - running/missing/degraded state
+  - uptime
+  - CPU and memory usage
+  - freshness/history evidence
+  - health judgment and degraded reason
+
+This avoids introducing a third standalone `runtime` domain only to hold a thin
+service catalog. The catalog/definition side belongs to Software Delivery; the
+live observation side belongs to Monitor.
 
 For control-plane-reporting components such as the monitor agent, the operator-facing inventory needs two dimensions:
 
@@ -95,7 +120,19 @@ Core language:
 - `DeliveryTarget`
 - `ComponentTemplate`
 - `InstalledComponentSnapshot`
+- `BuiltInComponent`
+- `ServiceDefinition`
+- `ServiceLogAccess`
 - `Capability`
+
+For `local` targets, Software Delivery may project a richer built-in-component shape
+than the old lightweight components list. That richer local contract may include:
+
+- component identity and role
+- detected version and availability
+- built-in service definitions
+- log-access metadata for those services
+- packaged/support notes for the AppOS runtime envelope
 
 Target types:
 
@@ -187,3 +224,4 @@ Legacy implementation history from the superseded split stories is preserved in 
 
 - expose the read-only AppOS-local software inventory under `Resources`
 - keep AppOS-local inventory first-class without mixing it into server operations or discovery surfaces
+- treat built-in components and their service definitions as Software Delivery-owned local inventory data

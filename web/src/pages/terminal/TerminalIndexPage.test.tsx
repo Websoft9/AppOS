@@ -66,6 +66,7 @@ describe('TerminalIndexPage', () => {
 
   afterEach(() => {
     cleanup()
+    localStorage.clear()
   })
 
   it('shows idle and multi-session badges for active backend terminal sessions', async () => {
@@ -191,6 +192,153 @@ describe('TerminalIndexPage', () => {
     })
 
     expect(checkServerStatusMock).not.toHaveBeenCalled()
+  })
+
+  it('restores all active sessions into a workspace from the active sessions header', async () => {
+    listTerminalSessionsMock.mockResolvedValue([
+      {
+        id: 'tab-older',
+        user_id: 'user-1',
+        resource_type: 'server',
+        resource_id: 'srv-1',
+        session_type: 'ssh',
+        state: 'detached',
+        started_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+        last_active_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+        workspace: {
+          side_panel: 'files',
+          file_path: '/var/log',
+          locked_root: '/var',
+          split_ratio: 0.35,
+        },
+      },
+      {
+        id: 'tab-newer',
+        user_id: 'user-1',
+        resource_type: 'server',
+        resource_id: 'srv-2',
+        session_type: 'ssh',
+        state: 'attached',
+        started_at: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+        last_active_at: new Date(Date.now() - 60 * 1000).toISOString(),
+        workspace: {},
+      },
+    ])
+
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Restore Workspace' }))
+
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith({
+        to: '/terminal/server/$serverId',
+        params: { serverId: 'srv-2' },
+        search: {
+          activeSessionId: 'tab-newer',
+          restoreSessions: [
+            {
+              sessionId: 'tab-newer',
+              serverId: 'srv-2',
+              title: 'Beta',
+              panel: undefined,
+              path: undefined,
+              lockedRoot: undefined,
+              split: undefined,
+            },
+            {
+              sessionId: 'tab-older',
+              serverId: 'srv-1',
+              title: 'Alpha',
+              panel: 'files',
+              path: '/var/log',
+              lockedRoot: '/var',
+              split: 0.35,
+            },
+          ],
+        },
+      })
+    })
+  })
+
+  it('prefers saved workspace tab order and active session when restoring all sessions', async () => {
+    localStorage.setItem(
+      'connect.workspace.v1',
+      JSON.stringify({
+        tabs: [
+          { sessionId: 'tab-older', serverId: 'srv-1', title: 'Alpha saved' },
+          { sessionId: 'tab-newer', serverId: 'srv-2', title: 'Beta saved' },
+        ],
+        activeSessionId: 'tab-older',
+        workspaceBySessionId: {
+          'tab-older': {
+            panel: 'files',
+            path: '/srv/app',
+            lockedRoot: '/srv',
+            split: 0.42,
+          },
+        },
+        updatedAt: Date.now(),
+      })
+    )
+
+    listTerminalSessionsMock.mockResolvedValue([
+      {
+        id: 'tab-newer',
+        user_id: 'user-1',
+        resource_type: 'server',
+        resource_id: 'srv-2',
+        session_type: 'ssh',
+        state: 'attached',
+        started_at: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+        last_active_at: new Date(Date.now() - 60 * 1000).toISOString(),
+        workspace: {},
+      },
+      {
+        id: 'tab-older',
+        user_id: 'user-1',
+        resource_type: 'server',
+        resource_id: 'srv-1',
+        session_type: 'ssh',
+        state: 'detached',
+        started_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+        last_active_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+        workspace: {},
+      },
+    ])
+
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Restore Workspace' }))
+
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith({
+        to: '/terminal/server/$serverId',
+        params: { serverId: 'srv-1' },
+        search: {
+          activeSessionId: 'tab-older',
+          restoreSessions: [
+            {
+              sessionId: 'tab-older',
+              serverId: 'srv-1',
+              title: 'Alpha saved',
+              panel: 'files',
+              path: '/srv/app',
+              lockedRoot: '/srv',
+              split: 0.42,
+            },
+            {
+              sessionId: 'tab-newer',
+              serverId: 'srv-2',
+              title: 'Beta saved',
+              panel: undefined,
+              path: undefined,
+              lockedRoot: undefined,
+              split: undefined,
+            },
+          ],
+        },
+      })
+    })
   })
 
   it('opens a connected server from the left list as a fresh terminal entry', async () => {

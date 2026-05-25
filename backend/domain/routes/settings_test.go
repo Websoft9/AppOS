@@ -162,6 +162,10 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 	var foundIacFiles bool
 	var foundTunnel bool
 	var foundSecrets bool
+	var foundMonitorScheduling bool
+	var foundMonitorPolicy bool
+	var foundMonitorPlatformSelfObservation bool
+	var foundMonitorManagedCollectorPolicy bool
 	for _, item := range items {
 		id, _ := item["id"].(string)
 		value, _ := item["value"].(map[string]any)
@@ -172,6 +176,14 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 			foundTunnel = value != nil && int(value["start"].(float64)) == 40000 && int(value["end"].(float64)) == 49999
 		case "secrets-policy":
 			foundSecrets = value != nil && value["defaultAccessMode"] == string(secrets.AccessModeUseOnly)
+		case "monitor-scheduling":
+			foundMonitorScheduling = value != nil && int(value["factsPullIntervalMinutes"].(float64)) == 15
+		case "monitor-policy":
+			foundMonitorPolicy = value != nil && int(value["metricsMissingSeconds"].(float64)) == 180
+		case "monitor-platform-self-observation":
+			foundMonitorPlatformSelfObservation = value != nil && int(value["platformObserverIntervalSeconds"].(float64)) == 30
+		case "monitor-managed-collector-policy":
+			foundMonitorManagedCollectorPolicy = value != nil && int(value["collectionIntervalSeconds"].(float64)) == 10
 		}
 	}
 
@@ -183,6 +195,18 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 	}
 	if !foundSecrets {
 		t.Fatal("expected secrets-policy fallback value")
+	}
+	if !foundMonitorScheduling {
+		t.Fatal("expected monitor-scheduling fallback value")
+	}
+	if !foundMonitorPolicy {
+		t.Fatal("expected monitor-policy fallback value")
+	}
+	if !foundMonitorPlatformSelfObservation {
+		t.Fatal("expected monitor-platform-self-observation fallback value")
+	}
+	if !foundMonitorManagedCollectorPolicy {
+		t.Fatal("expected monitor-managed-collector-policy fallback value")
 	}
 }
 
@@ -215,6 +239,33 @@ func TestSettingsEntryPatchValidation(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "maxSizeMB") {
 		t.Fatalf("expected iac-files validation error, got %s", rec.Body.String())
+	}
+
+	badMonitorPolicy := `{"metricsFreshnessLookbackSeconds":120,"metricsStaleSeconds":90,"metricsMissingSeconds":90}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/monitor-policy", badMonitorPolicy, true)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 for invalid monitor-policy, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "metricsMissingSeconds") {
+		t.Fatalf("expected monitor-policy validation error, got %s", rec.Body.String())
+	}
+
+	badMonitorPlatformSelfObservation := `{"platformObserverIntervalSeconds":100,"platformSchedulerStaleThresholdSeconds":200,"enableHostTelemetry":"not-bool"}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/monitor-platform-self-observation", badMonitorPlatformSelfObservation, true)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 for invalid monitor-platform-self-observation, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "enableHostTelemetry") {
+		t.Fatalf("expected monitor-platform-self-observation validation error, got %s", rec.Body.String())
+	}
+
+	badMonitorManagedCollectorPolicy := `{"collectionIntervalSeconds":10,"flushIntervalSeconds":10,"metricBatchSize":2000,"metricBufferLimit":1000,"collectionJitterSeconds":11,"flushJitterSeconds":1}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/monitor-managed-collector-policy", badMonitorManagedCollectorPolicy, true)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 for invalid monitor-managed-collector-policy, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "metricBufferLimit") {
+		t.Fatalf("expected monitor-managed-collector-policy validation error, got %s", rec.Body.String())
 	}
 }
 
@@ -286,6 +337,61 @@ func TestSettingsEntryPatchPersistsUnifiedValues(t *testing.T) {
 	}
 	if got := sysconfig.String(storedIacFiles, "extensionBlacklist", ""); got != ".exe,.bin" {
 		t.Fatalf("expected extensionBlacklist .exe,.bin, got %q", got)
+	}
+
+	monitorSchedulingBody := `{"reachabilityIntervalMinutes":2,"metricsFreshnessIntervalMinutes":3,"controlReachabilityIntervalMinutes":4,"runtimeSnapshotIntervalMinutes":5,"credentialSweepIntervalMinutes":6,"appHealthIntervalMinutes":7,"factsPullIntervalMinutes":8}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/monitor-scheduling", monitorSchedulingBody, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for monitor-scheduling patch, got %d: %s", rec.Code, rec.Body.String())
+	}
+	storedMonitorScheduling, err := sysconfig.GetGroup(te.app, "monitor", "scheduling", nil)
+	if err != nil {
+		t.Fatalf("expected stored monitor scheduling, got error: %v", err)
+	}
+	if got := sysconfig.Int(storedMonitorScheduling, "factsPullIntervalMinutes", 0); got != 8 {
+		t.Fatalf("expected factsPullIntervalMinutes 8, got %d", got)
+	}
+
+	monitorPolicyBody := `{"metricsFreshnessLookbackSeconds":600,"metricsStaleSeconds":120,"metricsMissingSeconds":240,"controlProbeTimeoutSeconds":10,"factsPullTimeoutSeconds":30,"runtimePullTimeoutSeconds":40,"factsPullConcurrency":6,"runtimePullConcurrency":7}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/monitor-policy", monitorPolicyBody, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for monitor-policy patch, got %d: %s", rec.Code, rec.Body.String())
+	}
+	storedMonitorPolicy, err := sysconfig.GetGroup(te.app, "monitor", "policy", nil)
+	if err != nil {
+		t.Fatalf("expected stored monitor policy, got error: %v", err)
+	}
+	if got := sysconfig.Int(storedMonitorPolicy, "metricsMissingSeconds", 0); got != 240 {
+		t.Fatalf("expected metricsMissingSeconds 240, got %d", got)
+	}
+
+	monitorPlatformSelfObservationBody := `{"platformObserverIntervalSeconds":30,"platformSchedulerStaleThresholdSeconds":20,"enableHostTelemetry":true,"enableContainerTelemetry":true}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/monitor-platform-self-observation", monitorPlatformSelfObservationBody, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for monitor-platform-self-observation patch, got %d: %s", rec.Code, rec.Body.String())
+	}
+	storedMonitorPlatformSelfObservation, err := sysconfig.GetGroup(te.app, "monitor", "platform-self-observation", nil)
+	if err != nil {
+		t.Fatalf("expected stored monitor platform self observation, got error: %v", err)
+	}
+	if got := sysconfig.Int(storedMonitorPlatformSelfObservation, "platformSchedulerStaleThresholdSeconds", 0); got != 20 {
+		t.Fatalf("expected platformSchedulerStaleThresholdSeconds 20, got %d", got)
+	}
+	if got, ok := storedMonitorPlatformSelfObservation["enableHostTelemetry"].(bool); !ok || !got {
+		t.Fatalf("expected enableHostTelemetry true, got %#v", storedMonitorPlatformSelfObservation["enableHostTelemetry"])
+	}
+
+	monitorManagedCollectorPolicyBody := `{"collectionIntervalSeconds":15,"flushIntervalSeconds":20,"metricBatchSize":1500,"metricBufferLimit":6000,"collectionJitterSeconds":2,"flushJitterSeconds":3}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/monitor-managed-collector-policy", monitorManagedCollectorPolicyBody, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for monitor-managed-collector-policy patch, got %d: %s", rec.Code, rec.Body.String())
+	}
+	storedMonitorManagedCollectorPolicy, err := sysconfig.GetGroup(te.app, "monitor", "managed-collector-policy", nil)
+	if err != nil {
+		t.Fatalf("expected stored monitor managed collector policy, got error: %v", err)
+	}
+	if got := sysconfig.Int(storedMonitorManagedCollectorPolicy, "metricBufferLimit", 0); got != 6000 {
+		t.Fatalf("expected metricBufferLimit 6000, got %d", got)
 	}
 }
 

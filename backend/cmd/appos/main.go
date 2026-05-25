@@ -38,6 +38,7 @@ func main() {
 		snap := w.Snapshot()
 		return monitorplatform.RuntimeSnapshot{
 			StartedAt:         snap.StartedAt,
+			ServerRunning:     snap.ServerRunning,
 			WorkerRunning:     snap.ServerRunning,
 			SchedulerRunning:  snap.SchedulerRunning,
 			SchedulerLastTick: snap.SchedulerLastTick,

@@ -8,21 +8,9 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
-import { ActiveServicesContent } from '@/pages/components/ComponentsPage'
-import {
   fetchActiveServices,
-  fetchInstalledComponents,
-  formatComponentStatusTime,
-  type ComponentItem,
   type ServiceItem,
-} from '@/pages/components/component-status-shared'
+} from '@/pages/platform-components/platform-component-status-shared'
 import {
   formatBytes,
   formatStatusLabel,
@@ -56,7 +44,25 @@ type MonitorSeriesResponse = {
   series: MonitorSeries[]
 }
 
-type RangeOption = '1h' | '6h' | '24h' | '7d' | 'custom'
+type MonitorLatestResponse = {
+  targetType: string
+  targetId: string
+  cadenceSeconds?: number
+  series: MonitorSeries[]
+}
+
+type RangeOption =
+  | '1m'
+  | '5m'
+  | '15m'
+  | '0.5h'
+  | '1h'
+  | '5h'
+  | '12h'
+  | '24h'
+  | '7d'
+  | 'custom'
+
 type CapabilityLevel = 'available' | 'limited' | 'unavailable'
 type SignalLevel = 'healthy' | 'degraded' | 'unavailable' | 'unknown'
 type CustomRangeState = {
@@ -70,6 +76,10 @@ type AvailabilityCapability = {
   reason: string
 }
 
+function isDocumentVisible(): boolean {
+  return typeof document === 'undefined' || document.visibilityState === 'visible'
+}
+
 type AvailabilitySummary = {
   level: SignalLevel
   title: string
@@ -79,13 +89,36 @@ type AvailabilitySummary = {
   capabilities: AvailabilityCapability[]
 }
 
-const PLATFORM_PERFORMANCE_SERIES_QUERY = 'cpu,memory,disk_usage,disk,network'
+type LatestStatItem = {
+  key: string
+  label: string
+  value: string
+  unit: string
+  variant: 'gauge' | 'bars'
+  updatedAt: number | null
+  percent: number | null
+  bars: Array<{
+    key: string
+    label: string
+    display: string
+    percent: number
+  }>
+}
+
+const PLATFORM_PERFORMANCE_SERIES_QUERY = 'cpu,memory,disk_usage,disk,network,network_traffic'
+const PLATFORM_LATEST_QUERY = 'cpu,memory,disk_usage,disk,network,network_traffic'
+const LATEST_STAT_ORDER = ['cpu', 'memory', 'disk_usage', 'disk', 'network', 'network_traffic']
 const RANGE_OPTIONS: Array<{ value: RangeOption; label: string }> = [
+  { value: '1m', label: '1m' },
+  { value: '5m', label: '5m' },
+  { value: '15m', label: '15m' },
+  { value: '0.5h', label: '0.5h' },
   { value: '1h', label: '1h' },
-  { value: '6h', label: '6h' },
+  { value: '5h', label: '5h' },
+  { value: '12h', label: '12h' },
   { value: '24h', label: '24h' },
   { value: '7d', label: '7d' },
-  { value: 'custom', label: 'Custom' },
+  { value: 'custom', label: 'custom' },
 ]
 
 function toLocalDateTimeInputValue(value: Date): string {
@@ -145,12 +178,259 @@ function formatSeriesLabel(value: string): string {
   if (normalized === 'memory_percent') return 'MEM %'
   if (normalized === 'disk') return 'BLOCK I/O'
   if (normalized === 'network') return 'NET I/O'
+  if (normalized === 'network_traffic') return 'Network Traffic'
   return formatStatusLabel(value)
+}
+
+function numericSummaryValue(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function buildPlatformSummaryFallbackSeries(
+  summary?: Record<string, unknown>,
+  observedAt?: string
+): MonitorSeries[] {
+  if (!summary) return []
+  const timestamp = (() => {
+    const parsed = observedAt ? new Date(observedAt) : null
+    if (parsed && !Number.isNaN(parsed.getTime())) return Math.floor(parsed.getTime() / 1000)
+    return Math.floor(Date.now() / 1000)
+  })()
+  const cpuPercent = numericSummaryValue(summary.cpu_percent)
+  const memoryUsed = numericSummaryValue(summary.memory_bytes)
+  const memoryAvailable = numericSummaryValue(summary.memory_available_bytes)
+  const items: MonitorSeries[] = []
+
+  if (cpuPercent !== null) {
+    items.push({ name: 'cpu', unit: 'percent', points: [[timestamp, cpuPercent]] })
+  }
+  if (memoryUsed !== null) {
+    items.push({
+      name: 'memory',
+      unit: 'bytes',
+      segments: [
+        { name: 'used', points: [[timestamp, memoryUsed]] },
+        ...(memoryAvailable !== null ? [{ name: 'available', points: [[timestamp, memoryAvailable]] }] : []),
+      ],
+    })
+  }
+
+  return items
+}
+
+function hasUsableSeriesData(series: MonitorSeries | undefined): boolean {
+  if (!series) return false
+  if ((series.points ?? []).some(point => Number.isFinite(point[1] ?? NaN))) {
+    return true
+  }
+  return (series.segments ?? []).some(segment =>
+    segment.points.some(point => Number.isFinite(point[1] ?? NaN))
+  )
 }
 
 function latestValue(points: number[][]): number | null {
   const values = points.map(point => point[1]).filter(value => Number.isFinite(value))
   return values.length > 0 ? values[values.length - 1] : null
+}
+
+function clampPercent(value: number): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.max(0, Math.min(100, value))
+}
+
+function latestTimestamp(points: number[][]): number | null {
+  const timestamps = points.map(point => point[0]).filter(value => Number.isFinite(value))
+  return timestamps.length > 0 ? timestamps[timestamps.length - 1] * 1000 : null
+}
+
+function latestMetricTimestamp(item: MonitorSeries): number | null {
+  const direct = latestTimestamp(item.points ?? [])
+  const segmentLatest = (item.segments ?? []).reduce<number | null>((current, segment) => {
+    const timestamp = latestTimestamp(segment.points)
+    if (timestamp === null) return current
+    if (current === null || timestamp > current) return timestamp
+    return current
+  }, null)
+  if (direct === null) return segmentLatest
+  if (segmentLatest === null) return direct
+  return Math.max(direct, segmentLatest)
+}
+
+function latestStatsUpdatedAt(series: MonitorSeries[]): { oldest: number | null; newest: number | null } {
+  return series.reduce(
+    (current, item) => {
+      const timestamp = latestMetricTimestamp(item)
+      if (timestamp === null) return current
+      return {
+        oldest: current.oldest === null || timestamp < current.oldest ? timestamp : current.oldest,
+        newest: current.newest === null || timestamp > current.newest ? timestamp : current.newest,
+      }
+    },
+    { oldest: null, newest: null } as { oldest: number | null; newest: number | null }
+  )
+}
+
+function latestSegmentValue(item: MonitorSeries, name: string): number | null {
+  const segment = item.segments?.find(candidate => candidate.name === name)
+  return segment ? latestValue(segment.points) : null
+}
+
+function metricPercent(item: MonitorSeries): number | null {
+  const latest = latestValue(item.points ?? [])
+  if (item.unit === 'percent' && latest !== null) return clampPercent(latest)
+  if (item.name === 'memory') {
+    const used = latestSegmentValue(item, 'used') ?? latest
+    const available = latestSegmentValue(item, 'available')
+    if (used !== null && available !== null && used + available > 0) {
+      return clampPercent((used / (used + available)) * 100)
+    }
+  }
+  if (item.name === 'disk_usage') {
+    const used = latestSegmentValue(item, 'used')
+    const free = latestSegmentValue(item, 'free')
+    if (used !== null && free !== null && used + free > 0) {
+      return clampPercent((used / (used + free)) * 100)
+    }
+  }
+  return null
+}
+
+function formatSeriesLatestLabel(item: MonitorSeries): string {
+  const latest = latestValue(item.points ?? [])
+  const latestUsed = latestSegmentValue(item, 'used')
+  const latestAvailable = latestSegmentValue(item, 'available')
+  const latestFree = latestSegmentValue(item, 'free')
+  const latestRead = latestSegmentValue(item, 'read')
+  const latestWrite = latestSegmentValue(item, 'write')
+  const latestInbound = latestSegmentValue(item, 'in')
+  const latestOutbound = latestSegmentValue(item, 'out')
+
+  if (latest !== null) {
+    return formatTrendValue(item.unit, item.name, latest)
+  }
+  if (item.name === 'memory' && latestUsed !== null) {
+    if (latestAvailable !== null) {
+      const limit = latestUsed + latestAvailable
+      return `${formatBytes(latestUsed)} used / ${formatBytes(limit)} limit`
+    }
+    return `${formatBytes(latestUsed)} used`
+  }
+  if (item.name === 'disk_usage' && (latestUsed !== null || latestFree !== null)) {
+    return `${latestUsed === null ? '—' : formatBytes(latestUsed)} used${latestFree === null ? '' : ` / ${formatBytes(latestFree)} free`}`
+  }
+  if (item.name === 'disk' && (latestRead !== null || latestWrite !== null)) {
+    return `${latestRead === null ? '—' : `${formatBytes(latestRead)}/s`} read${latestWrite === null ? '' : ` / ${formatBytes(latestWrite)}/s write`}`
+  }
+  if (item.name === 'network' && (latestInbound !== null || latestOutbound !== null)) {
+    return `${latestInbound === null ? '—' : `${formatBytes(latestInbound)}/s`} in${latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)}/s out`}`
+  }
+  if (item.name === 'network_traffic' && (latestInbound !== null || latestOutbound !== null)) {
+    return `${latestInbound === null ? '—' : formatBytes(latestInbound)} in${latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)} out`}`
+  }
+  return '—'
+}
+
+function comparisonBars(item: MonitorSeries) {
+  const pairs =
+    item.name === 'disk'
+      ? [
+          { key: 'read', label: 'Read', value: latestSegmentValue(item, 'read') },
+          { key: 'write', label: 'Write', value: latestSegmentValue(item, 'write') },
+        ]
+      : [
+          { key: 'in', label: 'In', value: latestSegmentValue(item, 'in') },
+          { key: 'out', label: 'Out', value: latestSegmentValue(item, 'out') },
+        ]
+  const maxValue = Math.max(...pairs.map(pair => Math.abs(pair.value ?? 0)), 0)
+
+  return pairs.map(pair => ({
+    ...pair,
+    display:
+      pair.value === null
+        ? '—'
+        : item.unit === 'bytes/s'
+          ? `${formatBytes(pair.value)}/s`
+          : formatTrendValue(item.unit, `${item.name}_${pair.key}`, pair.value),
+    percent:
+      pair.value === null || maxValue <= 0
+        ? 0
+        : Math.max(10, clampPercent((Math.abs(pair.value) / maxValue) * 100)),
+  }))
+}
+
+function buildLatestStatItems(series: MonitorSeries[]): LatestStatItem[] {
+  const supported = LATEST_STAT_ORDER.map(name => series.find(item => item.name === name)).filter(
+    (item): item is MonitorSeries => Boolean(item)
+  )
+
+  return supported.map(item => ({
+    key: item.name,
+    label: formatSeriesLabel(item.name),
+    value: formatSeriesLatestLabel(item),
+    unit: item.unit,
+    variant: ['cpu', 'memory', 'disk_usage'].includes(item.name) ? 'gauge' : 'bars',
+    updatedAt: latestMetricTimestamp(item),
+    percent: metricPercent(item),
+    bars: comparisonBars(item),
+  }))
+}
+
+function buildSummaryFallbackLatestStatItems(summary?: Record<string, unknown>): LatestStatItem[] {
+  if (!summary) return []
+  const cpuPercent = numericSummaryValue(summary.cpu_percent)
+  const memoryUsed = numericSummaryValue(summary.memory_bytes)
+  const memoryAvailable = numericSummaryValue(summary.memory_available_bytes)
+  const items: LatestStatItem[] = []
+
+  if (cpuPercent !== null) {
+    items.push({
+      key: 'cpu',
+      label: formatSeriesLabel('cpu'),
+      value: formatTrendValue('percent', 'cpu', cpuPercent),
+      unit: 'percent',
+      variant: 'gauge',
+      updatedAt: null,
+      percent: clampPercent(cpuPercent),
+      bars: [],
+    })
+  }
+  if (memoryUsed !== null) {
+    const limit = memoryAvailable !== null ? memoryUsed + memoryAvailable : null
+    items.push({
+      key: 'memory',
+      label: formatSeriesLabel('memory'),
+      value: limit !== null ? `${formatBytes(memoryUsed)} used / ${formatBytes(limit)} limit` : `${formatBytes(memoryUsed)} used`,
+      unit: 'bytes',
+      variant: 'gauge',
+      updatedAt: null,
+      percent: limit !== null && limit > 0 ? clampPercent((memoryUsed / limit) * 100) : null,
+      bars: [],
+    })
+  }
+
+  return items
+}
+
+function formatUpdatedAtValue(timestamp: number, includeDate: boolean): string {
+  return new Date(timestamp).toLocaleString(
+    undefined,
+    includeDate
+      ? { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }
+      : { hour: '2-digit', minute: '2-digit', second: '2-digit' }
+  )
+}
+
+function formatUpdatedAtText(timestamps: { oldest: number | null; newest: number | null }): string {
+  if (timestamps.newest === null) return 'Updated at —'
+  const newestDate = new Date(timestamps.newest)
+  const oldestDate = timestamps.oldest === null ? null : new Date(timestamps.oldest)
+  const includeDate =
+    newestDate.toDateString() !== new Date().toDateString() ||
+    (oldestDate !== null && oldestDate.toDateString() !== newestDate.toDateString())
+  if (timestamps.oldest !== null && timestamps.oldest !== timestamps.newest) {
+    return `Updated at ${formatUpdatedAtValue(timestamps.oldest, includeDate)} - ${formatUpdatedAtValue(timestamps.newest, includeDate)}`
+  }
+  return `Updated at ${formatUpdatedAtValue(timestamps.newest, includeDate)}`
 }
 
 function latestSeriesSummary(series: MonitorSeries): string {
@@ -171,9 +451,12 @@ function latestSeriesSummary(series: MonitorSeries): string {
     const latestUsed = latestValue(used.points)
     const latestAvailable = latestValue(available?.points ?? [])
     if (latestUsed !== null) {
-      const total = latestUsed + (latestAvailable ?? 0)
-      const percent = total > 0 ? (latestUsed / total) * 100 : null
-      return `${formatBytes(latestUsed)} / ${formatBytes(total)}${percent === null ? '' : ` (${formatTrendValue('percent', 'memory_percent', percent)})`}`
+      if (latestAvailable !== null) {
+        const limit = latestUsed + latestAvailable
+        const percent = limit > 0 ? (latestUsed / limit) * 100 : null
+        return `${formatBytes(latestUsed)} / ${formatBytes(limit)}${percent === null ? '' : ` (${formatTrendValue('percent', 'memory_percent', percent)})`}`
+      }
+      return `${formatBytes(latestUsed)} used`
     }
   }
 
@@ -190,6 +473,14 @@ function latestSeriesSummary(series: MonitorSeries): string {
     const latestOutbound = latestValue(outbound?.points ?? [])
     if (latestInbound !== null || latestOutbound !== null) {
       return `${latestInbound === null ? '—' : `${formatBytes(latestInbound)}/s`} in${latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)}/s out`}`
+    }
+  }
+
+  if (series.name === 'network_traffic') {
+    const latestInbound = latestValue(inbound?.points ?? [])
+    const latestOutbound = latestValue(outbound?.points ?? [])
+    if (latestInbound !== null || latestOutbound !== null) {
+      return `${latestInbound === null ? '—' : formatBytes(latestInbound)} in${latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)} out`}`
     }
   }
 
@@ -211,113 +502,9 @@ function orderedPlatformPerformanceSeries(input: MonitorSeries[] | undefined): M
   const diskUsage = items.find(item => item.name === 'disk_usage')
   const disk = items.find(item => item.name === 'disk')
   const network = items.find(item => item.name === 'network')
+  const networkTraffic = items.find(item => item.name === 'network_traffic')
 
-  return [cpu, memory, diskUsage, disk, network].filter((item): item is MonitorSeries => Boolean(item))
-}
-
-function BundleComponentsSheetContent({ onClose }: { onClose: () => void }) {
-  const [components, setComponents] = useState<ComponentItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  const sorted = useMemo(
-    () => [...components].sort((a, b) => a.name.localeCompare(b.name)),
-    [components]
-  )
-
-  const loadComponents = useCallback(async (force = false) => {
-    setLoading(true)
-    try {
-      setComponents(await fetchInstalledComponents(force))
-      setError('')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load components')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    void loadComponents()
-  }, [loadComponents])
-
-  return (
-    <div className="flex h-full flex-col">
-      <SheetHeader className="gap-3 border-b pb-4">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <SheetTitle>Bundle components</SheetTitle>
-            <SheetDescription>
-              Inspect bundled tools available inside the AppOS runtime container.
-            </SheetDescription>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void loadComponents(true)}
-              disabled={loading}
-            >
-              {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              Refresh
-            </Button>
-            <SheetClose asChild>
-              <Button variant="outline" size="sm" onClick={onClose}>
-                Close
-              </Button>
-            </SheetClose>
-          </div>
-        </div>
-      </SheetHeader>
-
-      <div className="flex-1 overflow-auto px-4 pb-4 pt-4">
-        {error ? (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <p className="text-muted-foreground">Loading installed components...</p>
-          </div>
-        ) : sorted.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <p className="text-muted-foreground">No installed components were detected.</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <div className="grid grid-cols-[2fr_1fr_1.2fr_1fr] gap-4 px-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              <div>Name</div>
-              <div>Version</div>
-              <div>Updated</div>
-              <div>CLI</div>
-            </div>
-            <div className="space-y-2">
-              {sorted.map(component => (
-                <div
-                  key={component.id}
-                  className="grid grid-cols-[2fr_1fr_1.2fr_1fr] gap-4 px-2 py-2 text-sm"
-                >
-                  <div className="font-medium text-foreground">{component.name}</div>
-                  <div className="text-muted-foreground">{component.version || 'unknown'}</div>
-                  <div className="text-muted-foreground">
-                    {formatComponentStatusTime(component.updated_at)}
-                  </div>
-                  <div className="text-muted-foreground">
-                    {component.available ? 'Available' : 'Unavailable'}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
+  return [cpu, memory, diskUsage, disk, network, networkTraffic].filter((item): item is MonitorSeries => Boolean(item))
 }
 
 function summarizePlatformTarget(item: MonitorOverviewItem): string {
@@ -394,17 +581,6 @@ function availabilityBadgeVariant(
 }
 
 function buildRangeQuery(range: RangeOption): URLSearchParams {
-  if (range === '6h') {
-    const endAt = new Date()
-    const startAt = new Date(endAt.getTime() - 6 * 60 * 60 * 1000)
-    return new URLSearchParams({
-      window: 'custom',
-      startAt: startAt.toISOString(),
-      endAt: endAt.toISOString(),
-      series: PLATFORM_PERFORMANCE_SERIES_QUERY,
-    })
-  }
-
   return new URLSearchParams({
     window: range,
     series: PLATFORM_PERFORMANCE_SERIES_QUERY,
@@ -540,11 +716,14 @@ function derivePlatformAvailability(
 }
 
 export function PlatformStatusPage() {
+  const [documentVisible, setDocumentVisible] = useState(isDocumentVisible)
+  const previousDocumentVisible = useRef(documentVisible)
   const [overview, setOverview] = useState<MonitorOverviewResponse>(() =>
     normalizeOverviewResponse(undefined)
   )
   const [services, setServices] = useState<ServiceItem[]>([])
   const [platformPerformance, setPlatformPerformance] = useState<MonitorSeriesResponse | null>(null)
+  const [platformLatest, setPlatformLatest] = useState<MonitorLatestResponse | null>(null)
   const [selectedRange, setSelectedRange] = useState<RangeOption>('1h')
   const [draftCustomRange, setDraftCustomRange] = useState<CustomRangeState>(() =>
     createDefaultCustomRange()
@@ -553,7 +732,6 @@ export function PlatformStatusPage() {
     createDefaultCustomRange()
   )
   const [customRangeOpen, setCustomRangeOpen] = useState(false)
-  const [componentsOpen, setComponentsOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
@@ -575,11 +753,15 @@ export function PlatformStatusPage() {
           selectedRange === 'custom'
             ? buildCustomRangeQuery(appliedCustomRange)
             : buildRangeQuery(selectedRange)
-        const [overviewResult, servicesResult, platformPerformanceResult] = await Promise.allSettled([
+        const [overviewResult, servicesResult, platformPerformanceResult, platformLatestResult] = await Promise.allSettled([
           pb.send<MonitorOverviewResponse>('/api/monitor/overview', { method: 'GET' }),
           fetchActiveServices(),
           pb.send<MonitorSeriesResponse>(
             `/api/monitor/targets/platform/appos-core/series?${(rangeQuery ?? buildRangeQuery('1h')).toString()}`,
+            { method: 'GET' }
+          ),
+          pb.send<MonitorLatestResponse>(
+            `/api/monitor/targets/platform/appos-core/latest?${new URLSearchParams({ series: PLATFORM_LATEST_QUERY }).toString()}`,
             { method: 'GET' }
           ),
         ])
@@ -588,9 +770,10 @@ export function PlatformStatusPage() {
           { section: 'overview', result: overviewResult },
           { section: 'services', result: servicesResult },
           { section: 'platformPerformance', result: platformPerformanceResult },
+          { section: 'platformLatest', result: platformLatestResult },
         ])
 
-        if (failures.length === 3) {
+        if (failures.length === 4) {
           throw new Error('Failed to load platform status')
         }
 
@@ -605,19 +788,30 @@ export function PlatformStatusPage() {
         if (servicesResult.status === 'fulfilled') {
           setServices(servicesResult.value)
         }
-      if (platformPerformanceResult.status === 'fulfilled') {
-        setPlatformPerformance({
-          ...platformPerformanceResult.value,
-          series: Array.isArray(platformPerformanceResult.value.series)
-            ? platformPerformanceResult.value.series
-            : [],
-        })
+        if (platformPerformanceResult.status === 'fulfilled') {
+          setPlatformPerformance({
+            ...platformPerformanceResult.value,
+            series: Array.isArray(platformPerformanceResult.value.series)
+              ? platformPerformanceResult.value.series
+              : [],
+          })
         } else {
-        setPlatformPerformance(null)
+          setPlatformPerformance(null)
+        }
+        if (platformLatestResult.status === 'fulfilled') {
+          setPlatformLatest({
+            ...platformLatestResult.value,
+            series: Array.isArray(platformLatestResult.value.series)
+              ? platformLatestResult.value.series
+              : [],
+          })
+        } else {
+          setPlatformLatest(null)
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load platform status')
-      setPlatformPerformance(null)
+        setPlatformPerformance(null)
+        setPlatformLatest(null)
       } finally {
         setLoading(false)
         setRefreshing(false)
@@ -631,11 +825,50 @@ export function PlatformStatusPage() {
   }, [loadStatus])
 
   useEffect(() => {
+    const handleVisibilityChange = () => {
+      setDocumentVisible(isDocumentVisible())
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [])
+
+  useEffect(() => {
+		if (!documentVisible) return
     const timer = window.setInterval(() => {
       void loadStatus(true)
     }, 30000)
     return () => window.clearInterval(timer)
-  }, [loadStatus])
+  }, [documentVisible, loadStatus])
+
+  useEffect(() => {
+		if (!documentVisible) return
+    const cadenceSeconds = Math.max(platformLatest?.cadenceSeconds ?? 10, 1)
+    const timer = window.setInterval(() => {
+      void pb
+        .send<MonitorLatestResponse>(
+          `/api/monitor/targets/platform/appos-core/latest?${new URLSearchParams({ series: PLATFORM_LATEST_QUERY }).toString()}`,
+          { method: 'GET' }
+        )
+        .then(response => {
+          setPlatformLatest({
+            ...response,
+            series: Array.isArray(response.series) ? response.series : [],
+          })
+        })
+        .catch(() => {
+          setPlatformLatest(null)
+        })
+    }, cadenceSeconds * 1000)
+    return () => window.clearInterval(timer)
+  }, [documentVisible, platformLatest?.cadenceSeconds])
+
+  useEffect(() => {
+    const becameVisible = !previousDocumentVisible.current && documentVisible
+    previousDocumentVisible.current = documentVisible
+    if (!becameVisible) return
+    void loadStatus(true)
+  }, [documentVisible, loadStatus])
 
   useEffect(() => {
     if (!customRangeOpen) return
@@ -654,9 +887,42 @@ export function PlatformStatusPage() {
     [overview.platformItems, services]
   )
 
-  const platformPerformanceSeries = useMemo(
-    () => orderedPlatformPerformanceSeries(platformPerformance?.series),
-    [platformPerformance]
+  const platformPerformanceSeries = useMemo(() => {
+    const apposCore = overview.platformItems.find(item => item.targetId === 'appos-core')
+    const primary = (Array.isArray(platformPerformance?.series) ? platformPerformance.series : []).filter(
+      item => !['cpu', 'memory'].includes(item.name) || hasUsableSeriesData(item)
+    )
+    const existing = new Set(
+      primary
+        .filter(item => !['cpu', 'memory'].includes(item.name) || hasUsableSeriesData(item))
+        .map(item => item.name)
+    )
+    const fallback = buildPlatformSummaryFallbackSeries(apposCore?.summary, apposCore?.lastTransitionAt).filter(
+      item => !existing.has(item.name)
+    )
+    return orderedPlatformPerformanceSeries([...primary, ...fallback])
+  }, [overview.platformItems, platformPerformance])
+
+  const latestStatItems = useMemo(() => {
+    const apposCore = overview.platformItems.find(item => item.targetId === 'appos-core')
+    const latestSeries = (platformLatest?.series ?? []).filter(
+      item => !['cpu', 'memory'].includes(item.name) || hasUsableSeriesData(item)
+    )
+    const items = buildLatestStatItems(latestSeries)
+    if (!apposCore?.summary) return items
+    const existingKeys = new Set(items.map(item => item.key))
+    const fallback = buildSummaryFallbackLatestStatItems(apposCore.summary).filter(
+      item => !existingKeys.has(item.key)
+    )
+    if (fallback.length === 0) return items
+    return LATEST_STAT_ORDER.map(
+      name => items.find(item => item.key === name) ?? fallback.find(item => item.key === name)
+    ).filter((item): item is LatestStatItem => Boolean(item))
+  }, [overview.platformItems, platformLatest?.series])
+
+  const latestStatUpdatedAt = useMemo(
+    () => latestStatsUpdatedAt(platformLatest?.series ?? []),
+    [platformLatest?.series]
   )
 
   const handleRangeChange = useCallback(
@@ -697,7 +963,7 @@ export function PlatformStatusPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Status</h1>
           <p className="mt-1 text-muted-foreground">
-            Unified status for the AppOS control plane, bundled services, and monitoring surfaces.
+            Unified status for the AppOS control plane and monitoring surfaces.
           </p>
         </div>
         <Button
@@ -777,7 +1043,9 @@ export function PlatformStatusPage() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <CardTitle>Platform performance</CardTitle>
-              <CardDescription>Control-plane self metrics for the AppOS runtime container.</CardDescription>
+              <CardDescription>
+                Control-plane self metrics for the AppOS runtime container, including memory usage versus container limit.
+              </CardDescription>
             </div>
             <div ref={customRangeRef} className="relative flex flex-col items-end gap-3">
               <SharedTimeRangeSelector
@@ -789,6 +1057,9 @@ export function PlatformStatusPage() {
                   return !customRangeOpen && current === option
                 }}
                 ariaLabel="Platform performance time range"
+                className="justify-end gap-1.5"
+                buttonSize="xs"
+                buttonClassName="text-[11px]"
               />
               {customRangeOpen ? (
                 <div className="absolute right-0 top-full z-20 mt-2 w-[420px] max-w-[calc(100vw-2rem)] rounded-lg border bg-background p-5 shadow-lg">
@@ -888,76 +1159,68 @@ export function PlatformStatusPage() {
               Platform self metrics are not available yet.
             </div>
           ) : (
-            <div className="grid gap-4 xl:grid-cols-3">
-              {platformPerformanceSeries.map(item => (
-                <div key={item.name} className="rounded-lg border bg-background p-4">
-                  <div className="mb-3 flex items-start justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                        <Activity className="h-4 w-4 text-muted-foreground" />
-                        {formatSeriesLabel(item.name)}
-                      </div>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {latestSeriesSummary(item)}
-                      </div>
+            <div className="space-y-5">
+              <section className="rounded-lg border bg-muted/10 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <div className="text-sm font-medium text-foreground">Latest Stat</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Latest observed values sampled at monitor cadence.
                     </div>
-                    <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                      {item.unit}
-                    </span>
                   </div>
-                  <TimeSeriesChart
-                    name={item.name}
-                    unit={item.unit}
-                    window={platformPerformance?.window ?? '1h'}
-                  rangeStartAt={platformPerformance?.rangeStartAt}
-                  rangeEndAt={platformPerformance?.rangeEndAt}
-                  stepSeconds={platformPerformance?.stepSeconds}
-                    points={item.points}
-                    segments={item.segments}
-                    formatValue={formatTrendValue}
-                  />
+                  <div className="shrink-0 rounded-md border bg-background px-2.5 py-1 text-[11px] text-muted-foreground">
+                    {formatUpdatedAtText(latestStatUpdatedAt)}
+                  </div>
                 </div>
-              ))}
+                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {latestStatItems.map(item => (
+                    <PlatformLatestStatCard key={item.key} item={item} />
+                  ))}
+                </div>
+              </section>
+              <section className="space-y-3">
+                <div>
+                  <div className="text-sm font-medium text-foreground">Trend</div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    Historical self-metrics across the selected time range.
+                  </div>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {platformPerformanceSeries.map(item => (
+                    <div key={item.name} className="rounded-lg border bg-background p-4">
+                      <div className="mb-3 flex items-start justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                            <Activity className="h-4 w-4 text-muted-foreground" />
+                            {formatSeriesLabel(item.name)}
+                          </div>
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {latestSeriesSummary(item)}
+                          </div>
+                        </div>
+                        <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                          {item.unit}
+                        </span>
+                      </div>
+                      <TimeSeriesChart
+                        name={item.name}
+                        unit={item.unit}
+                        window={platformPerformance?.window ?? '1h'}
+                        rangeStartAt={platformPerformance?.rangeStartAt}
+                        rangeEndAt={platformPerformance?.rangeEndAt}
+                        stepSeconds={platformPerformance?.stepSeconds}
+                        points={item.points}
+                        segments={item.segments}
+                        formatValue={formatTrendValue}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </section>
             </div>
           )}
         </CardContent>
       </Card>
-
-      <Sheet open={componentsOpen} onOpenChange={setComponentsOpen}>
-        <Card>
-          <CardHeader>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <CardTitle>Bundled services</CardTitle>
-                <CardDescription>
-                  Core runtime and bundled services remain the main diagnostic table.
-                </CardDescription>
-              </div>
-              <a
-                href="#bundle-components"
-                className="text-sm font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-                onClick={event => {
-                  event.preventDefault()
-                  setComponentsOpen(true)
-                }}
-              >
-                Bundle &gt;
-              </a>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <ActiveServicesContent />
-          </CardContent>
-        </Card>
-
-        <SheetContent
-          side="right"
-          showCloseButton={false}
-          className="w-full sm:max-w-4xl overflow-y-auto p-0"
-        >
-          <BundleComponentsSheetContent onClose={() => setComponentsOpen(false)} />
-        </SheetContent>
-      </Sheet>
 
       <Card>
         <CardHeader>
@@ -1021,6 +1284,87 @@ export function PlatformStatusPage() {
           )}
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+function PlatformLatestGauge({ itemKey, percent }: { itemKey: string; percent: number | null }) {
+  const clamped = percent === null ? 0 : clampPercent(percent)
+  const radius = 46
+  const centerX = 60
+  const centerY = 60
+  const arcPath = `M ${centerX - radius} ${centerY} A ${radius} ${radius} 0 0 1 ${centerX + radius} ${centerY}`
+  const arcLength = Math.PI * radius
+  const dashOffset = arcLength * (1 - clamped / 100)
+
+  return (
+    <div className="flex h-full flex-col justify-end gap-2" aria-label={`${itemKey} latest stat gauge`}>
+      <svg viewBox="0 0 120 72" className="mx-auto h-24 w-full max-w-[10.5rem] overflow-visible" preserveAspectRatio="xMidYMid meet">
+        <path d={arcPath} fill="none" stroke="currentColor" strokeWidth="9" className="text-muted-foreground/20" strokeLinecap="round" />
+        <path d={arcPath} fill="none" stroke="currentColor" strokeWidth="9" className="text-primary/90" strokeLinecap="round" strokeDasharray={arcLength} strokeDashoffset={dashOffset} />
+        <text x="60" y="52" textAnchor="middle" className="fill-foreground text-[20px] font-semibold tabular-nums">
+          {percent === null ? '—' : `${Math.round(clamped)}%`}
+        </text>
+      </svg>
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>0%</span>
+        <span>100%</span>
+      </div>
+    </div>
+  )
+}
+
+function PlatformLatestBarComparison({
+  itemKey,
+  bars,
+}: {
+  itemKey: string
+  bars: LatestStatItem['bars']
+}) {
+  const [left, right] = bars
+  return (
+    <div className="space-y-3" aria-label={`${itemKey} latest stat comparison`}>
+      <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-3">
+        <div className="space-y-1 text-right">
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{left?.label ?? '—'}</div>
+          <div className="text-xs font-medium text-foreground">{left?.display ?? '—'}</div>
+        </div>
+        <div className="h-16 w-px bg-border/80" />
+        <div className="space-y-1">
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{right?.label ?? '—'}</div>
+          <div className="text-xs font-medium text-foreground">{right?.display ?? '—'}</div>
+        </div>
+      </div>
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+        <div className="flex justify-end">
+          <div className="h-3 w-full max-w-32 rounded-l-full bg-primary/75 transition-all" style={{ width: `${left?.percent ?? 0}%` }} />
+        </div>
+        <div className="h-6 w-px bg-border/80" />
+        <div className="flex">
+          <div className="h-3 w-full max-w-32 rounded-r-full bg-primary/40 transition-all" style={{ width: `${right?.percent ?? 0}%` }} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PlatformLatestStatCard({ item }: { item: LatestStatItem }) {
+  return (
+    <div className="flex h-full flex-col rounded-md border bg-background px-4 py-4">
+      <div className="flex min-h-[3.25rem] items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="truncate text-xs uppercase tracking-wide text-muted-foreground">{item.label}</div>
+          <div className="mt-1.5 break-words text-sm font-medium leading-snug text-foreground">{item.value}</div>
+        </div>
+        {item.variant === 'bars' ? <div className="shrink-0 text-[11px] text-muted-foreground">{item.unit}</div> : null}
+      </div>
+      <div className="mt-4 flex-1">
+        {item.variant === 'gauge' ? (
+          <PlatformLatestGauge itemKey={item.key} percent={item.percent} />
+        ) : (
+          <PlatformLatestBarComparison itemKey={item.key} bars={item.bars} />
+        )}
+      </div>
     </div>
   )
 }

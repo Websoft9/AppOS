@@ -4,12 +4,15 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/websoft9/appos/backend/domain/software"
+	swcatalog "github.com/websoft9/appos/backend/domain/software/catalog"
 	swservice "github.com/websoft9/appos/backend/domain/software/service"
+	swinventory "github.com/websoft9/appos/backend/domain/software/inventory"
 	"github.com/websoft9/appos/backend/domain/worker"
 	"github.com/websoft9/appos/backend/infra/collections"
 )
@@ -35,6 +38,8 @@ func registerLocalSoftwareRoutes(api *router.RouterGroup[*core.RequestEvent]) {
 
 	local := api.Group("/local")
 	local.GET("", handleLocalSoftwareComponentList)
+	local.GET("/services", handleLocalSoftwareServiceList)
+	local.GET("/services/{name}/logs", handleLocalSoftwareServiceLogs)
 	local.GET("/{componentKey}", handleLocalSoftwareComponentGet)
 }
 
@@ -286,6 +291,15 @@ func markSoftwareOperationEnqueueFailed(e *core.RequestEvent, record *core.Recor
 type softwareComponentListItem struct {
 	software.SoftwareComponentSummary
 	TargetType    software.TargetType                  `json:"target_type"`
+	ID            string                               `json:"id,omitempty"`
+	Name          string                               `json:"name,omitempty"`
+	Criticality   string                               `json:"criticality,omitempty"`
+	RuntimeKind   string                               `json:"runtime_kind,omitempty"`
+	Role          string                               `json:"role,omitempty"`
+	OwnedCapability string                             `json:"owned_capability,omitempty"`
+	Version       string                               `json:"version,omitempty"`
+	Available     bool                                 `json:"available"`
+	UpdatedAt     string                               `json:"updated_at,omitempty"`
 	Description   string                               `json:"description,omitempty"`
 	Preflight     *software.TargetReadinessResult      `json:"preflight,omitempty"`
 	Verification  *software.SoftwareVerificationResult `json:"verification,omitempty"`
@@ -295,7 +309,27 @@ type softwareComponentListItem struct {
 type softwareComponentDetailResponse struct {
 	software.SoftwareComponentDetail
 	TargetType    software.TargetType         `json:"target_type"`
+	ID            string                      `json:"id,omitempty"`
+	Name          string                      `json:"name,omitempty"`
+	Criticality   string                      `json:"criticality,omitempty"`
+	RuntimeKind   string                      `json:"runtime_kind,omitempty"`
+	Role          string                      `json:"role,omitempty"`
+	OwnedCapability string                    `json:"owned_capability,omitempty"`
+	Version       string                      `json:"version,omitempty"`
+	Available     bool                        `json:"available"`
+	UpdatedAt     string                      `json:"updated_at,omitempty"`
 	LastOperation *swservice.OperationSummary `json:"last_operation,omitempty"`
+}
+
+type localRuntimeComponentMetadata struct {
+	ID              string
+	Name            string
+	Criticality     string
+	RuntimeKind     string
+	Role            string
+	OwnedCapability string
+	Available       bool
+	UpdatedAt       string
 }
 
 // @Summary List software components for a server
@@ -412,11 +446,28 @@ func handleLocalSoftwareComponentList(e *core.RequestEvent) error {
 			"message": err.Error(),
 		})
 	}
+	runtimeByKey, err := loadLocalRuntimeComponentMetadata(e.App)
+	if err != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{
+			"error":   "catalog_load_failed",
+			"message": err.Error(),
+		})
+	}
 	resp := make([]softwareComponentListItem, 0, len(items))
 	for _, item := range items {
+		runtime := runtimeByKey[item.Entry.ComponentKey]
 		resp = append(resp, softwareComponentListItem{
 			SoftwareComponentSummary: item.Summary,
 			TargetType:               item.Entry.TargetType,
+			ID:                       runtime.ID,
+			Name:                     runtime.Name,
+			Criticality:              runtime.Criticality,
+			RuntimeKind:              runtime.RuntimeKind,
+			Role:                     runtime.Role,
+			OwnedCapability:          runtime.OwnedCapability,
+			Version:                  item.Summary.DetectedVersion,
+			Available:                runtime.Available,
+			UpdatedAt:                runtime.UpdatedAt,
 			Description:              item.Entry.Description,
 			Preflight:                item.Detail.Preflight,
 			LastOperation:            item.LastOperation,
@@ -452,11 +503,111 @@ func handleLocalSoftwareComponentGet(e *core.RequestEvent) error {
 			"message": err.Error(),
 		})
 	}
+	runtimeByKey, err := loadLocalRuntimeComponentMetadata(e.App)
+	if err != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{
+			"error":   "catalog_load_failed",
+			"message": err.Error(),
+		})
+	}
+	runtime := runtimeByKey[item.Entry.ComponentKey]
 	return e.JSON(http.StatusOK, softwareComponentDetailResponse{
 		SoftwareComponentDetail: item.Detail,
 		TargetType:              item.Entry.TargetType,
+		ID:                      runtime.ID,
+		Name:                    runtime.Name,
+		Criticality:             runtime.Criticality,
+		RuntimeKind:             runtime.RuntimeKind,
+		Role:                    runtime.Role,
+		OwnedCapability:         runtime.OwnedCapability,
+		Version:                 item.Detail.DetectedVersion,
+		Available:               runtime.Available,
+		UpdatedAt:               runtime.UpdatedAt,
 		LastOperation:           item.LastOperation,
 	})
+}
+
+func loadLocalRuntimeComponentMetadata(app core.App) (map[software.ComponentKey]localRuntimeComponentMetadata, error) {
+	registry, err := swcatalog.LoadLocalRegistry()
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[software.ComponentKey]localRuntimeComponentMetadata)
+	for _, component := range registry.EnabledComponents() {
+		if component.SoftwareCatalog == nil {
+			continue
+		}
+		available, err := swinventory.CheckAvailability(app, component.AvailabilityProbe)
+		if err != nil {
+			available = false
+		}
+		result[component.SoftwareCatalog.ComponentKey] = localRuntimeComponentMetadata{
+			ID:              component.ID,
+			Name:            component.Name,
+			Criticality:     component.Criticality,
+			RuntimeKind:     component.RuntimeKind,
+			Role:            component.Role,
+			OwnedCapability: component.OwnedCapability,
+			Available:       available,
+			UpdatedAt:       swinventory.DetectUpdateTime(component.UpdateProbe),
+		}
+	}
+	return result, nil
+}
+
+// @Summary List AppOS-local software services
+// @Description Returns Monitor-observed runtime state for AppOS-local built-in services.
+// @Tags Software
+// @Security BearerAuth
+// @Success 200 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/software/local/services [get]
+func handleLocalSoftwareServiceList(e *core.RequestEvent) error {
+	items, err := loadLocalComponentServiceItems()
+	if err != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{
+			"error":   "local_service_observation_failed",
+			"message": err.Error(),
+		})
+	}
+	return e.JSON(http.StatusOK, items)
+}
+
+// @Summary Get AppOS-local software service logs
+// @Description Returns service logs for one AppOS-local built-in service.
+// @Tags Software
+// @Security BearerAuth
+// @Param name path string true "service name"
+// @Param stream query string false "stdout or stderr"
+// @Param tail query integer false "approximate line count"
+// @Success 200 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 409 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/software/local/services/{name}/logs [get]
+func handleLocalSoftwareServiceLogs(e *core.RequestEvent) error {
+	name := e.Request.PathValue("name")
+	if strings.TrimSpace(name) == "" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"error": "missing service name"})
+	}
+	stream := e.Request.URL.Query().Get("stream")
+	tail := 200
+	if raw := e.Request.URL.Query().Get("tail"); raw != "" {
+		if parsed, parseErr := strconv.Atoi(raw); parseErr == nil && parsed > 0 {
+			tail = parsed
+		}
+	}
+	payload, status, err := loadLocalComponentServiceLog(name, stream, tail)
+	if err != nil {
+		if status == http.StatusNotFound {
+			return e.JSON(http.StatusNotFound, map[string]any{"error": "service_not_found", "message": "service not found: " + name})
+		}
+		return e.JSON(status, map[string]any{"error": "logs_failed", "message": err.Error()})
+	}
+	if status == http.StatusNotFound {
+		return e.JSON(http.StatusNotFound, map[string]any{"error": "service_not_found", "message": "service not found: " + name})
+	}
+	return e.JSON(http.StatusOK, payload)
 }
 
 // @Summary List supported server-target software

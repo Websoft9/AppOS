@@ -13,7 +13,7 @@ import { useIntegrationSettingsController } from './-settings-controller-integra
 import { useSystemSettingsController } from './-settings-controller-system'
 import { useWorkspaceSimpleSettingsController } from './-settings-controller-workspace-simple'
 
-export type SectionId = SettingsEntryId
+export type SectionId = SettingsEntryId | 'monitor'
 
 export function useSettingsPageController() {
   const { toasts, show: showToast } = useToast()
@@ -35,23 +35,57 @@ export function useSettingsPageController() {
         pb.send<SettingsEntriesListResponse>(SETTINGS_ENTRIES_API_PATH, { method: 'GET' }),
       ])
 
-      // Inject LLM providers nav entry (served by the AI Providers resource surface, not settings)
-      const allEntries = [
-        ...schemaResult.entries,
-        {
-          id: 'llm-providers' as const,
-          title: 'LLM Providers',
-          description:
-            'Reference-only entry. Create and manage AI providers from Resources > AI Providers.',
-          section: 'workspace',
-          source: 'custom' as const,
-          fields: [{ id: 'items', label: 'Items', type: 'object-list' }],
-        },
-      ]
+      const movedToSystemIds = new Set([
+        'tunnel-port-range',
+        'proxy-network',
+        'docker-mirror',
+        'docker-registries',
+      ])
+      const monitorTailIndex = schemaResult.entries.reduce((lastIndex, entry, index) => {
+        return entry.id.startsWith('monitor-') ? index : lastIndex
+      }, -1)
+      const movedSystemEntries = schemaResult.entries
+        .filter(entry => movedToSystemIds.has(entry.id))
+        .map(entry => ({ ...entry, section: 'system' as const }))
+      const baseEntries = schemaResult.entries.filter(entry => !movedToSystemIds.has(entry.id))
+      const normalizedEntries =
+        monitorTailIndex >= 0
+          ? [
+              ...baseEntries.slice(0, monitorTailIndex + 1),
+              ...movedSystemEntries,
+              ...baseEntries.slice(monitorTailIndex + 1),
+            ]
+          : [...movedSystemEntries, ...baseEntries]
+
+      // Inject AI nav entry backed by AI Providers so settings can choose the platform default model.
+      const aiEntry = {
+        id: 'ai' as const,
+        title: 'AI',
+        description:
+          'Choose the platform default AI model and manage AI providers from one place.',
+        section: 'workspace',
+        source: 'custom' as const,
+        fields: [{ id: 'defaultModel', label: 'Default Model', type: 'relation' }],
+      }
+      const firstWorkspaceIndex = normalizedEntries.findIndex(entry => entry.section === 'workspace')
+      const allEntries =
+        firstWorkspaceIndex >= 0
+          ? [
+              ...normalizedEntries.slice(0, firstWorkspaceIndex),
+              aiEntry,
+              ...normalizedEntries.slice(firstWorkspaceIndex),
+            ]
+          : [...normalizedEntries, aiEntry]
       setSchemaEntries(allEntries)
       if (allEntries.length > 0) {
         setActiveSection(prev =>
-          allEntries.some(entry => entry.id === prev) ? prev : allEntries[0].id
+          allEntries.some(entry => entry.id === prev) ||
+            (prev === 'monitor' &&
+              allEntries.some(
+                entry => entry.id === 'monitor-scheduling' || entry.id === 'monitor-policy'
+              ))
+            ? prev
+            : allEntries[0].id
         )
       }
 
@@ -75,6 +109,7 @@ export function useSettingsPageController() {
 
   return {
     toasts,
+    showToast,
     activeSection,
     setActiveSection,
     schemaEntries,

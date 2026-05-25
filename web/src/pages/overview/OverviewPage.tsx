@@ -158,9 +158,9 @@ const QUICK_LINKS = [
   },
 ] as const
 
-const APPOS_CORE_OVERVIEW_SERIES_QUERY = 'cpu,memory,disk_usage,disk,network'
+const APPOS_CORE_OVERVIEW_SERIES_QUERY = 'cpu,memory,disk_usage,disk,network,network_traffic'
 
-const APPOS_CORE_OVERVIEW_SERIES_ORDER = ['cpu', 'memory', 'disk_usage', 'disk', 'network'] as const
+const APPOS_CORE_OVERVIEW_SERIES_ORDER = ['cpu', 'memory', 'disk_usage', 'disk', 'network', 'network_traffic'] as const
 
 function formatStatusLabel(value: string): string {
   return value
@@ -212,7 +212,54 @@ function formatSeriesLabel(value: string): string {
   if (normalized === 'cpu') return 'CPU'
   if (normalized === 'disk') return 'Disk IO'
   if (normalized === 'network') return 'Network Speed'
+  if (normalized === 'network_traffic') return 'Network Traffic'
   return formatStatusLabel(value)
+}
+
+function numericSummaryValue(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function buildOverviewSummaryFallbackSeries(
+  summary?: Record<string, unknown>,
+  observedAt?: string
+): MonitorSeries[] {
+  if (!summary) return []
+  const timestamp = (() => {
+    const parsed = observedAt ? new Date(observedAt) : null
+    if (parsed && !Number.isNaN(parsed.getTime())) return Math.floor(parsed.getTime() / 1000)
+    return Math.floor(Date.now() / 1000)
+  })()
+  const cpuPercent = numericSummaryValue(summary.cpu_percent)
+  const memoryUsed = numericSummaryValue(summary.memory_bytes)
+  const memoryAvailable = numericSummaryValue(summary.memory_available_bytes)
+  const items: MonitorSeries[] = []
+
+  if (cpuPercent !== null) {
+    items.push({ name: 'cpu', unit: 'percent', points: [[timestamp, cpuPercent]] })
+  }
+  if (memoryUsed !== null) {
+    items.push({
+      name: 'memory',
+      unit: 'bytes',
+      segments: [
+        { name: 'used', points: [[timestamp, memoryUsed]] },
+        ...(memoryAvailable !== null ? [{ name: 'available', points: [[timestamp, memoryAvailable]] }] : []),
+      ],
+    })
+  }
+
+  return items
+}
+
+function hasUsableSeriesData(series: MonitorSeries | undefined): boolean {
+  if (!series) return false
+  if ((series.points ?? []).some(point => Number.isFinite(point[1] ?? NaN))) {
+    return true
+  }
+  return (series.segments ?? []).some(segment =>
+    segment.points.some(point => Number.isFinite(point[1] ?? NaN))
+  )
 }
 
 function latestValue(points: number[][]): number | null {
@@ -236,8 +283,11 @@ function latestSeriesSummary(series: MonitorSeries): string {
     const latestUsed = latestValue(used.points)
     const latestAvailable = latestValue(available?.points ?? [])
     if (latestUsed !== null) {
-      const total = latestUsed + (latestAvailable ?? 0)
-      return `${formatBytes(latestUsed)} used / ${formatBytes(total)} total`
+      if (latestAvailable !== null) {
+        const limit = latestUsed + latestAvailable
+        return `${formatBytes(latestUsed)} used / ${formatBytes(limit)} limit`
+      }
+      return `${formatBytes(latestUsed)} used`
     }
   }
 
@@ -254,6 +304,14 @@ function latestSeriesSummary(series: MonitorSeries): string {
     const latestOutbound = latestValue(outbound?.points ?? [])
     if (latestInbound !== null || latestOutbound !== null) {
       return `${latestInbound === null ? '—' : `${formatBytes(latestInbound)}/s`} in${latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)}/s out`}`
+    }
+  }
+
+  if (series.name === 'network_traffic') {
+    const latestInbound = latestValue(inbound?.points ?? [])
+    const latestOutbound = latestValue(outbound?.points ?? [])
+    if (latestInbound !== null || latestOutbound !== null) {
+      return `${latestInbound === null ? '—' : formatBytes(latestInbound)} in${latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)} out`}`
     }
   }
 
@@ -639,7 +697,21 @@ export function OverviewPage() {
     [data.apps]
   )
 
-  const apposTrendSeries = useMemo(() => orderedOverviewSeries(trendSeries?.series), [trendSeries])
+  const apposTrendSeries = useMemo(() => {
+    const apposCore = data.monitor.platformItems.find(item => item.targetId === 'appos-core')
+    const primary = (Array.isArray(trendSeries?.series) ? trendSeries.series : []).filter(
+      item => !['cpu', 'memory'].includes(item.name) || hasUsableSeriesData(item)
+    )
+    const existing = new Set(
+      primary
+        .filter(item => !['cpu', 'memory'].includes(item.name) || hasUsableSeriesData(item))
+        .map(item => item.name)
+    )
+    const fallback = buildOverviewSummaryFallbackSeries(apposCore?.summary, apposCore?.lastTransitionAt).filter(
+      item => !existing.has(item.name)
+    )
+    return orderedOverviewSeries([...primary, ...fallback])
+  }, [data.monitor.platformItems, trendSeries])
 
   return (
     <div className="space-y-6">
@@ -737,7 +809,9 @@ export function OverviewPage() {
         <Card>
           <CardHeader className="relative pr-16">
             <CardTitle>1H Trends</CardTitle>
-            <CardDescription>AppOS control-plane CPU, memory, disk, and network over the last hour.</CardDescription>
+            <CardDescription>
+              AppOS control-plane CPU, memory usage versus limit, disk, and network over the last hour.
+            </CardDescription>
             <Link
               to="/status"
               aria-label="View system status"

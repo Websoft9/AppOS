@@ -13,6 +13,7 @@ import (
 )
 
 func RunServerControlReachabilitySweep(app core.App, now time.Time) error {
+	policy := monitor.LoadPolicySettings(app)
 	records, err := app.FindAllRecords("servers")
 	if err != nil {
 		return err
@@ -23,7 +24,7 @@ func RunServerControlReachabilitySweep(app core.App, now time.Time) error {
 		if server == nil || server.ID == "" {
 			continue
 		}
-		result := ProbeServerControlReachability(record)
+		result := ProbeServerControlReachabilityWithTimeout(record, policy.ControlProbeTimeout)
 		if err := writeServerControlAccessCache(app, record, result, now); err != nil {
 			sweepErrors = append(sweepErrors, err)
 		}

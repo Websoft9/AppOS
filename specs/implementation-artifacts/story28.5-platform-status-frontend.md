@@ -41,7 +41,8 @@ This story is the canonical replacement for the old Epic 6 `Active Services` tab
 Migration rules:
 
 - active bundled-service runtime state now belongs to the unified `System > Status` experience rather than a standalone `Components` workspace
-- transitional reuse of `/api/components/services` and `/api/components/services/{name}/logs` is acceptable while the monitor-owned read model converges
+- transitional reuse of `/api/components/services` and `/api/components/services/{name}/logs` is acceptable while the monitor-owned active-service read model converges
+- built-in component/service definitions and log-access metadata remain owned by Software Delivery local inventory, even when the status page temporarily consumes legacy `components` transport routes
 - default UX remains observe-first: logs and state are visible, but dangerous controls such as `start`, `stop`, and `restart` are not primary product behavior here
 
 ## Implementation Targets
@@ -68,7 +69,7 @@ Migration rules:
 - The first pass does not require a new backend availability endpoint
 - First pass availability conclusion should be computed from:
 	- platform target summary from monitor overview
-	- active bundled service states already exposed by the services surface
+	- active bundled service states from the Monitor-owned services surface
 	- infrastructure trend section only as supporting evidence, not as the sole unavailable trigger
 
 ## Page Draft
@@ -212,6 +213,7 @@ And non-active components are not rendered as a standalone primary section on th
 - In restricted local runtime mode, `platform/appos-core` may show AppOS-container-self `CPU %`, `MEM USAGE / LIMIT` (used plus available-from-limit), `Disk Usage`, `BLOCK I/O`, and `NET I/O` trends when sourced from container-internal telemetry; `Worker` and `Scheduler` remain compact `cpu,memory` targets.
 - The first implementation pass should reuse existing read models and frontend building blocks where possible
 - if compatibility requires continued use of the old service routes, treat them as transitional transport rather than as the long-term domain naming
+- service-definition/catalog data for built-in components belongs to Software Delivery local inventory, not to Monitor
 
 ## Dev Agent Record
 

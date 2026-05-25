@@ -14,6 +14,7 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/audit"
+	"github.com/websoft9/appos/backend/domain/monitor"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/domain/software"
 	swcatalog "github.com/websoft9/appos/backend/domain/software/catalog"
@@ -553,7 +554,7 @@ func buildSoftwareMonitorWriteURL(app core.App, payload SoftwareActionPayload) (
 	return baseURL + monitorWritePath, nil
 }
 
-func buildSoftwareTelegrafConfig(serverID string, outputURL string, username string, password string) (string, error) {
+func buildSoftwareTelegrafConfig(settings monitor.ManagedCollectorPolicySettings, serverID string, outputURL string, username string, password string) (string, error) {
 	serverID = strings.TrimSpace(serverID)
 	if serverID == "" {
 		return "", fmt.Errorf("server id is required")
@@ -576,13 +577,13 @@ func buildSoftwareTelegrafConfig(serverID string, outputURL string, username str
 		fmt.Sprintf("  appos_server_id = %q", serverID),
 		"",
 		"[agent]",
-		"  interval = \"10s\"",
+		fmt.Sprintf("  interval = %q", settings.CollectionInterval.String()),
 		"  round_interval = true",
-		"  metric_batch_size = 1000",
-		"  metric_buffer_limit = 5000",
-		"  collection_jitter = \"1s\"",
-		"  flush_interval = \"10s\"",
-		"  flush_jitter = \"1s\"",
+		fmt.Sprintf("  metric_batch_size = %d", settings.MetricBatchSize),
+		fmt.Sprintf("  metric_buffer_limit = %d", settings.MetricBufferLimit),
+		fmt.Sprintf("  collection_jitter = %q", settings.CollectionJitter.String()),
+		fmt.Sprintf("  flush_interval = %q", settings.FlushInterval.String()),
+		fmt.Sprintf("  flush_jitter = %q", settings.FlushJitter.String()),
 		"  precision = \"1s\"",
 		"  omit_hostname = false",
 		"",
@@ -743,7 +744,8 @@ func prepareSoftwareRuntimeTemplate(app core.App, payload SoftwareActionPayload,
 		if err != nil {
 			return resolved, nil, err
 		}
-		config, err := buildSoftwareTelegrafConfig(payload.ServerID, outputURL, payload.ServerID, collectorToken)
+		collectorSettings := monitor.LoadManagedCollectorPolicySettings(app)
+		config, err := buildSoftwareTelegrafConfig(collectorSettings, payload.ServerID, outputURL, payload.ServerID, collectorToken)
 		if err != nil {
 			return resolved, nil, err
 		}

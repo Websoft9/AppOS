@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -360,6 +362,22 @@ func TestSoftwareInventoryRoutesExposeFlatServerAndLocalScopes(t *testing.T) {
 	if !ok || len(localItems) == 0 {
 		t.Fatalf("expected non-empty local items payload, got %#v", body["items"])
 	}
+	firstLocal, ok := localItems[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected local list item object, got %#v", localItems[0])
+	}
+	if firstLocal["id"] == "" {
+		t.Fatalf("expected local list item id, got %#v", firstLocal["id"])
+	}
+	if firstLocal["name"] == "" {
+		t.Fatalf("expected local list item name, got %#v", firstLocal["name"])
+	}
+	if firstLocal["runtime_kind"] == "" {
+		t.Fatalf("expected local list item runtime_kind, got %#v", firstLocal["runtime_kind"])
+	}
+	if _, ok := firstLocal["available"].(bool); !ok {
+		t.Fatalf("expected local list item available bool, got %#v", firstLocal["available"])
+	}
 
 	rec = te.doSoftware(t, http.MethodGet, "/api/software/local/docker", "", true)
 	if rec.Code != http.StatusOK {
@@ -371,6 +389,76 @@ func TestSoftwareInventoryRoutesExposeFlatServerAndLocalScopes(t *testing.T) {
 	}
 	if body["target_type"] != "local" {
 		t.Fatalf("expected local target_type local, got %#v", body["target_type"])
+	}
+	if body["id"] == "" || body["name"] == "" || body["runtime_kind"] == "" {
+		t.Fatalf("expected runtime metadata on local detail, got %#v", body)
+	}
+}
+
+func TestLocalSoftwareServiceRoutesExposeObservationAndLogs(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	tmpDir := t.TempDir()
+	logFile := filepath.Join(tmpDir, "appos.log")
+	registryPath := filepath.Join(tmpDir, "components.yaml")
+	if err := os.WriteFile(logFile, []byte("ready\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	registry := "version: 1\n" +
+		"components:\n" +
+		"  - id: appos\n" +
+		"    name: AppOS\n" +
+		"    enabled: true\n" +
+		"    criticality: core\n" +
+		"    version_probe:\n" +
+		"      type: static\n" +
+		"      value: unknown\n" +
+		"    availability_probe:\n" +
+		"      type: static\n" +
+		"      success: true\n" +
+		"services:\n" +
+		"  - name: appos\n" +
+		"    component_id: appos\n" +
+		"    enabled: true\n" +
+		"    manager: file\n" +
+		"    lifecycle: always_on\n" +
+		"    visibility: default\n" +
+		"    log_access:\n" +
+		"      type: file\n" +
+		"      stdout_path: " + logFile + "\n" +
+		"      stderr_path: " + logFile + "\n"
+	restore := swcatalog.SetLocalRegistryPathForTesting(registryPath)
+	defer restore()
+	if err := os.WriteFile(registryPath, []byte(registry), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := te.doSoftware(t, http.MethodGet, "/api/software/local/services", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected local services route 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	items := parseJSONArray(t, rec)
+	if len(items) != 1 {
+		t.Fatalf("expected 1 service, got %d", len(items))
+	}
+	if items[0]["name"] != "appos" {
+		t.Fatalf("expected appos service, got %#v", items[0]["name"])
+	}
+	if items[0]["lifecycle"] != "always_on" {
+		t.Fatalf("expected always_on lifecycle, got %#v", items[0]["lifecycle"])
+	}
+
+	rec = te.doSoftware(t, http.MethodGet, "/api/software/local/services/appos/logs", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected local service logs route 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := parseJSON(t, rec)
+	if body["name"] != "appos" {
+		t.Fatalf("expected appos logs, got %#v", body["name"])
+	}
+	if !strings.Contains(body["content"].(string), "ready") {
+		t.Fatalf("expected log content, got %#v", body["content"])
 	}
 }
 

@@ -108,6 +108,7 @@ RUN apt-get update \
         tzdata \
         bash \
         curl \
+        git \
         nginx \
     && rm -rf /var/lib/apt/lists/*
 

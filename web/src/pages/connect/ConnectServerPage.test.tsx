@@ -1,4 +1,4 @@
-import { cleanup, render } from '@testing-library/react'
+import { cleanup, render, waitFor } from '@testing-library/react'
 import { type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ConnectServerPage } from './ConnectServerPage'
@@ -102,6 +102,79 @@ describe('ConnectServerPage', () => {
     expect(terminalPanelMock.mock.calls[0][0]).toMatchObject({
       serverId: 'srv-1',
       sessionId: 'resume-1',
+    })
+  })
+
+  it('initializes multiple terminal tabs from restore workspace seeds', async () => {
+    listServersMock.mockResolvedValue([
+      { id: 'srv-1', name: 'Alpha', host: '10.0.0.1' },
+      { id: 'srv-2', name: 'Beta', host: '10.0.0.2' },
+    ])
+
+    renderPage(
+      <ConnectServerPage
+        serverId="srv-2"
+        initialRestoreSessions={[
+          {
+            sessionId: 'resume-1',
+            serverId: 'srv-1',
+            title: 'Alpha',
+            panel: 'files',
+            path: '/var/log',
+            lockedRoot: '/var',
+            split: 0.4,
+          },
+          {
+            sessionId: 'resume-2',
+            serverId: 'srv-2',
+            title: 'Beta',
+          },
+        ]}
+      />
+    )
+
+    await waitFor(() => {
+      expect(terminalPanelMock.mock.calls).toEqual(
+        expect.arrayContaining([
+          [expect.objectContaining({ serverId: 'srv-1', sessionId: 'resume-1', isActive: false })],
+          [expect.objectContaining({ serverId: 'srv-2', sessionId: 'resume-2', isActive: true })],
+        ])
+      )
+    })
+  })
+
+  it('prefers the requested active restore session when initializing restored tabs', async () => {
+    listServersMock.mockResolvedValue([
+      { id: 'srv-1', name: 'Alpha', host: '10.0.0.1' },
+      { id: 'srv-2', name: 'Beta', host: '10.0.0.2' },
+    ])
+
+    renderPage(
+      <ConnectServerPage
+        serverId="srv-2"
+        initialActiveRestoreSessionId="resume-1"
+        initialRestoreSessions={[
+          {
+            sessionId: 'resume-1',
+            serverId: 'srv-1',
+            title: 'Alpha',
+          },
+          {
+            sessionId: 'resume-2',
+            serverId: 'srv-2',
+            title: 'Beta',
+          },
+        ]}
+      />
+    )
+
+    await waitFor(() => {
+      expect(terminalPanelMock.mock.calls).toEqual(
+        expect.arrayContaining([
+          [expect.objectContaining({ serverId: 'srv-1', sessionId: 'resume-1', isActive: true })],
+          [expect.objectContaining({ serverId: 'srv-2', sessionId: 'resume-2', isActive: false })],
+        ])
+      )
     })
   })
 })

@@ -336,14 +336,15 @@ Story 28.1 should freeze naming conventions, not full storage implementation.
 Suggested metric series families:
 
 - `appos_host_cpu_usage`
-- `appos_host_memory_usage_bytes`
+- `appos_host_memory_bytes`
 - `appos_host_disk_usage_bytes`
 - `appos_host_network_rx_bytes_per_second`
 - `appos_host_network_tx_bytes_per_second`
-- `appos_container_cpu_usage`
+- `appos_container_cpu_usage_percent`
 - `appos_container_memory_usage_bytes`
-- `appos_platform_process_cpu_usage`
-- `appos_platform_process_memory_usage_bytes`
+- `appos_platform_cpu_percent`
+- `appos_platform_memory_bytes`
+- `appos_platform_memory_available_bytes`
 - `appos_monitor_ingest_failures_total`
 
 Suggested common labels:

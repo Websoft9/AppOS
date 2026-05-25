@@ -1,16 +1,57 @@
-# AppOS components registry
-# Minimal constraints:
+# AppOS local platform components registry
+#
+# This is the single source of truth for AppOS-local built-in components.
+# It serves two consumers:
+# - Platform Runtime / Monitor-facing runtime inventory and service observation
+# - Software Delivery local catalog projection for detect + verify surfaces
+#
+# Minimal runtime constraints:
 # - every enabled component needs id, name, version_probe, availability_probe
-# - every enabled service needs name and log_access
+# - every enabled service needs name, component_id, manager, lifecycle, visibility, and log_access
+# - service components should explicitly set runtime_kind: service
+# - components should declare role and owned_capability when the operator surface needs structured explanation
+# - update_probe is optional and should only be declared when it represents that component's own artifact timestamp
 # - dangerous operations default to false and must be explicitly enabled
+#
+# Software Delivery projection rules:
+# - only components with software_catalog are projected into /api/software/local
+# - service_name and template_ref are derived from runtime metadata, not duplicated here
+# - supported_actions defaults to [verify] and visibility defaults to [local_inventory]
 
 version: 1
 
 components:
+  - id: os
+    name: OS
+    enabled: true
+    criticality: core
+    runtime_kind: os
+    role: base operating system
+    owned_capability: container runtime environment
+    version_probe:
+      type: command
+      command: ["sh", "-c", ". /etc/os-release 2>/dev/null && printf '%s\n' \"${PRETTY_NAME:-${VERSION:-${VERSION_ID:-unknown}}}\""]
+    availability_probe:
+      type: file_exists
+      path: /etc/os-release
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Base container operating system reported by the AppOS runtime image.
+
   - id: appos
     name: AppOS
     enabled: true
     criticality: core
+    runtime_kind: service
+    role: control-plane api
+    owned_capability: appos control plane
+    software_catalog:
+      component_key: appos
+      readiness_requirements:
+        - bundled_with_appos
+        - supervisor_process
     version_probe:
       type: static
       value: unknown
@@ -31,29 +72,19 @@ components:
       restart: false
     notes: Primary backend and API service.
 
-  - id: dashboard
-    name: Dashboard
-    enabled: true
-    criticality: core
-    version_probe:
-      type: static
-      value: unknown
-    availability_probe:
-      type: file_exists
-      path: /usr/share/nginx/html/web/index.html
-    update_probe:
-      type: file_mtime
-      path: /usr/share/nginx/html/web/index.html
-    operations:
-      start: false
-      stop: false
-      restart: false
-    notes: Static frontend bundle served by nginx.
-
   - id: nginx
     name: Nginx
     enabled: true
     criticality: core
+    runtime_kind: service
+    role: reverse proxy
+    owned_capability: web ingress
+    software_catalog:
+      component_key: reverse-proxy
+      capability: reverse_proxy
+      readiness_requirements:
+        - bundled_with_appos
+        - supervisor_process
     version_probe:
       type: command
       command: ["sh", "-c", "nginx -v 2>&1 | sed 's|.*nginx/||'"]
@@ -77,6 +108,9 @@ components:
     name: Supervisor
     enabled: true
     criticality: core
+    runtime_kind: process_manager
+    role: process supervisor
+    owned_capability: service orchestration
     version_probe:
       type: command
       command: ["supervisord", "-v"]
@@ -96,6 +130,14 @@ components:
     name: Redis
     enabled: true
     criticality: important
+    runtime_kind: service
+    role: cache store
+    owned_capability: background state cache
+    software_catalog:
+      component_key: redis
+      readiness_requirements:
+        - bundled_with_appos
+        - supervisor_process
     version_probe:
       type: command
       command: ['sh', '-c', "redis-server --version | sed -n 's/.*v=\\([^ ]*\\).*/\\1/p'"]
@@ -116,29 +158,18 @@ components:
       restart: false
     notes: Internal cache/runtime dependency.
 
-  - id: terraform
-    name: Terraform CLI
-    enabled: true
-    criticality: optional
-    version_probe:
-      type: command
-      command: ["terraform", "version"]
-    availability_probe:
-      type: command
-      command: ["terraform", "version"]
-    update_probe:
-      type: file_mtime
-      path: /usr/local/bin/terraform
-    operations:
-      start: false
-      stop: false
-      restart: false
-    notes: Infrastructure tool.
-
   - id: docker-cli
     name: Docker CLI
     enabled: true
     criticality: important
+    runtime_kind: tool
+    role: container cli
+    owned_capability: container operations
+    software_catalog:
+      component_key: docker
+      readiness_requirements:
+        - bundled_with_appos
+        - docker_socket_access
     version_probe:
       type: command
       command: ["docker", "version", "--format", "{{.Client.Version}}"]
@@ -158,6 +189,14 @@ components:
     name: Node.js
     enabled: true
     criticality: optional
+    runtime_kind: runtime
+    role: javascript runtime
+    owned_capability: node-based tooling
+    software_catalog:
+      component_key: node
+      readiness_requirements:
+        - bundled_with_appos
+        - binary_available
     version_probe:
       type: command
       command: ["node", "-v"]
@@ -177,6 +216,9 @@ components:
     name: npm
     enabled: true
     criticality: optional
+    runtime_kind: tool
+    role: node package manager
+    owned_capability: node package delivery
     version_probe:
       type: command
       command: ["npm", "-v"]
@@ -196,6 +238,9 @@ components:
     name: Pi Agent
     enabled: true
     criticality: optional
+    runtime_kind: tool
+    role: ai coding agent
+    owned_capability: local ai assistance
     version_probe:
       type: command
       command: ["sh", "-c", "npm list -g --depth=0 @mariozechner/pi-coding-agent 2>/dev/null | tail -n 1 | sed 's|.*@||'"]
@@ -215,6 +260,9 @@ components:
     name: Store Library
     enabled: true
     criticality: important
+    runtime_kind: bundled_artifact
+    role: app catalog bundle
+    owned_capability: app catalog content
     version_probe:
       type: static
       value: unknown
@@ -230,48 +278,64 @@ components:
       restart: false
     notes: App catalog bundle downloaded at build time.
 
-  - id: alpine
-    name: Alpine Linux
+  - id: victoria-metrics
+    name: VictoriaMetrics
     enabled: true
-    criticality: core
+    criticality: important
+    runtime_kind: service
+    role: metrics storage
+    owned_capability: time-series persistence
+    software_catalog:
+      component_key: victoria-metrics
+      readiness_requirements:
+        - bundled_with_appos
+        - supervisor_process
     version_probe:
-      type: file
-      path: /etc/alpine-release
+      type: command
+      command: ['sh', '-c', "victoria-metrics-prod --version 2>&1 | sed -n 's/.*v\\([0-9.]*\\).*/\\1/p' | head -n 1"]
     availability_probe:
-      type: file_exists
-      path: /etc/alpine-release
+      type: http
+      url: http://127.0.0.1:8428/health
+      expect_status: 200
     update_probe:
       type: file_mtime
-      path: /etc/alpine-release
+      path: /usr/local/bin/victoria-metrics-prod
+    log_access:
+      type: supervisor
+      service: victoriametrics
+      default_stream: stdout
     operations:
       start: false
       stop: false
       restart: false
-    notes: Base runtime image.
+    notes: Embedded time-series database for metrics storage.
 
   - id: sqlite
     name: SQLite
     enabled: true
     criticality: optional
+    runtime_kind: embedded_dependency
+    role: embedded database engine
+    owned_capability: local persistence engine
     version_probe:
-      type: command
-      command: ["sh", "-c", "sqlite3 --version | awk '{print $1}'"]
+      type: sqlite_query
+      query: SELECT sqlite_version() AS version
     availability_probe:
-      type: command
-      command: ["sqlite3", "--version"]
-    update_probe:
-      type: file_mtime
-      path: /usr/bin/sqlite3
+      type: sqlite_query
+      query: SELECT sqlite_version() AS version
     operations:
       start: false
       stop: false
       restart: false
-    notes: Embedded SQL database engine.
+    notes: Embedded SQLite engine used by the AppOS PocketBase runtime.
 
   - id: docker-compose
     name: Docker Compose
     enabled: true
     criticality: important
+    runtime_kind: tool
+    role: compose cli
+    owned_capability: multi-container orchestration
     version_probe:
       type: command
       command: ["docker", "compose", "version", "--short"]
@@ -291,6 +355,9 @@ components:
     name: Git
     enabled: true
     criticality: optional
+    runtime_kind: tool
+    role: version control cli
+    owned_capability: source retrieval
     version_probe:
       type: command
       command: ["sh", "-c", "git --version | sed 's/git version //'"]
@@ -310,25 +377,31 @@ components:
     name: Go
     enabled: true
     criticality: optional
+    runtime_kind: build_toolchain
+    role: go toolchain metadata
+    owned_capability: go build provenance
     version_probe:
       type: command
-      command: ["sh", "-c", "go version | sed 's/.*go\\([0-9.]*\\).*/\\1/'"]
+      command: ["sh", "-c", "grep -aoE 'go1\\.[0-9]+(\\.[0-9]+)?' /usr/local/bin/appos | head -n 1 | sed 's/^go//'"]
     availability_probe:
       type: command
-      command: ["go", "version"]
-    update_probe:
-      type: file_mtime
-      path: /usr/local/go/bin/go
+      command: ["sh", "-c", "grep -aqE 'go1\\.[0-9]+(\\.[0-9]+)?' /usr/local/bin/appos"]
     operations:
       start: false
       stop: false
       restart: false
-    notes: Go programming language runtime.
+    notes: Go toolchain version embedded in the AppOS build metadata.
 
 services:
   - name: appos
     component_id: appos
     enabled: true
+    manager: supervisor
+    program: appos
+    declared_in: /etc/supervisor/supervisord.conf
+    role: AppOS API and control-plane service.
+    lifecycle: always_on
+    visibility: default
     log_access:
       type: supervisor
       service: appos
@@ -341,6 +414,12 @@ services:
   - name: redis
     component_id: redis
     enabled: true
+    manager: supervisor
+    program: redis
+    declared_in: /etc/supervisor/supervisord.conf
+    role: Internal cache and runtime dependency.
+    lifecycle: always_on
+    visibility: diagnostic
     log_access:
       type: supervisor
       service: redis
@@ -353,9 +432,33 @@ services:
   - name: nginx
     component_id: nginx
     enabled: true
+    manager: supervisor
+    program: nginx
+    declared_in: /etc/supervisor/supervisord.conf
+    role: Reverse proxy and static web server.
+    lifecycle: always_on
+    visibility: default
     log_access:
       type: supervisor
       service: nginx
+      default_stream: stdout
+    operations:
+      start: false
+      stop: false
+      restart: false
+
+  - name: victoriametrics
+    component_id: victoria-metrics
+    enabled: true
+    manager: supervisor
+    program: victoriametrics
+    declared_in: /etc/supervisor/supervisord.conf
+    role: Embedded time-series metrics storage service.
+    lifecycle: always_on
+    visibility: diagnostic
+    log_access:
+      type: supervisor
+      service: victoriametrics
       default_stream: stdout
     operations:
       start: false

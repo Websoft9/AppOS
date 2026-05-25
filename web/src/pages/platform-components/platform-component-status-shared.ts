@@ -3,6 +3,10 @@ import { pb } from '@/lib/pb'
 export type ComponentItem = {
   id: string
   name: string
+  criticality: string
+  runtime_kind: string
+  role: string
+  owned_capability: string
   version: string
   available: boolean
   updated_at: string
@@ -10,6 +14,8 @@ export type ComponentItem = {
 
 export type ServiceItem = {
   name: string
+  lifecycle: string
+  visibility: string
   state: string
   pid: number
   uptime: number
@@ -28,13 +34,45 @@ export type ServiceLogResponse = {
 }
 
 export async function fetchInstalledComponents(force = false): Promise<ComponentItem[]> {
-  const url = force ? '/api/components?force=1' : '/api/components'
-  const data = await pb.send<ComponentItem[]>(url, { method: 'GET' })
-  return Array.isArray(data) ? data : []
+  const url = force ? '/api/software/local?force=1' : '/api/software/local'
+  const data: unknown = await pb.send(url, { method: 'GET' })
+  if (Array.isArray(data)) return data.map(coerceComponentItem)
+  if (
+    data &&
+    typeof data === 'object' &&
+    'items' in data &&
+    Array.isArray((data as { items?: unknown }).items)
+  ) {
+    return (data as { items: unknown[] }).items.map(coerceComponentItem)
+  }
+  return []
+}
+
+function coerceComponentItem(input: unknown): ComponentItem {
+  const value = input && typeof input === 'object' ? (input as Record<string, unknown>) : {}
+  return {
+    id: readString(value.id),
+    name: readString(value.name),
+    criticality: readString(value.criticality),
+    runtime_kind: readString(value.runtime_kind),
+    role: readString(value.role),
+    owned_capability: readString(value.owned_capability),
+    version: readString(value.version),
+    available: readBoolean(value.available),
+    updated_at: readString(value.updated_at),
+  }
+}
+
+function readString(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
+function readBoolean(value: unknown): boolean {
+  return typeof value === 'boolean' ? value : false
 }
 
 export async function fetchActiveServices(): Promise<ServiceItem[]> {
-  const data = await pb.send<ServiceItem[]>('/api/components/services', { method: 'GET' })
+  const data = await pb.send<ServiceItem[]>('/api/software/local/services', { method: 'GET' })
   return Array.isArray(data) ? data : []
 }
 
@@ -43,7 +81,7 @@ export async function fetchServiceLogs(
   stream: 'stdout' | 'stderr' = 'stdout'
 ): Promise<ServiceLogResponse> {
   return pb.send<ServiceLogResponse>(
-    `/api/components/services/${encodeURIComponent(name)}/logs?stream=${stream}&tail=200`,
+    `/api/software/local/services/${encodeURIComponent(name)}/logs?stream=${stream}&tail=200`,
     { method: 'GET' }
   )
 }

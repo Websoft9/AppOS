@@ -163,7 +163,7 @@ export function SpaceQuotaSection({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Space Quota</CardTitle>
+        <CardTitle>Space</CardTitle>
         <CardDescription>Per-user private space limits</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

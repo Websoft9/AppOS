@@ -8,7 +8,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/forms"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
+	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 	"github.com/websoft9/appos/backend/domain/secrets"
 )
 
@@ -46,9 +46,9 @@ func RegisterSettings(se *core.ServeEvent) {
 // @Failure 401 {object} map[string]any
 // @Router /api/settings/schema [get]
 func handleSettingsSchema(e *core.RequestEvent) error {
-	entries := settingscatalog.Entries()
+	entries := settingsschema.Entries()
 
-	actions := settingscatalog.Actions()
+	actions := settingsschema.Actions()
 
 	return e.JSON(http.StatusOK, map[string]any{
 		"entries": entries,
@@ -67,7 +67,7 @@ func handleSettingsSchema(e *core.RequestEvent) error {
 // @Failure 500 {object} map[string]any
 // @Router /api/settings/entries [get]
 func handleSettingsEntriesList(e *core.RequestEvent) error {
-	entries := settingscatalog.Entries()
+	entries := settingsschema.Entries()
 	items := make([]map[string]any, 0, len(entries))
 	for _, entry := range entries {
 		value, err := loadSettingsEntryValue(e.App, entry)
@@ -197,11 +197,11 @@ func handleSettingsAction(e *core.RequestEvent) error {
 
 // ─── Entry adapters ────────────────────────────────────────────────────────
 
-func getSettingsEntrySchema(entryID string) (settingscatalog.EntrySchema, bool) {
-	return settingscatalog.FindEntry(entryID)
+func getSettingsEntrySchema(entryID string) (settingsschema.EntrySchema, bool) {
+	return settingsschema.FindEntry(entryID)
 }
 
-func loadSettingsEntryValue(app core.App, entry settingscatalog.EntrySchema) (map[string]any, error) {
+func loadSettingsEntryValue(app core.App, entry settingsschema.EntrySchema) (map[string]any, error) {
 	if value, handled, err := loadConnectorBackedSettingsEntryValue(app, entry.ID); handled || err != nil {
 		if err != nil {
 			return nil, err
@@ -209,7 +209,7 @@ func loadSettingsEntryValue(app core.App, entry settingscatalog.EntrySchema) (ma
 		return maskValue(value), nil
 	}
 
-	if entry.Source == settingscatalog.SourceNative {
+	if entry.Source == settingsschema.SourceNative {
 		value, err := sysconfig.LoadPocketBaseEntry(app, entry)
 		if err != nil {
 			return nil, err
@@ -219,12 +219,12 @@ func loadSettingsEntryValue(app core.App, entry settingscatalog.EntrySchema) (ma
 	return getCustomSettingsEntryValue(app, entry.Module, entry.Key)
 }
 
-func patchSettingsEntryValue(e *core.RequestEvent, entry settingscatalog.EntrySchema, value map[string]any) (map[string]any, error) {
+func patchSettingsEntryValue(e *core.RequestEvent, entry settingsschema.EntrySchema, value map[string]any) (map[string]any, error) {
 	if entry.ID == "smtp" || entry.ID == "docker-registries" {
 		return nil, &connectorManagedSettingsError{message: "this settings entry is connector-managed; update it in Resources > Connectors"}
 	}
 
-	if entry.Source == settingscatalog.SourceNative {
+	if entry.Source == settingsschema.SourceNative {
 		// Load existing native values to preserve "***" sentinels on sensitive fields.
 		existing, err := sysconfig.LoadPocketBaseEntry(e.App, entry)
 		if err != nil {
@@ -283,6 +283,14 @@ func validateCustomSettingsEntry(e *core.RequestEvent, module, key string, value
 	switch module + "/" + key {
 	case "space/quota":
 		return validateSpaceQuota(value)
+	case "monitor/scheduling":
+		return validateMonitorScheduling(value)
+	case "monitor/policy":
+		return validateMonitorPolicy(value)
+	case "monitor/platform-self-observation":
+		return validateMonitorPlatformSelfObservation(e.App, value)
+	case "monitor/managed-collector-policy":
+		return validateMonitorManagedCollectorPolicy(value)
 	case "connect/terminal":
 		return validateConnectTerminal(value)
 	case "connect/sftp":

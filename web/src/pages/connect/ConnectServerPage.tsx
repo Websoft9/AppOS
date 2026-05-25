@@ -76,7 +76,13 @@ import {
   type Script,
   type SystemdService,
 } from '@/lib/connect-api'
-import { clearConnectSession, loadConnectSession, saveConnectSession } from '@/lib/connect-session'
+import {
+  clearConnectSession,
+  loadConnectSession,
+  type RestoreWorkspaceSession,
+  saveConnectSession,
+  saveConnectWorkspaceSnapshot,
+} from '@/lib/connect-session'
 import { cn } from '@/lib/utils'
 
 const CONNECT_SPLIT_KEY = 'connect.split.ratio'
@@ -155,6 +161,26 @@ interface TerminalConnectionTab {
   sessionId?: string
 }
 
+interface RestoredTabWorkspaceSeed {
+  sidePanel: 'none' | 'files'
+  path?: string
+  lockedRoot?: string | null
+  splitRatio?: number
+}
+
+interface InitialTerminalSessionState {
+  tabs: TerminalConnectionTab[]
+  activeTabId: string
+  initialSidePanel: 'none' | 'files'
+  initialSplitRatio?: number
+  initialFilePanelPresets: Record<string, { path: string; lockedRoot: string | null; nonce: number }>
+  restoredWorkspaceByTabId: Record<string, RestoredTabWorkspaceSeed>
+}
+
+function buildRestoreTabId(seed: RestoreWorkspaceSession) {
+  return `${seed.serverId}-${seed.sessionId}`
+}
+
 function buildDefaultTerminalTabs(serverId: string, sessionId?: string): TerminalConnectionTab[] {
   return [
     {
@@ -167,14 +193,68 @@ function buildDefaultTerminalTabs(serverId: string, sessionId?: string): Termina
   ]
 }
 
-function loadInitialTerminalSession(serverId: string, sessionId?: string): {
-  tabs: TerminalConnectionTab[]
-  activeTabId: string
-} {
+function loadInitialTerminalSession(
+  serverId: string,
+  sessionId?: string,
+  restoreSessions?: RestoreWorkspaceSession[],
+  activeRestoreSessionId?: string
+): InitialTerminalSessionState {
+  if (restoreSessions && restoreSessions.length > 0) {
+    const tabs = restoreSessions.map(seed => ({
+      id: buildRestoreTabId(seed),
+      serverId: seed.serverId,
+      title: seed.title,
+      reconnectNonce: 0,
+      sessionId: seed.sessionId,
+    }))
+    const activeSeed =
+      restoreSessions.find(seed => seed.sessionId === activeRestoreSessionId) ??
+      restoreSessions.find(seed => seed.serverId === serverId) ??
+      restoreSessions[0]
+    const activeTabId = buildRestoreTabId(activeSeed)
+    const restoredWorkspaceByTabId = restoreSessions.reduce<
+      Record<string, RestoredTabWorkspaceSeed>
+    >((acc, seed) => {
+      acc[buildRestoreTabId(seed)] = {
+        sidePanel: seed.panel === 'files' ? 'files' : 'none',
+        path: seed.path,
+        lockedRoot: seed.lockedRoot ?? null,
+        splitRatio: seed.split,
+      }
+      return acc
+    }, {})
+    const initialFilePanelPresets = restoreSessions.reduce<
+      Record<string, { path: string; lockedRoot: string | null; nonce: number }>
+    >((acc, seed) => {
+      if (!seed.path && !seed.lockedRoot) return acc
+      acc[seed.serverId] = {
+        path: seed.path || '/',
+        lockedRoot: seed.lockedRoot || null,
+        nonce: 0,
+      }
+      return acc
+    }, {})
+    const activeWorkspace = restoredWorkspaceByTabId[activeTabId]
+    return {
+      tabs,
+      activeTabId,
+      initialSidePanel: activeWorkspace?.sidePanel ?? 'none',
+      initialSplitRatio: activeWorkspace?.splitRatio,
+      initialFilePanelPresets,
+      restoredWorkspaceByTabId,
+    }
+  }
+
   const saved = loadConnectSession()
   if (!saved || saved.tabs.length === 0) {
     const defaults = buildDefaultTerminalTabs(serverId, sessionId)
-    return { tabs: defaults, activeTabId: defaults[0].id }
+    return {
+      tabs: defaults,
+      activeTabId: defaults[0].id,
+      initialSidePanel: 'none',
+      initialFilePanelPresets: {},
+      restoredWorkspaceByTabId: {},
+    }
   }
   // Ensure the URL serverId has a tab in the restored session
   let tabs: TerminalConnectionTab[] = saved.tabs.map(tab => ({ ...tab }))
@@ -205,7 +285,13 @@ function loadInitialTerminalSession(serverId: string, sessionId?: string): {
         ? saved.activeTabId
         : tabs[0].id
       : (tabs.find(tab => tab.serverId === serverId) ?? tabs[tabs.length - 1]).id
-  return { tabs, activeTabId }
+  return {
+    tabs,
+    activeTabId,
+    initialSidePanel: 'none',
+    initialFilePanelPresets: {},
+    restoredWorkspaceByTabId: {},
+  }
 }
 
 const DEFAULT_CONNECT_SETTINGS: ConnectTerminalSettings = {
@@ -216,6 +302,8 @@ const DEFAULT_CONNECT_SETTINGS: ConnectTerminalSettings = {
 type ConnectServerPageProps = {
   serverId: string
   initialSessionId?: string
+  initialRestoreSessions?: RestoreWorkspaceSession[]
+  initialActiveRestoreSessionId?: string
   initialSidePanel?: 'files'
   initialFilePath?: string
   initialLockedRootPath?: string
@@ -225,13 +313,23 @@ type ConnectServerPageProps = {
 export function ConnectServerPage({
   serverId,
   initialSessionId,
+  initialRestoreSessions,
+  initialActiveRestoreSessionId,
   initialSidePanel,
   initialFilePath,
   initialLockedRootPath,
   initialSplitRatio,
 }: ConnectServerPageProps) {
-  const initialSessionRef = useRef(loadInitialTerminalSession(serverId, initialSessionId))
+  const initialSessionRef = useRef(
+    loadInitialTerminalSession(
+      serverId,
+      initialSessionId,
+      initialRestoreSessions,
+      initialActiveRestoreSessionId
+    )
+  )
   const initialSession = initialSessionRef.current
+  const restoredWorkspaceByTabIdRef = useRef(initialSession.restoredWorkspaceByTabId)
   const opButtonClass = 'h-8 w-[116px] justify-start'
   const navigate = useNavigate()
   const [servers, setServers] = useState<ServerType[]>([])
@@ -248,17 +346,19 @@ export function ConnectServerPage({
     useState<ConnectTerminalSettings>(DEFAULT_CONNECT_SETTINGS)
   const [duplicateConnectConfirmOpen, setDuplicateConnectConfirmOpen] = useState(false)
   const [duplicateConnectTarget, setDuplicateConnectTarget] = useState<ServerType | null>(null)
-  const [tabRailCollapsed, setTabRailCollapsed] = useState(false)
+  const [tabRailCollapsed, setTabRailCollapsed] = useState(initialSession.initialSidePanel === 'files')
   const [safeExitingTabId, setSafeExitingTabId] = useState<string | null>(null)
   const [lastActivityAt, setLastActivityAt] = useState<number>(Date.now())
   const [terminalTabs, setTerminalTabs] = useState<TerminalConnectionTab[]>(initialSession.tabs)
   const [activeTabId, setActiveTabId] = useState<string>(initialSession.activeTabId)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [sidePanel, setSidePanel] = useState<'none' | 'files'>('none')
+  const [sidePanel, setSidePanel] = useState<'none' | 'files'>(initialSession.initialSidePanel)
   const [filePanelPresets, setFilePanelPresets] = useState<
     Record<string, { path: string; lockedRoot: string | null; nonce: number }>
-  >({})
-  const [splitRatio, setSplitRatio] = useState(() => initialSplitRatio ?? loadSplitRatio())
+  >(initialSession.initialFilePanelPresets)
+  const [splitRatio, setSplitRatio] = useState(
+    () => initialSession.initialSplitRatio ?? initialSplitRatio ?? loadSplitRatio()
+  )
   const [isResizing, setIsResizing] = useState(false)
   const [systemdOpen, setSystemdOpen] = useState(false)
   const [systemdQuery, setSystemdQuery] = useState('')
@@ -374,6 +474,50 @@ export function ConnectServerPage({
   }, [activeTabId, terminalTabs])
 
   useEffect(() => {
+    const tabs = terminalTabs.flatMap(tab =>
+      tab.sessionId
+        ? [
+            {
+              id: tab.id,
+              sessionId: tab.sessionId,
+              serverId: tab.serverId,
+              title: tab.title,
+            },
+          ]
+        : []
+    )
+    if (tabs.length === 0) {
+      return
+    }
+
+    const activeSessionId = terminalTabs.find(tab => tab.id === activeTabId)?.sessionId
+    const workspaceBySessionId = tabs.reduce<Record<string, { panel?: 'files'; path?: string; lockedRoot?: string; split?: number }>>(
+      (acc, tab) => {
+        const workspace = restoredWorkspaceByTabIdRef.current[tab.id]
+        if (!workspace) {
+          acc[tab.sessionId] = {}
+          return acc
+        }
+        acc[tab.sessionId] = {
+          panel: workspace.sidePanel === 'files' ? 'files' : undefined,
+          path: workspace.path,
+          lockedRoot: workspace.lockedRoot || undefined,
+          split: workspace.splitRatio,
+        }
+        return acc
+      },
+      {}
+    )
+
+    saveConnectWorkspaceSnapshot({
+      tabs: tabs.map(({ sessionId, serverId, title }) => ({ sessionId, serverId, title })),
+      activeSessionId,
+      workspaceBySessionId,
+      updatedAt: Date.now(),
+    })
+  }, [activeTabId, filePanelPresets, sidePanel, splitRatio, terminalTabs])
+
+  useEffect(() => {
     const touchActivity = () => setLastActivityAt(Date.now())
     window.addEventListener('keydown', touchActivity)
     window.addEventListener('mousedown', touchActivity)
@@ -406,6 +550,42 @@ export function ConnectServerPage({
     () => Array.from(new Set(terminalTabs.map(tab => tab.serverId))),
     [terminalTabs]
   )
+
+  useEffect(() => {
+    const workspace = restoredWorkspaceByTabIdRef.current[activeTabId]
+    if (!workspace) return
+
+    setSidePanel(workspace.sidePanel)
+    if (workspace.sidePanel === 'files') {
+      setTabRailCollapsed(true)
+    }
+    if (typeof workspace.splitRatio === 'number' && Number.isFinite(workspace.splitRatio)) {
+      setSplitRatio(workspace.splitRatio)
+    }
+
+    if (workspace.path || workspace.lockedRoot) {
+      setFilePanelPresets(state => {
+        const current = state[activeServerId] || {
+          path: '/',
+          lockedRoot: null,
+          nonce: 0,
+        }
+        const nextPath = workspace.path || current.path || '/'
+        const nextLockedRoot = workspace.lockedRoot || null
+        if (current.path === nextPath && current.lockedRoot === nextLockedRoot) {
+          return state
+        }
+        return {
+          ...state,
+          [activeServerId]: {
+            path: nextPath,
+            lockedRoot: nextLockedRoot,
+            nonce: current.nonce,
+          },
+        }
+      })
+    }
+  }, [activeServerId, activeTabId])
 
   useEffect(() => {
     if (initialSidePanel === 'files' && initialFilePath) {
@@ -590,6 +770,14 @@ export function ConnectServerPage({
     )
   }, [])
 
+  const handleSessionInvalidated = useCallback((tabId: string, sessionId: string) => {
+    setTerminalTabs(prev =>
+      prev.map(tab =>
+        tab.id === tabId && tab.sessionId === sessionId ? { ...tab, sessionId: undefined } : tab
+      )
+    )
+  }, [])
+
   const handleFileLocationChange = useCallback(
     (targetServerId: string, location: { path: string; lockedRoot: string | null }) => {
       setFilePanelPresets(state => {
@@ -641,6 +829,17 @@ export function ConnectServerPage({
       }
     }
   }, [activeServerId, activeTab?.sessionId, filePanelPresets, sidePanel, splitRatio])
+
+  useEffect(() => {
+    if (!activeTabId) return
+    const preset = filePanelPresets[activeServerId]
+    restoredWorkspaceByTabIdRef.current[activeTabId] = {
+      sidePanel,
+      path: preset?.path,
+      lockedRoot: preset?.lockedRoot || null,
+      splitRatio,
+    }
+  }, [activeServerId, activeTabId, filePanelPresets, sidePanel, splitRatio])
 
   useEffect(() => {
     if (!activeTabId || safeExitingTabId) return
@@ -1416,6 +1615,7 @@ export function ConnectServerPage({
                   serverId={tab.serverId}
                   sessionId={tab.sessionId}
                   onSessionEstablished={sessionId => handleSessionEstablished(tab.id, sessionId)}
+                  onSessionInvalidated={sessionId => handleSessionInvalidated(tab.id, sessionId)}
                   className="h-full"
                   isActive={isActive}
                 />

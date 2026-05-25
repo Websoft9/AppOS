@@ -171,9 +171,6 @@ func scanFile(filePath string, seeds map[string]functionSeed, metadata handlerMe
 	if strings.HasPrefix(filepath.Base(filePath), "terminal") {
 		defaultG = "/api/terminal"
 	}
-	if filepath.Base(filePath) == "components.go" {
-		defaultG = "/api/components"
-	}
 	if filepath.Base(filePath) == "deploy.go" || filepath.Base(filePath) == "apps.go" || filepath.Base(filePath) == "lifecycle_resources.go" || filepath.Base(filePath) == "catalog.go" {
 		defaultG = "/api"
 	}

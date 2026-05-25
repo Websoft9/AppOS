@@ -28,8 +28,8 @@ func TestSubdomainConstants(t *testing.T) {
 // silently broken by future cleanup.
 func TestComponentMaterialMapping(t *testing.T) {
 	expected := map[string]Subdomain{
-		"components.registry":             SubdomainCatalog,
-		"components.inventory_output":     SubdomainInventory,
+		"software.local_registry":         SubdomainCatalog,
+		"software.local_inventory_output": SubdomainInventory,
 		"software.install_upgrade_verify": SubdomainProvisioning,
 		"software.os_privilege_network":   SubdomainTargetReadiness,
 	}
@@ -48,7 +48,7 @@ func TestComponentMaterialMapping(t *testing.T) {
 
 // TestMonitorBoundaryIsNotOwner verifies that Monitor does not own any Software
 // Delivery subdomain — it is a consumer, not an owner.
-// It also verifies that components.Service-type concerns (active service observation)
+	// It also verifies that local service observation concerns
 // are not claimed by Software Delivery.
 func TestMonitorBoundaryIsNotOwner(t *testing.T) {
 	monitorConcerns := []string{
@@ -57,9 +57,9 @@ func TestMonitorBoundaryIsNotOwner(t *testing.T) {
 		"active_checks",
 		"health_summaries",
 		"status_timelines",
-		// components.Service type belongs to Monitor, not Software Delivery
-		"components.services",
-		"components.active_service_state",
+		// active local service observation belongs to Monitor, not Software Delivery
+		"monitor.local_services",
+		"monitor.local_service_state",
 	}
 	for _, concern := range monitorConcerns {
 		if _, owned := MaterialSubdomainMap[concern]; owned {

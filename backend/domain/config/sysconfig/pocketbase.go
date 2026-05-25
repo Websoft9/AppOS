@@ -5,10 +5,10 @@ import (
 	"fmt"
 
 	"github.com/pocketbase/pocketbase/core"
-	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
+	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 )
 
-func LoadPocketBaseEntry(app core.App, entry settingscatalog.EntrySchema) (map[string]any, error) {
+func LoadPocketBaseEntry(app core.App, entry settingsschema.EntrySchema) (map[string]any, error) {
 	clone, err := app.Settings().Clone()
 	if err != nil {
 		return nil, err
@@ -16,7 +16,7 @@ func LoadPocketBaseEntry(app core.App, entry settingscatalog.EntrySchema) (map[s
 	return exportPocketBaseEntry(clone, entry)
 }
 
-func PatchPocketBaseEntry(app core.App, entry settingscatalog.EntrySchema, value map[string]any) (map[string]any, error) {
+func PatchPocketBaseEntry(app core.App, entry settingsschema.EntrySchema, value map[string]any) (map[string]any, error) {
 	clone, err := app.Settings().Clone()
 	if err != nil {
 		return nil, err
@@ -45,14 +45,14 @@ func PatchPocketBaseEntry(app core.App, entry settingscatalog.EntrySchema, value
 	return exportPocketBaseEntry(stored, entry)
 }
 
-func pocketBasePatchWrapper(entry settingscatalog.EntrySchema, value map[string]any) (map[string]any, error) {
+func pocketBasePatchWrapper(entry settingsschema.EntrySchema, value map[string]any) (map[string]any, error) {
 	if entry.PocketBaseGroup == "" {
 		return nil, fmt.Errorf("settings entry %s has no pocketbase group", entry.ID)
 	}
 	return map[string]any{entry.PocketBaseGroup: value}, nil
 }
 
-func exportPocketBaseEntry(current *core.Settings, entry settingscatalog.EntrySchema) (map[string]any, error) {
+func exportPocketBaseEntry(current *core.Settings, entry settingsschema.EntrySchema) (map[string]any, error) {
 	if entry.PocketBaseGroup == "" {
 		return nil, fmt.Errorf("settings entry %s has no pocketbase group", entry.ID)
 	}

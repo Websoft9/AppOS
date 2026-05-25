@@ -89,6 +89,9 @@ Render one shared Settings page from backend schema and entry payloads instead o
 - page composition is schema-driven
 - entry form internals may stay specialized when needed
 - native and custom entries share one page shell
+- on wide screens the shared shell uses a parallel `menu > content > help` layout
+- the help panel is optional and remains hidden until a setting-level help trigger opens it
+- responsive behavior must protect content readability before preserving a three-column layout
 
 ### Save model
 

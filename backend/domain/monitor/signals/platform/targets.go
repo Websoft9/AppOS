@@ -11,20 +11,30 @@ import (
 	"github.com/websoft9/appos/backend/infra/supervisor"
 )
 
-func (o *PlatformObserver) collectAppCoreTarget(now time.Time, snapshot RuntimeSnapshot, resource supervisor.ResourceInfo, mem runtime.MemStats) ([]monitormetrics.MetricPoint, error) {
+type appCoreTargetObservation struct {
+	Summary map[string]any
+	Points  []monitormetrics.MetricPoint
+}
+
+func (o *PlatformObserver) collectAppCoreTarget(now time.Time, snapshot RuntimeSnapshot, resource supervisor.ResourceInfo, mem runtime.MemStats) (appCoreTargetObservation, error) {
 	memoryUsedBytes := float64(resource.Memory)
 	memoryAvailableBytes := 0.0
-	if localMemoryUsedBytes, localMemoryAvailableBytes, err := readLocalAppCoreMemory(); err == nil {
+	hasMemoryLimit := false
+	if o.appCoreMemoryFn != nil {
+		if localMemoryUsedBytes, localMemoryAvailableBytes, localHasMemoryLimit, err := o.appCoreMemoryFn(); err == nil {
 		if localMemoryUsedBytes > 0 {
 			memoryUsedBytes = localMemoryUsedBytes
 		}
-		memoryAvailableBytes = localMemoryAvailableBytes
+			hasMemoryLimit = localHasMemoryLimit
+			if hasMemoryLimit {
+				memoryAvailableBytes = localMemoryAvailableBytes
+			}
+		}
 	}
 	appCoreSummary := map[string]any{
 		"pid":              os.Getpid(),
 		"cpu_percent":      resource.CPU,
 		"memory_bytes":     memoryUsedBytes,
-		"memory_available_bytes": memoryAvailableBytes,
 		"goroutines":       runtime.NumGoroutine(),
 		"heap_alloc_bytes": mem.Alloc,
 		"uptime_seconds":   secondsSince(now, snapshot.StartedAt),
@@ -33,20 +43,22 @@ func (o *PlatformObserver) collectAppCoreTarget(now time.Time, snapshot RuntimeS
 		"gc_cycles":        mem.NumGC,
 		"last_gc_at":       formatUnixNano(mem.LastGC),
 	}
-	if err := monitorstatus.ProjectPlatformLatestStatus(o.app, now, PlatformTargetAppOSCore, "AppOS Core", monitor.SignalSourceSelf, monitor.StatusHealthy, "", appCoreSummary); err != nil {
-		return nil, err
+	if hasMemoryLimit {
+		appCoreSummary["memory_available_bytes"] = memoryAvailableBytes
 	}
 	points := []monitormetrics.MetricPoint{
 		{Series: "appos_platform_cpu_percent", Value: resource.CPU, Labels: platformMetricLabels(PlatformTargetAppOSCore), ObservedAt: now},
 		{Series: "appos_platform_memory_bytes", Value: memoryUsedBytes, Labels: platformMetricLabels(PlatformTargetAppOSCore), ObservedAt: now},
-		{Series: "appos_platform_memory_available_bytes", Value: memoryAvailableBytes, Labels: platformMetricLabels(PlatformTargetAppOSCore), ObservedAt: now},
 		{Series: "appos_platform_goroutines", Value: float64(runtime.NumGoroutine()), Labels: platformMetricLabels(PlatformTargetAppOSCore), ObservedAt: now},
 		{Series: "appos_platform_heap_alloc_bytes", Value: float64(mem.Alloc), Labels: platformMetricLabels(PlatformTargetAppOSCore), ObservedAt: now},
+	}
+	if hasMemoryLimit {
+		points = append(points, monitormetrics.MetricPoint{Series: "appos_platform_memory_available_bytes", Value: memoryAvailableBytes, Labels: platformMetricLabels(PlatformTargetAppOSCore), ObservedAt: now})
 	}
 	if uptime := secondsSinceFloat(now, snapshot.StartedAt); uptime > 0 {
 		points = append(points, monitormetrics.MetricPoint{Series: "appos_platform_uptime_seconds", Value: uptime, Labels: platformMetricLabels(PlatformTargetAppOSCore), ObservedAt: now})
 	}
-	return points, nil
+	return appCoreTargetObservation{Summary: appCoreSummary, Points: points}, nil
 }
 
 func (o *PlatformObserver) collectWorkerTarget(now time.Time, snapshot RuntimeSnapshot) ([]monitormetrics.MetricPoint, error) {
@@ -87,12 +99,17 @@ func (o *PlatformObserver) collectWorkerTarget(now time.Time, snapshot RuntimeSn
 }
 
 func (o *PlatformObserver) collectSchedulerTarget(now time.Time, snapshot RuntimeSnapshot) ([]monitormetrics.MetricPoint, error) {
+	settings := monitor.LoadPlatformSelfObservationRuntimeSettings(
+		o.app,
+		platformRuntimeCapabilityEnabled(EnvPlatformEnableHostTelemetry),
+		platformRuntimeCapabilityEnabled(EnvPlatformEnableContainerTelemetry),
+	)
 	schedulerStatus := monitor.StatusUnknown
 	schedulerReason := "scheduler not started"
 	if snapshot.SchedulerRunning {
 		schedulerStatus = monitor.StatusHealthy
 		schedulerReason = ""
-		if !snapshot.SchedulerLastTick.IsZero() && now.Sub(snapshot.SchedulerLastTick) > PlatformSchedulerStaleThreshold {
+		if !snapshot.SchedulerLastTick.IsZero() && now.Sub(snapshot.SchedulerLastTick) > settings.SchedulerStaleThreshold {
 			schedulerStatus = monitor.StatusDegraded
 			schedulerReason = "scheduler tick stale"
 		}

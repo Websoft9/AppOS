@@ -9,7 +9,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
+	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 	"github.com/websoft9/appos/backend/domain/deploy"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	"gopkg.in/yaml.v3"
@@ -265,7 +265,7 @@ func buildInstallResourceChecks(ctx context.Context, app core.App, probe Install
 }
 
 func loadDeployMinFreeDiskBytes(app core.App) int64 {
-	fallback := settingscatalog.DefaultGroup("deploy", "preflight")
+	fallback := settingsschema.DefaultGroup("deploy", "preflight")
 	group, _ := sysconfig.GetGroup(app, "deploy", "preflight", fallback)
 	configured := sysconfig.Int(group, "minFreeDiskBytes", int(defaultMinFreeDiskBytes))
 	if configured < 0 {

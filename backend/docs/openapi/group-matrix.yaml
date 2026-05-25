@@ -351,6 +351,8 @@ groups:
       - GET /api/servers/{serverId}/software/operations
       - GET /api/servers/{serverId}/software/operations/{operationId}
       - GET /api/software/local
+      - GET /api/software/local/services
+      - GET /api/software/local/services/{name}/logs
       - GET /api/software/local/{componentKey}
       - GET /api/software/server-catalog
       - GET /api/software/server-catalog/{componentKey}
@@ -442,28 +444,6 @@ groups:
         - terminal_files.go
         - terminal_sessions.go
         - terminal_shell.go
-      nativeRefs: []
-
-  - group: Services
-    description: Service lifecycle operations exposed via supervisord integration.
-    apiType: Ext
-    extSurface:
-      - /api/components/services*
-    nativeSurface: []
-    sources:
-      extRouteFiles:
-        - components.go
-      nativeRefs: []
-
-  - group: Components
-    description: Installed component inventory and diagnostics registry APIs.
-    apiType: Ext
-    extSurface:
-      - /api/components
-    nativeSurface: []
-    sources:
-      extRouteFiles:
-        - components.go
       nativeRefs: []
 
   - group: Settings

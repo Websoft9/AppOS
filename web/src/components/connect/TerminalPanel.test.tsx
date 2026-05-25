@@ -261,6 +261,49 @@ describe('TerminalPanel regressions', () => {
     expect(url.searchParams.get('server_id')).toBe('srv-1')
   })
 
+  it('drops a stale session id and reconnects fresh when the backend reports session not found', async () => {
+    const onSessionInvalidated = vi.fn()
+
+    render(
+      <TerminalPanel
+        serverId="s1"
+        sessionId="stale-sess-1"
+        isActive
+        onSessionInvalidated={onSessionInvalidated}
+      />
+    )
+
+    await waitFor(() => {
+      expect(mocks.MockWebSocket.instances.length).toBe(1)
+    })
+
+    const firstUrl = new URL(mocks.MockWebSocket.urls[0])
+    expect(firstUrl.searchParams.get('session_id')).toBe('stale-sess-1')
+
+    const socket = mocks.MockWebSocket.instances[0]
+    const payload = new TextEncoder().encode(
+      JSON.stringify({ type: 'error', message: 'terminal session not found' })
+    )
+    const frame = new Uint8Array(1 + payload.length)
+    frame[0] = 0x00
+    frame.set(payload, 1)
+
+    socket.onmessage?.(
+      new MessageEvent('message', {
+        data: frame.buffer,
+      })
+    )
+
+    await waitFor(() => {
+      expect(mocks.MockWebSocket.instances.length).toBe(2)
+    })
+
+    expect(onSessionInvalidated).toHaveBeenCalledWith('stale-sess-1')
+    const retryUrl = new URL(mocks.MockWebSocket.urls[1])
+    expect(retryUrl.searchParams.get('session_id')).toBeNull()
+    expect(screen.queryByRole('button', { name: /reconnect/i })).not.toBeInTheDocument()
+  })
+
   it('uses detach on unmount and disconnect on explicit close', async () => {
     const disconnectRef = createRef<TerminalPanelHandle>()
     const disconnectView = render(<TerminalPanel ref={disconnectRef} serverId="s1" isActive />)

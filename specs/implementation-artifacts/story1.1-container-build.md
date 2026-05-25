@@ -44,7 +44,6 @@ As a developer, I need Dockerfiles and container configurations to package the A
 - [x] Dashboard accessible at `/` 
 - [x] PocketBase API accessible at `/api/` and `/_/` (Admin UI)
 - [x] Custom routes at `/api/ext/*` (apps, proxy, system, backup)
-- [x] Terraform CLI pre-installed in container image (`terraform version` available)
 - [ ] Data persists in `/appos/data` after restart
 
 ## Build Strategy Comparison
@@ -211,7 +210,6 @@ docker restart appos && docker exec appos ls /appos/data/
 - [x] Verify data persistence after restart
 - [x] Migrate pb_data → pb/pb_data; add workflows/, templates/ dirs
 - [x] Add Store Library baked into image (`build/library/` via COPY; `make build library` to download)
-- [x] Pre-install Terraform CLI from official image (`hashicorp/terraform:1.14`)
 - [x] Install Node.js + `@mariozechner/pi-coding-agent` in runtime image for PB RPC integration
 
 ---
@@ -265,17 +263,6 @@ docker restart appos && docker exec appos ls /appos/data/
 - **Makefile**: 新增 `make build library`；`make image build-local` 自动检查并下载；`make run` 改为方案B（仅 cp + restart）
 - **Files changed**: `Dockerfile`, `Dockerfile.local`, `entrypoint.sh`, `supervisord.conf`, `Makefile`, `.gitignore`
 - **Status**: 构建成功，`/appos/library` 和新目录结构已验证 ✅
-
----
-
-**2026-03-05**: Terraform CLI 预装（Story 1.1 范围）
-
-- **Change**: 在 `build/Dockerfile` 与 `build/Dockerfile.local` 的 runtime stage 增加 Terraform CLI 预装
-- **Install Method**: 采用官方镜像 `hashicorp/terraform:1.14`，在多阶段构建中直接 `COPY --from=terraform-bin /bin/terraform /usr/local/bin/terraform`
-- **Versioning**: 固定主版本 `1.14`
-- **Verification**: 容器运行后执行 `terraform version` 校验可用
-- **Files changed**: `build/Dockerfile`, `build/Dockerfile.local`, `specs/implementation-artifacts/story1.1-container-build.md`
-- **Status**: Terraform 预装实现完成 ✅
 
 ---
 

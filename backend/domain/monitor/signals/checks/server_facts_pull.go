@@ -34,6 +34,11 @@ func SetServerFactsCommandExecutorForTest(fn func(context.Context, terminal.Conn
 }
 
 func RunServerFactsPullSweep(app core.App, now time.Time) error {
+	policy := monitor.LoadPolicySettings(app)
+	return runServerFactsPullSweep(app, now, policy.FactsPullTimeout, policy.FactsPullConcurrency)
+}
+
+func runServerFactsPullSweep(app core.App, now time.Time, timeout time.Duration, concurrency int) error {
 	items, err := servers.ListManagedServers(app)
 	if err != nil {
 		return err
@@ -42,7 +47,7 @@ func RunServerFactsPullSweep(app core.App, now time.Time) error {
 		wg          sync.WaitGroup
 		mu          sync.Mutex
 		sweepErrors []error
-		sem         = make(chan struct{}, serverFactsPullConcurrency)
+		sem         = make(chan struct{}, concurrency)
 	)
 	for _, server := range items {
 		if server == nil || server.ID == "" {
@@ -61,7 +66,7 @@ func RunServerFactsPullSweep(app core.App, now time.Time) error {
 					mu.Unlock()
 				}
 			}()
-			if err := PullServerFactsSnapshot(app, serverID, now); err != nil {
+			if err := PullServerFactsSnapshotWithTimeout(app, serverID, now, timeout); err != nil {
 				mu.Lock()
 				sweepErrors = append(sweepErrors, fmt.Errorf("server %s facts pull: %w", serverID, err))
 				mu.Unlock()
@@ -73,6 +78,10 @@ func RunServerFactsPullSweep(app core.App, now time.Time) error {
 }
 
 func PullServerFactsSnapshot(app core.App, serverID string, now time.Time) error {
+	return PullServerFactsSnapshotWithTimeout(app, serverID, now, serverFactsPullTimeout)
+}
+
+func PullServerFactsSnapshotWithTimeout(app core.App, serverID string, now time.Time, timeout time.Duration) error {
 	serverID = strings.TrimSpace(serverID)
 	if serverID == "" {
 		return fmt.Errorf("server id is required")
@@ -92,7 +101,7 @@ func PullServerFactsSnapshot(app core.App, serverID string, now time.Time) error
 		AuthType: terminal.CredAuthType(cfg.AuthType),
 		Secret:   cfg.Secret,
 		Shell:    cfg.Shell,
-	}, serverFactsCommand(), serverFactsPullTimeout)
+	}, serverFactsCommand(), timeout)
 	if err != nil {
 		return err
 	}

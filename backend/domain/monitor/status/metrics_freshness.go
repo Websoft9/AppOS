@@ -18,6 +18,10 @@ type MetricsFreshnessProjection struct {
 }
 
 func EvaluateMetricsFreshness(observedAt time.Time, hasSample bool, now time.Time) MetricsFreshnessProjection {
+	return EvaluateMetricsFreshnessWithThresholds(observedAt, hasSample, now, monitor.MetricsStaleThreshold, monitor.MetricsMissingThreshold)
+}
+
+func EvaluateMetricsFreshnessWithThresholds(observedAt time.Time, hasSample bool, now time.Time, staleThreshold, missingThreshold time.Duration) MetricsFreshnessProjection {
 	if !hasSample || observedAt.IsZero() {
 		return MetricsFreshnessProjection{
 			Status:     monitor.StatusUnknown,
@@ -32,7 +36,7 @@ func EvaluateMetricsFreshness(observedAt time.Time, hasSample bool, now time.Tim
 	if age < 0 {
 		age = 0
 	}
-	if age > monitor.MetricsMissingThreshold {
+	if age > missingThreshold {
 		return MetricsFreshnessProjection{
 			Status:     monitor.StatusUnknown,
 			Reason:     "metrics missing",
@@ -41,7 +45,7 @@ func EvaluateMetricsFreshness(observedAt time.Time, hasSample bool, now time.Tim
 			ObservedAt: observedAt,
 		}
 	}
-	if age > monitor.MetricsStaleThreshold {
+	if age > staleThreshold {
 		return MetricsFreshnessProjection{
 			Status:     monitor.StatusUnknown,
 			Reason:     "metrics stale",

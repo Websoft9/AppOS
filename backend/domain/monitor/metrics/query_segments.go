@@ -36,7 +36,7 @@ func buildSpecialMetricSeries(requested string, ctx context.Context, service *mo
 	if !ok {
 		return MetricSeries{}, false, nil
 	}
-	if !isNetdataPlatformTarget(targetType, targetID) && targetType != targetTypeServer {
+	if !isAppOSCorePlatformTarget(targetType, targetID) && targetType != targetTypeServer {
 		return MetricSeries{}, false, nil
 	}
 	series, err := builder(ctx, service, targetType, targetID, selectedInterface, start, end, step)
@@ -47,12 +47,12 @@ func buildSpecialMetricSeries(requested string, ctx context.Context, service *mo
 }
 
 func buildCPUSeries(ctx context.Context, service *monitortsdb.Service, targetType, targetID string, start, end time.Time, step time.Duration) (MetricSeries, error) {
-	if targetType != targetTypeServer && !isNetdataPlatformTarget(targetType, targetID) {
+	if targetType != targetTypeServer && !isAppOSCorePlatformTarget(targetType, targetID) {
 		return MetricSeries{}, fmt.Errorf("cpu special series is unsupported for target type %q", targetType)
 	}
 	metricTargetType := targetTypeServer
 	metricSeries := "appos_host_cpu_usage"
-	if isNetdataPlatformTarget(targetType, targetID) {
+	if isAppOSCorePlatformTarget(targetType, targetID) {
 		metricTargetType = targetTypePlatform
 		metricSeries = "appos_platform_cpu_percent"
 	}
@@ -71,13 +71,13 @@ func buildCPUSeries(ctx context.Context, service *monitortsdb.Service, targetTyp
 }
 
 func buildMemorySeries(ctx context.Context, service *monitortsdb.Service, targetType, targetID string, start, end time.Time, step time.Duration) (MetricSeries, error) {
-	if targetType != targetTypeServer && !isNetdataPlatformTarget(targetType, targetID) {
+	if targetType != targetTypeServer && !isAppOSCorePlatformTarget(targetType, targetID) {
 		return MetricSeries{}, fmt.Errorf("memory special series is unsupported for target type %q", targetType)
 	}
 	metricTargetType := targetTypeServer
 	usedMetric := "appos_host_memory_bytes"
 	availableMetric := "appos_host_memory_available_bytes"
-	if isNetdataPlatformTarget(targetType, targetID) {
+	if isAppOSCorePlatformTarget(targetType, targetID) {
 		metricTargetType = targetTypePlatform
 		usedMetric = "appos_platform_memory_bytes"
 		availableMetric = "appos_platform_memory_available_bytes"
@@ -118,7 +118,7 @@ func buildDiskSeries(ctx context.Context, service *monitortsdb.Service, targetTy
 	targetMetricType := targetType
 	readMetric := "appos_host_disk_read_bytes_per_second"
 	writeMetric := "appos_host_disk_write_bytes_per_second"
-	if isNetdataPlatformTarget(targetType, targetID) {
+	if isAppOSCorePlatformTarget(targetType, targetID) {
 		targetMetricType = targetTypePlatform
 		readMetric = "appos_platform_disk_read_bytes_per_second"
 		writeMetric = "appos_platform_disk_write_bytes_per_second"
@@ -159,7 +159,7 @@ func buildDiskUsageSeries(ctx context.Context, service *monitortsdb.Service, tar
 	targetMetricType := targetType
 	usedMetric := "appos_host_disk_usage_bytes"
 	freeMetric := "appos_host_disk_free_bytes"
-	if isNetdataPlatformTarget(targetType, targetID) {
+	if isAppOSCorePlatformTarget(targetType, targetID) {
 		targetMetricType = targetTypePlatform
 		usedMetric = "appos_platform_disk_usage_bytes"
 		freeMetric = "appos_platform_disk_free_bytes"

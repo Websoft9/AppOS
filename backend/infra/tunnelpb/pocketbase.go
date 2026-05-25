@@ -8,7 +8,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
+	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
 )
 
@@ -22,7 +22,7 @@ func LoadPortRange(app core.App) tunnelcore.PortRange {
 		return tunnelcore.DefaultPortRange()
 	}
 
-	raw, _ := sysconfig.GetGroup(app, SettingsModule, PortRangeKey, settingscatalog.DefaultGroup(SettingsModule, PortRangeKey))
+	raw, _ := sysconfig.GetGroup(app, SettingsModule, PortRangeKey, settingsschema.DefaultGroup(SettingsModule, PortRangeKey))
 	return tunnelcore.NormalizePortRange(raw)
 }
 

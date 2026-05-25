@@ -2,7 +2,7 @@
 //
 // The catalog subdomain owns two static registries:
 //   - templates.yaml: named delivery templates (detect, preflight, install, upgrade, uninstall, verify, reinstall steps)
-//   - catalog_local.yaml: components managed on the local AppOS host (detect + verify only)
+//   - components_local.yaml: the single AppOS-local platform registry, projected into the local software catalog (detect + verify only)
 //   - catalog_server.yaml: components deployed to managed remote servers (full lifecycle)
 //
 // All YAML files are compiled into the binary via go:embed. No user input reaches
@@ -21,9 +21,6 @@ import (
 
 //go:embed templates.yaml
 var embeddedTemplates []byte
-
-//go:embed catalog_local.yaml
-var embeddedLocalCatalog []byte
 
 //go:embed catalog_server.yaml
 var embeddedServerCatalog []byte
@@ -101,19 +98,15 @@ func LoadTemplateRegistry() (software.TemplateRegistry, error) {
 	return reg, nil
 }
 
-// LoadLocalCatalog parses the embedded catalog_local.yaml and returns the local-target catalog.
-// Local catalog entries represent components installed on the AppOS host; they support
-// detect and verify actions only. Install, upgrade, and reinstall are not managed by Software Delivery
-// for local targets.
+// LoadLocalCatalog projects the embedded components_local.yaml runtime registry into the
+// local-target software catalog. Local catalog entries represent components installed
+// on the AppOS host; they support detect and verify actions only.
 func LoadLocalCatalog() (software.ComponentCatalog, error) {
-	var cat software.ComponentCatalog
-	if err := yaml.Unmarshal(embeddedLocalCatalog, &cat); err != nil {
-		return software.ComponentCatalog{}, fmt.Errorf("parse catalog_local.yaml: %w", err)
-	}
-	if err := validateCatalogEntries(cat, "catalog_local.yaml"); err != nil {
+	reg, err := LoadLocalRegistry()
+	if err != nil {
 		return software.ComponentCatalog{}, err
 	}
-	return cat, nil
+	return ProjectLocalCatalog(reg)
 }
 
 // LoadServerCatalog parses the embedded catalog_server.yaml and returns the server-target catalog.

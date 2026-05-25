@@ -5,8 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
-	comp "github.com/websoft9/appos/backend/domain/components"
+	swcatalog "github.com/websoft9/appos/backend/domain/software/catalog"
 )
 
 func TestRunComponentsInventoryProbeSuccess(t *testing.T) {
@@ -33,10 +34,10 @@ components:
 services: []
 `)
 
-	restore := comp.SetRegistryPathForTesting(registryPath)
+	restore := swcatalog.SetLocalRegistryPathForTesting(registryPath)
 	defer restore()
 
-	if err := runComponentsInventoryProbe(); err != nil {
+	if err := runComponentsInventoryProbe(nil); err != nil {
 		t.Fatalf("expected probe to succeed, got %v", err)
 	}
 }
@@ -60,10 +61,10 @@ components:
 services: []
 `)
 
-	restore := comp.SetRegistryPathForTesting(registryPath)
+	restore := swcatalog.SetLocalRegistryPathForTesting(registryPath)
 	defer restore()
 
-	err := runComponentsInventoryProbe()
+	err := runComponentsInventoryProbe(nil)
 	if err == nil {
 		t.Fatal("expected probe to fail")
 	}
@@ -80,5 +81,18 @@ func writeTestFile(t *testing.T, path string, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestShouldRunMonitorInterval(t *testing.T) {
+	now := time.Date(2026, time.May, 25, 10, 15, 0, 0, time.UTC)
+	if !shouldRunMonitorInterval(now, 1) {
+		t.Fatal("expected 1-minute interval to run")
+	}
+	if !shouldRunMonitorInterval(now, 5) {
+		t.Fatal("expected 5-minute interval to run at minute 15")
+	}
+	if shouldRunMonitorInterval(now, 7) {
+		t.Fatal("expected 7-minute interval not to run at minute 15")
 	}
 }

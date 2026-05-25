@@ -14,6 +14,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { loadConnectWorkspaceSnapshot, type RestoreWorkspaceSession } from '@/lib/connect-session'
 import {
   listServers,
   listTerminalSessions,
@@ -36,6 +37,10 @@ import {
 const DEFAULT_CONNECT_SETTINGS: ConnectTerminalSettings = {
   idleTimeoutSeconds: 1800,
   maxConnections: 0,
+}
+
+type RestoreWorkspaceItem = RestoreWorkspaceSession & {
+  lastActiveAt: number
 }
 
 function getSessionCountLabel(count: number) {
@@ -285,6 +290,7 @@ interface ServersPanelProps {
   idleTimeoutSeconds: number
   nowTs: number
   onConnect: (server: ServerType) => void
+  onRestoreWorkspace: () => void
   onResumeSession: (session: TerminalSessionSummary, server: ServerType) => void
   onExitSession: (session: TerminalSessionSummary) => void
   closingSessionId: string | null
@@ -301,6 +307,7 @@ function ServersPanel({
   idleTimeoutSeconds,
   nowTs,
   onConnect,
+  onRestoreWorkspace,
   onResumeSession,
   onExitSession,
   closingSessionId,
@@ -410,6 +417,11 @@ function ServersPanel({
           <div className="flex items-center justify-between gap-3">
             <h3 className="text-sm font-semibold">Active Sessions</h3>
             <div className="flex items-center gap-2">
+              {activeSessions.length > 0 && (
+                <Button size="sm" variant="outline" onClick={onRestoreWorkspace}>
+                  Restore Workspace
+                </Button>
+              )}
               {idle && (
                 <Badge variant="outline" className="text-[10px] border-amber-200 text-amber-700">
                   Idle session
@@ -575,6 +587,88 @@ export function TerminalIndexPage() {
     [navigate]
   )
 
+  const handleRestoreWorkspace = useCallback(() => {
+    const serverById = new Map(servers.map(server => [server.id, server]))
+    const liveRestoreSessions: RestoreWorkspaceItem[] = sessionItems
+      .map((session): RestoreWorkspaceItem | null => {
+        const server = serverById.get(session.resource_id)
+        if (!server) return null
+        const workspace = session.workspace ?? {}
+        return {
+          sessionId: session.id,
+          serverId: server.id,
+          title: server.name || server.host || server.id,
+          panel: workspace.side_panel === 'files' ? 'files' : undefined,
+          path: workspace.file_path || undefined,
+          lockedRoot: workspace.locked_root || undefined,
+          split:
+            typeof workspace.split_ratio === 'number' && Number.isFinite(workspace.split_ratio)
+              ? workspace.split_ratio
+              : undefined,
+          lastActiveAt: Date.parse(session.last_active_at),
+        }
+      })
+      .filter((item): item is NonNullable<typeof item> => item != null)
+    const workspaceSnapshot = loadConnectWorkspaceSnapshot()
+
+    let restoreSessions = liveRestoreSessions
+      .slice()
+      .sort((left, right) => {
+        const leftTs = Number.isFinite(left.lastActiveAt) ? left.lastActiveAt : 0
+        const rightTs = Number.isFinite(right.lastActiveAt) ? right.lastActiveAt : 0
+        return rightTs - leftTs
+      })
+
+    let activeSessionId: string | undefined = restoreSessions[0]?.sessionId
+
+    if (workspaceSnapshot) {
+      const liveBySessionId = new Map(liveRestoreSessions.map(item => [item.sessionId, item]))
+      const orderedFromSnapshot = workspaceSnapshot.tabs
+        .map(tab => {
+          const live = liveBySessionId.get(tab.sessionId)
+          if (!live) return null
+          const savedWorkspace = workspaceSnapshot.workspaceBySessionId[tab.sessionId]
+          return {
+            ...live,
+            title: tab.title || live.title,
+            panel: savedWorkspace?.panel ?? live.panel,
+            path: savedWorkspace?.path ?? live.path,
+            lockedRoot: savedWorkspace?.lockedRoot ?? live.lockedRoot,
+            split: savedWorkspace?.split ?? live.split,
+          }
+        })
+        .filter((item): item is NonNullable<typeof item> => item != null)
+
+      const orderedIds = new Set(orderedFromSnapshot.map(item => item.sessionId))
+      const remaining = restoreSessions.filter(item => !orderedIds.has(item.sessionId))
+      if (orderedFromSnapshot.length > 0) {
+        restoreSessions = [...orderedFromSnapshot, ...remaining]
+      }
+
+      if (
+        workspaceSnapshot.activeSessionId &&
+        restoreSessions.some(item => item.sessionId === workspaceSnapshot.activeSessionId)
+      ) {
+        activeSessionId = workspaceSnapshot.activeSessionId
+      }
+    }
+
+    const primary = restoreSessions[0]
+    if (!primary) return
+
+    const activeTarget =
+      restoreSessions.find(item => item.sessionId === activeSessionId) ?? primary
+
+    navigate({
+      to: '/terminal/server/$serverId',
+      params: { serverId: activeTarget.serverId },
+      search: {
+        activeSessionId,
+        restoreSessions: restoreSessions.map(({ lastActiveAt: _lastActiveAt, ...item }) => item),
+      },
+    })
+  }, [navigate, servers, sessionItems])
+
   const handleExitSession = useCallback(
     async (session: TerminalSessionSummary) => {
       setClosingSessionId(session.id)
@@ -663,6 +757,7 @@ export function TerminalIndexPage() {
           idleTimeoutSeconds={connectSettings.idleTimeoutSeconds}
           nowTs={nowTs}
           onConnect={handleConnect}
+          onRestoreWorkspace={handleRestoreWorkspace}
           onResumeSession={handleResumeSession}
           onExitSession={handleExitSession}
           closingSessionId={closingSessionId}

@@ -1,7 +1,11 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SETTINGS_ENTRIES_API_PATH, SETTINGS_SCHEMA_API_PATH } from '@/lib/settings-api'
+import {
+  SETTINGS_ENTRIES_API_PATH,
+  SETTINGS_SCHEMA_API_PATH,
+  settingsEntryPath,
+} from '@/lib/settings-api'
 import { SettingsPage } from './settings'
 
 const sendMock = vi.fn()
@@ -53,6 +57,78 @@ describe('SettingsPage shared settings paths', () => {
             },
             { id: 's3', title: 'S3 Storage', section: 'system', source: 'native', fields: [] },
             { id: 'logs', title: 'Logs', section: 'system', source: 'native', fields: [] },
+            {
+              id: 'monitor-scheduling',
+              title: 'Monitor Scheduling',
+              section: 'system',
+              source: 'custom',
+              fields: [
+                {
+                  id: 'reachabilityIntervalMinutes',
+                  label: 'Reachability Interval Minutes',
+                  type: 'integer',
+                },
+              ],
+            },
+            {
+              id: 'monitor-policy',
+              title: 'Monitor Policy',
+              section: 'system',
+              source: 'custom',
+              fields: [
+                {
+                  id: 'metricsFreshnessLookbackSeconds',
+                  label: 'Metrics Freshness Lookback Seconds',
+                  type: 'integer',
+                },
+              ],
+            },
+            {
+              id: 'monitor-platform-self-observation',
+              title: 'Platform Self-Observation',
+              section: 'system',
+              source: 'custom',
+              fields: [
+                {
+                  id: 'platformObserverIntervalSeconds',
+                  label: 'Platform Observer Interval Seconds',
+                  type: 'integer',
+                },
+                {
+                  id: 'platformSchedulerStaleThresholdSeconds',
+                  label: 'Platform Scheduler Stale Threshold Seconds',
+                  type: 'integer',
+                },
+                {
+                  id: 'enableHostTelemetry',
+                  label: 'Enable Host Telemetry',
+                  type: 'boolean',
+                },
+                {
+                  id: 'enableContainerTelemetry',
+                  label: 'Enable Container Telemetry',
+                  type: 'boolean',
+                },
+              ],
+            },
+            {
+              id: 'monitor-managed-collector-policy',
+              title: 'Managed Collector Policy',
+              section: 'system',
+              source: 'custom',
+              fields: [
+                {
+                  id: 'collectionIntervalSeconds',
+                  label: 'Collection Interval Seconds',
+                  type: 'integer',
+                },
+                {
+                  id: 'flushIntervalSeconds',
+                  label: 'Flush Interval Seconds',
+                  type: 'integer',
+                },
+              ],
+            },
             {
               id: 'secrets-policy',
               title: 'Secrets',
@@ -171,9 +247,18 @@ describe('SettingsPage shared settings paths', () => {
             {
               id: 'docker-mirror',
               title: 'Docker Mirrors',
+              description:
+                'Speed up AppOS image pulls. Does not change server Docker settings.',
               section: 'workspace',
               source: 'custom',
-              fields: [],
+              fields: [
+                { id: 'mirrors', label: 'Pull Sources', type: 'string-list' },
+                {
+                  id: 'allowInsecureRegistries',
+                  label: 'Allow Insecure Registries',
+                  type: 'boolean',
+                },
+              ],
             },
             {
               id: 'docker-registries',
@@ -206,6 +291,28 @@ describe('SettingsPage shared settings paths', () => {
               },
             },
             { id: 'logs', value: { maxDays: 7, minLevel: 5, logIP: false, logAuthId: false } },
+            { id: 'monitor-scheduling', value: { reachabilityIntervalMinutes: 1 } },
+            { id: 'monitor-policy', value: { metricsFreshnessLookbackSeconds: 300 } },
+            {
+              id: 'monitor-platform-self-observation',
+              value: {
+                platformObserverIntervalSeconds: 30,
+                platformSchedulerStaleThresholdSeconds: 10,
+                enableHostTelemetry: false,
+                enableContainerTelemetry: false,
+              },
+            },
+            {
+              id: 'monitor-managed-collector-policy',
+              value: {
+                collectionIntervalSeconds: 10,
+                flushIntervalSeconds: 10,
+                metricBatchSize: 1000,
+                metricBufferLimit: 5000,
+                collectionJitterSeconds: 1,
+                flushJitterSeconds: 1,
+              },
+            },
             { id: 'space-quota', value: {} },
             { id: 'connect-terminal', value: {} },
             { id: 'connect-sftp', value: { maxUploadFiles: 10 } },
@@ -214,7 +321,7 @@ describe('SettingsPage shared settings paths', () => {
             { id: 'tunnel-port-range', value: {} },
             { id: 'secrets-policy', value: {} },
             { id: 'proxy-network', value: {} },
-            { id: 'docker-mirror', value: {} },
+            { id: 'docker-mirror', value: { mirrors: [], allowInsecureRegistries: false } },
             { id: 'docker-registries', value: {} },
           ],
         })
@@ -225,11 +332,57 @@ describe('SettingsPage shared settings paths', () => {
       if (path === '/api/connectors/templates') {
         return Promise.resolve([])
       }
+      if (path === '/api/ai-providers/templates') {
+        return Promise.resolve([
+          {
+            id: 'openai',
+            kind: 'llm',
+            title: 'OpenAI',
+            vendor: 'OpenAI',
+            description: 'Hosted OpenAI models',
+            defaultEndpoint: 'https://api.openai.com/v1',
+            defaultAuthScheme: 'api_key',
+            fields: [
+              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+              {
+                id: 'credential',
+                label: 'API Key',
+                type: 'secret_ref',
+                required: true,
+                secretTemplate: 'single_value',
+              },
+            ],
+          },
+        ])
+      }
+      if (path === '/api/ai-providers') {
+        return Promise.resolve([
+          {
+            id: 'provider-1',
+            name: 'Workspace OpenAI',
+            kind: 'llm',
+            is_default: true,
+            template_id: 'openai',
+            endpoint: 'https://api.openai.com/v1',
+            auth_scheme: 'api_key',
+            credential: 'secret-1',
+            config: { defaultModel: 'gpt-4.1-mini' },
+            description: '',
+          },
+        ])
+      }
+      if (
+        path ===
+        "/api/collections/secrets/records?filter=(status='active'%26%26(template_id='single_value'))&sort=name"
+      ) {
+        return Promise.resolve({ items: [] })
+      }
       return Promise.resolve({})
     })
   })
 
   afterEach(() => {
+    cleanup()
     vi.clearAllMocks()
   })
 
@@ -242,16 +395,30 @@ describe('SettingsPage shared settings paths', () => {
     })
   })
 
-  it('shows Tunnel under Workspace', async () => {
+  it('shows Tunnel under System below Monitor', async () => {
     const { container } = render(<SettingsPage />)
+    let nav: HTMLElement | null = null
 
     await waitFor(() => {
-      const nav = container.querySelector('nav') as HTMLElement | null
+      nav = container.querySelector('nav') as HTMLElement | null
       expect(nav).toBeTruthy()
       const navQueries = within(nav as HTMLElement)
       expect(navQueries.getByText('Tunnel')).toBeInTheDocument()
       expect(sendMock).toHaveBeenCalledWith(SETTINGS_ENTRIES_API_PATH, { method: 'GET' })
     })
+
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+
+    const navQueries = within(nav)
+    const monitorButton = navQueries.getByRole('button', { name: 'Monitor' })
+    const tunnelButton = navQueries.getByRole('button', { name: 'Tunnel' })
+    expect(
+      monitorButton.compareDocumentPosition(tunnelButton) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(screen.queryByText('Help for:')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open Docker Mirrors help' })).not.toBeInTheDocument()
   })
 
   it('shows Deploy Preflight under Workspace', async () => {
@@ -288,6 +455,7 @@ describe('SettingsPage shared settings paths', () => {
       const navQueries = within(nav as HTMLElement)
       expect(navQueries.getByText('System')).toBeInTheDocument()
       expect(navQueries.getByText('Workspace')).toBeInTheDocument()
+      expect(navQueries.getByText('Monitor')).toBeInTheDocument()
       expect(navQueries.getByText('Secrets')).toBeInTheDocument()
     })
 
@@ -304,6 +472,201 @@ describe('SettingsPage shared settings paths', () => {
     expect(
       secretsButton.compareDocumentPosition(workspaceHeading) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
+  })
+
+  it('renders a single monitor page under System with all four editors', async () => {
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      const navQueries = within(nav as HTMLElement)
+      expect(navQueries.getByRole('button', { name: 'Monitor' })).toBeInTheDocument()
+      expect(navQueries.queryByRole('button', { name: 'Monitor Scheduling' })).not.toBeInTheDocument()
+      expect(navQueries.queryByRole('button', { name: 'Monitor Policy' })).not.toBeInTheDocument()
+    })
+
+    const nav = container.querySelector('nav') as HTMLElement | null
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+
+    within(nav).getByRole('button', { name: 'Monitor' }).click()
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Reachability Interval Minutes')).toBeInTheDocument()
+      expect(screen.getByLabelText('Metrics Freshness Lookback Seconds')).toBeInTheDocument()
+      expect(screen.getByLabelText('Platform Observer Interval Seconds')).toBeInTheDocument()
+      expect(screen.getByLabelText('Collection Interval Seconds')).toBeInTheDocument()
+      expect(screen.getByText('Monitor Scheduling')).toBeInTheDocument()
+      expect(screen.getByText('Monitor Policy')).toBeInTheDocument()
+      expect(screen.getByText('Platform Self-Observation')).toBeInTheDocument()
+      expect(screen.getByText('Managed Collector Policy')).toBeInTheDocument()
+    })
+  })
+
+  it('saves monitor scheduling through the unified settings entry path from the monitor page', async () => {
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      expect(within(nav as HTMLElement).getByRole('button', { name: 'Monitor' })).toBeInTheDocument()
+    })
+
+    const nav = container.querySelector('nav') as HTMLElement | null
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+
+    within(nav).getByRole('button', { name: 'Monitor' }).click()
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Reachability Interval Minutes')).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText('Reachability Interval Minutes'), {
+      target: { value: '2' },
+    })
+    const schedulingInput = screen.getByLabelText('Reachability Interval Minutes')
+    const schedulingCard = schedulingInput.closest('[data-slot="card"]') as HTMLElement | null
+    if (!schedulingCard) {
+      throw new Error('expected monitor scheduling card to be rendered')
+    }
+    fireEvent.click(within(schedulingCard).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(settingsEntryPath('monitor-scheduling'), {
+        method: 'PATCH',
+        body: expect.objectContaining({
+          reachabilityIntervalMinutes: 2,
+        }),
+      })
+    })
+  })
+
+  it('saves monitor policy through the unified settings entry path from the monitor page', async () => {
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      expect(within(nav as HTMLElement).getByRole('button', { name: 'Monitor' })).toBeInTheDocument()
+    })
+
+    const nav = container.querySelector('nav') as HTMLElement | null
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+
+    within(nav).getByRole('button', { name: 'Monitor' }).click()
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Metrics Freshness Lookback Seconds')).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText('Metrics Freshness Lookback Seconds'), {
+      target: { value: '600' },
+    })
+    const policyInput = screen.getByLabelText('Metrics Freshness Lookback Seconds')
+    const policyCard = policyInput.closest('[data-slot="card"]') as HTMLElement | null
+    if (!policyCard) {
+      throw new Error('expected monitor policy card to be rendered')
+    }
+    fireEvent.click(within(policyCard).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(settingsEntryPath('monitor-policy'), {
+        method: 'PATCH',
+        body: expect.objectContaining({
+          metricsFreshnessLookbackSeconds: 600,
+        }),
+      })
+    })
+  })
+
+  it('saves platform self-observation through the unified settings entry path from the monitor page', async () => {
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      expect(within(nav as HTMLElement).getByRole('button', { name: 'Monitor' })).toBeInTheDocument()
+    })
+
+    const nav = container.querySelector('nav') as HTMLElement | null
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+
+    within(nav).getByRole('button', { name: 'Monitor' }).click()
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Platform Observer Interval Seconds')).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText('Platform Observer Interval Seconds'), {
+      target: { value: '45' },
+    })
+    fireEvent.click(screen.getByLabelText('Enable Host Telemetry'))
+
+    const platformInput = screen.getByLabelText('Platform Observer Interval Seconds')
+    const platformCard = platformInput.closest('[data-slot="card"]') as HTMLElement | null
+    if (!platformCard) {
+      throw new Error('expected platform self-observation card to be rendered')
+    }
+    fireEvent.click(within(platformCard).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(settingsEntryPath('monitor-platform-self-observation'), {
+        method: 'PATCH',
+        body: expect.objectContaining({
+          platformObserverIntervalSeconds: 45,
+          enableHostTelemetry: true,
+        }),
+      })
+    })
+  })
+
+  it('saves managed collector policy through the unified settings entry path from the monitor page', async () => {
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      expect(within(nav as HTMLElement).getByRole('button', { name: 'Monitor' })).toBeInTheDocument()
+    })
+
+    const nav = container.querySelector('nav') as HTMLElement | null
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+
+    within(nav).getByRole('button', { name: 'Monitor' }).click()
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Collection Interval Seconds')).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText('Collection Interval Seconds'), {
+      target: { value: '15' },
+    })
+
+    const collectorInput = screen.getByLabelText('Collection Interval Seconds')
+    const collectorCard = collectorInput.closest('[data-slot="card"]') as HTMLElement | null
+    if (!collectorCard) {
+      throw new Error('expected managed collector policy card to be rendered')
+    }
+    fireEvent.click(within(collectorCard).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(settingsEntryPath('monitor-managed-collector-policy'), {
+        method: 'PATCH',
+        body: expect.objectContaining({
+          collectionIntervalSeconds: 15,
+        }),
+      })
+    })
   })
 
   it('renders settings navigation in schema order instead of alphabetical title order', async () => {
@@ -360,21 +723,48 @@ describe('SettingsPage shared settings paths', () => {
         'Basic',
         'Secrets',
         'Logs',
-        'Space Quota',
-        'LLM Providers',
+        'AI',
+        'Space',
       ])
     })
   })
 
-  it('renders simple connect terminal fields from schema metadata', async () => {
+  it('moves tunnel, proxy, and docker into System below Monitor', async () => {
     const { container } = render(<SettingsPage />)
 
     await waitFor(() => {
       const nav = container.querySelector('nav') as HTMLElement | null
       expect(nav).toBeTruthy()
-      expect(
-        within(nav as HTMLElement).getByRole('button', { name: 'Connect Terminal' })
-      ).toBeInTheDocument()
+      const buttons = within(nav as HTMLElement).getAllByRole('button')
+      expect(buttons.map(button => button.textContent)).toEqual([
+        'Basic',
+        'SMTP',
+        'S3 Storage',
+        'Logs',
+        'Monitor',
+        'Tunnel',
+        'Proxy',
+        'Docker',
+        'Secrets',
+        'AI',
+        'Space',
+        'Terminal',
+        'Deploy Preflight',
+        'IaC Files',
+      ])
+    })
+  })
+
+  it('renders terminal settings on a single page with terminal and sftp sections', async () => {
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      const navQueries = within(nav as HTMLElement)
+      expect(navQueries.getByRole('button', { name: 'Terminal' })).toBeInTheDocument()
+      expect(navQueries.queryByRole('button', { name: 'Connect Terminal' })).not.toBeInTheDocument()
+      expect(navQueries.queryByRole('button', { name: 'Connect SFTP' })).not.toBeInTheDocument()
     })
 
     const nav = container.querySelector('nav') as HTMLElement | null
@@ -382,7 +772,7 @@ describe('SettingsPage shared settings paths', () => {
       throw new Error('expected settings navigation to be rendered')
     }
 
-    within(nav).getByRole('button', { name: 'Connect Terminal' }).click()
+    within(nav).getByRole('button', { name: 'Terminal' }).click()
 
     await waitFor(() => {
       expect(screen.getByLabelText('Idle Timeout Seconds')).toBeInTheDocument()
@@ -391,18 +781,20 @@ describe('SettingsPage shared settings paths', () => {
       ).toBeInTheDocument()
       expect(screen.getByLabelText('Max Connections')).toBeInTheDocument()
       expect(screen.getByText('0 means unlimited')).toBeInTheDocument()
+      expect(screen.getByLabelText('Max Upload Files')).toBeInTheDocument()
+      expect(
+        screen.getByText('Maximum number of files allowed in a single SFTP upload.')
+      ).toBeInTheDocument()
     })
   })
 
-  it('shows connector reference card for llm providers', async () => {
+  it('renders AI settings with default model selection and in-page create action', async () => {
     const { container } = render(<SettingsPage />)
 
     await waitFor(() => {
       const nav = container.querySelector('nav') as HTMLElement | null
       expect(nav).toBeTruthy()
-      expect(
-        within(nav as HTMLElement).getByRole('button', { name: 'LLM Providers' })
-      ).toBeInTheDocument()
+      expect(within(nav as HTMLElement).getByRole('button', { name: 'AI' })).toBeInTheDocument()
     })
 
     const nav = container.querySelector('nav') as HTMLElement | null
@@ -410,32 +802,41 @@ describe('SettingsPage shared settings paths', () => {
       throw new Error('expected settings navigation to be rendered')
     }
 
-    within(nav).getByRole('button', { name: 'LLM Providers' }).click()
+    within(nav).getByRole('button', { name: 'AI' }).click()
 
     await waitFor(() => {
-      expect(
-        screen.getByText(
-          /This section now references AI provider records\. Create and edit AI Providers/i
-        )
-      ).toBeInTheDocument()
+      expect(screen.getByLabelText('Default Model')).toBeInTheDocument()
+      expect(screen.getByRole('combobox', { name: 'Default Model' })).toBeInTheDocument()
     })
 
-    expect(screen.getByRole('link', { name: 'Open AI Providers' })).toHaveAttribute(
-      'href',
-      '/resources/ai-providers'
-    )
+    expect(screen.getByRole('option', { name: 'Workspace OpenAI / OpenAI / gpt-4.1-mini' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '+ Add a new model...' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Open AI Providers' })).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Default Model' }), {
+      target: { value: '__add_model__' },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Choose a Product')).toBeInTheDocument()
+    })
   })
 
-  it('shows connector reference cards for smtp and docker registries', async () => {
+  it('shows connector reference cards for smtp and groups docker mirrors with docker registries', async () => {
     const { container } = render(<SettingsPage />)
 
     await waitFor(() => {
       const nav = container.querySelector('nav') as HTMLElement | null
       expect(nav).toBeTruthy()
       expect(within(nav as HTMLElement).getByRole('button', { name: 'SMTP' })).toBeInTheDocument()
+      expect(within(nav as HTMLElement).getByRole('button', { name: 'Docker' })).toBeInTheDocument()
       expect(
-        within(nav as HTMLElement).getByRole('button', { name: 'Docker Registries' })
-      ).toBeInTheDocument()
+        within(nav as HTMLElement).queryByRole('button', { name: 'Docker Mirrors' })
+      ).not.toBeInTheDocument()
+      expect(
+        within(nav as HTMLElement).queryByRole('button', { name: 'Docker Registries' })
+      ).not.toBeInTheDocument()
     })
 
     let nav = container.querySelector('nav') as HTMLElement | null
@@ -460,15 +861,132 @@ describe('SettingsPage shared settings paths', () => {
       throw new Error('expected settings navigation to be rendered')
     }
 
-    within(nav).getByRole('button', { name: 'Docker Registries' }).click()
+    within(nav).getByRole('button', { name: 'Docker' }).click()
 
     await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Open Docker Mirrors help' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Docker Mirrors help' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Help for:')).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          'Configure AppOS image pull acceleration and review registry connectors used for authenticated pulls.'
+        )
+      ).toBeInTheDocument()
+      expect(screen.getByText('Docker Mirrors')).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          'Speeds up AppOS image pulls during deployment and update. Does not change server Docker settings.'
+        )
+      ).toBeInTheDocument()
+      expect(screen.getByText('Pull Sources')).toBeInTheDocument()
+      expect(screen.getByLabelText('Allow Insecure Registries')).toBeInTheDocument()
       expect(
         screen.getByText(
           /This section now references connectors\. Create and edit registry connectors/i
         )
       ).toBeInTheDocument()
     })
+  })
+
+  it('reorders pull sources in Docker Mirrors by drag and drop', async () => {
+    sendMock.mockImplementation((path: string) => {
+      if (path === SETTINGS_SCHEMA_API_PATH) {
+        return Promise.resolve({
+          entries: [
+            { id: 'basic', title: 'Basic', section: 'system', source: 'native', fields: [] },
+            {
+              id: 'monitor-scheduling',
+              title: 'Monitor Scheduling',
+              section: 'system',
+              source: 'custom',
+              fields: [],
+            },
+            {
+              id: 'docker-mirror',
+              title: 'Docker Mirrors',
+              description:
+                'Speed up AppOS image pulls. Does not change server Docker settings.',
+              section: 'workspace',
+              source: 'custom',
+              fields: [
+                { id: 'mirrors', label: 'Pull Sources', type: 'string-list' },
+                {
+                  id: 'allowInsecureRegistries',
+                  label: 'Allow Insecure Registries',
+                  type: 'boolean',
+                },
+              ],
+            },
+            {
+              id: 'docker-registries',
+              title: 'Docker Registries',
+              description:
+                'Reference-only entry. Create and manage registry connectors from Resources > Connectors.',
+              section: 'workspace',
+              source: 'custom',
+              fields: [],
+            },
+          ],
+          actions: [],
+        })
+      }
+      if (path === SETTINGS_ENTRIES_API_PATH) {
+        return Promise.resolve({
+          items: [
+            { id: 'basic', value: { appName: 'AppOS', appURL: 'https://appos.test' } },
+            {
+              id: 'docker-mirror',
+              value: {
+                mirrors: ['https://mirror-b.example.com', 'https://mirror-a.example.com'],
+                allowInsecureRegistries: false,
+              },
+            },
+            { id: 'docker-registries', value: {} },
+          ],
+        })
+      }
+      return Promise.resolve({})
+    })
+
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      expect(within(nav as HTMLElement).getByRole('button', { name: 'Docker' })).toBeInTheDocument()
+    })
+
+    const nav = container.querySelector('nav') as HTMLElement | null
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+
+    fireEvent.click(within(nav).getByRole('button', { name: 'Docker' }))
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('https://mirror-b.example.com')).toBeInTheDocument()
+      expect(screen.getByDisplayValue('https://mirror-a.example.com')).toBeInTheDocument()
+    })
+
+    const dragHandle = screen.getByLabelText('Drag pull source 1')
+    const dropRow = screen.getByLabelText('Drag pull source 2').closest('div')
+    if (!dropRow) {
+      throw new Error('expected draggable row to be rendered')
+    }
+
+    fireEvent.dragStart(dragHandle)
+    fireEvent.dragOver(dropRow)
+    fireEvent.drop(dropRow)
+
+    const inputs = screen.getAllByPlaceholderText('https://mirror.example.com') as HTMLInputElement[]
+    expect(inputs.map(input => input.value)).toEqual([
+      'https://mirror-a.example.com',
+      'https://mirror-b.example.com',
+    ])
   })
 
   it('renders IaC file fields from schema metadata', async () => {

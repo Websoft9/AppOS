@@ -156,9 +156,6 @@ func extractRoutesFromFile(path string, seeds map[string]functionSeed) ([]string
 	if strings.HasPrefix(filepath.Base(path), "terminal") {
 		defaultG = "/api/terminal"
 	}
-	if filepath.Base(path) == "components.go" {
-		defaultG = "/api/components"
-	}
 	if filepath.Base(path) == "deploy.go" || filepath.Base(path) == "apps.go" || filepath.Base(path) == "lifecycle_resources.go" || filepath.Base(path) == "catalog.go" {
 		defaultG = "/api"
 	}

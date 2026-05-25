@@ -34,7 +34,10 @@ describe('SystemCronsContent', () => {
     sendMock.mockReset()
     sendMock.mockImplementation((path: string) => {
       if (path === '/api/crons') {
-        return Promise.resolve([{ id: 'cleanup', expression: '0 * * * *' }])
+        return Promise.resolve([
+          { id: '__pb_logs_cleanup__', expression: '0 0 * * *' },
+          { id: 'monitor_reachability_checks', expression: '*/1 * * * *' },
+        ])
       }
       return Promise.resolve({ items: [] })
     })
@@ -43,13 +46,17 @@ describe('SystemCronsContent', () => {
   it('renders the page heading with the refresh action aligned in the same header row', async () => {
     render(<SystemCronsContent />)
 
-    expect(await screen.findByText('System Crons')).toBeInTheDocument()
+    expect(await screen.findByText('Platform Crons')).toBeInTheDocument()
     expect(
       screen.getByText(
-        'Native cron jobs registered in PocketBase. Manage schedules via PocketBase Admin.'
+        'Review platform scheduled jobs across PocketBase core tasks and AppOS platform tasks.'
       )
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Refresh system crons' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Refresh platform crons' })).toBeInTheDocument()
+
+    expect(screen.getByText('Type')).toBeInTheDocument()
+    expect(screen.getByText('Core')).toBeInTheDocument()
+    expect(screen.getByText('Platform')).toBeInTheDocument()
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/crons', { method: 'GET' })

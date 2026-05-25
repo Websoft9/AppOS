@@ -9,7 +9,7 @@ import (
 	"github.com/websoft9/appos/backend/domain/monitor"
 )
 
-const defaultMetricsFreshnessWindow = "5m"
+const defaultMetricsFreshnessWindow = 5 * time.Minute
 
 type MetricsFreshnessObservation struct {
 	ObservedAt time.Time
@@ -17,6 +17,10 @@ type MetricsFreshnessObservation struct {
 }
 
 func QueryServerMetricsFreshness(ctx context.Context, serverID string, now time.Time) (MetricsFreshnessObservation, error) {
+	return QueryServerMetricsFreshnessWithin(ctx, serverID, now, defaultMetricsFreshnessWindow)
+}
+
+func QueryServerMetricsFreshnessWithin(ctx context.Context, serverID string, now time.Time, lookback time.Duration) (MetricsFreshnessObservation, error) {
 	serverID = strings.TrimSpace(serverID)
 	if serverID == "" {
 		return MetricsFreshnessObservation{}, fmt.Errorf("server id is required")
@@ -25,12 +29,12 @@ func QueryServerMetricsFreshness(ctx context.Context, serverID string, now time.
 	if now.IsZero() {
 		now = time.Now().UTC()
 	}
-	windowDuration, err := time.ParseDuration(defaultMetricsFreshnessWindow)
-	if err != nil {
-		return MetricsFreshnessObservation{}, err
+	if lookback <= 0 {
+		lookback = defaultMetricsFreshnessWindow
 	}
-	startAt := now.Add(-windowDuration)
-	response, err := QueryMetricSeries(ctx, monitor.TargetTypeServer, serverID, defaultMetricsFreshnessWindow, []string{"cpu"}, MetricSeriesQueryOptions{StartAt: &startAt, EndAt: &now})
+	startAt := now.Add(-lookback)
+	windowLabel := formatFreshnessWindowLabel(lookback)
+	response, err := QueryMetricSeries(ctx, monitor.TargetTypeServer, serverID, windowLabel, []string{"cpu"}, MetricSeriesQueryOptions{StartAt: &startAt, EndAt: &now})
 	if err != nil {
 		return MetricsFreshnessObservation{}, err
 	}
@@ -49,6 +53,14 @@ func QueryServerMetricsFreshness(ctx context.Context, serverID string, now time.
 		return MetricsFreshnessObservation{HasSample: false}, nil
 	}
 	return MetricsFreshnessObservation{ObservedAt: latest.UTC(), HasSample: true}, nil
+}
+
+func formatFreshnessWindowLabel(lookback time.Duration) string {
+	seconds := int(lookback / time.Second)
+	if seconds <= 0 {
+		return "custom"
+	}
+	return fmt.Sprintf("%ds", seconds)
 }
 
 func latestPointTime(points [][]float64) (time.Time, bool) {

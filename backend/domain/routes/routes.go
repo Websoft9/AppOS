@@ -6,7 +6,6 @@
 //   - /api/ext/backup     — backup/restore operations
 //   - /api/ext/resources  — Resource Store CRUD (Epic 8)
 //   - /api/space         — User private space (Epic 9)
-//   - /api/components     — component inventory and runtime service diagnostics (Epic 6)
 //   - /api/catalog        — app catalog normalized read APIs
 //   - /api/apps           — installed app inventory and lifecycle operations
 //   - /api/actions        — lifecycle actions and execution logs
@@ -66,9 +65,6 @@ func Register(se *core.ServeEvent) {
 	g := se.Router.Group("/api/ext")
 	g.Bind(apis.RequireAuth())
 
-	components := se.Router.Group("/api/components")
-	components.Bind(apis.RequireAuth())
-
 	deployments := se.Router.Group("/api")
 	deployments.Bind(apis.RequireAuth())
 
@@ -94,7 +90,6 @@ func Register(se *core.ServeEvent) {
 	registerInstanceRoutes(se)
 	registerProviderAccountRoutes(se)
 	registerUserRoutes(g)
-	registerComponentsRoutes(components)
 	registerCatalogRoutes(deployments)
 	registerAppsRoutes(deployments)
 	registerOperationRoutes(deployments)

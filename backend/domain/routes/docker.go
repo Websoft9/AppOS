@@ -17,7 +17,7 @@ import (
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/websoft9/appos/backend/domain/audit"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
+	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 	"github.com/websoft9/appos/backend/domain/dockerops"
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
 	"github.com/websoft9/appos/backend/domain/software"
@@ -167,7 +167,7 @@ func loadDockerProxyEnv(app core.App) map[string]string {
 		app,
 		"proxy",
 		"network",
-		settingscatalog.DefaultGroup("proxy", "network"),
+		settingsschema.DefaultGroup("proxy", "network"),
 	)
 	httpProxy := proxyURLWithCredentials(
 		sysconfig.String(group, "httpProxy", ""),

@@ -1747,6 +1747,18 @@ export function DockerPanel({
                     setTerminalResumeSession({ key: activeTerminalSessionKey, sessionId })
                   }
                 }}
+                onSessionInvalidated={sessionId => {
+                  setTerminalResumeSession(current => {
+                    if (
+                      current &&
+                      current.sessionId === sessionId &&
+                      current.key === activeTerminalSessionKey
+                    ) {
+                      return null
+                    }
+                    return current
+                  })
+                }}
                 className="h-full"
               />
             )}

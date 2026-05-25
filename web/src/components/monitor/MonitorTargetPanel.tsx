@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2, RefreshCw } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { Badge } from '@/components/ui/badge'
@@ -142,6 +142,9 @@ const EXTENDED_SERIES_QUERY = 'cpu,memory,disk_usage,disk,network'
 const NETWORK_TRAFFIC_SERIES_QUERY = 'network_traffic'
 const LATEST_STAT_ORDER = ['cpu', 'memory', 'disk_usage', 'disk', 'network', 'network_traffic']
 const LIVE_SERIES_WINDOWS: ReadonlySet<MonitorSeriesWindow> = new Set(['1m', '5m', '15m'])
+function isDocumentVisible(): boolean {
+  return typeof document === 'undefined' || document.visibilityState === 'visible'
+}
 
 function toLocalDateTimeInputValue(value: Date): string {
   const year = value.getFullYear()
@@ -419,6 +422,8 @@ export function MonitorTargetPanel({
     onClick: () => void
   }
 }) {
+  const [documentVisible, setDocumentVisible] = useState(isDocumentVisible)
+  const previousDocumentVisible = useRef(documentVisible)
   const [data, setData] = useState<MonitorTargetResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -638,20 +643,35 @@ export function MonitorTargetPanel({
   }, [loadLatestStats])
 
   useEffect(() => {
-    if (!detailLayout || !LIVE_SERIES_WINDOWS.has(selectedWindow)) return
+    const handleVisibilityChange = () => {
+      setDocumentVisible(isDocumentVisible())
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [])
+
+  useEffect(() => {
+    if (!detailLayout || !documentVisible || !LIVE_SERIES_WINDOWS.has(selectedWindow)) return
     const interval = window.setInterval(() => {
       void Promise.all([loadSeries(), loadNetworkTrafficSeries()])
     }, LIVE_SERIES_INTERVAL_MS)
     return () => window.clearInterval(interval)
-  }, [detailLayout, loadNetworkTrafficSeries, loadSeries, selectedWindow])
+  }, [detailLayout, documentVisible, loadNetworkTrafficSeries, loadSeries, selectedWindow])
 
   useEffect(() => {
-    if (!detailLayout) return
+    if (!detailLayout || !documentVisible) return
     const interval = window.setInterval(() => {
       void loadLatestStats()
     }, Math.max((latestStats?.cadenceSeconds ?? DEFAULT_AGENT_METRIC_CADENCE_MS / 1000) * 1000, 1000))
     return () => window.clearInterval(interval)
-  }, [detailLayout, latestStats?.cadenceSeconds, loadLatestStats])
+  }, [detailLayout, documentVisible, latestStats?.cadenceSeconds, loadLatestStats])
+
+  useEffect(() => {
+    const becameVisible = !previousDocumentVisible.current && documentVisible
+    previousDocumentVisible.current = documentVisible
+    if (!becameVisible || !detailLayout) return
+    void Promise.all([loadSeries(), loadNetworkTrafficSeries(), loadLatestStats()])
+  }, [detailLayout, documentVisible, loadLatestStats, loadNetworkTrafficSeries, loadSeries])
 
   useEffect(() => {
     if (refreshKey > 0) {
@@ -668,7 +688,20 @@ export function MonitorTargetPanel({
   }, [targetId, targetType])
 
   const summaryEntries = Object.entries(data?.summary ?? {})
-  const latestStatItems = buildLatestStatItems(latestStats?.series ?? [])
+  const latestStatItems = useMemo(() => {
+    const items = buildLatestStatItems(latestStats?.series ?? []).filter(
+      item => !['cpu', 'memory'].includes(item.key) || hasUsableSeriesData((latestStats?.series ?? []).find(series => series.name === item.key))
+    )
+    if (!data?.summary) return items
+    const existingKeys = new Set(items.map(item => item.key))
+    const fallback = buildSummaryFallbackLatestStatItems(data.summary).filter(
+      item => !existingKeys.has(item.key)
+    )
+    if (fallback.length === 0) return items
+    return LATEST_STAT_ORDER.map(
+      name => items.find(item => item.key === name) ?? fallback.find(item => item.key === name)
+    ).filter((item): item is LatestStatItem => Boolean(item))
+  }, [data?.summary, latestStats?.series])
   const latestStatUpdatedAt = latestStatsUpdatedAt(latestStats?.series ?? [])
   const hasTrendSeries = trendSeries.length > 0
   const pipelineWarning = monitorMetricsPipelineWarning(
@@ -1028,112 +1061,112 @@ export function MonitorTargetPanel({
                   <CardTitle className="text-base">Trend History</CardTitle>
                   <CardDescription>{selectedWindowMeta.description}</CardDescription>
                 </div>
-                  <div className="flex flex-col items-end gap-2">
+                <div className="flex flex-col items-end gap-2">
                   <TrendLoadingIndicator visible={seriesLoading && hasTrendSeries} />
                   <div
                     className="inline-flex flex-wrap items-center rounded-lg border bg-muted/20 p-1"
                     role="tablist"
                     aria-label="trend window selector"
                   >
-                  {SERIES_WINDOWS.filter(window => window.value !== 'custom').map(window => {
-                    const active = window.value === selectedWindow
-                    return (
-                      <Button
-                        key={window.value}
-                        type="button"
-                        size="xs"
-                        variant={active ? 'secondary' : 'ghost'}
-                        aria-pressed={active}
-                        onClick={() => setSelectedWindow(window.value)}
-                        disabled={seriesLoading || networkTrafficLoading}
-                      >
-                        {window.label}
-                      </Button>
-                    )
-                  })}
-                  <Popover open={customRangeOpen} onOpenChange={setCustomRangeOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant={selectedWindow === 'custom' ? 'secondary' : 'ghost'}
-                        aria-pressed={selectedWindow === 'custom'}
-                        disabled={seriesLoading || networkTrafficLoading}
-                      >
-                        {selectedWindow === 'custom'
-                          ? formatCustomRangeLabel(appliedCustomRange)
-                          : 'custom'}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent align="end" className="w-[min(24rem,calc(100vw-2rem))] space-y-3">
-                      <div className="space-y-1">
-                        <div className="text-sm font-medium">Custom time range</div>
-                        <div className="text-xs text-muted-foreground">
-                          Choose start and end time, then apply them to the current trend charts.
-                        </div>
-                      </div>
-                      <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(12rem,1fr))]">
-                        <label className="space-y-1 text-sm">
-                          <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                            Start
-                          </span>
-                          <Input
-                            aria-label="Trend range start"
-                            type="datetime-local"
-                            value={draftCustomRange.startLocal}
-                            onChange={event =>
-                              setDraftCustomRange(current => ({
-                                ...current,
-                                startLocal: event.target.value,
-                              }))
-                            }
-                            max={draftCustomRange.endLocal || undefined}
-                          />
-                        </label>
-                        <label className="space-y-1 text-sm">
-                          <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                            End
-                          </span>
-                          <Input
-                            aria-label="Trend range end"
-                            type="datetime-local"
-                            value={draftCustomRange.endLocal}
-                            onChange={event =>
-                              setDraftCustomRange(current => ({
-                                ...current,
-                                endLocal: event.target.value,
-                              }))
-                            }
-                            min={draftCustomRange.startLocal || undefined}
-                          />
-                        </label>
-                      </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-xs text-muted-foreground">
-                          {formatCustomRangeDescription(draftCustomRange)}
-                        </div>
+                    {SERIES_WINDOWS.filter(window => window.value !== 'custom').map(window => {
+                      const active = window.value === selectedWindow
+                      return (
+                        <Button
+                          key={window.value}
+                          type="button"
+                          size="xs"
+                          variant={active ? 'secondary' : 'ghost'}
+                          aria-pressed={active}
+                          onClick={() => setSelectedWindow(window.value)}
+                          disabled={seriesLoading || networkTrafficLoading}
+                        >
+                          {window.label}
+                        </Button>
+                      )
+                    })}
+                    <Popover open={customRangeOpen} onOpenChange={setCustomRangeOpen}>
+                      <PopoverTrigger asChild>
                         <Button
                           type="button"
-                          variant="outline"
-                          onClick={() => {
-                            setAppliedCustomRange(draftCustomRange)
-                            setSelectedWindow('custom')
-                            setCustomRangeOpen(false)
-                          }}
-                          disabled={
-                            seriesLoading ||
-                            networkTrafficLoading ||
-                            !isValidCustomRange(draftCustomRange) ||
-                            (selectedWindow === 'custom' && !customRangeDirty)
-                          }
+                          size="xs"
+                          variant={selectedWindow === 'custom' ? 'secondary' : 'ghost'}
+                          aria-pressed={selectedWindow === 'custom'}
+                          disabled={seriesLoading || networkTrafficLoading}
                         >
-                          Apply
+                          {selectedWindow === 'custom'
+                            ? formatCustomRangeLabel(appliedCustomRange)
+                            : 'custom'}
                         </Button>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
+                      </PopoverTrigger>
+                      <PopoverContent align="end" className="w-[min(24rem,calc(100vw-2rem))] space-y-3">
+                        <div className="space-y-1">
+                          <div className="text-sm font-medium">Custom time range</div>
+                          <div className="text-xs text-muted-foreground">
+                            Choose start and end time, then apply them to the current trend charts.
+                          </div>
+                        </div>
+                        <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(12rem,1fr))]">
+                          <label className="space-y-1 text-sm">
+                            <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                              Start
+                            </span>
+                            <Input
+                              aria-label="Trend range start"
+                              type="datetime-local"
+                              value={draftCustomRange.startLocal}
+                              onChange={event =>
+                                setDraftCustomRange(current => ({
+                                  ...current,
+                                  startLocal: event.target.value,
+                                }))
+                              }
+                              max={draftCustomRange.endLocal || undefined}
+                            />
+                          </label>
+                          <label className="space-y-1 text-sm">
+                            <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                              End
+                            </span>
+                            <Input
+                              aria-label="Trend range end"
+                              type="datetime-local"
+                              value={draftCustomRange.endLocal}
+                              onChange={event =>
+                                setDraftCustomRange(current => ({
+                                  ...current,
+                                  endLocal: event.target.value,
+                                }))
+                              }
+                              min={draftCustomRange.startLocal || undefined}
+                            />
+                          </label>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-xs text-muted-foreground">
+                            {formatCustomRangeDescription(draftCustomRange)}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              setAppliedCustomRange(draftCustomRange)
+                              setSelectedWindow('custom')
+                              setCustomRangeOpen(false)
+                            }}
+                            disabled={
+                              seriesLoading ||
+                              networkTrafficLoading ||
+                              !isValidCustomRange(draftCustomRange) ||
+                              (selectedWindow === 'custom' && !customRangeDirty)
+                            }
+                          >
+                            Apply
+                          </Button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 </div>
-              </div>
             </CardHeader>
             <CardContent>
               {!hasTrendSeries ? (
@@ -1167,10 +1200,10 @@ export function MonitorTargetPanel({
                       onNetworkInterfaceChange={
                         item.name === 'network_traffic'
                           ? setSelectedTrendNetworkInterface
-                        : undefined
-                    }
+                          : undefined
+                      }
                       loading={item.name === 'network_traffic' && networkTrafficLoading}
-                  />
+                    />
                   ))}
                 </div>
               )}
@@ -1326,6 +1359,62 @@ function buildLatestStatItems(series: MonitorSeriesResponse['series']): LatestSt
   })
 }
 
+function hasUsableSeriesData(
+  item: Pick<MonitorSeriesItem, 'points' | 'segments'> | undefined
+): boolean {
+  if (!item) return false
+  if ((item.points ?? []).some(point => Number.isFinite(point[1] ?? NaN))) {
+    return true
+  }
+  return (item.segments ?? []).some(segment =>
+    segment.points.some(point => Number.isFinite(point[1] ?? NaN))
+  )
+}
+
+function buildSummaryFallbackLatestStatItems(summary?: Record<string, unknown>): LatestStatItem[] {
+  if (!summary) return []
+
+  const numericValue = (value: unknown): number | null =>
+    typeof value === 'number' && Number.isFinite(value) ? value : null
+
+  const cpuPercent = numericValue(summary.cpu_percent)
+  const memoryUsed = numericValue(summary.memory_bytes)
+  const memoryAvailable = numericValue(summary.memory_available_bytes)
+  const items: LatestStatItem[] = []
+
+  if (cpuPercent !== null) {
+    items.push({
+      key: 'cpu',
+      label: formatLabel('cpu'),
+      value: formatTrendValue('percent', 'cpu', cpuPercent),
+      unit: 'percent',
+      variant: 'gauge',
+      updatedAt: null,
+      percent: clampPercent(cpuPercent),
+      bars: [],
+    })
+  }
+
+  if (memoryUsed !== null) {
+    const limit = memoryAvailable !== null ? memoryUsed + memoryAvailable : null
+    items.push({
+      key: 'memory',
+      label: formatLabel('memory'),
+      value:
+        limit !== null
+          ? `${formatBytes(memoryUsed)} used / ${formatBytes(limit)} limit`
+          : `${formatBytes(memoryUsed)} used`,
+      unit: 'bytes',
+      variant: 'gauge',
+      updatedAt: null,
+      percent: limit !== null && limit > 0 ? clampPercent((memoryUsed / limit) * 100) : null,
+      bars: [],
+    })
+  }
+
+  return items
+}
+
 function formatUpdatedAtValue(timestamp: number, includeDate: boolean): string {
   return new Date(timestamp).toLocaleString(
     undefined,
@@ -1373,24 +1462,40 @@ function LatestGauge({
   const dashOffset = arcLength * (1 - clamped / 100)
 
   return (
-    <div className="space-y-2" aria-label={`${itemKey} latest stat gauge`}>
-      <svg viewBox="0 0 120 72" className="h-24 w-full overflow-visible" preserveAspectRatio="xMidYMid meet">
-        <path d={arcPath} fill="none" stroke="currentColor" strokeWidth="10" className="text-muted/40" strokeLinecap="round" />
+    <div className="flex h-full flex-col justify-end gap-2" aria-label={`${itemKey} latest stat gauge`}>
+      <svg
+        viewBox="0 0 120 72"
+        className="mx-auto h-24 w-full max-w-[10.5rem] overflow-visible"
+        preserveAspectRatio="xMidYMid meet"
+      >
         <path
           d={arcPath}
           fill="none"
           stroke="currentColor"
-          strokeWidth="10"
-          className="text-primary"
+          strokeWidth="9"
+          className="text-muted-foreground/20"
+          strokeLinecap="round"
+        />
+        <path
+          d={arcPath}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="9"
+          className="text-primary/90"
           strokeLinecap="round"
           strokeDasharray={arcLength}
           strokeDashoffset={dashOffset}
         />
-        <text x="60" y="52" textAnchor="middle" className="fill-foreground text-[18px] font-semibold">
+        <text
+          x="60"
+          y="52"
+          textAnchor="middle"
+          className="fill-foreground text-[20px] font-semibold tabular-nums"
+        >
           {percent === null ? '—' : `${Math.round(clamped)}%`}
         </text>
       </svg>
-      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>0%</span>
         <span>100%</span>
       </div>
@@ -1440,23 +1545,21 @@ function LatestBarComparison({
 
 function LatestStatCard({ item }: { item: LatestStatItem }) {
   return (
-    <div className="rounded-md border bg-background px-4 py-4">
-      <div className="flex items-start justify-between gap-3">
+    <div className="flex h-full flex-col rounded-md border bg-background px-4 py-4">
+      <div className="flex min-h-[3.25rem] items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="truncate text-xs uppercase tracking-wide text-muted-foreground">
             {item.label}
           </div>
-          <div className="mt-1 break-words text-sm font-medium">{item.value}</div>
-        </div>
-        {item.variant === 'gauge' ? (
-          <div className="shrink-0 text-xs font-semibold text-muted-foreground">
-            {item.percent === null ? '—' : `${Math.round(clampPercent(item.percent))}%`}
+          <div className="mt-1.5 break-words text-sm font-medium leading-snug text-foreground">
+            {item.value}
           </div>
-        ) : (
+        </div>
+        {item.variant === 'bars' ? (
           <div className="shrink-0 text-[11px] text-muted-foreground">{item.unit}</div>
-        )}
+        ) : null}
       </div>
-      <div className="mt-3">
+      <div className="mt-4 flex-1">
         {item.variant === 'gauge' ? (
           <LatestGauge itemKey={item.key} percent={item.percent} />
         ) : (
@@ -1488,8 +1591,11 @@ function formatSeriesLatestLabel(item: MonitorSeriesResponse['series'][number]):
     return formatTrendValue(item.unit, item.name, latest)
   }
   if (item.name === 'memory' && latestUsed !== null) {
-    const total = latestUsed + (latestAvailable ?? 0)
-    return `${formatBytes(latestUsed)} used / ${formatBytes(total)} total`
+    if (latestAvailable !== null) {
+      const limit = latestUsed + latestAvailable
+      return `${formatBytes(latestUsed)} used / ${formatBytes(limit)} limit`
+    }
+    return `${formatBytes(latestUsed)} used`
   }
   if (item.name === 'disk_usage' && (latestUsed !== null || latestFree !== null)) {
     return `${latestUsed === null ? '—' : formatBytes(latestUsed)} used${latestFree === null ? '' : ` / ${formatBytes(latestFree)} free`}`
@@ -1555,8 +1661,11 @@ function TrendCard({
       return formatTrendValue(unit, name, latest)
     }
     if (name === 'memory' && latestUsed !== null) {
-      const total = latestUsed + (latestAvailable ?? 0)
-      return `${formatBytes(latestUsed)} used / ${formatBytes(total)} total`
+      if (latestAvailable !== null) {
+        const limit = latestUsed + latestAvailable
+        return `${formatBytes(latestUsed)} used / ${formatBytes(limit)} limit`
+      }
+      return `${formatBytes(latestUsed)} used`
     }
     if (name === 'disk_usage' && (latestUsed !== null || latestFree !== null)) {
       return `${latestUsed === null ? '—' : formatBytes(latestUsed)} used${latestFree === null ? '' : ` / ${formatBytes(latestFree)} free`}`

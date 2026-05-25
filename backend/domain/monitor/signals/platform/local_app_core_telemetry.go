@@ -18,6 +18,8 @@ type localAppCoreTelemetryState struct {
 	NetworkCounters map[string]localNetworkCounters
 }
 
+type LocalAppCoreTelemetryState = localAppCoreTelemetryState
+
 type localAppCoreSnapshot struct {
 	MemoryUsedBytes  float64
 	MemoryAvailBytes float64
@@ -104,7 +106,7 @@ func newLocalAppCoreMetricPoint(series string, value float64, observedAt time.Ti
 }
 
 func readLocalAppCoreSnapshot() (localAppCoreSnapshot, error) {
-	memoryUsed, memoryAvailable, err := readLocalAppCoreMemory()
+	memoryUsed, memoryAvailable, _, err := readLocalAppCoreMemory()
 	if err != nil {
 		return localAppCoreSnapshot{}, err
 	}
@@ -131,51 +133,51 @@ func readLocalAppCoreSnapshot() (localAppCoreSnapshot, error) {
 	}, nil
 }
 
-func readLocalAppCoreMemory() (float64, float64, error) {
-	usedBytes, err := readFirstLocalAppCoreFloat(
+func readLocalAppCoreMemory() (float64, float64, bool, error) {
+	usedBytes, _, err := readFirstLocalAppCoreFloat(
 		filepath.Join("/sys/fs/cgroup", "memory.current"),
 		filepath.Join("/sys/fs/cgroup", "memory", "memory.usage_in_bytes"),
 	)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, false, err
 	}
-	limitBytes, err := readFirstLocalAppCoreFloat(
+	limitBytes, limitFound, err := readFirstLocalAppCoreFloat(
 		filepath.Join("/sys/fs/cgroup", "memory.max"),
 		filepath.Join("/sys/fs/cgroup", "memory", "memory.limit_in_bytes"),
 	)
 	if err != nil {
-		return usedBytes, 0, err
+		return usedBytes, 0, false, err
 	}
-	if limitBytes <= 0 || limitBytes >= (1<<60) {
-		return usedBytes, 0, nil
+	if !limitFound || limitBytes <= 0 || limitBytes >= (1<<60) {
+		return usedBytes, 0, false, nil
 	}
 	availableBytes := limitBytes - usedBytes
 	if availableBytes < 0 {
 		availableBytes = 0
 	}
-	return usedBytes, availableBytes, nil
+	return usedBytes, availableBytes, true, nil
 }
 
-func readFirstLocalAppCoreFloat(paths ...string) (float64, error) {
+func readFirstLocalAppCoreFloat(paths ...string) (float64, bool, error) {
 	for _, path := range paths {
 		content, err := os.ReadFile(path)
 		if err != nil {
 			if os.IsNotExist(err) {
 				continue
 			}
-			return 0, err
+			return 0, false, err
 		}
 		trimmed := strings.TrimSpace(string(content))
 		if trimmed == "" || trimmed == "max" {
-			return 0, nil
+			return 0, false, nil
 		}
 		value, err := strconv.ParseFloat(trimmed, 64)
 		if err != nil {
-			return 0, err
+			return 0, false, err
 		}
-		return value, nil
+		return value, true, nil
 	}
-	return 0, nil
+	return 0, false, nil
 }
 
 func readLocalAppCoreDiskUsage() (float64, float64, error) {

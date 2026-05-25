@@ -7,11 +7,11 @@ func TestNewPlatformObserverDisablesLocalTelemetryByDefault(t *testing.T) {
 	t.Setenv(EnvPlatformEnableContainerTelemetry, "")
 
 	observer := NewPlatformObserver(nil, nil)
-	if observer.hostTelemetryFn != nil {
-		t.Fatal("expected host telemetry to be disabled by default")
+	if observer.hostTelemetryFn == nil {
+		t.Fatal("expected host telemetry collector to be available for runtime settings gating")
 	}
-	if observer.containerStatsFn != nil {
-		t.Fatal("expected container telemetry to be disabled by default")
+	if observer.containerStatsFn == nil {
+		t.Fatal("expected container telemetry collector to be available for runtime settings gating")
 	}
 }
 
@@ -21,9 +21,9 @@ func TestNewPlatformObserverEnablesConfiguredLocalTelemetry(t *testing.T) {
 
 	observer := NewPlatformObserver(nil, nil)
 	if observer.hostTelemetryFn == nil {
-		t.Fatal("expected host telemetry to be enabled when configured")
+		t.Fatal("expected host telemetry collector to be wired")
 	}
 	if observer.containerStatsFn == nil {
-		t.Fatal("expected container telemetry to be enabled when configured")
+		t.Fatal("expected container telemetry collector to be wired")
 	}
 }

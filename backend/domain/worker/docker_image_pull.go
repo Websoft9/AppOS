@@ -12,7 +12,7 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
+	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 	"github.com/websoft9/appos/backend/domain/dockerops"
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
 	"github.com/websoft9/appos/backend/domain/software"
@@ -279,7 +279,7 @@ func loadWorkerDockerProxyEnv(app core.App) map[string]string {
 		app,
 		"proxy",
 		"network",
-		settingscatalog.DefaultGroup("proxy", "network"),
+		settingsschema.DefaultGroup("proxy", "network"),
 	)
 	if group == nil {
 		return nil

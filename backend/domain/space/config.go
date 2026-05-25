@@ -3,7 +3,7 @@ package space
 import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
+	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 )
 
 const (
@@ -11,7 +11,7 @@ const (
 	SettingsKey    = "quota"
 )
 
-var defaultQuota = settingscatalog.DefaultGroup(SettingsModule, SettingsKey)
+var defaultQuota = settingsschema.DefaultGroup(SettingsModule, SettingsKey)
 
 // Quota holds all effective quota values for the space domain.
 type Quota struct {

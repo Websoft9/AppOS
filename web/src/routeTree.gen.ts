@@ -23,11 +23,11 @@ import { Route as AppAuthSpaceRouteImport } from './routes/_app/_auth/space'
 import { Route as AppAuthSharedEnvsRouteImport } from './routes/_app/_auth/shared-envs'
 import { Route as AppAuthSecretsRouteImport } from './routes/_app/_auth/secrets'
 import { Route as AppAuthProfileRouteImport } from './routes/_app/_auth/profile'
+import { Route as AppAuthPlatformComponentsRouteImport } from './routes/_app/_auth/platform-components'
 import { Route as AppAuthOverviewRouteImport } from './routes/_app/_auth/overview'
 import { Route as AppAuthGroupsRouteImport } from './routes/_app/_auth/groups'
 import { Route as AppAuthDockerRouteImport } from './routes/_app/_auth/docker'
 import { Route as AppAuthDeployRouteImport } from './routes/_app/_auth/deploy'
-import { Route as AppAuthComponentsRouteImport } from './routes/_app/_auth/components'
 import { Route as AppAuthCertificatesRouteImport } from './routes/_app/_auth/certificates'
 import { Route as AppAuthAuditRouteImport } from './routes/_app/_auth/audit'
 import { Route as AppAuthAppsRouteImport } from './routes/_app/_auth/apps'
@@ -55,6 +55,7 @@ import { Route as AppAuthSuperuserTunnelsRouteImport } from './routes/_app/_auth
 import { Route as AppAuthSuperuserSystemTasksRouteImport } from './routes/_app/_auth/_superuser/system-tasks'
 import { Route as AppAuthSuperuserStatusRouteImport } from './routes/_app/_auth/_superuser/status'
 import { Route as AppAuthSuperuserSettingsRouteImport } from './routes/_app/_auth/_superuser/settings'
+import { Route as AppAuthSuperuserPlatformRuntimeRouteImport } from './routes/_app/_auth/_superuser/platform-runtime'
 import { Route as AppAuthSuperuserLogsRouteImport } from './routes/_app/_auth/_superuser/logs'
 import { Route as AppAuthSuperuserIacRouteImport } from './routes/_app/_auth/_superuser/iac'
 import { Route as AppAuthSuperuserAssetsRouteImport } from './routes/_app/_auth/_superuser/assets'
@@ -132,6 +133,12 @@ const AppAuthProfileRoute = AppAuthProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => AppAuthRoute,
 } as any)
+const AppAuthPlatformComponentsRoute =
+  AppAuthPlatformComponentsRouteImport.update({
+    id: '/platform-components',
+    path: '/platform-components',
+    getParentRoute: () => AppAuthRoute,
+  } as any)
 const AppAuthOverviewRoute = AppAuthOverviewRouteImport.update({
   id: '/overview',
   path: '/overview',
@@ -150,11 +157,6 @@ const AppAuthDockerRoute = AppAuthDockerRouteImport.update({
 const AppAuthDeployRoute = AppAuthDeployRouteImport.update({
   id: '/deploy',
   path: '/deploy',
-  getParentRoute: () => AppAuthRoute,
-} as any)
-const AppAuthComponentsRoute = AppAuthComponentsRouteImport.update({
-  id: '/components',
-  path: '/components',
   getParentRoute: () => AppAuthRoute,
 } as any)
 const AppAuthCertificatesRoute = AppAuthCertificatesRouteImport.update({
@@ -299,6 +301,12 @@ const AppAuthSuperuserSettingsRoute =
     path: '/settings',
     getParentRoute: () => AppAuthSuperuserRoute,
   } as any)
+const AppAuthSuperuserPlatformRuntimeRoute =
+  AppAuthSuperuserPlatformRuntimeRouteImport.update({
+    id: '/platform-runtime',
+    path: '/platform-runtime',
+    getParentRoute: () => AppAuthSuperuserRoute,
+  } as any)
 const AppAuthSuperuserLogsRoute = AppAuthSuperuserLogsRouteImport.update({
   id: '/logs',
   path: '/logs',
@@ -356,11 +364,11 @@ export interface FileRoutesByFullPath {
   '/apps': typeof AppAuthAppsRouteWithChildren
   '/audit': typeof AppAuthAuditRoute
   '/certificates': typeof AppAuthCertificatesRoute
-  '/components': typeof AppAuthComponentsRoute
   '/deploy': typeof AppAuthDeployRouteWithChildren
   '/docker': typeof AppAuthDockerRoute
   '/groups': typeof AppAuthGroupsRouteWithChildren
   '/overview': typeof AppAuthOverviewRoute
+  '/platform-components': typeof AppAuthPlatformComponentsRoute
   '/profile': typeof AppAuthProfileRoute
   '/secrets': typeof AppAuthSecretsRoute
   '/shared-envs': typeof AppAuthSharedEnvsRoute
@@ -370,6 +378,7 @@ export interface FileRoutesByFullPath {
   '/assets': typeof AppAuthSuperuserAssetsRouteWithChildren
   '/iac': typeof AppAuthSuperuserIacRoute
   '/logs': typeof AppAuthSuperuserLogsRoute
+  '/platform-runtime': typeof AppAuthSuperuserPlatformRuntimeRoute
   '/settings': typeof AppAuthSuperuserSettingsRoute
   '/status': typeof AppAuthSuperuserStatusRoute
   '/system-tasks': typeof AppAuthSuperuserSystemTasksRoute
@@ -409,9 +418,9 @@ export interface FileRoutesByTo {
   '/apps': typeof AppAuthAppsRouteWithChildren
   '/audit': typeof AppAuthAuditRoute
   '/certificates': typeof AppAuthCertificatesRoute
-  '/components': typeof AppAuthComponentsRoute
   '/docker': typeof AppAuthDockerRoute
   '/overview': typeof AppAuthOverviewRoute
+  '/platform-components': typeof AppAuthPlatformComponentsRoute
   '/profile': typeof AppAuthProfileRoute
   '/secrets': typeof AppAuthSecretsRoute
   '/shared-envs': typeof AppAuthSharedEnvsRoute
@@ -420,6 +429,7 @@ export interface FileRoutesByTo {
   '/assets': typeof AppAuthSuperuserAssetsRouteWithChildren
   '/iac': typeof AppAuthSuperuserIacRoute
   '/logs': typeof AppAuthSuperuserLogsRoute
+  '/platform-runtime': typeof AppAuthSuperuserPlatformRuntimeRoute
   '/settings': typeof AppAuthSuperuserSettingsRoute
   '/status': typeof AppAuthSuperuserStatusRoute
   '/system-tasks': typeof AppAuthSuperuserSystemTasksRoute
@@ -463,11 +473,11 @@ export interface FileRoutesById {
   '/_app/_auth/apps': typeof AppAuthAppsRouteWithChildren
   '/_app/_auth/audit': typeof AppAuthAuditRoute
   '/_app/_auth/certificates': typeof AppAuthCertificatesRoute
-  '/_app/_auth/components': typeof AppAuthComponentsRoute
   '/_app/_auth/deploy': typeof AppAuthDeployRouteWithChildren
   '/_app/_auth/docker': typeof AppAuthDockerRoute
   '/_app/_auth/groups': typeof AppAuthGroupsRouteWithChildren
   '/_app/_auth/overview': typeof AppAuthOverviewRoute
+  '/_app/_auth/platform-components': typeof AppAuthPlatformComponentsRoute
   '/_app/_auth/profile': typeof AppAuthProfileRoute
   '/_app/_auth/secrets': typeof AppAuthSecretsRoute
   '/_app/_auth/shared-envs': typeof AppAuthSharedEnvsRoute
@@ -477,6 +487,7 @@ export interface FileRoutesById {
   '/_app/_auth/_superuser/assets': typeof AppAuthSuperuserAssetsRouteWithChildren
   '/_app/_auth/_superuser/iac': typeof AppAuthSuperuserIacRoute
   '/_app/_auth/_superuser/logs': typeof AppAuthSuperuserLogsRoute
+  '/_app/_auth/_superuser/platform-runtime': typeof AppAuthSuperuserPlatformRuntimeRoute
   '/_app/_auth/_superuser/settings': typeof AppAuthSuperuserSettingsRoute
   '/_app/_auth/_superuser/status': typeof AppAuthSuperuserStatusRoute
   '/_app/_auth/_superuser/system-tasks': typeof AppAuthSuperuserSystemTasksRoute
@@ -518,11 +529,11 @@ export interface FileRouteTypes {
     | '/apps'
     | '/audit'
     | '/certificates'
-    | '/components'
     | '/deploy'
     | '/docker'
     | '/groups'
     | '/overview'
+    | '/platform-components'
     | '/profile'
     | '/secrets'
     | '/shared-envs'
@@ -532,6 +543,7 @@ export interface FileRouteTypes {
     | '/assets'
     | '/iac'
     | '/logs'
+    | '/platform-runtime'
     | '/settings'
     | '/status'
     | '/system-tasks'
@@ -571,9 +583,9 @@ export interface FileRouteTypes {
     | '/apps'
     | '/audit'
     | '/certificates'
-    | '/components'
     | '/docker'
     | '/overview'
+    | '/platform-components'
     | '/profile'
     | '/secrets'
     | '/shared-envs'
@@ -582,6 +594,7 @@ export interface FileRouteTypes {
     | '/assets'
     | '/iac'
     | '/logs'
+    | '/platform-runtime'
     | '/settings'
     | '/status'
     | '/system-tasks'
@@ -624,11 +637,11 @@ export interface FileRouteTypes {
     | '/_app/_auth/apps'
     | '/_app/_auth/audit'
     | '/_app/_auth/certificates'
-    | '/_app/_auth/components'
     | '/_app/_auth/deploy'
     | '/_app/_auth/docker'
     | '/_app/_auth/groups'
     | '/_app/_auth/overview'
+    | '/_app/_auth/platform-components'
     | '/_app/_auth/profile'
     | '/_app/_auth/secrets'
     | '/_app/_auth/shared-envs'
@@ -638,6 +651,7 @@ export interface FileRouteTypes {
     | '/_app/_auth/_superuser/assets'
     | '/_app/_auth/_superuser/iac'
     | '/_app/_auth/_superuser/logs'
+    | '/_app/_auth/_superuser/platform-runtime'
     | '/_app/_auth/_superuser/settings'
     | '/_app/_auth/_superuser/status'
     | '/_app/_auth/_superuser/system-tasks'
@@ -773,6 +787,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthProfileRouteImport
       parentRoute: typeof AppAuthRoute
     }
+    '/_app/_auth/platform-components': {
+      id: '/_app/_auth/platform-components'
+      path: '/platform-components'
+      fullPath: '/platform-components'
+      preLoaderRoute: typeof AppAuthPlatformComponentsRouteImport
+      parentRoute: typeof AppAuthRoute
+    }
     '/_app/_auth/overview': {
       id: '/_app/_auth/overview'
       path: '/overview'
@@ -799,13 +820,6 @@ declare module '@tanstack/react-router' {
       path: '/deploy'
       fullPath: '/deploy'
       preLoaderRoute: typeof AppAuthDeployRouteImport
-      parentRoute: typeof AppAuthRoute
-    }
-    '/_app/_auth/components': {
-      id: '/_app/_auth/components'
-      path: '/components'
-      fullPath: '/components'
-      preLoaderRoute: typeof AppAuthComponentsRouteImport
       parentRoute: typeof AppAuthRoute
     }
     '/_app/_auth/certificates': {
@@ -997,6 +1011,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthSuperuserSettingsRouteImport
       parentRoute: typeof AppAuthSuperuserRoute
     }
+    '/_app/_auth/_superuser/platform-runtime': {
+      id: '/_app/_auth/_superuser/platform-runtime'
+      path: '/platform-runtime'
+      fullPath: '/platform-runtime'
+      preLoaderRoute: typeof AppAuthSuperuserPlatformRuntimeRouteImport
+      parentRoute: typeof AppAuthSuperuserRoute
+    }
     '/_app/_auth/_superuser/logs': {
       id: '/_app/_auth/_superuser/logs'
       path: '/logs'
@@ -1074,6 +1095,7 @@ interface AppAuthSuperuserRouteChildren {
   AppAuthSuperuserAssetsRoute: typeof AppAuthSuperuserAssetsRouteWithChildren
   AppAuthSuperuserIacRoute: typeof AppAuthSuperuserIacRoute
   AppAuthSuperuserLogsRoute: typeof AppAuthSuperuserLogsRoute
+  AppAuthSuperuserPlatformRuntimeRoute: typeof AppAuthSuperuserPlatformRuntimeRoute
   AppAuthSuperuserSettingsRoute: typeof AppAuthSuperuserSettingsRoute
   AppAuthSuperuserStatusRoute: typeof AppAuthSuperuserStatusRoute
   AppAuthSuperuserSystemTasksRoute: typeof AppAuthSuperuserSystemTasksRoute
@@ -1087,6 +1109,7 @@ const AppAuthSuperuserRouteChildren: AppAuthSuperuserRouteChildren = {
   AppAuthSuperuserAssetsRoute: AppAuthSuperuserAssetsRouteWithChildren,
   AppAuthSuperuserIacRoute: AppAuthSuperuserIacRoute,
   AppAuthSuperuserLogsRoute: AppAuthSuperuserLogsRoute,
+  AppAuthSuperuserPlatformRuntimeRoute: AppAuthSuperuserPlatformRuntimeRoute,
   AppAuthSuperuserSettingsRoute: AppAuthSuperuserSettingsRoute,
   AppAuthSuperuserStatusRoute: AppAuthSuperuserStatusRoute,
   AppAuthSuperuserSystemTasksRoute: AppAuthSuperuserSystemTasksRoute,
@@ -1172,11 +1195,11 @@ interface AppAuthRouteChildren {
   AppAuthAppsRoute: typeof AppAuthAppsRouteWithChildren
   AppAuthAuditRoute: typeof AppAuthAuditRoute
   AppAuthCertificatesRoute: typeof AppAuthCertificatesRoute
-  AppAuthComponentsRoute: typeof AppAuthComponentsRoute
   AppAuthDeployRoute: typeof AppAuthDeployRouteWithChildren
   AppAuthDockerRoute: typeof AppAuthDockerRoute
   AppAuthGroupsRoute: typeof AppAuthGroupsRouteWithChildren
   AppAuthOverviewRoute: typeof AppAuthOverviewRoute
+  AppAuthPlatformComponentsRoute: typeof AppAuthPlatformComponentsRoute
   AppAuthProfileRoute: typeof AppAuthProfileRoute
   AppAuthSecretsRoute: typeof AppAuthSecretsRoute
   AppAuthSharedEnvsRoute: typeof AppAuthSharedEnvsRoute
@@ -1201,11 +1224,11 @@ const AppAuthRouteChildren: AppAuthRouteChildren = {
   AppAuthAppsRoute: AppAuthAppsRouteWithChildren,
   AppAuthAuditRoute: AppAuthAuditRoute,
   AppAuthCertificatesRoute: AppAuthCertificatesRoute,
-  AppAuthComponentsRoute: AppAuthComponentsRoute,
   AppAuthDeployRoute: AppAuthDeployRouteWithChildren,
   AppAuthDockerRoute: AppAuthDockerRoute,
   AppAuthGroupsRoute: AppAuthGroupsRouteWithChildren,
   AppAuthOverviewRoute: AppAuthOverviewRoute,
+  AppAuthPlatformComponentsRoute: AppAuthPlatformComponentsRoute,
   AppAuthProfileRoute: AppAuthProfileRoute,
   AppAuthSecretsRoute: AppAuthSecretsRoute,
   AppAuthSharedEnvsRoute: AppAuthSharedEnvsRoute,

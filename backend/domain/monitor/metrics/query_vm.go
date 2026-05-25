@@ -1,9 +1,9 @@
 package metrics
 
-func isNetdataPlatformTarget(targetType, targetID string) bool {
+func isAppOSCorePlatformTarget(targetType, targetID string) bool {
 	return targetType == targetTypePlatform && targetID == platformTargetAppOSCore
 }
 
 func supportsNetworkInterfaceSelection(targetType, targetID string) bool {
-	return targetType == targetTypeServer || isNetdataPlatformTarget(targetType, targetID)
+	return targetType == targetTypeServer || isAppOSCorePlatformTarget(targetType, targetID)
 }

@@ -93,19 +93,19 @@ The page should be structured as a platform-composition surface, not a monitor d
 Suggested sections:
 
 1. `Runtime Summary`
-   - one short sentence about the current AppOS runtime shape
-   - counts such as running components, degraded components, and missing optional components
+	 - one short sentence about the current AppOS runtime shape
+	 - counts such as running components, degraded components, and missing optional components
 
 2. `Core Components`
-   - each item represents one AppOS platform component
-   - show name, current state, runtime form, and responsibility summary
+	 - each item represents one AppOS platform component
+	 - show name, current state, runtime form, and responsibility summary
 
 3. `Runtime Processes`
-   - show the key platform processes or services that are actually running
-   - keep this compact and curated, not a full host process list
+	 - show the key platform processes or services that are actually running
+	 - keep this compact and curated, not a full host process list
 
 4. `Next Surface`
-   - explicit handoff links such as `View Status`, `Open Monitor`, `Manage Components`, or `Open Logs`
+	 - explicit handoff links such as `View Status`, `Open Monitor`, `Manage Components`, or `Open Logs`
 
 ## Component Model Draft
 
@@ -183,23 +183,23 @@ This story should begin from existing runtime and component read paths rather th
 Verified reusable surfaces in the current codebase:
 
 - `GET /api/components`
-  - curated AppOS component inventory
-  - good fit for platform composition and component presence
+	- curated AppOS component inventory
+	- good fit for platform composition and component presence
 - `GET /api/components/services`
-  - supervisord-managed local service/process list
-  - good fit for the MVP runtime-process section
+	- supervisord-managed local service/process list
+	- good fit for the MVP runtime-process section
 - `GET /api/software/local`
-  - software and component catalog view for the local AppOS instance
-  - useful as supporting metadata, but not the primary runtime-process source
+	- software and component catalog view for the local AppOS instance
+	- useful as supporting metadata, but not the primary runtime-process source
 - `GET /api/servers/{serverId}/docker/containers`
-  - server-scoped Docker container inventory
-  - useful for handoff or future expansion, but should not define the MVP page by itself
+	- server-scoped Docker container inventory
+	- useful for handoff or future expansion, but should not define the MVP page by itself
 - `GET /api/servers/{serverId}/ops/systemd/services`
-  - server-scoped system service list
-  - useful only when the page intentionally bridges into managed-server runtime details
+	- server-scoped system service list
+	- useful only when the page intentionally bridges into managed-server runtime details
 - `GET /api/monitor/servers/{id}/container-telemetry`
-  - telemetry and runtime health signal for containers
-  - diagnostic adjunct, not the source of truth for component composition
+	- telemetry and runtime health signal for containers
+	- diagnostic adjunct, not the source of truth for component composition
 
 Current state summary:
 
@@ -233,31 +233,31 @@ Suggested response shape:
 
 ```json
 {
-  "summary": {
-    "runningComponents": 5,
-    "degradedComponents": 1,
-    "missingComponents": 0,
-    "runtimeShape": "single-container appos with embedded control-plane services"
-  },
-  "components": [
-    {
-      "componentKey": "worker",
-      "displayName": "Worker",
-      "state": "running",
-      "runtimeKind": "process",
-      "ownedCapability": "background jobs",
-      "detailHref": "/system/status"
-    }
-  ],
-  "processes": [
-    {
-      "name": "worker",
-      "state": "running",
-      "pid": 123,
-      "startedAt": "2026-05-23T09:00:00Z",
-      "componentKey": "worker"
-    }
-  ]
+	"summary": {
+		"runningComponents": 5,
+		"degradedComponents": 1,
+		"missingComponents": 0,
+		"runtimeShape": "single-container appos with embedded control-plane services"
+	},
+	"components": [
+		{
+			"componentKey": "worker",
+			"displayName": "Worker",
+			"state": "running",
+			"runtimeKind": "process",
+			"ownedCapability": "background jobs",
+			"detailHref": "/system/status"
+		}
+	],
+	"processes": [
+		{
+			"name": "worker",
+			"state": "running",
+			"pid": 123,
+			"startedAt": "2026-05-23T09:00:00Z",
+			"componentKey": "worker"
+		}
+	]
 }
 ```
 

@@ -19,6 +19,7 @@ import (
 )
 
 const maxMonitorWriteBodyBytes int64 = 100 << 20
+const localContainerTelemetryServerID = "local"
 
 var errMonitorWritePayloadTooLarge = errors.New("monitor write payload too large")
 
@@ -337,8 +338,10 @@ func handleMonitorServerContainerTelemetry(e *core.RequestEvent) error {
 	if serverID == "" {
 		return e.BadRequestError("server id is required", nil)
 	}
-	if _, err := findMonitorServer(e.App, serverID); err != nil {
+	if serverID != localContainerTelemetryServerID {
+		if _, err := findMonitorServer(e.App, serverID); err != nil {
 		return e.NotFoundError("server not found", err)
+		}
 	}
 	window := strings.TrimSpace(e.Request.URL.Query().Get("window"))
 	if window == "" {
