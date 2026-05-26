@@ -2,7 +2,9 @@
 
 ## Overview
 
-**Platform-level shared resource management** — Resources is the shared platform entry for runtime infrastructure, shared assets, software delivery visibility, and external integrations. Resources are platform-defined (not user-extensible); apps and workflows consume them by reference instead of owning them.
+**Platform-level shared resource container** — Resources is the shared platform container for long-lived, reusable resource objects. Resources are platform-defined (not user-extensible); apps, settings, deploy, and workflows consume them by reference instead of owning them.
+
+Resources is not a business workflow surface. It owns stable object identity, taxonomy, CRUD, reference semantics, and navigation entry points for shared resource objects. App install flows, deployment flows, lifecycle execution, and other business workflows remain outside the Resources domain.
 
 > Env Groups detail spec: see [Epic 24](epic24-shared-envs.md)
 
@@ -17,14 +19,14 @@ This epic now covers both:
 
 The current frontend presents `Resources` as a grouped hub, not as a flat inventory list.
 
-| Section | Current families |
+| Section | Current entries |
 | --- | --- |
 | `Runtime Infrastructure` | `Servers`, `Service Instances` |
 | `Shared Assets` | `Shared Envs`, `Scripts` |
 | `Software Delivery` | `Supported Software` |
 | `External Integrations` | `AI Providers`, `Connectors`, `Platform Accounts` |
 
-This presentation is intentionally user-facing. It groups platform-shared objects by operator intent, not by backend package layout.
+This presentation is intentionally user-facing. It groups platform-shared objects by operator intent, not by backend package layout. Not every hub entry is a canonical resource family; some entries may remain auxiliary discovery surfaces linked from the hub.
 
 Companion ADR for the next-stage taxonomy: [specs/adr/resource-taxonomy-instance-connector.md](specs/adr/resource-taxonomy-instance-connector.md)
 
@@ -47,6 +49,25 @@ Phase 2 evolves the original resource-store taxonomy into five canonical resourc
 5. `Connectors`
 
 This phase does not require full operational depth for every instance kind on day one. Its first goal is to stabilize ownership, naming, references, and migration direction.
+
+## Phase 2 Positioning
+
+Phase 2 treats `Resources` as a resource container, not as a workflow center.
+
+It is responsible for:
+
+1. canonical resource-family boundaries
+2. stable object identity and persistence
+3. route and navigation naming
+4. reference semantics across settings, apps, deploy, and workflows
+5. lightweight orientation for operators entering resource pages
+
+It is not responsible for:
+
+1. app install or deployment workflow orchestration
+2. software lifecycle execution surfaces
+3. turning the Resources homepage into a business-process dashboard
+4. owning domain-specific flows that merely consume resources by reference
 
 ## Phase 2 Problem Statement
 
@@ -77,6 +98,7 @@ Phase 2 is not responsible for:
 2. fully modeling every possible provider account integration in one release
 3. rewriting all existing resource UIs in one iteration
 4. provisioning cloud services directly
+5. introducing app, deploy, or software-delivery business workflows under `Resources`
 
 ## Phase 2 Canonical Resource Families
 
@@ -146,6 +168,24 @@ Product/UI label uses `Platform Accounts`, while backend domain terminology rema
 3. each migrated object family must end with one canonical owner only
 4. backward-compatible transition routes are acceptable during the migration window
 5. settings should reference resources, not own them
+
+## Phase 2 Risks
+
+1. ambiguous technologies such as `llm`, `mcp`, `s3`, and `registry` may regress into inconsistent classification if new work skips the ADR rules
+2. frontend taxonomy changes may outpace backend ownership migration and create temporary duplication
+3. auxiliary catalog or visibility pages may be mistaken for canonical resource families if the hub mixes object containers and discovery surfaces without explicit labeling
+4. existing `endpoint` semantics may resist a clean connector split if legacy clients depend on the old shape too long
+
+## Phase 2 Acceptance Conditions
+
+Phase 2 is considered successful when:
+
+1. the canonical five-family taxonomy is documented and applied consistently in new work
+2. resource pages are treated as shared object containers and reference surfaces, not as business workflow owners
+3. AI provider ownership is no longer canonical in `settings`
+4. `instances` exists as a first-class resource family, even if initially registration-only
+5. the migration path from `endpoints` to `connectors` is defined and actively used by new features
+6. settings entries that still reference business resources do so by resource identity rather than owning the full object payload
 
 ## Phase 1 Legacy Reference
 

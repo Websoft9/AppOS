@@ -44,6 +44,20 @@ type RegistryConfig struct {
 	AuthScheme  string
 }
 
+type ProxyConfig struct {
+	ConnectorID string
+	Name        string
+	TemplateID  string
+	Endpoint    string
+	Scheme      string
+	Host        string
+	Port        int
+	Username    string
+	Password    string
+	NoProxy     string
+	AuthScheme  string
+}
+
 type SecretResolver func(secretID string) (*ResolvedSecret, error)
 
 type SecretResolvePort interface {
@@ -106,6 +120,82 @@ func ListRegistryWith(repo Repository, secrets SecretResolvePort) ([]RegistryCon
 		result = append(result, *cfg)
 	}
 	return result, nil
+}
+
+func LoadProxyByIDWith(repo Repository, secrets SecretResolvePort, connectorID string) (*ProxyConfig, error) {
+	connectorID = strings.TrimSpace(connectorID)
+	if connectorID == "" {
+		return nil, &RuntimeConfigError{Kind: KindProxy, Reason: RuntimeReasonNoConnectorConfigured}
+	}
+	item, err := repo.Get(connectorID)
+	if err != nil {
+		return nil, err
+	}
+	if item.Kind() != KindProxy {
+		return nil, fmt.Errorf("connector %q is not a proxy connector", connectorID)
+	}
+	return proxyConfigFromConnector(secrets, item)
+}
+
+func BuildProxyEnvWith(repo Repository, secrets SecretResolvePort, enabled bool, httpConnectorID, httpsConnectorID string) (map[string]string, error) {
+	if !enabled {
+		return nil, nil
+	}
+	httpConnectorID = strings.TrimSpace(httpConnectorID)
+	httpsConnectorID = strings.TrimSpace(httpsConnectorID)
+	if httpConnectorID == "" && httpsConnectorID == "" {
+		return nil, nil
+	}
+
+	loaded := map[string]*ProxyConfig{}
+	load := func(connectorID string) (*ProxyConfig, error) {
+		if connectorID == "" {
+			return nil, nil
+		}
+		if cfg, ok := loaded[connectorID]; ok {
+			return cfg, nil
+		}
+		cfg, err := LoadProxyByIDWith(repo, secrets, connectorID)
+		if err != nil {
+			return nil, err
+		}
+		loaded[connectorID] = cfg
+		return cfg, nil
+	}
+
+	httpCfg, err := load(httpConnectorID)
+	if err != nil {
+		return nil, err
+	}
+	httpsCfg, err := load(httpsConnectorID)
+	if err != nil {
+		return nil, err
+	}
+
+	env := map[string]string{}
+	if httpCfg != nil {
+		httpProxy := ProxyURLWithCredentials(httpCfg.Endpoint, httpCfg.Username, httpCfg.Password)
+		if httpProxy != "" {
+			env["HTTP_PROXY"] = httpProxy
+			env["http_proxy"] = httpProxy
+		}
+	}
+	if httpsCfg != nil {
+		httpsProxy := ProxyURLWithCredentials(httpsCfg.Endpoint, httpsCfg.Username, httpsCfg.Password)
+		if httpsProxy != "" {
+			env["HTTPS_PROXY"] = httpsProxy
+			env["https_proxy"] = httpsProxy
+		}
+	}
+	noProxy := mergeNoProxyValues(httpCfg, httpsCfg)
+	if noProxy != "" {
+		env["NO_PROXY"] = noProxy
+		env["no_proxy"] = noProxy
+	}
+	if len(env) == 0 {
+		return nil, nil
+	}
+	return env, nil
 }
 
 func selectDefaultConnector(items []*Connector, kind string) (*Connector, error) {
@@ -198,6 +288,76 @@ func registryConfigFromConnector(secrets SecretResolvePort, connector *Connector
 		result.Password = stringValue(secret.Payload, "password", "value", "api_key")
 	}
 	return result, nil
+}
+
+func proxyConfigFromConnector(secrets SecretResolvePort, connector *Connector) (*ProxyConfig, error) {
+	endpoint := strings.TrimSpace(connector.Endpoint())
+	defaultScheme := stringValue(connector.Config(), "protocol")
+	if defaultScheme == "" {
+		defaultScheme = "http"
+	}
+	host, port, scheme, err := parseEndpoint(endpoint, defaultScheme, 8080, "http", "https", "socks5")
+	if err != nil {
+		return nil, fmt.Errorf("proxy connector %q: %w", connector.Name(), err)
+	}
+
+	secret, err := secrets.Resolve(connector.CredentialID())
+	if err != nil {
+		return nil, fmt.Errorf("proxy connector %q credential: %w", connector.Name(), err)
+	}
+
+	config := connector.Config()
+	result := &ProxyConfig{
+		ConnectorID: connector.ID(),
+		Name:        connector.Name(),
+		TemplateID:  connector.TemplateID(),
+		Endpoint:    endpoint,
+		Scheme:      scheme,
+		Host:        host,
+		Port:        port,
+		Username:    stringValue(config, "username", "user"),
+		NoProxy:     strings.TrimSpace(stringValue(config, "no_proxy", "noProxy")),
+		AuthScheme:  connector.AuthScheme(),
+	}
+	if secret != nil {
+		result.Password = stringValue(secret.Payload, "password", "value", "api_key")
+	}
+	return result, nil
+}
+
+func ProxyURLWithCredentials(rawValue, username, password string) string {
+	rawValue = strings.TrimSpace(rawValue)
+	if rawValue == "" {
+		return ""
+	}
+	parsed, err := url.Parse(rawValue)
+	if err != nil {
+		return rawValue
+	}
+	if parsed.User != nil || strings.TrimSpace(username) == "" {
+		return rawValue
+	}
+	parsed.User = url.UserPassword(strings.TrimSpace(username), strings.TrimSpace(password))
+	return parsed.String()
+}
+
+func mergeNoProxyValues(configs ...*ProxyConfig) string {
+	seen := map[string]bool{}
+	values := make([]string, 0)
+	for _, cfg := range configs {
+		if cfg == nil || strings.TrimSpace(cfg.NoProxy) == "" {
+			continue
+		}
+		for _, part := range strings.Split(cfg.NoProxy, ",") {
+			trimmed := strings.TrimSpace(part)
+			if trimmed == "" || seen[trimmed] {
+				continue
+			}
+			seen[trimmed] = true
+			values = append(values, trimmed)
+		}
+	}
+	return strings.Join(values, ",")
 }
 
 func parseEndpoint(raw string, defaultScheme string, defaultPort int, allowedSchemes ...string) (host string, port int, scheme string, err error) {

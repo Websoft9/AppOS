@@ -28,7 +28,29 @@ vi.mock('@/components/docker/ContainersTab', () => ({
 }))
 
 vi.mock('@/components/docker/ImagesTab', () => ({
-  ImagesTab: () => <div data-testid="images-tab">Images tab</div>,
+  ImagesTab: ({
+    onSummaryChange,
+  }: {
+    onSummaryChange?: (summary: {
+      totalItems: number
+      totalPages: number
+      usedItems: number
+      unusedItems: number
+    }) => void
+  }) => {
+    const React = require('react') as typeof import('react')
+
+    React.useEffect(() => {
+      onSummaryChange?.({
+        totalItems: 3,
+        totalPages: 1,
+        usedItems: 2,
+        unusedItems: 1,
+      })
+    }, [onSummaryChange])
+
+    return <div data-testid="images-tab">Images tab</div>
+  },
 }))
 
 vi.mock('@/components/docker/VolumesTab', () => ({

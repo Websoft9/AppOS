@@ -1,4 +1,4 @@
-# Story 29.5: Local Software Inventory Surface
+# Story 29.5: Local Software Inventory
 
 **Epic**: Epic 29 - Software Delivery
 **Status**: done | **Priority**: P1 | **Depends on**: Story 29.1
@@ -11,7 +11,7 @@ This story also absorbs the AppOS-local inventory intent that was previously des
 
 ## Reorganization Note
 
-This story consolidates the AppOS-local slice that was previously spread across Epic 29 scope notes and the implementation follow-up attached to Story 29.6.
+This story is the canonical AppOS-local inventory surface for Epic 29.
 
 ## Scope
 
@@ -45,7 +45,7 @@ This page does not answer:
 
 ## Migration Note
 
-This story is the canonical replacement for Epic 6 local inventory requirements.
+This story replaces the Epic 6 local inventory surface.
 
 Mapping from the retired Epic 6 surface:
 
@@ -130,9 +130,9 @@ Initial baseline intent:
 
 Boundary note:
 
-- `Built-in Components` belongs here as a Software Delivery projection for AppOS-local inventory.
-- built-in service definitions and log-access metadata also belong here.
-- `Active Services` runtime state belongs to Monitor and should consume these service definitions rather than redefine them.
+- AppOS-local built-in component definitions and service metadata still belong here as Software Delivery-owned local inventory data.
+- The primary operator presentation of that built-in inventory now lives on `System > Platform Runtime` as a minimal read-only list.
+- `Active Services` runtime state belongs to Monitor-facing runtime surfaces and should consume these service definitions rather than redefine them.
 
 ## Technical Context
 

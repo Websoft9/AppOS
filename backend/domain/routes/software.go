@@ -299,6 +299,7 @@ type softwareComponentListItem struct {
 	OwnedCapability string                             `json:"owned_capability,omitempty"`
 	Version       string                               `json:"version,omitempty"`
 	Available     bool                                 `json:"available"`
+	ProbePending  bool                                 `json:"probe_pending,omitempty"`
 	UpdatedAt     string                               `json:"updated_at,omitempty"`
 	Description   string                               `json:"description,omitempty"`
 	Preflight     *software.TargetReadinessResult      `json:"preflight,omitempty"`
@@ -317,6 +318,8 @@ type softwareComponentDetailResponse struct {
 	OwnedCapability string                    `json:"owned_capability,omitempty"`
 	Version       string                      `json:"version,omitempty"`
 	Available     bool                        `json:"available"`
+	InventoryPending bool                     `json:"inventory_pending,omitempty"`
+	ProbePending bool                         `json:"probe_pending,omitempty"`
 	UpdatedAt     string                      `json:"updated_at,omitempty"`
 	LastOperation *swservice.OperationSummary `json:"last_operation,omitempty"`
 }
@@ -329,6 +332,7 @@ type localRuntimeComponentMetadata struct {
 	Role            string
 	OwnedCapability string
 	Available       bool
+	ProbePending    bool
 	UpdatedAt       string
 }
 
@@ -432,47 +436,73 @@ func handleSoftwareCapabilityList(e *core.RequestEvent) error {
 }
 
 // @Summary List AppOS-local software components
-// @Description Returns AppOS-local software inventory derived from the local catalog and runtime checks.
+// @Description Returns AppOS-local built-in component inventory derived from the local runtime registry, with software-catalog metadata attached when available.
 // @Tags Software
 // @Security BearerAuth
 // @Success 200 {object} map[string]any
 // @Failure 500 {object} map[string]any
 // @Router /api/software/local [get]
 func handleLocalSoftwareComponentList(e *core.RequestEvent) error {
-	items, err := swservice.New(e.App, asynqClient).ListLocalComponents(e.Request.Context())
+	registry, err := swcatalog.LoadLocalRegistry()
 	if err != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{
 			"error":   "catalog_load_failed",
 			"message": err.Error(),
 		})
 	}
-	runtimeByKey, err := loadLocalRuntimeComponentMetadata(e.App)
+	computedByKey, inventoryReady, err := loadProjectedLocalSoftwareComponents(e.App)
 	if err != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{
 			"error":   "catalog_load_failed",
 			"message": err.Error(),
 		})
 	}
-	resp := make([]softwareComponentListItem, 0, len(items))
-	for _, item := range items {
-		runtime := runtimeByKey[item.Entry.ComponentKey]
-		resp = append(resp, softwareComponentListItem{
-			SoftwareComponentSummary: item.Summary,
-			TargetType:               item.Entry.TargetType,
-			ID:                       runtime.ID,
-			Name:                     runtime.Name,
-			Criticality:              runtime.Criticality,
-			RuntimeKind:              runtime.RuntimeKind,
-			Role:                     runtime.Role,
-			OwnedCapability:          runtime.OwnedCapability,
-			Version:                  item.Summary.DetectedVersion,
-			Available:                runtime.Available,
-			UpdatedAt:                runtime.UpdatedAt,
-			Description:              item.Entry.Description,
-			Preflight:                item.Detail.Preflight,
-			LastOperation:            item.LastOperation,
-		})
+	if !inventoryReady {
+		warmLocalSoftwareInventorySnapshots(e.App)
 	}
+	probeStates := currentLocalComponentProbeStates(registry)
+	startLocalComponentProbeRefresh(e.App, registry)
+
+	resp := make([]softwareComponentListItem, 0, len(registry.EnabledComponents()))
+	for _, component := range registry.EnabledComponents() {
+		probeState, ok := probeStates[component.ID]
+		if !ok {
+			probeState = localComponentProbeState{Version: "unknown", Available: false, ProbePending: true}
+		}
+
+		listItem := softwareComponentListItem{
+			TargetType:      software.TargetTypeLocal,
+			ID:              component.ID,
+			Name:            component.Name,
+			Criticality:     component.Criticality,
+			RuntimeKind:     component.RuntimeKind,
+			Role:            component.Role,
+			OwnedCapability: component.OwnedCapability,
+			Version:         probeState.Version,
+			Available:       probeState.Available,
+			ProbePending:    probeState.ProbePending,
+			UpdatedAt:       swinventory.DetectUpdateTime(component.UpdateProbe),
+		}
+
+		if component.SoftwareCatalog != nil {
+			if computed, ok := computedByKey[component.SoftwareCatalog.ComponentKey]; ok {
+				listItem.SoftwareComponentSummary = computed.Summary
+				listItem.TargetType = computed.Entry.TargetType
+				listItem.Description = computed.Entry.Description
+				listItem.Preflight = computed.Detail.Preflight
+				listItem.LastOperation = computed.LastOperation
+				if strings.EqualFold(strings.TrimSpace(listItem.Version), "unknown") && strings.TrimSpace(computed.Summary.DetectedVersion) != "" {
+					listItem.Version = computed.Summary.DetectedVersion
+				}
+			} else {
+				listItem.ComponentKey = component.SoftwareCatalog.ComponentKey
+				listItem.Label = component.SoftwareCatalog.Label
+				listItem.ArtifactKind = component.SoftwareCatalog.ArtifactKind
+			}
+		}
+		resp = append(resp, listItem)
+	}
+
 	return e.JSON(http.StatusOK, map[string]any{
 		"target_id": swservice.LocalTargetID,
 		"items":     resp,
@@ -490,7 +520,7 @@ func handleLocalSoftwareComponentList(e *core.RequestEvent) error {
 // @Router /api/software/local/{componentKey} [get]
 func handleLocalSoftwareComponentGet(e *core.RequestEvent) error {
 	componentKey := software.ComponentKey(e.Request.PathValue("componentKey"))
-	item, err := swservice.New(e.App, asynqClient).GetLocalComponent(e.Request.Context(), componentKey)
+	item, inventoryPending, err := getSnapshotFirstLocalSoftwareComponent(e.App, componentKey)
 	if err != nil {
 		status := http.StatusInternalServerError
 		errorCode := "catalog_load_failed"
@@ -502,6 +532,9 @@ func handleLocalSoftwareComponentGet(e *core.RequestEvent) error {
 			"error":   errorCode,
 			"message": err.Error(),
 		})
+	}
+	if inventoryPending {
+		warmLocalSoftwareInventorySnapshots(e.App)
 	}
 	runtimeByKey, err := loadLocalRuntimeComponentMetadata(e.App)
 	if err != nil {
@@ -522,6 +555,8 @@ func handleLocalSoftwareComponentGet(e *core.RequestEvent) error {
 		OwnedCapability:         runtime.OwnedCapability,
 		Version:                 item.Detail.DetectedVersion,
 		Available:               runtime.Available,
+		InventoryPending:        inventoryPending,
+		ProbePending:            runtime.ProbePending,
 		UpdatedAt:               runtime.UpdatedAt,
 		LastOperation:           item.LastOperation,
 	})
@@ -532,14 +567,16 @@ func loadLocalRuntimeComponentMetadata(app core.App) (map[software.ComponentKey]
 	if err != nil {
 		return nil, err
 	}
+	probeStates := currentLocalComponentProbeStates(registry)
+	startLocalComponentProbeRefresh(app, registry)
 	result := make(map[software.ComponentKey]localRuntimeComponentMetadata)
 	for _, component := range registry.EnabledComponents() {
 		if component.SoftwareCatalog == nil {
 			continue
 		}
-		available, err := swinventory.CheckAvailability(app, component.AvailabilityProbe)
-		if err != nil {
-			available = false
+		probeState, ok := probeStates[component.ID]
+		if !ok {
+			probeState = localComponentProbeState{Available: false, ProbePending: true}
 		}
 		result[component.SoftwareCatalog.ComponentKey] = localRuntimeComponentMetadata{
 			ID:              component.ID,
@@ -548,7 +585,8 @@ func loadLocalRuntimeComponentMetadata(app core.App) (map[software.ComponentKey]
 			RuntimeKind:     component.RuntimeKind,
 			Role:            component.Role,
 			OwnedCapability: component.OwnedCapability,
-			Available:       available,
+			Available:       probeState.Available,
+			ProbePending:    probeState.ProbePending,
 			UpdatedAt:       swinventory.DetectUpdateTime(component.UpdateProbe),
 		}
 	}

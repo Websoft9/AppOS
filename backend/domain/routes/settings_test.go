@@ -11,6 +11,7 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
+	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	"github.com/websoft9/appos/backend/domain/secrets"
 )
 
@@ -162,6 +163,7 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 	var foundIacFiles bool
 	var foundTunnel bool
 	var foundSecrets bool
+	var foundProxy bool
 	var foundMonitorScheduling bool
 	var foundMonitorPolicy bool
 	var foundMonitorPlatformSelfObservation bool
@@ -174,6 +176,8 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 			foundIacFiles = value != nil && int(value["maxSizeMB"].(float64)) == 10 && int(value["maxZipSizeMB"].(float64)) == 50
 		case "tunnel-port-range":
 			foundTunnel = value != nil && int(value["start"].(float64)) == 40000 && int(value["end"].(float64)) == 49999
+		case "proxy-network":
+			foundProxy = value != nil && value["enabled"] == false && value["httpConnectorId"] == "" && value["httpsConnectorId"] == ""
 		case "secrets-policy":
 			foundSecrets = value != nil && value["defaultAccessMode"] == string(secrets.AccessModeUseOnly)
 		case "monitor-scheduling":
@@ -192,6 +196,9 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 	}
 	if !foundTunnel {
 		t.Fatal("expected tunnel-port-range fallback value")
+	}
+	if !foundProxy {
+		t.Fatal("expected proxy-network fallback value")
 	}
 	if !foundSecrets {
 		t.Fatal("expected secrets-policy fallback value")
@@ -239,6 +246,15 @@ func TestSettingsEntryPatchValidation(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "maxSizeMB") {
 		t.Fatalf("expected iac-files validation error, got %s", rec.Body.String())
+	}
+
+	badProxy := `{"enabled":true,"httpConnectorId":"missing-id","httpsConnectorId":""}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/proxy-network", badProxy, true)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 for invalid proxy-network, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "httpConnectorId") {
+		t.Fatalf("expected proxy-network validation error, got %s", rec.Body.String())
 	}
 
 	badMonitorPolicy := `{"metricsFreshnessLookbackSeconds":120,"metricsStaleSeconds":90,"metricsMissingSeconds":90}`
@@ -337,6 +353,29 @@ func TestSettingsEntryPatchPersistsUnifiedValues(t *testing.T) {
 	}
 	if got := sysconfig.String(storedIacFiles, "extensionBlacklist", ""); got != ".exe,.bin" {
 		t.Fatalf("expected extensionBlacklist .exe,.bin, got %q", got)
+	}
+
+	proxyConnector := createDockerRouteConnector(t, te, connectors.SaveInput{
+		Name:       "Proxy",
+		Kind:       connectors.KindProxy,
+		TemplateID: "generic-proxy",
+		Endpoint:   "http://proxy.example.com:3128",
+		Config:     map[string]any{"protocol": "http"},
+	})
+	proxyBody := `{"enabled":true,"httpConnectorId":"` + proxyConnector.Id + `","httpsConnectorId":""}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/proxy-network", proxyBody, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for proxy-network patch, got %d: %s", rec.Code, rec.Body.String())
+	}
+	storedProxy, err := sysconfig.GetGroup(te.app, "proxy", "network", nil)
+	if err != nil {
+		t.Fatalf("expected stored proxy-network, got error: %v", err)
+	}
+	if got, ok := storedProxy["enabled"].(bool); !ok || !got {
+		t.Fatalf("expected enabled=true, got %#v", storedProxy["enabled"])
+	}
+	if got := sysconfig.String(storedProxy, "httpConnectorId", ""); got != proxyConnector.Id {
+		t.Fatalf("expected httpConnectorId %q, got %q", proxyConnector.Id, got)
 	}
 
 	monitorSchedulingBody := `{"reachabilityIntervalMinutes":2,"metricsFreshnessIntervalMinutes":3,"controlReachabilityIntervalMinutes":4,"runtimeSnapshotIntervalMinutes":5,"credentialSweepIntervalMinutes":6,"appHealthIntervalMinutes":7,"factsPullIntervalMinutes":8}`

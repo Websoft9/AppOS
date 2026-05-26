@@ -12,11 +12,9 @@ export interface SpaceQuota {
 }
 
 export interface ProxyNetwork {
-  httpProxy: string
-  httpsProxy: string
-  noProxy: string
-  username: string
-  password: string
+  enabled: boolean
+  httpConnectorId: string
+  httpsConnectorId: string
 }
 
 export interface DockerMirror {
@@ -97,11 +95,9 @@ export const DEFAULT_SPACE_QUOTA: SpaceQuota = {
 }
 
 export const EMPTY_PROXY: ProxyNetwork = {
-  httpProxy: '',
-  httpsProxy: '',
-  noProxy: '',
-  username: '',
-  password: '',
+  enabled: false,
+  httpConnectorId: '',
+  httpsConnectorId: '',
 }
 
 export const DEFAULT_CONNECT_TERMINAL: ConnectTerminalGroup = {

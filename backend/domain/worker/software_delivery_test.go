@@ -26,6 +26,7 @@ type fakeSoftwareExecutor struct {
 	preflightFn     func(context.Context, string, software.ResolvedTemplate) (software.TargetReadinessResult, error)
 	verifyCalled    int
 	installTemplate software.ResolvedTemplate
+	reinstallTemplate software.ResolvedTemplate
 	upgradeTemplate software.ResolvedTemplate
 	installDetail   software.SoftwareComponentDetail
 	installErr      error
@@ -109,7 +110,8 @@ func (f *fakeSoftwareExecutor) Verify(context.Context, string, software.Resolved
 	return f.installDetail, f.installErr
 }
 
-func (f *fakeSoftwareExecutor) Reinstall(context.Context, string, software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
+func (f *fakeSoftwareExecutor) Reinstall(_ context.Context, _ string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
+	f.reinstallTemplate = tpl
 	return f.installDetail, f.installErr
 }
 
@@ -1229,6 +1231,90 @@ func TestRunSoftwarePhaseLoop_InjectsLegacyServiceCleanupForTelegrafUpgrade(t *t
 	}
 	if fakeExecutor.upgradeTemplate.Upgrade.Env["APPOS_LEGACY_SERVICE_NAMES"] != "telegraf.service\nlegacy-appos-monitor.service" {
 		t.Fatalf("expected merged legacy service cleanup env, got %q", fakeExecutor.upgradeTemplate.Upgrade.Env["APPOS_LEGACY_SERVICE_NAMES"])
+	}
+}
+
+func TestRunSoftwarePhaseLoop_ReinstallTelegrafRefreshesMonitorWriteCredentials(t *testing.T) {
+	ensureWorkerSecretRuntime(t)
+	app := newWorkerTestApp(t)
+
+	if _, err := secrets.UpsertSystemSingleValue(
+		app,
+		nil,
+		monitorCollectorTokenSecretName("srv-telegraf-repair"),
+		"token",
+		"reset-control-plane-token",
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	oldFactory := softwareExecutorFactory
+	defer func() { softwareExecutorFactory = oldFactory }()
+
+	fakeExecutor := &fakeSoftwareExecutor{
+		preflight: software.TargetReadinessResult{
+			OK:              true,
+			OSSupported:     true,
+			PrivilegeOK:     true,
+			NetworkOK:       true,
+			DependencyReady: true,
+			Issues:          []string{},
+		},
+		installDetail: software.SoftwareComponentDetail{
+			SoftwareComponentSummary: software.SoftwareComponentSummary{
+				InstalledState: software.InstalledStateInstalled,
+			},
+		},
+		verifyDetail: software.SoftwareComponentDetail{
+			SoftwareComponentSummary: software.SoftwareComponentSummary{
+				InstalledState:    software.InstalledStateInstalled,
+				VerificationState: software.VerificationStateHealthy,
+			},
+		},
+	}
+	softwareExecutorFactory = func(app core.App, serverID, userID string) (software.ComponentExecutor, error) {
+		return fakeExecutor, nil
+	}
+
+	w := &Worker{app: app}
+	record, err := createSoftwareOperationRecord(app, SoftwareActionPayload{
+		ServerID:     "srv-telegraf-repair",
+		ComponentKey: software.ComponentKeyTelegraf,
+		Action:       software.ActionReinstall,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := SoftwareActionPayload{
+		OperationID:  record.Id,
+		ServerID:     "srv-telegraf-repair",
+		ComponentKey: software.ComponentKeyTelegraf,
+		Action:       software.ActionReinstall,
+		AppOSBaseURL: "https://reset.example.com",
+	}
+
+	w.runSoftwarePhaseLoop(context.Background(), record, payload)
+
+	if fakeExecutor.reinstallTemplate.ComponentKey != software.ComponentKeyTelegraf {
+		t.Fatalf("expected telegraf reinstall template, got %q", fakeExecutor.reinstallTemplate.ComponentKey)
+	}
+	encoded := fakeExecutor.reinstallTemplate.Install.Env["APPOS_TELEGRAF_CONFIG_B64"]
+	if strings.TrimSpace(encoded) == "" {
+		t.Fatal("expected telegraf config env to be injected for reinstall")
+	}
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		t.Fatalf("decode telegraf config: %v", err)
+	}
+	config := string(decoded)
+	if !strings.Contains(config, "url = \"https://reset.example.com/api/monitor/write\"") {
+		t.Fatalf("expected repaired telegraf config to use refreshed callback url, got %q", config)
+	}
+	if !strings.Contains(config, "username = \"srv-telegraf-repair\"") {
+		t.Fatalf("expected repaired telegraf config to use server id as username, got %q", config)
+	}
+	if !strings.Contains(config, "password = \"reset-control-plane-token\"") {
+		t.Fatalf("expected repaired telegraf config to use current control-plane token, got %q", config)
 	}
 }
 

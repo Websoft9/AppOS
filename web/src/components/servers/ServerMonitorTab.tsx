@@ -478,13 +478,15 @@ export function ServerMonitorTab({
               onMonitorAgentAction
                 ? {
                     label: 'Repair monitor agent',
-                    description: 'Rewrites callback credentials and restarts the AppOS monitor collector.',
+                    description:
+                      'Reissues monitor write credentials, rewrites the callback address when needed, and restarts the AppOS monitor collector.',
                     onClick: () => onMonitorAgentAction('reinstall'),
                   }
                 : onOpenComponents
                   ? {
                       label: 'Open Components',
-                      description: 'Use Repair on the Monitor Agent addon.',
+                      description:
+                        'Use Repair on the Monitor Agent addon to reissue credentials and refresh the callback address.',
                       onClick: onOpenComponents,
                     }
                   : undefined

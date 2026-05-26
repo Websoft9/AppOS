@@ -39,7 +39,6 @@ export function useSettingsPageController() {
         'tunnel-port-range',
         'proxy-network',
         'docker-mirror',
-        'docker-registries',
       ])
       const monitorTailIndex = schemaResult.entries.reduce((lastIndex, entry, index) => {
         return entry.id.startsWith('monitor-') ? index : lastIndex
@@ -47,15 +46,18 @@ export function useSettingsPageController() {
       const movedSystemEntries = schemaResult.entries
         .filter(entry => movedToSystemIds.has(entry.id))
         .map(entry => ({ ...entry, section: 'system' as const }))
-      const baseEntries = schemaResult.entries.filter(entry => !movedToSystemIds.has(entry.id))
+      const hiddenEntryIds = new Set(['docker-registries'])
+      const baseEntries = schemaResult.entries.filter(
+        entry => !movedToSystemIds.has(entry.id) && !hiddenEntryIds.has(entry.id)
+      )
       const normalizedEntries =
         monitorTailIndex >= 0
           ? [
               ...baseEntries.slice(0, monitorTailIndex + 1),
-              ...movedSystemEntries,
+              ...movedSystemEntries.filter(entry => !hiddenEntryIds.has(entry.id)),
               ...baseEntries.slice(monitorTailIndex + 1),
             ]
-          : [...movedSystemEntries, ...baseEntries]
+          : [...movedSystemEntries.filter(entry => !hiddenEntryIds.has(entry.id)), ...baseEntries]
 
       // Inject AI nav entry backed by AI Providers so settings can choose the platform default model.
       const aiEntry = {

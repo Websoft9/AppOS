@@ -124,6 +124,9 @@ export interface SoftwareComponentDetail extends SoftwareComponentSummary {
   binary_path?: string
   config_path?: string
   verification?: SoftwareVerificationResult
+  available?: boolean
+  inventory_pending?: boolean
+  probe_pending?: boolean
 }
 
 export interface CapabilityStatus {

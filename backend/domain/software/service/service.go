@@ -134,6 +134,59 @@ func (s *Service) ListLocalComponents(ctx context.Context) ([]ComputedComponent,
 	return s.buildComputedComponents(ctx, cat, reg, software.TargetTypeLocal, LocalTargetID, executor, executorErr, nil)
 }
 
+func (s *Service) ListProjectedLocalComponentsPartial() (map[software.ComponentKey]ComputedComponent, bool, error) {
+	cat, reg, err := loadCatalogAndRegistry(false)
+	if err != nil {
+		return nil, false, err
+	}
+	return s.loadProjectedComponentMap(cat, reg, software.TargetTypeLocal, LocalTargetID, nil)
+}
+
+func (s *Service) ListSnapshotFirstLocalComponents() (map[software.ComponentKey]ComputedComponent, bool, error) {
+	cat, reg, err := loadCatalogAndRegistry(false)
+	if err != nil {
+		return nil, false, err
+	}
+	projected, complete, err := s.loadProjectedComponentMap(cat, reg, software.TargetTypeLocal, LocalTargetID, nil)
+	if err != nil {
+		return nil, false, err
+	}
+	items := make(map[software.ComponentKey]ComputedComponent, len(cat.Components))
+	for _, entry := range cat.Components {
+		if item, ok := projected[entry.ComponentKey]; ok {
+			items[entry.ComponentKey] = item
+			continue
+		}
+		placeholder, err := placeholderComponent(s.app, entry, reg, LocalTargetID, nil)
+		if err != nil {
+			return nil, false, err
+		}
+		items[entry.ComponentKey] = placeholder
+	}
+	return items, complete, nil
+}
+
+func (s *Service) GetLocalComponentSnapshotFirst(componentKey software.ComponentKey) (ComputedComponent, bool, error) {
+	cat, reg, err := loadCatalogAndRegistry(false)
+	if err != nil {
+		return ComputedComponent{}, false, err
+	}
+	if item, ok := s.loadProjectedComponent(cat, reg, software.TargetTypeLocal, LocalTargetID, componentKey, nil); ok {
+		return item, false, nil
+	}
+	for _, entry := range cat.Components {
+		if entry.ComponentKey != componentKey {
+			continue
+		}
+		placeholder, err := placeholderComponent(s.app, entry, reg, LocalTargetID, nil)
+		if err != nil {
+			return ComputedComponent{}, false, err
+		}
+		return placeholder, true, nil
+	}
+	return ComputedComponent{}, false, fmt.Errorf("component %q not found in local catalog", componentKey)
+}
+
 func (s *Service) GetLocalComponent(ctx context.Context, componentKey software.ComponentKey) (ComputedComponent, error) {
 	cat, reg, err := loadCatalogAndRegistry(false)
 	if err != nil {
@@ -304,6 +357,55 @@ func (s *Service) buildComputedComponents(
 		items = append(items, computed)
 	}
 	return items, nil
+}
+
+func placeholderComponent(
+	app core.App,
+	entry software.CatalogEntry,
+	reg software.TemplateRegistry,
+	targetID string,
+	lastOp *OperationSummary,
+) (ComputedComponent, error) {
+	entry = software.ApplyRuntimeBindings(app, entry)
+	tpl, ok := reg.Templates[entry.TemplateRef]
+	if !ok {
+		return ComputedComponent{}, fmt.Errorf("template ref not found: %s", entry.TemplateRef)
+	}
+	resolved := swcatalog.ResolveTemplate(entry, tpl)
+	preflight := software.TargetReadinessResult{Issues: []string{}}
+	summary := software.SoftwareComponentSummary{
+		ComponentKey:      entry.ComponentKey,
+		Label:             entry.Label,
+		TemplateKind:      resolved.TemplateKind,
+		ArtifactKind:      software.EffectiveArtifactKind(entry, resolved.TemplateKind),
+		InstalledState:    software.InstalledStateUnknown,
+		VerificationState: software.VerificationStateUnknown,
+	}
+	if lastAction := lastActionFromOperation(lastOp); lastAction != nil {
+		summary.LastAction = lastAction
+	}
+	summary.AvailableActions = deriveAvailableActions(entry.SupportedActions, summary.InstalledState, preflight, lastOp)
+	detail := software.SoftwareComponentDetail{
+		SoftwareComponentSummary: summary,
+		ServiceName:              entry.ServiceName,
+		BinaryPath:               entry.Binary,
+		Preflight:                &preflight,
+		Verification:             &software.SoftwareVerificationResult{State: software.VerificationStateUnknown},
+	}
+	detail.InstalledState = summary.InstalledState
+	detail.VerificationState = summary.VerificationState
+	detail.LastAction = summary.LastAction
+	service := Service{app: app}
+	service.applyHealthProjection(entry.TargetType, targetID, entry, lastOp, &summary, &detail)
+	detail.SoftwareComponentSummary = summary
+	return ComputedComponent{
+		Entry:         entry,
+		Resolved:      resolved,
+		Summary:       summary,
+		Detail:        detail,
+		Preflight:     preflight,
+		LastOperation: lastOp,
+	}, nil
 }
 
 func (s *Service) computeComponent(
@@ -480,29 +582,54 @@ func (s *Service) loadProjectedComponents(
 	targetID string,
 	latestOps map[string]*OperationSummary,
 ) ([]ComputedComponent, bool) {
-	filter := "target_type = '" + escapeFilterValue(string(targetType)) + "' && target_id = '" + escapeFilterValue(strings.TrimSpace(targetID)) + "'"
-	records, err := s.app.FindRecordsByFilter(collections.SoftwareInventorySnapshots, filter, "", len(cat.Components)+10, 0)
-	if err != nil || len(records) < len(cat.Components) {
+	itemsByKey, complete, err := s.loadProjectedComponentMap(cat, reg, targetType, targetID, latestOps)
+	if err != nil || !complete {
 		return nil, false
 	}
-	byKey := make(map[string]*core.Record, len(records))
-	for _, record := range records {
-		byKey[record.GetString("component_key")] = record
-	}
-
 	items := make([]ComputedComponent, 0, len(cat.Components))
 	for _, entry := range cat.Components {
-		record := byKey[string(entry.ComponentKey)]
-		if record == nil {
-			return nil, false
-		}
-		item, ok := projectedComponentFromRecord(s.app, entry, reg, record, latestOps)
+		item, ok := itemsByKey[entry.ComponentKey]
 		if !ok {
 			return nil, false
 		}
 		items = append(items, item)
 	}
 	return items, true
+}
+
+func (s *Service) loadProjectedComponentMap(
+	cat software.ComponentCatalog,
+	reg software.TemplateRegistry,
+	targetType software.TargetType,
+	targetID string,
+	latestOps map[string]*OperationSummary,
+) (map[software.ComponentKey]ComputedComponent, bool, error) {
+	filter := "target_type = '" + escapeFilterValue(string(targetType)) + "' && target_id = '" + escapeFilterValue(strings.TrimSpace(targetID)) + "'"
+	records, err := s.app.FindRecordsByFilter(collections.SoftwareInventorySnapshots, filter, "", len(cat.Components)+10, 0)
+	if err != nil {
+		return nil, false, err
+	}
+	byKey := make(map[string]*core.Record, len(records))
+	for _, record := range records {
+		byKey[record.GetString("component_key")] = record
+	}
+
+	items := make(map[software.ComponentKey]ComputedComponent, len(records))
+	complete := len(records) >= len(cat.Components)
+	for _, entry := range cat.Components {
+		record := byKey[string(entry.ComponentKey)]
+		if record == nil {
+			complete = false
+			continue
+		}
+		item, ok := projectedComponentFromRecord(s.app, entry, reg, record, latestOps)
+		if !ok {
+			complete = false
+			continue
+		}
+		items[entry.ComponentKey] = item
+	}
+	return items, complete, nil
 }
 
 func (s *Service) loadProjectedComponent(

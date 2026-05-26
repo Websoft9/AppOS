@@ -34,6 +34,9 @@ components:
     availability_probe:
       type: file_exists
       path: /etc/os-release
+    update_probe:
+      type: file_mtime
+      path: /etc/os-release
     operations:
       start: false
       stop: false
@@ -111,6 +114,11 @@ components:
     runtime_kind: process_manager
     role: process supervisor
     owned_capability: service orchestration
+    software_catalog:
+      component_key: supervisor
+      readiness_requirements:
+        - bundled_with_appos
+        - binary_available
     version_probe:
       type: command
       command: ["supervisord", "-v"]
@@ -119,7 +127,7 @@ components:
       path: /etc/supervisor/supervisord.conf
     update_probe:
       type: file_mtime
-      path: /usr/bin/supervisord
+      path: /usr/local/bin/supervisord
     operations:
       start: false
       stop: false
@@ -158,7 +166,7 @@ components:
       restart: false
     notes: Internal cache/runtime dependency.
 
-  - id: docker-cli
+  - id: docker
     name: Docker CLI
     enabled: true
     criticality: important
@@ -178,14 +186,14 @@ components:
       command: ["docker", "version", "--format", "{{.Client.Version}}"]
     update_probe:
       type: file_mtime
-      path: /usr/bin/docker
+      path: /usr/local/bin/docker
     operations:
       start: false
       stop: false
       restart: false
     notes: Local Docker client.
 
-  - id: nodejs
+  - id: node
     name: Node.js
     enabled: true
     criticality: optional
@@ -205,7 +213,7 @@ components:
       command: ["node", "-v"]
     update_probe:
       type: file_mtime
-      path: /usr/bin/node
+      path: /usr/local/bin/node
     operations:
       start: false
       stop: false
@@ -219,6 +227,11 @@ components:
     runtime_kind: tool
     role: node package manager
     owned_capability: node package delivery
+    software_catalog:
+      component_key: npm
+      readiness_requirements:
+        - bundled_with_appos
+        - binary_available
     version_probe:
       type: command
       command: ["npm", "-v"]
@@ -227,7 +240,7 @@ components:
       command: ["npm", "-v"]
     update_probe:
       type: file_mtime
-      path: /usr/bin/npm
+      path: /usr/local/bin/npm
     operations:
       start: false
       stop: false
@@ -241,6 +254,11 @@ components:
     runtime_kind: tool
     role: ai coding agent
     owned_capability: local ai assistance
+    software_catalog:
+      component_key: pi-agent
+      readiness_requirements:
+        - bundled_with_appos
+        - binary_available
     version_probe:
       type: command
       command: ["sh", "-c", "npm list -g --depth=0 @mariozechner/pi-coding-agent 2>/dev/null | tail -n 1 | sed 's|.*@||'"]
@@ -249,7 +267,7 @@ components:
       command: ["sh", "-c", "npm list -g --depth=0 @mariozechner/pi-coding-agent >/dev/null 2>&1"]
     update_probe:
       type: file_mtime
-      path: /usr/lib/node_modules/@mariozechner/pi-coding-agent
+      path: /usr/local/lib/node_modules/@mariozechner/pi-coding-agent
     operations:
       start: false
       stop: false
@@ -263,6 +281,11 @@ components:
     runtime_kind: bundled_artifact
     role: app catalog bundle
     owned_capability: app catalog content
+    software_catalog:
+      component_key: store-library
+      readiness_requirements:
+        - bundled_with_appos
+        - artifact_available
     version_probe:
       type: static
       value: unknown
@@ -317,12 +340,20 @@ components:
     runtime_kind: embedded_dependency
     role: embedded database engine
     owned_capability: local persistence engine
+    software_catalog:
+      component_key: sqlite
+      readiness_requirements:
+        - bundled_with_appos
+        - embedded_engine_available
     version_probe:
       type: sqlite_query
       query: SELECT sqlite_version() AS version
     availability_probe:
       type: sqlite_query
       query: SELECT sqlite_version() AS version
+    update_probe:
+      type: file_mtime
+      path: /usr/local/bin/appos
     operations:
       start: false
       stop: false
@@ -336,6 +367,11 @@ components:
     runtime_kind: tool
     role: compose cli
     owned_capability: multi-container orchestration
+    software_catalog:
+      component_key: docker-compose
+      readiness_requirements:
+        - bundled_with_appos
+        - binary_available
     version_probe:
       type: command
       command: ["docker", "compose", "version", "--short"]
@@ -344,7 +380,7 @@ components:
       command: ["docker", "compose", "version"]
     update_probe:
       type: file_mtime
-      path: /usr/lib/docker/cli-plugins/docker-compose
+      path: /usr/local/libexec/docker/cli-plugins/docker-compose
     operations:
       start: false
       stop: false
@@ -358,6 +394,11 @@ components:
     runtime_kind: tool
     role: version control cli
     owned_capability: source retrieval
+    software_catalog:
+      component_key: git
+      readiness_requirements:
+        - bundled_with_appos
+        - binary_available
     version_probe:
       type: command
       command: ["sh", "-c", "git --version | sed 's/git version //'"]
@@ -380,12 +421,20 @@ components:
     runtime_kind: build_toolchain
     role: go toolchain metadata
     owned_capability: go build provenance
+    software_catalog:
+      component_key: golang
+      readiness_requirements:
+        - bundled_with_appos
+        - build_metadata_available
     version_probe:
       type: command
       command: ["sh", "-c", "grep -aoE 'go1\\.[0-9]+(\\.[0-9]+)?' /usr/local/bin/appos | head -n 1 | sed 's/^go//'"]
     availability_probe:
       type: command
       command: ["sh", "-c", "grep -aqE 'go1\\.[0-9]+(\\.[0-9]+)?' /usr/local/bin/appos"]
+    update_probe:
+      type: file_mtime
+      path: /usr/local/bin/appos
     operations:
       start: false
       stop: false

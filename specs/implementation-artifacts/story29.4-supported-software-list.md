@@ -1,15 +1,15 @@
-# Story 29.4: Supported Software Discovery Surface
+# Story 29.4: Supported Software List
 
 **Epic**: Epic 29 - Software Delivery
 **Status**: done | **Priority**: P1 | **Depends on**: Story 29.1
 
 ## Objective
 
-Expose one lightweight read-only surface that shows what server-target software AppOS can manage before any server is connected.
+Expose one lightweight read-only page that shows what server-target software AppOS can manage before any server is connected.
 
 ## Reorganization Note
 
-This story absorbs and generalizes Story 29.4a Supported Software Surface under the reorganized epic split.
+This story defines the canonical read-only `Supported Software` page for server-target software.
 
 ## Scope
 
@@ -57,7 +57,7 @@ Rules:
 
 - the API must remain read-only
 - supported actions shown here come from catalog metadata, not live server state
-- the page should point users to Server Detail `Software` for actual lifecycle execution
+- the page should point users to the Server Detail `Components` tab for actual lifecycle execution
 
 ## Technical Context
 
@@ -69,7 +69,7 @@ Current implementation anchor points:
 - `web/src/components/software/SupportedSoftwarePage.tsx`
 - `web/src/components/resources/ResourceHub.tsx`
 
-This surface already exists in first-pass form, so this story should be treated as the reorganized contract for maintaining and extending it rather than inventing a second discovery page.
+This page already exists in first-pass form, so this story should be treated as the reorganized contract for maintaining and extending it rather than inventing a second discovery page.
 
 ## Tasks / Subtasks
 
@@ -99,7 +99,7 @@ This surface already exists in first-pass form, so this story should be treated 
 - the page is explicitly read-only and clearly distinct from installed inventory
 - supported actions shown on the page reflect catalog policy rather than a live server state guess
 - the Resource Hub entry remains lightweight and does not behave like a resource-creation flow
-- the page points operators toward the server-scoped operational surface for real lifecycle actions
+- the page points operators toward the Server Detail `Components` tab for real lifecycle actions
 
 ## Notes
 

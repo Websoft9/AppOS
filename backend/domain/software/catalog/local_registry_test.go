@@ -149,7 +149,7 @@ func TestProjectLocalCatalog_UsesProjectionMetadataAndDerivedService(t *testing.
 				},
 			},
 			{
-				ID:      "docker-cli",
+				ID:      "docker",
 				Name:    "Docker CLI",
 				Enabled: true,
 				VersionProbe: LocalInventoryProbe{Type: "command", Command: []string{"docker", "version"}},

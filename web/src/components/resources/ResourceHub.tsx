@@ -12,7 +12,6 @@ import {
   Loader2,
   ChevronRight,
   Layers,
-  Wrench,
 } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { Button } from '@/components/ui/button'
@@ -96,14 +95,14 @@ const EXTERNAL_INTEGRATIONS: ResourceDef[] = [
     key: 'connectors',
     title: 'Connectors',
     description:
-      'SMTP, DNS, webhook, MCP, registry, and other reusable external capability connections.',
+      'SMTP, DNS, webhook, MCP, proxy, registry, and other reusable external capability connections.',
     icon: <Plug className="h-5 w-5" />,
     href: '/resources/connectors',
     createLabel: 'Configure an external connection',
     createDescription:
-      'SMTP, DNS, webhook, MCP, registry, and other reusable external connections.',
-    exampleItems: ['REST API', 'Webhook', 'MCP', 'SMTP', 'Registry', 'DNS'],
-    apiPath: '/api/connectors?kind=rest_api,webhook,mcp,smtp,registry,dns',
+      'SMTP, DNS, webhook, MCP, proxy, registry, and other reusable external connections.',
+    exampleItems: ['REST API', 'Webhook', 'MCP', 'Proxy', 'SMTP', 'Registry', 'DNS'],
+    apiPath: '/api/connectors?kind=rest_api,webhook,mcp,proxy,smtp,registry,dns',
   },
   {
     key: 'platform-accounts',
@@ -118,20 +117,6 @@ const EXTERNAL_INTEGRATIONS: ResourceDef[] = [
   },
 ]
 
-const SOFTWARE_DELIVERY: ResourceDef[] = [
-  {
-    key: 'supported-software',
-    title: 'Supported Software',
-    description:
-      'Read-only AppOS-managed server software catalog for discovery, onboarding, and pre-connection planning.',
-    icon: <Wrench className="h-5 w-5" />,
-    href: '/resources/supported-software',
-    readOnly: true,
-    exampleItems: ['Docker', 'Nginx', 'Netdata Agent', 'AppOS Control Agent'],
-    apiPath: '/api/software/server-catalog',
-  },
-]
-
 const RESOURCE_SECTIONS: ResourceSection[] = [
   {
     key: 'runtime-infrastructure',
@@ -139,13 +124,6 @@ const RESOURCE_SECTIONS: ResourceSection[] = [
     description:
       'Where applications run and the startup-critical dependencies they cannot run without.',
     resources: RUNTIME_INFRASTRUCTURE,
-  },
-  {
-    key: 'software-delivery',
-    title: 'Software Delivery',
-    description:
-      'What AppOS can manage on remote servers before any server is connected or selected.',
-    resources: SOFTWARE_DELIVERY,
   },
   {
     key: 'external-integrations',
@@ -158,7 +136,6 @@ const RESOURCE_SECTIONS: ResourceSection[] = [
 
 const ALL_RESOURCES = [
   ...RUNTIME_INFRASTRUCTURE,
-  ...SOFTWARE_DELIVERY,
   ...EXTERNAL_INTEGRATIONS,
 ]
 

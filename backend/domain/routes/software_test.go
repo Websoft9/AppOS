@@ -14,6 +14,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/software"
 	swcatalog "github.com/websoft9/appos/backend/domain/software/catalog"
+	swservice "github.com/websoft9/appos/backend/domain/software/service"
 	"github.com/websoft9/appos/backend/infra/collections"
 )
 
@@ -379,6 +380,40 @@ func TestSoftwareInventoryRoutesExposeFlatServerAndLocalScopes(t *testing.T) {
 		t.Fatalf("expected local list item available bool, got %#v", firstLocal["available"])
 	}
 
+	foundOS := false
+	foundSQLiteVersion := false
+	foundSQLitePending := false
+	foundGoVersion := false
+	foundGoPending := false
+	for _, raw := range localItems {
+		item, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		name, _ := item["name"].(string)
+		version, _ := item["version"].(string)
+		probePending, _ := item["probe_pending"].(bool)
+		switch name {
+		case "OS":
+			foundOS = true
+		case "SQLite":
+			foundSQLiteVersion = strings.TrimSpace(version) != ""
+			foundSQLitePending = probePending
+		case "Go":
+			foundGoVersion = strings.TrimSpace(version) != ""
+			foundGoPending = probePending
+		}
+	}
+	if !foundOS {
+		t.Fatal("expected local software list to include OS runtime component")
+	}
+	if !foundSQLiteVersion && !foundSQLitePending {
+		t.Fatal("expected local software list to include a SQLite version or pending probe state")
+	}
+	if !foundGoVersion && !foundGoPending {
+		t.Fatal("expected local software list to include a Go version or pending probe state")
+	}
+
 	rec = te.doSoftware(t, http.MethodGet, "/api/software/local/docker", "", true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected local component route 200, got %d: %s", rec.Code, rec.Body.String())
@@ -392,6 +427,88 @@ func TestSoftwareInventoryRoutesExposeFlatServerAndLocalScopes(t *testing.T) {
 	}
 	if body["id"] == "" || body["name"] == "" || body["runtime_kind"] == "" {
 		t.Fatalf("expected runtime metadata on local detail, got %#v", body)
+	}
+}
+
+func TestLocalSoftwareListColdStartStartsAsyncInventoryWarm(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	oldLoadProjected := loadProjectedLocalSoftwareComponents
+	oldWarmSnapshots := warmLocalSoftwareInventorySnapshots
+	defer func() {
+		loadProjectedLocalSoftwareComponents = oldLoadProjected
+		warmLocalSoftwareInventorySnapshots = oldWarmSnapshots
+	}()
+
+	warmCalled := false
+	loadProjectedLocalSoftwareComponents = func(app core.App) (map[software.ComponentKey]swservice.ComputedComponent, bool, error) {
+		return map[software.ComponentKey]swservice.ComputedComponent{}, false, nil
+	}
+	warmLocalSoftwareInventorySnapshots = func(app core.App) {
+		warmCalled = true
+	}
+
+	rec := te.doSoftware(t, http.MethodGet, "/api/software/local", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected local software list 200 on cold start, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !warmCalled {
+		t.Fatal("expected cold local software list to start async inventory warming")
+	}
+
+	body := parseJSON(t, rec)
+	localItems, ok := body["items"].([]any)
+	if !ok || len(localItems) == 0 {
+		t.Fatalf("expected non-empty local items payload on cold start, got %#v", body["items"])
+	}
+}
+
+func TestLocalSoftwareDetailColdStartStartsAsyncInventoryWarm(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	oldGetLocalComponent := getSnapshotFirstLocalSoftwareComponent
+	oldWarmSnapshots := warmLocalSoftwareInventorySnapshots
+	defer func() {
+		getSnapshotFirstLocalSoftwareComponent = oldGetLocalComponent
+		warmLocalSoftwareInventorySnapshots = oldWarmSnapshots
+	}()
+
+	warmCalled := false
+	getSnapshotFirstLocalSoftwareComponent = func(app core.App, componentKey software.ComponentKey) (swservice.ComputedComponent, bool, error) {
+		return swservice.ComputedComponent{
+			Entry: software.CatalogEntry{
+				ComponentKey: componentKey,
+				Label:        "Docker",
+				TargetType:   software.TargetTypeLocal,
+			},
+			Detail: software.SoftwareComponentDetail{
+				SoftwareComponentSummary: software.SoftwareComponentSummary{
+					ComponentKey:      componentKey,
+					Label:             "Docker",
+					TemplateKind:      software.TemplateKindPackage,
+					InstalledState:    software.InstalledStateUnknown,
+					VerificationState: software.VerificationStateUnknown,
+					AvailableActions:  []software.Action{software.ActionVerify},
+				},
+			},
+		}, true, nil
+	}
+	warmLocalSoftwareInventorySnapshots = func(app core.App) {
+		warmCalled = true
+	}
+
+	rec := te.doSoftware(t, http.MethodGet, "/api/software/local/docker", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected local software detail 200 on cold start, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !warmCalled {
+		t.Fatal("expected cold local software detail to start async inventory warming")
+	}
+	body := parseJSON(t, rec)
+	if pending, _ := body["inventory_pending"].(bool); !pending {
+		t.Fatalf("expected local software detail to expose inventory_pending on cold start, got %#v", body["inventory_pending"])
 	}
 }
 

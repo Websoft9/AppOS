@@ -714,7 +714,7 @@ export function SecretsPage() {
   // ─── Render ──────────────────────────────────────────
 
   return (
-    <div className="space-y-4 p-4 cursor-default">
+    <div className="space-y-6 cursor-default">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

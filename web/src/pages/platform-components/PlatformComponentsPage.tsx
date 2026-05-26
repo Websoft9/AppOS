@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { RefreshCw, Loader2, FileText, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -10,13 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Table,
   TableBody,
@@ -29,13 +23,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   fetchActiveServices,
-  fetchInstalledComponents,
   fetchServiceLogs,
   formatComponentStatusTime,
   formatServiceMemory,
   formatServiceUptime,
   serviceVariant,
-  type ComponentItem,
+  useInstalledComponentsController,
   type ServiceItem,
 } from './platform-component-status-shared'
 
@@ -74,6 +67,31 @@ function lifecycleLabel(value: string): string {
   }
 }
 
+function formatObservedAtTime(value?: string): string {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
+}
+
+function formatServiceCPU(state: string, cpu: number): string {
+  if (state !== 'running' && cpu <= 0) return '-'
+  if (cpu > 0 && cpu < 0.1) return '<0.1%'
+  return `${cpu.toFixed(1)}%`
+}
+
+function formatComponentVersion(value: string, probePending: boolean): string {
+  if (probePending && (!value || value === 'unknown')) return 'Checking...'
+  return value || 'unknown'
+}
+
+const ACTIVE_SERVICES_REFRESH_MS = 5000
+
 function defaultVisibilityService(service: ServiceItem): boolean {
   return service.visibility === 'default'
 }
@@ -83,31 +101,9 @@ function nonDefaultVisibilityService(service: ServiceItem): boolean {
 }
 
 export function PlatformComponentsPage() {
-  const [tab, setTab] = useState<'components' | 'services'>('components')
-  const [components, setComponents] = useState<ComponentItem[]>([])
-  const [componentsLoading, setComponentsLoading] = useState(true)
-  const [componentsError, setComponentsError] = useState('')
+  const [tab, setTab] = useState<'components' | 'services'>('services')
+  const componentsController = useInstalledComponentsController()
   const servicesController = useActiveServicesController()
-
-  const fetchComponents = useCallback(async (force = false) => {
-    if (force) {
-      setComponents([])
-      setComponentsError('')
-    }
-    setComponentsLoading(true)
-    try {
-      setComponents(await fetchInstalledComponents(force))
-      setComponentsError('')
-    } catch (err) {
-      setComponentsError(err instanceof Error ? err.message : 'Failed to load components')
-    } finally {
-      setComponentsLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    void fetchComponents()
-  }, [fetchComponents])
 
   return (
     <div className="space-y-4 p-4 cursor-default">
@@ -123,95 +119,27 @@ export function PlatformComponentsPage() {
       <Tabs value={tab} onValueChange={value => setTab(value as 'components' | 'services')}>
         <div className="flex items-center justify-between">
           <TabsList>
-            <TabsTrigger value="components">Built-in Components</TabsTrigger>
             <TabsTrigger value="services">Active Services</TabsTrigger>
+            <TabsTrigger value="components">Built-in Components</TabsTrigger>
           </TabsList>
           <div className="flex items-center gap-2">
-            {tab === 'services' && (
-              <Select
-                value={String(servicesController.servicesInterval)}
-                onValueChange={v => servicesController.setServicesInterval(Number(v))}
+            {tab === 'components' ? (
+              <Button
+                variant="outline"
+                size="icon"
+                title="Refresh"
+                disabled={componentsController.loading}
+                onClick={() => void componentsController.refresh(true)}
               >
-                <SelectTrigger className="h-8 w-[110px] text-xs">
-                  <SelectValue placeholder="Auto-refresh" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="0">Off</SelectItem>
-                  <SelectItem value="5000">5s</SelectItem>
-                  <SelectItem value="10000">10s</SelectItem>
-                  <SelectItem value="30000">30s</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-            <Button
-              variant="outline"
-              size="icon"
-              title="Refresh"
-              disabled={tab === 'components' ? componentsLoading : servicesController.loading}
-              onClick={() =>
-                tab === 'components'
-                  ? void fetchComponents(true)
-                  : void servicesController.refreshServices()
-              }
-            >
-              {tab === 'components' && componentsLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : tab === 'services' && servicesController.loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-            </Button>
+                {componentsController.loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+              </Button>
+            ) : null}
           </div>
         </div>
-
-        <TabsContent value="components" className="mt-4 space-y-4">
-          {componentsError ? (
-            <Alert variant="destructive">
-              <AlertDescription>{componentsError}</AlertDescription>
-            </Alert>
-          ) : null}
-
-          <p className="text-sm text-muted-foreground">
-            Read-only runtime inventory for quick awareness. No actions are required here.
-          </p>
-
-          {componentsLoading ? (
-            <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
-              <p className="text-muted-foreground">Loading built-in components...</p>
-            </div>
-          ) : components.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
-              <p className="text-muted-foreground">No built-in components were detected.</p>
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-dashed bg-gradient-to-br from-muted/40 via-background to-muted/20 p-3">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
-                {components.map(component => (
-                  <article key={component.id} className="rounded-xl border bg-background/80 p-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-base font-medium leading-6">{component.name}</p>
-                      <Badge variant="outline">{titleizeRuntimeKind(component.runtime_kind)}</Badge>
-                      <Badge variant="secondary">{component.criticality || 'unknown'}</Badge>
-                    </div>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {component.role || 'No role declared'}
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Version {component.version || 'unknown'}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Capability: {component.owned_capability || 'Not declared'}
-                    </p>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      Updated {formatComponentStatusTime(component.updated_at)}
-                    </p>
-                  </article>
-                ))}
-              </div>
-            </div>
-          )}
-        </TabsContent>
 
         <TabsContent value="services" className="mt-4 space-y-4">
           <p className="text-sm text-muted-foreground">
@@ -224,6 +152,11 @@ export function PlatformComponentsPage() {
                 <h2 className="text-base font-semibold text-foreground">Active Services</h2>
                 <p className="text-sm text-muted-foreground">
                   Default operator-visible services for the current AppOS instance.
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {servicesController.lastUpdatedAt
+                    ? `Updated at ${formatObservedAtTime(servicesController.lastUpdatedAt)}`
+                    : 'Awaiting runtime sample'}
                 </p>
               </div>
               <ActiveServicesTableContent
@@ -249,6 +182,54 @@ export function PlatformComponentsPage() {
               />
             </section>
           </div>
+        </TabsContent>
+
+        <TabsContent value="components" className="mt-4 space-y-4">
+          {componentsController.error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{componentsController.error}</AlertDescription>
+            </Alert>
+          ) : null}
+
+          <p className="text-sm text-muted-foreground">
+            Read-only runtime inventory for quick awareness. No actions are required here.
+          </p>
+
+          {componentsController.loading ? (
+            <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
+              <p className="text-muted-foreground">Loading built-in components...</p>
+            </div>
+          ) : componentsController.components.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
+              <p className="text-muted-foreground">No built-in components were detected.</p>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed bg-gradient-to-br from-muted/40 via-background to-muted/20 p-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
+                {componentsController.components.map(component => (
+                  <article key={component.id} className="rounded-xl border bg-background/80 p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-base font-medium leading-6">{component.name}</p>
+                      <Badge variant="outline">{titleizeRuntimeKind(component.runtime_kind)}</Badge>
+                      <Badge variant="secondary">{component.criticality || 'unknown'}</Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {component.role || 'No role declared'}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Version {formatComponentVersion(component.version, component.probe_pending)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Capability: {component.owned_capability || 'Not declared'}
+                    </p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Updated {formatComponentStatusTime(component.updated_at)}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>
@@ -290,33 +271,11 @@ function SortBtn<K extends string>({
 }
 
 export function InstalledComponentsContent() {
-  const [components, setComponents] = useState<ComponentItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const controller = useInstalledComponentsController()
 
   const sorted = useMemo(() => {
-    return [...components].sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
-  }, [components])
-
-  const fetchComponents = useCallback(async (force = false) => {
-    if (force) {
-      setComponents([])
-      setError('')
-    }
-    setLoading(true)
-    try {
-      setComponents(await fetchInstalledComponents(force))
-      setError('')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load components')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    void fetchComponents()
-  }, [fetchComponents])
+    return [...controller.components].sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+  }, [controller.components])
 
   return (
     <div className="space-y-3">
@@ -325,22 +284,22 @@ export function InstalledComponentsContent() {
           variant="outline"
           size="icon"
           title="Force refresh"
-          disabled={loading}
-          onClick={() => void fetchComponents(true)}
+          disabled={controller.loading}
+          onClick={() => void controller.refresh(true)}
         >
-          {loading ? (
+          {controller.loading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <RefreshCw className="h-4 w-4" />
           )}
         </Button>
       </div>
-      {error ? (
+      {controller.error ? (
         <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{controller.error}</AlertDescription>
         </Alert>
       ) : null}
-      {loading ? (
+      {controller.loading ? (
         <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
           <p className="text-muted-foreground">Loading installed components...</p>
         </div>
@@ -394,12 +353,10 @@ export type ActiveServicesController = {
   services: ServiceItem[]
   loading: boolean
   error: string
-  servicesInterval: number
-  setServicesInterval: (value: number) => void
+  lastUpdatedAt: string
   sortKey: ActiveServicesSortKey
   sortDir: 'asc' | 'desc'
   handleSort: (key: ActiveServicesSortKey) => void
-  refreshServices: () => Promise<void>
   openLogs: (name: string, stream?: 'stdout' | 'stderr') => Promise<void>
   logDialog: ActiveServicesLogDialog | null
   closeLogDialog: () => void
@@ -409,10 +366,11 @@ export function useActiveServicesController(): ActiveServicesController {
   const [services, setServices] = useState<ServiceItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [servicesInterval, setServicesInterval] = useState(5000)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState('')
   const [logDialog, setLogDialog] = useState<ActiveServicesLogDialog | null>(null)
   const [sortKey, setSortKey] = useState<ActiveServicesSortKey>('name')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const fetchInFlightRef = useRef(false)
 
   const handleSort = (key: ActiveServicesSortKey) => {
     if (sortKey === key) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
@@ -423,12 +381,25 @@ export function useActiveServicesController(): ActiveServicesController {
   }
 
   const fetchServices = useCallback(async () => {
+    if (fetchInFlightRef.current) return
+    fetchInFlightRef.current = true
     try {
-      setServices(await fetchActiveServices())
+      const nextServices = await fetchActiveServices()
+      setServices(nextServices)
+      setLastUpdatedAt(
+        nextServices.reduce((latest, service) => {
+          if (!service.last_detected_at) return latest
+          if (!latest) return service.last_detected_at
+          return new Date(service.last_detected_at).getTime() > new Date(latest).getTime()
+            ? service.last_detected_at
+            : latest
+        }, '')
+      )
       setError('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load services')
     } finally {
+      fetchInFlightRef.current = false
       setLoading(false)
     }
   }, [])
@@ -462,23 +433,20 @@ export function useActiveServicesController(): ActiveServicesController {
   }, [fetchServices])
 
   useEffect(() => {
-    if (servicesInterval === 0) return
     const timer = window.setInterval(() => {
       void fetchServices()
-    }, servicesInterval)
+    }, ACTIVE_SERVICES_REFRESH_MS)
     return () => window.clearInterval(timer)
-  }, [fetchServices, servicesInterval])
+  }, [fetchServices])
 
   return {
     services,
     loading,
     error,
-    servicesInterval,
-    setServicesInterval,
+    lastUpdatedAt,
     sortKey,
     sortDir,
     handleSort,
-    refreshServices: fetchServices,
     openLogs,
     logDialog,
     closeLogDialog: () => setLogDialog(null),
@@ -487,30 +455,10 @@ export function useActiveServicesController(): ActiveServicesController {
 
 export function ActiveServicesControls({ controller }: { controller: ActiveServicesController }) {
   return (
-    <div className="flex items-center justify-end gap-2">
-      <Select
-        value={String(controller.servicesInterval)}
-        onValueChange={value => controller.setServicesInterval(Number(value))}
-      >
-        <SelectTrigger className="h-8 w-[90px] text-xs">
-          <SelectValue placeholder="Auto-refresh" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="0">Off</SelectItem>
-          <SelectItem value="5000">5s</SelectItem>
-          <SelectItem value="10000">10s</SelectItem>
-          <SelectItem value="30000">30s</SelectItem>
-        </SelectContent>
-      </Select>
-      <Button
-        variant="outline"
-        size="icon"
-        title="Refresh active services"
-        aria-label="Refresh active services"
-        onClick={() => void controller.refreshServices()}
-      >
-        <RefreshCw className="h-4 w-4" />
-      </Button>
+    <div className="text-xs text-muted-foreground whitespace-nowrap">
+      {controller.lastUpdatedAt
+        ? `Updated at ${formatObservedAtTime(controller.lastUpdatedAt)}`
+        : 'Awaiting runtime sample'}
     </div>
   )
 }
@@ -544,8 +492,8 @@ export function ActiveServicesTableContent({
       if (sortKey === 'cpu') return sortDir === 'asc' ? a.cpu - b.cpu : b.cpu - a.cpu
       if (sortKey === 'memory') return sortDir === 'asc' ? a.memory - b.memory : b.memory - a.memory
       if (sortKey === 'uptime') return sortDir === 'asc' ? a.uptime - b.uptime : b.uptime - a.uptime
-      const av = sortKey === 'state' ? a.state : a.name
-      const bv = sortKey === 'state' ? b.state : b.name
+      const av = String(sortKey === 'state' ? a.state : a.name || '')
+      const bv = String(sortKey === 'state' ? b.state : b.name || '')
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
     })
   }, [filter, services, sortDir, sortKey])
@@ -610,7 +558,6 @@ export function ActiveServicesTableContent({
                   onSort={handleSort}
                 />
               </TableHead>
-              <TableHead className="hidden lg:table-cell">Last Detected</TableHead>
               <TableHead className="text-right">Action</TableHead>
             </TableRow>
           </TableHeader>
@@ -631,18 +578,13 @@ export function ActiveServicesTableContent({
                   {service.pid > 0 ? service.pid : '-'}
                 </TableCell>
                 <TableCell className="hidden md:table-cell">
-                  {service.state === 'running' || service.cpu > 0
-                    ? `${service.cpu.toFixed(1)}%`
-                    : '-'}
+                  {formatServiceCPU(service.state, service.cpu)}
                 </TableCell>
                 <TableCell className="hidden md:table-cell">
                   {formatServiceMemory(service.memory)}
                 </TableCell>
                 <TableCell className="hidden lg:table-cell">
                   {formatServiceUptime(service.uptime)}
-                </TableCell>
-                <TableCell className="hidden lg:table-cell">
-                  {formatComponentStatusTime(service.last_detected_at)}
                 </TableCell>
                 <TableCell className="text-right">
                   <Button
@@ -662,8 +604,8 @@ export function ActiveServicesTableContent({
       )}
 
       <Dialog open={!!logDialog} onOpenChange={open => !open && closeLogDialog()}>
-        <DialogContent className="max-w-[90vw] max-h-[85vh] flex flex-col">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-4xl h-[70vh] flex flex-col gap-0 p-0">
+          <DialogHeader className="px-5 pt-4 pb-2">
             <DialogTitle>Service Logs: {logDialog?.name}</DialogTitle>
             <DialogDescription>
               {logDialog?.lastDetectedAt
@@ -671,7 +613,7 @@ export function ActiveServicesTableContent({
                 : 'Diagnostic logs for the selected service'}
             </DialogDescription>
           </DialogHeader>
-          <div className="flex gap-2 mb-2">
+          <div className="px-5 pb-2 flex gap-2">
             <Button
               variant={logDialog?.stream === 'stdout' ? 'default' : 'outline'}
               size="sm"
@@ -694,21 +636,17 @@ export function ActiveServicesTableContent({
               Refresh
             </Button>
           </div>
-          <div className="flex-1 overflow-auto min-h-0">
-            {logDialog?.loading ? (
-              <div className="rounded-lg border p-6 text-sm text-muted-foreground">
-                Loading service logs...
-              </div>
-            ) : (
-              <pre className="bg-muted p-4 rounded-lg text-xs font-mono whitespace-pre-wrap break-all overflow-auto max-h-[65vh]">
-                {logDialog?.content || 'No log content'}
+          <ScrollArea className="flex-1 min-h-0 border-t px-5 py-3">
+            <div className="rounded-xl bg-black px-4 py-3 font-mono text-[11px] leading-5 text-slate-100">
+              <pre className="whitespace-pre-wrap break-all">
+                {logDialog?.loading ? 'Loading service logs...' : logDialog?.content || 'No log content'}
               </pre>
-            )}
-          </div>
+            </div>
+          </ScrollArea>
           {logDialog?.truncated ? (
-            <p className="text-xs text-muted-foreground">Showing a truncated log tail.</p>
+            <p className="px-5 pb-2 text-xs text-muted-foreground">Showing a truncated log tail.</p>
           ) : null}
-          <DialogFooter>
+          <DialogFooter className="px-5 pb-4 pt-2">
             <Button variant="outline" onClick={closeLogDialog}>
               Close
             </Button>

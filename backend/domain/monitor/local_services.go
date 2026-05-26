@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"strings"
 	"time"
 
@@ -24,10 +25,39 @@ type LocalServiceObservation struct {
 	LogAvailable   bool
 }
 
-func ObserveLocalServices(registry *swcatalog.LocalRegistry) []LocalServiceObservation {
+var localServiceProcessInfoFn = func() ([]supervisor.ProcessInfo, error) {
 	client := supervisor.NewClient(supervisor.DefaultConfig())
-	processes, procErr := client.GetAllProcessInfo()
+	return client.GetAllProcessInfo()
+}
+
+var localServiceResourceFn = supervisor.GetProcessResources
+var localServiceMemoryFn = supervisor.GetProcessMemory
+var localServiceUptimeFn = supervisor.GetProcessUptime
+
+var localServiceObservationCache = struct {
+	mu         sync.Mutex
+	items      []LocalServiceObservation
+	initialized bool
+	refreshing bool
+}{}
+
+func ObserveLocalServices(registry *swcatalog.LocalRegistry) []LocalServiceObservation {
+	if items, ok := loadLocalServiceObservationSnapshot(); ok {
+		startLocalServiceObservationRefresh(registry)
+		return items
+	}
+
+	items := observeLocalServicesSnapshot(registry, false)
+	storeLocalServiceObservationSnapshot(items)
+	startLocalServiceObservationRefresh(registry)
+	return items
+}
+
+func observeLocalServicesSnapshot(registry *swcatalog.LocalRegistry, includeCPU bool) []LocalServiceObservation {
+	processes, procErr := localServiceProcessInfoFn()
 	resources := map[int]supervisor.ResourceInfo{}
+	memoryByPID := map[int]int64{}
+	uptimeByPID := map[int]int64{}
 	processMap := map[string]supervisor.ProcessInfo{}
 	if procErr == nil {
 		pids := make([]int, 0, len(processes))
@@ -37,7 +67,12 @@ func ObserveLocalServices(registry *swcatalog.LocalRegistry) []LocalServiceObser
 				pids = append(pids, process.PID)
 			}
 		}
-		resources = supervisor.GetProcessResources(pids)
+		if includeCPU {
+			resources = localServiceResourceFn(pids)
+		} else {
+			memoryByPID = localServiceMemoryFn(pids)
+		}
+		uptimeByPID = localServiceUptimeFn(pids)
 	}
 
 	now := time.Now().UTC().Format(time.RFC3339)
@@ -52,10 +87,14 @@ func ObserveLocalServices(registry *swcatalog.LocalRegistry) []LocalServiceObser
 		if ok {
 			state = strings.ToLower(process.StateName)
 			pid = process.PID
-			uptime = process.Uptime
+			if observedUptime, exists := uptimeByPID[process.PID]; exists {
+				uptime = observedUptime
+			}
 			if resource, exists := resources[process.PID]; exists {
 				cpu = resource.CPU
 				memory = resource.Memory
+			} else if fastMemory, exists := memoryByPID[process.PID]; exists {
+				memory = fastMemory
 			}
 		} else if procErr == nil {
 			state = "missing"
@@ -74,6 +113,50 @@ func ObserveLocalServices(registry *swcatalog.LocalRegistry) []LocalServiceObser
 		})
 	}
 	return items
+}
+
+func loadLocalServiceObservationSnapshot() ([]LocalServiceObservation, bool) {
+	localServiceObservationCache.mu.Lock()
+	defer localServiceObservationCache.mu.Unlock()
+	if !localServiceObservationCache.initialized {
+		return nil, false
+	}
+	return cloneLocalServiceObservations(localServiceObservationCache.items), true
+}
+
+func storeLocalServiceObservationSnapshot(items []LocalServiceObservation) {
+	localServiceObservationCache.mu.Lock()
+	localServiceObservationCache.items = cloneLocalServiceObservations(items)
+	localServiceObservationCache.initialized = true
+	localServiceObservationCache.mu.Unlock()
+}
+
+func startLocalServiceObservationRefresh(registry *swcatalog.LocalRegistry) {
+	localServiceObservationCache.mu.Lock()
+	if localServiceObservationCache.refreshing {
+		localServiceObservationCache.mu.Unlock()
+		return
+	}
+	localServiceObservationCache.refreshing = true
+	localServiceObservationCache.mu.Unlock()
+
+	go func() {
+		items := observeLocalServicesSnapshot(registry, true)
+		localServiceObservationCache.mu.Lock()
+		localServiceObservationCache.items = cloneLocalServiceObservations(items)
+		localServiceObservationCache.initialized = true
+		localServiceObservationCache.refreshing = false
+		localServiceObservationCache.mu.Unlock()
+	}()
+}
+
+func cloneLocalServiceObservations(items []LocalServiceObservation) []LocalServiceObservation {
+	if len(items) == 0 {
+		return []LocalServiceObservation{}
+	}
+	cloned := make([]LocalServiceObservation, len(items))
+	copy(cloned, items)
+	return cloned
 }
 
 func LoadLocalServiceLog(service swcatalog.LocalService, stream string, maxBytes int) (string, bool, error) {

@@ -1,4 +1,4 @@
-# Story 20.7: Server Detail Components Tab
+# Story 20.7: Detail Components
 
 **Epic**: Epic 20 - Servers
 **Status**: Draft | **Priority**: P1 | **Depends on**: Story 20.6, Story 29.3
@@ -14,7 +14,7 @@ It exists because the previous `Software` label is too easy to confuse with appl
 
 This story owns the information architecture, naming, and operator-facing wording for that tab.
 
-This story does not replace Story 29.3 ownership of server software lifecycle data, action contracts, or readiness semantics. Story 29.3 continues to own the operational component domain behavior that feeds this tab.
+This story does not replace Story 29.3 ownership of server software lifecycle data, action contracts, or readiness semantics. Story 29.3 continues to own the backend contract that feeds this tab.
 
 ## User Story
 
@@ -26,7 +26,7 @@ As a superuser, I can understand which baseline requirements are missing and whi
 2. Make platform prerequisites visible before addon lifecycle operations.
 3. Keep Docker-style baseline requirements out of the addon inventory group.
 4. Reduce confusion between AppOS-managed components and application-level software.
-5. Preserve one compact operational surface instead of fragmenting detail navigation.
+5. Preserve one compact operational tab instead of fragmenting detail navigation.
 6. Make control-plane-reporting addons readable through separate `Service Status` and `AppOS Connection` signals.
 
 ## Out of Scope

@@ -2,7 +2,7 @@
 
 **Epic**: Epic 28 - Monitoring
 **Priority**: P1
-**Status**: Proposed
+**Status**: Implemented
 **Depends on**: Story 28.4, Story 28.5, Epic 29
 
 ## Objective
@@ -70,12 +70,10 @@ Ownership split:
 
 In scope for MVP:
 
-- list the core AppOS platform components that make up the running system
-- show whether each component is currently present and running
-- show the runtime form of each component, such as internal process, worker, service, or embedded dependency
-- show a short role description for each component
-- show a compact runtime-process section for key platform processes
-- provide handoff links to `Status`, `Monitor`, `Components`, or logs when deeper action is needed
+- show a read-only built-in component list for the current AppOS runtime
+- show a compact active services table for the current AppOS runtime
+- keep both sections lightweight and explanation-oriented rather than operational
+- expose enough runtime metadata for quick operator awareness without turning the page into a control console
 
 Out of scope for MVP:
 
@@ -86,76 +84,56 @@ Out of scope for MVP:
 - raw Docker inventory takeover
 - custom dashboards or charts
 
-## Surface Model Draft
+## Implemented Surface
 
-The page should be structured as a platform-composition surface, not a monitor dashboard.
+The current MVP surface is intentionally minimal.
 
-Suggested sections:
+Implemented sections:
 
 1. `Runtime Summary`
-	 - one short sentence about the current AppOS runtime shape
-	 - counts such as running components, degraded components, and missing optional components
+	- short sentence describing the current AppOS runtime shape
+	- compact counts for built-in components, available, unavailable, and active services
 
-2. `Core Components`
-	 - each item represents one AppOS platform component
-	 - show name, current state, runtime form, and responsibility summary
+2. `Built-in Components`
+	- dense read-only list with these columns only:
+	  - `Name`
+	  - `Version`
+	  - `Availability`
+	  - `Service`
+	  - `Updated at`
+	- `OS` is pinned first and `AppOS` second
+	- no cards, grouping, search, filters, or inline actions
 
-3. `Runtime Processes`
-	 - show the key platform processes or services that are actually running
-	 - keep this compact and curated, not a full host process list
+3. `Active Services`
+	- one merged runtime-services table
+	- diagnostic services are not split into a separate section in the current MVP
+	- logs remain reachable from the service table where available
 
-4. `Next Surface`
-	 - explicit handoff links such as `View Status`, `Open Monitor`, `Manage Components`, or `Open Logs`
+## Built-in Components Contract
 
-## Component Model Draft
+The built-in components list is runtime-registry-driven and intentionally compact.
 
-Each platform component card should answer:
+Displayed fields are limited to:
 
-- what this component is
-- whether it is running now
-- what runtime form it uses
-- what responsibility it owns
-- where the operator should go for deeper action
+- `id` / `name`
+- detected `version`
+- boolean availability
+- whether the component is a service
+- `updated_at` when a reliable timestamp source exists
 
-Suggested fields:
+The exact managed set remains AppOS-owned and curated rather than inferred from every host process.
 
-- `component_key`
-- `display_name`
-- `state` such as `running`, `degraded`, `missing`, `stopped`, `unknown`
-- `runtime_kind` such as `process`, `worker`, `service`, `embedded dependency`
-- `owned_capability`
-- `detail_href`
+## Active Services Contract
 
-Examples of likely MVP items:
+The runtime-services section remains intentionally small.
 
-- reverse proxy
-- PocketBase / API server
-- worker
-- scheduler
-- monitor ingest path
-- time-series backend
-
-The exact list should remain AppOS-owned and curated rather than inferred from every OS process.
-
-## Process Model Draft
-
-The runtime-process section should remain intentionally small.
-
-Show only key platform processes or services that help explain current platform composition.
-
-Suggested fields:
-
-- `name`
-- `state`
-- `pid` or equivalent runtime identifier when cheap to provide
-- `started_at` when available
-- `component_key` linkage
+It shows one merged table of AppOS-local services with runtime state and log access when available.
 
 Guardrails:
 
 - do not expose a raw `ps` page as the default experience
 - do not show unrelated host processes
-- do not require operators to understand low-level supervisor internals to use the page
+- do not split diagnostic services into a second operator section unless a future story explicitly restores that distinction
 
 ## UX Contract
 
@@ -182,15 +160,13 @@ This story should begin from existing runtime and component read paths rather th
 
 Verified reusable surfaces in the current codebase:
 
-- `GET /api/components`
-	- curated AppOS component inventory
-	- good fit for platform composition and component presence
-- `GET /api/components/services`
-	- supervisord-managed local service/process list
-	- good fit for the MVP runtime-process section
 - `GET /api/software/local`
-	- software and component catalog view for the local AppOS instance
-	- useful as supporting metadata, but not the primary runtime-process source
+	- current source for the built-in runtime component list
+	- now returns the full AppOS-local runtime registry, with software metadata attached when available
+- `GET /api/software/local/services`
+	- current source for the merged active-services table
+- `GET /api/software/local/services/{name}/logs`
+	- current source for service log access from the runtime page
 - `GET /api/servers/{serverId}/docker/containers`
 	- server-scoped Docker container inventory
 	- useful for handoff or future expansion, but should not define the MVP page by itself
@@ -203,15 +179,14 @@ Verified reusable surfaces in the current codebase:
 
 Current state summary:
 
-- the backend already exposes component and process-like data
-- the data is split across `components`, `software`, `docker`, `monitor`, and `server ops`
-- there is not yet one unified `platform runtime` read model
+- the runtime page currently reuses `software/local` and `software/local/services`
+- the built-in component list is backed by the single local runtime registry in `components_local.yaml`
+- there is not yet one dedicated `system/runtime` read route, and that is acceptable for the current MVP
 
 Implication for MVP:
 
 - do not invent a raw host-process explorer
-- do not force the page to unify every runtime source on day one
-- start from curated local AppOS components and supervisord services
+- keep the page on curated local AppOS components plus merged active services
 - treat Docker inventory and systemd services as secondary handoff surfaces unless the story scope expands
 
 ## API Direction
@@ -264,23 +239,20 @@ Suggested response shape:
 ## Acceptance Criteria
 
 - [ ] AC1: `System` navigation contains `Platform Runtime` immediately after `Status`.
-- [ ] AC2: The page explains AppOS runtime composition through curated platform components rather than a raw process dump.
-- [ ] AC3: Each listed component shows current state, runtime kind, and owned responsibility.
-- [ ] AC4: The page can show a compact curated process/service list for key AppOS runtime parts.
-- [ ] AC5: The page remains read-only in MVP and does not absorb component lifecycle actions.
-- [ ] AC6: The page provides explicit handoff paths to `Status`, `Monitor`, `Components`, or logs.
-- [ ] AC7: The page remains useful even when monitor telemetry is degraded or unavailable.
-- [ ] AC8: MVP reuses existing component or service read paths unless a dedicated adapter is clearly needed.
-- [ ] AC9: MVP does not require a generic host-process or full-container inventory view to be considered complete.
+- [x] AC2: The page explains AppOS runtime composition through a curated built-in component list rather than a raw process dump.
+- [x] AC3: The built-in component list is dense and minimal, showing `Name`, `Version`, `Availability`, `Service`, and `Updated at` only.
+- [x] AC4: `OS` appears first and `AppOS` second in the built-in component list.
+- [x] AC5: The page exposes one merged `Active Services` table; diagnostic services are not split into a second MVP section.
+- [x] AC6: The page remains read-only in MVP and does not absorb component lifecycle actions.
+- [x] AC7: Service logs remain reachable from the active-services table when available.
+- [x] AC8: MVP reuses existing `software/local` and `software/local/services` read paths.
+- [x] AC9: MVP does not require a generic host-process or full-container inventory view to be considered complete.
 
 ## Implementation Notes
 
-- Prefer a dedicated system-read model instead of forcing platform-runtime composition through monitor trend APIs.
-- Keep the component catalog AppOS-owned and curated; do not auto-promote every observed process into the page.
-- Reuse existing platform status and software/component knowledge where possible.
-- Treat this page as a system operator surface, not as a developer debugging console.
-- Current best-fit reuse path is `components` plus `components/services`; `software/local` is supplementary metadata, not the primary runtime-process feed.
-- If a backend adapter is introduced later, it should normalize ownership and handoff metadata rather than merely proxy raw Docker or systemd payloads.
+- Keep the page dense, plain, and read-only.
+- Keep built-in components registry-driven and avoid extra grouping or explanatory chrome.
+- Treat `Updated at` as best-effort metadata: show it when a reliable file-backed timestamp exists, otherwise allow `-`.
 
 ## References
 

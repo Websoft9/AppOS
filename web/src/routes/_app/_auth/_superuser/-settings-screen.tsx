@@ -39,7 +39,6 @@ function terminalSettingsEntries(controller: SettingsPageController) {
 function dockerSettingsEntries(controller: SettingsPageController) {
   return {
     mirrors: findSchemaEntry(controller, 'docker-mirror'),
-    registries: findSchemaEntry(controller, 'docker-registries'),
   }
 }
 
@@ -80,7 +79,12 @@ function activeSectionHelp(controller: SettingsPageController) {
       return {
         title: 'Docker',
         description:
-          'Configure AppOS image pull acceleration and review registry connectors used for authenticated pulls.',
+          'Configure AppOS image pull acceleration for deployment and update workflows.',
+      }
+    case 'proxy-network':
+      return {
+        title: 'Proxy',
+        description: 'Select reusable HTTP and HTTPS proxy connectors for platform outbound traffic.',
       }
     case 'ai':
       return {
@@ -166,7 +170,7 @@ function navigationItems(controller: SettingsPageController, group: SettingsSect
         continue
       }
 
-      if (item.id === 'docker-mirror' || item.id === 'docker-registries') {
+      if (item.id === 'docker-mirror') {
         if (!dockerAdded) {
           result.push({ id: 'docker-mirror', title: 'Docker' })
           dockerAdded = true
@@ -192,7 +196,7 @@ function navigationItems(controller: SettingsPageController, group: SettingsSect
       continue
     }
 
-    if (item.id === 'docker-mirror' || item.id === 'docker-registries') {
+    if (item.id === 'docker-mirror') {
       if (!dockerAdded) {
         result.push({ id: 'docker-mirror', title: 'Docker' })
         dockerAdded = true
@@ -397,41 +401,26 @@ function renderSection(controller: SettingsPageController, options?: { onOpenHel
     case 'proxy-network':
       return (
         <ProxySection
-          proxyNetwork={controller.proxyNetwork}
           proxyForm={controller.proxyForm}
           proxySaving={controller.proxySaving}
           setProxyForm={controller.setProxyForm}
           saveProxy={controller.saveProxy}
+          onOpenHelp={options?.onOpenHelp}
         />
       )
     case 'docker-mirror':
     case 'docker-registries':
-      return (
-        <div className="space-y-4">
-          {dockerEntries.mirrors ? (
-            <DockerMirrorsSection
-              mirrors={controller.mirrors}
-              allowInsecureRegistries={controller.allowInsecureRegistries}
-              mirrorsSaving={controller.mirrorsSaving}
-              setMirrors={controller.setMirrors}
-              setAllowInsecureRegistries={controller.setAllowInsecureRegistries}
-              saveDockerMirrors={controller.saveDockerMirrors}
-              onOpenHelp={options?.onOpenHelp}
-            />
-          ) : null}
-          {dockerEntries.registries ? (
-            <ConnectorReferenceSection
-              title="Docker Registries"
-              description={connectorSectionDescription(
-                controller,
-                'docker-registries',
-                'Private registry access is managed as reusable connectors.'
-              )}
-              connectorKinds="registry connectors"
-            />
-          ) : null}
-        </div>
-      )
+      return dockerEntries.mirrors ? (
+        <DockerMirrorsSection
+          mirrors={controller.mirrors}
+          allowInsecureRegistries={controller.allowInsecureRegistries}
+          mirrorsSaving={controller.mirrorsSaving}
+          setMirrors={controller.setMirrors}
+          setAllowInsecureRegistries={controller.setAllowInsecureRegistries}
+          saveDockerMirrors={controller.saveDockerMirrors}
+          onOpenHelp={options?.onOpenHelp}
+        />
+      ) : null
     case 'ai':
       return (
         <AISettingsSection

@@ -1,4 +1,4 @@
-# Story 29.1: Software Contract and Catalog
+# Story 29.1: Software Contract Catalog
 
 **Epic**: Epic 29 - Software Delivery
 **Status**: review | **Priority**: P1 | **Depends on**: Epic 12, Epic 20
@@ -11,18 +11,9 @@ This story also absorbs the retired Epic 6 `Detection Pipeline` contract so inst
 
 ## Reorganization Note
 
-This story replaces the contract-setting portions of:
+This story supersedes the old 29.1-29.4 contract split.
 
-- Story 29.1 Model
-- Story 29.2 Boundary
-- Story 29.3 Template
-- Story 29.4 Catalog
-
-Implementation history from those superseded split stories is preserved in `specs/implementation-artifacts/epic29-legacy-implementation-record.md`.
-
-Execution mechanics, operational UI, supported-software discovery, and local inventory are intentionally moved into later stories.
-
-Epic 6 `Components Inventory` and `Detection Pipeline` should now be interpreted through Story 29.5 and this story rather than treated as parallel component-domain specifications.
+Execution, discovery, and local inventory live in later stories. Epic 6 local inventory now belongs in Story 29.5.
 
 ## Scope
 
@@ -533,7 +524,7 @@ GPT-5.4
 - `backend/domain/routes/software_test.go`
 - `web/src/lib/software-api.ts`
 - `web/src/lib/software-api.test.ts`
-- `specs/implementation-artifacts/story29.1-software-contract-and-catalog.md`
+- `specs/implementation-artifacts/story29.1-software-contract-catalog.md`
 
 ## Change Log
 

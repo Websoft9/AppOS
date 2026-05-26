@@ -9735,15 +9735,13 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
                 "401":
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
             security:
                 - bearerAuth: []
@@ -10022,7 +10020,7 @@ paths:
                 - Settings
     /api/software/local:
         get:
-            description: Returns AppOS-local software inventory derived from the local catalog and runtime checks.
+            description: Returns AppOS-local built-in component inventory derived from the local runtime registry, with software-catalog metadata attached when available.
             operationId: get_api_software_local
             responses:
                 "200":

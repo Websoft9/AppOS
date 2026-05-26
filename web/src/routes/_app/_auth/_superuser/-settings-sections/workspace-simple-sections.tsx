@@ -1,4 +1,7 @@
-import { Loader2 } from 'lucide-react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { HelpCircle, Loader2 } from 'lucide-react'
+import { ProxyConnectorDialog } from '@/components/connectors/ProxyConnectorDialog'
+import { pb } from '@/lib/pb'
 import { type SettingsSchemaEntry } from '@/lib/settings-api'
 import type { SecretPolicy } from '@/lib/secrets-policy'
 import { SECRET_ACCESS_MODE_OPTIONS } from '@/lib/secrets-policy'
@@ -292,72 +295,197 @@ export function SpaceQuotaSection({
 }
 
 export function ProxySection({
-  proxyNetwork,
   proxyForm,
   proxySaving,
   setProxyForm,
   saveProxy,
+  onOpenHelp,
 }: {
-  proxyNetwork: ProxyNetwork
   proxyForm: ProxyNetwork
   proxySaving: boolean
   setProxyForm: React.Dispatch<React.SetStateAction<ProxyNetwork>>
   saveProxy: () => void
+  onOpenHelp?: () => void
 }) {
+  type ProxyConnectorOption = {
+    id: string
+    name: string
+    endpoint?: string
+    config?: Record<string, unknown>
+  }
+  const HTTP_ADD_OPTION = '__add_http_proxy__'
+  const HTTPS_ADD_OPTION = '__add_https_proxy__'
+  const OPTION_SEPARATOR = '__separator__'
+
+  const [connectors, setConnectors] = useState<ProxyConnectorOption[]>([])
+  const [connectorsLoading, setConnectorsLoading] = useState(false)
+  const [createTarget, setCreateTarget] = useState<'http' | 'https' | null>(null)
+
+  const loadConnectors = useCallback(async () => {
+    setConnectorsLoading(true)
+    try {
+      const result = await pb.send<ProxyConnectorOption[]>('/api/connectors?kind=proxy', {
+        method: 'GET',
+      })
+      setConnectors(Array.isArray(result) ? result : [])
+    } catch {
+      setConnectors([])
+    } finally {
+      setConnectorsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadConnectors()
+  }, [loadConnectors])
+
+  const connectorOptions = useMemo(
+    () =>
+      connectors.map(connector => {
+        const protocol =
+          typeof connector.config?.protocol === 'string'
+            ? connector.config.protocol.toUpperCase()
+            : 'PROXY'
+        const endpoint = typeof connector.endpoint === 'string' ? connector.endpoint : ''
+        return {
+          id: connector.id,
+          label: endpoint ? `${connector.name} · ${protocol} · ${endpoint}` : `${connector.name} · ${protocol}`,
+        }
+      }),
+    [connectors]
+  )
+
+  const openCreate = (target: 'http' | 'https') => {
+    setCreateTarget(target)
+  }
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Proxy</CardTitle>
-        <CardDescription>HTTP proxy for outbound requests</CardDescription>
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle>Proxy</CardTitle>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Open Proxy help"
+            onClick={onOpenHelp}
+          >
+            <HelpCircle className="h-4 w-4" />
+          </Button>
+        </div>
+        <CardDescription>Select HTTP and HTTPS proxy connectors.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/30 px-4 py-3">
           <div className="space-y-1">
-            <Label htmlFor="httpProxy">HTTP Proxy</Label>
-            <Input
-              id="httpProxy"
-              value={proxyForm.httpProxy}
-              onChange={e => setProxyForm(f => ({ ...f, httpProxy: e.target.value }))}
-              placeholder="http://proxy:3128"
-            />
+            <Label htmlFor="proxy-enabled">Enable Proxy</Label>
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="httpsProxy">HTTPS Proxy</Label>
-            <Input
-              id="httpsProxy"
-              value={proxyForm.httpsProxy}
-              onChange={e => setProxyForm(f => ({ ...f, httpsProxy: e.target.value }))}
-              placeholder="http://proxy:3128"
-            />
-          </div>
-          <div className="col-span-2 space-y-1">
-            <Label htmlFor="noProxy">No Proxy</Label>
-            <Input
-              id="noProxy"
-              value={proxyForm.noProxy}
-              onChange={e => setProxyForm(f => ({ ...f, noProxy: e.target.value }))}
-              placeholder="localhost,127.0.0.1"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="proxyUsername">Username</Label>
-            <Input
-              id="proxyUsername"
-              value={proxyForm.username}
-              onChange={e => setProxyForm(f => ({ ...f, username: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="proxyPassword">Password</Label>
-            <Input
-              id="proxyPassword"
-              type="password"
-              value={proxyForm.password}
-              onChange={e => setProxyForm(f => ({ ...f, password: e.target.value }))}
-              placeholder={proxyNetwork.password ? '***' : ''}
-            />
-          </div>
+          <Toggle
+            id="proxy-enabled"
+            checked={proxyForm.enabled}
+            onChange={checked => setProxyForm(current => ({ ...current, enabled: checked }))}
+          />
         </div>
+
+        {proxyForm.enabled ? (
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="httpConnectorId">HTTP Proxy</Label>
+                <select
+                  id="httpConnectorId"
+                  className={selectClass}
+                  value={proxyForm.httpConnectorId}
+                  onChange={event => {
+                    if (event.target.value === HTTP_ADD_OPTION) {
+                      openCreate('http')
+                      return
+                    }
+                    setProxyForm(current => ({ ...current, httpConnectorId: event.target.value }))
+                  }}
+                  disabled={connectorsLoading}
+                >
+                  <option value="">No HTTP proxy</option>
+                  {connectorOptions.map(option => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                  <option value={OPTION_SEPARATOR} disabled>
+                    ----------------
+                  </option>
+                  <option value={HTTP_ADD_OPTION}>+ Add HTTP proxy...</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="httpsConnectorId">HTTPS Proxy</Label>
+                <select
+                  id="httpsConnectorId"
+                  className={selectClass}
+                  value={proxyForm.httpsConnectorId}
+                  onChange={event => {
+                    if (event.target.value === HTTPS_ADD_OPTION) {
+                      openCreate('https')
+                      return
+                    }
+                    setProxyForm(current => ({ ...current, httpsConnectorId: event.target.value }))
+                  }}
+                  disabled={connectorsLoading}
+                >
+                  <option value="">No HTTPS proxy</option>
+                  {connectorOptions.map(option => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                  <option value={OPTION_SEPARATOR} disabled>
+                    ----------------
+                  </option>
+                  <option value={HTTPS_ADD_OPTION}>+ Add HTTPS proxy...</option>
+                </select>
+              </div>
+            </div>
+
+            {connectorsLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading proxy connectors...
+              </div>
+            ) : connectorOptions.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+                No proxy connectors yet. Use the Add option in either selector.
+              </div>
+            ) : null}
+
+            {createTarget ? (
+              <ProxyConnectorDialog
+                open={Boolean(createTarget)}
+                onOpenChange={open => {
+                  if (!open) {
+                    setCreateTarget(null)
+                  }
+                }}
+                initialProtocol={createTarget}
+                onCreated={created => {
+                  const createdID = String(created.id ?? '')
+                  if (createdID) {
+                    setProxyForm(current => ({
+                      ...current,
+                      enabled: true,
+                      httpConnectorId: createTarget === 'http' ? createdID : current.httpConnectorId,
+                      httpsConnectorId: createTarget === 'https' ? createdID : current.httpsConnectorId,
+                    }))
+                  }
+                  void loadConnectors()
+                  setCreateTarget(null)
+                }}
+              />
+            ) : null}
+          </div>
+        ) : null}
+
         <SaveButton onClick={saveProxy} saving={proxySaving} />
       </CardContent>
     </Card>

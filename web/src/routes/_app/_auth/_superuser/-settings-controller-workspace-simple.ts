@@ -161,9 +161,18 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
 
     setSecretPolicy(normalizeSecretPolicy(entryMap.get('secrets-policy')))
 
-    const network = (entryMap.get('proxy-network') as ProxyNetwork) ?? EMPTY_PROXY
-    setProxyNetwork(network)
-    setProxyForm(network)
+    const network = (entryMap.get('proxy-network') as Partial<ProxyNetwork>) ?? {}
+    const mergedProxy = {
+      ...EMPTY_PROXY,
+      ...network,
+      enabled: Boolean(network.enabled),
+      httpConnectorId:
+        typeof network.httpConnectorId === 'string' ? network.httpConnectorId : EMPTY_PROXY.httpConnectorId,
+      httpsConnectorId:
+        typeof network.httpsConnectorId === 'string' ? network.httpsConnectorId : EMPTY_PROXY.httpsConnectorId,
+    }
+    setProxyNetwork(mergedProxy)
+    setProxyForm(mergedProxy)
   }, [])
 
   const validateSpaceQuota = (): boolean => {
@@ -232,11 +241,24 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
   const saveProxy = async () => {
     setProxySaving(true)
     try {
-      await pb.send(settingsEntryPath('proxy-network'), {
+      const payload: ProxyNetwork = {
+        enabled: Boolean(proxyForm.enabled),
+        httpConnectorId: proxyForm.httpConnectorId.trim(),
+        httpsConnectorId: proxyForm.httpsConnectorId.trim(),
+      }
+      const res = (await pb.send(settingsEntryPath('proxy-network'), {
         method: 'PATCH',
-        body: proxyForm,
-      })
-      setProxyNetwork(proxyForm)
+        body: payload,
+      })) as { value?: Partial<ProxyNetwork> }
+      const saved = {
+        ...payload,
+        ...res.value,
+        enabled: Boolean(res.value?.enabled ?? payload.enabled),
+        httpConnectorId: String(res.value?.httpConnectorId ?? payload.httpConnectorId),
+        httpsConnectorId: String(res.value?.httpsConnectorId ?? payload.httpsConnectorId),
+      }
+      setProxyNetwork(saved)
+      setProxyForm(saved)
       showToast('Proxy settings saved')
     } catch (err) {
       showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)

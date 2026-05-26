@@ -14,6 +14,7 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
+	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/domain/software"
@@ -95,6 +96,41 @@ func createDockerRouteSecret(t *testing.T, te *testEnv, value string) *core.Reco
 	rec.Set("payload_encrypted", enc)
 	if err := te.app.Save(rec); err != nil {
 		t.Fatal(err)
+	}
+	return rec
+}
+
+func createDockerRouteConnector(t *testing.T, te *testEnv, spec connectors.SaveInput) *core.Record {
+	t.Helper()
+	col, err := te.app.FindCollectionByNameOrId(collections.Connectors)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := core.NewRecord(col)
+	persistedKind := spec.Kind
+	if spec.Kind == connectors.KindProxy {
+		persistedKind = connectors.KindRegistry
+	}
+	rec.Set("name", spec.Name)
+	rec.Set("kind", persistedKind)
+	rec.Set("is_default", spec.IsDefault)
+	rec.Set("template_id", spec.TemplateID)
+	rec.Set("endpoint", spec.Endpoint)
+	rec.Set("auth_scheme", spec.AuthScheme)
+	rec.Set("credential", spec.CredentialID)
+	rec.Set("config", spec.Config)
+	rec.Set("description", spec.Description)
+	if err := te.app.Save(rec); err != nil {
+		t.Fatal(err)
+	}
+	if spec.Kind == connectors.KindProxy {
+		if _, err := te.app.DB().NewQuery("UPDATE " + collections.Connectors + " SET kind = {:kind} WHERE id = {:id}").Bind(map[string]any{
+			"kind": connectors.KindProxy,
+			"id":   rec.Id,
+		}).Execute(); err != nil {
+			t.Fatal(err)
+		}
+		rec.Set("kind", connectors.KindProxy)
 	}
 	return rec
 }
@@ -808,13 +844,40 @@ func TestDockerLocalComposeMetadataGroupsContainersWithSingleInspectCall(t *test
 func TestLoadDockerProxyEnvIncludesCredentials(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
+	ensureDockerSecretRuntime(t)
+	secret := createDockerRouteSecret(t, te, "secret")
+	httpConnector := createDockerRouteConnector(t, te, connectors.SaveInput{
+		Name:         "HTTP Proxy",
+		Kind:         connectors.KindProxy,
+		TemplateID:   "generic-proxy",
+		Endpoint:     "http://proxy.example.com:3128",
+		AuthScheme:   connectors.AuthSchemeBasic,
+		CredentialID: secret.Id,
+		Config: map[string]any{
+			"protocol":  "http",
+			"username":  "alice",
+			"no_proxy":  "localhost,127.0.0.1,.svc",
+			"auth_mode": "username_password",
+		},
+	})
+	httpsConnector := createDockerRouteConnector(t, te, connectors.SaveInput{
+		Name:         "HTTPS Proxy",
+		Kind:         connectors.KindProxy,
+		TemplateID:   "generic-proxy",
+		Endpoint:     "https://secure-proxy.example.com:4443",
+		AuthScheme:   connectors.AuthSchemeBasic,
+		CredentialID: secret.Id,
+		Config: map[string]any{
+			"protocol":  "https",
+			"username":  "alice",
+			"auth_mode": "username_password",
+		},
+	})
 
 	if err := sysconfig.SetGroup(te.app, "proxy", "network", map[string]any{
-		"httpProxy":  "http://proxy.example.com:3128",
-		"httpsProxy": "https://secure-proxy.example.com:4443",
-		"noProxy":    "localhost,127.0.0.1,.svc",
-		"username":   "alice",
-		"password":   "secret",
+		"enabled":          true,
+		"httpConnectorId":  httpConnector.Id,
+		"httpsConnectorId": httpsConnector.Id,
 	}); err != nil {
 		t.Fatal(err)
 	}

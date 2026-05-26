@@ -37,7 +37,7 @@ func TestResolveLLMTemplate(t *testing.T) {
 }
 
 func TestDeclaredConnectorKindsHaveTemplates(t *testing.T) {
-	declaredKinds := []string{KindRESTAPI, KindWebhook, KindMCP, KindSMTP, KindDNS, KindRegistry}
+	declaredKinds := []string{KindRESTAPI, KindWebhook, KindMCP, KindSMTP, KindDNS, KindRegistry, KindProxy}
 	for _, kind := range declaredKinds {
 		t.Run(kind, func(t *testing.T) {
 			templates := TemplatesByKind(kind)
@@ -56,6 +56,8 @@ func TestFindTemplateLoadsGenericNonLLMTemplates(t *testing.T) {
 		{id: "generic-smtp", kind: KindSMTP},
 		{id: "generic-dns", kind: KindDNS},
 		{id: "generic-registry", kind: KindRegistry},
+		{id: "http-proxy", kind: KindProxy},
+		{id: "socks5-proxy", kind: KindProxy},
 	}
 
 	for _, tc := range testCases {

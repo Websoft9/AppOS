@@ -242,7 +242,11 @@ describe('SettingsPage shared settings paths', () => {
               title: 'Proxy',
               section: 'workspace',
               source: 'custom',
-              fields: [],
+              fields: [
+                { id: 'enabled', label: 'Enable Proxy', type: 'boolean' },
+                { id: 'httpConnectorId', label: 'HTTP Proxy Connector', type: 'relation' },
+                { id: 'httpsConnectorId', label: 'HTTPS Proxy Connector', type: 'relation' },
+              ],
             },
             {
               id: 'docker-mirror',
@@ -320,7 +324,10 @@ describe('SettingsPage shared settings paths', () => {
             { id: 'iac-files', value: { maxSizeMB: 10, maxZipSizeMB: 50 } },
             { id: 'tunnel-port-range', value: {} },
             { id: 'secrets-policy', value: {} },
-            { id: 'proxy-network', value: {} },
+            {
+              id: 'proxy-network',
+              value: { enabled: false, httpConnectorId: '', httpsConnectorId: '' },
+            },
             { id: 'docker-mirror', value: { mirrors: [], allowInsecureRegistries: false } },
             { id: 'docker-registries', value: {} },
           ],
@@ -329,8 +336,54 @@ describe('SettingsPage shared settings paths', () => {
       if (path === '/api/connectors') {
         return Promise.resolve([])
       }
-      if (path === '/api/connectors/templates') {
+      if (path === '/api/connectors?kind=proxy') {
         return Promise.resolve([])
+      }
+      if (path === '/api/connectors/templates') {
+        return Promise.resolve([
+          {
+            id: 'generic-proxy',
+            kind: 'proxy',
+            title: 'Generic HTTP/HTTPS Proxy',
+            description: 'Standard forward proxy with optional basic auth',
+            defaultEndpoint: 'http://proxy.example.com:3128',
+            fields: [
+              { id: 'endpoint', label: 'Endpoint', type: 'url', required: true },
+              {
+                id: 'protocol',
+                label: 'Protocol',
+                type: 'select',
+                required: true,
+                default: 'http',
+              },
+              {
+                id: 'auth_mode',
+                label: 'Authentication',
+                type: 'select',
+                required: true,
+                default: 'none',
+              },
+              {
+                id: 'username',
+                label: 'Username',
+                type: 'text',
+                placeholder: 'proxy-user',
+              },
+              {
+                id: 'credential',
+                label: 'Credential',
+                type: 'secret_ref',
+                secretTemplate: 'single_value',
+              },
+              {
+                id: 'no_proxy',
+                label: 'No Proxy',
+                type: 'text',
+                placeholder: 'localhost,127.0.0.1,.svc',
+              },
+            ],
+          },
+        ])
       }
       if (path === '/api/ai-providers/templates') {
         return Promise.resolve([
@@ -373,7 +426,7 @@ describe('SettingsPage shared settings paths', () => {
       }
       if (
         path ===
-        "/api/collections/secrets/records?filter=(status='active'%26%26(template_id='single_value'))&sort=name"
+        "/api/collections/secrets/records?filter=((created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value'))&sort=name"
       ) {
         return Promise.resolve({ items: [] })
       }
@@ -823,7 +876,113 @@ describe('SettingsPage shared settings paths', () => {
     })
   })
 
-  it('shows connector reference cards for smtp and groups docker mirrors with docker registries', async () => {
+  it('creates and saves a proxy connector from the Proxy settings page', async () => {
+    const proxyConnectors: Array<{
+      id: string
+      name: string
+      endpoint: string
+      config: Record<string, unknown>
+    }> = []
+
+    const defaultImpl = sendMock.getMockImplementation()
+    sendMock.mockImplementation((path: string, options?: { method?: string; body?: any }) => {
+      if (path === '/api/connectors?kind=proxy') {
+        return Promise.resolve(proxyConnectors)
+      }
+      if (
+        path ===
+        "/api/collections/secrets/records?filter=((created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value'))&sort=name"
+      ) {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === '/api/connectors' && options?.method === 'POST') {
+        const created = {
+          id: 'proxy-1',
+          name: String(options.body?.name ?? 'Office Proxy'),
+          endpoint: String(options.body?.endpoint ?? 'http://proxy.example.com:3128'),
+          config: (options.body?.config as Record<string, unknown>) ?? { protocol: 'http' },
+        }
+        proxyConnectors.splice(0, proxyConnectors.length, created)
+        return Promise.resolve(created)
+      }
+      if (path === settingsEntryPath('proxy-network') && options?.method === 'PATCH') {
+        return Promise.resolve({ value: options.body })
+      }
+      return defaultImpl ? defaultImpl(path, options) : Promise.resolve({})
+    })
+
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      expect(within(nav as HTMLElement).getByRole('button', { name: 'Proxy' })).toBeInTheDocument()
+    })
+
+    const nav = container.querySelector('nav') as HTMLElement | null
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+
+    fireEvent.click(within(nav).getByRole('button', { name: 'Proxy' }))
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Enable Proxy')).toBeInTheDocument()
+    })
+
+    expect(screen.getByRole('button', { name: 'Open Proxy help' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('switch'))
+
+    await waitFor(() => {
+      expect(screen.getByText(/Use the Add option in either selector/i)).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Add HTTP Proxy' })).not.toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText('HTTP Proxy'), {
+      target: { value: '__add_http_proxy__' },
+    })
+
+    const dialog = await screen.findByRole('dialog')
+    await waitFor(() => {
+      const profile = within(dialog).getByLabelText(/^Profile/) as HTMLSelectElement
+      expect(profile.options.length).toBeGreaterThan(1)
+    })
+
+    fireEvent.change(within(dialog).getByRole('textbox', { name: /^Name/ }), {
+      target: { value: 'Office Proxy' },
+    })
+    fireEvent.change(await within(dialog).findByLabelText(/Endpoint/i), {
+      target: { value: 'proxy.example.com:3128' },
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create Proxy Connector' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/connectors', {
+        method: 'POST',
+        body: expect.objectContaining({
+          name: 'Office Proxy',
+          kind: 'proxy',
+          endpoint: 'http://proxy.example.com:3128',
+        }),
+      })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(settingsEntryPath('proxy-network'), {
+        method: 'PATCH',
+        body: {
+          enabled: true,
+          httpConnectorId: 'proxy-1',
+          httpsConnectorId: '',
+        },
+      })
+    })
+  })
+
+  it('shows smtp connector reference and keeps Docker focused on mirrors only', async () => {
     const { container } = render(<SettingsPage />)
 
     await waitFor(() => {
@@ -873,7 +1032,7 @@ describe('SettingsPage shared settings paths', () => {
       expect(screen.getByText('Help for:')).toBeInTheDocument()
       expect(
         screen.getByText(
-          'Configure AppOS image pull acceleration and review registry connectors used for authenticated pulls.'
+          'Configure AppOS image pull acceleration for deployment and update workflows.'
         )
       ).toBeInTheDocument()
       expect(screen.getByText('Docker Mirrors')).toBeInTheDocument()
@@ -884,11 +1043,8 @@ describe('SettingsPage shared settings paths', () => {
       ).toBeInTheDocument()
       expect(screen.getByText('Pull Sources')).toBeInTheDocument()
       expect(screen.getByLabelText('Allow Insecure Registries')).toBeInTheDocument()
-      expect(
-        screen.getByText(
-          /This section now references connectors\. Create and edit registry connectors/i
-        )
-      ).toBeInTheDocument()
+      expect(screen.queryByText('Docker Registries')).not.toBeInTheDocument()
+      expect(screen.queryByText(/registry connectors/i)).not.toBeInTheDocument()
     })
   })
 

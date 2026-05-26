@@ -17,7 +17,7 @@ import (
 type connectorUpsertRequest struct {
 	Name              string         `json:"name"`
 	Kind              string         `json:"kind"`
-	IsDefault         bool           `json:"is_default"`
+	IsDefault         *bool          `json:"is_default"`
 	TemplateID        string         `json:"template_id"`
 	Endpoint          string         `json:"endpoint"`
 	AuthScheme        string         `json:"auth_scheme"`
@@ -156,7 +156,7 @@ func handleConnectorGet(e *core.RequestEvent) error {
 // @Failure 500 {object} map[string]any
 // @Router /api/connectors [post]
 func handleConnectorCreate(e *core.RequestEvent) error {
-	input, err := bindConnectorUpsertRequest(e)
+	input, err := bindConnectorUpsertRequest(e, nil)
 	if err != nil {
 		return err
 	}
@@ -191,10 +191,6 @@ func handleConnectorCreate(e *core.RequestEvent) error {
 // @Failure 500 {object} map[string]any
 // @Router /api/connectors/{id} [put]
 func handleConnectorUpdate(e *core.RequestEvent) error {
-	input, err := bindConnectorUpsertRequest(e)
-	if err != nil {
-		return err
-	}
 	repo := persistence.NewConnectorRepository(e.App)
 	before, getErr := repo.Get(e.Request.PathValue("id"))
 	if getErr != nil {
@@ -202,6 +198,10 @@ func handleConnectorUpdate(e *core.RequestEvent) error {
 			return e.NotFoundError("connector not found", getErr)
 		}
 		return e.InternalServerError("failed to load connector", getErr)
+	}
+	input, err := bindConnectorUpsertRequest(e, before)
+	if err != nil {
+		return err
 	}
 	beforeSnap := before.Snapshot()
 	userID, _ := authInfo(e)
@@ -249,7 +249,7 @@ func handleConnectorDelete(e *core.RequestEvent) error {
 	return e.NoContent(http.StatusNoContent)
 }
 
-func bindConnectorUpsertRequest(e *core.RequestEvent) (connectors.SaveInput, error) {
+func bindConnectorUpsertRequest(e *core.RequestEvent, existing *connectors.Connector) (connectors.SaveInput, error) {
 	var body connectorUpsertRequest
 	if err := e.BindBody(&body); err != nil {
 		return connectors.SaveInput{}, e.BadRequestError("invalid JSON body", err)
@@ -257,10 +257,17 @@ func bindConnectorUpsertRequest(e *core.RequestEvent) (connectors.SaveInput, err
 	if strings.TrimSpace(body.Kind) == connectors.KindLLM {
 		return connectors.SaveInput{}, e.BadRequestError("llm connectors are no longer supported on /api/connectors; use /api/ai-providers instead", nil)
 	}
+	isDefault := false
+	if existing != nil {
+		isDefault = existing.IsDefault()
+	}
+	if body.IsDefault != nil {
+		isDefault = *body.IsDefault
+	}
 	return connectors.SaveInput{
 		Name:              body.Name,
 		Kind:              body.Kind,
-		IsDefault:         body.IsDefault,
+		IsDefault:         isDefault,
 		TemplateID:        body.TemplateID,
 		Endpoint:          body.Endpoint,
 		AuthScheme:        body.AuthScheme,

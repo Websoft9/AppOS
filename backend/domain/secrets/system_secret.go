@@ -106,6 +106,8 @@ func UpsertSystemPayloadSecret(app core.App, secret *Secret, name, templateID st
 	record.Set("payload_encrypted", enc)
 	record.Set("payload_meta", meta)
 	record.Set("status", StatusActive)
+	record.Set("scope", ScopeGlobal)
+	record.Set("access_mode", AccessModeUseOnly)
 	record.Set("created_source", CreatedSourceSystem)
 	record.Set("created_by", "")
 	record.Set("payload", nil)

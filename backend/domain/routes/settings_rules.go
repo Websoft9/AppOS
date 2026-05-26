@@ -11,7 +11,9 @@ import (
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 	"github.com/websoft9/appos/backend/domain/monitor"
+	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	"github.com/websoft9/appos/backend/domain/secrets"
+	persistence "github.com/websoft9/appos/backend/infra/persistence"
 	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
 )
 
@@ -291,6 +293,48 @@ func validateConnectSftp(v map[string]any) map[string]string {
 		errors["maxUploadFiles"] = "must be >= 1"
 	} else {
 		v["maxUploadFiles"] = maxUploadFiles
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
+}
+
+func validateProxyNetwork(app core.App, v map[string]any) map[string]string {
+	errors := map[string]string{}
+
+	enabled, err := parseBoolWithDefault(v["enabled"], false)
+	if err != nil {
+		errors["enabled"] = "must be a boolean"
+	} else {
+		v["enabled"] = enabled
+	}
+
+	httpConnectorID := strings.TrimSpace(sysconfig.String(v, "httpConnectorId", ""))
+	httpsConnectorID := strings.TrimSpace(sysconfig.String(v, "httpsConnectorId", ""))
+	v["httpConnectorId"] = httpConnectorID
+	v["httpsConnectorId"] = httpsConnectorID
+
+	repo := persistence.NewConnectorRepository(app)
+	validateProxyConnectorID := func(field, connectorID string) {
+		if connectorID == "" {
+			return
+		}
+		item, getErr := repo.Get(connectorID)
+		if getErr != nil {
+			errors[field] = "must reference an existing proxy connector"
+			return
+		}
+		if item.Kind() != connectors.KindProxy {
+			errors[field] = "must reference a proxy connector"
+		}
+	}
+	validateProxyConnectorID("httpConnectorId", httpConnectorID)
+	validateProxyConnectorID("httpsConnectorId", httpsConnectorID)
+
+	if len(errors) == 0 && enabled && httpConnectorID == "" && httpsConnectorID == "" {
+		errors["httpConnectorId"] = "select at least one proxy connector when proxy is enabled"
 	}
 
 	if len(errors) == 0 {

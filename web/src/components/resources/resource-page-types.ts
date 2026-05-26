@@ -109,8 +109,11 @@ export interface ResourcePageConfig {
   favoritesFilterLabel?: string
   createButtonLabel?: string
   createButtonShowIcon?: boolean
+  compactHeaderActionsOnMobile?: boolean
+  descriptionClassName?: string
   searchPlaceholder?: string
   searchContainerClassName?: string
+  searchInputClassName?: string
   pageSize?: number
   pageSizeValue?: number
   onPageSizeChange?: (pageSize: number) => void

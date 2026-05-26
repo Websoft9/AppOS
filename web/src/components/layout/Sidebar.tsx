@@ -14,7 +14,8 @@ import {
   Cog,
   TerminalSquare,
   KeyRound,
-  MessageSquare,
+  BookOpen,
+  Puzzle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -90,7 +91,7 @@ const workspaceGroup: NavGroup = {
     {
       id: 'collaboration',
       label: 'Collaboration',
-      icon: <MessageSquare className="h-5 w-5" />,
+      icon: <BookOpen className="h-5 w-5" />,
       href: '/groups',
       children: [
         { id: 'groups', label: 'Groups', href: '/groups' },
@@ -107,6 +108,13 @@ const resourcesNavItem: NavItem = {
   label: 'Resources',
   icon: <LayoutGrid className="h-5 w-5" />,
   href: '/resources',
+}
+
+const extensionsNavItem: NavItem = {
+  id: 'extensions',
+  label: 'Extensions',
+  icon: <Puzzle className="h-5 w-5" />,
+  href: '/extensions',
 }
 
 const systemNavItem: NavItem = {
@@ -178,8 +186,8 @@ export function buildNavGroups(isSuperuser: boolean): NavGroup[] {
       id: 'admin',
       label: 'Platform',
       items: isSuperuser
-        ? [systemNavItem, resourcesNavItem, credentialsNavItem, usersNavItem, settingsNavItem]
-        : [systemNavItemBasic, resourcesNavItem],
+        ? [systemNavItem, resourcesNavItem, extensionsNavItem, credentialsNavItem, usersNavItem, settingsNavItem]
+        : [systemNavItemBasic, resourcesNavItem, extensionsNavItem],
     },
   ]
 }

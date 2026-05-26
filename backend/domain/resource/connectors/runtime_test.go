@@ -68,8 +68,12 @@ func createConnectorRecord(t *testing.T, app core.App, spec connectors.SaveInput
 		t.Fatal(err)
 	}
 	rec := core.NewRecord(col)
+	persistedKind := spec.Kind
+	if spec.Kind == connectors.KindProxy {
+		persistedKind = connectors.KindRegistry
+	}
 	rec.Set("name", spec.Name)
-	rec.Set("kind", spec.Kind)
+	rec.Set("kind", persistedKind)
 	rec.Set("is_default", spec.IsDefault)
 	rec.Set("template_id", spec.TemplateID)
 	rec.Set("endpoint", spec.Endpoint)
@@ -79,6 +83,15 @@ func createConnectorRecord(t *testing.T, app core.App, spec connectors.SaveInput
 	rec.Set("description", spec.Description)
 	if err := app.Save(rec); err != nil {
 		t.Fatal(err)
+	}
+	if spec.Kind == connectors.KindProxy {
+		if _, err := app.DB().NewQuery("UPDATE " + collections.Connectors + " SET kind = {:kind} WHERE id = {:id}").Bind(map[string]any{
+			"kind": connectors.KindProxy,
+			"id":   rec.Id,
+		}).Execute(); err != nil {
+			t.Fatal(err)
+		}
+		rec.Set("kind", connectors.KindProxy)
 	}
 	return rec
 }
@@ -271,5 +284,76 @@ func TestLoadSMTPFailsForDeletedSecret(t *testing.T) {
 	_, err := connectors.LoadSMTPWith(persistence.NewConnectorRepository(app), connectors.NewSecretResolver(app))
 	if err == nil {
 		t.Fatal("expected deleted secret to fail smtp resolution")
+	}
+}
+
+func TestBuildProxyEnvWithUsesSelectedProxyConnectors(t *testing.T) {
+	app := newRuntimeTestApp(t)
+	defer app.Cleanup()
+
+	secret := createSecretRecord(t, app, "single_value", map[string]any{"value": "proxy-secret"})
+	httpConnector := createConnectorRecord(t, app, connectors.SaveInput{
+		Name:         "HTTP Proxy",
+		Kind:         connectors.KindProxy,
+		TemplateID:   "generic-proxy",
+		Endpoint:     "http://proxy.example.com:3128",
+		AuthScheme:   connectors.AuthSchemeBasic,
+		CredentialID: secret.Id,
+		Config: map[string]any{
+			"protocol":  "http",
+			"username":  "alice",
+			"no_proxy":  "localhost,.svc",
+			"auth_mode": "username_password",
+		},
+	})
+	httpsConnector := createConnectorRecord(t, app, connectors.SaveInput{
+		Name:       "HTTPS Proxy",
+		Kind:       connectors.KindProxy,
+		TemplateID: "generic-proxy",
+		Endpoint:   "https://secure.example.com:4443",
+		AuthScheme: connectors.AuthSchemeNone,
+		Config: map[string]any{
+			"protocol": "https",
+			"no_proxy": "127.0.0.1,.svc",
+		},
+	})
+
+	env, err := connectors.BuildProxyEnvWith(
+		persistence.NewConnectorRepository(app),
+		connectors.NewSecretResolver(app),
+		true,
+		httpConnector.Id,
+		httpsConnector.Id,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env["HTTP_PROXY"] != "http://alice:proxy-secret@proxy.example.com:3128" {
+		t.Fatalf("unexpected HTTP_PROXY: %q", env["HTTP_PROXY"])
+	}
+	if env["HTTPS_PROXY"] != "https://secure.example.com:4443" {
+		t.Fatalf("unexpected HTTPS_PROXY: %q", env["HTTPS_PROXY"])
+	}
+	if env["NO_PROXY"] != "localhost,.svc,127.0.0.1" {
+		t.Fatalf("unexpected NO_PROXY: %q", env["NO_PROXY"])
+	}
+}
+
+func TestBuildProxyEnvWithDisabledProxyReturnsNil(t *testing.T) {
+	app := newRuntimeTestApp(t)
+	defer app.Cleanup()
+
+	env, err := connectors.BuildProxyEnvWith(
+		persistence.NewConnectorRepository(app),
+		connectors.NewSecretResolver(app),
+		false,
+		"",
+		"",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env != nil {
+		t.Fatalf("expected nil env when proxy is disabled, got %#v", env)
 	}
 }

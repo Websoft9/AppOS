@@ -9,14 +9,7 @@ Implement one template-driven lifecycle execution path for server-target softwar
 
 ## Reorganization Note
 
-This story replaces the execution-oriented portions of:
-
-- Story 29.2 Boundary
-- Story 29.3 Template
-- Story 29.5 Target Readiness
-- Story 29.7 Worker
-
-Implementation history from those superseded split stories is preserved in `specs/implementation-artifacts/epic29-legacy-implementation-record.md`.
+This story supersedes the old execution, readiness, and worker split.
 
 ## Scope
 

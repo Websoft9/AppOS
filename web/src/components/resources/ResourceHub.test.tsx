@@ -80,7 +80,7 @@ describe('ResourceHub', () => {
           ],
         })
       }
-      if (path === '/api/connectors?kind=rest_api,webhook,mcp,smtp,registry,dns') {
+      if (path === '/api/connectors?kind=rest_api,webhook,mcp,proxy,smtp,registry,dns') {
         return Promise.resolve([{ id: 'conn-1' }, { id: 'conn-2' }, { id: 'conn-3' }])
       }
       return Promise.resolve([])
@@ -99,17 +99,17 @@ describe('ResourceHub', () => {
         'Shared platform resources for where Applications run, what they depend on, and how AppOS connects outward.'
       )
     ).toBeInTheDocument()
-    expect(screen.getByText('3 grouped areas')).toBeInTheDocument()
-      expect(screen.getByText('6 canonical families')).toBeInTheDocument()
+    expect(screen.getByText('2 grouped areas')).toBeInTheDocument()
+    expect(screen.getByText('5 canonical families')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Runtime Infrastructure' })).toBeInTheDocument()
-      expect(screen.queryByRole('heading', { name: 'Shared Configuration' })).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Software Delivery' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Shared Configuration' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Software Delivery' })).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'External Integrations' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Additional Resources' })).not.toBeInTheDocument()
 
     expect(screen.getAllByText('Service Instances').length).toBeGreaterThan(0)
-      expect(screen.queryByText('Shared Envs')).not.toBeInTheDocument()
-    expect(screen.getAllByText('Supported Software').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Shared Envs')).not.toBeInTheDocument()
+    expect(screen.queryByText('Supported Software')).not.toBeInTheDocument()
     expect(screen.getAllByText('AI Providers').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Platform Accounts').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Connectors').length).toBeGreaterThan(0)
@@ -136,16 +136,6 @@ describe('ResourceHub', () => {
         'Reusable shared environment sets and variables that can be mapped across apps.'
       )
     ).not.toBeInTheDocument()
-    expect(
-      screen.getByText(
-        'What AppOS can manage on remote servers before any server is connected or selected.'
-      )
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(
-        'Read-only AppOS-managed server software catalog for discovery, onboarding, and pre-connection planning.'
-      )
-    ).toBeInTheDocument()
     expect(
       screen.getByText(
         'How platform connects to AI providers, external platforms, APIs, and cloud services.'
@@ -180,10 +170,7 @@ describe('ResourceHub', () => {
       '/resources/service-instances'
     )
     expect(screen.queryByRole('link', { name: /Shared Envs/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Supported Software/i })).toHaveAttribute(
-      'href',
-      '/resources/supported-software'
-    )
+    expect(screen.queryByRole('link', { name: /Supported Software/i })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: /AI Providers/i })).toHaveAttribute(
       'href',
       '/resources/ai-providers'
@@ -222,7 +209,7 @@ describe('ResourceHub', () => {
     ).not.toBeInTheDocument()
     expect(within(dialog).getByText('Runtime Infrastructure')).toBeInTheDocument()
     expect(within(dialog).queryByText('Shared Configuration')).not.toBeInTheDocument()
-    expect(within(dialog).getByText('Software Delivery')).toBeInTheDocument()
+    expect(within(dialog).queryByText('Software Delivery')).toBeNull()
     expect(within(dialog).getByText('External Integrations')).toBeInTheDocument()
     expect(within(dialog).getByText('Servers')).toBeInTheDocument()
     expect(within(dialog).getByText('Service Instances')).toBeInTheDocument()

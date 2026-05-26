@@ -155,3 +155,7 @@ crontab list 保存不住
 去掉所有与 docker.sock 的强依赖与硬编码
 
 平台metrics 的读取查询与对服务器 metrics 的查询，是不是后端代码应该分离
+
+所以 appos 容器內其實完全可以通過 uname -r、/proc/meminfo 等獲取宿主機的內核版本、內存大小、CPU 信息，不需要任何特殊權限。只有 OS 發行版（os-release）是個例外
+
+

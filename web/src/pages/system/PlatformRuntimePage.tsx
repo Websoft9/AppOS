@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Loader2, RefreshCw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -7,37 +7,20 @@ import {
   useActiveServicesController,
 } from '@/pages/platform-components/PlatformComponentsPage'
 import {
-  fetchInstalledComponents,
   formatComponentStatusTime,
   type ComponentItem,
+  useInstalledComponentsController,
 } from '@/pages/platform-components/platform-component-status-shared'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
-function titleizeRuntimeKind(value: string): string {
-  if (!value) return 'Unknown runtime'
-  return value
-    .split('_')
-    .filter(Boolean)
-    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ')
-}
-
-function defaultVisibilityService(service: { visibility: string }) {
-  return service.visibility === 'default'
-}
-
-function nonDefaultVisibilityService(service: { visibility: string }) {
-  return service.visibility !== 'default'
-}
-
-function summarizeDiagnosticServices(count: number): string {
-  if (count === 0) {
-    return 'No diagnostic-only services are declared in the current runtime registry.'
-  }
-
-  return `${count} service${count === 1 ? '' : 's'} are marked diagnostic or hidden and kept outside the default operator surface.`
+function componentSortWeight(component: ComponentItem): number {
+  const id = String(component.id || '').toLowerCase()
+  if (id === 'os') return 0
+  if (id === 'appos') return 1
+  return 2
 }
 
 function summarizeRuntimeShape(components: ComponentItem[]): string {
@@ -45,14 +28,29 @@ function summarizeRuntimeShape(components: ComponentItem[]): string {
     return 'No built-in runtime components have been detected yet.'
   }
 
-  const availableCount = components.filter(component => component.available).length
-  const unavailableCount = components.length - availableCount
+  const pendingCount = components.filter(component => component.probe_pending).length
+  const knownComponents = components.filter(component => !component.probe_pending)
+  const availableCount = knownComponents.filter(component => component.available).length
+  const unavailableCount = knownComponents.length - availableCount
 
-  if (unavailableCount === 0) {
+  if (pendingCount === components.length) {
+    return `AppOS is still checking ${pendingCount} built-in component${pendingCount === 1 ? '' : 's'}.`
+  }
+
+  if (unavailableCount === 0 && pendingCount === 0) {
     return `AppOS currently exposes ${availableCount} built-in component${availableCount === 1 ? '' : 's'} in the local runtime.`
   }
 
+  if (pendingCount > 0) {
+    return `AppOS currently exposes ${availableCount} available built-in component${availableCount === 1 ? '' : 's'} with ${pendingCount} still checking.`
+  }
+
   return `AppOS currently exposes ${availableCount} available built-in component${availableCount === 1 ? '' : 's'} with ${unavailableCount} unavailable.`
+}
+
+function formatComponentVersion(value: string, probePending: boolean): string {
+  if (probePending && (!value || value === 'unknown')) return 'Checking...'
+  return value || 'unknown'
 }
 
 function BundledComponentsDetailContent({
@@ -88,90 +86,69 @@ function BundledComponentsDetailContent({
     )
   }
 
-  const grouped = components.reduce<Record<string, ComponentItem[]>>((groups, component) => {
-    const key = component.runtime_kind || 'other'
-    groups[key] = [...(groups[key] || []), component]
-    return groups
-  }, {})
-
   return (
-    <div className="space-y-5">
-      {Object.entries(grouped)
-        .sort(([a], [b]) => String(a || '').localeCompare(String(b || '')))
-        .map(([runtimeKind, items]) => (
-          <div key={runtimeKind} className="space-y-3">
-            <div>
-              <h3 className="text-sm font-semibold text-foreground">
-                {titleizeRuntimeKind(runtimeKind)}
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                {items.length} component{items.length === 1 ? '' : 's'} in this runtime slice.
-              </p>
-            </div>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {items.map(component => (
-                <article key={component.id} className="rounded-xl border bg-background/80 p-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-base font-medium leading-6">{component.name}</p>
-                    <Badge variant="outline">{component.criticality || 'unknown'}</Badge>
-                  </div>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {component.role || 'No role declared'}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Capability: {component.owned_capability || 'Not declared'}
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Badge variant={component.available ? 'default' : 'destructive'}>
-                      {component.available ? 'Available' : 'Unavailable'}
-                    </Badge>
-                    <Badge variant="secondary">{titleizeRuntimeKind(component.runtime_kind)}</Badge>
-                  </div>
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    Version {component.version || 'unknown'}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Updated {formatComponentStatusTime(component.updated_at)}
-                  </p>
-                </article>
-              ))}
-            </div>
-          </div>
+    <Table>
+      <TableHeader>
+        <TableRow className="border-b-0 hover:bg-transparent">
+          <TableHead>Name</TableHead>
+          <TableHead>Version</TableHead>
+          <TableHead>Availability</TableHead>
+          <TableHead>Service</TableHead>
+          <TableHead className="text-right">Updated at</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {components.map(component => (
+          <TableRow key={component.id} className="border-b-0 hover:bg-transparent">
+            <TableCell className="font-medium text-foreground">{component.name || component.id}</TableCell>
+            <TableCell className="text-muted-foreground">
+              {formatComponentVersion(component.version, component.probe_pending)}
+            </TableCell>
+            <TableCell>
+              <Badge
+                variant={
+                  component.probe_pending ? 'outline' : component.available ? 'default' : 'destructive'
+                }
+              >
+                {component.probe_pending
+                  ? 'Checking...'
+                  : component.available
+                    ? 'Available'
+                    : 'Unavailable'}
+              </Badge>
+            </TableCell>
+            <TableCell className="text-muted-foreground">
+              {component.runtime_kind === 'service' ? 'Yes' : 'No'}
+            </TableCell>
+            <TableCell className="text-right text-muted-foreground">
+              {formatComponentStatusTime(component.updated_at)}
+            </TableCell>
+          </TableRow>
         ))}
-    </div>
+      </TableBody>
+    </Table>
   )
 }
 
 export function PlatformRuntimePage() {
-  const [components, setComponents] = useState<ComponentItem[]>([])
-  const [componentsLoading, setComponentsLoading] = useState(true)
-  const [componentsError, setComponentsError] = useState('')
+  const componentsController = useInstalledComponentsController()
   const servicesController = useActiveServicesController()
 
-  const loadComponents = useCallback(async (force = false) => {
-    setComponentsLoading(true)
-    try {
-      setComponents(await fetchInstalledComponents(force))
-      setComponentsError('')
-    } catch (err) {
-      setComponentsError(err instanceof Error ? err.message : 'Failed to load components')
-    } finally {
-      setComponentsLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    void loadComponents()
-  }, [loadComponents])
-
   const sortedComponents = useMemo(
-    () => [...components].sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''))),
-    [components]
+    () =>
+      [...componentsController.components].sort((a, b) => {
+        const weightDiff = componentSortWeight(a) - componentSortWeight(b)
+        if (weightDiff !== 0) return weightDiff
+        return String(a.name || a.id || '').localeCompare(String(b.name || b.id || ''))
+      }),
+    [componentsController.components]
   )
 
-  const availableCount = components.filter(component => component.available).length
-  const unavailableCount = components.length - availableCount
-  const diagnosticServiceCount = servicesController.services.filter(nonDefaultVisibilityService).length
+  const pendingCount = componentsController.components.filter(component => component.probe_pending).length
+  const knownComponents = componentsController.components.filter(component => !component.probe_pending)
+  const availableCount = knownComponents.filter(component => component.available).length
+  const unavailableCount = knownComponents.length - availableCount
+  const activeServiceCount = servicesController.services.length
 
   return (
     <div className="space-y-6">
@@ -187,10 +164,10 @@ export function PlatformRuntimePage() {
           size="icon"
           title="Refresh built-in components"
           aria-label="Refresh built-in components"
-          onClick={() => void loadComponents(true)}
-          disabled={componentsLoading}
+          onClick={() => void componentsController.refresh(true)}
+          disabled={componentsController.loading}
         >
-          {componentsLoading ? (
+          {componentsController.loading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <RefreshCw className="h-4 w-4" />
@@ -201,14 +178,14 @@ export function PlatformRuntimePage() {
       <Card>
         <CardHeader>
           <CardTitle>Runtime Summary</CardTitle>
-          <CardDescription>{summarizeRuntimeShape(components)}</CardDescription>
+          <CardDescription>{summarizeRuntimeShape(componentsController.components)}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-4">
           <div className="rounded-lg border bg-background px-4 py-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
               Built-in Components
             </div>
-            <div className="mt-2 text-2xl font-semibold text-foreground">{components.length}</div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">{componentsController.components.length}</div>
           </div>
           <div className="rounded-lg border bg-background px-4 py-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Available</div>
@@ -220,28 +197,20 @@ export function PlatformRuntimePage() {
             </div>
             <div className="mt-2 text-2xl font-semibold text-foreground">{unavailableCount}</div>
           </div>
+          {pendingCount > 0 ? (
+            <div className="rounded-lg border bg-background px-4 py-3">
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Checking
+              </div>
+              <div className="mt-2 text-2xl font-semibold text-foreground">{pendingCount}</div>
+            </div>
+          ) : null}
           <div className="rounded-lg border bg-background px-4 py-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Diagnostic Services
+              Active Services
             </div>
-            <div className="mt-2 text-2xl font-semibold text-foreground">{diagnosticServiceCount}</div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">{activeServiceCount}</div>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Built-in Components</CardTitle>
-          <CardDescription>
-            Built-in tools and embedded dependencies currently exposed inside the AppOS runtime, grouped by runtime kind.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <BundledComponentsDetailContent
-            components={sortedComponents}
-            loading={componentsLoading}
-            error={componentsError}
-          />
         </CardContent>
       </Card>
 
@@ -251,7 +220,7 @@ export function PlatformRuntimePage() {
             <div>
               <CardTitle>Active Services</CardTitle>
               <CardDescription>
-                Default operator-visible runtime services for the current AppOS instance.
+                Runtime services currently detected for this AppOS instance, including diagnostic services.
               </CardDescription>
             </div>
             <ActiveServicesControls controller={servicesController} />
@@ -261,23 +230,23 @@ export function PlatformRuntimePage() {
           <ActiveServicesTableContent
             controller={servicesController}
             hideControls
-            filter={defaultVisibilityService}
-            emptyMessage="No default-visibility services are configured."
+            emptyMessage="No active services are configured."
           />
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Diagnostic Services</CardTitle>
-          <CardDescription>{summarizeDiagnosticServices(diagnosticServiceCount)}</CardDescription>
+          <CardTitle>Built-in Components</CardTitle>
+          <CardDescription>
+            Built-in tools and embedded dependencies currently exposed inside the AppOS runtime.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <ActiveServicesTableContent
-            controller={servicesController}
-            hideControls
-            filter={nonDefaultVisibilityService}
-            emptyMessage="No diagnostic-only services are configured."
+          <BundledComponentsDetailContent
+            components={sortedComponents}
+            loading={componentsController.loading}
+            error={componentsController.error}
           />
         </CardContent>
       </Card>

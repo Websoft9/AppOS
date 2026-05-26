@@ -70,6 +70,54 @@ describe('ConnectorsPage', () => {
             fields: [{ id: 'endpoint', label: 'Server URL', type: 'url', required: true }],
           },
           {
+            id: 'http-proxy',
+            kind: 'proxy',
+            title: 'HTTP Proxy',
+            defaultEndpoint: 'http://proxy.example.com:8080',
+            fields: [
+              { id: 'endpoint', label: 'Proxy Endpoint', type: 'url', required: true },
+              {
+                id: 'auth_mode',
+                label: 'Authentication',
+                type: 'string',
+                required: true,
+                default: 'none',
+              },
+              { id: 'username', label: 'Username', type: 'string' },
+              {
+                id: 'credential',
+                label: 'Password Secret',
+                type: 'secret_ref',
+                secretTemplate: 'single_value',
+              },
+              { id: 'no_proxy', label: 'Bypass Hosts', type: 'string' },
+            ],
+          },
+          {
+            id: 'socks5-proxy',
+            kind: 'proxy',
+            title: 'SOCKS5 Proxy',
+            defaultEndpoint: 'socks5://proxy.example.com:1080',
+            fields: [
+              { id: 'endpoint', label: 'Proxy Endpoint', type: 'url', required: true },
+              {
+                id: 'auth_mode',
+                label: 'Authentication',
+                type: 'string',
+                required: true,
+                default: 'none',
+              },
+              { id: 'username', label: 'Username', type: 'string' },
+              {
+                id: 'credential',
+                label: 'Password Secret',
+                type: 'secret_ref',
+                secretTemplate: 'single_value',
+              },
+              { id: 'no_proxy', label: 'Bypass Hosts', type: 'string' },
+            ],
+          },
+          {
             id: 'generic-smtp',
             kind: 'smtp',
             title: 'Generic SMTP',
@@ -153,7 +201,7 @@ describe('ConnectorsPage', () => {
           },
         ])
       }
-      if (path === '/api/connectors?kind=rest_api,webhook,mcp,smtp,registry,dns') {
+      if (path === '/api/connectors?kind=rest_api,webhook,mcp,proxy,smtp,registry,dns') {
         return Promise.resolve([])
       }
       if (path === '/api/collections/groups/records?perPage=500&sort=name') {
@@ -161,7 +209,7 @@ describe('ConnectorsPage', () => {
       }
       if (
         path ===
-        "/api/collections/secrets/records?filter=(status='active'%26%26(template_id='single_value'))&sort=name"
+        "/api/collections/secrets/records?filter=((created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value'))&sort=name"
       ) {
         return Promise.resolve({
           items: [{ id: 'secret-1', name: 'smtp-password', template_id: 'single_value' }],
@@ -180,12 +228,16 @@ describe('ConnectorsPage', () => {
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/connectors/templates', { method: 'GET' })
-      expect(screen.getByRole('button', { name: 'Create' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Add Connector' })).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add Connector' }))
 
     const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).queryByLabelText('Runtime Default')).not.toBeInTheDocument()
+    expect(within(dialog).getByRole('heading', { name: 'Add Connector' })).toBeInTheDocument()
+    const nameInput = within(dialog).getByLabelText(/^Name/) as HTMLInputElement
+    expect(nameInput.value).toMatch(/^connector-\d{6}$/)
     const select = dialog.querySelector('select') as HTMLSelectElement | null
     if (!select) {
       throw new Error('expected profile select to be rendered')
@@ -202,6 +254,7 @@ describe('ConnectorsPage', () => {
       { label: 'REST API', options: ['Generic REST API'] },
       { label: 'Webhook', options: ['Generic Webhook'] },
       { label: 'MCP', options: ['Generic MCP'] },
+      { label: 'Proxy', options: ['HTTP Proxy', 'SOCKS5 Proxy'] },
       { label: 'SMTP', options: ['Generic SMTP', 'Amazon SES SMTP'] },
       { label: 'Registry', options: ['Generic OCI Registry', 'GitHub Container Registry'] },
       { label: 'DNS', options: ['Generic DNS Provider', 'Cloudflare DNS'] },
@@ -211,23 +264,21 @@ describe('ConnectorsPage', () => {
 
     expect(select.value).toBe('ses-smtp')
     expect(within(dialog).getByText('AWS Region')).toBeInTheDocument()
-
-    expect(within(dialog).getByText('Create Connector')).toBeInTheDocument()
   })
 
   it('loads relation options once when opening the create dialog', async () => {
     render(<ConnectorsPage />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Create' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Add Connector' })).toBeInTheDocument()
     })
 
     const initialGroupRequests = sendMock.mock.calls.filter(
       ([path]) => path === '/api/collections/groups/records?perPage=500&sort=name'
     )
-    expect(initialGroupRequests).toHaveLength(1)
+    expect(initialGroupRequests).toHaveLength(0)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add Connector' }))
 
     await screen.findByRole('dialog')
 
@@ -235,8 +286,41 @@ describe('ConnectorsPage', () => {
       const groupRequests = sendMock.mock.calls.filter(
         ([path]) => path === '/api/collections/groups/records?perPage=500&sort=name'
       )
-      expect(groupRequests).toHaveLength(2)
+      expect(groupRequests).toHaveLength(1)
     })
+  })
+
+  it('uses separate proxy profiles and only shows username/password when auth is enabled', async () => {
+    render(<ConnectorsPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add Connector' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Connector' }))
+
+    const dialog = await screen.findByRole('dialog')
+    const profileSelect = dialog.querySelector('select') as HTMLSelectElement | null
+    if (!profileSelect) {
+      throw new Error('expected profile select to be rendered')
+    }
+
+    fireEvent.change(profileSelect, { target: { value: 'socks5-proxy' } })
+
+    expect(within(dialog).queryByLabelText(/^Protocol/)).not.toBeInTheDocument()
+    expect((within(dialog).getByLabelText(/^Proxy Endpoint/) as HTMLInputElement).value).toBe(
+      'socks5://proxy.example.com:1080'
+    )
+
+    const authSelect = within(dialog).getByLabelText(/^Authentication/) as HTMLSelectElement
+    expect(authSelect.value).toBe('none')
+    expect(within(dialog).queryByLabelText(/^Username/)).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: 'Password Secret' })).not.toBeInTheDocument()
+
+    fireEvent.change(authSelect, { target: { value: 'username_password' } })
+
+    expect(within(dialog).getByLabelText(/^Username/)).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Password Secret' })).toBeInTheDocument()
   })
 
   it('lets the user jump to edit the selected secret from connector credentials', async () => {
@@ -245,10 +329,10 @@ describe('ConnectorsPage', () => {
     render(<ConnectorsPage />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Create' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Add Connector' })).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add Connector' }))
 
     const dialog = await screen.findByRole('dialog')
     const select = dialog.querySelector('select') as HTMLSelectElement | null

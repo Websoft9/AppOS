@@ -2229,7 +2229,7 @@ function FilesPage() {
       <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Upload File</DialogTitle>
+            <DialogTitle>Upload Files</DialogTitle>
             <DialogDescription>
               {`Max size: ${formatBytes(quota?.max_size_mb ?? 10)}. `}
               {`Max files per upload: ${uploadMaxFiles}. `}

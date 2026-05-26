@@ -26,6 +26,7 @@ import { Route as AppAuthProfileRouteImport } from './routes/_app/_auth/profile'
 import { Route as AppAuthPlatformComponentsRouteImport } from './routes/_app/_auth/platform-components'
 import { Route as AppAuthOverviewRouteImport } from './routes/_app/_auth/overview'
 import { Route as AppAuthGroupsRouteImport } from './routes/_app/_auth/groups'
+import { Route as AppAuthExtensionsRouteImport } from './routes/_app/_auth/extensions'
 import { Route as AppAuthDockerRouteImport } from './routes/_app/_auth/docker'
 import { Route as AppAuthDeployRouteImport } from './routes/_app/_auth/deploy'
 import { Route as AppAuthCertificatesRouteImport } from './routes/_app/_auth/certificates'
@@ -40,11 +41,9 @@ import { Route as AppAuthGroupsIndexRouteImport } from './routes/_app/_auth/grou
 import { Route as AppAuthDeployIndexRouteImport } from './routes/_app/_auth/deploy.index'
 import { Route as AppAuthTopicsIdRouteImport } from './routes/_app/_auth/topics.$id'
 import { Route as AppAuthResourcesTunnelsRouteImport } from './routes/_app/_auth/resources/tunnels'
-import { Route as AppAuthResourcesSupportedSoftwareRouteImport } from './routes/_app/_auth/resources/supported-software'
 import { Route as AppAuthResourcesServiceInstancesRouteImport } from './routes/_app/_auth/resources/service-instances'
 import { Route as AppAuthResourcesServersRouteImport } from './routes/_app/_auth/resources/servers'
 import { Route as AppAuthResourcesPlatformAccountsRouteImport } from './routes/_app/_auth/resources/platform-accounts'
-import { Route as AppAuthResourcesLocalSoftwareRouteImport } from './routes/_app/_auth/resources/local-software'
 import { Route as AppAuthResourcesConnectorsRouteImport } from './routes/_app/_auth/resources/connectors'
 import { Route as AppAuthResourcesAiProvidersRouteImport } from './routes/_app/_auth/resources/ai-providers'
 import { Route as AppAuthGroupsIdRouteImport } from './routes/_app/_auth/groups.$id'
@@ -149,6 +148,11 @@ const AppAuthGroupsRoute = AppAuthGroupsRouteImport.update({
   path: '/groups',
   getParentRoute: () => AppAuthRoute,
 } as any)
+const AppAuthExtensionsRoute = AppAuthExtensionsRouteImport.update({
+  id: '/extensions',
+  path: '/extensions',
+  getParentRoute: () => AppAuthRoute,
+} as any)
 const AppAuthDockerRoute = AppAuthDockerRouteImport.update({
   id: '/docker',
   path: '/docker',
@@ -218,12 +222,6 @@ const AppAuthResourcesTunnelsRoute = AppAuthResourcesTunnelsRouteImport.update({
   path: '/resources/tunnels',
   getParentRoute: () => AppAuthRoute,
 } as any)
-const AppAuthResourcesSupportedSoftwareRoute =
-  AppAuthResourcesSupportedSoftwareRouteImport.update({
-    id: '/resources/supported-software',
-    path: '/resources/supported-software',
-    getParentRoute: () => AppAuthRoute,
-  } as any)
 const AppAuthResourcesServiceInstancesRoute =
   AppAuthResourcesServiceInstancesRouteImport.update({
     id: '/resources/service-instances',
@@ -239,12 +237,6 @@ const AppAuthResourcesPlatformAccountsRoute =
   AppAuthResourcesPlatformAccountsRouteImport.update({
     id: '/resources/platform-accounts',
     path: '/resources/platform-accounts',
-    getParentRoute: () => AppAuthRoute,
-  } as any)
-const AppAuthResourcesLocalSoftwareRoute =
-  AppAuthResourcesLocalSoftwareRouteImport.update({
-    id: '/resources/local-software',
-    path: '/resources/local-software',
     getParentRoute: () => AppAuthRoute,
   } as any)
 const AppAuthResourcesConnectorsRoute =
@@ -366,6 +358,7 @@ export interface FileRoutesByFullPath {
   '/certificates': typeof AppAuthCertificatesRoute
   '/deploy': typeof AppAuthDeployRouteWithChildren
   '/docker': typeof AppAuthDockerRoute
+  '/extensions': typeof AppAuthExtensionsRoute
   '/groups': typeof AppAuthGroupsRouteWithChildren
   '/overview': typeof AppAuthOverviewRoute
   '/platform-components': typeof AppAuthPlatformComponentsRoute
@@ -389,11 +382,9 @@ export interface FileRoutesByFullPath {
   '/groups/$id': typeof AppAuthGroupsIdRoute
   '/resources/ai-providers': typeof AppAuthResourcesAiProvidersRoute
   '/resources/connectors': typeof AppAuthResourcesConnectorsRoute
-  '/resources/local-software': typeof AppAuthResourcesLocalSoftwareRoute
   '/resources/platform-accounts': typeof AppAuthResourcesPlatformAccountsRoute
   '/resources/servers': typeof AppAuthResourcesServersRoute
   '/resources/service-instances': typeof AppAuthResourcesServiceInstancesRoute
-  '/resources/supported-software': typeof AppAuthResourcesSupportedSoftwareRoute
   '/resources/tunnels': typeof AppAuthResourcesTunnelsRoute
   '/topics/$id': typeof AppAuthTopicsIdRoute
   '/deploy/': typeof AppAuthDeployIndexRoute
@@ -419,6 +410,7 @@ export interface FileRoutesByTo {
   '/audit': typeof AppAuthAuditRoute
   '/certificates': typeof AppAuthCertificatesRoute
   '/docker': typeof AppAuthDockerRoute
+  '/extensions': typeof AppAuthExtensionsRoute
   '/overview': typeof AppAuthOverviewRoute
   '/platform-components': typeof AppAuthPlatformComponentsRoute
   '/profile': typeof AppAuthProfileRoute
@@ -440,11 +432,9 @@ export interface FileRoutesByTo {
   '/groups/$id': typeof AppAuthGroupsIdRoute
   '/resources/ai-providers': typeof AppAuthResourcesAiProvidersRoute
   '/resources/connectors': typeof AppAuthResourcesConnectorsRoute
-  '/resources/local-software': typeof AppAuthResourcesLocalSoftwareRoute
   '/resources/platform-accounts': typeof AppAuthResourcesPlatformAccountsRoute
   '/resources/servers': typeof AppAuthResourcesServersRoute
   '/resources/service-instances': typeof AppAuthResourcesServiceInstancesRoute
-  '/resources/supported-software': typeof AppAuthResourcesSupportedSoftwareRoute
   '/resources/tunnels': typeof AppAuthResourcesTunnelsRoute
   '/topics/$id': typeof AppAuthTopicsIdRoute
   '/deploy': typeof AppAuthDeployIndexRoute
@@ -475,6 +465,7 @@ export interface FileRoutesById {
   '/_app/_auth/certificates': typeof AppAuthCertificatesRoute
   '/_app/_auth/deploy': typeof AppAuthDeployRouteWithChildren
   '/_app/_auth/docker': typeof AppAuthDockerRoute
+  '/_app/_auth/extensions': typeof AppAuthExtensionsRoute
   '/_app/_auth/groups': typeof AppAuthGroupsRouteWithChildren
   '/_app/_auth/overview': typeof AppAuthOverviewRoute
   '/_app/_auth/platform-components': typeof AppAuthPlatformComponentsRoute
@@ -498,11 +489,9 @@ export interface FileRoutesById {
   '/_app/_auth/groups/$id': typeof AppAuthGroupsIdRoute
   '/_app/_auth/resources/ai-providers': typeof AppAuthResourcesAiProvidersRoute
   '/_app/_auth/resources/connectors': typeof AppAuthResourcesConnectorsRoute
-  '/_app/_auth/resources/local-software': typeof AppAuthResourcesLocalSoftwareRoute
   '/_app/_auth/resources/platform-accounts': typeof AppAuthResourcesPlatformAccountsRoute
   '/_app/_auth/resources/servers': typeof AppAuthResourcesServersRoute
   '/_app/_auth/resources/service-instances': typeof AppAuthResourcesServiceInstancesRoute
-  '/_app/_auth/resources/supported-software': typeof AppAuthResourcesSupportedSoftwareRoute
   '/_app/_auth/resources/tunnels': typeof AppAuthResourcesTunnelsRoute
   '/_app/_auth/topics/$id': typeof AppAuthTopicsIdRoute
   '/_app/_auth/deploy/': typeof AppAuthDeployIndexRoute
@@ -531,6 +520,7 @@ export interface FileRouteTypes {
     | '/certificates'
     | '/deploy'
     | '/docker'
+    | '/extensions'
     | '/groups'
     | '/overview'
     | '/platform-components'
@@ -554,11 +544,9 @@ export interface FileRouteTypes {
     | '/groups/$id'
     | '/resources/ai-providers'
     | '/resources/connectors'
-    | '/resources/local-software'
     | '/resources/platform-accounts'
     | '/resources/servers'
     | '/resources/service-instances'
-    | '/resources/supported-software'
     | '/resources/tunnels'
     | '/topics/$id'
     | '/deploy/'
@@ -584,6 +572,7 @@ export interface FileRouteTypes {
     | '/audit'
     | '/certificates'
     | '/docker'
+    | '/extensions'
     | '/overview'
     | '/platform-components'
     | '/profile'
@@ -605,11 +594,9 @@ export interface FileRouteTypes {
     | '/groups/$id'
     | '/resources/ai-providers'
     | '/resources/connectors'
-    | '/resources/local-software'
     | '/resources/platform-accounts'
     | '/resources/servers'
     | '/resources/service-instances'
-    | '/resources/supported-software'
     | '/resources/tunnels'
     | '/topics/$id'
     | '/deploy'
@@ -639,6 +626,7 @@ export interface FileRouteTypes {
     | '/_app/_auth/certificates'
     | '/_app/_auth/deploy'
     | '/_app/_auth/docker'
+    | '/_app/_auth/extensions'
     | '/_app/_auth/groups'
     | '/_app/_auth/overview'
     | '/_app/_auth/platform-components'
@@ -662,11 +650,9 @@ export interface FileRouteTypes {
     | '/_app/_auth/groups/$id'
     | '/_app/_auth/resources/ai-providers'
     | '/_app/_auth/resources/connectors'
-    | '/_app/_auth/resources/local-software'
     | '/_app/_auth/resources/platform-accounts'
     | '/_app/_auth/resources/servers'
     | '/_app/_auth/resources/service-instances'
-    | '/_app/_auth/resources/supported-software'
     | '/_app/_auth/resources/tunnels'
     | '/_app/_auth/topics/$id'
     | '/_app/_auth/deploy/'
@@ -808,6 +794,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthGroupsRouteImport
       parentRoute: typeof AppAuthRoute
     }
+    '/_app/_auth/extensions': {
+      id: '/_app/_auth/extensions'
+      path: '/extensions'
+      fullPath: '/extensions'
+      preLoaderRoute: typeof AppAuthExtensionsRouteImport
+      parentRoute: typeof AppAuthRoute
+    }
     '/_app/_auth/docker': {
       id: '/_app/_auth/docker'
       path: '/docker'
@@ -906,13 +899,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthResourcesTunnelsRouteImport
       parentRoute: typeof AppAuthRoute
     }
-    '/_app/_auth/resources/supported-software': {
-      id: '/_app/_auth/resources/supported-software'
-      path: '/resources/supported-software'
-      fullPath: '/resources/supported-software'
-      preLoaderRoute: typeof AppAuthResourcesSupportedSoftwareRouteImport
-      parentRoute: typeof AppAuthRoute
-    }
     '/_app/_auth/resources/service-instances': {
       id: '/_app/_auth/resources/service-instances'
       path: '/resources/service-instances'
@@ -932,13 +918,6 @@ declare module '@tanstack/react-router' {
       path: '/resources/platform-accounts'
       fullPath: '/resources/platform-accounts'
       preLoaderRoute: typeof AppAuthResourcesPlatformAccountsRouteImport
-      parentRoute: typeof AppAuthRoute
-    }
-    '/_app/_auth/resources/local-software': {
-      id: '/_app/_auth/resources/local-software'
-      path: '/resources/local-software'
-      fullPath: '/resources/local-software'
-      preLoaderRoute: typeof AppAuthResourcesLocalSoftwareRouteImport
       parentRoute: typeof AppAuthRoute
     }
     '/_app/_auth/resources/connectors': {
@@ -1197,6 +1176,7 @@ interface AppAuthRouteChildren {
   AppAuthCertificatesRoute: typeof AppAuthCertificatesRoute
   AppAuthDeployRoute: typeof AppAuthDeployRouteWithChildren
   AppAuthDockerRoute: typeof AppAuthDockerRoute
+  AppAuthExtensionsRoute: typeof AppAuthExtensionsRoute
   AppAuthGroupsRoute: typeof AppAuthGroupsRouteWithChildren
   AppAuthOverviewRoute: typeof AppAuthOverviewRoute
   AppAuthPlatformComponentsRoute: typeof AppAuthPlatformComponentsRoute
@@ -1207,11 +1187,9 @@ interface AppAuthRouteChildren {
   AppAuthTopicsRoute: typeof AppAuthTopicsRouteWithChildren
   AppAuthResourcesAiProvidersRoute: typeof AppAuthResourcesAiProvidersRoute
   AppAuthResourcesConnectorsRoute: typeof AppAuthResourcesConnectorsRoute
-  AppAuthResourcesLocalSoftwareRoute: typeof AppAuthResourcesLocalSoftwareRoute
   AppAuthResourcesPlatformAccountsRoute: typeof AppAuthResourcesPlatformAccountsRoute
   AppAuthResourcesServersRoute: typeof AppAuthResourcesServersRoute
   AppAuthResourcesServiceInstancesRoute: typeof AppAuthResourcesServiceInstancesRoute
-  AppAuthResourcesSupportedSoftwareRoute: typeof AppAuthResourcesSupportedSoftwareRoute
   AppAuthResourcesTunnelsRoute: typeof AppAuthResourcesTunnelsRoute
   AppAuthResourcesIndexRoute: typeof AppAuthResourcesIndexRoute
   AppAuthStoreIndexRoute: typeof AppAuthStoreIndexRoute
@@ -1226,6 +1204,7 @@ const AppAuthRouteChildren: AppAuthRouteChildren = {
   AppAuthCertificatesRoute: AppAuthCertificatesRoute,
   AppAuthDeployRoute: AppAuthDeployRouteWithChildren,
   AppAuthDockerRoute: AppAuthDockerRoute,
+  AppAuthExtensionsRoute: AppAuthExtensionsRoute,
   AppAuthGroupsRoute: AppAuthGroupsRouteWithChildren,
   AppAuthOverviewRoute: AppAuthOverviewRoute,
   AppAuthPlatformComponentsRoute: AppAuthPlatformComponentsRoute,
@@ -1236,12 +1215,9 @@ const AppAuthRouteChildren: AppAuthRouteChildren = {
   AppAuthTopicsRoute: AppAuthTopicsRouteWithChildren,
   AppAuthResourcesAiProvidersRoute: AppAuthResourcesAiProvidersRoute,
   AppAuthResourcesConnectorsRoute: AppAuthResourcesConnectorsRoute,
-  AppAuthResourcesLocalSoftwareRoute: AppAuthResourcesLocalSoftwareRoute,
   AppAuthResourcesPlatformAccountsRoute: AppAuthResourcesPlatformAccountsRoute,
   AppAuthResourcesServersRoute: AppAuthResourcesServersRoute,
   AppAuthResourcesServiceInstancesRoute: AppAuthResourcesServiceInstancesRoute,
-  AppAuthResourcesSupportedSoftwareRoute:
-    AppAuthResourcesSupportedSoftwareRoute,
   AppAuthResourcesTunnelsRoute: AppAuthResourcesTunnelsRoute,
   AppAuthResourcesIndexRoute: AppAuthResourcesIndexRoute,
   AppAuthStoreIndexRoute: AppAuthStoreIndexRoute,

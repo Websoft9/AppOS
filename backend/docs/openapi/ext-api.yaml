@@ -5045,15 +5045,13 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
+                $ref: '#/components/schemas/SuccessEnvelope'
         "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/servers/local/docker-bridge:
     get:
       tags: [Servers]
@@ -8337,7 +8335,7 @@ paths:
     get:
       tags: [Software]
       summary: List AppOS-local software components
-      description: "Returns AppOS-local software inventory derived from the local catalog and runtime checks."
+      description: "Returns AppOS-local built-in component inventory derived from the local runtime registry, with software-catalog metadata attached when available."
       operationId: get_api_software_local
       security:
         - bearerAuth: []

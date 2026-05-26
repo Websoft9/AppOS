@@ -16,7 +16,6 @@ import {
   Upload,
   ArrowDown,
   ArrowUp,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Filter,
@@ -69,7 +68,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/
 import { type PBList, pbFilterValue } from '@/lib/groups'
 import { getDrawerTierStyle } from '@/lib/drawer-tiers'
 import { cn } from '@/lib/utils'
-import { ResourceFormField } from './ResourceFormField'
+import { ResourceDialogForm } from './ResourceDialogForm'
 import type {
   FieldDef,
   RelationOption,
@@ -81,6 +80,7 @@ export type {
   Column,
   FieldDef,
   RelCreateField,
+  RelationOption,
   ResourcePageConfig,
   SelectOption,
 } from './resource-page-types'
@@ -183,7 +183,6 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   const [formData, setFormData] = useState<Record<string, unknown>>({})
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
-  const [advancedOpen, setAdvancedOpen] = useState(false)
 
   const [deleteTarget, setDeleteTarget] = useState<Record<string, unknown> | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -443,6 +442,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   const defaultDialogDescription = editingItem
     ? 'Update the resource details below.'
     : 'Fill in the details to create a new resource.'
+  const compactHeaderActionsOnMobile = config.compactHeaderActionsOnMobile ?? false
   const dialogHeader = config.dialogHeader?.({
     formData,
     editingItem,
@@ -679,7 +679,6 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
 
   function openCreateForm(initialData: Record<string, unknown> = {}) {
     setEditingItem(null)
-    setAdvancedOpen(false)
     const defaults = buildDefaultFormData(initialData, null)
     setFormData({ ...defaults, ...initialData })
     setFormError('')
@@ -697,7 +696,6 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
 
   function openEditDialog(item: Record<string, unknown>) {
     setEditingItem(item)
-    setAdvancedOpen(false)
     const data: Record<string, unknown> = {}
     for (const f of getFields(item, item)) {
       const val = item[f.key]
@@ -736,7 +734,6 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
       openEditDialog(editingItem)
       return
     }
-    setAdvancedOpen(false)
     setFormData(buildDefaultFormData(formData, null))
   }
 
@@ -1194,8 +1191,8 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           {config.parentNav && (
             <Link
               to={config.parentNav.href as never}
@@ -1206,13 +1203,28 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
             </Link>
           )}
           <h1 className="text-2xl font-bold tracking-tight">{config.title}</h1>
-          {config.description && <p className="text-muted-foreground mt-1">{config.description}</p>}
+          {config.description && (
+            <p className={cn('mt-1 text-muted-foreground', config.descriptionClassName)}>
+              {config.description}
+            </p>
+          )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-end gap-2 self-end sm:self-auto">
           {config.showRefreshButton && (
             <Button
               variant="outline"
-              size={config.refreshButtonIconOnly === false ? 'default' : 'icon'}
+              size={
+                compactHeaderActionsOnMobile
+                  ? 'icon'
+                  : config.refreshButtonIconOnly === false
+                    ? 'default'
+                    : 'icon'
+              }
+              className={cn(
+                compactHeaderActionsOnMobile &&
+                  config.refreshButtonIconOnly === false &&
+                  'sm:w-auto sm:px-4'
+              )}
               onClick={() => {
                 void handleRefresh()
               }}
@@ -1220,21 +1232,42 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
             >
               {(config.refreshButtonShowIcon ?? true) && (
                 <RefreshCw
-                  className={`h-4 w-4 ${config.refreshButtonIconOnly === false ? 'mr-2' : ''}`}
+                  className={cn(
+                    'h-4 w-4',
+                    config.refreshButtonIconOnly === false && !compactHeaderActionsOnMobile && 'mr-2',
+                    compactHeaderActionsOnMobile && config.refreshButtonIconOnly === false && 'sm:mr-2'
+                  )}
                 />
               )}
-              {config.refreshButtonIconOnly === false && (config.refreshButtonLabel ?? 'Refresh')}
+              {config.refreshButtonIconOnly === false && (
+                <span className={cn(compactHeaderActionsOnMobile && 'hidden sm:inline')}>
+                  {config.refreshButtonLabel ?? 'Refresh'}
+                </span>
+              )}
             </Button>
           )}
           <Button
             onClick={openCreateDialog}
-            size={config.createButtonIconOnly ? 'icon' : 'default'}
+            size={compactHeaderActionsOnMobile || config.createButtonIconOnly ? 'icon' : 'default'}
+            className={cn(
+              compactHeaderActionsOnMobile && !config.createButtonIconOnly && 'sm:w-auto sm:px-4'
+            )}
             title={config.createButtonLabel ?? 'Create'}
           >
             {(config.createButtonShowIcon ?? true) && (
-              <Plus className={`h-4 w-4 ${config.createButtonIconOnly ? '' : 'mr-2'}`} />
+              <Plus
+                className={cn(
+                  'h-4 w-4',
+                  !config.createButtonIconOnly && !compactHeaderActionsOnMobile && 'mr-2',
+                  compactHeaderActionsOnMobile && !config.createButtonIconOnly && 'sm:mr-2'
+                )}
+              />
             )}
-            {!config.createButtonIconOnly && (config.createButtonLabel ?? 'Create')}
+            {!config.createButtonIconOnly && (
+              <span className={cn(compactHeaderActionsOnMobile && 'hidden sm:inline')}>
+                {config.createButtonLabel ?? 'Create'}
+              </span>
+            )}
           </Button>
         </div>
       </div>
@@ -1252,11 +1285,11 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
       {showListControls && (
         <div
           className={cn(
-            'flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between',
+            'flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between',
             showListControlsBorder ? 'rounded-lg border bg-muted/20 p-3' : 'p-0'
           )}
         >
-          <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             {searchableColumns.length > 0 && (
               <div
                 className={cn('relative', config.searchContainerClassName ?? 'w-full sm:max-w-sm')}
@@ -1268,7 +1301,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                   placeholder={
                     config.searchPlaceholder ?? `Search ${config.title.toLowerCase()}...`
                   }
-                  className="pl-9"
+                  className={cn('pl-9', config.searchInputClassName)}
                 />
               </div>
             )}
@@ -1328,7 +1361,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
             showListControlsReset ||
             showHeaderPagination ||
             headerTrailingControls) && (
-            <div className="flex items-center gap-2 self-end sm:self-auto">
+            <div className="flex flex-wrap items-center justify-end gap-2 self-end sm:self-auto">
               {showHeaderPageSizeSelector && paginationVariant !== 'minimal'
                 ? renderPageSizeSelector('h-9')
                 : null}
@@ -1848,165 +1881,68 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog
+      <ResourceDialogForm
         open={dialogOpen}
         onOpenChange={v => {
           setDialogOpen(v)
           if (!v) setCreateRelOpen(false)
-          if (!v) setAdvancedOpen(false)
         }}
-      >
-        <DialogContent
-          className={`${config.dialogContentClassName ?? 'sm:max-w-lg'} max-h-[85vh] overflow-y-auto`}
-        >
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <DialogHeader>
-              <DialogTitle>{dialogHeader?.title ?? defaultDialogTitle}</DialogTitle>
-              <DialogDescription>
-                {dialogHeader?.description ?? defaultDialogDescription}
-              </DialogDescription>
-
-              {headerFields.length > 0 && (
-                <div className="mt-4 grid gap-3">
-                  {headerFields.map(field => (
-                    <ResourceFormField
-                      key={field.key}
-                      field={field}
-                      formData={formData}
-                      editingItem={editingItem}
-                      relationOptions={relOpts[field.key] ?? []}
-                      updateField={updateField}
-                      handleChange={handleChange}
-                      addRelationOption={(id, label, raw) => {
-                        setRelOpts(prev => ({
-                          ...prev,
-                          [field.key]: [...(prev[field.key] ?? []), { id, label, raw }],
-                        }))
-                      }}
-                      openRelationCreate={openCreateRelDialog}
-                      handleFileUpload={handleFileUpload}
-                      fileInputRef={(key, element) => {
-                        fileRefs.current[key] = element
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
-            </DialogHeader>
-
-            {!dialogHeader?.hideSelectedProductSummary &&
-              String(formData['selected_product'] ?? '').trim() && (
-                <div className="rounded-lg border bg-muted/40 px-4 py-3">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Selected Product
-                    </span>
-                    <span className="font-semibold text-foreground">
-                      {String(formData['selected_product'] ?? '')}
-                    </span>
-                    {String(formData['selected_product_meta'] ?? '').trim() && (
-                      <span className="text-xs text-muted-foreground">
-                        {String(formData['selected_product_meta'] ?? '')}
-                      </span>
-                    )}
-                    {String(formData['selected_product_description'] ?? '').trim() && (
-                      <span className="text-sm text-muted-foreground">
-                        {String(formData['selected_product_description'] ?? '')}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
-
-            {primaryFields.map(field => (
-              <ResourceFormField
-                key={field.key}
-                field={field}
-                formData={formData}
-                editingItem={editingItem}
-                relationOptions={relOpts[field.key] ?? []}
-                updateField={updateField}
-                handleChange={handleChange}
-                addRelationOption={(id, label, raw) => {
-                  setRelOpts(prev => ({
-                    ...prev,
-                    [field.key]: [...(prev[field.key] ?? []), { id, label, raw }],
-                  }))
-                }}
-                openRelationCreate={openCreateRelDialog}
-                handleFileUpload={handleFileUpload}
-                fileInputRef={(key, element) => {
-                  fileRefs.current[key] = element
-                }}
-              />
-            ))}
-
-            {advancedFields.length > 0 && (
-              <div className="overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-b from-muted/70 via-muted/30 to-background shadow-sm">
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between gap-4 border-b border-border/70 px-5 py-4 text-left"
-                  onClick={() => setAdvancedOpen(prev => !prev)}
-                >
-                  <div>
-                    <div className="text-sm font-medium text-foreground">Advanced</div>
-                  </div>
-                  {advancedOpen ? (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  )}
-                </button>
-
-                {advancedOpen && (
-                  <div className="space-y-4 bg-background/90 px-5 py-5">
-                    {advancedFields.map(field => (
-                      <ResourceFormField
-                        key={field.key}
-                        field={field}
-                        formData={formData}
-                        editingItem={editingItem}
-                        relationOptions={relOpts[field.key] ?? []}
-                        updateField={updateField}
-                        handleChange={handleChange}
-                        addRelationOption={(id, label, raw) => {
-                          setRelOpts(prev => ({
-                            ...prev,
-                            [field.key]: [...(prev[field.key] ?? []), { id, label, raw }],
-                          }))
-                        }}
-                        openRelationCreate={openCreateRelDialog}
-                        handleFileUpload={handleFileUpload}
-                        fileInputRef={(key, element) => {
-                          fileRefs.current[key] = element
-                        }}
-                      />
-                    ))}
-                  </div>
+        className={config.dialogContentClassName}
+        title={dialogHeader?.title ?? defaultDialogTitle}
+        description={dialogHeader?.description ?? defaultDialogDescription}
+        formData={formData}
+        editingItem={editingItem}
+        headerFields={headerFields}
+        primaryFields={primaryFields}
+        advancedFields={advancedFields}
+        relationOptions={relOpts}
+        updateField={updateField}
+        handleChange={handleChange}
+        addRelationOption={(fieldKey, id, label, raw) => {
+          setRelOpts(prev => ({
+            ...prev,
+            [fieldKey]: [...(prev[fieldKey] ?? []), { id, label, raw }],
+          }))
+        }}
+        openRelationCreate={openCreateRelDialog}
+        handleFileUpload={handleFileUpload}
+        fileInputRef={(key, element) => {
+          fileRefs.current[key] = element
+        }}
+        selectedSummary={
+          !dialogHeader?.hideSelectedProductSummary && String(formData['selected_product'] ?? '').trim() ? (
+            <div className="rounded-lg border bg-muted/40 px-4 py-3">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Selected Product
+                </span>
+                <span className="font-semibold text-foreground">
+                  {String(formData['selected_product'] ?? '')}
+                </span>
+                {String(formData['selected_product_meta'] ?? '').trim() && (
+                  <span className="text-xs text-muted-foreground">
+                    {String(formData['selected_product_meta'] ?? '')}
+                  </span>
+                )}
+                {String(formData['selected_product_description'] ?? '').trim() && (
+                  <span className="text-sm text-muted-foreground">
+                    {String(formData['selected_product_description'] ?? '')}
+                  </span>
                 )}
               </div>
-            )}
-
-            {formError && <p className="text-destructive text-sm">{formError}</p>}
-
-            <DialogFooter>
-              {config.resetFormButtonLabel ? (
-                <Button type="button" variant="outline" onClick={resetFormDialog}>
-                  {config.resetFormButtonLabel}
-                </Button>
-              ) : (
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                  Cancel
-                </Button>
-              )}
-              <Button type="submit" disabled={saving}>
-                {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {editingItem ? 'Save' : 'Create'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+            </div>
+          ) : undefined
+        }
+        error={formError}
+        saving={saving}
+        submitLabel={editingItem ? 'Save' : 'Create'}
+        resetAction={
+          config.resetFormButtonLabel
+            ? { label: config.resetFormButtonLabel, onClick: resetFormDialog }
+            : undefined
+        }
+        onSubmit={handleSubmit}
+      />
 
       {/* Inline "create relation" mini-dialog */}
       <Dialog open={createRelOpen} onOpenChange={setCreateRelOpen}>

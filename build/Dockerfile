@@ -1,3 +1,5 @@
+ARG VICTORIAMETRICS_VERSION=v1.144.0
+
 # ===========================
 # Stage 1: Build Web App
 # ===========================
@@ -39,7 +41,7 @@ FROM docker:28-cli AS docker-cli-provider
 # ===========================
 # VictoriaMetrics Binary
 # ===========================
-FROM victoriametrics/victoria-metrics:v1.124.0 AS victoriametrics-bin
+FROM victoriametrics/victoria-metrics:${VICTORIAMETRICS_VERSION} AS victoriametrics-bin
 
 # ===========================
 # Stage 2: Build Backend (PocketBase Framework)
@@ -74,6 +76,8 @@ RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
 # ===========================
 FROM debian:bookworm-slim
 
+ARG SUPERVISOR_VERSION=4.3.0
+
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
 ARG ALL_PROXY
@@ -101,7 +105,6 @@ LABEL maintainer="Websoft9<help@websoft9.com>" \
 # Install runtime dependencies.
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        supervisor \
         redis-server \
         unzip \
         ca-certificates \
@@ -109,7 +112,14 @@ RUN apt-get update \
         bash \
         curl \
         git \
+        python3 \
+        python3-socks \
+        python3-venv \
         nginx \
+    && python3 -m venv --system-site-packages /opt/supervisor \
+    && /opt/supervisor/bin/pip install --no-cache-dir supervisor==${SUPERVISOR_VERSION} \
+    && ln -sf /opt/supervisor/bin/supervisord /usr/local/bin/supervisord \
+    && ln -sf /opt/supervisor/bin/supervisorctl /usr/local/bin/supervisorctl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Node.js 24 from node-provider
@@ -166,6 +176,7 @@ RUN set -eux; \
     test -x /usr/local/bin/victoria-metrics-prod || { echo "ERROR: victoria-metrics-prod binary not found"; exit 1; }; \
     test -x /usr/local/bin/pi || { echo "ERROR: pi binary not found"; exit 1; }; \
     test -x /entrypoint.sh || { echo "ERROR: entrypoint.sh not executable"; exit 1; }; \
+    supervisord --version | grep -Fx "${SUPERVISOR_VERSION}" || { echo "ERROR: supervisor version mismatch"; exit 1; }; \
     nginx -t || { echo "ERROR: nginx config invalid"; exit 1; }
 
 ENV PI_CODING_AGENT_DIR=/appos/data/pi \

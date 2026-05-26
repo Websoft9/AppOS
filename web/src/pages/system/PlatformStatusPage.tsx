@@ -733,6 +733,7 @@ export function PlatformStatusPage() {
   )
   const [customRangeOpen, setCustomRangeOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [trendLoading, setTrendLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
   const customRangeRef = useRef<HTMLDivElement | null>(null)
@@ -749,17 +750,9 @@ export function PlatformStatusPage() {
       setError('')
 
       try {
-        const rangeQuery =
-          selectedRange === 'custom'
-            ? buildCustomRangeQuery(appliedCustomRange)
-            : buildRangeQuery(selectedRange)
-        const [overviewResult, servicesResult, platformPerformanceResult, platformLatestResult] = await Promise.allSettled([
+        const [overviewResult, servicesResult, platformLatestResult] = await Promise.allSettled([
           pb.send<MonitorOverviewResponse>('/api/monitor/overview', { method: 'GET' }),
           fetchActiveServices(),
-          pb.send<MonitorSeriesResponse>(
-            `/api/monitor/targets/platform/appos-core/series?${(rangeQuery ?? buildRangeQuery('1h')).toString()}`,
-            { method: 'GET' }
-          ),
           pb.send<MonitorLatestResponse>(
             `/api/monitor/targets/platform/appos-core/latest?${new URLSearchParams({ series: PLATFORM_LATEST_QUERY }).toString()}`,
             { method: 'GET' }
@@ -769,11 +762,10 @@ export function PlatformStatusPage() {
         const failures = getRejectedSections([
           { section: 'overview', result: overviewResult },
           { section: 'services', result: servicesResult },
-          { section: 'platformPerformance', result: platformPerformanceResult },
           { section: 'platformLatest', result: platformLatestResult },
         ])
 
-        if (failures.length === 4) {
+        if (failures.length === 3) {
           throw new Error('Failed to load platform status')
         }
 
@@ -788,16 +780,6 @@ export function PlatformStatusPage() {
         if (servicesResult.status === 'fulfilled') {
           setServices(servicesResult.value)
         }
-        if (platformPerformanceResult.status === 'fulfilled') {
-          setPlatformPerformance({
-            ...platformPerformanceResult.value,
-            series: Array.isArray(platformPerformanceResult.value.series)
-              ? platformPerformanceResult.value.series
-              : [],
-          })
-        } else {
-          setPlatformPerformance(null)
-        }
         if (platformLatestResult.status === 'fulfilled') {
           setPlatformLatest({
             ...platformLatestResult.value,
@@ -810,19 +792,47 @@ export function PlatformStatusPage() {
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load platform status')
-        setPlatformPerformance(null)
         setPlatformLatest(null)
       } finally {
         setLoading(false)
         setRefreshing(false)
       }
     },
-    [appliedCustomRange, selectedRange]
+    []
+  )
+
+  const loadTrend = useCallback(
+    async () => {
+      setTrendLoading(true)
+      try {
+        const rangeQuery =
+          selectedRange === 'custom'
+            ? buildCustomRangeQuery(appliedCustomRange)
+            : buildRangeQuery(selectedRange)
+        const result = await pb.send<MonitorSeriesResponse>(
+          `/api/monitor/targets/platform/appos-core/series?${(rangeQuery ?? buildRangeQuery('1h')).toString()}`,
+          { method: 'GET' }
+        )
+        setPlatformPerformance({
+          ...result,
+          series: Array.isArray(result.series) ? result.series : [],
+        })
+      } catch {
+        setPlatformPerformance(null)
+      } finally {
+        setTrendLoading(false)
+      }
+    },
+    [selectedRange, appliedCustomRange]
   )
 
   useEffect(() => {
     void loadStatus()
   }, [loadStatus])
+
+  useEffect(() => {
+    void loadTrend()
+  }, [loadTrend])
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -837,9 +847,10 @@ export function PlatformStatusPage() {
 		if (!documentVisible) return
     const timer = window.setInterval(() => {
       void loadStatus(true)
+      void loadTrend()
     }, 30000)
     return () => window.clearInterval(timer)
-  }, [documentVisible, loadStatus])
+  }, [documentVisible, loadStatus, loadTrend])
 
   useEffect(() => {
 		if (!documentVisible) return
@@ -868,7 +879,8 @@ export function PlatformStatusPage() {
     previousDocumentVisible.current = documentVisible
     if (!becameVisible) return
     void loadStatus(true)
-  }, [documentVisible, loadStatus])
+    void loadTrend()
+  }, [documentVisible, loadStatus, loadTrend])
 
   useEffect(() => {
     if (!customRangeOpen) return
@@ -1040,151 +1052,156 @@ export function PlatformStatusPage() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <CardTitle>Platform performance</CardTitle>
-              <CardDescription>
-                Control-plane self metrics for the AppOS runtime container, including memory usage versus container limit.
-              </CardDescription>
-            </div>
-            <div ref={customRangeRef} className="relative flex flex-col items-end gap-3">
-              <SharedTimeRangeSelector
-                value={selectedRange}
-                options={RANGE_OPTIONS}
-                onChange={handleRangeChange}
-                isOptionActive={(option, current) => {
-                  if (option === 'custom') return customRangeOpen || current === 'custom'
-                  return !customRangeOpen && current === option
-                }}
-                ariaLabel="Platform performance time range"
-                className="justify-end gap-1.5"
-                buttonSize="xs"
-                buttonClassName="text-[11px]"
-              />
-              {customRangeOpen ? (
-                <div className="absolute right-0 top-full z-20 mt-2 w-[420px] max-w-[calc(100vw-2rem)] rounded-lg border bg-background p-5 shadow-lg">
-                  <div className="space-y-3">
-                    <div className="space-y-2">
-                      <label
-                        className="text-sm font-medium text-foreground"
-                        htmlFor="platformPerfStart"
-                      >
-                        Start
-                      </label>
-                      <div className="relative">
-                        <Input
-                          ref={startInputRef}
-                          id="platformPerfStart"
-                          type="datetime-local"
-                          value={draftCustomRange.startLocal}
-                          onChange={event =>
-                            setDraftCustomRange(current => ({
-                              ...current,
-                              startLocal: event.target.value,
-                            }))
-                          }
-                          max={draftCustomRange.endLocal || undefined}
-                          className="pr-12 text-left [appearance:textfield] [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full"
-                        />
-                        <button
-                          type="button"
-                          aria-label="Open start date picker"
-                          className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-                          onClick={() => openNativePicker(startInputRef.current)}
-                        >
-                          <CalendarDays className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <label
-                        className="text-sm font-medium text-foreground"
-                        htmlFor="platformPerfEnd"
-                      >
-                        End
-                      </label>
-                      <div className="relative">
-                        <Input
-                          ref={endInputRef}
-                          id="platformPerfEnd"
-                          type="datetime-local"
-                          value={draftCustomRange.endLocal}
-                          onChange={event =>
-                            setDraftCustomRange(current => ({
-                              ...current,
-                              endLocal: event.target.value,
-                            }))
-                          }
-                          min={draftCustomRange.startLocal || undefined}
-                          className="pr-12 text-left [appearance:textfield] [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full"
-                        />
-                        <button
-                          type="button"
-                          aria-label="Open end date picker"
-                          className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-                          onClick={() => openNativePicker(endInputRef.current)}
-                        >
-                          <CalendarDays className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {formatCustomRangeDescription(draftCustomRange)}
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" onClick={cancelCustomRange}>
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={applyCustomRange}
-                        disabled={!isValidCustomRange(draftCustomRange)}
-                      >
-                        Apply
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </div>
+          <CardTitle>Platform performance</CardTitle>
+          <CardDescription>
+            Control-plane self metrics for the AppOS runtime container, including memory usage versus container limit.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          {loading && platformPerformanceSeries.length === 0 ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading platform trends...
-            </div>
-          ) : platformPerformanceSeries.length === 0 ? (
-            <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-              Platform self metrics are not available yet.
-            </div>
-          ) : (
-            <div className="space-y-5">
-              <section className="rounded-lg border bg-muted/10 p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <div className="text-sm font-medium text-foreground">Latest Stat</div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      Latest observed values sampled at monitor cadence.
-                    </div>
+          <div className="space-y-5">
+            <section className="rounded-lg border bg-muted/10 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="text-sm font-medium text-foreground">Latest Stat</div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    Latest observed values sampled at monitor cadence.
                   </div>
+                </div>
+                {latestStatItems.length > 0 && (
                   <div className="shrink-0 rounded-md border bg-background px-2.5 py-1 text-[11px] text-muted-foreground">
                     {formatUpdatedAtText(latestStatUpdatedAt)}
                   </div>
-                </div>
-                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                  {latestStatItems.map(item => (
+                )}
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {loading && latestStatItems.length === 0 ? (
+                  Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="flex h-full flex-col rounded-md border bg-background px-4 py-4 animate-pulse">
+                      <div className="h-2.5 w-14 rounded bg-muted mb-2" />
+                      <div className="h-4 w-24 rounded bg-muted" />
+                      <div className="mt-4 h-24 rounded bg-muted" />
+                    </div>
+                  ))
+                ) : (
+                  latestStatItems.map(item => (
                     <PlatformLatestStatCard key={item.key} item={item} />
-                  ))}
-                </div>
-              </section>
-              <section className="space-y-3">
+                  ))
+                )}
+              </div>
+            </section>
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-sm font-medium text-foreground">Trend</div>
                   <div className="mt-1 text-xs text-muted-foreground">
                     Historical self-metrics across the selected time range.
                   </div>
                 </div>
+                <div ref={customRangeRef} className="relative flex flex-col items-end gap-2">
+                  <SharedTimeRangeSelector
+                    value={selectedRange}
+                    options={RANGE_OPTIONS}
+                    onChange={handleRangeChange}
+                    isOptionActive={(option, current) => {
+                      if (option === 'custom') return customRangeOpen || current === 'custom'
+                      return !customRangeOpen && current === option
+                    }}
+                    ariaLabel="Platform performance time range"
+                    className="justify-end gap-1.5"
+                    buttonSize="xs"
+                    buttonClassName="text-[11px]"
+                  />
+                  {customRangeOpen ? (
+                    <div className="absolute right-0 top-full z-20 mt-2 w-[420px] max-w-[calc(100vw-2rem)] rounded-lg border bg-background p-5 shadow-lg">
+                      <div className="space-y-3">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-foreground" htmlFor="platformPerfStart">
+                            Start
+                          </label>
+                          <div className="relative">
+                            <Input
+                              ref={startInputRef}
+                              id="platformPerfStart"
+                              type="datetime-local"
+                              value={draftCustomRange.startLocal}
+                              onChange={event =>
+                                setDraftCustomRange(current => ({
+                                  ...current,
+                                  startLocal: event.target.value,
+                                }))
+                              }
+                              max={draftCustomRange.endLocal || undefined}
+                              className="pr-12 text-left [appearance:textfield] [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full"
+                            />
+                            <button
+                              type="button"
+                              aria-label="Open start date picker"
+                              className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                              onClick={() => openNativePicker(startInputRef.current)}
+                            >
+                              <CalendarDays className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-foreground" htmlFor="platformPerfEnd">
+                            End
+                          </label>
+                          <div className="relative">
+                            <Input
+                              ref={endInputRef}
+                              id="platformPerfEnd"
+                              type="datetime-local"
+                              value={draftCustomRange.endLocal}
+                              onChange={event =>
+                                setDraftCustomRange(current => ({
+                                  ...current,
+                                  endLocal: event.target.value,
+                                }))
+                              }
+                              min={draftCustomRange.startLocal || undefined}
+                              className="pr-12 text-left [appearance:textfield] [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full"
+                            />
+                            <button
+                              type="button"
+                              aria-label="Open end date picker"
+                              className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                              onClick={() => openNativePicker(endInputRef.current)}
+                            >
+                              <CalendarDays className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {formatCustomRangeDescription(draftCustomRange)}
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" onClick={cancelCustomRange}>
+                            Cancel
+                          </Button>
+                          <Button onClick={applyCustomRange} disabled={!isValidCustomRange(draftCustomRange)}>
+                            Apply
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              {trendLoading && platformPerformanceSeries.length === 0 ? (
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="rounded-lg border bg-background p-4 animate-pulse">
+                      <div className="mb-3 h-4 w-20 rounded bg-muted" />
+                      <div className="h-32 rounded bg-muted" />
+                    </div>
+                  ))}
+                </div>
+              ) : platformPerformanceSeries.length === 0 ? (
+                <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
+                  Platform self metrics are not available yet.
+                </div>
+              ) : (
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                   {platformPerformanceSeries.map(item => (
                     <div key={item.name} className="rounded-lg border bg-background p-4">
@@ -1216,9 +1233,9 @@ export function PlatformStatusPage() {
                     </div>
                   ))}
                 </div>
-              </section>
-            </div>
-          )}
+              )}
+            </section>
+          </div>
         </CardContent>
       </Card>
 
@@ -1235,9 +1252,15 @@ export function PlatformStatusPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           {loading && overview.platformItems.length === 0 ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading platform targets...
+            <div className="grid gap-4 xl:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="rounded-lg border bg-background px-4 py-4 animate-pulse">
+                  <div className="mb-2 h-4 w-28 rounded bg-muted" />
+                  <div className="mb-4 h-3 w-16 rounded bg-muted" />
+                  <div className="mb-2 h-4 w-full rounded bg-muted" />
+                  <div className="h-4 w-3/4 rounded bg-muted" />
+                </div>
+              ))}
             </div>
           ) : overview.platformItems.length === 0 ? (
             <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">

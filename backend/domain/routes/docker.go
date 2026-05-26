@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -19,11 +18,13 @@ import (
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 	"github.com/websoft9/appos/backend/domain/dockerops"
+	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
 	"github.com/websoft9/appos/backend/domain/software"
 	"github.com/websoft9/appos/backend/domain/worker"
 	"github.com/websoft9/appos/backend/infra/collections"
 	"github.com/websoft9/appos/backend/infra/docker"
+	persistence "github.com/websoft9/appos/backend/infra/persistence"
 )
 
 // localDockerClient is the Docker client for the local host, shared across all local requests.
@@ -169,69 +170,38 @@ func loadDockerProxyEnv(app core.App) map[string]string {
 		"network",
 		settingsschema.DefaultGroup("proxy", "network"),
 	)
-	httpProxy := proxyURLWithCredentials(
-		sysconfig.String(group, "httpProxy", ""),
-		sysconfig.String(group, "username", ""),
-		sysconfig.String(group, "password", ""),
+	enabled := false
+	switch raw := group["enabled"].(type) {
+	case bool:
+		enabled = raw
+	case string:
+		enabled = strings.EqualFold(strings.TrimSpace(raw), "true") || strings.TrimSpace(raw) == "1"
+	}
+	httpConnectorID := sysconfig.String(group, "httpConnectorId", "")
+	httpsConnectorID := sysconfig.String(group, "httpsConnectorId", "")
+	env, err := connectors.BuildProxyEnvWith(
+		persistence.NewConnectorRepository(app),
+		connectors.NewSecretResolver(app),
+		enabled,
+		httpConnectorID,
+		httpsConnectorID,
 	)
-	httpsProxy := proxyURLWithCredentials(
-		sysconfig.String(group, "httpsProxy", ""),
-		sysconfig.String(group, "username", ""),
-		sysconfig.String(group, "password", ""),
-	)
-	noProxy := strings.TrimSpace(sysconfig.String(group, "noProxy", ""))
-
-	env := map[string]string{}
-	if httpProxy != "" {
-		env["HTTP_PROXY"] = httpProxy
-		env["http_proxy"] = httpProxy
-	}
-	if httpsProxy != "" {
-		env["HTTPS_PROXY"] = httpsProxy
-		env["https_proxy"] = httpsProxy
-	}
-	if noProxy != "" {
-		env["NO_PROXY"] = noProxy
-		env["no_proxy"] = noProxy
-	}
-	if len(env) == 0 {
+	if err != nil {
 		return nil
 	}
 	return env
 }
 
 func proxyURLWithCredentials(rawValue, username, password string) string {
-	rawValue = strings.TrimSpace(rawValue)
-	if rawValue == "" {
-		return ""
-	}
-	username = strings.TrimSpace(username)
-	password = strings.TrimSpace(password)
-	if username == "" || strings.Contains(rawValue, "@") {
-		return rawValue
-	}
-	parsed, err := url.Parse(rawValue)
-	if err != nil || parsed.Host == "" {
-		return rawValue
-	}
-	if password != "" {
-		parsed.User = url.UserPassword(username, password)
-	} else {
-		parsed.User = url.User(username)
-	}
-	return parsed.String()
+	return connectors.ProxyURLWithCredentials(rawValue, username, password)
 }
 
-// handleDockerServers returns all available servers (local + resource store servers)
-// with their online/offline ping status. Pings are done concurrently.
+// handleDockerServers lists local + managed server Docker targets with their online/offline ping status.
 //
 // @Summary List Docker servers
 // @Description Returns all configured servers with concurrent online/offline ping status. Superuser only.
 // @Tags Servers Operate
 // @Security BearerAuth
-// @Success 200 {object} map[string]any
-// @Failure 401 {object} map[string]any
-// @Router /api/servers/docker-targets [get]
 func handleDockerServers(e *core.RequestEvent) error {
 	type serverEntry struct {
 		ID     string `json:"id"`
@@ -257,7 +227,7 @@ func handleDockerServers(e *core.RequestEvent) error {
 	var wg sync.WaitGroup
 	for i, s := range managedServers {
 		wg.Add(1)
-		s := s // capture loop variable
+		s := s
 		go func(idx int) {
 			defer wg.Done()
 			status := "offline"
@@ -269,7 +239,6 @@ func handleDockerServers(e *core.RequestEvent) error {
 				execSSH := docker.NewSSHExecutor(sshConfig)
 				if pingErr := execSSH.Ping(e.Request.Context()); pingErr == nil {
 					status = "online"
-					reason = ""
 				} else {
 					reason = pingErr.Error()
 				}
@@ -303,19 +272,10 @@ func dockerDependencyErrorCode(err error) string {
 		return ""
 	}
 
-	if strings.Contains(normalized, "docker: 'compose' is not a docker command") ||
-		strings.Contains(normalized, "docker compose: command not found") ||
-		strings.Contains(normalized, "docker compose: not found") ||
-		strings.Contains(normalized, "compose is not a docker command") ||
-		strings.Contains(normalized, "unknown command \"compose\"") ||
-		strings.Contains(normalized, "docker-compose: command not found") ||
-		strings.Contains(normalized, "docker-compose: not found") {
-		return "compose_missing"
-	}
-
 	if strings.Contains(normalized, "cannot connect to the docker daemon") ||
 		strings.Contains(normalized, "is the docker daemon running") ||
-		strings.Contains(normalized, "docker daemon is not running") {
+		strings.Contains(normalized, "error during connect") ||
+		strings.Contains(normalized, "connect: no such file or directory") {
 		return "docker_daemon_unavailable"
 	}
 
@@ -331,7 +291,7 @@ func dockerDependencyErrorCode(err error) string {
 	}
 
 	return ""
-	}
+}
 
 // dockerError returns a PocketBase-style error response.
 func dockerError(e *core.RequestEvent, status int, msg string, err error) error {

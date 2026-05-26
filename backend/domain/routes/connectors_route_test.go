@@ -227,6 +227,39 @@ func TestConnectorUpdateSuccessAuditsBeforeAfter(t *testing.T) {
 	}
 }
 
+func TestConnectorUpdateWithoutIsDefaultPreservesExistingDefault(t *testing.T) {
+	ensureConnectorSecretRuntime(t)
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	create := te.do(t, http.MethodPost, "/api/connectors",
+		`{"name":"default-webhook","kind":"webhook","is_default":true,"template_id":"generic-webhook","endpoint":"https://hooks.example.com/original"}`,
+		true)
+	if create.Code != http.StatusCreated {
+		t.Fatalf("setup create failed: %d %s", create.Code, create.Body.String())
+	}
+	var created map[string]any
+	if err := json.Unmarshal(create.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+	id := created["id"].(string)
+
+	rec := te.do(t, http.MethodPut, "/api/connectors/"+id,
+		`{"name":"default-webhook","kind":"webhook","template_id":"generic-webhook","endpoint":"https://hooks.example.com/updated"}`,
+		true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var updated map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &updated); err != nil {
+		t.Fatal(err)
+	}
+	if updated["is_default"] != true {
+		t.Fatalf("expected is_default to remain true when omitted from update, got %v", updated["is_default"])
+	}
+}
+
 func TestConnectorDeleteSuccessReturns204AndAudits(t *testing.T) {
 	ensureConnectorSecretRuntime(t)
 	te := newTestEnv(t)

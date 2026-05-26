@@ -283,6 +283,8 @@ func validateCustomSettingsEntry(e *core.RequestEvent, module, key string, value
 	switch module + "/" + key {
 	case "space/quota":
 		return validateSpaceQuota(value)
+	case "proxy/network":
+		return validateProxyNetwork(e.App, value)
 	case "monitor/scheduling":
 		return validateMonitorScheduling(value)
 	case "monitor/policy":

@@ -13,6 +13,7 @@ const (
 	KindSMTP     = "smtp"
 	KindDNS      = "dns"
 	KindRegistry = "registry"
+	KindProxy    = "proxy"
 )
 
 const (
@@ -27,6 +28,7 @@ var declaredKinds = []string{
 	KindSMTP,
 	KindDNS,
 	KindRegistry,
+	KindProxy,
 }
 
 func AllowedKinds() []string {

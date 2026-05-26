@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sync"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hibiken/asynq"
@@ -14,10 +14,12 @@ import (
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 	"github.com/websoft9/appos/backend/domain/dockerops"
+	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
 	"github.com/websoft9/appos/backend/domain/software"
 	"github.com/websoft9/appos/backend/infra/collections"
 	"github.com/websoft9/appos/backend/infra/docker"
+	persistence "github.com/websoft9/appos/backend/infra/persistence"
 )
 
 const TaskDockerImagePull = "docker:image-pull"
@@ -284,24 +286,24 @@ func loadWorkerDockerProxyEnv(app core.App) map[string]string {
 	if group == nil {
 		return nil
 	}
-	httpProxy := strings.TrimSpace(sysconfig.String(group, "http_proxy", ""))
-	httpsProxy := strings.TrimSpace(sysconfig.String(group, "https_proxy", ""))
-	noProxy := strings.TrimSpace(sysconfig.String(group, "no_proxy", ""))
-	if httpProxy == "" && httpsProxy == "" && noProxy == "" {
+	enabled := false
+	switch raw := group["enabled"].(type) {
+	case bool:
+		enabled = raw
+	case string:
+		enabled = strings.EqualFold(strings.TrimSpace(raw), "true") || strings.TrimSpace(raw) == "1"
+	}
+	httpConnectorID := sysconfig.String(group, "httpConnectorId", "")
+	httpsConnectorID := sysconfig.String(group, "httpsConnectorId", "")
+	env, err := connectors.BuildProxyEnvWith(
+		persistence.NewConnectorRepository(app),
+		connectors.NewSecretResolver(app),
+		enabled,
+		httpConnectorID,
+		httpsConnectorID,
+	)
+	if err != nil {
 		return nil
-	}
-	env := map[string]string{}
-	if httpProxy != "" {
-		env["HTTP_PROXY"] = httpProxy
-		env["http_proxy"] = httpProxy
-	}
-	if httpsProxy != "" {
-		env["HTTPS_PROXY"] = httpsProxy
-		env["https_proxy"] = httpsProxy
-	}
-	if noProxy != "" {
-		env["NO_PROXY"] = noProxy
-		env["no_proxy"] = noProxy
 	}
 	return env
 }

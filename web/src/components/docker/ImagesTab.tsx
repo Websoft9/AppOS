@@ -15,6 +15,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -39,6 +41,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Download,
+  Filter,
   Trash2,
   MoreVertical,
   Eraser,
@@ -81,6 +84,18 @@ interface DockerImage {
   Tag: string
   Size: string
   CreatedSince: string
+}
+
+function inferImageRegistry(repository?: string): string {
+  const value = (repository || '').trim()
+  if (!value || value === '<none>') return '-'
+
+  const normalized = value.split('@')[0] || value
+  const firstSegment = normalized.split('/')[0]?.trim() || ''
+  if (!firstSegment) return '-'
+  if (firstSegment === 'localhost') return firstSegment
+  if (firstSegment.includes('.') || firstSegment.includes(':')) return firstSegment
+  return 'docker.io'
 }
 
 interface DockerContainerRow {
@@ -454,6 +469,7 @@ export const ImagesTab = forwardRef<
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState('')
   const [usageFilter, setUsageFilter] = useState<'all' | 'used' | 'unused'>('all')
+  const [registryFilter, setRegistryFilter] = useState('all')
   const [sortKey, setSortKey] = useState<'repo' | 'size' | 'created'>(() => {
     try {
       const raw = localStorage.getItem(IMAGES_SORT_KEY)
@@ -619,6 +635,16 @@ export const ImagesTab = forwardRef<
     [images, usageMap]
   )
   const unusedCount = images.length - usedCount
+  const registryOptions = useMemo(() => {
+    const countMap = new Map<string, number>()
+    for (const image of images) {
+      const reg = inferImageRegistry(image.Repository)
+      countMap.set(reg, (countMap.get(reg) ?? 0) + 1)
+    }
+    return Array.from(countMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([registry, count]) => ({ registry, count }))
+  }, [images])
 
   useEffect(() => {
     setSelectedIds(current => current.filter(id => !usageMap[id]))
@@ -959,10 +985,14 @@ export const ImagesTab = forwardRef<
   )
 
   const filtered = images.filter(image => {
+    const inferredRegistry = inferImageRegistry(image.Repository)
+    const registry = inferredRegistry.toLowerCase()
     const textMatched =
       image.Repository?.toLowerCase().includes(filter.toLowerCase()) ||
-      image.Tag?.toLowerCase().includes(filter.toLowerCase())
+      image.Tag?.toLowerCase().includes(filter.toLowerCase()) ||
+      registry.includes(filter.toLowerCase())
     if (!textMatched) return false
+    if (registryFilter !== 'all' && inferredRegistry !== registryFilter) return false
 
     const used = !!usageMap[image.ID]
     if (usageFilter === 'used') return used
@@ -1009,7 +1039,13 @@ export const ImagesTab = forwardRef<
   useEffect(() => {
     changePage(1)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, usageFilter, sortDir, sortKey, effectivePageSize, serverId])
+  }, [filter, registryFilter, usageFilter, sortDir, sortKey, effectivePageSize, serverId])
+
+  useEffect(() => {
+    if (registryFilter === 'all') return
+    if (registryOptions.some(opt => opt.registry === registryFilter)) return
+    setRegistryFilter('all')
+  }, [registryFilter, registryOptions])
 
   useEffect(() => {
     if (effectivePage > totalPages) changePage(totalPages)
@@ -1103,7 +1139,8 @@ export const ImagesTab = forwardRef<
   const allSelectableChecked =
     selectableIds.length > 0 && selectableIds.every(id => selectedIds.includes(id))
   const someSelectableChecked = selectableIds.some(id => selectedIds.includes(id))
-  const hasActiveFilters = filter.trim().length > 0 || usageFilter !== 'all'
+  const hasActiveFilters =
+    filter.trim().length > 0 || usageFilter !== 'all' || registryFilter !== 'all'
 
   const toggleSelectAll = () => {
     if (selectableIds.length === 0) return
@@ -1169,6 +1206,7 @@ export const ImagesTab = forwardRef<
                 'h-9 rounded-md border bg-background px-3 text-sm',
                 usageFilter !== 'all' && 'border-primary/40 bg-primary/5 text-primary'
               )}
+              aria-label="Filter by image usage"
               value={usageFilter}
               onChange={e => setUsageFilter(e.target.value as 'all' | 'used' | 'unused')}
             >
@@ -1176,6 +1214,7 @@ export const ImagesTab = forwardRef<
               <option value="used">Used ({usedCount})</option>
               <option value="unused">Unused ({unusedCount})</option>
             </select>
+
 
             <div className="flex-1" />
 
@@ -1200,6 +1239,7 @@ export const ImagesTab = forwardRef<
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed bg-muted/10 px-3 py-2 shrink-0">
             {usageFilter === 'unused' && <Badge variant="outline">Only unused images</Badge>}
             {usageFilter === 'used' && <Badge variant="outline">Only used images</Badge>}
+            {registryFilter !== 'all' && <Badge variant="outline">Registry: {registryFilter}</Badge>}
             {mockPruneNotice && <Badge variant="secondary">{mockPruneNotice}</Badge>}
           </div>
         </>
@@ -1209,12 +1249,14 @@ export const ImagesTab = forwardRef<
           {filter.trim() ? <Badge variant="outline">Search: {filter.trim()}</Badge> : null}
           {usageFilter === 'used' ? <Badge variant="outline">Only used images</Badge> : null}
           {usageFilter === 'unused' ? <Badge variant="outline">Only unused images</Badge> : null}
+          {registryFilter !== 'all' ? <Badge variant="outline">Registry: {registryFilter}</Badge> : null}
           <Button
             variant="outline"
             size="sm"
             onClick={() => {
               setFilter('')
               setUsageFilter('all')
+              setRegistryFilter('all')
             }}
           >
             Clear filters
@@ -1232,7 +1274,6 @@ export const ImagesTab = forwardRef<
           </Button>
         </div>
       )}
-
       <div className="overflow-hidden rounded-lg bg-background">
         <div className="overflow-x-auto">
           <Table>
@@ -1247,6 +1288,43 @@ export const ImagesTab = forwardRef<
                       aria-label="Select all unused images"
                     />
                     <SortHead label="Repository" keyName="repo" />
+                  </div>
+                </TableHead>
+                <TableHead className="min-w-[110px]">
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-medium text-foreground">Registry</span>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className={cn(
+                            'h-7 w-7',
+                            registryFilter !== 'all' &&
+                              'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+                          )}
+                          aria-label="Filter by registry"
+                          title={registryFilter === 'all' ? 'Filter by registry' : `Registry: ${registryFilter}`}
+                        >
+                          <Filter className="h-3.5 w-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuRadioGroup
+                          value={registryFilter}
+                          onValueChange={setRegistryFilter}
+                        >
+                          <DropdownMenuRadioItem value="all">
+                            All
+                          </DropdownMenuRadioItem>
+                          {registryOptions.map(({ registry, count }) => (
+                            <DropdownMenuRadioItem key={registry} value={registry}>
+                              {registry} ({count})
+                            </DropdownMenuRadioItem>
+                          ))}
+                        </DropdownMenuRadioGroup>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </TableHead>
                 <TableHead className="min-w-[110px] text-xs font-medium text-foreground">
@@ -1274,7 +1352,7 @@ export const ImagesTab = forwardRef<
             <TableBody>
               {loading && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground">
                     <span className="inline-flex items-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Loading...
@@ -1289,6 +1367,7 @@ export const ImagesTab = forwardRef<
                 const inspect = parseInspect(inspectMap[img.ID] || '')
                 const imageNames = formatImageNames(inspect)
                 const repositories = formatImageRepositories(inspect)
+                const registry = inferImageRegistry(img.Repository)
                 const imagePorts = formatImagePorts(inspect)
                 const createdAt = formatImageCreated(
                   typeof inspect?.Created === 'string' ? inspect.Created : undefined
@@ -1323,6 +1402,7 @@ export const ImagesTab = forwardRef<
                           </button>
                         </div>
                       </TableCell>
+                      <TableCell className="py-3 text-xs text-foreground">{registry}</TableCell>
                       <TableCell className="py-3 font-mono text-xs" title={img.ID}>
                         {img.ID?.substring(0, 12)}
                       </TableCell>
@@ -1377,7 +1457,7 @@ export const ImagesTab = forwardRef<
                     </TableRow>
                     {isExpanded && (
                       <TableRow>
-                        <TableCell colSpan={7} className="bg-muted/20 px-3 py-3">
+                        <TableCell colSpan={8} className="bg-muted/20 px-3 py-3">
                           {inspectLoadingMap[img.ID] ? (
                             <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
                               <Loader2 className="h-4 w-4 animate-spin" /> Loading inspect...
@@ -1398,6 +1478,10 @@ export const ImagesTab = forwardRef<
                                   <div className="space-y-1">
                                     <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Names</div>
                                     <div className="break-all text-foreground">{metadataValue(imageNames)}</div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Registry</div>
+                                    <div className="break-all text-foreground">{registry}</div>
                                   </div>
                                   <div className="space-y-1">
                                     <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Repository</div>
@@ -1453,7 +1537,7 @@ export const ImagesTab = forwardRef<
               })}
               {!loading && sorted.length === 0 && (
                 <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground">
                     No images found
                   </TableCell>
                 </TableRow>

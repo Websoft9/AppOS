@@ -1,4 +1,4 @@
-# Epic 29: Software Delivery
+# Epic 29: Software
 
 **Module**: Software Delivery | **Status**: Proposed | **Priority**: P1 | **Depends on**: Epic 12, 20
 
@@ -6,7 +6,7 @@
 
 Own the software supply path AppOS actually manages.
 
-Migration note: Epic 29 supersedes the installed-component and detection-pipeline portions of Epic 6. AppOS-local component inventory should now be expressed as Software Delivery local inventory rather than a separate `System / Components` domain.
+Epic 29 absorbs the Epic 6 local inventory and detection-pipeline scope. AppOS-local inventory now belongs here rather than under a separate `System / Components` domain.
 
 This epic covers:
 
@@ -195,9 +195,7 @@ Notes:
 
 The epic now uses five canonical story documents. Earlier split stories 29.1-29.7 are treated as source material that has been consolidated into the reorganized set below.
 
-Legacy implementation history from the superseded split stories is preserved in `specs/implementation-artifacts/epic29-legacy-implementation-record.md`.
-
-### 29.1 Software Contract and Catalog
+### 29.1 Software Contract Catalog
 
 - define the shared software-delivery language across catalog, inventory, provisioning, and target-readiness
 - consolidate boundary, template, and catalog rules into one canonical contract story
@@ -210,17 +208,17 @@ Legacy implementation history from the superseded split stories is preserved in 
 - keep install, upgrade, verify, reinstall, and uninstall behavior routed through the shared worker contract
 - preserve phase tracking and audit expectations for long-running execution
 
-### 29.3 Server Software Operational Surface
+### 29.3 Server Components Contract
 
-- expose the server-scoped `Software` tab for installed state, readiness, last result, and supported lifecycle actions
-- keep the UI operational, compact, and strictly scoped to the current server
+- define the server-scoped contract for installed state, readiness, latest result, and supported lifecycle actions
+- keep Story 20.7 as the UI owner for naming, layout, and interaction details
 
-### 29.4 Supported Software Discovery Surface
+### 29.4 Supported Software Page
 
 - expose the read-only `Supported Software` page for server-target software under `Resources`
 - separate support discovery from installed inventory and server operations
 
-### 29.5 Local Software Inventory Surface
+### 29.5 Local Software Inventory
 
 - expose the read-only AppOS-local software inventory under `Resources`
 - keep AppOS-local inventory first-class without mixing it into server operations or discovery surfaces
