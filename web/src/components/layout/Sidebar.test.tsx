@@ -153,6 +153,22 @@ describe('Sidebar', () => {
     expect(within(workspaceNav).queryByRole('link', { name: 'Scripts' })).toBeNull()
   })
 
+  it('shows Feeds under Collaboration after Topics', () => {
+    pathname = '/topics'
+    assignMock.mockReset()
+
+    render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
+
+    const workspaceNav = screen.getAllByLabelText('Workspace navigation')[0]
+    const links = within(workspaceNav)
+      .getAllByRole('link')
+      .map(link => link.textContent)
+      .filter(Boolean)
+
+    expect(links.indexOf('Topics')).toBeGreaterThanOrEqual(0)
+    expect(links.indexOf('Feeds')).toBeGreaterThan(links.indexOf('Topics'))
+  })
+
   it('opens Credentials and navigates to Secrets when clicked from a collapsed state', () => {
     pathname = '/overview'
     assignMock.mockReset()

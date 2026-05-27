@@ -142,6 +142,22 @@ groups:
         - apps.go
       nativeRefs: []
 
+  - group: Feeds
+    description: Feed item preference updates, bookmark creation, and manual polling endpoints.
+    apiType: Ext
+    extSurface:
+      - POST /api/feeds/bookmarks
+      - DELETE /api/feeds/bookmarks/{id}
+      - PATCH /api/feeds/items/{id}/state
+      - POST /api/feeds/analyze
+      - POST /api/feeds/poll
+      - POST /api/feeds/sources/{id}/poll
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - feeds.go
+      nativeRefs: []
+
   - group: Apps
     description: Installed app inventory and lifecycle APIs backed by compose projects.
     apiType: Ext
@@ -485,8 +501,9 @@ groups:
     description: Host metrics and file browser endpoints.
     apiType: Ext
     extSurface:
-      - GET /api/ext/system/metrics
-      - GET /api/ext/system/files
+      - GET /api/system/metrics
+      - GET /api/system/files
+      - GET /api/system/runtime
     nativeSurface: []
     sources:
       extRouteFiles:

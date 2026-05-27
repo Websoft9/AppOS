@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Example Releases</title>
+    <item>
+      <guid>release-1</guid>
+      <title>Release 1</title>
+      <link>https://example.com/releases/1</link>
+      <description><![CDATA[<p>Security fixes and <strong>maintenance</strong> update.</p>]]></description>
+      <pubDate>Tue, 27 May 2026 08:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Release 1.1</title>
+      <link>https://example.com/releases/1-1</link>
+      <description><![CDATA[<div>Minor improvements.</div>]]></description>
+      <pubDate>Wed, 28 May 2026 07:30:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>

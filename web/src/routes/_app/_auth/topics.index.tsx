@@ -698,7 +698,7 @@ function TopicsListPage() {
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-4xl">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
               <DialogTitle>{editingTopic ? 'Edit Topic' : 'New Topic'}</DialogTitle>

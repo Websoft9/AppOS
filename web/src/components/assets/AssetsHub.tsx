@@ -1,5 +1,5 @@
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ChevronRight, FileCode2, Loader2, PackageOpen, Plus } from 'lucide-react'
+import { ChevronRight, FileCode2, Loader2, Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { pb } from '@/lib/pb'
 import { Button } from '@/components/ui/button'
@@ -57,14 +57,6 @@ export function AssetsHub() {
           <p className="mt-1 text-muted-foreground">
             Reusable technical definitions shared across operators, terminal workflows, and future automation.
           </p>
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span className="rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 font-medium text-foreground/80">
-              1 grouped area
-            </span>
-            <span className="rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 font-medium text-foreground/80">
-              {ASSET_FAMILIES.length} live family
-            </span>
-          </div>
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row md:justify-end">
@@ -78,17 +70,7 @@ export function AssetsHub() {
         </div>
       </div>
 
-      <section className="space-y-4 rounded-2xl bg-card/40 p-4 sm:p-5" aria-labelledby="assets-title">
-        <div>
-          <h2 id="assets-title" className="text-lg font-semibold tracking-tight">
-            Technical Assets
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Shared technical definitions that consumer domains can reference without taking over asset ownership.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {ASSET_FAMILIES.map(item => (
             <Link
               key={item.key}
@@ -135,15 +117,7 @@ export function AssetsHub() {
               </Card>
             </Link>
           ))}
-        </div>
-
-        <div className="flex items-start gap-3 rounded-xl border border-dashed border-border/70 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-          <PackageOpen className="mt-0.5 h-4 w-4 shrink-0" />
-          <p>
-            Scripts land first. Skills and other asset families can join this surface as the Epic 30 backend contract expands.
-          </p>
-        </div>
-      </section>
+      </div>
     </div>
   )
 }

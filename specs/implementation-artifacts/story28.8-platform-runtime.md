@@ -193,6 +193,12 @@ Implication for MVP:
 
 The target architecture is one dedicated runtime read model, but MVP may compose from existing read routes first.
 
+This read model is a `Platform Runtime` contract, not a monitoring contract.
+
+`Host/Kernel Facts` on this page describe runtime-visible system facts that AppOS can read from inside the current runtime.
+
+They must not be presented as full host monitoring, host trend telemetry, or a claim that AppOS has privileged host inspection.
+
 Preferred end-state route:
 
 - `GET /api/system/runtime`
@@ -203,6 +209,35 @@ Pragmatic delivery guidance:
 2. Introduce `GET /api/system/runtime` only when the composition logic becomes repeated, unstable, or too leaky for the UI.
 3. Do not route this page through monitor trend APIs.
 4. Do not redefine Docker inventory as the canonical platform-runtime model.
+
+### Minimal Host/Kernel Facts Contract
+
+When this page exposes host-adjacent facts, keep them minimal and split them from monitoring semantics.
+
+- `host_kernel_facts`
+	- `kernel_release`
+	- `architecture`
+	- `cpu_topology_visible`
+		- `model_name`
+		- `online_cpu_count`
+- `runtime_limits`
+	- `cpuset_effective`
+	- `cpu_quota`
+	- `memory_limit_bytes`
+
+Guardrails:
+
+- do not label these fields as host monitoring
+- do not treat `/etc/os-release` from the AppOS container as canonical host OS distribution
+- do not collapse kernel-visible facts and runtime limits into one mixed summary label
+
+### Backend Read Model Contract
+
+The backend contract for these fields belongs here because the owning surface is `Platform Runtime`.
+
+- `software/local` continues to own built-in component inventory
+- `software/local/services` continues to own active local service observation
+- `system/runtime` owns the aggregated read model for this page when a dedicated backend route is introduced
 
 Suggested response shape:
 
@@ -232,7 +267,20 @@ Suggested response shape:
 			"startedAt": "2026-05-23T09:00:00Z",
 			"componentKey": "worker"
 		}
-	]
+	],
+	"host_kernel_facts": {
+		"kernel_release": "6.8.0-57-generic",
+		"architecture": "x86_64",
+		"cpu_topology_visible": {
+			"model_name": "Intel(R) Xeon(R) Platinum 8175M CPU @ 2.50GHz",
+			"online_cpu_count": 4
+		}
+	},
+	"runtime_limits": {
+		"cpuset_effective": "0-3",
+		"cpu_quota": "unrestricted",
+		"memory_limit_bytes": null
+	}
 }
 ```
 

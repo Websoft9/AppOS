@@ -560,7 +560,7 @@ function GroupsListPage() {
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-4xl">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
               <DialogTitle>{editingGroup ? 'Edit Group' : 'New Group'}</DialogTitle>

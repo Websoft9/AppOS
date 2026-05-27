@@ -597,6 +597,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
     }
     hasAutoOpenedCreateRef.current = true
     openCreateDialog()
+    config.onAutoCreateHandled?.()
   }, [config.autoCreate, loading, createSelectionReady])
 
   useEffect(() => {

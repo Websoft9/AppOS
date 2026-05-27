@@ -11,9 +11,17 @@ Deliver the first operator-facing Assets surface so users can manage shared tech
 
 - add an Assets list page
 - add create and edit flows
+- add content preview for phase-1 assets
 - show assets as `File` or `Folder` in the UI
 - support phase-1 types `script` and `skill`
 - keep the UI generic so future types can be added without redesigning the model
+
+## Minimum UI Slice
+
+- list
+- create
+- edit
+- content preview
 
 ## Acceptance Criteria
 
@@ -21,8 +29,10 @@ Deliver the first operator-facing Assets surface so users can manage shared tech
 2. The create and edit forms let the operator manage `script` and `skill` assets without exposing internal enum names such as `storage_kind` or `source_kind` directly.
 3. The UI presents storage shape using user-facing labels `File` and `Folder`.
 4. The UI supports both phase-1 shapes: a single-file asset flow and a folder-based asset flow.
-5. The UI uses the Assets API contract from Story 30.2 without embedding domain-specific logic for Terminal, AI Chat, or future Automation.
-6. Frontend tests cover list rendering plus at least one create or edit flow for each of the two phase-1 asset types.
+5. The UI includes phase-1 content preview for local assets without introducing execution controls.
+6. The UI uses the Assets API contract from Story 30.2 without embedding domain-specific logic for Terminal, AI Chat, or future Automation.
+7. Frontend tests cover list rendering plus at least one create or edit flow for each of the two phase-1 asset types.
+8. Frontend tests cover at least one local asset content-preview path.
 
 ## Out of Scope
 

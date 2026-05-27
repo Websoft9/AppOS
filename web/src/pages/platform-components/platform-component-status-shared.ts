@@ -38,6 +38,43 @@ export type ServiceLogResponse = {
   last_detected_at: string
 }
 
+export type PlatformRuntimeSummary = {
+  runningComponents: number
+  degradedComponents: number
+  checkingComponents: number
+  runtimeShape: string
+}
+
+export type PlatformRuntimeCPUQuotaStatus = 'unknown' | 'unrestricted' | 'constrained'
+
+export type PlatformRuntimeHostKernelFacts = {
+  kernel_release: string
+  architecture: string
+  cpu_topology_visible: {
+    model_name: string
+    online_cpu_count: number
+  }
+}
+
+export type PlatformRuntimeLimits = {
+  cpuset_effective: string
+  cpu_quota: {
+    status: PlatformRuntimeCPUQuotaStatus
+    quota_us: number | null
+    period_us: number | null
+    cores_equivalent: number | null
+  }
+  memory_limit_bytes: number | null
+}
+
+export type PlatformRuntimePayload = {
+  summary: PlatformRuntimeSummary
+  components: ComponentItem[]
+  processes: ServiceItem[]
+  host_kernel_facts: PlatformRuntimeHostKernelFacts
+  runtime_limits: PlatformRuntimeLimits
+}
+
 export async function fetchInstalledComponents(force = false): Promise<ComponentItem[]> {
   const url = force ? '/api/software/local?force=1' : '/api/software/local'
   const data: unknown = await pb.send(url, { method: 'GET', ...noAutoCancel })
@@ -140,12 +177,94 @@ function coerceComponentItem(input: unknown): ComponentItem {
   }
 }
 
+function coerceServiceItem(input: unknown): ServiceItem {
+  const value = input && typeof input === 'object' ? (input as Record<string, unknown>) : {}
+  return {
+    name: readString(value.name),
+    lifecycle: readString(value.lifecycle),
+    visibility: readString(value.visibility),
+    state: readString(value.state),
+    pid: readNumber(value.pid),
+    uptime: readNumber(value.uptime),
+    cpu: readNumber(value.cpu),
+    memory: readNumber(value.memory),
+    last_detected_at: readString(value.last_detected_at),
+    log_available: readBoolean(value.log_available),
+  }
+}
+
+function coercePlatformRuntimeSummary(input: unknown): PlatformRuntimeSummary {
+  const value = input && typeof input === 'object' ? (input as Record<string, unknown>) : {}
+  return {
+    runningComponents: readNumber(value.runningComponents),
+    degradedComponents: readNumber(value.degradedComponents),
+    checkingComponents: readNumber(value.checkingComponents),
+    runtimeShape: readString(value.runtimeShape),
+  }
+}
+
+function coercePlatformRuntimeHostKernelFacts(input: unknown): PlatformRuntimeHostKernelFacts {
+  const value = input && typeof input === 'object' ? (input as Record<string, unknown>) : {}
+  const cpuTopology =
+    value.cpu_topology_visible && typeof value.cpu_topology_visible === 'object'
+      ? (value.cpu_topology_visible as Record<string, unknown>)
+      : {}
+  return {
+    kernel_release: readString(value.kernel_release),
+    architecture: readString(value.architecture),
+    cpu_topology_visible: {
+      model_name: readString(cpuTopology.model_name),
+      online_cpu_count: readNumber(cpuTopology.online_cpu_count),
+    },
+  }
+}
+
+function coercePlatformRuntimeLimits(input: unknown): PlatformRuntimeLimits {
+  const value = input && typeof input === 'object' ? (input as Record<string, unknown>) : {}
+  const cpuQuota =
+    value.cpu_quota && typeof value.cpu_quota === 'object'
+      ? (value.cpu_quota as Record<string, unknown>)
+      : {}
+  return {
+    cpuset_effective: readString(value.cpuset_effective),
+    cpu_quota: {
+      status: readCPUQuotaStatus(cpuQuota.status),
+      quota_us:
+        typeof cpuQuota.quota_us === 'number' && Number.isFinite(cpuQuota.quota_us)
+          ? cpuQuota.quota_us
+          : null,
+      period_us:
+        typeof cpuQuota.period_us === 'number' && Number.isFinite(cpuQuota.period_us)
+          ? cpuQuota.period_us
+          : null,
+      cores_equivalent:
+        typeof cpuQuota.cores_equivalent === 'number' && Number.isFinite(cpuQuota.cores_equivalent)
+          ? cpuQuota.cores_equivalent
+          : null,
+    },
+    memory_limit_bytes:
+      typeof value.memory_limit_bytes === 'number' && Number.isFinite(value.memory_limit_bytes)
+        ? value.memory_limit_bytes
+        : null,
+  }
+}
+
 function readString(value: unknown): string {
   return typeof value === 'string' ? value : ''
 }
 
+function readNumber(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
 function readBoolean(value: unknown): boolean {
   return typeof value === 'boolean' ? value : false
+}
+
+function readCPUQuotaStatus(value: unknown): PlatformRuntimeCPUQuotaStatus {
+  return value === 'unrestricted' || value === 'constrained' || value === 'unknown'
+    ? value
+    : 'unknown'
 }
 
 export async function fetchActiveServices(): Promise<ServiceItem[]> {
@@ -154,6 +273,21 @@ export async function fetchActiveServices(): Promise<ServiceItem[]> {
     ...noAutoCancel,
   })
   return Array.isArray(data) ? data : []
+}
+
+export async function fetchPlatformRuntime(): Promise<PlatformRuntimePayload> {
+  const data: unknown = await pb.send('/api/system/runtime', {
+    method: 'GET',
+    ...noAutoCancel,
+  })
+  const value = data && typeof data === 'object' ? (data as Record<string, unknown>) : {}
+  return {
+    summary: coercePlatformRuntimeSummary(value.summary),
+    components: Array.isArray(value.components) ? value.components.map(coerceComponentItem) : [],
+    processes: Array.isArray(value.processes) ? value.processes.map(coerceServiceItem) : [],
+    host_kernel_facts: coercePlatformRuntimeHostKernelFacts(value.host_kernel_facts),
+    runtime_limits: coercePlatformRuntimeLimits(value.runtime_limits),
+  }
 }
 
 export async function fetchServiceLogs(

@@ -171,6 +171,7 @@ export interface ResourcePageConfig {
   }) => FieldDef[]
   nameField?: string
   autoCreate?: boolean
+  onAutoCreateHandled?: () => void
   parentNav?: { label: string; href: string }
   enableGroupAssign?: boolean
   onCreateSuccess?: (record: Record<string, unknown>) => void

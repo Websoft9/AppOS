@@ -31,6 +31,8 @@ tags:
       name: Docker
     - description: Exposure inventory and app-scoped publication inspection APIs.
       name: Exposures
+    - description: Feed item preference updates, bookmark creation, and manual polling endpoints.
+      name: Feeds
     - description: Native service health endpoint
       name: Health
     - description: Infrastructure-as-Code workspace and template file operations.
@@ -206,6 +208,15 @@ components:
                 size:
                     type: integer
             type: object
+        CreateBookmarkRequest:
+            properties:
+                summary:
+                    type: string
+                title:
+                    type: string
+                url:
+                    type: string
+            type: object
         CreateRequest:
             properties:
                 content:
@@ -223,6 +234,18 @@ components:
                     type: string
             required:
                 - message
+            type: object
+        FeedItemStatePatchRequest:
+            properties:
+                is_starred:
+                    type: boolean
+                read_state:
+                    type: string
+            type: object
+        FeedSourceAnalyzeRequest:
+            properties:
+                url:
+                    type: string
             type: object
         GenericRequest:
             additionalProperties: true
@@ -591,6 +614,23 @@ components:
             description: Generic success payload envelope
             example:
                 ok: true
+            type: object
+        SystemRuntimeResponse:
+            properties:
+                components:
+                    items:
+                        $ref: '#/components/schemas/SoftwareComponentListItem'
+                    type: array
+                host_kernel_facts:
+                    $ref: '#/components/schemas/SystemHostKernelFacts'
+                processes:
+                    items:
+                        $ref: '#/components/schemas/ComponentServiceItem'
+                    type: array
+                runtime_limits:
+                    $ref: '#/components/schemas/SystemRuntimeLimits'
+                summary:
+                    $ref: '#/components/schemas/SystemRuntimeSummary'
             type: object
         TopicShareCommentRequest:
             properties:
@@ -5145,75 +5185,6 @@ paths:
             summary: Get setup status
             tags:
                 - Setup
-    /api/ext/system/files:
-        get:
-            description: Returns a directory listing for the local server filesystem. Superuser only.
-            operationId: get_api_ext_system_files
-            parameters:
-                - description: directory path to list
-                  in: query
-                  name: path
-                  required: false
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                additionalProperties: true
-                                type: object
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                additionalProperties: true
-                                type: object
-                    description: Unauthorized
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                additionalProperties: true
-                                type: object
-                    description: Internal Server Error
-            security:
-                - bearerAuth: []
-            summary: Browse local files
-            tags:
-                - System
-    /api/ext/system/metrics:
-        get:
-            description: Returns current CPU, memory, and disk usage for the host. Superuser only.
-            operationId: get_api_ext_system_metrics
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                additionalProperties: true
-                                type: object
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                additionalProperties: true
-                                type: object
-                    description: Unauthorized
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                additionalProperties: true
-                                type: object
-                    description: Internal Server Error
-            security:
-                - bearerAuth: []
-            summary: Get system metrics
-            tags:
-                - System
     /api/ext/users/{collection}/{id}/reset-password:
         post:
             description: Force-resets a user's password (no current password required). Invalidates all existing tokens. Superuser only.
@@ -5282,6 +5253,296 @@ paths:
             summary: Admin reset user password
             tags:
                 - Auth
+    /api/feeds/analyze:
+        post:
+            description: Fetches one RSS or Atom URL and returns derived metadata for the subscription form. Superuser only.
+            operationId: post_api_feeds_analyze
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/FeedSourceAnalyzeRequest'
+                description: feed source analyze payload
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Analyze feed source URL
+            tags:
+                - Feeds
+    /api/feeds/bookmarks:
+        post:
+            description: Stores one manual link inside the Feeds workspace as a bookmark item. Authenticated users only.
+            operationId: post_api_feeds_bookmarks
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateBookmarkRequest'
+                description: bookmark payload
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Create bookmark item
+            tags:
+                - Feeds
+    /api/feeds/bookmarks/{id}:
+        delete:
+            description: Deletes one bookmark item from the Feeds workspace. Authenticated users only.
+            operationId: delete_api_feeds_bookmarks_id
+            parameters:
+                - description: bookmark item id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "204":
+                    description: No Content
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Delete bookmark item
+            tags:
+                - Feeds
+    /api/feeds/items/{id}/state:
+        patch:
+            description: Updates the reading preferences of a feed item without exposing direct write access to the underlying collection. Authenticated users only.
+            operationId: patch_api_feeds_items_id_state
+            parameters:
+                - description: feed item id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/FeedItemStatePatchRequest'
+                description: feed item state payload
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Patch feed item preferences
+            tags:
+                - Feeds
+    /api/feeds/poll:
+        post:
+            description: Triggers an immediate polling sweep for active feed sources, bypassing due-time checks. Superuser only.
+            operationId: post_api_feeds_poll
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Trigger manual feeds poll
+            tags:
+                - Feeds
+    /api/feeds/sources/{id}/poll:
+        post:
+            description: Triggers an immediate polling run for one active feed source, bypassing due-time checks. Superuser only.
+            operationId: post_api_feeds_sources_id_poll
+            parameters:
+                - description: feed source id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Trigger manual source poll
+            tags:
+                - Feeds
     /api/files/{collection}/{recordId}/{filename}:
         get:
             operationId: pb_files_get
@@ -10546,6 +10807,105 @@ paths:
             summary: Download shared file
             tags:
                 - Space & User Files
+    /api/system/files:
+        get:
+            description: Returns a directory listing for the local server filesystem. Superuser only.
+            operationId: get_api_system_files
+            parameters:
+                - description: directory path to list
+                  in: query
+                  name: path
+                  required: false
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Browse local files
+            tags:
+                - System
+    /api/system/metrics:
+        get:
+            description: Returns current CPU, memory, and disk usage for the host. Superuser only.
+            operationId: get_api_system_metrics
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Get system metrics
+            tags:
+                - System
+    /api/system/runtime:
+        get:
+            description: Returns the aggregated Platform Runtime view for local AppOS components, services, and runtime-visible facts. Superuser only.
+            operationId: get_api_system_runtime
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SystemRuntimeResponse'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Get platform runtime read model
+            tags:
+                - System
     /api/terminal/docker/{containerId}:
         get:
             description: Upgrades to a WebSocket PTY session inside the given container via docker exec. Supports remote servers via server_id. Superuser only.

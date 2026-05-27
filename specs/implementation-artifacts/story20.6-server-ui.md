@@ -94,6 +94,16 @@ The server form remains owned by Story 20.1 from a data-contract perspective, bu
 - Host, port, and user remain visible configuration fields for direct servers.
 - Tunnel-specific runtime or mapped-service details must not be collected in the create/edit form.
 
+### Duplicate Flow
+
+- `Duplicate Server` is a create shortcut, not an immediate copy action.
+- Triggering duplicate opens the standard `Add Server` dialog with prefilled values copied from the source server.
+- The duplicated draft must start with a new generated `name` so the operator does not overwrite or collide with the source record by default.
+- Copy configuration inputs that help recreate access intent, such as mode, host, port, user, shell, credential, and tunnel server when applicable.
+- Do not copy runtime or derived state such as connection status, diagnostics, last activity, monitoring state, or any server-scoped live session facts.
+- The duplicated draft is not persisted until the operator explicitly confirms create.
+- V1 should reuse the existing server create flow and PocketBase create API rather than introducing a dedicated duplicate backend route.
+
 ## List Page Information Model
 
 The recommended default columns are:
@@ -221,6 +231,7 @@ The overflow menu holds secondary actions such as:
 
 - `View Details`
 - `Edit Server`
+- `Duplicate Server`
 - `View Connection`
 - `Test Connection`
 - `View Diagnostics`

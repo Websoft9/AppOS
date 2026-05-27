@@ -730,6 +730,119 @@ describe('ServersPage layout', () => {
     expect(menuText.indexOf('Shutdown')).toBeLessThan(menuText.indexOf('Add Favorite'))
   })
 
+  it('duplicates a server into the add dialog with copied configuration fields', async () => {
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/servers/connection') {
+        return Promise.resolve({
+          items: [
+            {
+              id: 'server-1',
+              name: 'alpha',
+              connect_type: 'direct',
+              host: '10.0.0.1',
+              port: 2222,
+              user: 'ubuntu',
+              description: 'Primary edge node',
+              created_by: 'user-1',
+              created_by_name: 'owner@example.com',
+              credential: 'secret-1',
+              credential_type: 'Password',
+              access: { status: 'unknown', reason: '', checked_at: '', source: 'derived' },
+            },
+          ],
+        })
+      }
+      if (isSecretSummaryRequest(path)) {
+        return Promise.resolve({
+          items: [
+            {
+              id: 'secret-1',
+              name: 'ops-password',
+              template_id: 'single_value',
+            },
+          ],
+        })
+      }
+      if (isMonitorSummaryRequest(path)) {
+        return Promise.resolve({ items: [] })
+      }
+      if (isServerSoftwareRequest(path)) {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === '/api/servers/local/docker-bridge') {
+        return Promise.resolve({ interface: 'docker0', address: '172.17.0.1' })
+      }
+      if (path === '/api/secrets/templates') {
+        return Promise.resolve([
+          {
+            id: 'single_value',
+            label: 'Password',
+            description: 'Single secret value',
+            fields: [{ key: 'value', label: 'Secret Value', type: 'password', required: true }],
+          },
+        ])
+      }
+      if (
+        path ===
+        "/api/collections/secrets/records?filter=((created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value'||template_id='ssh_key'))&sort=name"
+      ) {
+        return Promise.resolve({
+          items: [
+            {
+              id: 'secret-1',
+              name: 'ops-password',
+              template_id: 'single_value',
+            },
+          ],
+        })
+      }
+      return Promise.resolve([])
+    })
+
+    render(<ServersPage />)
+
+    expect(await screen.findByText('alpha')).toBeInTheDocument()
+
+    fireEvent.pointerDown(screen.getAllByRole('button', { name: 'More actions' })[0])
+    fireEvent.click(await screen.findByText('Duplicate Server'))
+
+    const duplicateDialog = await screen.findByRole('dialog')
+    expect(within(duplicateDialog).getByRole('heading', { name: 'Add Server' })).toBeInTheDocument()
+
+    const nameInput = within(duplicateDialog).getByLabelText(/^Name\*/) as HTMLInputElement
+    const hostInput = within(duplicateDialog).getByLabelText(/^Host\*/) as HTMLInputElement
+    const portInput = within(duplicateDialog).getByLabelText(/^Port\*/) as HTMLInputElement
+    const userInput = within(duplicateDialog).getByLabelText(/^User\*/) as HTMLInputElement
+    const descriptionInput = within(duplicateDialog).getByLabelText(/^Description/) as HTMLTextAreaElement
+
+    expect(nameInput.value).toMatch(/^server-\d{6}$/)
+    expect(nameInput.value).not.toBe('alpha')
+    expect(hostInput.value).toBe('10.0.0.1')
+    expect(portInput.value).toBe('2222')
+    expect(userInput.value).toBe('ubuntu')
+    expect(descriptionInput.value).toBe('Primary edge node')
+
+    fireEvent.click(within(duplicateDialog).getByRole('button', { name: 'Create' }))
+
+    await waitFor(() => {
+      expect(createServerMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: expect.stringMatching(/^server-\d{6}$/),
+          connect_type: 'direct',
+          host: '10.0.0.1',
+          port: 2222,
+          user: 'ubuntu',
+          credential: 'secret-1',
+          description: 'Primary edge node',
+          created_by: 'user-1',
+        })
+      )
+    })
+  })
+
   it('routes tunnel servers into the Connection tab and hides the legacy tunnel tab', async () => {
     searchState = { server: 'server-1', tab: 'connection' }
 

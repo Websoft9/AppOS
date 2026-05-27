@@ -2,7 +2,7 @@
 //
 // Route groups:
 //   - /api/ext/proxy      — reverse proxy domain/SSL management
-//   - /api/ext/system     — system metrics, file browser
+//   - /api/system         — system metrics, runtime facts, file browser
 //   - /api/ext/backup     — backup/restore operations
 //   - /api/ext/resources  — Resource Store CRUD (Epic 8)
 //   - /api/space         — User private space (Epic 9)
@@ -65,6 +65,9 @@ func Register(se *core.ServeEvent) {
 	g := se.Router.Group("/api/ext")
 	g.Bind(apis.RequireAuth())
 
+	systemGroup := se.Router.Group("/api/system")
+	systemGroup.Bind(apis.RequireAuth())
+
 	deployments := se.Router.Group("/api")
 	deployments.Bind(apis.RequireAuth())
 
@@ -82,7 +85,7 @@ func Register(se *core.ServeEvent) {
 	terminalGroup.Bind(apis.RequireSuperuserAuth())
 
 	registerProxyRoutes(g)
-	registerSystemRoutes(g)
+	registerSystemRoutes(systemGroup)
 	registerBackupRoutes(g)
 	registerResourceRoutes(g)
 	registerAIProviderRoutes(se)
@@ -103,6 +106,7 @@ func Register(se *core.ServeEvent) {
 	registerTerminalRoutes(terminalGroup)
 	registerTunnelRoutes(se)
 	registerMonitorRoutes(se)
+	registerFeedsRoutes(se)
 	registerSecretsRoutes(se)
 	registerCertificatesRoutes(se)
 	registerCronLogsRoute(se)

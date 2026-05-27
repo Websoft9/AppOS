@@ -6,6 +6,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
+	"github.com/websoft9/appos/backend/domain/feeds"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	"github.com/websoft9/appos/backend/domain/secrets"
 
@@ -20,6 +21,8 @@ func TestResourceCollectionsCreated(t *testing.T) {
 
 	expected := []string{
 		"secrets",
+		"feed_sources",
+		"feed_items",
 		"env_sets",
 		"env_set_vars",
 		"servers",
@@ -335,7 +338,7 @@ func TestServersCollectionFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
+	assertFieldMissing(t, col, "state") // Ensure state field is missing
 	assertFieldExists(t, col, "name", core.FieldTypeText, true)
 	assertFieldExists(t, col, "host", core.FieldTypeText, false)
 	assertFieldExists(t, col, "port", core.FieldTypeNumber, false)
@@ -462,6 +465,13 @@ func TestCertificatesCollectionFields(t *testing.T) {
 }
 
 // ─── Helpers ─────────────────────────────────────────────
+
+func assertFieldMissing(t *testing.T, col *core.Collection, name string) {
+	t.Helper()
+	if col.Fields.GetByName(name) != nil {
+		t.Errorf("collection %q: field %q should not exist", col.Name, name)
+	}
+}
 
 func assertFieldExists(t *testing.T, col *core.Collection, name, fieldType string, required bool) {
 	t.Helper()
@@ -846,6 +856,233 @@ func TestEnvSetsCollectionFields(t *testing.T) {
 	}
 	if col.DeleteRule != nil {
 		t.Error("env_sets.DeleteRule should be nil (superuser only)")
+	}
+}
+
+func TestFeedSourcesCollectionFields(t *testing.T) {
+	app := newMigrationsTestApp(t)
+
+	col, err := app.FindCollectionByNameOrId("feed_sources")
+	if err != nil {
+		t.Fatal("feed_sources collection not found:", err)
+	}
+	if col.Type != core.CollectionTypeBase {
+		t.Fatalf("expected base collection, got %q", col.Type)
+	}
+
+	assertFieldExists(t, col, "name", core.FieldTypeText, true)
+	assertFieldExists(t, col, "url", core.FieldTypeText, true)
+	assertFieldExists(t, col, "format", core.FieldTypeSelect, true)
+	assertFieldExists(t, col, "status", core.FieldTypeSelect, true)
+	assertFieldExists(t, col, "poll_interval_minutes", core.FieldTypeNumber, true)
+	assertFieldExists(t, col, "last_fetched_at", core.FieldTypeDate, false)
+	assertFieldExists(t, col, "last_success_at", core.FieldTypeDate, false)
+	assertFieldExists(t, col, "last_error", core.FieldTypeText, false)
+	assertFieldExists(t, col, "created", core.FieldTypeAutodate, false)
+	assertFieldExists(t, col, "updated", core.FieldTypeAutodate, false)
+	assertSelectFieldValues(t, col, "format", []string{"rss", "atom"})
+	assertSelectFieldValues(t, col, "status", []string{"active", "paused", "archived"})
+
+	if col.ListRule == nil || col.ViewRule == nil {
+		t.Fatal("feed_sources should allow authenticated reads")
+	}
+	if col.CreateRule == nil || col.UpdateRule == nil || col.DeleteRule == nil {
+		t.Fatal("feed_sources writes should be limited by explicit superuser rules")
+	}
+	if len(col.Indexes) == 0 {
+		t.Fatal("feed_sources should define a unique URL index")
+	}
+}
+
+func TestFeedSourcesRejectDuplicateURL(t *testing.T) {
+	app := newIsolatedMigrationsTestApp(t)
+
+	col, err := app.FindCollectionByNameOrId("feed_sources")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first := core.NewRecord(col)
+	first.Set("name", "App release feed")
+	first.Set("url", "https://example.com/feed.xml")
+	first.Set("format", "rss")
+	first.Set("status", "active")
+	first.Set("poll_interval_minutes", 60)
+	if err := app.Save(first); err != nil {
+		t.Fatalf("failed to save first feed source: %v", err)
+	}
+
+	duplicate := core.NewRecord(col)
+	duplicate.Set("name", "Same URL")
+	duplicate.Set("url", "https://example.com/feed.xml")
+	duplicate.Set("format", "rss")
+	duplicate.Set("status", "paused")
+	duplicate.Set("poll_interval_minutes", 30)
+	if err := app.Save(duplicate); err == nil {
+		t.Fatal("expected duplicate feed source URL to be rejected")
+	}
+}
+
+func TestFeedSourcesPausedAndArchivedStatusesPersist(t *testing.T) {
+	app := newIsolatedMigrationsTestApp(t)
+
+	col, err := app.FindCollectionByNameOrId("feed_sources")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	statuses := []string{"paused", "archived"}
+	for _, status := range statuses {
+		rec := core.NewRecord(col)
+		rec.Set("name", "feed-"+status)
+		rec.Set("url", "https://example.com/"+status+".xml")
+		rec.Set("format", "atom")
+		rec.Set("status", status)
+		rec.Set("poll_interval_minutes", 15)
+		if err := app.Save(rec); err != nil {
+			t.Fatalf("failed to save feed source with status %q: %v", status, err)
+		}
+
+		stored, err := app.FindRecordById("feed_sources", rec.Id)
+		if err != nil {
+			t.Fatalf("failed to reload feed source with status %q: %v", status, err)
+		}
+		if got := stored.GetString("status"); got != status {
+			t.Fatalf("expected status %q, got %q", status, got)
+		}
+	}
+}
+
+func TestFeedItemsCollectionFields(t *testing.T) {
+	app := newMigrationsTestApp(t)
+
+	col, err := app.FindCollectionByNameOrId("feed_items")
+	if err != nil {
+		t.Fatal("feed_items collection not found:", err)
+	}
+	if col.Type != core.CollectionTypeBase {
+		t.Fatalf("expected base collection, got %q", col.Type)
+	}
+
+	assertFieldExists(t, col, "source_id", core.FieldTypeRelation, false)
+	assertFieldExists(t, col, "origin_type", core.FieldTypeSelect, true)
+	assertFieldExists(t, col, "external_id", core.FieldTypeText, true)
+	assertFieldExists(t, col, "title", core.FieldTypeText, true)
+	assertFieldExists(t, col, "link", core.FieldTypeText, true)
+	assertFieldExists(t, col, "published_at", core.FieldTypeDate, false)
+	assertFieldExists(t, col, "summary", core.FieldTypeText, false)
+	assertFieldExists(t, col, "keywords_json", core.FieldTypeJSON, false)
+	assertFieldExists(t, col, "tags_json", core.FieldTypeJSON, false)
+	assertFieldExists(t, col, "read_state", core.FieldTypeSelect, true)
+	assertFieldExists(t, col, "is_starred", core.FieldTypeBool, false)
+	assertFieldMissing(t, col, "state")
+	assertFieldExists(t, col, "created", core.FieldTypeAutodate, false)
+	assertFieldExists(t, col, "updated", core.FieldTypeAutodate, false)
+	assertRelationTarget(t, app, col, "source_id", "feed_sources")
+	assertSelectFieldValues(t, col, "origin_type", []string{"feed", "bookmark"})
+	assertSelectFieldValues(t, col, "read_state", []string{"unread", "read"})
+
+	field := col.Fields.GetByName("source_id")
+	rf, ok := field.(*core.RelationField)
+	if !ok {
+		t.Fatalf("source_id should be a relation field, got %T", field)
+	}
+	if !rf.CascadeDelete {
+		t.Fatal("feed_items.source_id should have CascadeDelete enabled")
+	}
+
+	if col.ListRule == nil || col.ViewRule == nil {
+		t.Fatal("feed_items should allow authenticated reads")
+	}
+	if col.CreateRule != nil || col.UpdateRule != nil || col.DeleteRule != nil {
+		t.Fatal("feed_items writes must remain backend-owned")
+	}
+}
+
+func TestFeedItemsOriginTypeStorageDefault(t *testing.T) {
+	app := newIsolatedMigrationsTestApp(t)
+
+	type sqliteColumnDefault struct {
+		Name      string `db:"name"`
+		DfltValue string `db:"dflt_value"`
+	}
+
+	var columns []sqliteColumnDefault
+	if err := app.DB().NewQuery("PRAGMA table_info(`feed_items`)").All(&columns); err != nil {
+		t.Fatal(err)
+	}
+
+	found := false
+	for _, column := range columns {
+		if column.Name != "origin_type" {
+			continue
+		}
+		found = true
+		if column.DfltValue != "'feed'" {
+			t.Fatalf("expected origin_type storage default 'feed', got %q", column.DfltValue)
+		}
+	}
+	if !found {
+		t.Fatal("origin_type column not found in feed_items")
+	}
+
+	if _, err := app.DB().NewQuery("INSERT INTO feed_items (external_id, title, link, read_state, is_starred) VALUES ('raw-item-1', 'Raw item', 'https://example.com/raw-item', 'unread', FALSE)").Execute(); err != nil {
+		t.Fatalf("raw insert without origin_type: %v", err)
+	}
+
+	stored, err := app.FindFirstRecordByFilter(feeds.CollectionItems, "external_id = {:external_id}", map[string]any{"external_id": "raw-item-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.GetString("origin_type") != feeds.OriginTypeFeed {
+		t.Fatalf("expected raw inserted item origin_type %q, got %q", feeds.OriginTypeFeed, stored.GetString("origin_type"))
+	}
+}
+
+func TestFeedItemsRejectDuplicateSourceExternalID(t *testing.T) {
+	app := newIsolatedMigrationsTestApp(t)
+
+	sourceCol, err := app.FindCollectionByNameOrId("feed_sources")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := core.NewRecord(sourceCol)
+	source.Set("name", "AppOS feed")
+	source.Set("url", "https://example.com/feed.xml")
+	source.Set("format", "rss")
+	source.Set("status", "active")
+	source.Set("poll_interval_minutes", 60)
+	if err := app.Save(source); err != nil {
+		t.Fatalf("failed to save feed source: %v", err)
+	}
+
+	itemsCol, err := app.FindCollectionByNameOrId("feed_items")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first := core.NewRecord(itemsCol)
+	first.Set("source_id", source.Id)
+	first.Set("origin_type", "feed")
+	first.Set("external_id", "item-123")
+	first.Set("title", "Release 1.0")
+	first.Set("link", "https://example.com/releases/1")
+	first.Set("read_state", "unread")
+	first.Set("is_starred", false)
+	if err := app.Save(first); err != nil {
+		t.Fatalf("failed to save first feed item: %v", err)
+	}
+
+	duplicate := core.NewRecord(itemsCol)
+	duplicate.Set("source_id", source.Id)
+	duplicate.Set("origin_type", "feed")
+	duplicate.Set("external_id", "item-123")
+	duplicate.Set("title", "Release 1.0 duplicate")
+	duplicate.Set("link", "https://example.com/releases/1b")
+	duplicate.Set("read_state", "read")
+	duplicate.Set("is_starred", true)
+	if err := app.Save(duplicate); err == nil {
+		t.Fatal("expected duplicate source_id + external_id to be rejected")
 	}
 }
 

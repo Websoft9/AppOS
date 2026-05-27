@@ -443,25 +443,34 @@ func handleSoftwareCapabilityList(e *core.RequestEvent) error {
 // @Failure 500 {object} map[string]any
 // @Router /api/software/local [get]
 func handleLocalSoftwareComponentList(e *core.RequestEvent) error {
+	resp, err := loadLocalRuntimeComponentItems(e.App)
+	if err != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{
+			"error":   "catalog_load_failed",
+			"message": err.Error(),
+		})
+	}
+
+	return e.JSON(http.StatusOK, map[string]any{
+		"target_id": swservice.LocalTargetID,
+		"items":     resp,
+	})
+}
+
+func loadLocalRuntimeComponentItems(app core.App) ([]softwareComponentListItem, error) {
 	registry, err := swcatalog.LoadLocalRegistry()
 	if err != nil {
-		return e.JSON(http.StatusInternalServerError, map[string]any{
-			"error":   "catalog_load_failed",
-			"message": err.Error(),
-		})
+		return nil, err
 	}
-	computedByKey, inventoryReady, err := loadProjectedLocalSoftwareComponents(e.App)
+	computedByKey, inventoryReady, err := loadProjectedLocalSoftwareComponents(app)
 	if err != nil {
-		return e.JSON(http.StatusInternalServerError, map[string]any{
-			"error":   "catalog_load_failed",
-			"message": err.Error(),
-		})
+		return nil, err
 	}
 	if !inventoryReady {
-		warmLocalSoftwareInventorySnapshots(e.App)
+		warmLocalSoftwareInventorySnapshots(app)
 	}
 	probeStates := currentLocalComponentProbeStates(registry)
-	startLocalComponentProbeRefresh(e.App, registry)
+	startLocalComponentProbeRefresh(app, registry)
 
 	resp := make([]softwareComponentListItem, 0, len(registry.EnabledComponents()))
 	for _, component := range registry.EnabledComponents() {
@@ -503,10 +512,7 @@ func handleLocalSoftwareComponentList(e *core.RequestEvent) error {
 		resp = append(resp, listItem)
 	}
 
-	return e.JSON(http.StatusOK, map[string]any{
-		"target_id": swservice.LocalTargetID,
-		"items":     resp,
-	})
+	return resp, nil
 }
 
 // @Summary Get one AppOS-local software component

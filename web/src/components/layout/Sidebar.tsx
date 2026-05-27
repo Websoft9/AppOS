@@ -96,6 +96,7 @@ const workspaceGroup: NavGroup = {
       children: [
         { id: 'groups', label: 'Groups', href: '/groups' },
         { id: 'topics', label: 'Topics', href: '/topics' },
+        { id: 'feeds', label: 'Feeds', href: '/feeds' },
       ],
     },
     assetsNavItem,

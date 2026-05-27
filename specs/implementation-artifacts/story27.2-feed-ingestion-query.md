@@ -1,4 +1,4 @@
-# Story 27.2: Feed Item Ingestion and Query
+# Story 27.2: Feed Ingestion Query
 
 **Epic**: Epic 27 - Feeds  
 **Priority**: P2  
@@ -19,6 +19,7 @@ Ingest RSS / Atom entries into normalized `feed_items` so operators can query ex
 - The first Feeds page must behave as a signal workbench, not as a full reader.
 - Item click opens the original link; full article rendering is out of scope.
 - Ingestion scheduling may reuse existing cron-style platform mechanisms rather than introducing a new scheduler model.
+- The Sources list may contain special workspace entries such as `Bookmark`; such entries are views only and must not be modeled as `feed_sources` records.
 
 ## Table Structure
 
@@ -62,7 +63,8 @@ If tag or keyword filtering requires a custom query shape later, that may be add
 - System can ingest RSS / Atom entries from active sources.
 - Duplicate source entries are not stored twice.
 - Users can list items on a dedicated Feeds page.
-- Users can filter by source, state, and time in MVP; tag and keyword filters may be implemented directly or via a minimal follow-up if PocketBase query limits require it.
+- Users can filter by source, state, and time in MVP.
+- Tag and keyword values are extracted and stored in MVP, but filter UI or custom query support for them may follow once PocketBase native query limits are proven insufficient.
 - Clicking an item opens the original source link, not an in-app reader.
 
 ## Tasks / Subtasks
@@ -95,6 +97,7 @@ If tag or keyword filtering requires a custom query shape later, that may be add
 - Existing cron or background task infrastructure should be reused.
 - Judgment and local binding are intentionally deferred to `story27.3-judgment-and-binding.md`.
 - Backend implementation direction is shared with `story27.1` in `story27.1-27.2-feeds-backend-technical-direction.md`.
+- If `Bookmark` is added later, it should reuse the Feeds page shell and item-centric reading model, while keeping manual saved-link entry separate from source polling behavior.
 
 ## File Targets
 

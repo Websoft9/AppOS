@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pocketbase/pocketbase"
 	swcatalog "github.com/websoft9/appos/backend/domain/software/catalog"
 )
 
@@ -95,4 +96,17 @@ func TestShouldRunMonitorInterval(t *testing.T) {
 	if shouldRunMonitorInterval(now, 7) {
 		t.Fatal("expected 7-minute interval not to run at minute 15")
 	}
+}
+
+func TestRegisterCronHooksRegistersFeedsPollJob(t *testing.T) {
+	app := pocketbase.New()
+	registerCronHooks(app, nil)
+
+	for _, job := range app.Cron().Jobs() {
+		if job.Id() == feedsPollCronJobID {
+			return
+		}
+	}
+
+	t.Fatalf("expected cron job %q to be registered", feedsPollCronJobID)
 }

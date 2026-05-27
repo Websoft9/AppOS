@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/hibiken/asynq"
+	"github.com/websoft9/appos/backend/domain/feeds"
 	"github.com/websoft9/appos/backend/domain/monitor"
 	swcatalog "github.com/websoft9/appos/backend/domain/software/catalog"
 	swinventory "github.com/websoft9/appos/backend/domain/software/inventory"
@@ -23,6 +24,7 @@ const monitorFactsPullCronJobID = "monitor_facts_pull"
 const monitorRuntimeSnapshotPullCronJobID = "monitor_runtime_snapshot_pull"
 const monitorCredentialCronJobID = "monitor_credential_checks"
 const monitorAppHealthCronJobID = "monitor_app_health_checks"
+const feedsPollCronJobID = "feeds_poll"
 
 func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 	app.Cron().MustAdd(
@@ -30,6 +32,16 @@ func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 		"*/15 * * * *",
 		cronutil.Wrap(app, componentsInventoryCronJobID, func() {
 			if err := runComponentsInventoryProbe(app); err != nil {
+				panic(err)
+			}
+		}),
+	)
+
+	app.Cron().MustAdd(
+		feedsPollCronJobID,
+		"*/5 * * * *",
+		cronutil.Wrap(app, feedsPollCronJobID, func() {
+			if _, err := feeds.PollDueSources(nil, app, nil, time.Now().UTC()); err != nil {
 				panic(err)
 			}
 		}),

@@ -3,16 +3,11 @@
 ## 资源
 
 - 增加 strorage
-- 资源增加拷贝功能，即基于一个资源拷贝为新资源
 
 ### 服务器
 
 - 服务器特殊环境配置：Docker 仓库地址、Docker 加速地址、代理地址
-- 环境预装机制：在线一键脚本或由 AppOS 推送到服务器后执行
 
-## 隧道
-
-- 隧道链接到服务器的 detail page
 
 ## Workflow
 
@@ -146,16 +141,11 @@ Prerequisites
 ports tab 不稳定，经常打开显示  somethins wrong
 
 
-
 addons 的 netdata restart 报错
-Server Terminal  退出连接后再重连，就会失败
-
-crontab list 保存不住
 
 去掉所有与 docker.sock 的强依赖与硬编码
 
-平台metrics 的读取查询与对服务器 metrics 的查询，是不是后端代码应该分离
+rss 文章总数量，每个 source 文章上限问题，清理机制
 
-所以 appos 容器內其實完全可以通過 uname -r、/proc/meminfo 等獲取宿主機的內核版本、內存大小、CPU 信息，不需要任何特殊權限。只有 OS 發行版（os-release）是個例外
 
 

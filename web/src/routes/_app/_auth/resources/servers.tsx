@@ -5,6 +5,7 @@ import {
   PlugZap,
   Loader2,
   Cable,
+  Copy,
   Link as LinkIcon,
   ArrowLeft,
   RotateCcw,
@@ -99,6 +100,25 @@ function buildDefaultCredentialSecretName() {
 
 function buildDefaultServerName() {
   return `server-${Date.now().toString().slice(-6)}`
+}
+
+function buildDuplicateServerDraft(item: Record<string, unknown>): Record<string, unknown> {
+  const connectType = String(item.connect_type ?? 'direct') === 'tunnel' ? 'tunnel' : 'direct'
+  const draft: Record<string, unknown> = {
+    name: buildDefaultServerName(),
+    connect_type: connectType,
+    use_local_host: false,
+    user: String(item.user ?? ''),
+    credential: item.credential ?? '',
+    description: String(item.description ?? ''),
+  }
+
+  if (connectType === 'direct') {
+    draft.host = String(item.host ?? '')
+    draft.port = normalizePort(item.port) ?? 22
+  }
+
+  return draft
 }
 
 async function runBatched<T>(items: T[], batchSize: number, worker: (item: T) => Promise<void>) {
@@ -392,7 +412,8 @@ const fields: FieldDef[] = [
 export function ServersPage() {
   const { create, returnGroup, returnType, edit, server, tab, focusComponent, focusPanel, focusSource, focusIssue } = Route.useSearch()
   const { user } = useAuth()
-  const autoCreate = create === '1' || !!returnGroup
+  const [duplicateDraft, setDuplicateDraft] = useState<Record<string, unknown> | null>(null)
+  const autoCreate = create === '1' || !!returnGroup || duplicateDraft !== null
   const navigate = Route.useNavigate()
   const resolvedFocusPanel =
     focusPanel === 'checklist' || focusPanel === 'operation' || focusPanel === 'history'
@@ -580,6 +601,10 @@ export function ServersPage() {
       setSecretEditPayload({})
       setSecretEditTemplates([])
     }
+  }, [])
+
+  const handleDuplicateServer = useCallback((item: Record<string, unknown>) => {
+    setDuplicateDraft(buildDuplicateServerDraft(item))
   }, [])
 
   const handleSecretEditSave = useCallback(async () => {
@@ -1673,10 +1698,15 @@ export function ServersPage() {
           {presentation.stateActions.map(action => renderConnectionActionItem(item, action))}
           {presentation.toolActions.length > 0 ? <DropdownMenuSeparator /> : null}
           {presentation.toolActions.map(action => renderConnectionActionItem(item, action))}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => handleDuplicateServer(item)}>
+            <Copy className="h-4 w-4" />
+            Duplicate Server
+          </DropdownMenuItem>
         </>
       )
     },
-    [getConnectionPresentation, renderConnectionActionItem]
+    [getConnectionPresentation, handleDuplicateServer, renderConnectionActionItem]
   )
 
   const renderPrimaryAction = useCallback(
@@ -1761,11 +1791,12 @@ export function ServersPage() {
           refreshKey: listRefreshKey,
           columns,
           fields: serverFields,
-          initialCreateData: () => ({
-            name: buildDefaultServerName(),
-            connect_type: 'direct',
-            use_local_host: false,
-          }),
+          initialCreateData: () =>
+            duplicateDraft ?? {
+              name: buildDefaultServerName(),
+              connect_type: 'direct',
+              use_local_host: false,
+            },
           validateForm: ({ formData }) => {
             const isTunnel = String(formData.connect_type ?? 'direct') === 'tunnel'
             const name = String(formData.name ?? '').trim()
@@ -1798,6 +1829,11 @@ export function ServersPage() {
             })
           },
           autoCreate,
+          onAutoCreateHandled: () => {
+            if (duplicateDraft) {
+              setDuplicateDraft(null)
+            }
+          },
           showRefreshButton: true,
           wrapTableInCard: false,
           onRefresh: refreshAllStatuses,

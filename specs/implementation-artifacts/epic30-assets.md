@@ -12,7 +12,11 @@ Current examples:
 
 - scripts
 - skills
-- future prompt bundles or runbook fragments
+
+Phase 1 is intentionally narrow:
+
+- supported asset types: `script`, `skill`
+- future candidates, not phase-1 commitments: `prompt`, `runbook`
 
 ## Definition
 
@@ -40,6 +44,19 @@ Use `Assets` when the object is a reusable technical definition that is not owne
 
 Do not use `Assets` as a catch-all file store.
 
+## Phase 1 Decisions
+
+- Epic 30 does not deliver execution, scheduling, or automation orchestration.
+- Epic 30 does not include a platform-wide file-service refactor as a delivery goal.
+- Epic 30 phase 1 supports only `script` and `skill` as committed asset types.
+- Asset metadata belongs in the application database.
+- Asset content belongs in the filesystem.
+- Filesystem content is stored under `/appos/data/assets/{assetName}-{assetId}/...`.
+- Assets are platform-shared objects, not owner-first personal files.
+- Phase 1 allows `source_kind=reference` records to be created, but does not resolve or fetch reference content.
+- Phase 1 may reuse existing IaC-style file mechanisms or shared helpers, but `Assets` does not become an IaC subdomain.
+- Current user-first `Space` is not the storage owner for shared assets.
+
 ## Package Naming Decision
 
 The Go package for this domain should be `backend/domain/assets`.
@@ -63,6 +80,10 @@ Recommended initial values:
 - `storage_kind`: `file`, `folder`
 - `source_kind`: `local`, `reference`
 
+Phase-1 supported values:
+
+- `kind`: `script`, `skill`
+
 Minimal fields:
 
 - `id`
@@ -72,6 +93,14 @@ Minimal fields:
 - `source_kind`
 - `path`
 - `entrypoint`
+
+Phase-1 ownership:
+
+- platform-shared
+
+Phase-1 storage path convention:
+
+- `/appos/data/assets/{assetName}-{assetId}/...`
 
 ## Consumer Rule
 
@@ -89,6 +118,7 @@ Output:
 - canonical `Asset` fields and enums
 - initial persistence decision for metadata and file content
 - explicit scope for `script` and `skill` as phase-1 supported types
+- explicit phase-1 boundary that future file-service evolution is not part of this epic's delivery scope
 
 ### Story 30.2: Assets API
 
@@ -100,6 +130,7 @@ Output:
 - file or folder storage handling
 - local vs reference source handling
 - validation for `kind`, `storage_kind`, `source_kind`, and `entrypoint`
+- concrete collection, DTO, and endpoint shape
 
 ### Story 30.3: Assets UI
 
@@ -109,5 +140,6 @@ Output:
 
 - Assets list page
 - create/edit form
+- content preview
 - file or folder presentation
 - type-aware display for `script` and `skill`

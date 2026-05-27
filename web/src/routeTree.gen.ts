@@ -26,6 +26,7 @@ import { Route as AppAuthProfileRouteImport } from './routes/_app/_auth/profile'
 import { Route as AppAuthPlatformComponentsRouteImport } from './routes/_app/_auth/platform-components'
 import { Route as AppAuthOverviewRouteImport } from './routes/_app/_auth/overview'
 import { Route as AppAuthGroupsRouteImport } from './routes/_app/_auth/groups'
+import { Route as AppAuthFeedsRouteImport } from './routes/_app/_auth/feeds'
 import { Route as AppAuthExtensionsRouteImport } from './routes/_app/_auth/extensions'
 import { Route as AppAuthDockerRouteImport } from './routes/_app/_auth/docker'
 import { Route as AppAuthDeployRouteImport } from './routes/_app/_auth/deploy'
@@ -146,6 +147,11 @@ const AppAuthOverviewRoute = AppAuthOverviewRouteImport.update({
 const AppAuthGroupsRoute = AppAuthGroupsRouteImport.update({
   id: '/groups',
   path: '/groups',
+  getParentRoute: () => AppAuthRoute,
+} as any)
+const AppAuthFeedsRoute = AppAuthFeedsRouteImport.update({
+  id: '/feeds',
+  path: '/feeds',
   getParentRoute: () => AppAuthRoute,
 } as any)
 const AppAuthExtensionsRoute = AppAuthExtensionsRouteImport.update({
@@ -359,6 +365,7 @@ export interface FileRoutesByFullPath {
   '/deploy': typeof AppAuthDeployRouteWithChildren
   '/docker': typeof AppAuthDockerRoute
   '/extensions': typeof AppAuthExtensionsRoute
+  '/feeds': typeof AppAuthFeedsRoute
   '/groups': typeof AppAuthGroupsRouteWithChildren
   '/overview': typeof AppAuthOverviewRoute
   '/platform-components': typeof AppAuthPlatformComponentsRoute
@@ -411,6 +418,7 @@ export interface FileRoutesByTo {
   '/certificates': typeof AppAuthCertificatesRoute
   '/docker': typeof AppAuthDockerRoute
   '/extensions': typeof AppAuthExtensionsRoute
+  '/feeds': typeof AppAuthFeedsRoute
   '/overview': typeof AppAuthOverviewRoute
   '/platform-components': typeof AppAuthPlatformComponentsRoute
   '/profile': typeof AppAuthProfileRoute
@@ -466,6 +474,7 @@ export interface FileRoutesById {
   '/_app/_auth/deploy': typeof AppAuthDeployRouteWithChildren
   '/_app/_auth/docker': typeof AppAuthDockerRoute
   '/_app/_auth/extensions': typeof AppAuthExtensionsRoute
+  '/_app/_auth/feeds': typeof AppAuthFeedsRoute
   '/_app/_auth/groups': typeof AppAuthGroupsRouteWithChildren
   '/_app/_auth/overview': typeof AppAuthOverviewRoute
   '/_app/_auth/platform-components': typeof AppAuthPlatformComponentsRoute
@@ -521,6 +530,7 @@ export interface FileRouteTypes {
     | '/deploy'
     | '/docker'
     | '/extensions'
+    | '/feeds'
     | '/groups'
     | '/overview'
     | '/platform-components'
@@ -573,6 +583,7 @@ export interface FileRouteTypes {
     | '/certificates'
     | '/docker'
     | '/extensions'
+    | '/feeds'
     | '/overview'
     | '/platform-components'
     | '/profile'
@@ -627,6 +638,7 @@ export interface FileRouteTypes {
     | '/_app/_auth/deploy'
     | '/_app/_auth/docker'
     | '/_app/_auth/extensions'
+    | '/_app/_auth/feeds'
     | '/_app/_auth/groups'
     | '/_app/_auth/overview'
     | '/_app/_auth/platform-components'
@@ -792,6 +804,13 @@ declare module '@tanstack/react-router' {
       path: '/groups'
       fullPath: '/groups'
       preLoaderRoute: typeof AppAuthGroupsRouteImport
+      parentRoute: typeof AppAuthRoute
+    }
+    '/_app/_auth/feeds': {
+      id: '/_app/_auth/feeds'
+      path: '/feeds'
+      fullPath: '/feeds'
+      preLoaderRoute: typeof AppAuthFeedsRouteImport
       parentRoute: typeof AppAuthRoute
     }
     '/_app/_auth/extensions': {
@@ -1177,6 +1196,7 @@ interface AppAuthRouteChildren {
   AppAuthDeployRoute: typeof AppAuthDeployRouteWithChildren
   AppAuthDockerRoute: typeof AppAuthDockerRoute
   AppAuthExtensionsRoute: typeof AppAuthExtensionsRoute
+  AppAuthFeedsRoute: typeof AppAuthFeedsRoute
   AppAuthGroupsRoute: typeof AppAuthGroupsRouteWithChildren
   AppAuthOverviewRoute: typeof AppAuthOverviewRoute
   AppAuthPlatformComponentsRoute: typeof AppAuthPlatformComponentsRoute
@@ -1205,6 +1225,7 @@ const AppAuthRouteChildren: AppAuthRouteChildren = {
   AppAuthDeployRoute: AppAuthDeployRouteWithChildren,
   AppAuthDockerRoute: AppAuthDockerRoute,
   AppAuthExtensionsRoute: AppAuthExtensionsRoute,
+  AppAuthFeedsRoute: AppAuthFeedsRoute,
   AppAuthGroupsRoute: AppAuthGroupsRouteWithChildren,
   AppAuthOverviewRoute: AppAuthOverviewRoute,
   AppAuthPlatformComponentsRoute: AppAuthPlatformComponentsRoute,
