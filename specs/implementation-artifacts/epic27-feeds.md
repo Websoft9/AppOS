@@ -163,21 +163,13 @@ Create normalized `feed_items`, dedupe, extraction, and the first Feeds page.
 
 See `story27.2-feed-ingestion-query.md`.
 
-### Story 27.3 Judgment and Binding
-
-Allow users to mark relevance and bind items to apps or topics.
-
-See `story27.3-judgment-and-binding.md`.
+Future follow-up work may add AI-oriented source analysis, but it is not currently defined as an implementation story.
 
 ## Recommended Delivery Order
 
 1. `27.1` source registry and collection setup
 2. `27.2` ingestion pipeline, dedupe, and first query page
-3. `27.3` judgment and binding workflow
-
-Backend-first technical direction:
-
-- See `story27.1-27.2-feeds-backend-technical-direction.md`.
+3. define a separate follow-up story only after the AI analysis workflow is clarified
 
 Implementation note:
 

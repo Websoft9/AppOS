@@ -83,6 +83,15 @@ export interface MonitorManagedCollectorPolicyGroup {
   flushJitterSeconds: number
 }
 
+export interface FeedsPolicyGroup {
+  pollIntervalMinutes: number
+  failureBackoffOneHours: number
+  failureBackoffTwoHours: number
+  failureBackoffMaxHours: number
+  perSourceRetentionCap: number
+  globalRetentionCap: number
+}
+
 export const DEFAULT_SPACE_QUOTA: SpaceQuota = {
   maxSizeMB: 10,
   maxPerUser: 100,
@@ -159,6 +168,15 @@ export const DEFAULT_MONITOR_MANAGED_COLLECTOR_POLICY: MonitorManagedCollectorPo
   metricBufferLimit: 5000,
   collectionJitterSeconds: 1,
   flushJitterSeconds: 1,
+}
+
+export const DEFAULT_FEEDS_POLICY: FeedsPolicyGroup = {
+  pollIntervalMinutes: 60,
+  failureBackoffOneHours: 2,
+  failureBackoffTwoHours: 6,
+  failureBackoffMaxHours: 24,
+  perSourceRetentionCap: 1000,
+  globalRetentionCap: 30000,
 }
 
 export type SecretPolicyErrors = Partial<Record<keyof SecretPolicy, string>>

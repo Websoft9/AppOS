@@ -11,7 +11,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-func seedFeedSourceRecord(t *testing.T, app core.App, name, rawURL, format, status string, interval int) *core.Record {
+func seedFeedSourceRecord(t *testing.T, app core.App, name, rawURL, format, status string) *core.Record {
 	t.Helper()
 	col, err := app.FindCollectionByNameOrId(CollectionSources)
 	if err != nil {
@@ -22,7 +22,7 @@ func seedFeedSourceRecord(t *testing.T, app core.App, name, rawURL, format, stat
 	rec.Set("url", rawURL)
 	rec.Set("format", format)
 	rec.Set("status", status)
-	rec.Set("poll_interval_minutes", interval)
+	rec.Set("failure_streak", 0)
 	if err := app.Save(rec); err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func seedFeedSourceRecord(t *testing.T, app core.App, name, rawURL, format, stat
 
 func TestPollDueSourcesCreatesItemsAndMarksSuccess(t *testing.T) {
 	app := newFeedsTestApp(t)
-	seedFeedSourceRecord(t, app, "Vendor feed", "https://example.com/feed.xml", FormatRSS, StatusActive, 60)
+	seedFeedSourceRecord(t, app, "Vendor feed", "https://example.com/feed.xml", FormatRSS, StatusActive)
 
 	data := readFeedFixture(t, "rss.xml")
 	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
@@ -74,6 +74,15 @@ func TestPollDueSourcesCreatesItemsAndMarksSuccess(t *testing.T) {
 	if source.GetDateTime("last_success_at").IsZero() {
 		t.Fatal("expected last_success_at to be set after successful poll")
 	}
+	if source.GetInt("item_count") != 2 {
+		t.Fatalf("expected source item_count to be 2 after poll, got %d", source.GetInt("item_count"))
+	}
+	if source.GetInt("failure_streak") != 0 {
+		t.Fatalf("expected failure_streak reset after success, got %d", source.GetInt("failure_streak"))
+	}
+	if source.GetDateTime("next_poll_at").IsZero() {
+		t.Fatal("expected next_poll_at to be set after successful poll")
+	}
 	if source.GetString("last_error") != "" {
 		t.Fatalf("expected last_error cleared, got %q", source.GetString("last_error"))
 	}
@@ -81,7 +90,7 @@ func TestPollDueSourcesCreatesItemsAndMarksSuccess(t *testing.T) {
 
 func TestPollDueSourcesPreservesExistingItemState(t *testing.T) {
 	app := newFeedsTestApp(t)
-	source := seedFeedSourceRecord(t, app, "Vendor feed", "https://example.com/feed.xml", FormatRSS, StatusActive, 60)
+	source := seedFeedSourceRecord(t, app, "Vendor feed", "https://example.com/feed.xml", FormatRSS, StatusActive)
 
 	itemsCol, err := app.FindCollectionByNameOrId(CollectionItems)
 	if err != nil {
@@ -129,8 +138,8 @@ func TestPollDueSourcesPreservesExistingItemState(t *testing.T) {
 
 func TestPollDueSourcesMarksFailureAndSkipsPausedSources(t *testing.T) {
 	app := newFeedsTestApp(t)
-	paused := seedFeedSourceRecord(t, app, "Paused feed", "https://example.com/paused.xml", FormatRSS, StatusPaused, 60)
-	broken := seedFeedSourceRecord(t, app, "Broken feed", "https://example.com/broken.xml", FormatRSS, StatusActive, 60)
+	paused := seedFeedSourceRecord(t, app, "Paused feed", "https://example.com/paused.xml", FormatRSS, StatusPaused)
+	broken := seedFeedSourceRecord(t, app, "Broken feed", "https://example.com/broken.xml", FormatRSS, StatusActive)
 
 	callCount := 0
 	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
@@ -164,6 +173,12 @@ func TestPollDueSourcesMarksFailureAndSkipsPausedSources(t *testing.T) {
 	if brokenStored.GetString("last_error") == "" {
 		t.Fatal("expected failed source to record last_error")
 	}
+	if brokenStored.GetInt("failure_streak") != 1 {
+		t.Fatalf("expected failed source failure_streak to be 1, got %d", brokenStored.GetInt("failure_streak"))
+	}
+	if brokenStored.GetDateTime("next_poll_at").IsZero() {
+		t.Fatal("expected failed source next_poll_at to be backoff scheduled")
+	}
 	if brokenStored.GetDateTime("last_success_at").IsZero() == false {
 		t.Fatal("expected failed source not to set last_success_at")
 	}
@@ -171,8 +186,8 @@ func TestPollDueSourcesMarksFailureAndSkipsPausedSources(t *testing.T) {
 
 func TestPollSourcesForceFetchesActiveSourceEvenWhenNotDue(t *testing.T) {
 	app := newFeedsTestApp(t)
-	source := seedFeedSourceRecord(t, app, "Vendor feed", "https://example.com/feed.xml", FormatRSS, StatusActive, 60)
-	source.Set("last_fetched_at", mustDateTime(time.Date(2026, 5, 27, 11, 45, 0, 0, time.UTC)))
+	source := seedFeedSourceRecord(t, app, "Vendor feed", "https://example.com/feed.xml", FormatRSS, StatusActive)
+	source.Set("next_poll_at", mustDateTime(time.Date(2026, 5, 27, 12, 30, 0, 0, time.UTC)))
 	if err := app.Save(source); err != nil {
 		t.Fatal(err)
 	}
@@ -193,8 +208,8 @@ func TestPollSourcesForceFetchesActiveSourceEvenWhenNotDue(t *testing.T) {
 
 func TestPollSourceForceFetchesSingleSourceEvenWhenNotDue(t *testing.T) {
 	app := newFeedsTestApp(t)
-	source := seedFeedSourceRecord(t, app, "Vendor feed", "https://example.com/feed.xml", FormatRSS, StatusActive, 60)
-	source.Set("last_fetched_at", mustDateTime(time.Date(2026, 5, 27, 11, 45, 0, 0, time.UTC)))
+	source := seedFeedSourceRecord(t, app, "Vendor feed", "https://example.com/feed.xml", FormatRSS, StatusActive)
+	source.Set("next_poll_at", mustDateTime(time.Date(2026, 5, 27, 12, 30, 0, 0, time.UTC)))
 	if err := app.Save(source); err != nil {
 		t.Fatal(err)
 	}

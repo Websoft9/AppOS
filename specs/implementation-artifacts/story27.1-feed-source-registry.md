@@ -78,8 +78,9 @@ Rule baseline:
 
 - This story defines source identity only.
 - Actual ingestion is handled by `story27.2-feed-ingestion-query.md`.
-- Binding feed items to apps or topics is handled by `story27.3-judgment-and-binding.md`.
-- Backend implementation direction is shared with `story27.2` in `story27.1-27.2-feeds-backend-technical-direction.md`.
+- AI-oriented source analysis remains a future follow-up and is intentionally not covered by this story.
+- Backend uses one shared `backend/domain/feeds` package for source helpers and polling logic.
+- Polling remains one platform-managed job that scans due active sources; do not create one cron job per source.
 
 ## File Targets
 

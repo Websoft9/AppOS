@@ -1,11 +1,14 @@
 package routes
 
 import (
+	"context"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/feeds"
 )
@@ -13,6 +16,8 @@ import (
 var pollFeedsNow = feeds.PollSources
 var pollFeedSourceNow = feeds.PollSource
 var analyzeFeedSource = feeds.AnalyzeSource
+var analyzeBookmarkURL = feeds.AnalyzeBookmark
+var fetchFaviconAsset = feeds.FetchFavicon
 
 type feedItemStatePatchRequest struct {
 	ReadState *string `json:"read_state"`
@@ -20,9 +25,14 @@ type feedItemStatePatchRequest struct {
 }
 
 type createBookmarkRequest struct {
-	URL     string `json:"url"`
-	Title   string `json:"title"`
-	Summary string `json:"summary"`
+	URL        string `json:"url"`
+	Title      string `json:"title"`
+	Summary    string `json:"summary"`
+	FaviconURL string `json:"favicon_url"`
+}
+
+type analyzeBookmarkRequest struct {
+	URL string `json:"url"`
 }
 
 type bookmarkConflictResponse struct {
@@ -35,19 +45,466 @@ type feedSourceAnalyzeRequest struct {
 	URL string `json:"url"`
 }
 
+type bookmarkListItem struct {
+	ID         string `json:"id"`
+	OriginType string `json:"origin_type"`
+	ExternalID string `json:"external_id"`
+	Title      string `json:"title"`
+	Link       string `json:"link"`
+	FaviconURL string `json:"favicon_url"`
+	Summary    string `json:"summary"`
+	ReadState  string `json:"read_state"`
+	IsStarred  bool   `json:"is_starred"`
+	Created    string `json:"created,omitempty"`
+	Updated    string `json:"updated,omitempty"`
+}
+
+type bookmarkListResponse struct {
+	Items          []bookmarkListItem `json:"items"`
+	Page           int                `json:"page"`
+	PerPage        int                `json:"perPage"`
+	TotalItems     int                `json:"totalItems"`
+	TotalBookmarks int                `json:"totalBookmarks"`
+}
+
+type feedListSourceExpand struct {
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	URL           string `json:"url"`
+	FaviconURL    string `json:"favicon_url,omitempty"`
+	Format        string `json:"format"`
+	Status        string `json:"status"`
+	LastFetchedAt string `json:"last_fetched_at,omitempty"`
+	LastSuccessAt string `json:"last_success_at,omitempty"`
+	LastError     string `json:"last_error,omitempty"`
+	Created       string `json:"created,omitempty"`
+	Updated       string `json:"updated,omitempty"`
+}
+
+type feedListItem struct {
+	ID          string `json:"id"`
+	SourceID    string `json:"source_id,omitempty"`
+	OriginType  string `json:"origin_type"`
+	ExternalID  string `json:"external_id"`
+	Title       string `json:"title"`
+	Link        string `json:"link"`
+	FaviconURL  string `json:"favicon_url,omitempty"`
+	PublishedAt string `json:"published_at,omitempty"`
+	Summary     string `json:"summary,omitempty"`
+	ContentRaw  string `json:"content_raw,omitempty"`
+	ReadState   string `json:"read_state"`
+	IsStarred   bool   `json:"is_starred"`
+	Created     string `json:"created,omitempty"`
+	Updated     string `json:"updated,omitempty"`
+	Expand      struct {
+		SourceID *feedListSourceExpand `json:"source_id,omitempty"`
+	} `json:"expand,omitempty"`
+}
+
+type feedListResponse struct {
+	Items      []feedListItem `json:"items"`
+	Page       int            `json:"page"`
+	PerPage    int            `json:"perPage"`
+	TotalItems int            `json:"totalItems"`
+}
+
+type feedSummarySourceCount struct {
+	SourceID string `json:"sourceId"`
+	Count    int    `json:"count"`
+}
+
+type feedSummaryResponse struct {
+	TotalItems   int                      `json:"totalItems"`
+	StarredItems int                      `json:"starredItems"`
+	SourceCounts []feedSummarySourceCount `json:"sourceCounts"`
+}
+
+type feedListRow struct {
+	ID                  string `db:"id"`
+	SourceID            string `db:"source_id"`
+	OriginType          string `db:"origin_type"`
+	ExternalID          string `db:"external_id"`
+	Title               string `db:"title"`
+	Link                string `db:"link"`
+	FaviconURL          string `db:"favicon_url"`
+	PublishedAt         string `db:"published_at"`
+	Summary             string `db:"summary"`
+	ContentRaw          string `db:"content_raw"`
+	ReadState           string `db:"read_state"`
+	IsStarred           bool   `db:"is_starred"`
+	Created             string `db:"created"`
+	Updated             string `db:"updated"`
+	SourceExpandID      string `db:"source_expand_id"`
+	SourceExpandName    string `db:"source_expand_name"`
+	SourceExpandURL     string `db:"source_expand_url"`
+	SourceExpandFavicon string `db:"source_expand_favicon_url"`
+	SourceExpandFormat  string `db:"source_expand_format"`
+	SourceExpandStatus  string `db:"source_expand_status"`
+	SourceExpandFetched string `db:"source_expand_last_fetched_at"`
+	SourceExpandSuccess string `db:"source_expand_last_success_at"`
+	SourceExpandError   string `db:"source_expand_last_error"`
+	SourceExpandCreated string `db:"source_expand_created"`
+	SourceExpandUpdated string `db:"source_expand_updated"`
+}
+
+type feedTotalRow struct {
+	TotalItems int `db:"total_items"`
+}
+
+type feedSummaryTotalsRow struct {
+	TotalItems   int `db:"total_items"`
+	StarredItems int `db:"starred_items"`
+}
+
+type feedSummaryCountRow struct {
+	SourceID string `db:"source_id"`
+	Count    int    `db:"count"`
+}
+
+const (
+	defaultBookmarkListPage    = 1
+	defaultBookmarkListPerPage = 10
+	maxBookmarkListPerPage     = 100
+	defaultFeedListPage        = 1
+	defaultFeedListPerPage     = 20
+	maxFeedListPerPage         = 100
+)
+
 // registerFeedsRoutes registers authenticated feeds actions under /api/feeds.
 func registerFeedsRoutes(se *core.ServeEvent) {
+	se.Router.GET("/api/feeds/favicon", handleFeedFavicon)
+
 	g := se.Router.Group("/api/feeds")
 	g.Bind(apis.RequireAuth())
 	admin := se.Router.Group("/api/feeds")
 	admin.Bind(apis.RequireSuperuserAuth())
 
+	g.GET("/bookmarks", handleListBookmarks)
+	g.GET("/items", handleListFeedItems)
+	g.GET("/summary", handleFeedSummary)
 	g.POST("/bookmarks", handleCreateBookmark)
+	g.POST("/bookmarks/analyze", handleAnalyzeBookmark)
+	g.PATCH("/bookmarks/{id}", handleUpdateBookmark)
 	g.DELETE("/bookmarks/{id}", handleDeleteBookmark)
+	g.POST("/items/{id}/bookmark", handleFeedItemBookmark)
 	g.PATCH("/items/{id}/state", handleFeedItemStatePatch)
 	admin.POST("/analyze", handleFeedSourceAnalyze)
+	admin.POST("/cleanup/preview", handleFeedCleanupPreview)
+	admin.POST("/cleanup", handleFeedCleanup)
 	admin.POST("/poll", handleFeedsPoll)
 	admin.POST("/sources/{id}/poll", handleFeedSourcePoll)
+}
+
+func buildFeedListWhere(sourceID, query string, starred bool) (string, dbx.Params) {
+	params := dbx.Params{
+		"origin_type": feeds.OriginTypeFeed,
+	}
+	clauses := []string{"fi.origin_type = {:origin_type}"}
+
+	if sourceID != "" {
+		clauses = append(clauses, "fi.source_id = {:source_id}")
+		params["source_id"] = sourceID
+	}
+	if starred {
+		clauses = append(clauses, "fi.is_starred = TRUE")
+	}
+	if query != "" {
+		clauses = append(clauses, "(lower(fi.title) LIKE {:query_like} OR lower(fi.summary) LIKE {:query_like} OR lower(fi.link) LIKE {:query_like} OR lower(coalesce(fs.name, '')) LIKE {:query_like})")
+		params["query_like"] = "%" + strings.ToLower(query) + "%"
+	}
+
+	return strings.Join(clauses, " AND "), params
+}
+
+func handleListFeedItems(e *core.RequestEvent) error {
+	page := parsePositiveQueryInt(e.Request.URL.Query().Get("page"), defaultFeedListPage)
+	perPage := parsePositiveQueryInt(e.Request.URL.Query().Get("perPage"), defaultFeedListPerPage)
+	if perPage > maxFeedListPerPage {
+		perPage = maxFeedListPerPage
+	}
+
+	sourceID := strings.TrimSpace(e.Request.URL.Query().Get("sourceId"))
+	query := strings.TrimSpace(e.Request.URL.Query().Get("q"))
+	starred := strings.EqualFold(strings.TrimSpace(e.Request.URL.Query().Get("starred")), "true")
+
+	whereClause, params := buildFeedListWhere(sourceID, query, starred)
+
+	// Omit the JOIN from the COUNT when there is no text-search: the WHERE clause
+	// only references fi columns in that case, so the index scan is much faster.
+	var total feedTotalRow
+	var countQuery string
+	if query == "" {
+		countQuery = `SELECT COUNT(*) AS total_items FROM feed_items fi WHERE ` + whereClause
+	} else {
+		countQuery = `SELECT COUNT(*) AS total_items FROM feed_items fi LEFT JOIN feed_sources fs ON fs.id = fi.source_id WHERE ` + whereClause
+	}
+	if err := e.App.DB().NewQuery(countQuery).Bind(params).One(&total); err != nil {
+		return e.InternalServerError("failed to count feed items", err)
+	}
+
+	pageCount := max(1, (total.TotalItems+perPage-1)/perPage)
+	if page > pageCount {
+		page = pageCount
+	}
+	offset := (page - 1) * perPage
+
+	listParams := dbx.Params{}
+	for key, value := range params {
+		listParams[key] = value
+	}
+	listParams["limit"] = perPage
+	listParams["offset"] = offset
+
+	listQuery := `
+		SELECT
+			fi.id,
+			coalesce(fi.source_id, '') AS source_id,
+			fi.origin_type,
+			fi.external_id,
+			fi.title,
+			fi.link,
+			coalesce(fi.favicon_url, '') AS favicon_url,
+			coalesce(fi.published_at, '') AS published_at,
+			coalesce(fi.summary, '') AS summary,
+			coalesce(fi.content_raw, '') AS content_raw,
+			fi.read_state,
+			fi.is_starred,
+			coalesce(fi.created, '') AS created,
+			coalesce(fi.updated, '') AS updated,
+			coalesce(fs.id, '') AS source_expand_id,
+			coalesce(fs.name, '') AS source_expand_name,
+			coalesce(fs.url, '') AS source_expand_url,
+			coalesce(fs.favicon_url, '') AS source_expand_favicon_url,
+			coalesce(fs.format, '') AS source_expand_format,
+			coalesce(fs.status, '') AS source_expand_status,
+			coalesce(fs.last_fetched_at, '') AS source_expand_last_fetched_at,
+			coalesce(fs.last_success_at, '') AS source_expand_last_success_at,
+			coalesce(fs.last_error, '') AS source_expand_last_error,
+			coalesce(fs.created, '') AS source_expand_created,
+			coalesce(fs.updated, '') AS source_expand_updated
+		FROM feed_items fi
+		LEFT JOIN feed_sources fs ON fs.id = fi.source_id
+		WHERE ` + whereClause + `
+		ORDER BY fi.published_at DESC, fi.created DESC
+		LIMIT {:limit} OFFSET {:offset}`
+
+	rows := make([]feedListRow, 0, perPage)
+	if err := e.App.DB().NewQuery(listQuery).Bind(listParams).All(&rows); err != nil {
+		return e.InternalServerError("failed to list feed items", err)
+	}
+
+	items := make([]feedListItem, 0, len(rows))
+	for _, row := range rows {
+		item := feedListItem{
+			ID:          row.ID,
+			SourceID:    row.SourceID,
+			OriginType:  row.OriginType,
+			ExternalID:  row.ExternalID,
+			Title:       row.Title,
+			Link:        row.Link,
+			FaviconURL:  row.FaviconURL,
+			PublishedAt: row.PublishedAt,
+			Summary:     row.Summary,
+			ContentRaw:  row.ContentRaw,
+			ReadState:   row.ReadState,
+			IsStarred:   row.IsStarred,
+			Created:     row.Created,
+			Updated:     row.Updated,
+		}
+		if row.SourceExpandID != "" {
+			item.Expand.SourceID = &feedListSourceExpand{
+				ID:            row.SourceExpandID,
+				Name:          row.SourceExpandName,
+				URL:           row.SourceExpandURL,
+				FaviconURL:    row.SourceExpandFavicon,
+				Format:        row.SourceExpandFormat,
+				Status:        row.SourceExpandStatus,
+				LastFetchedAt: row.SourceExpandFetched,
+				LastSuccessAt: row.SourceExpandSuccess,
+				LastError:     row.SourceExpandError,
+				Created:       row.SourceExpandCreated,
+				Updated:       row.SourceExpandUpdated,
+			}
+		}
+		items = append(items, item)
+	}
+
+	return e.JSON(http.StatusOK, feedListResponse{
+		Items:      items,
+		Page:       page,
+		PerPage:    perPage,
+		TotalItems: total.TotalItems,
+	})
+}
+
+func handleFeedSummary(e *core.RequestEvent) error {
+	var totals feedSummaryTotalsRow
+	if err := e.App.DB().NewQuery(`
+		SELECT
+			COALESCE((SELECT SUM(item_count) FROM feed_sources), 0) AS total_items,
+			COALESCE(SUM(CASE WHEN is_starred THEN 1 ELSE 0 END), 0) AS starred_items
+		FROM feed_items
+		WHERE origin_type = {:origin_type}`,
+	).Bind(dbx.Params{"origin_type": feeds.OriginTypeFeed}).One(&totals); err != nil {
+		return e.InternalServerError("failed to summarize feed items", err)
+	}
+
+	rows := make([]feedSummaryCountRow, 0)
+	if err := e.App.DB().NewQuery(`
+		SELECT id AS source_id, COALESCE(item_count, 0) AS count
+		FROM feed_sources`,
+	).All(&rows); err != nil {
+		return e.InternalServerError("failed to summarize feed source counts", err)
+	}
+
+	sourceCounts := make([]feedSummarySourceCount, 0, len(rows))
+	for _, row := range rows {
+		sourceCounts = append(sourceCounts, feedSummarySourceCount{SourceID: row.SourceID, Count: row.Count})
+	}
+
+	return e.JSON(http.StatusOK, feedSummaryResponse{
+		TotalItems:   totals.TotalItems,
+		StarredItems: totals.StarredItems,
+		SourceCounts: sourceCounts,
+	})
+}
+
+// handleFeedFavicon downloads a remote favicon and returns it as a same-origin image.
+//
+// Supports auth via Authorization header OR ?token= query param for browser image elements.
+//
+// @Summary Proxy favicon image
+// @Description Downloads one remote favicon through the backend with SSRF protection and image-size/type limits.
+// @Tags Feeds
+// @Security BearerAuth
+// @Param url query string true "remote favicon URL"
+// @Param token query string false "auth token for browser image contexts"
+// @Success 200 {string} string "favicon image"
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 502 {object} map[string]any
+// @Router /api/feeds/favicon [get]
+func handleFeedFavicon(e *core.RequestEvent) error {
+	auth := e.Auth
+	if auth == nil {
+		if tok := e.Request.URL.Query().Get("token"); tok != "" {
+			rec, err := e.App.FindAuthRecordByToken(tok, core.TokenTypeAuth)
+			if err == nil {
+				auth = rec
+			}
+		}
+	}
+	if auth == nil {
+		return e.UnauthorizedError("Authentication required", nil)
+	}
+
+	faviconURL := strings.TrimSpace(e.Request.URL.Query().Get("url"))
+	if faviconURL == "" {
+		return e.BadRequestError("favicon url is required", nil)
+	}
+
+	// Cap the external HTTP round-trip so a slow/unreachable favicon host does
+	// not tie up a browser connection for longer than necessary.
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 2*time.Second)
+	defer cancel()
+
+	asset, err := fetchFaviconAsset(ctx, faviconURL, nil)
+	if err != nil {
+		return e.BadRequestError("failed to fetch favicon", err)
+	}
+
+	e.Response.Header().Set("Content-Type", asset.ContentType)
+	e.Response.Header().Set("Cache-Control", "public, max-age=86400")
+	e.Response.Header().Set("X-Content-Type-Options", "nosniff")
+	_, err = e.Response.Write(asset.Data)
+	return err
+}
+
+// handleListBookmarks returns a paginated bookmark list decoupled from feed article fetch windows.
+//
+// @Summary List bookmarks
+// @Description Returns paginated bookmarks with independent search and totals. Authenticated users only.
+// @Tags Feeds
+// @Security BearerAuth
+// @Param page query int false "page number"
+// @Param perPage query int false "page size"
+// @Param q query string false "bookmark search query"
+// @Success 200 {object} bookmarkListResponse
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/feeds/bookmarks [get]
+func handleListBookmarks(e *core.RequestEvent) error {
+	page := parsePositiveQueryInt(e.Request.URL.Query().Get("page"), defaultBookmarkListPage)
+	perPage := parsePositiveQueryInt(e.Request.URL.Query().Get("perPage"), defaultBookmarkListPerPage)
+	if perPage > maxBookmarkListPerPage {
+		perPage = maxBookmarkListPerPage
+	}
+
+	query := strings.TrimSpace(e.Request.URL.Query().Get("q"))
+	records, err := e.App.FindRecordsByFilter(
+		feeds.CollectionItems,
+		"origin_type = {:origin_type}",
+		"-updated,-created",
+		0,
+		0,
+		map[string]any{"origin_type": feeds.OriginTypeBookmark},
+	)
+	if err != nil {
+		return e.InternalServerError("failed to list bookmarks", err)
+	}
+	totalBookmarks := len(records)
+	filteredRecords := records
+	if query != "" {
+		normalizedQuery := strings.ToLower(query)
+		filteredRecords = make([]*core.Record, 0, len(records))
+		for _, record := range records {
+			haystack := strings.ToLower(strings.Join([]string{
+				record.GetString("title"),
+				record.GetString("summary"),
+				record.GetString("link"),
+			}, " "))
+			if strings.Contains(haystack, normalizedQuery) {
+				filteredRecords = append(filteredRecords, record)
+			}
+		}
+	}
+	totalItems := len(filteredRecords)
+
+	pageCount := max(1, (totalItems+perPage-1)/perPage)
+	if page > pageCount {
+		page = pageCount
+	}
+	offset := (page - 1) * perPage
+	end := min(offset+perPage, totalItems)
+	if offset > totalItems {
+		offset = totalItems
+	}
+	pageRecords := filteredRecords[offset:end]
+
+	items := make([]bookmarkListItem, 0, len(pageRecords))
+	for _, record := range pageRecords {
+		items = append(items, bookmarkListItem{
+			ID:         record.Id,
+			OriginType: record.GetString("origin_type"),
+			ExternalID: record.GetString("external_id"),
+			Title:      record.GetString("title"),
+			Link:       record.GetString("link"),
+			FaviconURL: record.GetString("favicon_url"),
+			Summary:    record.GetString("summary"),
+			ReadState:  record.GetString("read_state"),
+			IsStarred:  record.GetBool("is_starred"),
+			Created:    record.GetDateTime("created").String(),
+			Updated:    record.GetDateTime("updated").String(),
+		})
+	}
+
+	return e.JSON(http.StatusOK, bookmarkListResponse{
+		Items:          items,
+		Page:           page,
+		PerPage:        perPage,
+		TotalItems:     totalItems,
+		TotalBookmarks: totalBookmarks,
+	})
 }
 
 // handleCreateBookmark stores one manual link as a bookmark-shaped feed item.
@@ -73,9 +530,10 @@ func handleCreateBookmark(e *core.RequestEvent) error {
 	}
 
 	normalized := feeds.NormalizeItem(feeds.ItemCandidate{
-		Link:    body.URL,
-		Title:   body.Title,
-		Summary: body.Summary,
+		Link:       body.URL,
+		Title:      body.Title,
+		Summary:    body.Summary,
+		FaviconURL: body.FaviconURL,
 	})
 	normalized.OriginType = feeds.OriginTypeBookmark
 	normalized.IsStarred = false
@@ -84,7 +542,7 @@ func handleCreateBookmark(e *core.RequestEvent) error {
 	}
 
 	existing, err := e.App.FindFirstRecordByFilter(feeds.CollectionItems, "origin_type = {:origin_type} && external_id = {:external_id}", map[string]any{
-		"origin_type":  feeds.OriginTypeBookmark,
+		"origin_type": feeds.OriginTypeBookmark,
 		"external_id": normalized.ExternalID,
 	})
 	if err == nil {
@@ -113,6 +571,7 @@ func handleCreateBookmark(e *core.RequestEvent) error {
 	record.Set("title", normalized.Title)
 	record.Set("link", normalized.Link)
 	record.Set("summary", normalized.Summary)
+	record.Set("favicon_url", normalized.FaviconURL)
 	record.Set("read_state", normalized.ReadState)
 	record.Set("is_starred", normalized.IsStarred)
 	record.Set("source_id", nil)
@@ -125,6 +584,126 @@ func handleCreateBookmark(e *core.RequestEvent) error {
 		"origin_type": record.GetString("origin_type"),
 		"title":       record.GetString("title"),
 		"link":        record.GetString("link"),
+		"favicon_url": record.GetString("favicon_url"),
+		"read_state":  record.GetString("read_state"),
+		"is_starred":  record.GetBool("is_starred"),
+	})
+}
+
+// handleAnalyzeBookmark fetches one URL and extracts bookmark metadata.
+//
+// @Summary Analyze bookmark URL
+// @Description Fetches one webpage URL and extracts title, description, and favicon metadata for the bookmark form. Authenticated users only.
+// @Tags Feeds
+// @Security BearerAuth
+// @Param body body analyzeBookmarkRequest true "bookmark analyze payload"
+// @Success 200 {object} feeds.BookmarkAnalysis
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/feeds/bookmarks/analyze [post]
+func handleAnalyzeBookmark(e *core.RequestEvent) error {
+	var body analyzeBookmarkRequest
+	if err := e.BindBody(&body); err != nil {
+		return e.BadRequestError("invalid JSON body", err)
+	}
+
+	url := strings.TrimSpace(body.URL)
+	if url == "" {
+		return e.BadRequestError("bookmark url is required", nil)
+	}
+
+	analysis, err := analyzeBookmarkURL(nil, url, nil)
+	if err != nil {
+		return e.BadRequestError("failed to analyze bookmark url", err)
+	}
+
+	return e.JSON(http.StatusOK, analysis)
+}
+
+// handleUpdateBookmark updates one bookmark record without turning it into a feed source.
+//
+// @Summary Update bookmark item
+// @Description Updates one bookmark item in the Feeds workspace. Authenticated users only.
+// @Tags Feeds
+// @Security BearerAuth
+// @Param id path string true "bookmark item id"
+// @Param body body createBookmarkRequest true "bookmark payload"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/feeds/bookmarks/{id} [patch]
+func handleUpdateBookmark(e *core.RequestEvent) error {
+	id := e.Request.PathValue("id")
+	if strings.TrimSpace(id) == "" {
+		return e.BadRequestError("bookmark item id is required", nil)
+	}
+
+	var body createBookmarkRequest
+	if err := e.BindBody(&body); err != nil {
+		return e.BadRequestError("invalid JSON body", err)
+	}
+
+	if strings.TrimSpace(body.URL) == "" {
+		return e.BadRequestError("bookmark url is required", nil)
+	}
+
+	record, err := e.App.FindRecordById(feeds.CollectionItems, id)
+	if err != nil {
+		return e.NotFoundError("bookmark item not found", err)
+	}
+	if record.GetString("origin_type") != feeds.OriginTypeBookmark {
+		return e.NotFoundError("bookmark item not found", nil)
+	}
+
+	normalized := feeds.NormalizeItem(feeds.ItemCandidate{
+		Link:       body.URL,
+		Title:      body.Title,
+		Summary:    body.Summary,
+		FaviconURL: body.FaviconURL,
+	})
+	normalized.OriginType = feeds.OriginTypeBookmark
+	if normalized.Title == "" {
+		normalized.Title = normalized.Link
+	}
+
+	existing, err := e.App.FindFirstRecordByFilter(feeds.CollectionItems, "origin_type = {:origin_type} && external_id = {:external_id}", map[string]any{
+		"origin_type": feeds.OriginTypeBookmark,
+		"external_id": normalized.ExternalID,
+	})
+	if err == nil && existing.Id != record.Id {
+		return e.JSON(http.StatusConflict, bookmarkConflictResponse{
+			Code:    "bookmark_exists",
+			Message: "bookmark already exists",
+			Existing: map[string]any{
+				"id":          existing.Id,
+				"origin_type": existing.GetString("origin_type"),
+				"title":       existing.GetString("title"),
+				"link":        existing.GetString("link"),
+				"read_state":  existing.GetString("read_state"),
+				"is_starred":  existing.GetBool("is_starred"),
+			},
+		})
+	}
+
+	record.Set("external_id", normalized.ExternalID)
+	record.Set("title", normalized.Title)
+	record.Set("link", normalized.Link)
+	record.Set("summary", normalized.Summary)
+	record.Set("favicon_url", normalized.FaviconURL)
+	if err := e.App.Save(record); err != nil {
+		return e.InternalServerError("failed to update bookmark", err)
+	}
+
+	return e.JSON(http.StatusOK, map[string]any{
+		"id":          record.Id,
+		"origin_type": record.GetString("origin_type"),
+		"title":       record.GetString("title"),
+		"link":        record.GetString("link"),
+		"summary":     record.GetString("summary"),
+		"favicon_url": record.GetString("favicon_url"),
 		"read_state":  record.GetString("read_state"),
 		"is_starred":  record.GetBool("is_starred"),
 	})
@@ -162,6 +741,18 @@ func handleDeleteBookmark(e *core.RequestEvent) error {
 	}
 
 	return e.NoContent(http.StatusNoContent)
+}
+
+func parsePositiveQueryInt(raw string, fallback int) int {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(trimmed)
+	if err != nil || parsed <= 0 {
+		return fallback
+	}
+	return parsed
 }
 
 // handleFeedSourceAnalyze fetches a feed URL and extracts minimal subscription metadata.
@@ -251,6 +842,95 @@ func handleFeedItemStatePatch(e *core.RequestEvent) error {
 	})
 }
 
+// handleFeedItemBookmark converts one feed item into a bookmark-shaped item.
+//
+// @Summary Convert feed item to bookmark
+// @Description Converts one feed article into a bookmark item without pulling feeds. Authenticated users only.
+// @Tags Feeds
+// @Security BearerAuth
+// @Param id path string true "feed item id"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 409 {object} bookmarkConflictResponse
+// @Failure 500 {object} map[string]any
+// @Router /api/feeds/items/{id}/bookmark [post]
+func handleFeedItemBookmark(e *core.RequestEvent) error {
+	id := e.Request.PathValue("id")
+	if strings.TrimSpace(id) == "" {
+		return e.BadRequestError("feed item id is required", nil)
+	}
+
+	record, err := e.App.FindRecordById(feeds.CollectionItems, id)
+	if err != nil {
+		return e.NotFoundError("feed item not found", err)
+	}
+	if record.GetString("origin_type") != feeds.OriginTypeFeed {
+		return e.BadRequestError("feed item is already a bookmark", nil)
+	}
+
+	normalized := feeds.NormalizeItem(feeds.ItemCandidate{
+		Link:       record.GetString("link"),
+		Title:      record.GetString("title"),
+		Summary:    record.GetString("summary"),
+		FaviconURL: record.GetString("favicon_url"),
+	})
+	if normalized.Link == "" {
+		return e.BadRequestError("feed item link is required", nil)
+	}
+	if normalized.Title == "" {
+		normalized.Title = normalized.Link
+	}
+
+	existing, err := e.App.FindFirstRecordByFilter(feeds.CollectionItems, "origin_type = {:origin_type} && external_id = {:external_id}", map[string]any{
+		"origin_type": feeds.OriginTypeBookmark,
+		"external_id": normalized.ExternalID,
+	})
+	if err == nil && existing.Id != record.Id {
+		return e.JSON(http.StatusConflict, bookmarkConflictResponse{
+			Code:    "bookmark_exists",
+			Message: "bookmark already exists",
+			Existing: map[string]any{
+				"id":          existing.Id,
+				"origin_type": existing.GetString("origin_type"),
+				"title":       existing.GetString("title"),
+				"link":        existing.GetString("link"),
+				"read_state":  existing.GetString("read_state"),
+				"is_starred":  existing.GetBool("is_starred"),
+			},
+		})
+	}
+
+	record.Set("origin_type", feeds.OriginTypeBookmark)
+	record.Set("external_id", normalized.ExternalID)
+	record.Set("title", normalized.Title)
+	record.Set("link", normalized.Link)
+	record.Set("summary", normalized.Summary)
+	record.Set("favicon_url", normalized.FaviconURL)
+	previousSourceID := record.GetString("source_id")
+	record.Set("source_id", nil)
+	record.Set("is_starred", false)
+	if err := e.App.Save(record); err != nil {
+		return e.InternalServerError("failed to convert feed item to bookmark", err)
+	}
+	if err := feeds.RefreshSourceItemCount(e.App, previousSourceID); err != nil {
+		return e.InternalServerError("failed to refresh feed source count", err)
+	}
+
+	return e.JSON(http.StatusOK, map[string]any{
+		"id":          record.Id,
+		"origin_type": record.GetString("origin_type"),
+		"external_id": record.GetString("external_id"),
+		"title":       record.GetString("title"),
+		"link":        record.GetString("link"),
+		"summary":     record.GetString("summary"),
+		"favicon_url": record.GetString("favicon_url"),
+		"read_state":  record.GetString("read_state"),
+		"is_starred":  record.GetBool("is_starred"),
+	})
+}
+
 // handleFeedsPoll triggers an immediate active-source polling sweep.
 //
 // @Summary Trigger manual feeds poll
@@ -268,6 +948,44 @@ func handleFeedsPoll(e *core.RequestEvent) error {
 	}
 
 	return e.JSON(http.StatusOK, map[string]any{"summary": summary})
+}
+
+// handleFeedCleanupPreview returns the deterministic cleanup summary without deleting rows.
+//
+// @Summary Preview feed cleanup
+// @Description Returns the deterministic feed cleanup summary without deleting any data. Superuser only.
+// @Tags Feeds
+// @Security BearerAuth
+// @Success 200 {object} feeds.CleanupPreview
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/feeds/cleanup/preview [post]
+func handleFeedCleanupPreview(e *core.RequestEvent) error {
+	preview, err := feeds.PreviewCleanup(e.App)
+	if err != nil {
+		return e.InternalServerError("failed to preview feed cleanup", err)
+	}
+
+	return e.JSON(http.StatusOK, preview)
+}
+
+// handleFeedCleanup deletes feed rows according to the platform cleanup policy.
+//
+// @Summary Execute feed cleanup
+// @Description Deletes feed items according to the platform retention policy. Superuser only.
+// @Tags Feeds
+// @Security BearerAuth
+// @Success 200 {object} feeds.CleanupExecuteResult
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/feeds/cleanup [post]
+func handleFeedCleanup(e *core.RequestEvent) error {
+	result, err := feeds.ExecuteCleanup(e.App)
+	if err != nil {
+		return e.InternalServerError("failed to execute feed cleanup", err)
+	}
+
+	return e.JSON(http.StatusOK, result)
 }
 
 // handleFeedSourcePoll triggers an immediate poll for one active feed source.

@@ -874,7 +874,10 @@ func TestFeedSourcesCollectionFields(t *testing.T) {
 	assertFieldExists(t, col, "url", core.FieldTypeText, true)
 	assertFieldExists(t, col, "format", core.FieldTypeSelect, true)
 	assertFieldExists(t, col, "status", core.FieldTypeSelect, true)
-	assertFieldExists(t, col, "poll_interval_minutes", core.FieldTypeNumber, true)
+	assertFieldExists(t, col, "failure_streak", core.FieldTypeNumber, false)
+	assertFieldExists(t, col, "next_poll_at", core.FieldTypeDate, false)
+	assertFieldExists(t, col, "item_count", core.FieldTypeNumber, false)
+	assertFieldExists(t, col, "favicon_url", core.FieldTypeURL, false)
 	assertFieldExists(t, col, "last_fetched_at", core.FieldTypeDate, false)
 	assertFieldExists(t, col, "last_success_at", core.FieldTypeDate, false)
 	assertFieldExists(t, col, "last_error", core.FieldTypeText, false)
@@ -907,7 +910,7 @@ func TestFeedSourcesRejectDuplicateURL(t *testing.T) {
 	first.Set("url", "https://example.com/feed.xml")
 	first.Set("format", "rss")
 	first.Set("status", "active")
-	first.Set("poll_interval_minutes", 60)
+	first.Set("failure_streak", 0)
 	if err := app.Save(first); err != nil {
 		t.Fatalf("failed to save first feed source: %v", err)
 	}
@@ -917,7 +920,7 @@ func TestFeedSourcesRejectDuplicateURL(t *testing.T) {
 	duplicate.Set("url", "https://example.com/feed.xml")
 	duplicate.Set("format", "rss")
 	duplicate.Set("status", "paused")
-	duplicate.Set("poll_interval_minutes", 30)
+	duplicate.Set("failure_streak", 0)
 	if err := app.Save(duplicate); err == nil {
 		t.Fatal("expected duplicate feed source URL to be rejected")
 	}
@@ -938,7 +941,7 @@ func TestFeedSourcesPausedAndArchivedStatusesPersist(t *testing.T) {
 		rec.Set("url", "https://example.com/"+status+".xml")
 		rec.Set("format", "atom")
 		rec.Set("status", status)
-		rec.Set("poll_interval_minutes", 15)
+		rec.Set("failure_streak", 0)
 		if err := app.Save(rec); err != nil {
 			t.Fatalf("failed to save feed source with status %q: %v", status, err)
 		}
@@ -971,6 +974,7 @@ func TestFeedItemsCollectionFields(t *testing.T) {
 	assertFieldExists(t, col, "link", core.FieldTypeText, true)
 	assertFieldExists(t, col, "published_at", core.FieldTypeDate, false)
 	assertFieldExists(t, col, "summary", core.FieldTypeText, false)
+	assertFieldExists(t, col, "favicon_url", core.FieldTypeURL, false)
 	assertFieldExists(t, col, "keywords_json", core.FieldTypeJSON, false)
 	assertFieldExists(t, col, "tags_json", core.FieldTypeJSON, false)
 	assertFieldExists(t, col, "read_state", core.FieldTypeSelect, true)
@@ -1051,7 +1055,7 @@ func TestFeedItemsRejectDuplicateSourceExternalID(t *testing.T) {
 	source.Set("url", "https://example.com/feed.xml")
 	source.Set("format", "rss")
 	source.Set("status", "active")
-	source.Set("poll_interval_minutes", 60)
+	source.Set("failure_streak", 0)
 	if err := app.Save(source); err != nil {
 		t.Fatalf("failed to save feed source: %v", err)
 	}

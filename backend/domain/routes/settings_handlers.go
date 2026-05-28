@@ -293,6 +293,8 @@ func validateCustomSettingsEntry(e *core.RequestEvent, module, key string, value
 		return validateMonitorPlatformSelfObservation(e.App, value)
 	case "monitor/managed-collector-policy":
 		return validateMonitorManagedCollectorPolicy(value)
+	case "feeds/policy":
+		return validateFeedsPolicy(value)
 	case "connect/terminal":
 		return validateConnectTerminal(value)
 	case "connect/sftp":

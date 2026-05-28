@@ -3,10 +3,12 @@ import { ClientResponseError } from 'pocketbase'
 import { pb } from '@/lib/pb'
 import { settingsActionPath, settingsEntryPath } from '@/lib/settings-api'
 import {
+  DEFAULT_FEEDS_POLICY,
   DEFAULT_MONITOR_MANAGED_COLLECTOR_POLICY,
   DEFAULT_MONITOR_POLICY,
   DEFAULT_MONITOR_PLATFORM_SELF_OBSERVATION,
   DEFAULT_MONITOR_SCHEDULING,
+  type FeedsPolicyGroup,
   type MonitorManagedCollectorPolicyGroup,
   type MonitorPolicyGroup,
   type MonitorPlatformSelfObservationGroup,
@@ -63,6 +65,12 @@ export function useSystemSettingsController(showToast: ShowToast) {
     useState(false)
   const [monitorManagedCollectorPolicyErrors, setMonitorManagedCollectorPolicyErrors] = useState<
     Partial<Record<keyof MonitorManagedCollectorPolicyGroup, string>>
+  >({})
+
+  const [feedsPolicyForm, setFeedsPolicyForm] = useState<FeedsPolicyGroup>(DEFAULT_FEEDS_POLICY)
+  const [feedsPolicySaving, setFeedsPolicySaving] = useState(false)
+  const [feedsPolicyErrors, setFeedsPolicyErrors] = useState<
+    Partial<Record<keyof FeedsPolicyGroup, string>>
   >({})
 
   const hydrateSystemEntries = useCallback((entryMap: Map<string, unknown>) => {
@@ -125,6 +133,12 @@ export function useSystemSettingsController(showToast: ShowToast) {
     setMonitorManagedCollectorPolicyForm({
       ...DEFAULT_MONITOR_MANAGED_COLLECTOR_POLICY,
       ...monitorManagedCollectorPolicy,
+    })
+
+    const feedsPolicy = (entryMap.get('feeds-policy') as Partial<FeedsPolicyGroup>) ?? {}
+    setFeedsPolicyForm({
+      ...DEFAULT_FEEDS_POLICY,
+      ...feedsPolicy,
     })
   }, [])
 
@@ -343,6 +357,40 @@ export function useSystemSettingsController(showToast: ShowToast) {
   }
   }
 
+  const saveFeedsPolicy = async () => {
+    setFeedsPolicySaving(true)
+    setFeedsPolicyErrors({})
+    try {
+      const res = (await pb.send(settingsEntryPath('feeds-policy'), {
+        method: 'PATCH',
+        body: feedsPolicyForm,
+      })) as { value?: Partial<FeedsPolicyGroup> }
+      setFeedsPolicyForm({
+        ...DEFAULT_FEEDS_POLICY,
+        ...(res.value ?? feedsPolicyForm),
+      })
+      showToast('Feeds policy saved')
+    } catch (err) {
+      if (err instanceof ClientResponseError && err.status === 422) {
+        const bag =
+          err.response?.errors && typeof err.response.errors === 'object'
+            ? (err.response.errors as Record<string, unknown>)
+            : {}
+        setFeedsPolicyErrors({
+          pollIntervalMinutes: extractFieldError(bag.pollIntervalMinutes) ?? undefined,
+          failureBackoffOneHours: extractFieldError(bag.failureBackoffOneHours) ?? undefined,
+          failureBackoffTwoHours: extractFieldError(bag.failureBackoffTwoHours) ?? undefined,
+          failureBackoffMaxHours: extractFieldError(bag.failureBackoffMaxHours) ?? undefined,
+          perSourceRetentionCap: extractFieldError(bag.perSourceRetentionCap) ?? undefined,
+          globalRetentionCap: extractFieldError(bag.globalRetentionCap) ?? undefined,
+        })
+      }
+      showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
+    } finally {
+      setFeedsPolicySaving(false)
+    }
+  }
+
   return {
     appName,
     appURL,
@@ -398,6 +446,11 @@ export function useSystemSettingsController(showToast: ShowToast) {
     monitorManagedCollectorPolicyErrors,
     setMonitorManagedCollectorPolicyForm,
     saveMonitorManagedCollectorPolicy,
+    feedsPolicyForm,
+    feedsPolicySaving,
+    feedsPolicyErrors,
+    setFeedsPolicyForm,
+    saveFeedsPolicy,
     hydrateSystemEntries,
   }
 }

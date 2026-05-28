@@ -72,7 +72,7 @@ func pollSourceRecord(ctx context.Context, app core.App, client HTTPDoer, now ti
 
 	candidates, fetchErr := FetchAndParseSource(ctx, snapshot, client)
 	if fetchErr != nil {
-		source.MarkFetchFailure(now, fetchErr.Error())
+		source.MarkFetchFailure(app, now, fetchErr.Error())
 		if saveErr := app.Save(sourceRecord); saveErr != nil {
 			return summary, fmt.Errorf("save failed source status: %w", saveErr)
 		}
@@ -82,7 +82,7 @@ func pollSourceRecord(ctx context.Context, app core.App, client HTTPDoer, now ti
 
 	created, updated, ingestErr := UpsertSourceItems(app, sourceRecord, candidates)
 	if ingestErr != nil {
-		source.MarkFetchFailure(now, ingestErr.Error())
+		source.MarkFetchFailure(app, now, ingestErr.Error())
 		if saveErr := app.Save(sourceRecord); saveErr != nil {
 			return summary, fmt.Errorf("save failed source status: %w", saveErr)
 		}
@@ -90,9 +90,15 @@ func pollSourceRecord(ctx context.Context, app core.App, client HTTPDoer, now ti
 		return summary, nil
 	}
 
-	source.MarkFetchSuccess(now)
+	source.MarkFetchSuccess(app, now)
 	if saveErr := app.Save(sourceRecord); saveErr != nil {
 		return summary, fmt.Errorf("save successful source status: %w", saveErr)
+	}
+	if _, cleanupErr := ExecuteCleanup(app); cleanupErr != nil {
+		return summary, fmt.Errorf("cleanup feed items: %w", cleanupErr)
+	}
+	if err := RefreshSourceItemCount(app, sourceRecord.Id); err != nil {
+		return summary, fmt.Errorf("refresh source item count: %w", err)
 	}
 	summary.CreatedItems = created
 	summary.UpdatedItems = updated
@@ -139,6 +145,7 @@ func UpsertSourceItems(app core.App, sourceRecord *core.Record, candidates []Ite
 		record.Set("title", normalized.Title)
 		record.Set("link", normalized.Link)
 		record.Set("summary", normalized.Summary)
+		record.Set("content_raw", normalized.ContentRaw)
 		record.Set("keywords_json", normalized.Keywords)
 		record.Set("tags_json", normalized.Tags)
 		record.Set("read_state", PreserveItemReadState(record, normalized))

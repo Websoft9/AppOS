@@ -317,6 +317,22 @@ var entryCatalog = []EntrySchema{
 			{ID: "flushJitterSeconds", Label: "Flush Jitter Seconds", Type: "integer", HelpText: "Randomized flush delay used to smooth write bursts toward AppOS."},
 		},
 	},
+	{
+		ID:      "feeds-policy",
+		Title:   "Feeds Policy",
+		Section: SectionSystem,
+		Source:  SourceCustom,
+		Module:  "feeds",
+		Key:     "policy",
+		Fields: []FieldSchema{
+			{ID: "pollIntervalMinutes", Label: "Poll Interval Minutes", Type: "integer", HelpText: "Base cadence for polling active feed sources."},
+			{ID: "failureBackoffOneHours", Label: "Failure Backoff One Hours", Type: "integer", HelpText: "Delay after the first consecutive polling failure."},
+			{ID: "failureBackoffTwoHours", Label: "Failure Backoff Two Hours", Type: "integer", HelpText: "Delay after the second consecutive polling failure."},
+			{ID: "failureBackoffMaxHours", Label: "Failure Backoff Max Hours", Type: "integer", HelpText: "Delay after the third and later consecutive polling failures."},
+			{ID: "perSourceRetentionCap", Label: "Per Source Retention Cap", Type: "integer", HelpText: "Maximum stored feed articles per source before cleanup trims older items."},
+			{ID: "globalRetentionCap", Label: "Global Retention Cap", Type: "integer", HelpText: "Maximum stored feed articles across all sources before global cleanup trims older items."},
+		},
+	},
 }
 
 var customSettingDefaults = map[string]map[string]any{
@@ -385,6 +401,14 @@ var customSettingDefaults = map[string]map[string]any{
 		"metricBufferLimit":         5000,
 		"collectionJitterSeconds":   1,
 		"flushJitterSeconds":        1,
+	},
+	"feeds/policy": {
+		"pollIntervalMinutes":   60,
+		"failureBackoffOneHours": 2,
+		"failureBackoffTwoHours": 6,
+		"failureBackoffMaxHours": 24,
+		"perSourceRetentionCap": 1000,
+		"globalRetentionCap":    30000,
 	},
 }
 

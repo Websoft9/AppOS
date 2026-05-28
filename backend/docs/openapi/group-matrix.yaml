@@ -146,10 +146,19 @@ groups:
     description: Feed item preference updates, bookmark creation, and manual polling endpoints.
     apiType: Ext
     extSurface:
+      - GET /api/feeds/favicon
+      - GET /api/feeds/bookmarks
+      - GET /api/feeds/items
+      - GET /api/feeds/summary
       - POST /api/feeds/bookmarks
+      - POST /api/feeds/bookmarks/analyze
+      - PATCH /api/feeds/bookmarks/{id}
       - DELETE /api/feeds/bookmarks/{id}
+      - POST /api/feeds/items/{id}/bookmark
       - PATCH /api/feeds/items/{id}/state
       - POST /api/feeds/analyze
+      - POST /api/feeds/cleanup/preview
+      - POST /api/feeds/cleanup
       - POST /api/feeds/poll
       - POST /api/feeds/sources/{id}/poll
     nativeSurface: []

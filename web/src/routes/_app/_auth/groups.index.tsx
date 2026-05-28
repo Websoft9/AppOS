@@ -7,6 +7,8 @@ import {
   Search,
   ArrowUp,
   ArrowDown,
+  ChevronLeft,
+  ChevronRight,
   Filter,
   RefreshCw,
   MoreVertical,
@@ -89,6 +91,8 @@ type SortDir = 'asc' | 'desc'
 
 // ─── Page Component ──────────────────────────────────────
 
+const PAGE_SIZE = 20
+
 function GroupsListPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -104,6 +108,7 @@ function GroupsListPage() {
   const [typeFilter, setTypeFilter] = useState('all')
   const [sortField, setSortField] = useState<SortField>('updated')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [page, setPage] = useState(1)
 
   // Create/Edit dialog
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -196,6 +201,13 @@ function GroupsListPage() {
   }, [items])
 
   const isTypeFilterActive = typeFilter !== 'all'
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
+  const pagedRows = useMemo(
+    () => filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filteredRows, page]
+  )
+  useEffect(() => { setPage(1) }, [filteredRows])
 
   // ─── Dialog handlers ────────────────────────────────────
 
@@ -375,6 +387,34 @@ function GroupsListPage() {
             className="pl-9"
           />
         </div>
+        {filteredRows.length > 0 && (
+          <div className="ml-auto flex items-center gap-3 text-sm text-muted-foreground">
+            <span className="whitespace-nowrap">Total {filteredRows.length} items</span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                className="rounded p-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                disabled={page <= 1}
+                onClick={() => setPage(p => p - 1)}
+                aria-label="Previous page"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="min-w-12 text-center font-medium text-foreground">
+                {page}/{totalPages}
+              </span>
+              <button
+                type="button"
+                className="rounded p-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                disabled={page >= totalPages}
+                onClick={() => setPage(p => p + 1)}
+                aria-label="Next page"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Table */}
@@ -508,7 +548,7 @@ function GroupsListPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredRows.map(row => (
+            {pagedRows.map(row => (
               <TableRow key={row.id} className="cursor-pointer hover:bg-muted/50">
                 <TableCell>
                   <Link

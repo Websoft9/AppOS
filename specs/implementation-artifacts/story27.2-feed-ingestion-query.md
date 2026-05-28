@@ -15,10 +15,11 @@ Ingest RSS / Atom entries into normalized `feed_items` so operators can query ex
 - Each item belongs to one `feed_source`.
 - Items store only the minimum signal payload: `title`, `link`, `published_at`, optional plain-text `summary`, extracted `keywords`, extracted `tags`, and `state`.
 - The backend must dedupe source entries using stable source identity such as source item id or normalized link.
+- Re-ingestion may refresh content fields, but must preserve existing operator-owned `state`.
 - Query must support source, tag, keyword, state, and time filters.
 - The first Feeds page must behave as a signal workbench, not as a full reader.
 - Item click opens the original link; full article rendering is out of scope.
-- Ingestion scheduling may reuse existing cron-style platform mechanisms rather than introducing a new scheduler model.
+- Ingestion scheduling uses one platform-managed polling job that scans due active sources serially rather than one cron job per source.
 - The Sources list may contain special workspace entries such as `Bookmark`; such entries are views only and must not be modeled as `feed_sources` records.
 
 ## Table Structure
@@ -33,8 +34,8 @@ Ingest RSS / Atom entries into normalized `feed_items` so operators can query ex
 | `link` | url | required |
 | `published_at` | datetime | optional |
 | `summary` | text | optional, plain text only |
-| `keywords` | json | optional |
-| `tags` | json | optional |
+| `keywords_json` | json | optional |
+| `tags_json` | json | optional |
 | `state` | text | required; `ingested` \| `reviewed` \| `dismissed` \| `bound` |
 | `created` | datetime | auto |
 | `updated` | datetime | auto |
@@ -62,6 +63,7 @@ If tag or keyword filtering requires a custom query shape later, that may be add
 - `feed_items` exists with the fields above.
 - System can ingest RSS / Atom entries from active sources.
 - Duplicate source entries are not stored twice.
+- Failure to fetch one source does not abort the whole polling pass.
 - Users can list items on a dedicated Feeds page.
 - Users can filter by source, state, and time in MVP.
 - Tag and keyword values are extracted and stored in MVP, but filter UI or custom query support for them may follow once PocketBase native query limits are proven insufficient.
@@ -95,8 +97,9 @@ If tag or keyword filtering requires a custom query shape later, that may be add
 
 - Poll cadence and fetch trigger read from `feed_sources`.
 - Existing cron or background task infrastructure should be reused.
-- Judgment and local binding are intentionally deferred to `story27.3-judgment-and-binding.md`.
-- Backend implementation direction is shared with `story27.1` in `story27.1-27.2-feeds-backend-technical-direction.md`.
+- AI-oriented source analysis is intentionally deferred to a future follow-up story.
+- Feed backend remains in `backend/domain/feeds` with thin route and persistence call sites.
+- If native records query proves too weak for tag or keyword filtering, add one thin read endpoint later rather than introducing it in MVP.
 - If `Bookmark` is added later, it should reuse the Feeds page shell and item-centric reading model, while keeping manual saved-link entry separate from source polling behavior.
 
 ## File Targets

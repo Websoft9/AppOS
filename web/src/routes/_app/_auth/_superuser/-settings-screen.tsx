@@ -8,6 +8,7 @@ import { ConnectorReferenceSection, sectionLabel } from './-settings-sections/sh
 import { AISettingsSection } from './-settings-sections/ai-section'
 import {
   BasicSection,
+  FeedsPolicySection,
   LogsSection,
   MonitorSection,
   S3Section,
@@ -65,6 +66,12 @@ function activeSectionHelp(controller: SettingsPageController) {
         title: 'Monitor',
         description:
           'Tune monitoring cadence, freshness rules, platform self-observation, and managed collector behavior in one place.',
+      }
+    case 'feeds-policy':
+      return {
+        title: 'Feeds',
+        description:
+          'Configure global feed polling cadence, retry backoff, and cleanup retention limits.',
       }
     case 'terminal':
     case 'connect-terminal':
@@ -311,6 +318,17 @@ function renderSection(controller: SettingsPageController, options?: { onOpenHel
           saveManagedCollectorPolicy={controller.saveMonitorManagedCollectorPolicy}
         />
       )
+    case 'feeds-policy':
+      return findSchemaEntry(controller, 'feeds-policy') ? (
+        <FeedsPolicySection
+          entry={findSchemaEntry(controller, 'feeds-policy')!}
+          form={controller.feedsPolicyForm}
+          errors={controller.feedsPolicyErrors}
+          saving={controller.feedsPolicySaving}
+          setForm={controller.setFeedsPolicyForm}
+          save={controller.saveFeedsPolicy}
+        />
+      ) : null
     case 'space-quota':
       return (
         <SpaceQuotaSection

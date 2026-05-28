@@ -562,6 +562,81 @@ func validateMonitorManagedCollectorPolicy(v map[string]any) map[string]string {
 	return errors
 }
 
+func validateFeedsPolicy(v map[string]any) map[string]string {
+	errors := map[string]string{}
+
+	pollIntervalMinutes, err := parseIntWithDefault(v["pollIntervalMinutes"], 60)
+	if err != nil {
+		errors["pollIntervalMinutes"] = "must be an integer"
+	} else if pollIntervalMinutes < 5 || pollIntervalMinutes > 1440 {
+		errors["pollIntervalMinutes"] = "must be between 5 and 1440"
+	} else {
+		v["pollIntervalMinutes"] = pollIntervalMinutes
+	}
+
+	failureBackoffOneHours, err := parseIntWithDefault(v["failureBackoffOneHours"], 2)
+	if err != nil {
+		errors["failureBackoffOneHours"] = "must be an integer"
+	} else if failureBackoffOneHours < 1 || failureBackoffOneHours > 168 {
+		errors["failureBackoffOneHours"] = "must be between 1 and 168"
+	} else {
+		v["failureBackoffOneHours"] = failureBackoffOneHours
+	}
+
+	failureBackoffTwoHours, err := parseIntWithDefault(v["failureBackoffTwoHours"], 6)
+	if err != nil {
+		errors["failureBackoffTwoHours"] = "must be an integer"
+	} else if failureBackoffTwoHours < 1 || failureBackoffTwoHours > 168 {
+		errors["failureBackoffTwoHours"] = "must be between 1 and 168"
+	} else {
+		v["failureBackoffTwoHours"] = failureBackoffTwoHours
+	}
+
+	failureBackoffMaxHours, err := parseIntWithDefault(v["failureBackoffMaxHours"], 24)
+	if err != nil {
+		errors["failureBackoffMaxHours"] = "must be an integer"
+	} else if failureBackoffMaxHours < 1 || failureBackoffMaxHours > 336 {
+		errors["failureBackoffMaxHours"] = "must be between 1 and 336"
+	} else {
+		v["failureBackoffMaxHours"] = failureBackoffMaxHours
+	}
+
+	perSourceRetentionCap, err := parseIntWithDefault(v["perSourceRetentionCap"], 1000)
+	if err != nil {
+		errors["perSourceRetentionCap"] = "must be an integer"
+	} else if perSourceRetentionCap < 1 || perSourceRetentionCap > 100000 {
+		errors["perSourceRetentionCap"] = "must be between 1 and 100000"
+	} else {
+		v["perSourceRetentionCap"] = perSourceRetentionCap
+	}
+
+	globalRetentionCap, err := parseIntWithDefault(v["globalRetentionCap"], 30000)
+	if err != nil {
+		errors["globalRetentionCap"] = "must be an integer"
+	} else if globalRetentionCap < 1 || globalRetentionCap > 500000 {
+		errors["globalRetentionCap"] = "must be between 1 and 500000"
+	} else {
+		v["globalRetentionCap"] = globalRetentionCap
+	}
+
+	if len(errors) == 0 {
+		if failureBackoffTwoHours < failureBackoffOneHours {
+			errors["failureBackoffTwoHours"] = "must be >= failureBackoffOneHours"
+		}
+		if failureBackoffMaxHours < failureBackoffTwoHours {
+			errors["failureBackoffMaxHours"] = "must be >= failureBackoffTwoHours"
+		}
+		if globalRetentionCap < perSourceRetentionCap {
+			errors["globalRetentionCap"] = "must be >= perSourceRetentionCap"
+		}
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
+}
+
 // ─── Defaults ──────────────────────────────────────────────────────────────
 
 // fallbackForKey returns the code-level fallback for a given (module, key) pair.

@@ -16,6 +16,8 @@ import {
   QrCode,
   Download,
   Upload,
+  ChevronLeft,
+  ChevronRight,
   Filter,
   RefreshCw,
   MoreVertical,
@@ -89,6 +91,8 @@ type StatusFilter = 'all' | 'open' | 'closed'
 
 // ─── Page Component ──────────────────────────────────────
 
+const PAGE_SIZE = 20
+
 function TopicsListPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -104,6 +108,7 @@ function TopicsListPage() {
   const [sortField, setSortField] = useState<SortField>('updated')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [page, setPage] = useState(1)
 
   // Create/Edit dialog
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -204,6 +209,13 @@ function TopicsListPage() {
   }, [rows, search, sortField, sortDir, statusFilter])
 
   const isStatusFilterActive = statusFilter !== 'all'
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
+  const pagedRows = useMemo(
+    () => filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filteredRows, page]
+  )
+  useEffect(() => { setPage(1) }, [filteredRows])
 
   // ─── Dialog handlers ────────────────────────────────────
 
@@ -518,6 +530,34 @@ function TopicsListPage() {
             className="pl-9"
           />
         </div>
+        {filteredRows.length > 0 && (
+          <div className="ml-auto flex items-center gap-3 text-sm text-muted-foreground">
+            <span className="whitespace-nowrap">Total {filteredRows.length} items</span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                className="rounded p-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                disabled={page <= 1}
+                onClick={() => setPage(p => p - 1)}
+                aria-label="Previous page"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="min-w-12 text-center font-medium text-foreground">
+                {page}/{totalPages}
+              </span>
+              <button
+                type="button"
+                className="rounded p-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                disabled={page >= totalPages}
+                onClick={() => setPage(p => p + 1)}
+                aria-label="Next page"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Table / Empty state */}
@@ -608,7 +648,7 @@ function TopicsListPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredRows.map(row => (
+            {pagedRows.map(row => (
               <TableRow key={row.id} className="cursor-pointer hover:bg-muted/50">
                 <TableCell>
                   <div className="flex items-center gap-2">

@@ -35,6 +35,8 @@ type rssItem struct {
 	Title       string `xml:"title"`
 	Link        string `xml:"link"`
 	Description string `xml:"description"`
+	Content     string `xml:"http://purl.org/rss/1.0/modules/content/ encoded"`
+	Encoded     string `xml:"encoded"`
 	PubDate     string `xml:"pubDate"`
 	Updated     string `xml:"updated"`
 }
@@ -47,13 +49,19 @@ type atomDocument struct {
 }
 
 type atomEntry struct {
-	ID        string     `xml:"id"`
-	Title     string     `xml:"title"`
-	Summary   string     `xml:"summary"`
-	Content   string     `xml:"content"`
-	Published string     `xml:"published"`
-	Updated   string     `xml:"updated"`
-	Links     []atomLink `xml:"link"`
+	ID        string        `xml:"id"`
+	Title     string        `xml:"title"`
+	Summary   atomTextValue `xml:"summary"`
+	Content   atomTextValue `xml:"content"`
+	Published string        `xml:"published"`
+	Updated   string        `xml:"updated"`
+	Links     []atomLink    `xml:"link"`
+}
+
+type atomTextValue struct {
+	Type     string `xml:"type,attr"`
+	InnerXML string `xml:",innerxml"`
+	Text     string `xml:",chardata"`
 }
 
 type atomLink struct {
@@ -66,6 +74,7 @@ type SourceAnalysis struct {
 	FeedURL string `json:"feed_url"`
 	SiteURL string `json:"site_url"`
 	SiteTitle string `json:"site_title"`
+	FaviconURL string `json:"favicon_url"`
 	Format  string `json:"format"`
 }
 
@@ -78,7 +87,21 @@ func AnalyzeSource(ctx context.Context, feedURL string, client HTTPDoer) (Source
 	if err != nil {
 		return SourceAnalysis{}, err
 	}
-	return AnalyzeFeedBytes(resolvedURL, data)
+	analysis, err := AnalyzeFeedBytes(resolvedURL, data)
+	if err != nil {
+		return SourceAnalysis{}, err
+	}
+
+	if strings.TrimSpace(analysis.SiteURL) != "" {
+		websiteAnalysis, websiteErr := AnalyzeBookmark(ctx, analysis.SiteURL, client)
+		if websiteErr == nil {
+			if faviconURL := strings.TrimSpace(websiteAnalysis.FaviconURL); faviconURL != "" {
+				analysis.FaviconURL = faviconURL
+			}
+		}
+	}
+
+	return analysis, nil
 }
 
 func FetchAndParseSource(ctx context.Context, source SourceSnapshot, client HTTPDoer) ([]ItemCandidate, error) {
@@ -175,6 +198,9 @@ func AnalyzeFeedBytes(feedURL string, data []byte) (SourceAnalysis, error) {
 	if analysis.SiteTitle == "" {
 		analysis.SiteTitle = analysis.Name
 	}
+	if siteBase, err := safefetch.ValidateURL(analysis.SiteURL); err == nil {
+		analysis.FaviconURL = defaultFaviconURL(siteBase)
+	}
 
 	return analysis, nil
 }
@@ -207,6 +233,7 @@ func parseRSS(data []byte) ([]ItemCandidate, error) {
 			Link:         strings.TrimSpace(item.Link),
 			Title:        strings.TrimSpace(item.Title),
 			Summary:      sanitizeSummary(item.Description),
+			ContentRaw:   coalesceFeedContent(rssContentRaw(item), item.Description),
 			PublishedAt:  publishedAt,
 		})
 	}
@@ -221,9 +248,9 @@ func parseAtom(data []byte) ([]ItemCandidate, error) {
 
 	items := make([]ItemCandidate, 0, len(doc.Entries))
 	for _, entry := range doc.Entries {
-		summary := entry.Summary
+		summary := atomPlainText(entry.Summary)
 		if strings.TrimSpace(summary) == "" {
-			summary = entry.Content
+			summary = atomPlainText(entry.Content)
 		}
 		publishedAt := parseFeedTime(entry.Published)
 		if publishedAt.IsZero() {
@@ -234,10 +261,48 @@ func parseAtom(data []byte) ([]ItemCandidate, error) {
 			Link:         pickAtomLink(entry.Links),
 			Title:        strings.TrimSpace(entry.Title),
 			Summary:      sanitizeSummary(summary),
+			ContentRaw:   coalesceFeedContent(atomContentRaw(entry.Content), atomContentRaw(entry.Summary)),
 			PublishedAt:  publishedAt,
 		})
 	}
 	return items, nil
+}
+
+func rssContentRaw(item rssItem) string {
+	return coalesceFeedContent(item.Content, item.Encoded)
+}
+
+func atomContentRaw(value atomTextValue) string {
+	typeName := strings.TrimSpace(strings.ToLower(value.Type))
+	raw := strings.TrimSpace(value.InnerXML)
+	if raw == "" {
+		raw = strings.TrimSpace(value.Text)
+	}
+	if raw == "" {
+		return ""
+	}
+	if typeName == "html" {
+		return strings.TrimSpace(html.UnescapeString(raw))
+	}
+	return raw
+}
+
+func atomPlainText(value atomTextValue) string {
+	raw := atomContentRaw(value)
+	if raw != "" {
+		return raw
+	}
+	return strings.TrimSpace(value.Text)
+}
+
+func coalesceFeedContent(values ...string) string {
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }
 
 func pickAtomLink(links []atomLink) string {

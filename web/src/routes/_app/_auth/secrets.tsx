@@ -4,6 +4,7 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Filter,
   MoreVertical,
@@ -769,6 +770,34 @@ export function SecretsPage() {
             </button>
           </div>
         )}
+        {filteredItems.length > 0 && (
+          <div className="ml-auto flex items-center gap-3 text-sm text-muted-foreground">
+            <span className="whitespace-nowrap">Total {filteredItems.length} items</span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                className="rounded p-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                disabled={page <= 1}
+                onClick={() => setPage(p => p - 1)}
+                aria-label="Previous page"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="min-w-12 text-center font-medium text-foreground">
+                {page}/{totalPages}
+              </span>
+              <button
+                type="button"
+                className="rounded p-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                disabled={page >= totalPages}
+                onClick={() => setPage(p => p + 1)}
+                aria-label="Next page"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Table */}
@@ -1055,33 +1084,6 @@ export function SecretsPage() {
             ))}
           </TableBody>
         </Table>
-      )}
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">
-            {filteredItems.length} total · Page {page} of {totalPages}
-          </span>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage(p => p - 1)}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => setPage(p => p + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
       )}
 
       {/* ─── Edit Dialog ─── */}

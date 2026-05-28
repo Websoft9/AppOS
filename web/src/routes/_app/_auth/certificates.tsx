@@ -4,6 +4,7 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Download,
   Filter,
@@ -315,6 +316,8 @@ function CertDetailRow({ item, colSpan }: { item: CertRecord; colSpan: number })
 
 // ─── Main page ───────────────────────────────────────────
 
+const PAGE_SIZE = 20
+
 function CertificatesPage() {
   const [allItems, setAllItems] = useState<CertRecord[]>([])
   const [templates, setTemplates] = useState<CertTemplate[]>([])
@@ -328,6 +331,7 @@ function CertificatesPage() {
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [kindFilter, setKindFilter] = useState<KindFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [page, setPage] = useState(1)
 
   // Expandable detail
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -469,6 +473,13 @@ function CertificatesPage() {
     }
     return result
   }, [allItems, search, sortField, sortDir, kindFilter, statusFilter])
+
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE))
+  const pagedItems = useMemo(
+    () => filteredItems.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filteredItems, page]
+  )
+  useEffect(() => { setPage(1) }, [filteredItems])
 
   function handleSort(field: SortField) {
     if (sortField === field) setSortDir(prev => (prev === 'asc' ? 'desc' : 'asc'))
@@ -682,6 +693,34 @@ function CertificatesPage() {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
+        {filteredItems.length > 0 && (
+          <div className="ml-auto flex items-center gap-3 text-sm text-muted-foreground">
+            <span className="whitespace-nowrap">Total {filteredItems.length} items</span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                className="rounded p-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                disabled={page <= 1}
+                onClick={() => setPage(p => p - 1)}
+                aria-label="Previous page"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="min-w-12 text-center font-medium text-foreground">
+                {page}/{totalPages}
+              </span>
+              <button
+                type="button"
+                className="rounded p-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                disabled={page >= totalPages}
+                onClick={() => setPage(p => p + 1)}
+                aria-label="Next page"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Table */}
@@ -808,7 +847,7 @@ function CertificatesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredItems.map(item => {
+            {pagedItems.map(item => {
               const isExpanded = expandedId === item.id
               return (
                 <React.Fragment key={item.id}>

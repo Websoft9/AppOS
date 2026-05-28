@@ -81,6 +81,11 @@ tags:
       name: Users
 components:
     schemas:
+        AnalyzeBookmarkRequest:
+            properties:
+                url:
+                    type: string
+            type: object
         AuditLogList:
             properties:
                 items:
@@ -141,6 +146,31 @@ components:
                     description: Actor user ID. `system` for async/cron-triggered writes.
                     example: usr_abc123
                     type: string
+            type: object
+        BookmarkConflictResponse:
+            properties:
+                code:
+                    type: string
+                existing:
+                    additionalProperties: true
+                    type: object
+                message:
+                    type: string
+            type: object
+        BookmarkListResponse:
+            properties:
+                items:
+                    items:
+                        $ref: '#/components/schemas/BookmarkListItem'
+                    type: array
+                page:
+                    type: integer
+                perPage:
+                    type: integer
+                totalBookmarks:
+                    type: integer
+                totalItems:
+                    type: integer
             type: object
         ConnectorResponseDocument:
             properties:
@@ -210,6 +240,8 @@ components:
             type: object
         CreateBookmarkRequest:
             properties:
+                favicon_url:
+                    type: string
                 summary:
                     type: string
                 title:
@@ -5298,6 +5330,54 @@ paths:
             tags:
                 - Feeds
     /api/feeds/bookmarks:
+        get:
+            description: Returns paginated bookmarks with independent search and totals. Authenticated users only.
+            operationId: get_api_feeds_bookmarks
+            parameters:
+                - description: page number
+                  in: query
+                  name: page
+                  required: false
+                  schema:
+                    type: integer
+                - description: page size
+                  in: query
+                  name: perPage
+                  required: false
+                  schema:
+                    type: integer
+                - description: bookmark search query
+                  in: query
+                  name: q
+                  required: false
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BookmarkListResponse'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: List bookmarks
+            tags:
+                - Feeds
         post:
             description: Stores one manual link inside the Feeds workspace as a bookmark item. Authenticated users only.
             operationId: post_api_feeds_bookmarks
@@ -5387,6 +5467,341 @@ paths:
             security:
                 - bearerAuth: []
             summary: Delete bookmark item
+            tags:
+                - Feeds
+        patch:
+            description: Updates one bookmark item in the Feeds workspace. Authenticated users only.
+            operationId: patch_api_feeds_bookmarks_id
+            parameters:
+                - description: bookmark item id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateBookmarkRequest'
+                description: bookmark payload
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Update bookmark item
+            tags:
+                - Feeds
+    /api/feeds/bookmarks/analyze:
+        post:
+            description: Fetches one webpage URL and extracts title, description, and favicon metadata for the bookmark form. Authenticated users only.
+            operationId: post_api_feeds_bookmarks_analyze
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/AnalyzeBookmarkRequest'
+                description: bookmark analyze payload
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Analyze bookmark URL
+            tags:
+                - Feeds
+    /api/feeds/cleanup:
+        post:
+            description: Deletes feed items according to the platform retention policy. Superuser only.
+            operationId: post_api_feeds_cleanup
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Execute feed cleanup
+            tags:
+                - Feeds
+    /api/feeds/cleanup/preview:
+        post:
+            description: Returns the deterministic feed cleanup summary without deleting any data. Superuser only.
+            operationId: post_api_feeds_cleanup_preview
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Preview feed cleanup
+            tags:
+                - Feeds
+    /api/feeds/favicon:
+        get:
+            description: Downloads one remote favicon through the backend with SSRF protection and image-size/type limits.
+            operationId: get_api_feeds_favicon
+            parameters:
+                - description: auth token for browser image contexts
+                  in: query
+                  name: token
+                  required: false
+                  schema:
+                    type: string
+                - description: remote favicon URL
+                  in: query
+                  name: url
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                type: string
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "502":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Gateway
+            security:
+                - bearerAuth: []
+            summary: Proxy favicon image
+            tags:
+                - Feeds
+    /api/feeds/items:
+        get:
+            operationId: get_api_feeds_items
+            parameters:
+                - in: query
+                  name: page
+                  required: false
+                  schema:
+                    type: string
+                - in: query
+                  name: perPage
+                  required: false
+                  schema:
+                    type: string
+                - in: query
+                  name: q
+                  required: false
+                  schema:
+                    type: string
+                - in: query
+                  name: sourceId
+                  required: false
+                  schema:
+                    type: string
+                - in: query
+                  name: starred
+                  required: false
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get feeds items
+            tags:
+                - Feeds
+    /api/feeds/items/{id}/bookmark:
+        post:
+            description: Converts one feed article into a bookmark item without pulling feeds. Authenticated users only.
+            operationId: post_api_feeds_items_id_bookmark
+            parameters:
+                - description: feed item id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BookmarkConflictResponse'
+                    description: Conflict
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Convert feed item to bookmark
             tags:
                 - Feeds
     /api/feeds/items/{id}/state:
@@ -5541,6 +5956,27 @@ paths:
             security:
                 - bearerAuth: []
             summary: Trigger manual source poll
+            tags:
+                - Feeds
+    /api/feeds/summary:
+        get:
+            operationId: get_api_feeds_summary
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get feeds summary
             tags:
                 - Feeds
     /api/files/{collection}/{recordId}/{filename}:

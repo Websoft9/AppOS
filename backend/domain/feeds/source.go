@@ -22,15 +22,16 @@ const (
 )
 
 type SourceSnapshot struct {
-	ID                  string
-	Name                string
-	URL                 string
-	Format              string
-	Status              string
-	PollIntervalMinutes int
-	LastFetchedAt       time.Time
-	LastSuccessAt       time.Time
-	LastError           string
+	ID            string
+	Name          string
+	URL           string
+	Format        string
+	Status        string
+	FailureStreak int
+	NextPollAt    time.Time
+	LastFetchedAt time.Time
+	LastSuccessAt time.Time
+	LastError     string
 }
 
 type Source struct {
@@ -46,15 +47,16 @@ func SnapshotFromRecord(rec *core.Record) SourceSnapshot {
 		return SourceSnapshot{}
 	}
 	return SourceSnapshot{
-		ID:                  rec.Id,
-		Name:                strings.TrimSpace(rec.GetString("name")),
-		URL:                 strings.TrimSpace(rec.GetString("url")),
-		Format:              strings.TrimSpace(rec.GetString("format")),
-		Status:              strings.TrimSpace(rec.GetString("status")),
-		PollIntervalMinutes: rec.GetInt("poll_interval_minutes"),
-		LastFetchedAt:       recordDateTime(rec, "last_fetched_at"),
-		LastSuccessAt:       recordDateTime(rec, "last_success_at"),
-		LastError:           strings.TrimSpace(rec.GetString("last_error")),
+		ID:            rec.Id,
+		Name:          strings.TrimSpace(rec.GetString("name")),
+		URL:           strings.TrimSpace(rec.GetString("url")),
+		Format:        strings.TrimSpace(rec.GetString("format")),
+		Status:        strings.TrimSpace(rec.GetString("status")),
+		FailureStreak: rec.GetInt("failure_streak"),
+		NextPollAt:    recordDateTime(rec, "next_poll_at"),
+		LastFetchedAt: recordDateTime(rec, "last_fetched_at"),
+		LastSuccessAt: recordDateTime(rec, "last_success_at"),
+		LastError:     strings.TrimSpace(rec.GetString("last_error")),
 	}
 }
 
@@ -77,32 +79,58 @@ func (s *Source) Due(now time.Time) bool {
 		return false
 	}
 	snapshot := s.Snapshot()
-	if snapshot.Status != StatusActive || snapshot.PollIntervalMinutes <= 0 {
+	if snapshot.Status != StatusActive {
 		return false
 	}
-	if snapshot.LastFetchedAt.IsZero() {
+	if snapshot.NextPollAt.IsZero() {
 		return true
 	}
-	return !now.UTC().Before(snapshot.LastFetchedAt.Add(time.Duration(snapshot.PollIntervalMinutes) * time.Minute))
+	return !now.UTC().Before(snapshot.NextPollAt)
 }
 
-func (s *Source) MarkFetchSuccess(now time.Time) {
+func (s *Source) MarkFetchSuccess(app core.App, now time.Time) {
 	if s == nil || s.rec == nil {
 		return
 	}
 	when := mustDateTime(now.UTC())
+	policy := LoadPolicySettings(app)
 	s.rec.Set("last_fetched_at", when)
 	s.rec.Set("last_success_at", when)
 	s.rec.Set("last_error", "")
+	s.rec.Set("failure_streak", 0)
+	s.rec.Set("next_poll_at", mustDateTime(nextScheduledPollAt(now.UTC(), policy)))
 }
 
-func (s *Source) MarkFetchFailure(now time.Time, msg string) {
+func (s *Source) MarkFetchFailure(app core.App, now time.Time, msg string) {
 	if s == nil || s.rec == nil {
 		return
 	}
-	s.rec.Set("last_fetched_at", mustDateTime(now.UTC()))
+	streak := s.rec.GetInt("failure_streak") + 1
+	timestamp := now.UTC()
+	policy := LoadPolicySettings(app)
+	s.rec.Set("last_fetched_at", mustDateTime(timestamp))
 	s.rec.Set("last_error", normalizeLastError(msg))
+	s.rec.Set("failure_streak", streak)
+	s.rec.Set("next_poll_at", mustDateTime(nextPollAtForFailure(timestamp, streak, policy)))
+}
+
+func nextScheduledPollAt(now time.Time, policy PolicySettings) time.Time {
+	if policy.PollInterval <= 0 {
+		policy = DefaultPolicySettings()
 	}
+	return now.UTC().Add(policy.PollInterval)
+}
+
+func nextPollAtForFailure(now time.Time, streak int, policy PolicySettings) time.Time {
+	switch {
+	case streak <= 1:
+		return now.UTC().Add(policy.FailureBackoffOne)
+	case streak == 2:
+		return now.UTC().Add(policy.FailureBackoffTwo)
+	default:
+		return now.UTC().Add(policy.FailureBackoffMax)
+	}
+}
 
 func normalizeLastError(msg string) string {
 	trimmed := strings.TrimSpace(msg)

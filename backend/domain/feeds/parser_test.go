@@ -44,6 +44,9 @@ func TestParseFeedBytesRSS(t *testing.T) {
 	if items[0].Summary != "Security fixes and maintenance update." {
 		t.Fatalf("expected sanitized rss summary, got %q", items[0].Summary)
 	}
+	if items[0].ContentRaw != "<p>Security fixes and <strong>maintenance</strong> update.</p>" {
+		t.Fatalf("expected rss raw content preserved, got %q", items[0].ContentRaw)
+	}
 	if items[0].PublishedAt != time.Date(2026, 5, 27, 8, 0, 0, 0, time.UTC) {
 		t.Fatalf("unexpected rss published_at: %v", items[0].PublishedAt)
 	}
@@ -69,8 +72,73 @@ func TestParseFeedBytesAtom(t *testing.T) {
 	if items[0].Summary != "Release 2 summary with HTML." {
 		t.Fatalf("expected sanitized atom summary, got %q", items[0].Summary)
 	}
+	if items[0].ContentRaw != "<p>Release 2 summary with <em>HTML</em>.</p>" {
+		t.Fatalf("expected atom summary html preserved as raw content, got %q", items[0].ContentRaw)
+	}
+	if items[1].ContentRaw != "<div>Patch release details.</div>" {
+		t.Fatalf("expected atom content html preserved as raw content, got %q", items[1].ContentRaw)
+	}
 	if items[1].PublishedAt != time.Date(2026, 5, 28, 7, 30, 0, 0, time.UTC) {
 		t.Fatalf("unexpected atom updated_at fallback: %v", items[1].PublishedAt)
+	}
+}
+
+func TestParseFeedBytesAtomSupportsXHTMLContent(t *testing.T) {
+	atom := []byte(`<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Example Atom Feed</title>
+  <entry>
+    <id>tag:example.com,2026:release-xhtml</id>
+    <title>Release XHTML</title>
+    <content type="xhtml"><div xmlns="http://www.w3.org/1999/xhtml"><p>Structured <strong>HTML</strong> body.</p></div></content>
+    <updated>2026-05-28T07:30:00Z</updated>
+    <link href="https://example.com/releases/xhtml" />
+  </entry>
+</feed>`)
+
+	items, err := ParseFeedBytes(FormatAtom, atom)
+	if err != nil {
+		t.Fatalf("parse atom xhtml fixture: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 atom item, got %d", len(items))
+	}
+	if items[0].ContentRaw != `<div xmlns="http://www.w3.org/1999/xhtml"><p>Structured <strong>HTML</strong> body.</p></div>` {
+		t.Fatalf("expected xhtml body preserved, got %q", items[0].ContentRaw)
+	}
+	if items[0].Summary != "Structured HTML body." {
+		t.Fatalf("expected summary extracted from xhtml content, got %q", items[0].Summary)
+	}
+}
+
+func TestParseFeedBytesRSSPrefersContentEncoded(t *testing.T) {
+	rss := []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Example Releases</title>
+    <item>
+      <guid>release-encoded</guid>
+      <title>Release Encoded</title>
+      <link>https://example.com/releases/encoded</link>
+      <description><![CDATA[Short summary only.]]></description>
+      <content:encoded><![CDATA[<p>Full <strong>HTML</strong> body.</p><p>Second paragraph.</p>]]></content:encoded>
+      <pubDate>Thu, 28 May 2026 08:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>`)
+
+	items, err := ParseFeedBytes(FormatRSS, rss)
+	if err != nil {
+		t.Fatalf("parse rss content:encoded fixture: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 rss item, got %d", len(items))
+	}
+	if items[0].Summary != "Short summary only." {
+		t.Fatalf("expected summary from description, got %q", items[0].Summary)
+	}
+	if items[0].ContentRaw != "<p>Full <strong>HTML</strong> body.</p><p>Second paragraph.</p>" {
+		t.Fatalf("expected content_raw from content:encoded, got %q", items[0].ContentRaw)
 	}
 }
 
@@ -129,6 +197,9 @@ func TestAnalyzeSourceRSS(t *testing.T) {
 	if analysis.SiteTitle != "Example Releases" {
 		t.Fatalf("expected rss site title, got %q", analysis.SiteTitle)
 	}
+	if analysis.FaviconURL != "https://example.com/favicon.ico" {
+		t.Fatalf("expected rss favicon url, got %q", analysis.FaviconURL)
+	}
 	if analysis.FeedURL != "https://example.com/feed.xml" {
 		t.Fatalf("expected rss feed url, got %q", analysis.FeedURL)
 	}
@@ -160,5 +231,77 @@ func TestAnalyzeSourceAtom(t *testing.T) {
 	}
 	if analysis.SiteTitle != "Example Atom Feed" {
 		t.Fatalf("expected atom site title, got %q", analysis.SiteTitle)
+	}
+	if analysis.FaviconURL != "https://example.com/favicon.ico" {
+		t.Fatalf("expected atom favicon url, got %q", analysis.FaviconURL)
+	}
+}
+
+func TestAnalyzeSourcePrefersHomepageIconLink(t *testing.T) {
+	feedData := readFeedFixture(t, "rss.xml")
+	homepageHTML := `<html><head><link rel="icon" href="/assets/favicon-32.png"></head><body></body></html>`
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		body := string(feedData)
+		if req.URL.String() == "https://example.com" {
+			body = homepageHTML
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Header:     make(http.Header),
+			Request:    req,
+		}, nil
+	})}
+
+	analysis, err := AnalyzeSource(context.Background(), "https://example.com/feed.xml", client)
+	if err != nil {
+		t.Fatalf("analyze source with homepage favicon: %v", err)
+	}
+	if analysis.FaviconURL != "https://example.com/assets/favicon-32.png" {
+		t.Fatalf("expected homepage favicon url, got %q", analysis.FaviconURL)
+	}
+}
+
+func TestAnalyzeBookmarkBytesExtractsMetadata(t *testing.T) {
+	analysis, err := AnalyzeBookmarkBytes("https://example.com/post", []byte(`
+		<html>
+			<head>
+				<title>Fallback Title</title>
+				<meta property="og:title" content="OpenGraph Title">
+				<meta name="description" content="Primary description">
+				<link rel="icon" href="/favicon-32.png">
+			</head>
+			<body><h1>ignored</h1></body>
+		</html>`))
+	if err != nil {
+		t.Fatalf("analyze bookmark html: %v", err)
+	}
+	if analysis.Title != "OpenGraph Title" {
+		t.Fatalf("expected bookmark title from og:title, got %q", analysis.Title)
+	}
+	if analysis.Description != "Primary description" {
+		t.Fatalf("expected bookmark description, got %q", analysis.Description)
+	}
+	if analysis.FaviconURL != "https://example.com/favicon-32.png" {
+		t.Fatalf("expected resolved favicon url, got %q", analysis.FaviconURL)
+	}
+}
+
+func TestAnalyzeBookmarkBytesFallsBackToDefaultFavicon(t *testing.T) {
+	analysis, err := AnalyzeBookmarkBytes("https://example.com/docs/page", []byte(`
+		<html>
+			<head>
+				<title>Plain Title</title>
+			</head>
+			<body></body>
+		</html>`))
+	if err != nil {
+		t.Fatalf("analyze bookmark html fallback: %v", err)
+	}
+	if analysis.Title != "Plain Title" {
+		t.Fatalf("expected title fallback, got %q", analysis.Title)
+	}
+	if analysis.FaviconURL != "https://example.com/favicon.ico" {
+		t.Fatalf("expected default favicon url, got %q", analysis.FaviconURL)
 	}
 }

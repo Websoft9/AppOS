@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { SaveButton, Toggle, selectClass } from './shared'
 import type {
+  FeedsPolicyGroup,
   MonitorManagedCollectorPolicyGroup,
   MonitorPlatformSelfObservationGroup,
   MonitorPolicyGroup,
@@ -423,6 +424,39 @@ export function MonitorManagedCollectorPolicySection({
         <CardTitle>Managed Collector Policy</CardTitle>
         <CardDescription>
           Control the Telegraf-based monitor-agent cadence and batching policy on managed servers.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          {renderSystemNumberFields({ entry, form, errors, setForm })}
+        </div>
+        <SaveButton onClick={save} saving={saving} />
+      </CardContent>
+    </Card>
+  )
+}
+
+export function FeedsPolicySection({
+  entry,
+  form,
+  errors,
+  saving,
+  setForm,
+  save,
+}: {
+  entry: SettingsSchemaEntry
+  form: FeedsPolicyGroup
+  errors: Partial<Record<keyof FeedsPolicyGroup, string>>
+  saving: boolean
+  setForm: React.Dispatch<React.SetStateAction<FeedsPolicyGroup>>
+  save: () => void
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Feeds Policy</CardTitle>
+        <CardDescription>
+          Control feed polling cadence, failure backoff, and article retention limits.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

@@ -168,6 +168,7 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 	var foundMonitorPolicy bool
 	var foundMonitorPlatformSelfObservation bool
 	var foundMonitorManagedCollectorPolicy bool
+	var foundFeedsPolicy bool
 	for _, item := range items {
 		id, _ := item["id"].(string)
 		value, _ := item["value"].(map[string]any)
@@ -188,6 +189,8 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 			foundMonitorPlatformSelfObservation = value != nil && int(value["platformObserverIntervalSeconds"].(float64)) == 30
 		case "monitor-managed-collector-policy":
 			foundMonitorManagedCollectorPolicy = value != nil && int(value["collectionIntervalSeconds"].(float64)) == 10
+		case "feeds-policy":
+			foundFeedsPolicy = value != nil && int(value["pollIntervalMinutes"].(float64)) == 60 && int(value["globalRetentionCap"].(float64)) == 30000
 		}
 	}
 
@@ -214,6 +217,9 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 	}
 	if !foundMonitorManagedCollectorPolicy {
 		t.Fatal("expected monitor-managed-collector-policy fallback value")
+	}
+	if !foundFeedsPolicy {
+		t.Fatal("expected feeds-policy fallback value")
 	}
 }
 
@@ -282,6 +288,15 @@ func TestSettingsEntryPatchValidation(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "metricBufferLimit") {
 		t.Fatalf("expected monitor-managed-collector-policy validation error, got %s", rec.Body.String())
+	}
+
+	badFeedsPolicy := `{"pollIntervalMinutes":60,"failureBackoffOneHours":8,"failureBackoffTwoHours":4,"failureBackoffMaxHours":2,"perSourceRetentionCap":2000,"globalRetentionCap":1000}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/feeds-policy", badFeedsPolicy, true)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 for invalid feeds-policy, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "globalRetentionCap") {
+		t.Fatalf("expected feeds-policy validation error, got %s", rec.Body.String())
 	}
 }
 
@@ -431,6 +446,22 @@ func TestSettingsEntryPatchPersistsUnifiedValues(t *testing.T) {
 	}
 	if got := sysconfig.Int(storedMonitorManagedCollectorPolicy, "metricBufferLimit", 0); got != 6000 {
 		t.Fatalf("expected metricBufferLimit 6000, got %d", got)
+	}
+
+	feedsPolicyBody := `{"pollIntervalMinutes":45,"failureBackoffOneHours":3,"failureBackoffTwoHours":9,"failureBackoffMaxHours":36,"perSourceRetentionCap":1500,"globalRetentionCap":45000}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/feeds-policy", feedsPolicyBody, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for feeds-policy patch, got %d: %s", rec.Code, rec.Body.String())
+	}
+	storedFeedsPolicy, err := sysconfig.GetGroup(te.app, "feeds", "policy", nil)
+	if err != nil {
+		t.Fatalf("expected stored feeds policy, got error: %v", err)
+	}
+	if got := sysconfig.Int(storedFeedsPolicy, "pollIntervalMinutes", 0); got != 45 {
+		t.Fatalf("expected pollIntervalMinutes 45, got %d", got)
+	}
+	if got := sysconfig.Int(storedFeedsPolicy, "globalRetentionCap", 0); got != 45000 {
+		t.Fatalf("expected globalRetentionCap 45000, got %d", got)
 	}
 }
 

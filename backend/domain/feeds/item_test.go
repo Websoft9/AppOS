@@ -1,8 +1,10 @@
 package feeds
 
 import (
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -55,6 +57,26 @@ func TestNormalizeItemFallsBackToNormalizedLinkForExternalID(t *testing.T) {
 	})
 	if normalized.ExternalID != "example.com/releases/42" {
 		t.Fatalf("expected normalized link external id, got %q", normalized.ExternalID)
+	}
+}
+
+func TestNormalizeItemTruncatesOversizedRawContentToPlainText(t *testing.T) {
+	oversized := strings.Repeat("<p>Alpha Beta Gamma Delta.</p>", 70000)
+
+	normalized := NormalizeItem(ItemCandidate{
+		Link:       "https://example.com/releases/42",
+		Title:      "Release 42",
+		ContentRaw: oversized,
+	})
+
+	if utf8.RuneCountInString(normalized.ContentRaw) > MaxItemContentRawChars {
+		t.Fatalf("expected truncated raw content to stay within %d chars, got %d", MaxItemContentRawChars, utf8.RuneCountInString(normalized.ContentRaw))
+	}
+	if strings.Contains(normalized.ContentRaw, "<p>") {
+		t.Fatalf("expected oversized raw content to degrade to plain text, got %q", normalized.ContentRaw[:80])
+	}
+	if !strings.HasSuffix(normalized.ContentRaw, contentRawTruncationNotice) {
+		t.Fatalf("expected truncation notice suffix, got %q", normalized.ContentRaw[len(normalized.ContentRaw)-80:])
 	}
 }
 

@@ -130,6 +130,24 @@ describe('SettingsPage shared settings paths', () => {
               ],
             },
             {
+              id: 'feeds-policy',
+              title: 'Feeds Policy',
+              section: 'system',
+              source: 'custom',
+              fields: [
+                {
+                  id: 'pollIntervalMinutes',
+                  label: 'Poll Interval Minutes',
+                  type: 'integer',
+                },
+                {
+                  id: 'globalRetentionCap',
+                  label: 'Global Retention Cap',
+                  type: 'integer',
+                },
+              ],
+            },
+            {
               id: 'secrets-policy',
               title: 'Secrets',
               section: 'system',
@@ -317,6 +335,17 @@ describe('SettingsPage shared settings paths', () => {
                 flushJitterSeconds: 1,
               },
             },
+              {
+                id: 'feeds-policy',
+                value: {
+                  pollIntervalMinutes: 60,
+                  failureBackoffOneHours: 2,
+                  failureBackoffTwoHours: 6,
+                  failureBackoffMaxHours: 24,
+                  perSourceRetentionCap: 1000,
+                  globalRetentionCap: 30000,
+                },
+              },
             { id: 'space-quota', value: {} },
             { id: 'connect-terminal', value: {} },
             { id: 'connect-sftp', value: { maxUploadFiles: 10 } },
@@ -638,6 +667,47 @@ describe('SettingsPage shared settings paths', () => {
     })
   })
 
+  it('saves feeds policy through the unified settings entry path from the system settings page', async () => {
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      expect(within(nav as HTMLElement).getByRole('button', { name: 'Feeds Policy' })).toBeInTheDocument()
+    })
+
+    const nav = container.querySelector('nav') as HTMLElement | null
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+
+    within(nav).getByRole('button', { name: 'Feeds Policy' }).click()
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Poll Interval Minutes')).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText('Poll Interval Minutes'), {
+      target: { value: '45' },
+    })
+
+    const pollInput = screen.getByLabelText('Poll Interval Minutes')
+    const feedsCard = pollInput.closest('[data-slot="card"]') as HTMLElement | null
+    if (!feedsCard) {
+      throw new Error('expected feeds policy card to be rendered')
+    }
+    fireEvent.click(within(feedsCard).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(settingsEntryPath('feeds-policy'), {
+        method: 'PATCH',
+        body: expect.objectContaining({
+          pollIntervalMinutes: 45,
+        }),
+      })
+    })
+  })
+
   it('saves platform self-observation through the unified settings entry path from the monitor page', async () => {
     const { container } = render(<SettingsPage />)
 
@@ -798,6 +868,7 @@ describe('SettingsPage shared settings paths', () => {
         'Tunnel',
         'Proxy',
         'Docker',
+        'Feeds Policy',
         'Secrets',
         'AI',
         'Space',
