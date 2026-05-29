@@ -19,9 +19,15 @@ func newTopicRecord() *core.Record {
 func TestNewGuestCommentUsesCharacterLimits(t *testing.T) {
 	topic := From(newTopicRecord())
 	comments := core.NewBaseCollection(CommentsCollection)
+	policy := CommentPolicy{
+		AllowGuestComments: true,
+		DefaultGuestName:   DefaultGuestName,
+		MaxGuestNameLength: MaxGuestNameLen,
+		MaxCommentBodyLen:  MaxCommentBodyLen,
+	}
 
 	guestName := strings.Repeat("你", MaxGuestNameLen)
-	comment, err := topic.NewGuestComment(comments, "你好", guestName)
+	comment, err := topic.NewGuestComment(comments, policy, "你好", guestName)
 	if err != nil {
 		t.Fatalf("expected %d-character guest name to be accepted, got error: %v", MaxGuestNameLen, err)
 	}
@@ -29,7 +35,7 @@ func TestNewGuestCommentUsesCharacterLimits(t *testing.T) {
 		t.Fatalf("expected created_by to preserve multibyte guest name, got %q", comment.CreatedBy())
 	}
 
-	_, err = topic.NewGuestComment(comments, "你好", strings.Repeat("你", MaxGuestNameLen+1))
+	_, err = topic.NewGuestComment(comments, policy, "你好", strings.Repeat("你", MaxGuestNameLen+1))
 	if err == nil {
 		t.Fatalf("expected %d+1-character guest name to be rejected", MaxGuestNameLen)
 	}
@@ -38,8 +44,14 @@ func TestNewGuestCommentUsesCharacterLimits(t *testing.T) {
 func TestNewGuestCommentDefaultsGuestName(t *testing.T) {
 	topic := From(newTopicRecord())
 	comments := core.NewBaseCollection(CommentsCollection)
+	policy := CommentPolicy{
+		AllowGuestComments: true,
+		DefaultGuestName:   DefaultGuestName,
+		MaxGuestNameLength: MaxGuestNameLen,
+		MaxCommentBodyLen:  MaxCommentBodyLen,
+	}
 
-	comment, err := topic.NewGuestComment(comments, "hello", "")
+	comment, err := topic.NewGuestComment(comments, policy, "hello", "")
 	if err != nil {
 		t.Fatalf("expected empty guest name to default, got error: %v", err)
 	}
@@ -69,14 +81,35 @@ func TestValidateShareActiveReturnsTypedErrors(t *testing.T) {
 func TestNewGuestCommentReturnsTypedErrors(t *testing.T) {
 	topic := From(newTopicRecord())
 	comments := core.NewBaseCollection(CommentsCollection)
+	policy := CommentPolicy{
+		AllowGuestComments: true,
+		DefaultGuestName:   DefaultGuestName,
+		MaxGuestNameLength: MaxGuestNameLen,
+		MaxCommentBodyLen:  MaxCommentBodyLen,
+	}
 
-	_, err := topic.NewGuestComment(comments, "", "Guest")
+	_, err := topic.NewGuestComment(comments, policy, "", "Guest")
 	if !errors.Is(err, ErrCommentBodyInvalid) {
 		t.Fatalf("expected typed comment body error, got %v", err)
 	}
 
-	_, err = topic.NewGuestComment(comments, "hello", strings.Repeat("你", MaxGuestNameLen+1))
+	_, err = topic.NewGuestComment(comments, policy, "hello", strings.Repeat("你", MaxGuestNameLen+1))
 	if !errors.Is(err, ErrGuestNameTooLong) {
 		t.Fatalf("expected typed guest name error, got %v", err)
+	}
+}
+
+func TestNewGuestCommentRejectsDisabledGuestComments(t *testing.T) {
+	topic := From(newTopicRecord())
+	comments := core.NewBaseCollection(CommentsCollection)
+
+	_, err := topic.NewGuestComment(comments, CommentPolicy{
+		AllowGuestComments: false,
+		DefaultGuestName:   DefaultGuestName,
+		MaxGuestNameLength: MaxGuestNameLen,
+		MaxCommentBodyLen:  MaxCommentBodyLen,
+	}, "hello", "Guest")
+	if !errors.Is(err, ErrGuestCommentsDisabled) {
+		t.Fatalf("expected guest comments disabled error, got %v", err)
 	}
 }

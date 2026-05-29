@@ -64,6 +64,22 @@ var entryCatalog = []EntrySchema{
 		PocketBaseGroup: "meta",
 	},
 	{
+		ID:      "branding",
+		Title:   "Branding",
+		Section: SectionSystem,
+		Source:  SourceCustom,
+		Module:  "branding",
+		Key:     "identity",
+		Fields: []FieldSchema{
+			{ID: "logoMediaId", Label: "Logo Media ID", Type: "string"},
+			{ID: "logoUrl", Label: "Logo", Type: "url", HelpText: "Logo image URL. Leave empty to auto-generate one from the current name or wordmark."},
+			{ID: "wordmark", Label: "Wordmark", Type: "string", HelpText: "Text shown beside the logo in the sidebar."},
+			{ID: "useLogoAsFavicon", Label: "Use Logo as Favicon", Type: "boolean"},
+			{ID: "faviconMediaId", Label: "Favicon Media ID", Type: "string"},
+			{ID: "faviconUrl", Label: "Favicon", Type: "url", HelpText: "Custom favicon image URL. Ignored when using the logo as favicon."},
+		},
+	},
+	{
 		ID:          "smtp",
 		Title:       "SMTP",
 		Description: "Reference-only entry. Create and manage SMTP connectors from Resources > Connectors.",
@@ -253,6 +269,46 @@ var entryCatalog = []EntrySchema{
 		},
 	},
 	{
+		ID:      "topic-comment-policy",
+		Title:   "Topic Comment Policy",
+		Section: SectionWorkspace,
+		Source:  SourceCustom,
+		Module:  "topic",
+		Key:     "comment-policy",
+		Fields: []FieldSchema{
+			{ID: "allowGuestComments", Label: "Allow Guest Comments", Type: "boolean"},
+			{ID: "defaultGuestName", Label: "Default Guest Name", Type: "string"},
+			{ID: "maxGuestNameLength", Label: "Max Guest Name Length", Type: "integer"},
+			{ID: "maxCommentBodyLength", Label: "Max Comment Body Length", Type: "integer"},
+		},
+	},
+	{
+		ID:      "topic-import-policy",
+		Title:   "Topic Description Import",
+		Section: SectionWorkspace,
+		Source:  SourceCustom,
+		Module:  "topic",
+		Key:     "import-policy",
+		Fields: []FieldSchema{
+			{ID: "maxDescriptionImportKB", Label: "Max Description Import (KB)", Type: "integer", HelpText: "Maximum text file size in KB allowed when importing into a topic description."},
+			{ID: "textOnly", Label: "Text-only Imports", Type: "boolean", HelpText: "Reject files that look binary when importing topic descriptions."},
+		},
+	},
+	{
+		ID:      "feeds-policy",
+		Title:   "Feeds",
+		Section: SectionWorkspace,
+		Source:  SourceCustom,
+		Module:  "feeds",
+		Key:     "policy",
+		Fields: []FieldSchema{
+			{ID: "pollIntervalHours", Label: "Poll Interval (hours)", Type: "integer", HelpText: "Polling cadence for active feed sources. Range: 1 - 240 hours."},
+			{ID: "failureBackoffMaxHours", Label: "Failure Backoff (hours)", Type: "integer", HelpText: "Maximum retry delay after consecutive polling failures. Intermediate tiers are derived automatically."},
+			{ID: "perSourceRetentionCap", Label: "Per Source Retention Cap", Type: "integer", HelpText: "Maximum stored feed articles per source before cleanup trims older items. Range: 20 - 1000."},
+			{ID: "globalRetentionCap", Label: "Global Retention Cap", Type: "integer", HelpText: "Maximum stored feed articles across all sources before global cleanup trims older items. Range: 5000 - 50000."},
+		},
+	},
+	{
 		ID:      "monitor-scheduling",
 		Title:   "Monitor Scheduling",
 		Section: SectionSystem,
@@ -317,25 +373,17 @@ var entryCatalog = []EntrySchema{
 			{ID: "flushJitterSeconds", Label: "Flush Jitter Seconds", Type: "integer", HelpText: "Randomized flush delay used to smooth write bursts toward AppOS."},
 		},
 	},
-	{
-		ID:      "feeds-policy",
-		Title:   "Feeds Policy",
-		Section: SectionSystem,
-		Source:  SourceCustom,
-		Module:  "feeds",
-		Key:     "policy",
-		Fields: []FieldSchema{
-			{ID: "pollIntervalMinutes", Label: "Poll Interval Minutes", Type: "integer", HelpText: "Base cadence for polling active feed sources."},
-			{ID: "failureBackoffOneHours", Label: "Failure Backoff One Hours", Type: "integer", HelpText: "Delay after the first consecutive polling failure."},
-			{ID: "failureBackoffTwoHours", Label: "Failure Backoff Two Hours", Type: "integer", HelpText: "Delay after the second consecutive polling failure."},
-			{ID: "failureBackoffMaxHours", Label: "Failure Backoff Max Hours", Type: "integer", HelpText: "Delay after the third and later consecutive polling failures."},
-			{ID: "perSourceRetentionCap", Label: "Per Source Retention Cap", Type: "integer", HelpText: "Maximum stored feed articles per source before cleanup trims older items."},
-			{ID: "globalRetentionCap", Label: "Global Retention Cap", Type: "integer", HelpText: "Maximum stored feed articles across all sources before global cleanup trims older items."},
-		},
-	},
 }
 
 var customSettingDefaults = map[string]map[string]any{
+	"branding/identity": {
+		"logoMediaId":      "",
+		"logoUrl":          "",
+		"wordmark":         "appos",
+		"useLogoAsFavicon": false,
+		"faviconMediaId":   "",
+		"faviconUrl":       "",
+	},
 	"space/quota": {
 		"maxSizeMB":             10,
 		"maxPerUser":            100,
@@ -368,6 +416,16 @@ var customSettingDefaults = map[string]map[string]any{
 	"topic/share": {
 		"shareMaxMinutes":     60,
 		"shareDefaultMinutes": 30,
+	},
+	"topic/comment-policy": {
+		"allowGuestComments":   true,
+		"defaultGuestName":     "Guest",
+		"maxGuestNameLength":   100,
+		"maxCommentBodyLength": 10000,
+	},
+	"topic/import-policy": {
+		"maxDescriptionImportKB": 2,
+		"textOnly":               true,
 	},
 	"monitor/scheduling": {
 		"reachabilityIntervalMinutes":        1,
@@ -403,12 +461,10 @@ var customSettingDefaults = map[string]map[string]any{
 		"flushJitterSeconds":        1,
 	},
 	"feeds/policy": {
-		"pollIntervalMinutes":   60,
-		"failureBackoffOneHours": 2,
-		"failureBackoffTwoHours": 6,
+		"pollIntervalHours":      3,
 		"failureBackoffMaxHours": 24,
-		"perSourceRetentionCap": 1000,
-		"globalRetentionCap":    30000,
+		"perSourceRetentionCap":  100,
+		"globalRetentionCap":     10000,
 	},
 }
 

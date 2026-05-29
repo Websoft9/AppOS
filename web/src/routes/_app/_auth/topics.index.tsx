@@ -27,6 +27,12 @@ import { getApiErrorMessage } from '@/lib/api-error'
 import { copyToClipboard } from '@/lib/clipboard'
 import { useAuth } from '@/contexts/AuthContext'
 import { type PBList, formatDate, formatCreator, pbFilterValue } from '@/lib/groups'
+import {
+  TOPIC_COMMENTS_COLLECTION,
+  TOPICS_BATCH_QUERY_PAGE_SIZE,
+  TOPICS_COLLECTION,
+  TOPICS_PAGE_SIZE,
+} from './-topics-shared'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -91,8 +97,6 @@ type StatusFilter = 'all' | 'open' | 'closed'
 
 // ─── Page Component ──────────────────────────────────────
 
-const PAGE_SIZE = 20
-
 function TopicsListPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -140,7 +144,7 @@ function TopicsListPage() {
   const fetchData = useCallback(async () => {
     try {
       const topicsRes = await pb.send<PBList<TopicRecord>>(
-        '/api/collections/topics/records?perPage=500&sort=-updated',
+        `/api/collections/${TOPICS_COLLECTION}/records?perPage=${TOPICS_BATCH_QUERY_PAGE_SIZE}&sort=-updated`,
         {}
       )
       const topicItems = topicsRes.items ?? []
@@ -150,7 +154,7 @@ function TopicsListPage() {
       if (topicItems.length > 0) {
         const filter = topicItems.map(t => `topic_id='${pbFilterValue(t.id)}'`).join('||')
         const commentsRes = await pb.send<PBList<{ id: string; topic_id: string }>>(
-          `/api/collections/topic_comments/records?perPage=500&fields=id,topic_id&filter=(${filter})`,
+          `/api/collections/${TOPIC_COMMENTS_COLLECTION}/records?perPage=${TOPICS_BATCH_QUERY_PAGE_SIZE}&fields=id,topic_id&filter=(${filter})`,
           {}
         )
         const counts = new Map<string, number>()
@@ -210,9 +214,9 @@ function TopicsListPage() {
 
   const isStatusFilterActive = statusFilter !== 'all'
 
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / TOPICS_PAGE_SIZE))
   const pagedRows = useMemo(
-    () => filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    () => filteredRows.slice((page - 1) * TOPICS_PAGE_SIZE, page * TOPICS_PAGE_SIZE),
     [filteredRows, page]
   )
   useEffect(() => { setPage(1) }, [filteredRows])

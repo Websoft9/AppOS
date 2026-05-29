@@ -301,6 +301,35 @@ func validateConnectSftp(v map[string]any) map[string]string {
 	return errors
 }
 
+func validateBranding(v map[string]any) map[string]string {
+	logoMediaID, _ := v["logoMediaId"].(string)
+	v["logoMediaId"] = strings.TrimSpace(logoMediaID)
+
+	logoURL, _ := v["logoUrl"].(string)
+	v["logoUrl"] = strings.TrimSpace(logoURL)
+
+	wordmark, _ := v["wordmark"].(string)
+	wordmark = strings.TrimSpace(wordmark)
+	if wordmark == "" {
+		wordmark = "appos"
+	}
+	v["wordmark"] = wordmark
+
+	useLogoAsFavicon, err := parseBoolWithDefault(v["useLogoAsFavicon"], true)
+	if err != nil {
+		return map[string]string{"useLogoAsFavicon": "must be a boolean"}
+	}
+	v["useLogoAsFavicon"] = useLogoAsFavicon
+
+	faviconMediaID, _ := v["faviconMediaId"].(string)
+	v["faviconMediaId"] = strings.TrimSpace(faviconMediaID)
+
+	faviconURL, _ := v["faviconUrl"].(string)
+	v["faviconUrl"] = strings.TrimSpace(faviconURL)
+
+	return nil
+}
+
 func validateProxyNetwork(app core.App, v map[string]any) map[string]string {
 	errors := map[string]string{}
 
@@ -565,70 +594,127 @@ func validateMonitorManagedCollectorPolicy(v map[string]any) map[string]string {
 func validateFeedsPolicy(v map[string]any) map[string]string {
 	errors := map[string]string{}
 
-	pollIntervalMinutes, err := parseIntWithDefault(v["pollIntervalMinutes"], 60)
+	pollIntervalHours, err := parseIntWithDefault(v["pollIntervalHours"], 3)
 	if err != nil {
-		errors["pollIntervalMinutes"] = "must be an integer"
-	} else if pollIntervalMinutes < 5 || pollIntervalMinutes > 1440 {
-		errors["pollIntervalMinutes"] = "must be between 5 and 1440"
+		errors["pollIntervalHours"] = "must be an integer"
+	} else if pollIntervalHours < 1 || pollIntervalHours > 240 {
+		errors["pollIntervalHours"] = "must be between 1 and 240"
 	} else {
-		v["pollIntervalMinutes"] = pollIntervalMinutes
-	}
-
-	failureBackoffOneHours, err := parseIntWithDefault(v["failureBackoffOneHours"], 2)
-	if err != nil {
-		errors["failureBackoffOneHours"] = "must be an integer"
-	} else if failureBackoffOneHours < 1 || failureBackoffOneHours > 168 {
-		errors["failureBackoffOneHours"] = "must be between 1 and 168"
-	} else {
-		v["failureBackoffOneHours"] = failureBackoffOneHours
-	}
-
-	failureBackoffTwoHours, err := parseIntWithDefault(v["failureBackoffTwoHours"], 6)
-	if err != nil {
-		errors["failureBackoffTwoHours"] = "must be an integer"
-	} else if failureBackoffTwoHours < 1 || failureBackoffTwoHours > 168 {
-		errors["failureBackoffTwoHours"] = "must be between 1 and 168"
-	} else {
-		v["failureBackoffTwoHours"] = failureBackoffTwoHours
+		v["pollIntervalHours"] = pollIntervalHours
 	}
 
 	failureBackoffMaxHours, err := parseIntWithDefault(v["failureBackoffMaxHours"], 24)
 	if err != nil {
 		errors["failureBackoffMaxHours"] = "must be an integer"
-	} else if failureBackoffMaxHours < 1 || failureBackoffMaxHours > 336 {
-		errors["failureBackoffMaxHours"] = "must be between 1 and 336"
+	} else if failureBackoffMaxHours < 4 || failureBackoffMaxHours > 336 {
+		errors["failureBackoffMaxHours"] = "must be between 4 and 336"
 	} else {
 		v["failureBackoffMaxHours"] = failureBackoffMaxHours
 	}
 
-	perSourceRetentionCap, err := parseIntWithDefault(v["perSourceRetentionCap"], 1000)
+	perSourceRetentionCap, err := parseIntWithDefault(v["perSourceRetentionCap"], 100)
 	if err != nil {
 		errors["perSourceRetentionCap"] = "must be an integer"
-	} else if perSourceRetentionCap < 1 || perSourceRetentionCap > 100000 {
-		errors["perSourceRetentionCap"] = "must be between 1 and 100000"
+	} else if perSourceRetentionCap < 20 || perSourceRetentionCap > 1000 {
+		errors["perSourceRetentionCap"] = "must be between 20 and 1000"
 	} else {
 		v["perSourceRetentionCap"] = perSourceRetentionCap
 	}
 
-	globalRetentionCap, err := parseIntWithDefault(v["globalRetentionCap"], 30000)
+	globalRetentionCap, err := parseIntWithDefault(v["globalRetentionCap"], 10000)
 	if err != nil {
 		errors["globalRetentionCap"] = "must be an integer"
-	} else if globalRetentionCap < 1 || globalRetentionCap > 500000 {
-		errors["globalRetentionCap"] = "must be between 1 and 500000"
+	} else if globalRetentionCap < 5000 || globalRetentionCap > 50000 {
+		errors["globalRetentionCap"] = "must be between 5000 and 50000"
 	} else {
 		v["globalRetentionCap"] = globalRetentionCap
 	}
 
 	if len(errors) == 0 {
-		if failureBackoffTwoHours < failureBackoffOneHours {
-			errors["failureBackoffTwoHours"] = "must be >= failureBackoffOneHours"
-		}
-		if failureBackoffMaxHours < failureBackoffTwoHours {
-			errors["failureBackoffMaxHours"] = "must be >= failureBackoffTwoHours"
-		}
 		if globalRetentionCap < perSourceRetentionCap {
 			errors["globalRetentionCap"] = "must be >= perSourceRetentionCap"
 		}
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
+}
+
+func validateTopicCommentPolicy(v map[string]any) map[string]string {
+	errors := map[string]string{}
+
+	allowGuestComments, err := parseBoolWithDefault(v["allowGuestComments"], true)
+	if err != nil {
+		errors["allowGuestComments"] = "must be a boolean"
+	} else {
+		v["allowGuestComments"] = allowGuestComments
+	}
+
+	defaultGuestName := strings.TrimSpace(sysconfig.String(v, "defaultGuestName", "Guest"))
+	if defaultGuestName == "" {
+		errors["defaultGuestName"] = "must not be empty"
+	} else {
+		v["defaultGuestName"] = defaultGuestName
+	}
+
+	maxGuestNameLength, err := parseIntWithDefault(v["maxGuestNameLength"], 100)
+	if err != nil {
+		errors["maxGuestNameLength"] = "must be an integer"
+	} else if maxGuestNameLength < 1 || maxGuestNameLength > 500 {
+		errors["maxGuestNameLength"] = "must be between 1 and 500"
+	} else {
+		v["maxGuestNameLength"] = maxGuestNameLength
+	}
+
+	maxCommentBodyLength, err := parseIntWithDefault(v["maxCommentBodyLength"], 10000)
+	if err != nil {
+		errors["maxCommentBodyLength"] = "must be an integer"
+	} else if maxCommentBodyLength < 1 || maxCommentBodyLength > 100000 {
+		errors["maxCommentBodyLength"] = "must be between 1 and 100000"
+	} else {
+		v["maxCommentBodyLength"] = maxCommentBodyLength
+	}
+
+	if len(errors) == 0 && len([]rune(defaultGuestName)) > maxGuestNameLength {
+		errors["defaultGuestName"] = "must be within maxGuestNameLength"
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
+}
+
+func validateTopicImportPolicy(v map[string]any) map[string]string {
+	errors := map[string]string{}
+
+	maxDescriptionImportKB, err := parseIntWithDefault(v["maxDescriptionImportKB"], 2)
+	if err != nil && v["maxDescriptionImportKB"] == nil && v["maxDescriptionImportBytes"] != nil {
+		legacyBytes, legacyErr := parseIntWithDefault(v["maxDescriptionImportBytes"], 2*1024)
+		if legacyErr == nil {
+			maxDescriptionImportKB = legacyBytes / 1024
+			if legacyBytes%1024 != 0 {
+				maxDescriptionImportKB++
+			}
+			err = nil
+		}
+	}
+	if err != nil {
+		errors["maxDescriptionImportKB"] = "must be an integer"
+	} else if maxDescriptionImportKB < 1 || maxDescriptionImportKB > 10*1024 {
+		errors["maxDescriptionImportKB"] = "must be between 1 and 10240"
+	} else {
+		delete(v, "maxDescriptionImportBytes")
+		v["maxDescriptionImportKB"] = maxDescriptionImportKB
+	}
+
+	textOnly, err := parseBoolWithDefault(v["textOnly"], true)
+	if err != nil {
+		errors["textOnly"] = "must be a boolean"
+	} else {
+		v["textOnly"] = textOnly
 	}
 
 	if len(errors) == 0 {

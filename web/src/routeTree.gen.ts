@@ -58,11 +58,12 @@ import { Route as AppAuthSuperuserSettingsRouteImport } from './routes/_app/_aut
 import { Route as AppAuthSuperuserPlatformRuntimeRouteImport } from './routes/_app/_auth/_superuser/platform-runtime'
 import { Route as AppAuthSuperuserLogsRouteImport } from './routes/_app/_auth/_superuser/logs'
 import { Route as AppAuthSuperuserIacRouteImport } from './routes/_app/_auth/_superuser/iac'
-import { Route as AppAuthSuperuserAssetsRouteImport } from './routes/_app/_auth/_superuser/assets'
+import { Route as AppAuthSuperuserAiAssetsRouteImport } from './routes/_app/_auth/_superuser/ai-assets'
 import { Route as AppAuthSuperuserUsersIndexRouteImport } from './routes/_app/_auth/_superuser/users/index'
 import { Route as AppAuthSuperuserTerminalIndexRouteImport } from './routes/_app/_auth/_superuser/terminal.index'
 import { Route as AppAuthAdminCredentialsEnvVarsRouteImport } from './routes/_app/_auth/admin/credentials/env-vars'
-import { Route as AppAuthSuperuserAssetsScriptsRouteImport } from './routes/_app/_auth/_superuser/assets.scripts'
+import { Route as AppAuthSuperuserAiAssetsSkillsRouteImport } from './routes/_app/_auth/_superuser/ai-assets.skills'
+import { Route as AppAuthSuperuserAiAssetsScriptsRouteImport } from './routes/_app/_auth/_superuser/ai-assets.scripts'
 import { Route as AppAuthSuperuserTerminalServerServerIdRouteImport } from './routes/_app/_auth/_superuser/terminal.server.$serverId'
 
 const AppRoute = AppRouteImport.update({
@@ -315,11 +316,12 @@ const AppAuthSuperuserIacRoute = AppAuthSuperuserIacRouteImport.update({
   path: '/iac',
   getParentRoute: () => AppAuthSuperuserRoute,
 } as any)
-const AppAuthSuperuserAssetsRoute = AppAuthSuperuserAssetsRouteImport.update({
-  id: '/assets',
-  path: '/assets',
-  getParentRoute: () => AppAuthSuperuserRoute,
-} as any)
+const AppAuthSuperuserAiAssetsRoute =
+  AppAuthSuperuserAiAssetsRouteImport.update({
+    id: '/ai-assets',
+    path: '/ai-assets',
+    getParentRoute: () => AppAuthSuperuserRoute,
+  } as any)
 const AppAuthSuperuserUsersIndexRoute =
   AppAuthSuperuserUsersIndexRouteImport.update({
     id: '/users/',
@@ -338,11 +340,17 @@ const AppAuthAdminCredentialsEnvVarsRoute =
     path: '/admin/credentials/env-vars',
     getParentRoute: () => AppAuthRoute,
   } as any)
-const AppAuthSuperuserAssetsScriptsRoute =
-  AppAuthSuperuserAssetsScriptsRouteImport.update({
+const AppAuthSuperuserAiAssetsSkillsRoute =
+  AppAuthSuperuserAiAssetsSkillsRouteImport.update({
+    id: '/skills',
+    path: '/skills',
+    getParentRoute: () => AppAuthSuperuserAiAssetsRoute,
+  } as any)
+const AppAuthSuperuserAiAssetsScriptsRoute =
+  AppAuthSuperuserAiAssetsScriptsRouteImport.update({
     id: '/scripts',
     path: '/scripts',
-    getParentRoute: () => AppAuthSuperuserAssetsRoute,
+    getParentRoute: () => AppAuthSuperuserAiAssetsRoute,
   } as any)
 const AppAuthSuperuserTerminalServerServerIdRoute =
   AppAuthSuperuserTerminalServerServerIdRouteImport.update({
@@ -375,7 +383,7 @@ export interface FileRoutesByFullPath {
   '/space': typeof AppAuthSpaceRoute
   '/topics': typeof AppAuthTopicsRouteWithChildren
   '/share/topic/$token': typeof ShareTopicTokenRoute
-  '/assets': typeof AppAuthSuperuserAssetsRouteWithChildren
+  '/ai-assets': typeof AppAuthSuperuserAiAssetsRouteWithChildren
   '/iac': typeof AppAuthSuperuserIacRoute
   '/logs': typeof AppAuthSuperuserLogsRoute
   '/platform-runtime': typeof AppAuthSuperuserPlatformRuntimeRoute
@@ -399,7 +407,8 @@ export interface FileRoutesByFullPath {
   '/resources/': typeof AppAuthResourcesIndexRoute
   '/store/': typeof AppAuthStoreIndexRoute
   '/topics/': typeof AppAuthTopicsIndexRoute
-  '/assets/scripts': typeof AppAuthSuperuserAssetsScriptsRoute
+  '/ai-assets/scripts': typeof AppAuthSuperuserAiAssetsScriptsRoute
+  '/ai-assets/skills': typeof AppAuthSuperuserAiAssetsSkillsRoute
   '/admin/credentials/env-vars': typeof AppAuthAdminCredentialsEnvVarsRoute
   '/terminal/': typeof AppAuthSuperuserTerminalIndexRoute
   '/users/': typeof AppAuthSuperuserUsersIndexRoute
@@ -426,7 +435,7 @@ export interface FileRoutesByTo {
   '/shared-envs': typeof AppAuthSharedEnvsRoute
   '/space': typeof AppAuthSpaceRoute
   '/share/topic/$token': typeof ShareTopicTokenRoute
-  '/assets': typeof AppAuthSuperuserAssetsRouteWithChildren
+  '/ai-assets': typeof AppAuthSuperuserAiAssetsRouteWithChildren
   '/iac': typeof AppAuthSuperuserIacRoute
   '/logs': typeof AppAuthSuperuserLogsRoute
   '/platform-runtime': typeof AppAuthSuperuserPlatformRuntimeRoute
@@ -450,7 +459,8 @@ export interface FileRoutesByTo {
   '/resources': typeof AppAuthResourcesIndexRoute
   '/store': typeof AppAuthStoreIndexRoute
   '/topics': typeof AppAuthTopicsIndexRoute
-  '/assets/scripts': typeof AppAuthSuperuserAssetsScriptsRoute
+  '/ai-assets/scripts': typeof AppAuthSuperuserAiAssetsScriptsRoute
+  '/ai-assets/skills': typeof AppAuthSuperuserAiAssetsSkillsRoute
   '/admin/credentials/env-vars': typeof AppAuthAdminCredentialsEnvVarsRoute
   '/terminal': typeof AppAuthSuperuserTerminalIndexRoute
   '/users': typeof AppAuthSuperuserUsersIndexRoute
@@ -484,7 +494,7 @@ export interface FileRoutesById {
   '/_app/_auth/space': typeof AppAuthSpaceRoute
   '/_app/_auth/topics': typeof AppAuthTopicsRouteWithChildren
   '/share/topic/$token': typeof ShareTopicTokenRoute
-  '/_app/_auth/_superuser/assets': typeof AppAuthSuperuserAssetsRouteWithChildren
+  '/_app/_auth/_superuser/ai-assets': typeof AppAuthSuperuserAiAssetsRouteWithChildren
   '/_app/_auth/_superuser/iac': typeof AppAuthSuperuserIacRoute
   '/_app/_auth/_superuser/logs': typeof AppAuthSuperuserLogsRoute
   '/_app/_auth/_superuser/platform-runtime': typeof AppAuthSuperuserPlatformRuntimeRoute
@@ -508,7 +518,8 @@ export interface FileRoutesById {
   '/_app/_auth/resources/': typeof AppAuthResourcesIndexRoute
   '/_app/_auth/store/': typeof AppAuthStoreIndexRoute
   '/_app/_auth/topics/': typeof AppAuthTopicsIndexRoute
-  '/_app/_auth/_superuser/assets/scripts': typeof AppAuthSuperuserAssetsScriptsRoute
+  '/_app/_auth/_superuser/ai-assets/scripts': typeof AppAuthSuperuserAiAssetsScriptsRoute
+  '/_app/_auth/_superuser/ai-assets/skills': typeof AppAuthSuperuserAiAssetsSkillsRoute
   '/_app/_auth/admin/credentials/env-vars': typeof AppAuthAdminCredentialsEnvVarsRoute
   '/_app/_auth/_superuser/terminal/': typeof AppAuthSuperuserTerminalIndexRoute
   '/_app/_auth/_superuser/users/': typeof AppAuthSuperuserUsersIndexRoute
@@ -540,7 +551,7 @@ export interface FileRouteTypes {
     | '/space'
     | '/topics'
     | '/share/topic/$token'
-    | '/assets'
+    | '/ai-assets'
     | '/iac'
     | '/logs'
     | '/platform-runtime'
@@ -564,7 +575,8 @@ export interface FileRouteTypes {
     | '/resources/'
     | '/store/'
     | '/topics/'
-    | '/assets/scripts'
+    | '/ai-assets/scripts'
+    | '/ai-assets/skills'
     | '/admin/credentials/env-vars'
     | '/terminal/'
     | '/users/'
@@ -591,7 +603,7 @@ export interface FileRouteTypes {
     | '/shared-envs'
     | '/space'
     | '/share/topic/$token'
-    | '/assets'
+    | '/ai-assets'
     | '/iac'
     | '/logs'
     | '/platform-runtime'
@@ -615,7 +627,8 @@ export interface FileRouteTypes {
     | '/resources'
     | '/store'
     | '/topics'
-    | '/assets/scripts'
+    | '/ai-assets/scripts'
+    | '/ai-assets/skills'
     | '/admin/credentials/env-vars'
     | '/terminal'
     | '/users'
@@ -648,7 +661,7 @@ export interface FileRouteTypes {
     | '/_app/_auth/space'
     | '/_app/_auth/topics'
     | '/share/topic/$token'
-    | '/_app/_auth/_superuser/assets'
+    | '/_app/_auth/_superuser/ai-assets'
     | '/_app/_auth/_superuser/iac'
     | '/_app/_auth/_superuser/logs'
     | '/_app/_auth/_superuser/platform-runtime'
@@ -672,7 +685,8 @@ export interface FileRouteTypes {
     | '/_app/_auth/resources/'
     | '/_app/_auth/store/'
     | '/_app/_auth/topics/'
-    | '/_app/_auth/_superuser/assets/scripts'
+    | '/_app/_auth/_superuser/ai-assets/scripts'
+    | '/_app/_auth/_superuser/ai-assets/skills'
     | '/_app/_auth/admin/credentials/env-vars'
     | '/_app/_auth/_superuser/terminal/'
     | '/_app/_auth/_superuser/users/'
@@ -1030,11 +1044,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthSuperuserIacRouteImport
       parentRoute: typeof AppAuthSuperuserRoute
     }
-    '/_app/_auth/_superuser/assets': {
-      id: '/_app/_auth/_superuser/assets'
-      path: '/assets'
-      fullPath: '/assets'
-      preLoaderRoute: typeof AppAuthSuperuserAssetsRouteImport
+    '/_app/_auth/_superuser/ai-assets': {
+      id: '/_app/_auth/_superuser/ai-assets'
+      path: '/ai-assets'
+      fullPath: '/ai-assets'
+      preLoaderRoute: typeof AppAuthSuperuserAiAssetsRouteImport
       parentRoute: typeof AppAuthSuperuserRoute
     }
     '/_app/_auth/_superuser/users/': {
@@ -1058,12 +1072,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthAdminCredentialsEnvVarsRouteImport
       parentRoute: typeof AppAuthRoute
     }
-    '/_app/_auth/_superuser/assets/scripts': {
-      id: '/_app/_auth/_superuser/assets/scripts'
+    '/_app/_auth/_superuser/ai-assets/skills': {
+      id: '/_app/_auth/_superuser/ai-assets/skills'
+      path: '/skills'
+      fullPath: '/ai-assets/skills'
+      preLoaderRoute: typeof AppAuthSuperuserAiAssetsSkillsRouteImport
+      parentRoute: typeof AppAuthSuperuserAiAssetsRoute
+    }
+    '/_app/_auth/_superuser/ai-assets/scripts': {
+      id: '/_app/_auth/_superuser/ai-assets/scripts'
       path: '/scripts'
-      fullPath: '/assets/scripts'
-      preLoaderRoute: typeof AppAuthSuperuserAssetsScriptsRouteImport
-      parentRoute: typeof AppAuthSuperuserAssetsRoute
+      fullPath: '/ai-assets/scripts'
+      preLoaderRoute: typeof AppAuthSuperuserAiAssetsScriptsRouteImport
+      parentRoute: typeof AppAuthSuperuserAiAssetsRoute
     }
     '/_app/_auth/_superuser/terminal/server/$serverId': {
       id: '/_app/_auth/_superuser/terminal/server/$serverId'
@@ -1075,22 +1096,24 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface AppAuthSuperuserAssetsRouteChildren {
-  AppAuthSuperuserAssetsScriptsRoute: typeof AppAuthSuperuserAssetsScriptsRoute
+interface AppAuthSuperuserAiAssetsRouteChildren {
+  AppAuthSuperuserAiAssetsScriptsRoute: typeof AppAuthSuperuserAiAssetsScriptsRoute
+  AppAuthSuperuserAiAssetsSkillsRoute: typeof AppAuthSuperuserAiAssetsSkillsRoute
 }
 
-const AppAuthSuperuserAssetsRouteChildren: AppAuthSuperuserAssetsRouteChildren =
+const AppAuthSuperuserAiAssetsRouteChildren: AppAuthSuperuserAiAssetsRouteChildren =
   {
-    AppAuthSuperuserAssetsScriptsRoute: AppAuthSuperuserAssetsScriptsRoute,
+    AppAuthSuperuserAiAssetsScriptsRoute: AppAuthSuperuserAiAssetsScriptsRoute,
+    AppAuthSuperuserAiAssetsSkillsRoute: AppAuthSuperuserAiAssetsSkillsRoute,
   }
 
-const AppAuthSuperuserAssetsRouteWithChildren =
-  AppAuthSuperuserAssetsRoute._addFileChildren(
-    AppAuthSuperuserAssetsRouteChildren,
+const AppAuthSuperuserAiAssetsRouteWithChildren =
+  AppAuthSuperuserAiAssetsRoute._addFileChildren(
+    AppAuthSuperuserAiAssetsRouteChildren,
   )
 
 interface AppAuthSuperuserRouteChildren {
-  AppAuthSuperuserAssetsRoute: typeof AppAuthSuperuserAssetsRouteWithChildren
+  AppAuthSuperuserAiAssetsRoute: typeof AppAuthSuperuserAiAssetsRouteWithChildren
   AppAuthSuperuserIacRoute: typeof AppAuthSuperuserIacRoute
   AppAuthSuperuserLogsRoute: typeof AppAuthSuperuserLogsRoute
   AppAuthSuperuserPlatformRuntimeRoute: typeof AppAuthSuperuserPlatformRuntimeRoute
@@ -1104,7 +1127,7 @@ interface AppAuthSuperuserRouteChildren {
 }
 
 const AppAuthSuperuserRouteChildren: AppAuthSuperuserRouteChildren = {
-  AppAuthSuperuserAssetsRoute: AppAuthSuperuserAssetsRouteWithChildren,
+  AppAuthSuperuserAiAssetsRoute: AppAuthSuperuserAiAssetsRouteWithChildren,
   AppAuthSuperuserIacRoute: AppAuthSuperuserIacRoute,
   AppAuthSuperuserLogsRoute: AppAuthSuperuserLogsRoute,
   AppAuthSuperuserPlatformRuntimeRoute: AppAuthSuperuserPlatformRuntimeRoute,

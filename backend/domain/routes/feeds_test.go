@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
@@ -593,14 +594,9 @@ func TestFeedSummaryReturnsGlobalAndSourceCounts(t *testing.T) {
 	}
 }
 
-func TestFeedCleanupPreviewAndExecute(t *testing.T) {
+func TestFeedSourceDeleteRemovesOldestArticlesByCount(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
-
-	policyRec := doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/feeds-policy", `{"pollIntervalMinutes":60,"failureBackoffOneHours":2,"failureBackoffTwoHours":6,"failureBackoffMaxHours":24,"perSourceRetentionCap":2,"globalRetentionCap":3}`, true)
-	if policyRec.Code != http.StatusOK {
-		t.Fatalf("expected 200 for feeds-policy patch, got %d: %s", policyRec.Code, policyRec.Body.String())
-	}
 
 	firstSource := seedFeedSourceForRouteTest(t, te, feeds.StatusActive)
 	secondSourceCol, err := te.app.FindCollectionByNameOrId(feeds.CollectionSources)
@@ -625,16 +621,14 @@ func TestFeedCleanupPreviewAndExecute(t *testing.T) {
 	for _, spec := range []struct {
 		sourceID   string
 		externalID string
-		published  time.Time
 		originType string
+		published  time.Time
 	}{
-		{sourceID: firstSource.Id, externalID: "a-newest", published: base.Add(5 * time.Minute), originType: feeds.OriginTypeFeed},
-		{sourceID: firstSource.Id, externalID: "a-middle", published: base.Add(4 * time.Minute), originType: feeds.OriginTypeFeed},
-		{sourceID: firstSource.Id, externalID: "a-oldest", published: base.Add(3 * time.Minute), originType: feeds.OriginTypeFeed},
-		{sourceID: secondSource.Id, externalID: "b-newest", published: base.Add(2 * time.Minute), originType: feeds.OriginTypeFeed},
-		{sourceID: secondSource.Id, externalID: "b-middle", published: base.Add(1 * time.Minute), originType: feeds.OriginTypeFeed},
-		{sourceID: secondSource.Id, externalID: "b-oldest", published: base, originType: feeds.OriginTypeFeed},
-		{sourceID: "", externalID: "bookmark-1", published: base.Add(-time.Minute), originType: feeds.OriginTypeBookmark},
+		{sourceID: firstSource.Id, externalID: "a-1", originType: feeds.OriginTypeFeed, published: base.Add(-3 * time.Hour)},
+		{sourceID: firstSource.Id, externalID: "a-2", originType: feeds.OriginTypeFeed, published: base.Add(-2 * time.Hour)},
+		{sourceID: firstSource.Id, externalID: "a-3", originType: feeds.OriginTypeFeed, published: base.Add(-1 * time.Hour)},
+		{sourceID: secondSource.Id, externalID: "b-1", originType: feeds.OriginTypeFeed, published: base},
+		{sourceID: "", externalID: "bookmark-1", originType: feeds.OriginTypeBookmark, published: base.Add(time.Hour)},
 	} {
 		record := core.NewRecord(itemsCol)
 		record.Set("source_id", spec.sourceID)
@@ -656,30 +650,127 @@ func TestFeedCleanupPreviewAndExecute(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	previewRec := te.doFeeds(t, http.MethodPost, "/api/feeds/cleanup/preview", `{}`, true)
-	if previewRec.Code != http.StatusOK {
-		t.Fatalf("expected 200 for cleanup preview, got %d: %s", previewRec.Code, previewRec.Body.String())
+	rec := te.doFeeds(t, http.MethodPost, "/api/feeds/sources/"+firstSource.Id+"/delete", `{"count":2}`, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for source delete, got %d: %s", rec.Code, rec.Body.String())
 	}
 
-	var preview feeds.CleanupPreview
-	if err := json.Unmarshal(previewRec.Body.Bytes(), &preview); err != nil {
-		t.Fatalf("expected cleanup preview JSON, got error: %v", err)
+	var result feeds.SourceDeleteResult
+	if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
+		t.Fatalf("expected JSON response, got error: %v", err)
 	}
-	if preview.GlobalTotalBefore != 6 || preview.PerSourceDeleteCount != 2 || preview.GlobalDeleteCount != 1 || preview.TotalDeleteCount != 3 {
-		t.Fatalf("unexpected cleanup preview: %#v", preview)
-	}
-
-	executeRec := te.doFeeds(t, http.MethodPost, "/api/feeds/cleanup", `{}`, true)
-	if executeRec.Code != http.StatusOK {
-		t.Fatalf("expected 200 for cleanup execute, got %d: %s", executeRec.Code, executeRec.Body.String())
+	if result.SourceID != firstSource.Id || result.DeletedCount != 2 || result.RemainingCount != 1 {
+		t.Fatalf("unexpected source delete result: %#v", result)
 	}
 
-	var result feeds.CleanupExecuteResult
-	if err := json.Unmarshal(executeRec.Body.Bytes(), &result); err != nil {
-		t.Fatalf("expected cleanup execute JSON, got error: %v", err)
+	remainingFeedItems, err := te.app.FindRecordsByFilter(feeds.CollectionItems, "origin_type = {:origin_type}", "published_at", 10, 0, dbx.Params{"origin_type": feeds.OriginTypeFeed})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if result.DeletedCount != 3 || result.GlobalTotalAfter != 3 {
-		t.Fatalf("unexpected cleanup execute result: %#v", result)
+	if len(remainingFeedItems) != 2 {
+		t.Fatalf("expected 2 feed items to remain, got %d", len(remainingFeedItems))
+	}
+	remainingIDs := make([]string, 0, len(remainingFeedItems))
+	for _, item := range remainingFeedItems {
+		remainingIDs = append(remainingIDs, item.GetString("external_id"))
+	}
+	if !containsStringValue(remainingIDs, "a-3") || !containsStringValue(remainingIDs, "b-1") {
+		t.Fatalf("expected newest source item and unrelated source item to remain, got %v", remainingIDs)
+	}
+	if containsStringValue(remainingIDs, "a-1") || containsStringValue(remainingIDs, "a-2") {
+		t.Fatalf("expected oldest source items to be deleted, got %v", remainingIDs)
+	}
+	bookmark, err := te.app.FindFirstRecordByFilter(feeds.CollectionItems, "external_id = {:external_id}", map[string]any{"external_id": "bookmark-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bookmark.GetString("origin_type") != feeds.OriginTypeBookmark {
+		t.Fatalf("expected bookmark to survive source delete, got %#v", bookmark)
+	}
+}
+
+func TestFeedDeleteRemovesOldestArticlesGloballyByCount(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	firstSource := seedFeedSourceForRouteTest(t, te, feeds.StatusActive)
+	secondSourceCol, err := te.app.FindCollectionByNameOrId(feeds.CollectionSources)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondSource := core.NewRecord(secondSourceCol)
+	secondSource.Set("name", "Platform updates")
+	secondSource.Set("url", "https://example.com/platform.xml")
+	secondSource.Set("format", feeds.FormatRSS)
+	secondSource.Set("status", feeds.StatusActive)
+	secondSource.Set("failure_streak", 0)
+	if err := te.app.Save(secondSource); err != nil {
+		t.Fatal(err)
+	}
+
+	itemsCol, err := te.app.FindCollectionByNameOrId(feeds.CollectionItems)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC)
+	for _, spec := range []struct {
+		sourceID   string
+		externalID string
+		originType string
+		published  time.Time
+	}{
+		{sourceID: firstSource.Id, externalID: "a-1", originType: feeds.OriginTypeFeed, published: base.Add(-4 * time.Hour)},
+		{sourceID: firstSource.Id, externalID: "a-2", originType: feeds.OriginTypeFeed, published: base.Add(-2 * time.Hour)},
+		{sourceID: secondSource.Id, externalID: "b-1", originType: feeds.OriginTypeFeed, published: base.Add(-3 * time.Hour)},
+		{sourceID: secondSource.Id, externalID: "b-2", originType: feeds.OriginTypeFeed, published: base.Add(-1 * time.Hour)},
+		{sourceID: "", externalID: "bookmark-1", originType: feeds.OriginTypeBookmark, published: base},
+	} {
+		record := core.NewRecord(itemsCol)
+		record.Set("source_id", spec.sourceID)
+		record.Set("origin_type", spec.originType)
+		record.Set("external_id", spec.externalID)
+		record.Set("title", spec.externalID)
+		record.Set("link", "https://example.com/"+spec.externalID)
+		record.Set("read_state", feeds.ReadStateUnread)
+		record.Set("is_starred", false)
+		record.Set("published_at", testMustDateTime(t, spec.published))
+		if err := te.app.Save(record); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := feeds.RefreshSourceItemCount(te.app, firstSource.Id); err != nil {
+		t.Fatal(err)
+	}
+	if err := feeds.RefreshSourceItemCount(te.app, secondSource.Id); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := te.doFeeds(t, http.MethodPost, "/api/feeds/delete", `{"count":2}`, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for global delete, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var result feeds.GlobalDeleteResult
+	if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
+		t.Fatalf("expected JSON response, got error: %v", err)
+	}
+	if result.DeletedCount != 2 || result.RemainingCount != 2 {
+		t.Fatalf("unexpected global delete result: %#v", result)
+	}
+
+	remainingFeedItems, err := te.app.FindRecordsByFilter(feeds.CollectionItems, "origin_type = {:origin_type}", "published_at", 10, 0, dbx.Params{"origin_type": feeds.OriginTypeFeed})
+	if err != nil {
+		t.Fatal(err)
+	}
+	remainingIDs := make([]string, 0, len(remainingFeedItems))
+	for _, item := range remainingFeedItems {
+		remainingIDs = append(remainingIDs, item.GetString("external_id"))
+	}
+	if !containsStringValue(remainingIDs, "a-2") || !containsStringValue(remainingIDs, "b-2") {
+		t.Fatalf("expected newest feed items to remain, got %v", remainingIDs)
+	}
+	if containsStringValue(remainingIDs, "a-1") || containsStringValue(remainingIDs, "b-1") {
+		t.Fatalf("expected oldest feed items to be deleted, got %v", remainingIDs)
 	}
 
 	bookmark, err := te.app.FindFirstRecordByFilter(feeds.CollectionItems, "external_id = {:external_id}", map[string]any{"external_id": "bookmark-1"})
@@ -687,20 +778,17 @@ func TestFeedCleanupPreviewAndExecute(t *testing.T) {
 		t.Fatal(err)
 	}
 	if bookmark.GetString("origin_type") != feeds.OriginTypeBookmark {
-		t.Fatalf("expected bookmark record to survive cleanup, got %#v", bookmark)
+		t.Fatalf("expected bookmark to survive global delete, got %#v", bookmark)
 	}
+}
 
-	firstReloaded, err := te.app.FindRecordById(feeds.CollectionSources, firstSource.Id)
-	if err != nil {
-		t.Fatal(err)
+func containsStringValue(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
 	}
-	secondReloaded, err := te.app.FindRecordById(feeds.CollectionSources, secondSource.Id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if firstReloaded.GetInt("item_count") != 2 || secondReloaded.GetInt("item_count") != 1 {
-		t.Fatalf("expected source item counts refreshed after cleanup, got %d and %d", firstReloaded.GetInt("item_count"), secondReloaded.GetInt("item_count"))
-	}
+	return false
 }
 
 func seedFeedSourceForRouteTest(t *testing.T, te *testEnv, status string) *core.Record {
@@ -720,6 +808,126 @@ func seedFeedSourceForRouteTest(t *testing.T, te *testEnv, status string) *core.
 		t.Fatal(err)
 	}
 	return source
+}
+
+func TestListFeedSourcesReturnsBoundedContextPayload(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	source := seedFeedSourceForRouteTest(t, te, feeds.StatusActive)
+	source.Set("item_count", 3)
+	if err := te.app.Save(source); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := te.doFeeds(t, http.MethodGet, "/api/feeds/sources", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for list feed sources, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("expected JSON response, got error: %v", err)
+	}
+	if len(payload.Items) != 1 {
+		t.Fatalf("expected one feed source, got %#v", payload.Items)
+	}
+	if payload.Items[0]["id"] != source.Id || payload.Items[0]["item_count"] != float64(3) {
+		t.Fatalf("unexpected feed source payload: %#v", payload.Items[0])
+	}
+}
+
+func TestCreateFeedSourcePersistsThroughFeedsRoute(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doFeeds(t, http.MethodPost, "/api/feeds/sources", `{"name":"Vendor feed","url":"https://example.com/feed.xml","favicon_url":"https://example.com/favicon.ico","format":"rss","status":"active"}`, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for create feed source, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	stored, err := te.app.FindFirstRecordByFilter(feeds.CollectionSources, "url = {:url}", map[string]any{"url": "https://example.com/feed.xml"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.GetString("name") != "Vendor feed" || stored.GetString("status") != feeds.StatusActive {
+		t.Fatalf("unexpected stored feed source: %#v", stored)
+	}
+}
+
+func TestCreateFeedSourceRejectsDuplicateURLWithConflict(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	seedFeedSourceForRouteTest(t, te, feeds.StatusActive)
+	rec := te.doFeeds(t, http.MethodPost, "/api/feeds/sources", `{"name":"Another feed","url":"https://example.com/feed.xml","favicon_url":"https://example.com/favicon.ico","format":"rss","status":"active"}`, true)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409 for duplicate feed source url, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("expected JSON response, got error: %v", err)
+	}
+	if payload["code"] != feeds.SourceConflictCodeExists {
+		t.Fatalf("expected conflict code %q, got %#v", feeds.SourceConflictCodeExists, payload)
+	}
+}
+
+func TestUpdateFeedSourcePersistsThroughFeedsRoute(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	source := seedFeedSourceForRouteTest(t, te, feeds.StatusActive)
+	rec := te.doFeeds(t, http.MethodPatch, "/api/feeds/sources/"+source.Id, `{"name":"Updated feed","url":"https://example.com/feed.xml","favicon_url":"https://example.com/updated.ico","format":"rss","status":"paused"}`, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for update feed source, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	reloaded, err := te.app.FindRecordById(feeds.CollectionSources, source.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.GetString("name") != "Updated feed" || reloaded.GetString("favicon_url") != "https://example.com/updated.ico" || reloaded.GetString("format") != feeds.FormatRSS || reloaded.GetString("status") != feeds.StatusPaused {
+		t.Fatalf("unexpected updated feed source: %#v", reloaded)
+	}
+}
+
+func TestUpdateFeedSourceRejectsIdentityChange(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	source := seedFeedSourceForRouteTest(t, te, feeds.StatusActive)
+
+	rec := te.doFeeds(t, http.MethodPatch, "/api/feeds/sources/"+source.Id, `{"name":"Updated feed","url":"https://example.com/updated.xml","favicon_url":"https://example.com/updated.ico","format":"atom","status":"active"}`, true)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409 for update feed source identity change, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("expected JSON response, got error: %v", err)
+	}
+	if payload["code"] != feeds.SourceConflictCodeIdentityLocked {
+		t.Fatalf("expected conflict code %q, got %#v", feeds.SourceConflictCodeIdentityLocked, payload)
+	}
+}
+
+func TestDeleteFeedSourceRemovesRecordThroughFeedsRoute(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	source := seedFeedSourceForRouteTest(t, te, feeds.StatusActive)
+	rec := te.doFeeds(t, http.MethodDelete, "/api/feeds/sources/"+source.Id, "", true)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204 for delete feed source, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	if _, err := te.app.FindRecordById(feeds.CollectionSources, source.Id); err == nil {
+		t.Fatal("expected feed source record to be deleted")
+	}
 }
 
 func TestFeedItemStatePatchRejectsInvalidReadState(t *testing.T) {

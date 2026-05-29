@@ -11,6 +11,7 @@ This epic exists to give the `backend/infra` layer an explicit planning home.
 First rollout focus:
 
 - `backend/infra/fileutil` as the first foundation of a shared files service
+- a follow-on system media service for Branding, avatar, and future user-uploaded images
 
 ## Layer Boundary
 
@@ -39,9 +40,12 @@ This document reuses Epic 6 for the infrastructure-module planning surface that 
 | Story | Title | Status |
 |-------|-------|--------|
 | [6.1](story6.1-files-service.md) | Files Service Foundation | ✅ Done |
+| [6.2](story6.2-system-media-service.md) | System Media Service | Planned |
 
 ## Notes
 
 - Story boundaries in this epic should follow reusable infrastructure packages, not UI pages.
 - Infra modules should stay dependency-light and reusable from multiple domains.
 - The first story intentionally formalizes code that already exists in `backend/infra/fileutil`, but positions it as the first layer of a broader shared file service.
+- Story 6.2 must reuse Story 6.1 as the path-safety and file-operation substrate. Media metadata, validation, public/private access, and lifecycle rules must remain in the system-media layer.
+- `/appos/data` is already the persisted runtime data root in deployment. Media storage should live under a stable subpath such as `/appos/data/media` rather than introducing an unpersisted side path.

@@ -151,6 +151,27 @@ func String(group map[string]any, field string, fallback string) string {
 	return s
 }
 
+// Bool reads a boolean field from an already-loaded group map.
+// Returns fallback when the field is absent or unreadable.
+func Bool(group map[string]any, field string, fallback bool) bool {
+	v, ok := group[field]
+	if !ok || v == nil {
+		return fallback
+	}
+	switch value := v.(type) {
+	case bool:
+		return value
+	case string:
+		switch strings.ToLower(strings.TrimSpace(value)) {
+		case "true", "1", "yes", "on":
+			return true
+		case "false", "0", "no", "off":
+			return false
+		}
+	}
+	return fallback
+}
+
 // StringSlice reads a string-array field from a loaded group map.
 //
 // Supported underlying shapes:

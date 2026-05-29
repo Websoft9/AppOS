@@ -53,7 +53,16 @@ Do not use `Assets` as a catch-all file store.
 - Asset content belongs in the filesystem.
 - Filesystem content is stored under `/appos/data/assets/{assetName}-{assetId}/...`.
 - Assets are platform-shared objects, not owner-first personal files.
-- Phase 1 allows `source_kind=reference` records to be created, but does not resolve or fetch reference content.
+- Script assets do not split into `local` vs `reference` types.
+- Script assets require metadata plus either inline `content` or a `reference`; both may exist, but consumers use `content` first.
+- Script assets must define `language`; phase-1 priority is `shell` and `python`.
+- Script file paths are derived by the system as `{script-name}-{asset-id}.{ext}`; operators do not author script paths manually.
+- Script assets do not define an entrypoint because phase-1 scripts are always single-file assets.
+- Skill assets are folder-first assets.
+- Skill assets keep `entrypoint` because consumers need one canonical file inside the folder package.
+- Skill assets may originate from a GitHub project reference or from an uploaded local folder.
+- Skill edit mode is file-oriented and works on a folder snapshot, not a single textarea payload.
+- Epic 30 phase 1 does not support multi-version script management.
 - Phase 1 may reuse existing IaC-style file mechanisms or shared helpers, but `Assets` does not become an IaC subdomain.
 - Current user-first `Space` is not the storage owner for shared assets.
 
@@ -72,13 +81,12 @@ The Go package for this domain should be `backend/domain/assets`.
 	- `Asset`
 	- `kind`
 	- `storage_kind`
-	- `source_kind`
+	- optional reference metadata
 
 Recommended initial values:
 
 - `kind`: `script`, `skill`, `prompt`, `runbook`
 - `storage_kind`: `file`, `folder`
-- `source_kind`: `local`, `reference`
 
 Phase-1 supported values:
 
@@ -90,9 +98,22 @@ Minimal fields:
 - `name`
 - `kind`
 - `storage_kind`
-- `source_kind`
 - `path`
+
+Skill-specific field:
+
 - `entrypoint`
+
+Skill-specific content direction:
+
+- `contents` is a folder tree rather than a single text payload
+- `reference` may point to a GitHub project
+
+Script-specific metadata additions:
+
+- `language`
+- `content` or `reference` must exist
+- `path` is system-derived from name, id, and language
 
 Phase-1 ownership:
 
@@ -128,8 +149,10 @@ Output:
 
 - create/read/update/delete contract for assets
 - file or folder storage handling
-- local vs reference source handling
-- validation for `kind`, `storage_kind`, `source_kind`, and `entrypoint`
+- script `content` vs `reference` handling
+- skill folder snapshot vs GitHub reference handling
+- validation for `kind`, `storage_kind`, skill `entrypoint`, script `language`, and the `content/reference` requirement
+- script reference pull endpoint for operator-assisted authoring
 - concrete collection, DTO, and endpoint shape
 
 ### Story 30.3: Assets UI
@@ -143,3 +166,7 @@ Output:
 - content preview
 - file or folder presentation
 - type-aware display for `script` and `skill`
+- script language field and content/reference authoring
+- script create/edit form split into `Metadata`, `Content`, and collapsed `Advanced`
+- script `Reference URL + Pull` and `Script Content + Upload` helpers
+- skill create/edit flow built around folder contents, GitHub import, folder upload, and file-tree editing

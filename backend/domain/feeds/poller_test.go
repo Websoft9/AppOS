@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 )
 
 func seedFeedSourceRecord(t *testing.T, app core.App, name, rawURL, format, status string) *core.Record {
@@ -225,5 +226,40 @@ func TestPollSourceForceFetchesSingleSourceEvenWhenNotDue(t *testing.T) {
 	}
 	if summary.ProcessedSources != 1 || summary.DueSources != 1 || summary.CreatedItems != 2 {
 		t.Fatalf("unexpected force single-source summary: %#v", summary)
+	}
+}
+
+func TestPollDueSourcesDoesNotRunRetentionTrimDuringIngest(t *testing.T) {
+	app := newFeedsTestApp(t)
+	seedFeedSourceRecord(t, app, "Vendor feed", "https://example.com/feed.xml", FormatRSS, StatusActive)
+
+	if err := sysconfig.SetGroup(app, SettingsModule, PolicySettingsKey, map[string]any{
+		"pollIntervalHours":      3,
+		"failureBackoffMaxHours": 24,
+		"perSourceRetentionCap":  1,
+		"globalRetentionCap":     1,
+	}); err != nil {
+		t.Fatalf("set feeds policy: %v", err)
+	}
+
+	data := readFeedFixture(t, "rss.xml")
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(string(data))), Header: make(http.Header)}, nil
+	})}
+
+	summary, err := PollDueSources(context.Background(), app, client, time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("poll due sources: %v", err)
+	}
+	if summary.CreatedItems != 2 {
+		t.Fatalf("expected 2 created items, got %#v", summary)
+	}
+
+	items, err := app.FindAllRecords(CollectionItems)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("expected ingest to keep both feed items before scheduled retention sweep, got %d", len(items))
 	}
 }

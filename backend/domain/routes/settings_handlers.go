@@ -281,6 +281,8 @@ func (e *settingsValidationError) Error() string {
 
 func validateCustomSettingsEntry(e *core.RequestEvent, module, key string, value map[string]any) map[string]string {
 	switch module + "/" + key {
+	case "branding/identity":
+		return validateBranding(value)
 	case "space/quota":
 		return validateSpaceQuota(value)
 	case "proxy/network":
@@ -295,6 +297,10 @@ func validateCustomSettingsEntry(e *core.RequestEvent, module, key string, value
 		return validateMonitorManagedCollectorPolicy(value)
 	case "feeds/policy":
 		return validateFeedsPolicy(value)
+	case "topic/comment-policy":
+		return validateTopicCommentPolicy(value)
+	case "topic/import-policy":
+		return validateTopicImportPolicy(value)
 	case "connect/terminal":
 		return validateConnectTerminal(value)
 	case "connect/sftp":

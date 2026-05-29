@@ -11,12 +11,23 @@ Replace per-source polling configuration with one platform-managed polling polic
 
 This story makes Feeds operationally safe on a single server without introducing a user-tuned settings surface.
 
+## Final Definition
+
+- Retention trim is a system behavior, not a manual operator action.
+- The system should enforce retention automatically after successful polling and through one system-level scheduled retention sweep as a fallback path.
+- One scheduled retention sweep must enforce both per-source caps and the global cap in the same run.
+- Manual operations are delete actions initiated by operators, not policy enforcement.
+- Manual delete may reuse the same oldest-first ordering rule as retention trim, but it remains a separate product behavior.
+- Source-level manual delete uses quantity selection in a confirmation dialog.
+- Global manual delete lives in Settings as a danger-zone action named `Delete All Articles` and also uses quantity selection in a confirmation dialog.
+
 ## Product Decisions
 
 - Per-source pull interval is removed from the product model.
 - Feeds uses one platform-managed scheduled interval of `60 minutes`.
 - No UI or API for feed polling interval configuration is introduced in this story.
 - Automatic cleanup runs after every successful source poll.
+- A system-level scheduled retention task exists as a fallback sweep.
 - Feed item retention applies only to `origin_type = feed`.
 - `bookmark` never participates in automatic or manual cleanup.
 - `is_starred` is a reading preference only. It does not exempt a feed item from cleanup.
@@ -29,15 +40,15 @@ In scope:
 - remove per-source polling interval from backend contract and Feeds UI
 - add scheduler state needed for failure backoff
 - run lightweight retention trim after every successful source poll
-- add one manual cleanup preview and execute flow for feed items
-- expose enough cleanup summary data for operator confirmation
+- add one system-level scheduled retention sweep as a fallback path
+- add source-level manual delete with quantity selection
+- add one Settings danger-zone global delete action with quantity selection
 
 Out of scope:
 
 - user-configurable feed settings page
 - pinning feed items against retention
 - bookmark cleanup or bookmark retention policy
-- background cleanup job separate from poll success path
 
 ## Data Model Changes
 
@@ -142,6 +153,8 @@ This keeps manual pulls truthful and prevents repeated failing sources from bein
 
 Automatic cleanup runs only after a source pull succeeds.
 
+System fallback cleanup runs as one system-level scheduled sweep.
+
 The cleanup sequence is:
 
 1. refresh the pulled source `item_count`
@@ -151,6 +164,19 @@ The cleanup sequence is:
 5. refresh `item_count` for any source affected by deletion if required by implementation path
 
 This order keeps the common case cheap and limits the heavier global trim to times when it is actually needed.
+
+### Scheduled Retention Sweep
+
+The scheduled retention task is a system behavior, not a user action.
+
+One sweep must:
+
+1. iterate all eligible feed sources and enforce the per-source cap
+2. refresh affected source counts
+3. enforce the global cap across all `origin_type = feed` rows
+4. leave `bookmark` rows untouched
+
+The sweep must use the same eligibility and oldest-first ordering rules as pull-triggered retention trim.
 
 ### Cleanup Eligibility
 
@@ -170,74 +196,33 @@ Deletion order must be stable and deterministic:
 2. if `published_at` is null, older `created` first
 3. if timestamps tie, lower record id first
 
-The same ordering rule must be used for automatic cleanup preview, automatic cleanup execution, manual cleanup preview, and manual cleanup execution.
+The same ordering rule must be used for pull-triggered retention trim, scheduled retention sweep, source delete, and global delete.
 
-## Manual Cleanup Contract
+## Manual Delete Contract
 
-Provide one explicit cleanup action for operators on the Feeds page.
+Manual delete is operator-driven and separate from retention enforcement.
 
-The flow is preview first, execute second.
+### Source Delete
 
-### Preview Endpoint
+In one source article list view:
 
-`POST /api/feeds/cleanup/preview`
+- provide one delete action for that source's articles
+- open a confirmation dialog with quantity selection
+- default quantity equals the current article count for that source
+- quantity input must support stepper-style increase/decrease and direct numeric input
+- if quantity is smaller than the current count, delete the oldest eligible articles first
+- the action icon should use a clear/eraser-style icon rather than a trash icon
 
-Request body:
+### Global Delete
 
-```json
-{}
-```
+In Settings:
 
-Response body:
-
-```json
-{
-  "global_total_before": 31240,
-  "global_cap": 30000,
-  "global_delete_count": 240,
-  "per_source_cap": 1000,
-  "per_source_affected_count": 3,
-  "per_source_delete_count": 160,
-  "total_delete_count": 400,
-  "sources": [
-    {
-      "source_id": "src_1",
-      "source_name": "Example Feed",
-      "current_count": 1140,
-      "delete_count": 140,
-      "retained_count": 1000
-    }
-  ]
-}
-```
-
-The preview must be read-only and must not delete data.
-
-### Execute Endpoint
-
-`POST /api/feeds/cleanup`
-
-Request body:
-
-```json
-{}
-```
-
-Response body:
-
-```json
-{
-  "deleted_count": 400,
-  "global_total_after": 30000,
-  "per_source_affected_count": 3,
-  "global_delete_count": 240,
-  "per_source_delete_count": 160
-}
-```
-
-Execution must apply the same eligibility and ordering rules as preview.
-
-If preview would delete `0` rows, execute must succeed as a no-op and return `deleted_count = 0`.
+- provide one danger-zone action named `Delete All Articles`
+- open a confirmation dialog with quantity selection
+- default quantity equals the current total feed-article count
+- quantity input must support stepper-style increase/decrease and direct numeric input
+- if quantity is smaller than the current total, delete the oldest eligible articles first
+- `bookmark` rows are never eligible
 
 ## UI Contract
 
@@ -245,16 +230,16 @@ On the Feeds page:
 
 - remove per-source poll interval editing and display
 - keep source status visibility for `last_fetched_at`, `last_success_at`, `last_error`, and current item count
-- provide one manual cleanup entry point for authenticated operators
-- manual cleanup opens a confirmation dialog that first loads preview data
-- confirmation dialog must show at least:
-  - total items to delete
-  - items deleted by per-source trim
-  - items deleted by global trim
-  - affected source count
-  - per-source rows that exceed cap
-- dialog confirm action calls execute endpoint
-- after successful execution, refresh source summary and item list views
+- provide one source-level manual delete entry point for authenticated operators when a concrete source is selected
+- source delete uses a quantity confirmation dialog with default count, stepper controls, and direct numeric input
+- source delete action uses a clear/eraser-style icon
+- after successful source delete, refresh source summary and item list views
+
+In Settings:
+
+- provide one `Delete All Articles` danger-zone action
+- global delete uses a quantity confirmation dialog with default count, stepper controls, and direct numeric input
+- after successful global delete, refresh source summary and item list views
 
 UI does not expose `failure_streak` or `next_poll_at` in MVP unless needed later for troubleshooting.
 
@@ -267,11 +252,12 @@ UI does not expose `failure_streak` or `next_poll_at` in MVP unless needed later
 - AC5: Manual `Pull now` bypasses schedule gating for that request, but still updates `failure_streak`, `last_error`, and `next_poll_at` using the same rules as scheduled pulls.
 - AC6: After every successful source pull, the system trims that source's `origin_type = feed` items to at most `1,000` rows.
 - AC7: After per-source trim, if total `origin_type = feed` rows still exceed `30,000`, the system trims the oldest eligible rows globally until count returns to `30,000`.
-- AC8: `origin_type = bookmark` rows are never deleted by automatic cleanup or manual cleanup.
-- AC9: Manual cleanup preview returns deterministic deletion counts without mutating data.
-- AC10: Manual cleanup execution deletes exactly the rows implied by preview ordering rules, subject only to intervening data changes.
-- AC11: Feeds UI no longer shows or edits per-source poll interval and exposes one manual cleanup confirmation flow.
-- AC12: Route and domain tests cover backoff transitions, per-source trim, global trim, preview, execute, and bookmark exclusion.
+- AC8: The system-level scheduled retention task sweeps all eligible sources for per-source caps and then enforces the global cap in the same run.
+- AC9: `origin_type = bookmark` rows are never deleted by automatic trim, scheduled retention sweep, source delete, or global delete.
+- AC10: Source delete defaults to the current source article count, supports quantity editing, and deletes oldest eligible rows first when quantity is smaller than the total.
+- AC11: Settings exposes one `Delete All Articles` danger-zone action that defaults to the current total feed-article count, supports quantity editing, and deletes oldest eligible rows first when quantity is smaller than the total.
+- AC12: Feeds UI no longer shows or edits per-source poll interval and exposes source-level delete through a confirmation dialog with quantity controls.
+- AC13: Route and domain tests cover backoff transitions, pull-triggered trim, scheduled retention sweep, source delete, global delete, and bookmark exclusion.
 
 ## Tasks / Subtasks
 
@@ -292,25 +278,31 @@ UI does not expose `failure_streak` or `next_poll_at` in MVP unless needed later
   - [ ] 4.1 Run source-local trim after successful ingest
   - [ ] 4.2 Run global trim only when total feed items exceed cap
   - [ ] 4.3 Keep cleanup failures observable without losing truthful poll result state
-- [ ] Task 5: Add manual cleanup routes
-  - [ ] 5.1 Add `POST /api/feeds/cleanup/preview`
-  - [ ] 5.2 Add `POST /api/feeds/cleanup`
-  - [ ] 5.3 Return summary fields required by confirmation UI
-- [ ] Task 6: Update Feeds UI
-  - [ ] 6.1 Remove poll interval display and editing
-  - [ ] 6.2 Add manual cleanup dialog driven by preview then execute
-  - [ ] 6.3 Refresh source and item queries after cleanup success
-- [ ] Task 7: Add focused tests
-  - [ ] 7.1 Source scheduling and backoff tests
-  - [ ] 7.2 Cleanup ordering and cap-enforcement tests
-  - [ ] 7.3 Route tests for preview and execute
-  - [ ] 7.4 Frontend tests for cleanup dialog and removed interval UI
+- [ ] Task 5: Add system-level scheduled retention sweep
+  - [ ] 5.1 Register one system cron task for feed retention sweep
+  - [ ] 5.2 Sweep all eligible sources for per-source cap enforcement
+  - [ ] 5.3 Enforce the global cap in the same run
+- [ ] Task 6: Add manual delete routes
+  - [ ] 6.1 Add source-level delete with quantity input
+  - [ ] 6.2 Add global delete with quantity input
+  - [ ] 6.3 Reuse deterministic oldest-first selection logic
+- [ ] Task 7: Update Feeds UI and Settings UI
+  - [ ] 7.1 Remove poll interval display and editing
+  - [ ] 7.2 Add source delete dialog with quantity controls and clear/eraser icon
+  - [ ] 7.3 Add `Delete All Articles` danger-zone action in Settings
+  - [ ] 7.4 Refresh source and item queries after delete success
+- [ ] Task 8: Add focused tests
+  - [ ] 8.1 Source scheduling and backoff tests
+  - [ ] 8.2 Cleanup ordering and cap-enforcement tests
+  - [ ] 8.3 Scheduled retention sweep tests
+  - [ ] 8.4 Route tests for source delete and global delete
+  - [ ] 8.5 Frontend tests for source delete dialog, Settings danger zone, and removed interval UI
 
 ## Implementation Notes
 
 - Keep this policy backend-owned. Do not introduce a settings page or saved system setting in this story.
 - Reuse the existing platform-managed polling job from Story 27.2. This story changes its due logic and post-success behavior; it does not create one cron job per source.
-- Prefer one cleanup service in `backend/domain/feeds` so scheduled cleanup and manual cleanup share the same candidate selection and ordering logic.
+- Prefer one cleanup service in `backend/domain/feeds` so pull-triggered trim, scheduled retention sweep, source delete, and global delete share the same candidate selection and ordering logic.
 - Cleanup should operate on ids selected in one deterministic query path rather than ad hoc record iteration.
 - If automatic cleanup succeeds after ingest, the poll is successful.
 - If ingest succeeds but cleanup fails, the source fetch state should still remain truthful; return an observable error and record it in logs rather than rewriting the poll as fetch failure.

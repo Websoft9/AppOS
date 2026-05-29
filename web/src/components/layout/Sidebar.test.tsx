@@ -196,7 +196,7 @@ describe('Sidebar', () => {
   })
 
   it('shows Assets under Workspace and not under Platform for superusers', () => {
-    pathname = '/assets'
+    pathname = '/ai-assets'
     assignMock.mockReset()
 
     render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
@@ -206,7 +206,7 @@ describe('Sidebar', () => {
     const assetsLink = within(workspaceNav).getByRole('link', { name: 'Assets' })
     const spaceLink = within(workspaceNav).getByRole('link', { name: 'Space' })
 
-    expect(assetsLink).toHaveAttribute('href', '/assets')
+    expect(assetsLink).toHaveAttribute('href', '/ai-assets')
     expect(within(adminNav).queryByRole('link', { name: 'Assets' })).toBeNull()
     expect(
       assetsLink.compareDocumentPosition(spaceLink) &

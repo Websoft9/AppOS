@@ -7,8 +7,10 @@ import {
   ChevronRight,
   Check,
   Copy,
+  Eraser,
   ExternalLink,
   Loader2,
+  Minus,
   Pencil,
   Plus,
   RefreshCw,
@@ -54,6 +56,9 @@ import {
 
 interface PBList<T> {
   items?: T[]
+  page?: number
+  perPage?: number
+  totalItems?: number
 }
 
 interface FeedListResponse {
@@ -117,29 +122,11 @@ interface FeedPollSummary {
   UpdatedItems: number
 }
 
-interface FeedCleanupPreview {
-  global_total_before: number
-  global_cap: number
-  global_delete_count: number
-  per_source_cap: number
-  per_source_affected_count: number
-  per_source_delete_count: number
-  total_delete_count: number
-  sources: Array<{
-    source_id: string
-    source_name: string
-    current_count: number
-    delete_count: number
-    retained_count: number
-  }>
-}
-
-interface FeedCleanupResult {
+interface FeedSourceDeleteResult {
+  source_id: string
+  requested_count?: number
   deleted_count: number
-  global_total_after: number
-  per_source_affected_count: number
-  global_delete_count: number
-  per_source_delete_count: number
+  remaining_count?: number
 }
 
 interface FeedSourceAnalysis {
@@ -211,6 +198,16 @@ interface BookmarkConflictError {
 
 const BOOKMARKS_PER_PAGE = 10
 const FEED_ITEMS_PER_PAGE = 20
+
+function clampDeleteCount(value: number, maxCount: number): number {
+  if (!Number.isFinite(value)) {
+    return maxCount > 0 ? 1 : 0
+  }
+  if (maxCount <= 0) {
+    return 0
+  }
+  return Math.max(1, Math.min(maxCount, Math.floor(value)))
+}
 
 function buildTrackedShareURL(rawURL: string): string {
   try {
@@ -568,6 +565,14 @@ function SourceInlineLabel({
 }
 
 function getFeedSourceSaveErrorMessage(error: unknown): string {
+  const maybe = error as { response?: { data?: { code?: string; message?: string } } }
+  if (maybe?.response?.data?.code === 'feed_source_exists') {
+    return 'This RSS or Atom URL has already been added.'
+  }
+  if (maybe?.response?.data?.code === 'feed_source_identity_locked') {
+    return 'Feed URL and format cannot be changed. Create a new source instead.'
+  }
+
   const message = getApiErrorMessage(error, 'Failed to save feed source')
   const normalized = message.toLowerCase()
 
@@ -703,10 +708,9 @@ function FeedsPage() {
   const [pendingBookmarkUndo, setPendingBookmarkUndo] = useState<PendingBookmarkUndo | null>(null)
   const [deleteSourceTarget, setDeleteSourceTarget] = useState<FeedSourceRecord | null>(null)
   const [deletingSource, setDeletingSource] = useState(false)
-  const [cleanupDialogOpen, setCleanupDialogOpen] = useState(false)
-  const [cleanupPreview, setCleanupPreview] = useState<FeedCleanupPreview | null>(null)
-  const [cleanupLoading, setCleanupLoading] = useState(false)
-  const [cleanupExecuting, setCleanupExecuting] = useState(false)
+  const [clearSourceTarget, setClearSourceTarget] = useState<FeedSourceRecord | null>(null)
+  const [clearSourceCount, setClearSourceCount] = useState(0)
+  const [clearingSource, setClearingSource] = useState(false)
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null)
   const [shareQRCodeURL, setShareQRCodeURL] = useState('')
   const [shareQRCodeLoading, setShareQRCodeLoading] = useState(false)
@@ -760,7 +764,7 @@ function FeedsPage() {
       setSourcesLoading(true)
     }
     try {
-      const sourcesResponse = await pb.send<PBList<FeedSourceRecord>>('/api/collections/feed_sources/records?perPage=500&sort=-updated', {})
+      const sourcesResponse = await pb.send<PBList<FeedSourceRecord>>('/api/feeds/sources', {})
       const nextSources = sourcesResponse.items ?? []
 
       setSources(nextSources)
@@ -960,6 +964,8 @@ function FeedsPage() {
     if (sourcePollingId === selectedSource.id) return 'Pulling source now...'
     return getSourcePullStatus(selectedSource)
   }, [selectedSource, sourcePollingId])
+
+  const clearSourceMaxCount = clearSourceTarget ? sourceItemCounts[clearSourceTarget.id] ?? 0 : 0
 
   function dismissNotice() {
     setNotice('')
@@ -1165,23 +1171,25 @@ function FeedsPage() {
     setSaving(true)
     setFormError('')
     try {
-      const body = {
-        name,
-        url,
-        favicon_url: formFaviconURL.trim(),
-        format: formFormat,
-        status: formStatus,
-      }
-
       if (editingSource) {
-        await pb.send(`/api/collections/feed_sources/records/${editingSource.id}`, {
+        await pb.send(`/api/feeds/sources/${editingSource.id}`, {
           method: 'PATCH',
-          body,
+          body: {
+            name,
+            favicon_url: formFaviconURL.trim(),
+            status: formStatus,
+          },
         })
       } else {
-        const createdSource = await pb.send<FeedSourceRecord>('/api/collections/feed_sources/records', {
+        const createdSource = await pb.send<FeedSourceRecord>('/api/feeds/sources', {
           method: 'POST',
-          body,
+          body: {
+            name,
+            url,
+            favicon_url: formFaviconURL.trim(),
+            format: formFormat,
+            status: formStatus,
+          },
         })
 
         if (isSuperuser && createdSource?.id) {
@@ -1213,7 +1221,7 @@ function FeedsPage() {
 
     setDeletingSource(true)
     try {
-      await pb.send(`/api/collections/feed_sources/records/${deleteSourceTarget.id}`, {
+      await pb.send(`/api/feeds/sources/${deleteSourceTarget.id}`, {
         method: 'DELETE',
       })
       setDeleteSourceTarget(null)
@@ -1283,58 +1291,44 @@ function FeedsPage() {
     }
   }
 
-  async function loadCleanupPreview() {
-    setCleanupLoading(true)
-    try {
-      const preview = await pb.send<FeedCleanupPreview>('/api/feeds/cleanup/preview', {
-        method: 'POST',
-        body: {},
-      })
-      setCleanupPreview(preview)
-      setError('')
-    } catch (err) {
-      setCleanupDialogOpen(false)
-      setError(getApiErrorMessage(err, 'Failed to preview feed cleanup'))
-    } finally {
-      setCleanupLoading(false)
+  async function handleClearSourceArticles() {
+    if (!clearSourceTarget) return
+
+    const requestedCount = clampDeleteCount(clearSourceCount, clearSourceMaxCount)
+    if (requestedCount <= 0) {
+      setError(`No articles available for ${clearSourceTarget.name}.`)
+      return
     }
-  }
 
-  function openCleanupDialog() {
-    setCleanupPreview(null)
-    setCleanupDialogOpen(true)
-    void loadCleanupPreview()
-  }
-
-  async function handleExecuteCleanup() {
-    setCleanupExecuting(true)
+    setClearingSource(true)
     setError('')
     try {
-      const result = await pb.send<FeedCleanupResult>('/api/feeds/cleanup', {
+      const result = await pb.send<FeedSourceDeleteResult>(`/api/feeds/sources/${clearSourceTarget.id}/delete`, {
         method: 'POST',
-        body: {},
+        body: { count: requestedCount },
       })
 
       await fetchSources()
-      if (itemSourceFilter === 'bookmark') {
-        await fetchBookmarks(bookmarkPage, bookmarkSearchQuery)
-      } else {
-        await fetchFeedItems({ filter: itemSourceFilter, query: searchQuery, page: 1 })
-      }
+      await fetchFeedItems({ filter: itemSourceFilter, query: searchQuery, page: 1 })
       void fetchFeedSummary()
-
-      setCleanupDialogOpen(false)
-      setCleanupPreview(null)
+      setClearSourceTarget(null)
+      setClearSourceCount(0)
       setNotice(
         result.deleted_count > 0
-          ? `Cleaned up ${result.deleted_count} feed article${result.deleted_count === 1 ? '' : 's'}.`
-          : 'No feed articles needed cleanup.'
+          ? `Deleted ${result.deleted_count} oldest article${result.deleted_count === 1 ? '' : 's'} from ${clearSourceTarget.name}.`
+          : `No articles deleted from ${clearSourceTarget.name}.`
       )
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to execute feed cleanup'))
+      setError(getApiErrorMessage(err, 'Failed to delete source articles'))
     } finally {
-      setCleanupExecuting(false)
+      setClearingSource(false)
     }
+  }
+
+  function openSourceDeleteDialog(source: FeedSourceRecord) {
+    const maxCount = sourceItemCounts[source.id] ?? 0
+    setClearSourceTarget(source)
+    setClearSourceCount(maxCount)
   }
 
   function handleSelectSource(sourceId: 'all' | 'bookmark' | 'starred' | string) {
@@ -1601,11 +1595,6 @@ function FeedsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {isSuperuser ? (
-            <Button type="button" variant="outline" onClick={openCleanupDialog}>
-              Cleanup
-            </Button>
-          ) : null}
           <Button
             type="button"
             variant={itemSourceFilter === 'bookmark' ? 'default' : 'outline'}
@@ -1780,6 +1769,16 @@ function FeedsPage() {
                         onClick={() => openEdit(selectedSource)}
                       >
                         <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Delete selected source articles"
+                        title="Delete selected source articles"
+                        onClick={() => openSourceDeleteDialog(selectedSource)}
+                      >
+                        <Eraser className="h-4 w-4" />
                       </Button>
                     </div>
                   ) : null}
@@ -2211,6 +2210,9 @@ function FeedsPage() {
                       <MetaField label="Format" value={formFormat.toUpperCase()} />
                       <MetaField label="Website" value={analyzedSiteURL || 'Not available'} />
                     </div>
+                    <div className="rounded-md border border-border/70 bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                      Feed URL and format are immutable identity fields. Create a new source if the upstream feed changes.
+                    </div>
                     <FaviconMetaCard title={analyzedSiteTitle || formName} url={analyzedSiteURL || formURL} faviconUrl={formFaviconURL} />
                   </div>
                 ) : (
@@ -2447,62 +2449,72 @@ function FeedsPage() {
       </AlertDialog>
 
       <AlertDialog
-        open={cleanupDialogOpen}
+        open={!!clearSourceTarget}
         onOpenChange={open => {
-          if (!open && !cleanupExecuting) {
-            setCleanupDialogOpen(false)
-            setCleanupPreview(null)
+          if (!open && !clearingSource) {
+            setClearSourceTarget(null)
+            setClearSourceCount(0)
           }
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cleanup Feed Articles</AlertDialogTitle>
+            <AlertDialogTitle>Delete Feed Articles</AlertDialogTitle>
             <AlertDialogDescription>
-              Review the cleanup preview before deleting old feed articles.
+              {clearSourceTarget
+                ? clearSourceMaxCount > 0
+                  ? `Delete up to ${clearSourceMaxCount} pulled article${clearSourceMaxCount === 1 ? '' : 's'} from ${clearSourceTarget.name}. If you choose fewer than the total, the oldest articles will be deleted first.`
+                  : `${clearSourceTarget.name} has no pulled articles to delete.`
+                : 'Delete pulled articles for this source? The source will remain.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {cleanupLoading ? (
-            <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading cleanup preview...
-            </div>
-          ) : cleanupPreview ? (
-            <div className="space-y-2 text-sm text-muted-foreground">
-              <div>
-                This cleanup will remove {cleanupPreview.total_delete_count} feed article{cleanupPreview.total_delete_count === 1 ? '' : 's'}.
+          {clearSourceTarget && clearSourceMaxCount > 0 ? (
+            <div className="space-y-2">
+              <Label htmlFor="source-delete-count">Article count</Label>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={() => setClearSourceCount(current => clampDeleteCount(current - 1, clearSourceMaxCount))}
+                  disabled={clearingSource || clearSourceCount <= 1}
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <Input
+                  id="source-delete-count"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={clearSourceCount > 0 ? clearSourceCount : ''}
+                  onChange={event => setClearSourceCount(clampDeleteCount(Number(event.target.value), clearSourceMaxCount))}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={() => setClearSourceCount(current => clampDeleteCount(current + 1, clearSourceMaxCount))}
+                  disabled={clearingSource || clearSourceCount >= clearSourceMaxCount}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
               </div>
-              <div>
-                Per-source trim: {cleanupPreview.per_source_delete_count}. Global trim: {cleanupPreview.global_delete_count}. Affected sources: {cleanupPreview.per_source_affected_count}.
-              </div>
-              {cleanupPreview.sources.length > 0 ? (
-                <div className="space-y-1">
-                  {cleanupPreview.sources.slice(0, 5).map(source => (
-                    <div key={source.source_id || source.source_name}>
-                      {source.source_name || 'Unknown source'}: delete {source.delete_count}, retain {source.retained_count}
-                    </div>
-                  ))}
-                </div>
-              ) : null}
+              <p className="text-xs text-muted-foreground">1 - {clearSourceMaxCount} articles</p>
             </div>
-          ) : (
-            <div className="text-sm text-muted-foreground">
-              Load a cleanup preview before deleting feed articles.
-            </div>
-          )}
+          ) : null}
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={cleanupExecuting || cleanupLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={clearingSource}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={event => {
                 event.preventDefault()
-                if (!cleanupLoading && cleanupPreview) {
-                  void handleExecuteCleanup()
-                }
+                void handleClearSourceArticles()
               }}
-              disabled={cleanupExecuting || cleanupLoading || !cleanupPreview}
+              disabled={clearingSource || clearSourceMaxCount === 0 || clearSourceCount <= 0}
             >
-              {cleanupExecuting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Delete old feed articles
+              {clearingSource ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Delete oldest articles
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

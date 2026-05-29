@@ -1,7 +1,7 @@
 
 .PHONY: help install tidy build run test test-strict test-fast lint lint-strict lint-fast fmt fmt-strict fmt-fast check check-fast sec sec-strict sec-fast artifact-scan \
 	backend web backend-targeted backend-iac backend-software fast strict build-local latest dev \
-	image start stop restart logs stats delete rm kill-port redo \
+	image start stop restart logs stats delete rm kill-port redo sync-store \
 	openapi-gen openapi-merge openapi-check openapi-sync
 
 # ============================================================
@@ -41,6 +41,7 @@ help:
 	@echo "  make build                Build all (backend + web)"
 	@echo "  make build backend        Build Go binary → backend/appos"
 	@echo "  make build web            Build React app → web/dist"
+	@echo "  make sync-store           Refresh web/public/store/*.json from artifact.websoft9.com"
 	@echo "  make run                  Copy artifacts + restart services (~10s)"
 	@echo "  make run 9092             Copy artifacts + restart on custom port"
 	@echo "  make redo                 Full rebuild: rm volumes + build + image + start dev"
@@ -197,6 +198,19 @@ tidy:
 	@cd backend && go mod tidy
 	@echo "✓ Go modules tidied"
 
+sync-store:
+	@echo "Refreshing web store JSON files..."
+	@set -e; \
+	base_url="https://artifact.websoft9.com/release/websoft9/store"; \
+	for file in web/public/store/*.json; do \
+		name=$$(basename "$$file"); \
+		tmp_file="$$file.tmp"; \
+		echo "→ $$name"; \
+		curl -fsSL "$$base_url/$$name" -o "$$tmp_file"; \
+		mv "$$tmp_file" "$$file"; \
+	done
+	@echo "✓ Web store JSON refreshed"
+
 build:
 ifeq ($(ARG2),backend)
 	@echo "Building backend binaries (static, no dependencies)..."
@@ -204,6 +218,7 @@ ifeq ($(ARG2),backend)
 	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
 	@echo "✓ Backend built → backend/appos (statically linked)"
 else ifeq ($(ARG2),web)
+	@$(MAKE) sync-store
 	@echo "Building web app..."
 	@cd web && npm run build
 	@echo "✓ Web app built → web/dist/"
@@ -214,6 +229,7 @@ else
 	@$(MAKE) openapi-sync
 	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
 	@echo "✓ Backend built → backend/appos"
+	@$(MAKE) sync-store
 	@cd web && npm run build
 	@echo "✓ Web app built → web/dist/"
 	@echo "✓ All built"

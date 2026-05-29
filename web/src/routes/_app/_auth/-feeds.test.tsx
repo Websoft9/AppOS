@@ -98,8 +98,18 @@ describe('FeedsPage', () => {
 				},
 			},
 		]
-		sendMock.mockImplementation((path: string, options?: { body?: Record<string, unknown> }) => {
-			if (path === '/api/collections/feed_sources/records?perPage=500&sort=-updated') {
+		sendMock.mockImplementation((path: string, options?: { body?: Record<string, unknown>; method?: string }) => {
+			if (path === '/api/feeds/sources') {
+				if (options?.method === 'POST') {
+					return Promise.resolve({
+						id: 'feed-2',
+						name: 'Example Releases',
+						url: 'https://example.com/feed.xml',
+						favicon_url: 'https://example.com/favicon.ico',
+						format: 'rss',
+						status: 'active',
+					})
+				}
 				return Promise.resolve({
 					items: [
 						{
@@ -176,27 +186,6 @@ describe('FeedsPage', () => {
 					description: 'Vendor docs portal',
 					favicon_url: 'https://example.com/favicon.ico',
 					resolved_url: 'https://example.com/saved-link',
-				})
-			}
-			if (path === '/api/feeds/cleanup/preview') {
-				return Promise.resolve({
-					global_total_before: feedRecords.length,
-					global_cap: 30000,
-					global_delete_count: 0,
-					per_source_cap: 1000,
-					per_source_affected_count: 0,
-					per_source_delete_count: 0,
-					total_delete_count: 0,
-					sources: [],
-				})
-			}
-			if (path === '/api/feeds/cleanup') {
-				return Promise.resolve({
-					deleted_count: 0,
-					global_total_after: feedRecords.length,
-					per_source_affected_count: 0,
-					global_delete_count: 0,
-					per_source_delete_count: 0,
 				})
 			}
 			if (path === '/api/feeds/bookmarks') {
@@ -299,16 +288,6 @@ describe('FeedsPage', () => {
 					format: 'rss',
 				})
 			}
-			if (path === '/api/collections/feed_sources/records') {
-				return Promise.resolve({
-					id: 'feed-2',
-					name: 'Example Releases',
-					url: 'https://example.com/feed.xml',
-					favicon_url: 'https://example.com/favicon.ico',
-					format: 'rss',
-					status: 'active',
-				})
-			}
 			if (path === '/api/feeds/sources/feed-2/poll') {
 				return Promise.resolve({
 					summary: {
@@ -320,8 +299,8 @@ describe('FeedsPage', () => {
 					},
 				})
 			}
-			if (path === '/api/collections/feed_sources/records/feed-1') {
-				if ((options as { method?: string } | undefined)?.method === 'DELETE') {
+			if (path === '/api/feeds/sources/feed-1') {
+				if (options?.method === 'DELETE') {
 					return Promise.resolve({})
 				}
 				return Promise.resolve({
@@ -333,9 +312,9 @@ describe('FeedsPage', () => {
 		})
 	})
 
-	it('previews and executes manual cleanup for feed articles', async () => {
+	it('removes the legacy global cleanup action from the feeds page', async () => {
 		sendMock.mockImplementation((path: string) => {
-			if (path === '/api/collections/feed_sources/records?perPage=500&sort=-updated') {
+			if (path === '/api/feeds/sources') {
 				return Promise.resolve({
 					items: [
 						{
@@ -370,34 +349,105 @@ describe('FeedsPage', () => {
 			if (path.startsWith('/api/feeds/bookmarks?')) {
 				return Promise.resolve({ items: [], page: 1, perPage: 10, totalItems: 0, totalBookmarks: 0 })
 			}
-			if (path === '/api/feeds/cleanup/preview') {
+			return Promise.resolve({})
+		})
+
+		const Component = (Route as unknown as { component: React.ComponentType }).component
+		render(<Component />)
+
+		await waitFor(() => {
+			expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument()
+		})
+
+		expect(screen.queryByRole('button', { name: 'Cleanup' })).not.toBeInTheDocument()
+	})
+
+	it('deletes the oldest articles for the selected source without deleting the source', async () => {
+		let sourceItems = [
+			{
+				id: 'item-1',
+				source_id: 'feed-1',
+				origin_type: 'feed' as const,
+				external_id: 'release-1',
+				title: 'Security Release 1',
+				link: 'https://example.com/releases/1',
+				published_at: '2026-05-27T08:00:00Z',
+				summary: 'Patch maintenance update with CVE fixes.',
+				content_raw: 'body',
+				tags_json: ['security'],
+				read_state: 'unread' as const,
+				is_starred: false,
+				expand: {
+					source_id: {
+						id: 'feed-1',
+						name: 'Vendor Releases',
+						url: 'https://example.com/releases.xml',
+						favicon_url: 'https://example.com/favicon.ico',
+						format: 'rss',
+						status: 'active',
+					},
+				},
+			},
+			{
+				id: 'item-2',
+				source_id: 'feed-1',
+				origin_type: 'feed' as const,
+				external_id: 'release-2',
+				title: 'Security Release 2',
+				link: 'https://example.com/releases/2',
+				published_at: '2026-05-27T09:00:00Z',
+				summary: 'Second update.',
+				content_raw: 'body',
+				tags_json: ['security'],
+				read_state: 'unread' as const,
+				is_starred: false,
+				expand: {
+					source_id: {
+						id: 'feed-1',
+						name: 'Vendor Releases',
+						url: 'https://example.com/releases.xml',
+						favicon_url: 'https://example.com/favicon.ico',
+						format: 'rss',
+						status: 'active',
+					},
+				},
+			},
+		]
+		sendMock.mockImplementation((path: string) => {
+			if (path === '/api/feeds/sources') {
 				return Promise.resolve({
-					global_total_before: 5,
-					global_cap: 30000,
-					global_delete_count: 1,
-					per_source_cap: 1000,
-					per_source_affected_count: 1,
-					per_source_delete_count: 2,
-					total_delete_count: 3,
-					sources: [
+					items: [
 						{
-							source_id: 'feed-1',
-							source_name: 'Vendor Releases',
-							current_count: 5,
-							delete_count: 3,
-							retained_count: 2,
+							id: 'feed-1',
+							name: 'Vendor Releases',
+							url: 'https://example.com/releases.xml',
+							favicon_url: 'https://example.com/favicon.ico',
+							format: 'rss',
+							status: 'active',
+							item_count: sourceItems.length,
+							last_fetched_at: '2026-05-27T08:00:00Z',
+							last_success_at: '2026-05-27T08:00:00Z',
+							last_error: '',
 						},
 					],
 				})
 			}
-			if (path === '/api/feeds/cleanup') {
+			if (path === '/api/feeds/summary') {
 				return Promise.resolve({
-					deleted_count: 3,
-					global_total_after: 2,
-					per_source_affected_count: 1,
-					global_delete_count: 1,
-					per_source_delete_count: 2,
+					totalItems: sourceItems.length,
+					starredItems: 0,
+					sourceCounts: [{ sourceId: 'feed-1', count: sourceItems.length }],
 				})
+			}
+			if (path.startsWith('/api/feeds/items?')) {
+				return Promise.resolve({ items: sourceItems, page: 1, perPage: 20, totalItems: sourceItems.length })
+			}
+			if (path.startsWith('/api/feeds/bookmarks?')) {
+				return Promise.resolve({ items: [], page: 1, perPage: 10, totalItems: 0, totalBookmarks: 0 })
+			}
+			if (path === '/api/feeds/sources/feed-1/delete') {
+				sourceItems = sourceItems.slice(1)
+				return Promise.resolve({ source_id: 'feed-1', deleted_count: 1, remaining_count: 1 })
 			}
 			return Promise.resolve({})
 		})
@@ -406,33 +456,34 @@ describe('FeedsPage', () => {
 		render(<Component />)
 
 		await waitFor(() => {
-			expect(screen.getByRole('button', { name: 'Cleanup' })).toBeInTheDocument()
+			expect(screen.getAllByRole('button', { name: /Vendor Releases/ }).length).toBeGreaterThan(0)
 		})
-
-		fireEvent.click(screen.getByRole('button', { name: 'Cleanup' }))
+		fireEvent.click(screen.getAllByRole('button', { name: /Vendor Releases/ })[0])
 
 		await waitFor(() => {
-			expect(sendMock).toHaveBeenCalledWith('/api/feeds/cleanup/preview', {
+			expect(screen.getByRole('button', { name: 'Delete selected source articles' })).toBeInTheDocument()
+		})
+
+		fireEvent.click(screen.getByRole('button', { name: 'Delete selected source articles' }))
+
+		await waitFor(() => {
+			expect(screen.getByText('Delete Feed Articles')).toBeInTheDocument()
+		})
+		expect(screen.getByText('Delete up to 2 pulled articles from Vendor Releases. If you choose fewer than the total, the oldest articles will be deleted first.')).toBeInTheDocument()
+		const countInput = screen.getByLabelText('Article count')
+		fireEvent.change(countInput, { target: { value: '1' } })
+
+		fireEvent.click(screen.getByRole('button', { name: 'Delete oldest articles' }))
+
+		await waitFor(() => {
+			expect(sendMock).toHaveBeenCalledWith('/api/feeds/sources/feed-1/delete', {
 				method: 'POST',
-				body: {},
+				body: { count: 1 },
 			})
 		})
 
-		expect(screen.getByText('Cleanup Feed Articles')).toBeInTheDocument()
-		expect(screen.getByText('This cleanup will remove 3 feed articles.')).toBeInTheDocument()
-		expect(screen.getByText('Vendor Releases: delete 3, retain 2')).toBeInTheDocument()
-
-		fireEvent.click(screen.getByRole('button', { name: 'Delete old feed articles' }))
-
 		await waitFor(() => {
-			expect(sendMock).toHaveBeenCalledWith('/api/feeds/cleanup', {
-				method: 'POST',
-				body: {},
-			})
-		})
-
-		await waitFor(() => {
-			expect(screen.getByText('Cleaned up 3 feed articles.')).toBeInTheDocument()
+			expect(screen.getByText('Deleted 1 oldest article from Vendor Releases.')).toBeInTheDocument()
 		})
 	})
 
@@ -659,7 +710,7 @@ describe('FeedsPage', () => {
 
 		fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
 		await waitFor(() => {
-			expect(sendMock).toHaveBeenCalledWith('/api/collections/feed_sources/records?perPage=500&sort=-updated', {})
+			expect(sendMock).toHaveBeenCalledWith('/api/feeds/sources', {})
 		})
 		expect(sendMock).not.toHaveBeenCalledWith('/api/feeds/poll', {
 			method: 'POST',
@@ -692,7 +743,7 @@ describe('FeedsPage', () => {
 
 	it('shows bookmark title hover description, domain-only URL, and late-loading favicon from bookmark metadata', async () => {
 		sendMock.mockImplementation((path: string) => {
-			if (path === '/api/collections/feed_sources/records?perPage=500&sort=-updated') {
+			if (path === '/api/feeds/sources') {
 				return Promise.resolve({ items: [] })
 			}
 			if (path === '/api/feeds/summary') {
@@ -767,7 +818,7 @@ describe('FeedsPage', () => {
 		})
 
 			sendMock.mockImplementation((path: string) => {
-			if (path === '/api/collections/feed_sources/records?perPage=500&sort=-updated') {
+			if (path === '/api/feeds/sources') {
 				return Promise.resolve({
 					items: [
 						{
@@ -890,7 +941,7 @@ describe('FeedsPage', () => {
 		fireEvent.click(screen.getByRole('button', { name: 'Subscribe' }))
 
 		await waitFor(() => {
-			expect(sendMock).toHaveBeenCalledWith('/api/collections/feed_sources/records', {
+			expect(sendMock).toHaveBeenCalledWith('/api/feeds/sources', {
 				method: 'POST',
 				body: {
 					name: 'Example Releases',
@@ -910,8 +961,18 @@ describe('FeedsPage', () => {
 	})
 
 	it('shows a duplicate-url specific error when source creation conflicts', async () => {
-		sendMock.mockImplementation((path: string, options?: { body?: Record<string, unknown> }) => {
-			if (path === '/api/collections/feed_sources/records?perPage=500&sort=-updated') {
+		sendMock.mockImplementation((path: string, options?: { body?: Record<string, unknown>; method?: string }) => {
+			if (path === '/api/feeds/sources') {
+				if (options?.method === 'POST') {
+					return Promise.reject({
+						response: {
+							data: {
+								code: 'feed_source_exists',
+								message: 'feed source url already exists',
+							},
+						},
+					})
+				}
 				return Promise.resolve({ items: [] })
 			}
 			if (path === '/api/feeds/summary') {
@@ -933,17 +994,7 @@ describe('FeedsPage', () => {
 					format: 'rss',
 				})
 			}
-			if (path === '/api/collections/feed_sources/records') {
-				return Promise.reject({
-					response: {
-						data: {
-							message: 'Failed to create record.',
-							error: 'SQLITE_CONSTRAINT_UNIQUE: UNIQUE constraint failed: feed_sources.url',
-						},
-					},
-				})
-			}
-			if (path === '/api/collections/feed_sources/records/feed-1') {
+			if (path === '/api/feeds/sources/feed-1') {
 				return Promise.resolve({ id: 'feed-1', ...(options?.body ?? {}) })
 			}
 			return Promise.resolve({})
@@ -978,7 +1029,7 @@ describe('FeedsPage', () => {
 
 	it('shows a duplicate-url specific error when bookmark creation conflicts', async () => {
 		sendMock.mockImplementation((path: string, options?: { body?: Record<string, unknown> }) => {
-			if (path === '/api/collections/feed_sources/records?perPage=500&sort=-updated') {
+			if (path === '/api/feeds/sources') {
 				return Promise.resolve({
 					items: [
 						{
@@ -1102,7 +1153,7 @@ describe('FeedsPage', () => {
 
 	it('shows a specific error when bookmark analysis targets a private URL', async () => {
 		sendMock.mockImplementation((path: string) => {
-			if (path === '/api/collections/feed_sources/records?perPage=500&sort=-updated') {
+			if (path === '/api/feeds/sources') {
 				return Promise.resolve({ items: [] })
 			}
 			if (path === '/api/feeds/summary') {
@@ -1170,6 +1221,7 @@ describe('FeedsPage', () => {
 		expect(screen.getByText('https://example.com')).toBeInTheDocument()
 		expect(screen.getByText('Format')).toBeInTheDocument()
 		expect(screen.getByText('RSS')).toBeInTheDocument()
+		expect(screen.getByText('Feed URL and format are immutable identity fields. Create a new source if the upstream feed changes.')).toBeInTheDocument()
 
 		fireEvent.change(screen.getByLabelText('Name'), {
 			target: { value: 'Vendor Security Releases' },
@@ -1177,13 +1229,11 @@ describe('FeedsPage', () => {
 		fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
 
 		await waitFor(() => {
-			expect(sendMock).toHaveBeenCalledWith('/api/collections/feed_sources/records/feed-1', {
+			expect(sendMock).toHaveBeenCalledWith('/api/feeds/sources/feed-1', {
 				method: 'PATCH',
 				body: {
 					name: 'Vendor Security Releases',
-					url: 'https://example.com/releases.xml',
 					favicon_url: 'https://example.com/favicon.ico',
-					format: 'rss',
 					status: 'active',
 				},
 			})
@@ -1215,7 +1265,7 @@ describe('FeedsPage', () => {
 		fireEvent.click(screen.getByRole('button', { name: 'Delete source and articles' }))
 
 		await waitFor(() => {
-			expect(sendMock).toHaveBeenCalledWith('/api/collections/feed_sources/records/feed-1', {
+			expect(sendMock).toHaveBeenCalledWith('/api/feeds/sources/feed-1', {
 				method: 'DELETE',
 			})
 		})

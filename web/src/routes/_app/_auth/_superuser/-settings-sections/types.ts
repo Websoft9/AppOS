@@ -31,6 +31,23 @@ export interface ConnectSftpGroup {
   maxUploadFiles: number
 }
 
+export interface TopicShare {
+  shareMaxMinutes: number
+  shareDefaultMinutes: number
+}
+
+export interface TopicCommentPolicy {
+  allowGuestComments: boolean
+  defaultGuestName: string
+  maxGuestNameLength: number
+  maxCommentBodyLength: number
+}
+
+export interface TopicImportPolicy {
+  maxDescriptionImportKB: number
+  textOnly: boolean
+}
+
 export interface TunnelPortRange {
   start: number
   end: number
@@ -44,52 +61,6 @@ export interface IacFilesGroup {
   maxSizeMB: number
   maxZipSizeMB: number
   extensionBlacklist: string
-}
-
-export interface MonitorSchedulingGroup {
-  reachabilityIntervalMinutes: number
-  metricsFreshnessIntervalMinutes: number
-  controlReachabilityIntervalMinutes: number
-  runtimeSnapshotIntervalMinutes: number
-  credentialSweepIntervalMinutes: number
-  appHealthIntervalMinutes: number
-  factsPullIntervalMinutes: number
-}
-
-export interface MonitorPolicyGroup {
-  metricsFreshnessLookbackSeconds: number
-  metricsStaleSeconds: number
-  metricsMissingSeconds: number
-  controlProbeTimeoutSeconds: number
-  factsPullTimeoutSeconds: number
-  runtimePullTimeoutSeconds: number
-  factsPullConcurrency: number
-  runtimePullConcurrency: number
-}
-
-export interface MonitorPlatformSelfObservationGroup {
-  platformObserverIntervalSeconds: number
-  platformSchedulerStaleThresholdSeconds: number
-  enableHostTelemetry: boolean
-  enableContainerTelemetry: boolean
-}
-
-export interface MonitorManagedCollectorPolicyGroup {
-  collectionIntervalSeconds: number
-  flushIntervalSeconds: number
-  metricBatchSize: number
-  metricBufferLimit: number
-  collectionJitterSeconds: number
-  flushJitterSeconds: number
-}
-
-export interface FeedsPolicyGroup {
-  pollIntervalMinutes: number
-  failureBackoffOneHours: number
-  failureBackoffTwoHours: number
-  failureBackoffMaxHours: number
-  perSourceRetentionCap: number
-  globalRetentionCap: number
 }
 
 export const DEFAULT_SPACE_QUOTA: SpaceQuota = {
@@ -118,6 +89,23 @@ export const DEFAULT_CONNECT_SFTP: ConnectSftpGroup = {
   maxUploadFiles: 10,
 }
 
+export const DEFAULT_TOPIC_SHARE: TopicShare = {
+  shareMaxMinutes: 60,
+  shareDefaultMinutes: 30,
+}
+
+export const DEFAULT_TOPIC_COMMENT_POLICY: TopicCommentPolicy = {
+  allowGuestComments: true,
+  defaultGuestName: 'Guest',
+  maxGuestNameLength: 100,
+  maxCommentBodyLength: 10000,
+}
+
+export const DEFAULT_TOPIC_IMPORT_POLICY: TopicImportPolicy = {
+  maxDescriptionImportKB: 2,
+  textOnly: true,
+}
+
 export const DEFAULT_TUNNEL_PORT_RANGE: TunnelPortRange = {
   start: 40000,
   end: 49999,
@@ -131,52 +119,6 @@ export const DEFAULT_IAC_FILES: IacFilesGroup = {
   maxSizeMB: 10,
   maxZipSizeMB: 50,
   extensionBlacklist: '.exe,.dll,.so,.bin,.deb,.rpm,.apk,.msi,.dmg,.pkg',
-}
-
-export const DEFAULT_MONITOR_SCHEDULING: MonitorSchedulingGroup = {
-  reachabilityIntervalMinutes: 1,
-  metricsFreshnessIntervalMinutes: 1,
-  controlReachabilityIntervalMinutes: 1,
-  runtimeSnapshotIntervalMinutes: 1,
-  credentialSweepIntervalMinutes: 5,
-  appHealthIntervalMinutes: 1,
-  factsPullIntervalMinutes: 15,
-}
-
-export const DEFAULT_MONITOR_POLICY: MonitorPolicyGroup = {
-  metricsFreshnessLookbackSeconds: 300,
-  metricsStaleSeconds: 90,
-  metricsMissingSeconds: 180,
-  controlProbeTimeoutSeconds: 5,
-  factsPullTimeoutSeconds: 20,
-  runtimePullTimeoutSeconds: 20,
-  factsPullConcurrency: 5,
-  runtimePullConcurrency: 5,
-}
-
-export const DEFAULT_MONITOR_PLATFORM_SELF_OBSERVATION: MonitorPlatformSelfObservationGroup = {
-  platformObserverIntervalSeconds: 30,
-  platformSchedulerStaleThresholdSeconds: 10,
-  enableHostTelemetry: false,
-  enableContainerTelemetry: false,
-}
-
-export const DEFAULT_MONITOR_MANAGED_COLLECTOR_POLICY: MonitorManagedCollectorPolicyGroup = {
-  collectionIntervalSeconds: 10,
-  flushIntervalSeconds: 10,
-  metricBatchSize: 1000,
-  metricBufferLimit: 5000,
-  collectionJitterSeconds: 1,
-  flushJitterSeconds: 1,
-}
-
-export const DEFAULT_FEEDS_POLICY: FeedsPolicyGroup = {
-  pollIntervalMinutes: 60,
-  failureBackoffOneHours: 2,
-  failureBackoffTwoHours: 6,
-  failureBackoffMaxHours: 24,
-  perSourceRetentionCap: 1000,
-  globalRetentionCap: 30000,
 }
 
 export type SecretPolicyErrors = Partial<Record<keyof SecretPolicy, string>>

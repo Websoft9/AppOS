@@ -4,113 +4,32 @@ import { parseExtListInput } from '@/lib/ext-normalize'
 import { type SettingsSection } from '@/lib/settings-api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { ConnectorReferenceSection, sectionLabel } from './-settings-sections/shared'
-import { AISettingsSection } from './-settings-sections/ai-section'
-import {
-  BasicSection,
-  FeedsPolicySection,
-  LogsSection,
-  MonitorSection,
-  S3Section,
-} from './-settings-sections/system-sections'
-import {
-  ConnectSftpSection,
-  ConnectTerminalSection,
-  DeployPreflightSection,
-  IacFilesSection,
-  ProxySection,
-  SecretsSection,
-  SpaceQuotaSection,
-  TunnelSection,
-} from './-settings-sections/workspace-simple-sections'
-import { DockerMirrorsSection } from './-settings-sections/workspace-list-sections'
+import { getRegisteredSectionHelp } from './-settings-core/help'
+import { buildNavigationItems, isNavigationItemActive } from './-settings-core/navigation'
+import { renderRegisteredSection } from './-settings-core/render'
+import { sectionLabel } from './-settings-sections/shared'
+import { findSchemaEntry } from './-settings-core/schema-helpers'
 import { type SettingsPageController } from './-settings-controller'
 
 type SettingsScreenProps = {
   controller: SettingsPageController
 }
 
-function terminalSettingsEntries(controller: SettingsPageController) {
-  return {
-    terminal: findSchemaEntry(controller, 'connect-terminal'),
-    sftp: findSchemaEntry(controller, 'connect-sftp'),
-  }
-}
-
-function dockerSettingsEntries(controller: SettingsPageController) {
-  return {
-    mirrors: findSchemaEntry(controller, 'docker-mirror'),
-  }
-}
-
-function findSchemaEntry(controller: SettingsPageController, entryId: string) {
-  return controller.schemaEntries.find(entry => entry.id === entryId)
-}
-
-function connectorSectionDescription(
-  controller: SettingsPageController,
-  entryId: string,
-  fallback: string
-) {
-  return findSchemaEntry(controller, entryId)?.description ?? fallback
-}
-
 function activeSectionHelp(controller: SettingsPageController) {
-  switch (controller.activeSection) {
-    case 'monitor':
-    case 'monitor-scheduling':
-    case 'monitor-policy':
-    case 'monitor-platform-self-observation':
-    case 'monitor-managed-collector-policy':
-      return {
-        title: 'Monitor',
-        description:
-          'Tune monitoring cadence, freshness rules, platform self-observation, and managed collector behavior in one place.',
-      }
-    case 'feeds-policy':
-      return {
-        title: 'Feeds',
-        description:
-          'Configure global feed polling cadence, retry backoff, and cleanup retention limits.',
-      }
-    case 'terminal':
-    case 'connect-terminal':
-    case 'connect-sftp':
-      return {
-        title: 'Terminal',
-        description:
-          'Control terminal and SFTP session limits without leaving the shared settings surface.',
-      }
-    case 'docker-mirror':
-    case 'docker-registries':
-      return {
-        title: 'Docker',
-        description:
-          'Configure AppOS image pull acceleration for deployment and update workflows.',
-      }
-    case 'proxy-network':
-      return {
-        title: 'Proxy',
-        description: 'Select reusable HTTP and HTTPS proxy connectors for platform outbound traffic.',
-      }
-    case 'ai':
-      return {
-        title: 'AI',
-        description:
-          'Choose the platform default AI model and manage provider records from the same workflow.',
-      }
-    default: {
-      const entry = findSchemaEntry(controller, controller.activeSection)
-      return {
-        title:
-          controller.activeSection === 'space-quota'
-            ? 'Space'
-            : entry?.title ?? 'Settings',
-        description:
-          entry?.description ??
-          'Select a setting from the menu to review its current purpose and controls.',
-      }
-    }
+  const registeredHelp = getRegisteredSectionHelp(controller)
+  if (registeredHelp) {
+    return registeredHelp
+  }
+
+  const entry = findSchemaEntry(controller, controller.activeSection)
+  return {
+    title:
+      controller.activeSection === 'space-quota'
+        ? 'Space'
+        : entry?.title ?? 'Settings',
+    description:
+      entry?.description ??
+      'Select a setting from the menu to review its current purpose and controls.',
   }
 }
 
@@ -147,315 +66,16 @@ function SettingsHelpPanel({
   )
 }
 
-function isMonitorEntry(entryId: string) {
-  return (
-    entryId === 'monitor-scheduling' ||
-    entryId === 'monitor-policy' ||
-	entryId === 'monitor-platform-self-observation' ||
-	entryId === 'monitor-managed-collector-policy'
-  )
-}
-
-function navigationItems(controller: SettingsPageController, group: SettingsSection) {
-  const items = controller.schemaEntries.filter(entry => entry.section === group)
-  if (group !== 'system') {
-    const result: Array<{ id: string; title: string }> = []
-    let terminalAdded = false
-    let dockerAdded = false
-
-    for (const item of items) {
-      if (item.id === 'space-quota') {
-        result.push({ id: item.id, title: 'Space' })
-        continue
-      }
-
-      if (item.id === 'connect-terminal' || item.id === 'connect-sftp') {
-        if (!terminalAdded) {
-          result.push({ id: 'terminal', title: 'Terminal' })
-          terminalAdded = true
-        }
-        continue
-      }
-
-      if (item.id === 'docker-mirror') {
-        if (!dockerAdded) {
-          result.push({ id: 'docker-mirror', title: 'Docker' })
-          dockerAdded = true
-        }
-        continue
-      }
-
-      result.push({ id: item.id, title: item.title })
-    }
-
-    return result
-  }
-
-  const result: Array<{ id: string; title: string }> = []
-  let monitorAdded = false
-  let dockerAdded = false
-  for (const item of items) {
-    if (isMonitorEntry(item.id)) {
-      if (!monitorAdded) {
-        result.push({ id: 'monitor', title: 'Monitor' })
-        monitorAdded = true
-      }
-      continue
-    }
-
-    if (item.id === 'docker-mirror') {
-      if (!dockerAdded) {
-        result.push({ id: 'docker-mirror', title: 'Docker' })
-        dockerAdded = true
-      }
-      continue
-    }
-
-    result.push({ id: item.id, title: item.title })
-  }
-  return result
-}
-
 function renderSection(controller: SettingsPageController, options?: { onOpenHelp?: () => void }) {
-  const terminalEntries = terminalSettingsEntries(controller)
-  const dockerEntries = dockerSettingsEntries(controller)
-
-  switch (controller.activeSection) {
-    case 'basic':
-      return (
-        <BasicSection
-          appName={controller.appName}
-          appURL={controller.appURL}
-          appSaving={controller.appSaving}
-          setAppName={controller.setAppName}
-          setAppURL={controller.setAppURL}
-          saveApp={controller.saveApp}
-        />
-      )
-    case 'smtp':
-      return (
-        <ConnectorReferenceSection
-          title="SMTP"
-          description={connectorSectionDescription(
-            controller,
-            'smtp',
-            'Outgoing email delivery is managed as reusable connectors.'
-          )}
-          connectorKinds="SMTP connectors"
-        />
-      )
-    case 's3':
-      return (
-        <S3Section
-          s3Enabled={controller.s3Enabled}
-          s3Bucket={controller.s3Bucket}
-          s3Region={controller.s3Region}
-          s3Endpoint={controller.s3Endpoint}
-          s3AccessKey={controller.s3AccessKey}
-          s3Secret={controller.s3Secret}
-          s3ForcePathStyle={controller.s3ForcePathStyle}
-          s3Saving={controller.s3Saving}
-          s3Testing={controller.s3Testing}
-          setS3Enabled={controller.setS3Enabled}
-          setS3Bucket={controller.setS3Bucket}
-          setS3Region={controller.setS3Region}
-          setS3Endpoint={controller.setS3Endpoint}
-          setS3AccessKey={controller.setS3AccessKey}
-          setS3Secret={controller.setS3Secret}
-          setS3ForcePathStyle={controller.setS3ForcePathStyle}
-          saveS3={controller.saveS3}
-          testS3={controller.testS3}
-        />
-      )
-    case 'logs':
-      return (
-        <LogsSection
-          logsMaxDays={controller.logsMaxDays}
-          logsMinLevel={controller.logsMinLevel}
-          logsLogIP={controller.logsLogIP}
-          logsLogAuthId={controller.logsLogAuthId}
-          logsSaving={controller.logsSaving}
-          setLogsMaxDays={controller.setLogsMaxDays}
-          setLogsMinLevel={controller.setLogsMinLevel}
-          setLogsLogIP={controller.setLogsLogIP}
-          setLogsLogAuthId={controller.setLogsLogAuthId}
-          saveLogs={controller.saveLogs}
-        />
-      )
-    case 'monitor':
-    case 'monitor-scheduling':
-    case 'monitor-policy':
-    case 'monitor-platform-self-observation':
-    case 'monitor-managed-collector-policy':
-      return (
-        <MonitorSection
-          schedulingEntry={findSchemaEntry(controller, 'monitor-scheduling')}
-          schedulingForm={controller.monitorSchedulingForm}
-          schedulingErrors={controller.monitorSchedulingErrors}
-          schedulingSaving={controller.monitorSchedulingSaving}
-          setSchedulingForm={controller.setMonitorSchedulingForm}
-          saveScheduling={controller.saveMonitorScheduling}
-          policyEntry={findSchemaEntry(controller, 'monitor-policy')}
-          policyForm={controller.monitorPolicyForm}
-          policyErrors={controller.monitorPolicyErrors}
-          policySaving={controller.monitorPolicySaving}
-          setPolicyForm={controller.setMonitorPolicyForm}
-          savePolicy={controller.saveMonitorPolicy}
-          platformSelfObservationEntry={findSchemaEntry(
-            controller,
-            'monitor-platform-self-observation'
-          )}
-          platformSelfObservationForm={controller.monitorPlatformSelfObservationForm}
-          platformSelfObservationErrors={controller.monitorPlatformSelfObservationErrors}
-          platformSelfObservationSaving={controller.monitorPlatformSelfObservationSaving}
-          setPlatformSelfObservationForm={controller.setMonitorPlatformSelfObservationForm}
-          savePlatformSelfObservation={controller.saveMonitorPlatformSelfObservation}
-          managedCollectorPolicyEntry={findSchemaEntry(controller, 'monitor-managed-collector-policy')}
-          managedCollectorPolicyForm={controller.monitorManagedCollectorPolicyForm}
-          managedCollectorPolicyErrors={controller.monitorManagedCollectorPolicyErrors}
-          managedCollectorPolicySaving={controller.monitorManagedCollectorPolicySaving}
-          setManagedCollectorPolicyForm={controller.setMonitorManagedCollectorPolicyForm}
-          saveManagedCollectorPolicy={controller.saveMonitorManagedCollectorPolicy}
-        />
-      )
-    case 'feeds-policy':
-      return findSchemaEntry(controller, 'feeds-policy') ? (
-        <FeedsPolicySection
-          entry={findSchemaEntry(controller, 'feeds-policy')!}
-          form={controller.feedsPolicyForm}
-          errors={controller.feedsPolicyErrors}
-          saving={controller.feedsPolicySaving}
-          setForm={controller.setFeedsPolicyForm}
-          save={controller.saveFeedsPolicy}
-        />
-      ) : null
-    case 'space-quota':
-      return (
-        <SpaceQuotaSection
-          form={controller.spaceQuotaForm}
-          errors={controller.spaceQuotaErrors}
-          allowExtsText={controller.allowExtsText}
-          denyExtsText={controller.denyExtsText}
-          disallowedFolderNamesText={controller.disallowedFolderNamesText}
-          saving={controller.spaceQuotaSaving}
-          parseExtListInput={parseExtListInput}
-          setForm={controller.setSpaceQuotaForm}
-          setAllowExtsText={controller.setAllowExtsText}
-          setDenyExtsText={controller.setDenyExtsText}
-          setDisallowedFolderNamesText={controller.setDisallowedFolderNamesText}
-          save={controller.saveSpaceQuota}
-        />
-      )
-    case 'terminal':
-    case 'connect-terminal':
-    case 'connect-sftp':
-      return terminalEntries.terminal || terminalEntries.sftp ? (
-        <div className="space-y-4">
-          {terminalEntries.terminal ? (
-            <ConnectTerminalSection
-              entry={terminalEntries.terminal}
-              form={controller.connectTerminalForm}
-              errors={controller.connectTerminalErrors}
-              saving={controller.connectTerminalSaving}
-              setForm={controller.setConnectTerminalForm}
-              save={controller.saveConnectTerminal}
-            />
-          ) : null}
-          {terminalEntries.sftp ? (
-            <ConnectSftpSection
-              entry={terminalEntries.sftp}
-              form={controller.connectSftpForm}
-              errors={controller.connectSftpErrors}
-              saving={controller.connectSftpSaving}
-              setForm={controller.setConnectSftpForm}
-              save={controller.saveConnectSftp}
-            />
-          ) : null}
-        </div>
-      ) : null
-    case 'deploy-preflight':
-      return findSchemaEntry(controller, 'deploy-preflight') ? (
-        <DeployPreflightSection
-          entry={findSchemaEntry(controller, 'deploy-preflight')!}
-          form={controller.deployPreflightForm}
-          errors={controller.deployPreflightErrors}
-          saving={controller.deployPreflightSaving}
-          setForm={controller.setDeployPreflightForm}
-          save={controller.saveDeployPreflight}
-        />
-      ) : null
-    case 'iac-files':
-      return findSchemaEntry(controller, 'iac-files') ? (
-        <IacFilesSection
-          entry={findSchemaEntry(controller, 'iac-files')!}
-          form={controller.iacFilesForm}
-          errors={controller.iacFilesErrors}
-          saving={controller.iacFilesSaving}
-          setForm={controller.setIacFilesForm}
-          save={controller.saveIacFiles}
-        />
-      ) : null
-    case 'tunnel-port-range':
-      return findSchemaEntry(controller, 'tunnel-port-range') ? (
-        <TunnelSection
-          entry={findSchemaEntry(controller, 'tunnel-port-range')!}
-          form={controller.tunnelPortRangeForm}
-          errors={controller.tunnelPortRangeErrors}
-          saving={controller.tunnelPortRangeSaving}
-          setForm={controller.setTunnelPortRangeForm}
-          save={controller.saveTunnelPortRange}
-        />
-      ) : null
-    case 'secrets-policy':
-      return (
-        <SecretsSection
-          secretPolicy={controller.secretPolicy}
-          secretPolicyErrors={controller.secretPolicyErrors}
-          secretPolicySaving={controller.secretPolicySaving}
-          setSecretPolicy={controller.setSecretPolicy}
-          saveSecretPolicy={controller.saveSecretPolicy}
-        />
-      )
-    case 'proxy-network':
-      return (
-        <ProxySection
-          proxyForm={controller.proxyForm}
-          proxySaving={controller.proxySaving}
-          setProxyForm={controller.setProxyForm}
-          saveProxy={controller.saveProxy}
-          onOpenHelp={options?.onOpenHelp}
-        />
-      )
-    case 'docker-mirror':
-    case 'docker-registries':
-      return dockerEntries.mirrors ? (
-        <DockerMirrorsSection
-          mirrors={controller.mirrors}
-          allowInsecureRegistries={controller.allowInsecureRegistries}
-          mirrorsSaving={controller.mirrorsSaving}
-          setMirrors={controller.setMirrors}
-          setAllowInsecureRegistries={controller.setAllowInsecureRegistries}
-          saveDockerMirrors={controller.saveDockerMirrors}
-          onOpenHelp={options?.onOpenHelp}
-        />
-      ) : null
-    case 'ai':
-      return (
-        <AISettingsSection
-          title="AI"
-          description={connectorSectionDescription(
-            controller,
-            'ai',
-            'Choose the platform default AI model and create new AI providers without leaving Settings.'
-          )}
-          showToast={controller.showToast}
-        />
-      )
-    default:
-      return (
-        <div className="text-sm text-muted-foreground">No editor available for this entry.</div>
-      )
+  const registeredSection = renderRegisteredSection(controller, {
+    ...options,
+    parseExtListInput,
+  })
+  if (registeredSection) {
+    return registeredSection
   }
+
+  return <div className="text-sm text-muted-foreground">No editor available for this entry.</div>
 }
 
 export function SettingsScreen({ controller }: SettingsScreenProps) {
@@ -469,7 +89,7 @@ export function SettingsScreen({ controller }: SettingsScreenProps) {
   const help = activeSectionHelp(controller)
 
   return (
-    <div className="p-6">
+    <div>
       <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
         {controller.toasts.map(t => (
           <div
@@ -502,19 +122,12 @@ export function SettingsScreen({ controller }: SettingsScreenProps) {
                   {sectionLabel(group)}
                 </p>
                 <div className="space-y-0.5">
-                  {navigationItems(controller, group).map(item => (
+                  {buildNavigationItems(controller, group).map(item => (
                       <button
                         key={item.id}
                         onClick={() => controller.setActiveSection(item.id)}
                         className={`w-full text-left px-3 py-2 text-sm rounded-md transition-colors ${
-                          controller.activeSection === item.id ||
-                          (item.id === 'terminal' &&
-                            (controller.activeSection === 'connect-terminal' ||
-                              controller.activeSection === 'connect-sftp')) ||
-                          (item.id === 'docker-mirror' &&
-                            (controller.activeSection === 'docker-mirror' ||
-                              controller.activeSection === 'docker-registries')) ||
-                          (item.id === 'monitor' && isMonitorEntry(controller.activeSection))
+                          isNavigationItemActive(group, item.id, controller.activeSection)
                             ? 'bg-accent text-accent-foreground font-medium'
                             : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
                         }`}

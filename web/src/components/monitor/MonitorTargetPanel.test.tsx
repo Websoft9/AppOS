@@ -978,7 +978,7 @@ describe('MonitorTargetPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '24h' }))
 
     expect(screen.getAllByText('CPU').length).toBeGreaterThan(0)
-    expect(screen.getByText('Updating...')).toBeInTheDocument()
+    expect(screen.queryByText('Updating...')).not.toBeInTheDocument()
 
     resolveSeriesWindowChange({
       targetType: 'server',

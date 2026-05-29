@@ -14,6 +14,9 @@ import {
   DEFAULT_DEPLOY_PREFLIGHT,
   DEFAULT_IAC_FILES,
   DEFAULT_SPACE_QUOTA,
+  DEFAULT_TOPIC_COMMENT_POLICY,
+  DEFAULT_TOPIC_IMPORT_POLICY,
+  DEFAULT_TOPIC_SHARE,
   DEFAULT_TUNNEL_PORT_RANGE,
   EMPTY_PROXY,
   type ConnectSftpGroup,
@@ -22,6 +25,9 @@ import {
   type IacFilesGroup,
   type ProxyNetwork,
   type SpaceQuota,
+  type TopicCommentPolicy,
+  type TopicImportPolicy,
+  type TopicShare,
   type TunnelPortRange,
 } from './-settings-sections/types'
 import {
@@ -52,6 +58,26 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
   const [connectSftpSaving, setConnectSftpSaving] = useState(false)
   const [connectSftpErrors, setConnectSftpErrors] = useState<
     Partial<Record<keyof ConnectSftpGroup, string>>
+  >({})
+
+  const [topicShareForm, setTopicShareForm] = useState<TopicShare>(DEFAULT_TOPIC_SHARE)
+  const [topicShareSaving, setTopicShareSaving] = useState(false)
+  const [topicShareErrors, setTopicShareErrors] = useState<
+    Partial<Record<keyof TopicShare, string>>
+  >({})
+
+  const [topicCommentPolicyForm, setTopicCommentPolicyForm] =
+    useState<TopicCommentPolicy>(DEFAULT_TOPIC_COMMENT_POLICY)
+  const [topicCommentPolicySaving, setTopicCommentPolicySaving] = useState(false)
+  const [topicCommentPolicyErrors, setTopicCommentPolicyErrors] = useState<
+    Partial<Record<keyof TopicCommentPolicy, string>>
+  >({})
+
+  const [topicImportPolicyForm, setTopicImportPolicyForm] =
+    useState<TopicImportPolicy>(DEFAULT_TOPIC_IMPORT_POLICY)
+  const [topicImportPolicySaving, setTopicImportPolicySaving] = useState(false)
+  const [topicImportPolicyErrors, setTopicImportPolicyErrors] = useState<
+    Partial<Record<keyof TopicImportPolicy, string>>
   >({})
 
   const [deployPreflightForm, setDeployPreflightForm] =
@@ -121,6 +147,63 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
         Number.isFinite(sftpMaxUploadFiles) && sftpMaxUploadFiles >= 1
           ? Math.floor(sftpMaxUploadFiles)
           : DEFAULT_CONNECT_SFTP.maxUploadFiles,
+    })
+
+    const topicShare = (entryMap.get('topic-share') as Partial<TopicShare>) ?? {}
+    const topicShareMaxMinutes = Number(topicShare.shareMaxMinutes)
+    const topicShareDefaultMinutes = Number(topicShare.shareDefaultMinutes)
+    setTopicShareForm({
+      shareMaxMinutes:
+        Number.isFinite(topicShareMaxMinutes) && topicShareMaxMinutes >= 1
+          ? Math.floor(topicShareMaxMinutes)
+          : DEFAULT_TOPIC_SHARE.shareMaxMinutes,
+      shareDefaultMinutes:
+        Number.isFinite(topicShareDefaultMinutes) && topicShareDefaultMinutes >= 1
+          ? Math.floor(topicShareDefaultMinutes)
+          : DEFAULT_TOPIC_SHARE.shareDefaultMinutes,
+    })
+
+    const topicCommentPolicy =
+      (entryMap.get('topic-comment-policy') as Partial<TopicCommentPolicy>) ?? {}
+    const maxGuestNameLength = Number(topicCommentPolicy.maxGuestNameLength)
+    const maxCommentBodyLength = Number(topicCommentPolicy.maxCommentBodyLength)
+    setTopicCommentPolicyForm({
+      allowGuestComments:
+        typeof topicCommentPolicy.allowGuestComments === 'boolean'
+          ? topicCommentPolicy.allowGuestComments
+          : DEFAULT_TOPIC_COMMENT_POLICY.allowGuestComments,
+      defaultGuestName:
+        typeof topicCommentPolicy.defaultGuestName === 'string' &&
+        topicCommentPolicy.defaultGuestName.trim().length > 0
+          ? topicCommentPolicy.defaultGuestName
+          : DEFAULT_TOPIC_COMMENT_POLICY.defaultGuestName,
+      maxGuestNameLength:
+        Number.isFinite(maxGuestNameLength) && maxGuestNameLength >= 1
+          ? Math.floor(maxGuestNameLength)
+          : DEFAULT_TOPIC_COMMENT_POLICY.maxGuestNameLength,
+      maxCommentBodyLength:
+        Number.isFinite(maxCommentBodyLength) && maxCommentBodyLength >= 1
+          ? Math.floor(maxCommentBodyLength)
+          : DEFAULT_TOPIC_COMMENT_POLICY.maxCommentBodyLength,
+    })
+
+    const topicImportPolicy =
+      (entryMap.get('topic-import-policy') as Partial<TopicImportPolicy>) ?? {}
+    const maxDescriptionImportKB = Number(topicImportPolicy.maxDescriptionImportKB)
+    const legacyMaxDescriptionImportBytes = Number(
+      (topicImportPolicy as { maxDescriptionImportBytes?: number }).maxDescriptionImportBytes
+    )
+    setTopicImportPolicyForm({
+      maxDescriptionImportKB:
+        Number.isFinite(maxDescriptionImportKB) && maxDescriptionImportKB >= 1
+          ? Math.floor(maxDescriptionImportKB)
+          : Number.isFinite(legacyMaxDescriptionImportBytes) && legacyMaxDescriptionImportBytes >= 1024
+            ? Math.ceil(legacyMaxDescriptionImportBytes / 1024)
+            : DEFAULT_TOPIC_IMPORT_POLICY.maxDescriptionImportKB,
+      textOnly:
+        typeof topicImportPolicy.textOnly === 'boolean'
+          ? topicImportPolicy.textOnly
+          : DEFAULT_TOPIC_IMPORT_POLICY.textOnly,
     })
 
     const preflight = (entryMap.get('deploy-preflight') as Partial<DeployPreflightGroup>) ?? {}
@@ -355,6 +438,208 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
       showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
     } finally {
       setConnectSftpSaving(false)
+    }
+  }
+
+  const validateTopicShare = (): boolean => {
+    const errors: Partial<Record<keyof TopicShare, string>> = {}
+    if (!Number.isInteger(topicShareForm.shareDefaultMinutes) || topicShareForm.shareDefaultMinutes < 1) {
+      errors.shareDefaultMinutes = 'Must be an integer ≥ 1'
+    }
+    if (!Number.isInteger(topicShareForm.shareMaxMinutes) || topicShareForm.shareMaxMinutes < 1) {
+      errors.shareMaxMinutes = 'Must be an integer ≥ 1'
+    }
+    if (
+      !errors.shareDefaultMinutes &&
+      !errors.shareMaxMinutes &&
+      topicShareForm.shareDefaultMinutes > topicShareForm.shareMaxMinutes
+    ) {
+      errors.shareDefaultMinutes = 'Cannot exceed max duration'
+    }
+    setTopicShareErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const saveTopicShare = async () => {
+    if (!validateTopicShare()) return
+    setTopicShareSaving(true)
+    setTopicShareErrors({})
+    try {
+      const res = (await pb.send(settingsEntryPath('topic-share'), {
+        method: 'PATCH',
+        body: {
+          shareMaxMinutes: topicShareForm.shareMaxMinutes,
+          shareDefaultMinutes: topicShareForm.shareDefaultMinutes,
+        },
+      })) as { value?: Partial<TopicShare> }
+      const next = res.value ?? topicShareForm
+      setTopicShareForm({
+        shareMaxMinutes: Number(next.shareMaxMinutes ?? topicShareForm.shareMaxMinutes),
+        shareDefaultMinutes: Number(
+          next.shareDefaultMinutes ?? topicShareForm.shareDefaultMinutes
+        ),
+      })
+      showToast('Topic share settings saved')
+    } catch (err) {
+      if (err instanceof ClientResponseError && (err.status === 400 || err.status === 422)) {
+        const root = err.response as Record<string, unknown>
+        const bag =
+          root.errors && typeof root.errors === 'object'
+            ? (root.errors as Record<string, unknown>)
+            : root
+        const nextErrors = {
+          shareMaxMinutes: extractFieldError(bag.shareMaxMinutes) ?? undefined,
+          shareDefaultMinutes: extractFieldError(bag.shareDefaultMinutes) ?? undefined,
+        }
+        if (Object.values(nextErrors).some(Boolean)) {
+          setTopicShareErrors(nextErrors)
+          showToast('Please fix validation errors and try again.', false)
+          return
+        }
+      }
+      showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
+    } finally {
+      setTopicShareSaving(false)
+    }
+  }
+
+  const validateTopicCommentPolicy = (): boolean => {
+    const errors: Partial<Record<keyof TopicCommentPolicy, string>> = {}
+    const trimmedDefaultGuestName = topicCommentPolicyForm.defaultGuestName.trim()
+
+    if (trimmedDefaultGuestName.length === 0) {
+      errors.defaultGuestName = 'Must not be empty'
+    }
+    if (
+      !Number.isInteger(topicCommentPolicyForm.maxGuestNameLength) ||
+      topicCommentPolicyForm.maxGuestNameLength < 1
+    ) {
+      errors.maxGuestNameLength = 'Must be an integer ≥ 1'
+    }
+    if (
+      !Number.isInteger(topicCommentPolicyForm.maxCommentBodyLength) ||
+      topicCommentPolicyForm.maxCommentBodyLength < 1
+    ) {
+      errors.maxCommentBodyLength = 'Must be an integer ≥ 1'
+    }
+    if (
+      !errors.defaultGuestName &&
+      !errors.maxGuestNameLength &&
+      trimmedDefaultGuestName.length > topicCommentPolicyForm.maxGuestNameLength
+    ) {
+      errors.defaultGuestName = 'Must be within Max Guest Name Length'
+    }
+
+    setTopicCommentPolicyErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const saveTopicCommentPolicy = async () => {
+    if (!validateTopicCommentPolicy()) return
+    setTopicCommentPolicySaving(true)
+    setTopicCommentPolicyErrors({})
+    try {
+      const payload: TopicCommentPolicy = {
+        ...topicCommentPolicyForm,
+        defaultGuestName: topicCommentPolicyForm.defaultGuestName.trim(),
+      }
+      const res = (await pb.send(settingsEntryPath('topic-comment-policy'), {
+        method: 'PATCH',
+        body: payload,
+      })) as { value?: Partial<TopicCommentPolicy> }
+      const next = res.value ?? payload
+      setTopicCommentPolicyForm({
+        allowGuestComments: Boolean(next.allowGuestComments ?? payload.allowGuestComments),
+        defaultGuestName:
+          typeof next.defaultGuestName === 'string'
+            ? next.defaultGuestName
+            : payload.defaultGuestName,
+        maxGuestNameLength: Number(
+          next.maxGuestNameLength ?? payload.maxGuestNameLength
+        ),
+        maxCommentBodyLength: Number(
+          next.maxCommentBodyLength ?? payload.maxCommentBodyLength
+        ),
+      })
+      showToast('Topic comment policy saved')
+    } catch (err) {
+      if (err instanceof ClientResponseError && (err.status === 400 || err.status === 422)) {
+        const root = err.response as Record<string, unknown>
+        const bag =
+          root.errors && typeof root.errors === 'object'
+            ? (root.errors as Record<string, unknown>)
+            : root
+        const nextErrors = {
+          allowGuestComments: extractFieldError(bag.allowGuestComments) ?? undefined,
+          defaultGuestName: extractFieldError(bag.defaultGuestName) ?? undefined,
+          maxGuestNameLength: extractFieldError(bag.maxGuestNameLength) ?? undefined,
+          maxCommentBodyLength: extractFieldError(bag.maxCommentBodyLength) ?? undefined,
+        }
+        if (Object.values(nextErrors).some(Boolean)) {
+          setTopicCommentPolicyErrors(nextErrors)
+          showToast('Please fix validation errors and try again.', false)
+          return
+        }
+      }
+      showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
+    } finally {
+      setTopicCommentPolicySaving(false)
+    }
+  }
+
+  const validateTopicImportPolicy = (): boolean => {
+    const errors: Partial<Record<keyof TopicImportPolicy, string>> = {}
+    if (
+      !Number.isInteger(topicImportPolicyForm.maxDescriptionImportKB) ||
+      topicImportPolicyForm.maxDescriptionImportKB < 1 ||
+      topicImportPolicyForm.maxDescriptionImportKB > 10 * 1024
+    ) {
+      errors.maxDescriptionImportKB = 'Must be an integer between 1 and 10240'
+    }
+    setTopicImportPolicyErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const saveTopicImportPolicy = async () => {
+    if (!validateTopicImportPolicy()) return
+    setTopicImportPolicySaving(true)
+    setTopicImportPolicyErrors({})
+    try {
+      const payload: TopicImportPolicy = {
+        ...topicImportPolicyForm,
+      }
+      const res = (await pb.send(settingsEntryPath('topic-import-policy'), {
+        method: 'PATCH',
+        body: payload,
+      })) as { value?: Partial<TopicImportPolicy> }
+      const next = res.value ?? payload
+      setTopicImportPolicyForm({
+        maxDescriptionImportKB: Number(
+          next.maxDescriptionImportKB ?? payload.maxDescriptionImportKB
+        ),
+        textOnly: Boolean(next.textOnly ?? payload.textOnly),
+      })
+      showToast('Topic import policy saved')
+    } catch (err) {
+      if (err instanceof ClientResponseError && (err.status === 400 || err.status === 422)) {
+        const root = err.response as Record<string, unknown>
+        const bag =
+          root.errors && typeof root.errors === 'object'
+            ? (root.errors as Record<string, unknown>)
+            : root
+        const nextErrors = {
+          maxDescriptionImportKB: extractFieldError(bag.maxDescriptionImportKB) ?? undefined,
+          textOnly: extractFieldError(bag.textOnly) ?? undefined,
+        }
+        if (Object.values(nextErrors).some(Boolean)) {
+          setTopicImportPolicyErrors(nextErrors)
+          showToast('Please fix validation errors and try again.', false)
+          return
+        }
+      }
+      showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
+    } finally {
+      setTopicImportPolicySaving(false)
     }
   }
 
@@ -596,6 +881,21 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     connectSftpErrors,
     setConnectSftpForm,
     saveConnectSftp,
+    topicShareForm,
+    topicShareSaving,
+    topicShareErrors,
+    setTopicShareForm,
+    saveTopicShare,
+    topicCommentPolicyForm,
+    topicCommentPolicySaving,
+    topicCommentPolicyErrors,
+    setTopicCommentPolicyForm,
+    saveTopicCommentPolicy,
+    topicImportPolicyForm,
+    topicImportPolicySaving,
+    topicImportPolicyErrors,
+    setTopicImportPolicyForm,
+    saveTopicImportPolicy,
     deployPreflightForm,
     deployPreflightSaving,
     deployPreflightErrors,

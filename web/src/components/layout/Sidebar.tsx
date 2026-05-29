@@ -57,7 +57,7 @@ const assetsNavItem: NavItem = {
   id: 'assets',
   label: 'Assets',
   icon: <FileCode2 className="h-5 w-5" />,
-  href: '/assets',
+  href: '/ai-assets',
 }
 
 const workspaceGroup: NavGroup = {

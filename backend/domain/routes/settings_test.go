@@ -169,6 +169,8 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 	var foundMonitorPlatformSelfObservation bool
 	var foundMonitorManagedCollectorPolicy bool
 	var foundFeedsPolicy bool
+	var foundTopicCommentPolicy bool
+	var foundTopicImportPolicy bool
 	for _, item := range items {
 		id, _ := item["id"].(string)
 		value, _ := item["value"].(map[string]any)
@@ -190,7 +192,11 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 		case "monitor-managed-collector-policy":
 			foundMonitorManagedCollectorPolicy = value != nil && int(value["collectionIntervalSeconds"].(float64)) == 10
 		case "feeds-policy":
-			foundFeedsPolicy = value != nil && int(value["pollIntervalMinutes"].(float64)) == 60 && int(value["globalRetentionCap"].(float64)) == 30000
+			foundFeedsPolicy = value != nil && int(value["pollIntervalHours"].(float64)) == 3 && int(value["perSourceRetentionCap"].(float64)) == 100 && int(value["globalRetentionCap"].(float64)) == 10000
+		case "topic-comment-policy":
+			foundTopicCommentPolicy = value != nil && value["allowGuestComments"] == true && value["defaultGuestName"] == "Guest" && int(value["maxGuestNameLength"].(float64)) == 100 && int(value["maxCommentBodyLength"].(float64)) == 10000
+		case "topic-import-policy":
+			foundTopicImportPolicy = value != nil && int(value["maxDescriptionImportKB"].(float64)) == 2 && value["textOnly"] == true
 		}
 	}
 
@@ -220,6 +226,12 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 	}
 	if !foundFeedsPolicy {
 		t.Fatal("expected feeds-policy fallback value")
+	}
+	if !foundTopicCommentPolicy {
+		t.Fatal("expected topic-comment-policy fallback value")
+	}
+	if !foundTopicImportPolicy {
+		t.Fatal("expected topic-import-policy fallback value")
 	}
 }
 
@@ -290,13 +302,31 @@ func TestSettingsEntryPatchValidation(t *testing.T) {
 		t.Fatalf("expected monitor-managed-collector-policy validation error, got %s", rec.Body.String())
 	}
 
-	badFeedsPolicy := `{"pollIntervalMinutes":60,"failureBackoffOneHours":8,"failureBackoffTwoHours":4,"failureBackoffMaxHours":2,"perSourceRetentionCap":2000,"globalRetentionCap":1000}`
+	badFeedsPolicy := `{"pollIntervalHours":241,"failureBackoffMaxHours":2,"perSourceRetentionCap":10,"globalRetentionCap":1000}`
 	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/feeds-policy", badFeedsPolicy, true)
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("expected 422 for invalid feeds-policy, got %d: %s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "globalRetentionCap") {
+	if !strings.Contains(rec.Body.String(), "pollIntervalHours") || !strings.Contains(rec.Body.String(), "failureBackoffMaxHours") {
 		t.Fatalf("expected feeds-policy validation error, got %s", rec.Body.String())
+	}
+
+	badTopicCommentPolicy := `{"allowGuestComments":"maybe","defaultGuestName":"","maxGuestNameLength":0,"maxCommentBodyLength":0}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/topic-comment-policy", badTopicCommentPolicy, true)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 for invalid topic-comment-policy, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "allowGuestComments") || !strings.Contains(rec.Body.String(), "defaultGuestName") {
+		t.Fatalf("expected topic-comment-policy validation error, got %s", rec.Body.String())
+	}
+
+	badTopicImportPolicy := `{"maxDescriptionImportKB":0,"textOnly":"sometimes"}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/topic-import-policy", badTopicImportPolicy, true)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 for invalid topic-import-policy, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "maxDescriptionImportKB") || !strings.Contains(rec.Body.String(), "textOnly") {
+		t.Fatalf("expected topic-import-policy validation error, got %s", rec.Body.String())
 	}
 }
 
@@ -448,7 +478,7 @@ func TestSettingsEntryPatchPersistsUnifiedValues(t *testing.T) {
 		t.Fatalf("expected metricBufferLimit 6000, got %d", got)
 	}
 
-	feedsPolicyBody := `{"pollIntervalMinutes":45,"failureBackoffOneHours":3,"failureBackoffTwoHours":9,"failureBackoffMaxHours":36,"perSourceRetentionCap":1500,"globalRetentionCap":45000}`
+	feedsPolicyBody := `{"pollIntervalHours":6,"failureBackoffMaxHours":36,"perSourceRetentionCap":800,"globalRetentionCap":45000}`
 	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/feeds-policy", feedsPolicyBody, true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 for feeds-policy patch, got %d: %s", rec.Code, rec.Body.String())
@@ -457,11 +487,52 @@ func TestSettingsEntryPatchPersistsUnifiedValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected stored feeds policy, got error: %v", err)
 	}
-	if got := sysconfig.Int(storedFeedsPolicy, "pollIntervalMinutes", 0); got != 45 {
-		t.Fatalf("expected pollIntervalMinutes 45, got %d", got)
+	if got := sysconfig.Int(storedFeedsPolicy, "pollIntervalHours", 0); got != 6 {
+		t.Fatalf("expected pollIntervalHours 6, got %d", got)
+	}
+	if got := sysconfig.Int(storedFeedsPolicy, "perSourceRetentionCap", 0); got != 800 {
+		t.Fatalf("expected perSourceRetentionCap 800, got %d", got)
 	}
 	if got := sysconfig.Int(storedFeedsPolicy, "globalRetentionCap", 0); got != 45000 {
 		t.Fatalf("expected globalRetentionCap 45000, got %d", got)
+	}
+
+	topicCommentPolicyBody := `{"allowGuestComments":false,"defaultGuestName":"Visitor","maxGuestNameLength":64,"maxCommentBodyLength":4096}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/topic-comment-policy", topicCommentPolicyBody, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for topic-comment-policy patch, got %d: %s", rec.Code, rec.Body.String())
+	}
+	storedTopicCommentPolicy, err := sysconfig.GetGroup(te.app, "topic", "comment-policy", nil)
+	if err != nil {
+		t.Fatalf("expected stored topic comment policy, got error: %v", err)
+	}
+	if got, ok := storedTopicCommentPolicy["allowGuestComments"].(bool); !ok || got {
+		t.Fatalf("expected allowGuestComments=false, got %#v", storedTopicCommentPolicy["allowGuestComments"])
+	}
+	if got := sysconfig.String(storedTopicCommentPolicy, "defaultGuestName", ""); got != "Visitor" {
+		t.Fatalf("expected defaultGuestName Visitor, got %q", got)
+	}
+	if got := sysconfig.Int(storedTopicCommentPolicy, "maxGuestNameLength", 0); got != 64 {
+		t.Fatalf("expected maxGuestNameLength 64, got %d", got)
+	}
+	if got := sysconfig.Int(storedTopicCommentPolicy, "maxCommentBodyLength", 0); got != 4096 {
+		t.Fatalf("expected maxCommentBodyLength 4096, got %d", got)
+	}
+
+	topicImportPolicyBody := `{"maxDescriptionImportKB":2048,"textOnly":false}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/topic-import-policy", topicImportPolicyBody, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for topic-import-policy patch, got %d: %s", rec.Code, rec.Body.String())
+	}
+	storedTopicImportPolicy, err := sysconfig.GetGroup(te.app, "topic", "import-policy", nil)
+	if err != nil {
+		t.Fatalf("expected stored topic import policy, got error: %v", err)
+	}
+	if got := sysconfig.Int(storedTopicImportPolicy, "maxDescriptionImportKB", 0); got != 2048 {
+		t.Fatalf("expected maxDescriptionImportKB 2048, got %d", got)
+	}
+	if got, ok := storedTopicImportPolicy["textOnly"].(bool); !ok || got {
+		t.Fatalf("expected textOnly=false, got %#v", storedTopicImportPolicy["textOnly"])
 	}
 }
 

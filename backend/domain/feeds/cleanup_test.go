@@ -1,10 +1,12 @@
 package feeds
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 )
 
 func seedCleanupSource(t *testing.T, app core.App, name string) *core.Record {
@@ -48,7 +50,7 @@ func seedCleanupFeedItem(t *testing.T, app core.App, sourceID, externalID string
 	return rec
 }
 
-func TestBuildCleanupPlanTrimsPerSourceBeforeGlobalAndExcludesBookmarks(t *testing.T) {
+func TestBuildRetentionPlanTrimsPerSourceBeforeGlobalAndExcludesBookmarks(t *testing.T) {
 	app := newFeedsTestApp(t)
 	first := seedCleanupSource(t, app, "alpha")
 	second := seedCleanupSource(t, app, "beta")
@@ -62,29 +64,26 @@ func TestBuildCleanupPlanTrimsPerSourceBeforeGlobalAndExcludesBookmarks(t *testi
 	seedCleanupFeedItem(t, app, second.Id, "b-oldest", base, OriginTypeFeed)
 	seedCleanupFeedItem(t, app, "", "bookmark-1", base.Add(-time.Minute), OriginTypeBookmark)
 
-	plan, err := buildCleanupPlan(app, 2, 3)
+	plan, err := buildRetentionPlan(app, 2, 3)
 	if err != nil {
-		t.Fatalf("build cleanup plan: %v", err)
+		t.Fatalf("build retention plan: %v", err)
 	}
-	if plan.Preview.GlobalTotalBefore != 6 {
-		t.Fatalf("expected 6 eligible feed items, got %#v", plan.Preview)
+	if plan.GlobalTotalBefore != 6 {
+		t.Fatalf("expected 6 eligible feed items, got %#v", plan)
 	}
-	if plan.Preview.PerSourceDeleteCount != 2 {
-		t.Fatalf("expected 2 per-source deletions, got %#v", plan.Preview)
+	if plan.PerSourceDeleteCount != 2 {
+		t.Fatalf("expected 2 per-source deletions, got %#v", plan)
 	}
-	if plan.Preview.GlobalDeleteCount != 1 {
-		t.Fatalf("expected 1 global deletion after per-source trim, got %#v", plan.Preview)
+	if plan.GlobalDeleteCount != 1 {
+		t.Fatalf("expected 1 global deletion after per-source trim, got %#v", plan)
 	}
-	if plan.Preview.TotalDeleteCount != 3 {
-		t.Fatalf("expected 3 total deletions, got %#v", plan.Preview)
-	}
-	if len(plan.Preview.Sources) != 2 {
-		t.Fatalf("expected 2 affected sources, got %#v", plan.Preview.Sources)
+	if plan.PerSourceAffectedCount != 2 {
+		t.Fatalf("expected 2 affected sources, got %#v", plan)
 	}
 
-	result, err := executeCleanupPlan(app, plan)
+	result, err := executeRetentionPlan(app, plan)
 	if err != nil {
-		t.Fatalf("execute cleanup plan: %v", err)
+		t.Fatalf("execute retention plan: %v", err)
 	}
 	if result.DeletedCount != 3 || result.GlobalTotalAfter != 3 {
 		t.Fatalf("unexpected cleanup result: %#v", result)
@@ -117,5 +116,70 @@ func TestBuildCleanupPlanTrimsPerSourceBeforeGlobalAndExcludesBookmarks(t *testi
 	}
 	if firstStored.GetInt("item_count") != 2 || secondStored.GetInt("item_count") != 1 {
 		t.Fatalf("expected refreshed source counts after cleanup, got %d and %d", firstStored.GetInt("item_count"), secondStored.GetInt("item_count"))
+	}
+}
+
+func TestRunRetentionSweepAppliesConfiguredPolicy(t *testing.T) {
+	app := newFeedsTestApp(t)
+	first := seedCleanupSource(t, app, "alpha")
+	second := seedCleanupSource(t, app, "beta")
+
+	if err := sysconfig.SetGroup(app, SettingsModule, PolicySettingsKey, map[string]any{
+		"pollIntervalHours":      3,
+		"failureBackoffMaxHours": 24,
+		"perSourceRetentionCap":  20,
+		"globalRetentionCap":     5000,
+	}); err != nil {
+		t.Fatalf("set feeds policy: %v", err)
+	}
+
+	base := time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC)
+	for idx := 0; idx < 21; idx++ {
+		seedCleanupFeedItem(t, app, first.Id, fmt.Sprintf("a-%d", idx), base.Add(time.Duration(21-idx)*time.Minute), OriginTypeFeed)
+	}
+	seedCleanupFeedItem(t, app, second.Id, "b-0", base, OriginTypeFeed)
+	seedCleanupFeedItem(t, app, "", "bookmark-1", base.Add(-time.Minute), OriginTypeBookmark)
+	if err := RefreshSourceItemCount(app, first.Id); err != nil {
+		t.Fatalf("refresh first source count: %v", err)
+	}
+	if err := RefreshSourceItemCount(app, second.Id); err != nil {
+		t.Fatalf("refresh second source count: %v", err)
+	}
+
+	result, err := RunRetentionSweep(app)
+	if err != nil {
+		t.Fatalf("run retention sweep: %v", err)
+	}
+	if result.DeletedCount != 1 || result.GlobalTotalAfter != 21 {
+		t.Fatalf("unexpected retention result: %#v", result)
+	}
+
+	remaining, err := app.FindAllRecords(CollectionItems)
+	if err != nil {
+		t.Fatal(err)
+	}
+	remainingExternalIDs := map[string]bool{}
+	for _, record := range remaining {
+		remainingExternalIDs[record.GetString("external_id")] = true
+	}
+	for _, removed := range []string{"a-20"} {
+		if remainingExternalIDs[removed] {
+			t.Fatalf("expected %s to be removed, remaining ids: %#v", removed, remainingExternalIDs)
+		}
+	}
+	if !remainingExternalIDs["bookmark-1"] {
+		t.Fatalf("expected bookmark to survive retention sweep, remaining ids: %#v", remainingExternalIDs)
+	}
+
+	firstStored, err := app.FindRecordById(CollectionSources, first.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondStored, err := app.FindRecordById(CollectionSources, second.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstStored.GetInt("item_count") != 20 || secondStored.GetInt("item_count") != 1 {
+		t.Fatalf("expected refreshed source counts after retention sweep, got %d and %d", firstStored.GetInt("item_count"), secondStored.GetInt("item_count"))
 	}
 }

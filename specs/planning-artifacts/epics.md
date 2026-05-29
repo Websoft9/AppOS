@@ -48,3 +48,5 @@ See `README.md` for spec maintenance conventions.
 - [Epic 26: Resource Taxonomy Refactor](../implementation-artifacts/epic26-resource-taxonomy-refactor.md)
 - [Epic 27: Feeds](../implementation-artifacts/epic27-feeds.md)
 - [Epic 29: Software](../implementation-artifacts/epic29-software.md)
+- [Epic 30: Assets](../implementation-artifacts/epic30-assets.md)
+- [Epic 31: AI Runtime](../implementation-artifacts/epic31-ai-runtime.md)

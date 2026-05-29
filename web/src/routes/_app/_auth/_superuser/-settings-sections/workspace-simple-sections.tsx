@@ -18,6 +18,9 @@ import type {
   ProxyNetwork,
   SecretPolicyErrors,
   SpaceQuota,
+  TopicCommentPolicy,
+  TopicImportPolicy,
+  TopicShare,
   TunnelPortRange,
 } from './types'
 
@@ -489,6 +492,166 @@ export function ProxySection({
         <SaveButton onClick={saveProxy} saving={proxySaving} />
       </CardContent>
     </Card>
+  )
+}
+
+export function TopicsSection({
+  shareEntry,
+  commentPolicyEntry,
+  importPolicyEntry,
+  shareForm,
+  shareErrors,
+  shareSaving,
+  setShareForm,
+  saveShare,
+  commentPolicyForm,
+  commentPolicyErrors,
+  commentPolicySaving,
+  setCommentPolicyForm,
+  saveCommentPolicy,
+  importPolicyForm,
+  importPolicyErrors,
+  importPolicySaving,
+  setImportPolicyForm,
+  saveImportPolicy,
+}: {
+  shareEntry: SettingsSchemaEntry
+  commentPolicyEntry: SettingsSchemaEntry
+  importPolicyEntry: SettingsSchemaEntry
+  shareForm: TopicShare
+  shareErrors: Partial<Record<keyof TopicShare, string>>
+  shareSaving: boolean
+  setShareForm: React.Dispatch<React.SetStateAction<TopicShare>>
+  saveShare: () => void
+  commentPolicyForm: TopicCommentPolicy
+  commentPolicyErrors: Partial<Record<keyof TopicCommentPolicy, string>>
+  commentPolicySaving: boolean
+  setCommentPolicyForm: React.Dispatch<React.SetStateAction<TopicCommentPolicy>>
+  saveCommentPolicy: () => void
+  importPolicyForm: TopicImportPolicy
+  importPolicyErrors: Partial<Record<keyof TopicImportPolicy, string>>
+  importPolicySaving: boolean
+  setImportPolicyForm: React.Dispatch<React.SetStateAction<TopicImportPolicy>>
+  saveImportPolicy: () => void
+}) {
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Topic Share</CardTitle>
+          <CardDescription>Control the default and maximum lifetime of public topic share links.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            {renderSchemaNumberFields<TopicShare, keyof TopicShare & string>({
+              entry: shareEntry,
+              form: shareForm,
+              errors: shareErrors,
+              setForm: setShareForm,
+              fieldOptions: {
+                shareDefaultMinutes: { inputId: 'topicShareDefaultMinutes', min: 1 },
+                shareMaxMinutes: { inputId: 'topicShareMaxMinutes', min: 1 },
+              },
+            })}
+          </div>
+          <SaveButton onClick={saveShare} saving={shareSaving} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Topic Comment Policy</CardTitle>
+          <CardDescription>Configure guest comment availability and text limits for shared topics.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/30 px-4 py-3">
+              <div className="space-y-1">
+                <Label htmlFor="topicAllowGuestComments">Allow Guest Comments</Label>
+              </div>
+              <Toggle
+                id="topicAllowGuestComments"
+                ariaLabel="Allow Guest Comments"
+                checked={commentPolicyForm.allowGuestComments}
+                onChange={checked =>
+                  setCommentPolicyForm(current => ({ ...current, allowGuestComments: checked }))
+                }
+              />
+            </div>
+            {commentPolicyErrors.allowGuestComments && (
+              <p className="text-xs text-destructive">{commentPolicyErrors.allowGuestComments}</p>
+            )}
+            {renderSchemaTextFields<TopicCommentPolicy, keyof TopicCommentPolicy & string>({
+              entry: commentPolicyEntry,
+              form: commentPolicyForm,
+              errors: commentPolicyErrors,
+              setForm: setCommentPolicyForm,
+              fieldOptions: {
+                defaultGuestName: {
+                  inputId: 'topicDefaultGuestName',
+                  placeholder: 'Guest',
+                },
+              },
+            })}
+            <div className="grid grid-cols-2 gap-4">
+              {renderSchemaNumberFields<TopicCommentPolicy, keyof TopicCommentPolicy & string>({
+                entry: commentPolicyEntry,
+                form: commentPolicyForm,
+                errors: commentPolicyErrors,
+                setForm: setCommentPolicyForm,
+                fieldOptions: {
+                  maxGuestNameLength: { inputId: 'topicMaxGuestNameLength', min: 1 },
+                  maxCommentBodyLength: { inputId: 'topicMaxCommentBodyLength', min: 1 },
+                },
+              })}
+            </div>
+          </div>
+          <SaveButton onClick={saveCommentPolicy} saving={commentPolicySaving} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Topic Description Import</CardTitle>
+          <CardDescription>Control the maximum imported file size and whether topic description imports must stay text-only.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4">
+              {renderSchemaNumberFields<TopicImportPolicy, keyof TopicImportPolicy & string>({
+                entry: importPolicyEntry,
+                form: importPolicyForm,
+                errors: importPolicyErrors,
+                setForm: setImportPolicyForm,
+                fieldOptions: {
+                  maxDescriptionImportKB: {
+                    inputId: 'topicMaxDescriptionImportKB',
+                    min: 1,
+                  },
+                },
+              })}
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/30 px-4 py-3">
+              <div className="space-y-1">
+                <Label htmlFor="topicImportTextOnly">Text-only Imports</Label>
+              </div>
+              <Toggle
+                id="topicImportTextOnly"
+                ariaLabel="Text-only Imports"
+                checked={importPolicyForm.textOnly}
+                onChange={checked =>
+                  setImportPolicyForm(current => ({ ...current, textOnly: checked }))
+                }
+              />
+            </div>
+            {importPolicyErrors.textOnly && (
+              <p className="text-xs text-destructive">{importPolicyErrors.textOnly}</p>
+            )}
+          </div>
+          <SaveButton onClick={saveImportPolicy} saving={importPolicySaving} />
+        </CardContent>
+      </Card>
+    </div>
   )
 }
 

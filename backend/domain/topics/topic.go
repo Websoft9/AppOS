@@ -24,6 +24,7 @@ var (
 	ErrTopicClosed        = errors.New("topic is closed")
 	ErrCommentBodyInvalid = errors.New("comment body invalid")
 	ErrGuestNameTooLong   = errors.New("guest name too long")
+	ErrGuestCommentsDisabled = errors.New("guest comments disabled")
 )
 
 // MessageForTopicError returns the canonical user-facing message for topic-local
@@ -36,8 +37,23 @@ func MessageForTopicError(err error) string {
 		return fmt.Sprintf("comment body is required and must be at most %d characters", MaxCommentBodyLen)
 	case errors.Is(err, ErrGuestNameTooLong):
 		return fmt.Sprintf("guest name must be at most %d characters", MaxGuestNameLen)
+	case errors.Is(err, ErrGuestCommentsDisabled):
+		return "Guest comments are disabled"
 	default:
 		return sharedshare.MessageForError(err)
+	}
+}
+
+// MessageForCommentPolicyError returns a user-facing message that reflects the
+// effective guest-comment policy values rather than compile-time constants.
+func MessageForCommentPolicyError(err error, policy CommentPolicy) string {
+	switch {
+	case errors.Is(err, ErrCommentBodyInvalid):
+		return fmt.Sprintf("comment body is required and must be at most %d characters", policy.MaxCommentBodyLen)
+	case errors.Is(err, ErrGuestNameTooLong):
+		return fmt.Sprintf("guest name must be at most %d characters", policy.MaxGuestNameLength)
+	default:
+		return MessageForTopicError(err)
 	}
 }
 
@@ -148,15 +164,21 @@ func (t *Topic) EnsureOpen() error {
 // NewGuestComment creates a validated Comment record within this topic posted
 // by an anonymous guest via a share link.
 // Returns an error if body or guestName fail domain invariants.
-func (t *Topic) NewGuestComment(col *core.Collection, body, guestName string) (*Comment, error) {
+func (t *Topic) NewGuestComment(col *core.Collection, policy CommentPolicy, body, guestName string) (*Comment, error) {
+	if !policy.AllowGuestComments {
+		return nil, ErrGuestCommentsDisabled
+	}
 	bodyLen := utf8.RuneCountInString(body)
-	if bodyLen == 0 || bodyLen > MaxCommentBodyLen {
+	if bodyLen == 0 || bodyLen > policy.MaxCommentBodyLen {
 		return nil, ErrCommentBodyInvalid
+	}
+	if guestName == "" {
+		guestName = policy.DefaultGuestName
 	}
 	if guestName == "" {
 		guestName = DefaultGuestName
 	}
-	if utf8.RuneCountInString(guestName) > MaxGuestNameLen {
+	if utf8.RuneCountInString(guestName) > policy.MaxGuestNameLength {
 		return nil, ErrGuestNameTooLong
 	}
 	rec := core.NewRecord(col)

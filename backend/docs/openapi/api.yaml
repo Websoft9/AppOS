@@ -15,6 +15,8 @@ tags:
       name: AI Providers
     - description: Installed app inventory and lifecycle APIs backed by compose projects.
       name: Apps
+    - description: Shared technical asset management APIs for phase-1 script and skill metadata plus content preview.
+      name: Assets
     - description: Audit log query APIs — native collection record endpoints
       name: Audit
     - description: User and authentication operations across Ext admin APIs and Native users auth + record CRUD actions.
@@ -37,6 +39,8 @@ tags:
       name: Health
     - description: Infrastructure-as-Code workspace and template file operations.
       name: IaC
+    - description: System media upload and delivery APIs for branding and future user-uploaded images.
+      name: Media
     - description: Monitoring overview, container telemetry, target status and series queries.
       name: Monitoring
     - description: Metrics ingestion endpoints used by managed-server collectors.
@@ -84,6 +88,33 @@ components:
         AnalyzeBookmarkRequest:
             properties:
                 url:
+                    type: string
+            type: object
+        AssetWriteRequest:
+            properties:
+                content:
+                    type: string
+                description:
+                    type: string
+                entrypoint:
+                    type: string
+                files:
+                    additionalProperties:
+                        type: string
+                    type: object
+                kind:
+                    type: string
+                language:
+                    type: string
+                name:
+                    type: string
+                path:
+                    type: string
+                reference:
+                    type: string
+                source_kind:
+                    type: string
+                storage_kind:
                     type: string
             type: object
         AuditLogList:
@@ -267,6 +298,11 @@ components:
             required:
                 - message
             type: object
+        FeedDeleteRequest:
+            properties:
+                count:
+                    type: integer
+            type: object
         FeedItemStatePatchRequest:
             properties:
                 is_starred:
@@ -276,6 +312,66 @@ components:
             type: object
         FeedSourceAnalyzeRequest:
             properties:
+                url:
+                    type: string
+            type: object
+        FeedSourceConflictResponse:
+            properties:
+                code:
+                    type: string
+                message:
+                    type: string
+            type: object
+        FeedSourceListResponse:
+            properties:
+                items:
+                    items:
+                        $ref: '#/components/schemas/FeedSourceRecordResponse'
+                    type: array
+                page:
+                    type: integer
+                perPage:
+                    type: integer
+                totalItems:
+                    type: integer
+            type: object
+        FeedSourceRecordResponse:
+            properties:
+                created:
+                    type: string
+                favicon_url:
+                    type: string
+                format:
+                    type: string
+                id:
+                    type: string
+                item_count:
+                    type: integer
+                last_error:
+                    type: string
+                last_fetched_at:
+                    type: string
+                last_success_at:
+                    type: string
+                name:
+                    type: string
+                status:
+                    type: string
+                updated:
+                    type: string
+                url:
+                    type: string
+            type: object
+        FeedSourceUpsertRequest:
+            properties:
+                favicon_url:
+                    type: string
+                format:
+                    type: string
+                name:
+                    type: string
+                status:
+                    type: string
                 url:
                     type: string
             type: object
@@ -664,6 +760,13 @@ components:
                 summary:
                     $ref: '#/components/schemas/SystemRuntimeSummary'
             type: object
+        TopicImportPolicyResponse:
+            properties:
+                maxDescriptionImportBytes:
+                    type: integer
+                textOnly:
+                    type: boolean
+            type: object
         TopicShareCommentRequest:
             properties:
                 body:
@@ -693,6 +796,13 @@ components:
                     type: string
                 share_token:
                     type: string
+            type: object
+        TopicSharePolicyResponse:
+            properties:
+                shareDefaultMinutes:
+                    type: integer
+                shareMaxMinutes:
+                    type: integer
             type: object
         TopicShareResolveResponse:
             properties:
@@ -2141,6 +2251,339 @@ paths:
             summary: Upgrade app
             tags:
                 - Apps
+    /api/assets:
+        get:
+            description: Returns all phase-1 asset records, including script and skill metadata. Authenticated users only.
+            operationId: get_api_assets
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                items:
+                                    additionalProperties: true
+                                    type: object
+                                type: array
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: List assets
+            tags:
+                - Assets
+        post:
+            description: Creates one script or skill asset. Writes are limited to superusers.
+            operationId: post_api_assets
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/AssetWriteRequest'
+                description: asset payload
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Create asset
+            tags:
+                - Assets
+    /api/assets/{id}:
+        delete:
+            description: Deletes one phase-1 asset by id. Writes are limited to superusers.
+            operationId: delete_api_assets_id
+            parameters:
+                - description: asset id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "204":
+                    description: No Content
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Delete asset
+            tags:
+                - Assets
+        get:
+            description: Returns one phase-1 asset record by id. Authenticated users only.
+            operationId: get_api_assets_id
+            parameters:
+                - description: asset id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+            security:
+                - bearerAuth: []
+            summary: Get asset
+            tags:
+                - Assets
+        put:
+            description: Updates one script or skill asset by id. Writes are limited to superusers.
+            operationId: put_api_assets_id
+            parameters:
+                - description: asset id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/AssetWriteRequest'
+                description: asset payload
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Update asset
+            tags:
+                - Assets
+    /api/assets/{id}/content:
+        get:
+            description: Returns file content or folder file entries for one local asset. Reference assets do not resolve content in phase 1.
+            operationId: get_api_assets_id_content
+            parameters:
+                - description: asset id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Conflict
+            security:
+                - bearerAuth: []
+            summary: Get asset content
+            tags:
+                - Assets
+    /api/assets/script/pull:
+        post:
+            description: Fetches remote script text from a validated http/https URL without persisting it. Writes are limited to superusers.
+            operationId: post_api_assets_script_pull
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                description: reference URL payload
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Pull script reference content
+            tags:
+                - Assets
+    /api/assets/skill/pull:
+        post:
+            description: Fetches a GitHub repository snapshot, extracts text files, and returns them for the create/edit form. Writes are limited to superusers.
+            operationId: post_api_assets_skill_pull
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                description: GitHub reference URL payload
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Pull skill reference content
+            tags:
+                - Assets
     /api/backups:
         get:
             operationId: pb_backups_list
@@ -5571,16 +6014,17 @@ paths:
             summary: Analyze bookmark URL
             tags:
                 - Feeds
-    /api/feeds/cleanup:
+    /api/feeds/delete:
         post:
-            description: Deletes feed items according to the platform retention policy. Superuser only.
-            operationId: post_api_feeds_cleanup
+            description: Deletes the oldest pulled feed items globally by count. Bookmarks are preserved. Superuser only.
+            operationId: post_api_feeds_delete
             requestBody:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: false
+                            $ref: '#/components/schemas/FeedDeleteRequest'
+                description: global delete payload
+                required: true
             responses:
                 "200":
                     content:
@@ -5588,6 +6032,13 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
                 "401":
                     content:
                         application/json:
@@ -5604,43 +6055,7 @@ paths:
                     description: Internal Server Error
             security:
                 - bearerAuth: []
-            summary: Execute feed cleanup
-            tags:
-                - Feeds
-    /api/feeds/cleanup/preview:
-        post:
-            description: Returns the deterministic feed cleanup summary without deleting any data. Superuser only.
-            operationId: post_api_feeds_cleanup_preview
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: false
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                additionalProperties: true
-                                type: object
-                    description: Unauthorized
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                additionalProperties: true
-                                type: object
-                    description: Internal Server Error
-            security:
-                - bearerAuth: []
-            summary: Preview feed cleanup
+            summary: Delete pulled feed articles globally
             tags:
                 - Feeds
     /api/feeds/favicon:
@@ -5898,6 +6313,253 @@ paths:
             security:
                 - bearerAuth: []
             summary: Trigger manual feeds poll
+            tags:
+                - Feeds
+    /api/feeds/sources:
+        get:
+            description: Returns feed source records ordered by latest update. Authenticated users only.
+            operationId: get_api_feeds_sources
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/FeedSourceListResponse'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: List feed sources
+            tags:
+                - Feeds
+        post:
+            description: Creates one feed source record for the Feeds workspace. Superuser only.
+            operationId: post_api_feeds_sources
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/FeedSourceUpsertRequest'
+                description: feed source payload
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/FeedSourceRecordResponse'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/FeedSourceConflictResponse'
+                    description: Conflict
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Create feed source
+            tags:
+                - Feeds
+    /api/feeds/sources/{id}:
+        delete:
+            description: Deletes one feed source record and its cascade-linked feed items. Superuser only.
+            operationId: delete_api_feeds_sources_id
+            parameters:
+                - description: feed source id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "204":
+                    description: No Content
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Delete feed source
+            tags:
+                - Feeds
+        patch:
+            description: Updates one feed source record for the Feeds workspace. Superuser only.
+            operationId: patch_api_feeds_sources_id
+            parameters:
+                - description: feed source id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/FeedSourceUpsertRequest'
+                description: feed source payload
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/FeedSourceRecordResponse'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/FeedSourceConflictResponse'
+                    description: Conflict
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Update feed source
+            tags:
+                - Feeds
+    /api/feeds/sources/{id}/delete:
+        post:
+            description: Deletes the oldest feed items for one source by count and preserves the source record. Superuser only.
+            operationId: post_api_feeds_sources_id_delete
+            parameters:
+                - description: feed source id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/FeedDeleteRequest'
+                description: source delete payload
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Delete feed source articles by count
             tags:
                 - Feeds
     /api/feeds/sources/{id}/poll:
@@ -6380,6 +7042,193 @@ paths:
             summary: Get instance template
             tags:
                 - Service Instances
+    /api/media:
+        post:
+            description: Upload one managed image file and return its metadata. Authenticated users only.
+            operationId: post_api_media
+            requestBody:
+                content:
+                    multipart/form-data:
+                        schema:
+                            properties:
+                                category:
+                                    type: string
+                                file:
+                                    format: binary
+                                    type: string
+                                owner_id:
+                                    type: string
+                                owner_type:
+                                    type: string
+                                scope:
+                                    type: string
+                            required:
+                                - file
+                            type: object
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Upload media
+            tags:
+                - Media
+    /api/media/{id}:
+        delete:
+            description: Delete one managed media record and file. Authenticated users only.
+            operationId: delete_api_media_id
+            parameters:
+                - description: media id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "204":
+                    description: No Content
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+            security:
+                - bearerAuth: []
+            summary: Delete media
+            tags:
+                - Media
+        get:
+            description: Return one managed media record. Authenticated users only.
+            operationId: get_api_media_id
+            parameters:
+                - description: media id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+            security:
+                - bearerAuth: []
+            summary: Get media metadata
+            tags:
+                - Media
+    /api/media/{id}/content:
+        get:
+            description: Stream one managed media file for authenticated users.
+            operationId: get_api_media_id_content
+            parameters:
+                - description: media id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+            security:
+                - bearerAuth: []
+            summary: Get media content
+            tags:
+                - Media
+    /api/media/{id}/public:
+        get:
+            description: Stream one public managed media file. Public.
+            operationId: get_api_media_id_public
+            parameters:
+                - description: media id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+            security: []
+            summary: Get public media content
+            tags:
+                - Media
     /api/monitor/overview:
         get:
             description: Returns aggregate status counts plus unhealthy targets and platform monitor items. Status values include healthy, degraded, offline, unreachable, credential_invalid, and unknown.
@@ -10669,6 +11518,29 @@ paths:
             summary: Patch settings entry
             tags:
                 - Settings
+    /api/settings/public/branding:
+        get:
+            description: Returns the current App Name, logo, wordmark, and favicon settings used by the web UI. Public.
+            operationId: get_api_settings_public_branding
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security: []
+            summary: Get branding metadata
+            tags:
+                - Settings
     /api/settings/schema:
         get:
             description: Returns all available settings entries and actions, including their section, source, fields, and action bindings. Superuser only.
@@ -12439,6 +13311,52 @@ paths:
             summary: SSH WebSocket terminal
             tags:
                 - Terminal
+    /api/topics/policy/import:
+        get:
+            description: Returns the effective topic description import policy for authenticated users.
+            operationId: get_api_topics_policy_import
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/TopicImportPolicyResponse'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get topic import policy
+            tags:
+                - Topics
+    /api/topics/policy/share:
+        get:
+            description: Returns the effective topic share policy for authenticated users.
+            operationId: get_api_topics_policy_share
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/TopicSharePolicyResponse'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get topic share policy
+            tags:
+                - Topics
     /api/topics/share/{id}:
         delete:
             description: Revokes the current public share token for a topic owned by the authenticated user.

@@ -2,33 +2,13 @@ package feeds
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 )
 
-type CleanupSourcePreview struct {
-	SourceID      string `json:"source_id"`
-	SourceName    string `json:"source_name"`
-	CurrentCount  int    `json:"current_count"`
-	DeleteCount   int    `json:"delete_count"`
-	RetainedCount int    `json:"retained_count"`
-}
-
-type CleanupPreview struct {
-	GlobalTotalBefore      int                    `json:"global_total_before"`
-	GlobalCap              int                    `json:"global_cap"`
-	GlobalDeleteCount      int                    `json:"global_delete_count"`
-	PerSourceCap           int                    `json:"per_source_cap"`
-	PerSourceAffectedCount int                    `json:"per_source_affected_count"`
-	PerSourceDeleteCount   int                    `json:"per_source_delete_count"`
-	TotalDeleteCount       int                    `json:"total_delete_count"`
-	Sources                []CleanupSourcePreview `json:"sources"`
-}
-
-type CleanupExecuteResult struct {
+type RetentionSweepResult struct {
 	DeletedCount           int `json:"deleted_count"`
 	GlobalTotalAfter       int `json:"global_total_after"`
 	PerSourceAffectedCount int `json:"per_source_affected_count"`
@@ -36,63 +16,141 @@ type CleanupExecuteResult struct {
 	PerSourceDeleteCount   int `json:"per_source_delete_count"`
 }
 
-type cleanupCandidateRow struct {
+type SourceDeleteResult struct {
+	SourceID       string `json:"source_id"`
+	RequestedCount int    `json:"requested_count"`
+	DeletedCount   int    `json:"deleted_count"`
+	RemainingCount int    `json:"remaining_count"`
+}
+
+type GlobalDeleteResult struct {
+	RequestedCount int `json:"requested_count"`
+	DeletedCount   int `json:"deleted_count"`
+	RemainingCount int `json:"remaining_count"`
+}
+
+type retentionCandidateRow struct {
 	ID         string `db:"id"`
 	SourceID   string `db:"source_id"`
 	SourceName string `db:"source_name"`
 }
 
-type cleanupPlan struct {
-	Preview           CleanupPreview
-	DeleteIDs         []string
-	AffectedSourceIDs map[string]struct{}
+
+type retentionPlan struct {
+	GlobalTotalBefore      int
+	GlobalDeleteCount      int
+	PerSourceAffectedCount int
+	PerSourceDeleteCount   int
+	DeleteIDs              []string
+	AffectedSourceIDs      map[string]struct{}
 }
 
-func PreviewCleanup(app core.App) (CleanupPreview, error) {
+func RunRetentionSweep(app core.App) (RetentionSweepResult, error) {
 	policy := LoadPolicySettings(app)
-	plan, err := buildCleanupPlan(app, policy.PerSourceCap, policy.GlobalCap)
+	plan, err := buildRetentionPlan(app, policy.PerSourceCap, policy.GlobalCap)
 	if err != nil {
-		return CleanupPreview{}, err
+		return RetentionSweepResult{}, err
 	}
-	return plan.Preview, nil
+	return executeRetentionPlan(app, plan)
 }
 
-func ExecuteCleanup(app core.App) (CleanupExecuteResult, error) {
-	policy := LoadPolicySettings(app)
-	plan, err := buildCleanupPlan(app, policy.PerSourceCap, policy.GlobalCap)
-	if err != nil {
-		return CleanupExecuteResult{}, err
+func DeleteSourceItems(app core.App, sourceID string, count int) (SourceDeleteResult, error) {
+	trimmedSourceID := strings.TrimSpace(sourceID)
+	if trimmedSourceID == "" {
+		return SourceDeleteResult{}, fmt.Errorf("source id is required")
 	}
-	return executeCleanupPlan(app, plan)
+	if count <= 0 {
+		return SourceDeleteResult{}, fmt.Errorf("count must be greater than zero")
+	}
+
+	rows, err := loadOldestFeedItems(app, trimmedSourceID, count)
+	if err != nil {
+		return SourceDeleteResult{}, err
+	}
+	if err := deleteFeedItemRows(app, rows); err != nil {
+		return SourceDeleteResult{}, err
+	}
+	if err := RefreshSourceItemCount(app, trimmedSourceID); err != nil {
+		return SourceDeleteResult{}, fmt.Errorf("refresh source item count for %s: %w", trimmedSourceID, err)
+	}
+
+	remainingCount, err := countFeedItems(app, trimmedSourceID)
+	if err != nil {
+		return SourceDeleteResult{}, err
+	}
+
+	return SourceDeleteResult{
+		SourceID:       trimmedSourceID,
+		RequestedCount: count,
+		DeletedCount:   len(rows),
+		RemainingCount: remainingCount,
+	}, nil
 }
 
-func executeCleanupPlan(app core.App, plan cleanupPlan) (CleanupExecuteResult, error) {
+func DeleteGlobalItems(app core.App, count int) (GlobalDeleteResult, error) {
+	if count <= 0 {
+		return GlobalDeleteResult{}, fmt.Errorf("count must be greater than zero")
+	}
+
+	rows, err := loadOldestFeedItems(app, "", count)
+	if err != nil {
+		return GlobalDeleteResult{}, err
+	}
+	if err := deleteFeedItemRows(app, rows); err != nil {
+		return GlobalDeleteResult{}, err
+	}
+
+	affectedSourceIDs := make(map[string]struct{})
+	for _, row := range rows {
+		if strings.TrimSpace(row.SourceID) != "" {
+			affectedSourceIDs[row.SourceID] = struct{}{}
+		}
+	}
+	for sourceID := range affectedSourceIDs {
+		if err := RefreshSourceItemCount(app, sourceID); err != nil {
+			return GlobalDeleteResult{}, fmt.Errorf("refresh source item count for %s: %w", sourceID, err)
+		}
+	}
+
+	remainingCount, err := countFeedItems(app, "")
+	if err != nil {
+		return GlobalDeleteResult{}, err
+	}
+
+	return GlobalDeleteResult{
+		RequestedCount: count,
+		DeletedCount:   len(rows),
+		RemainingCount: remainingCount,
+	}, nil
+}
+
+func executeRetentionPlan(app core.App, plan retentionPlan) (RetentionSweepResult, error) {
 	for _, id := range plan.DeleteIDs {
 		record, err := app.FindRecordById(CollectionItems, id)
 		if err != nil {
-			return CleanupExecuteResult{}, fmt.Errorf("find cleanup candidate %s: %w", id, err)
+			return RetentionSweepResult{}, fmt.Errorf("find retention candidate %s: %w", id, err)
 		}
 		if err := app.Delete(record); err != nil {
-			return CleanupExecuteResult{}, fmt.Errorf("delete cleanup candidate %s: %w", id, err)
+			return RetentionSweepResult{}, fmt.Errorf("delete retention candidate %s: %w", id, err)
 		}
 	}
 
 	for sourceID := range plan.AffectedSourceIDs {
 		if err := RefreshSourceItemCount(app, sourceID); err != nil {
-			return CleanupExecuteResult{}, fmt.Errorf("refresh source item count for %s: %w", sourceID, err)
+			return RetentionSweepResult{}, fmt.Errorf("refresh source item count for %s: %w", sourceID, err)
 		}
 	}
 
-	return CleanupExecuteResult{
+	return RetentionSweepResult{
 		DeletedCount:           len(plan.DeleteIDs),
-		GlobalTotalAfter:       max(0, plan.Preview.GlobalTotalBefore-len(plan.DeleteIDs)),
-		PerSourceAffectedCount: plan.Preview.PerSourceAffectedCount,
-		GlobalDeleteCount:      plan.Preview.GlobalDeleteCount,
-		PerSourceDeleteCount:   plan.Preview.PerSourceDeleteCount,
+		GlobalTotalAfter:       max(0, plan.GlobalTotalBefore-len(plan.DeleteIDs)),
+		PerSourceAffectedCount: plan.PerSourceAffectedCount,
+		GlobalDeleteCount:      plan.GlobalDeleteCount,
+		PerSourceDeleteCount:   plan.PerSourceDeleteCount,
 	}, nil
 }
 
-func buildCleanupPlan(app core.App, perSourceCap, globalCap int) (cleanupPlan, error) {
+func buildRetentionPlan(app core.App, perSourceCap, globalCap int) (retentionPlan, error) {
 	if perSourceCap < 0 {
 		perSourceCap = 0
 	}
@@ -100,23 +158,14 @@ func buildCleanupPlan(app core.App, perSourceCap, globalCap int) (cleanupPlan, e
 		globalCap = 0
 	}
 
-	rows, err := loadCleanupCandidates(app)
+	rows, err := loadRetentionCandidates(app)
 	if err != nil {
-		return cleanupPlan{}, err
+		return retentionPlan{}, err
 	}
 
-	currentCounts := make(map[string]int)
-	sourceNames := make(map[string]string)
-	for _, row := range rows {
-		currentCounts[row.SourceID]++
-		if sourceNames[row.SourceID] == "" {
-			sourceNames[row.SourceID] = strings.TrimSpace(row.SourceName)
-		}
-	}
-
-	retained := make([]cleanupCandidateRow, 0, len(rows))
+	retained := make([]retentionCandidateRow, 0, len(rows))
 	retainedPerSource := make(map[string]int)
-	perSourceDeleted := make([]cleanupCandidateRow, 0)
+	perSourceDeleted := make([]retentionCandidateRow, 0)
 	perSourceDeleteCounts := make(map[string]int)
 	affectedSourceIDs := make(map[string]struct{})
 
@@ -133,7 +182,7 @@ func buildCleanupPlan(app core.App, perSourceCap, globalCap int) (cleanupPlan, e
 		}
 	}
 
-	globalDeleted := make([]cleanupCandidateRow, 0)
+	globalDeleted := make([]retentionCandidateRow, 0)
 	if len(retained) > globalCap {
 		globalDeleted = append(globalDeleted, retained[globalCap:]...)
 		for _, row := range globalDeleted {
@@ -151,50 +200,20 @@ func buildCleanupPlan(app core.App, perSourceCap, globalCap int) (cleanupPlan, e
 		deleteIDs = append(deleteIDs, row.ID)
 	}
 
-	sources := make([]CleanupSourcePreview, 0, len(perSourceDeleteCounts))
-	for sourceID, deleteCount := range perSourceDeleteCounts {
-		retainedCount := currentCounts[sourceID] - deleteCount
-		if retainedCount < 0 {
-			retainedCount = 0
-		}
-		sources = append(sources, CleanupSourcePreview{
-			SourceID:      sourceID,
-			SourceName:    sourceNames[sourceID],
-			CurrentCount:  currentCounts[sourceID],
-			DeleteCount:   deleteCount,
-			RetainedCount: retainedCount,
-		})
-	}
-	sort.Slice(sources, func(i, j int) bool {
-		if sources[i].DeleteCount != sources[j].DeleteCount {
-			return sources[i].DeleteCount > sources[j].DeleteCount
-		}
-		if sources[i].SourceName != sources[j].SourceName {
-			return sources[i].SourceName < sources[j].SourceName
-		}
-		return sources[i].SourceID < sources[j].SourceID
-	})
+	affectedSourceCount := len(perSourceDeleteCounts)
 
-	preview := CleanupPreview{
+	return retentionPlan{
 		GlobalTotalBefore:      len(rows),
-		GlobalCap:              globalCap,
 		GlobalDeleteCount:      len(globalDeleted),
-		PerSourceCap:           perSourceCap,
-		PerSourceAffectedCount: len(sources),
+		PerSourceAffectedCount: affectedSourceCount,
 		PerSourceDeleteCount:   len(perSourceDeleted),
-		TotalDeleteCount:       len(deleteIDs),
-		Sources:                sources,
-	}
-
-	return cleanupPlan{
-		Preview:           preview,
-		DeleteIDs:         deleteIDs,
-		AffectedSourceIDs: affectedSourceIDs,
+		DeleteIDs:              deleteIDs,
+		AffectedSourceIDs:      affectedSourceIDs,
 	}, nil
 }
 
-func loadCleanupCandidates(app core.App) ([]cleanupCandidateRow, error) {
-	rows := make([]cleanupCandidateRow, 0)
+func loadRetentionCandidates(app core.App) ([]retentionCandidateRow, error) {
+	rows := make([]retentionCandidateRow, 0)
 	err := app.DB().NewQuery(`
 		SELECT
 			fi.id,
@@ -206,7 +225,71 @@ func loadCleanupCandidates(app core.App) ([]cleanupCandidateRow, error) {
 		ORDER BY coalesce(nullif(fi.published_at, ''), fi.created) DESC, fi.id DESC`,
 	).Bind(dbx.Params{"origin_type": OriginTypeFeed}).All(&rows)
 	if err != nil {
-		return nil, fmt.Errorf("load cleanup candidates: %w", err)
+		return nil, fmt.Errorf("load retention candidates: %w", err)
 	}
 	return rows, nil
+}
+
+func loadOldestFeedItems(app core.App, sourceID string, limit int) ([]retentionCandidateRow, error) {
+	trimmedSourceID := strings.TrimSpace(sourceID)
+	rows := make([]retentionCandidateRow, 0, limit)
+	params := dbx.Params{
+		"origin_type": OriginTypeFeed,
+		"limit":       limit,
+	}
+	whereClause := "fi.origin_type = {:origin_type}"
+	if trimmedSourceID != "" {
+		whereClause += " AND fi.source_id = {:source_id}"
+		params["source_id"] = trimmedSourceID
+	}
+
+	err := app.DB().NewQuery(`
+		SELECT
+			fi.id,
+			coalesce(fi.source_id, '') AS source_id,
+			coalesce(fs.name, '') AS source_name
+		FROM feed_items fi
+		LEFT JOIN feed_sources fs ON fs.id = fi.source_id
+		WHERE ` + whereClause + `
+		ORDER BY coalesce(nullif(fi.published_at, ''), fi.created) ASC, fi.id ASC
+		LIMIT {:limit}`,
+	).Bind(params).All(&rows)
+	if err != nil {
+		return nil, fmt.Errorf("load oldest feed items: %w", err)
+	}
+
+	return rows, nil
+}
+
+func deleteFeedItemRows(app core.App, rows []retentionCandidateRow) error {
+	for _, row := range rows {
+		record, err := app.FindRecordById(CollectionItems, row.ID)
+		if err != nil {
+			return fmt.Errorf("find feed item %s: %w", row.ID, err)
+		}
+		if err := app.Delete(record); err != nil {
+			return fmt.Errorf("delete feed item %s: %w", row.ID, err)
+		}
+	}
+
+	return nil
+}
+
+func countFeedItems(app core.App, sourceID string) (int, error) {
+	trimmedSourceID := strings.TrimSpace(sourceID)
+	params := dbx.Params{"origin_type": OriginTypeFeed}
+	whereClause := "origin_type = {:origin_type}"
+	if trimmedSourceID != "" {
+		whereClause += " AND source_id = {:source_id}"
+		params["source_id"] = trimmedSourceID
+	}
+
+	result := struct {
+		Count int `db:"count"`
+	}{}
+	if err := app.DB().NewQuery(`SELECT COUNT(*) AS count FROM feed_items WHERE ` + whereClause).Bind(params).One(&result); err != nil {
+		return 0, fmt.Errorf("count feed items: %w", err)
+	}
+
+	return result.Count, nil
 }

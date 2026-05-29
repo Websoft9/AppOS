@@ -74,6 +74,36 @@ func (s *Source) Snapshot() SourceSnapshot {
 	return SnapshotFromRecord(s.rec)
 }
 
+func (s *Source) ApplyConfiguration(input SourceUpsertInput) {
+	if s == nil || s.rec == nil {
+		return
+	}
+
+	snapshot := s.Snapshot()
+	identityChanged := snapshot.URL != input.URL || snapshot.Format != input.Format
+
+	s.rec.Set("name", input.Name)
+	s.rec.Set("url", input.URL)
+	s.rec.Set("favicon_url", input.FaviconURL)
+	s.rec.Set("format", input.Format)
+	s.rec.Set("status", input.Status)
+
+	if identityChanged {
+		s.ResetRuntimeState()
+	}
+}
+
+func (s *Source) ResetRuntimeState() {
+	if s == nil || s.rec == nil {
+		return
+	}
+	s.rec.Set("last_fetched_at", types.DateTime{})
+	s.rec.Set("last_success_at", types.DateTime{})
+	s.rec.Set("last_error", "")
+	s.rec.Set("failure_streak", 0)
+	s.rec.Set("next_poll_at", types.DateTime{})
+}
+
 func (s *Source) Due(now time.Time) bool {
 	if s == nil || s.rec == nil {
 		return false

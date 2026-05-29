@@ -25,6 +25,7 @@ const monitorRuntimeSnapshotPullCronJobID = "monitor_runtime_snapshot_pull"
 const monitorCredentialCronJobID = "monitor_credential_checks"
 const monitorAppHealthCronJobID = "monitor_app_health_checks"
 const feedsPollCronJobID = "feeds_poll"
+const feedsRetentionCronJobID = "feeds_retention_sweep"
 
 func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 	app.Cron().MustAdd(
@@ -42,6 +43,16 @@ func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 		"*/5 * * * *",
 		cronutil.Wrap(app, feedsPollCronJobID, func() {
 			if _, err := feeds.PollDueSources(nil, app, nil, time.Now().UTC()); err != nil {
+				panic(err)
+			}
+		}),
+	)
+
+	app.Cron().MustAdd(
+		feedsRetentionCronJobID,
+		"0 * * * *",
+		cronutil.Wrap(app, feedsRetentionCronJobID, func() {
+			if _, err := feeds.RunRetentionSweep(app); err != nil {
 				panic(err)
 			}
 		}),

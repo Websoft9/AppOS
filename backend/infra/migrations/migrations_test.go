@@ -20,6 +20,7 @@ func TestResourceCollectionsCreated(t *testing.T) {
 	app := newMigrationsTestApp(t)
 
 	expected := []string{
+		"assets",
 		"secrets",
 		"feed_sources",
 		"feed_items",
@@ -760,6 +761,72 @@ func TestInstancesCollectionExistsAfterMigration(t *testing.T) {
 		}
 	}
 	assertRelationTarget(t, app, col, "provider_account", "provider_accounts")
+}
+
+func TestAssetsCollectionFields(t *testing.T) {
+	app := newMigrationsTestApp(t)
+
+	col, err := app.FindCollectionByNameOrId("assets")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertFieldExists(t, col, "name", core.FieldTypeText, true)
+	assertFieldExists(t, col, "description", core.FieldTypeText, false)
+	assertFieldExists(t, col, "kind", core.FieldTypeSelect, true)
+	assertFieldExists(t, col, "storage_kind", core.FieldTypeSelect, true)
+	assertFieldExists(t, col, "source_kind", core.FieldTypeSelect, true)
+	assertFieldExists(t, col, "language", core.FieldTypeSelect, false)
+	assertFieldExists(t, col, "reference", core.FieldTypeText, false)
+	assertFieldExists(t, col, "path", core.FieldTypeText, false)
+	assertFieldExists(t, col, "entrypoint", core.FieldTypeText, false)
+	assertFieldExists(t, col, "created", core.FieldTypeAutodate, false)
+	assertFieldExists(t, col, "updated", core.FieldTypeAutodate, false)
+	assertSelectFieldValues(t, col, "kind", []string{"script", "skill"})
+	assertSelectFieldValues(t, col, "storage_kind", []string{"file", "folder"})
+	assertSelectFieldValues(t, col, "source_kind", []string{"local", "reference"})
+	assertSelectFieldValues(t, col, "language", []string{"shell", "python", "other"})
+
+	if col.ListRule == nil || col.ViewRule == nil {
+		t.Fatal("assets should be readable by authenticated users")
+	}
+	if col.CreateRule != nil || col.UpdateRule != nil || col.DeleteRule != nil {
+		t.Fatal("assets write rules should remain nil for superuser-only write access")
+	}
+	if len(col.Indexes) == 0 {
+		t.Fatal("assets should define at least one index")
+	}
+}
+
+func TestMediaCollectionFields(t *testing.T) {
+	app := newMigrationsTestApp(t)
+
+	col, err := app.FindCollectionByNameOrId("media")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertFieldExists(t, col, "category", core.FieldTypeSelect, true)
+	assertFieldExists(t, col, "scope", core.FieldTypeSelect, true)
+	assertFieldExists(t, col, "owner_type", core.FieldTypeSelect, true)
+	assertFieldExists(t, col, "owner_id", core.FieldTypeText, false)
+	assertFieldExists(t, col, "original_name", core.FieldTypeText, true)
+	assertFieldExists(t, col, "content_type", core.FieldTypeText, true)
+	assertFieldExists(t, col, "size", core.FieldTypeNumber, true)
+	assertFieldExists(t, col, "storage_path", core.FieldTypeText, true)
+	assertFieldExists(t, col, "public_url", core.FieldTypeText, false)
+	assertFieldExists(t, col, "created_by", core.FieldTypeText, false)
+	assertFieldExists(t, col, "created", core.FieldTypeAutodate, false)
+	assertFieldExists(t, col, "updated", core.FieldTypeAutodate, false)
+	assertSelectFieldValues(t, col, "category", []string{"branding", "avatar", "general"})
+	assertSelectFieldValues(t, col, "scope", []string{"public", "private"})
+	assertSelectFieldValues(t, col, "owner_type", []string{"system", "user", "other"})
+	if col.ListRule == nil || col.ViewRule == nil {
+		t.Fatal("media should be readable by authenticated users")
+	}
+	if len(col.Indexes) == 0 {
+		t.Fatal("media should define at least one index")
+	}
 }
 
 func TestProviderAccountsCollectionExistsAfterMigration(t *testing.T) {

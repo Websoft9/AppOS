@@ -102,11 +102,21 @@ func TestRegisterCronHooksRegistersFeedsPollJob(t *testing.T) {
 	app := pocketbase.New()
 	registerCronHooks(app, nil)
 
+	foundFeedsPoll := false
+	foundFeedsRetention := false
 	for _, job := range app.Cron().Jobs() {
 		if job.Id() == feedsPollCronJobID {
-			return
+			foundFeedsPoll = true
+		}
+		if job.Id() == feedsRetentionCronJobID {
+			foundFeedsRetention = true
 		}
 	}
 
-	t.Fatalf("expected cron job %q to be registered", feedsPollCronJobID)
+	if !foundFeedsPoll {
+		t.Fatalf("expected cron job %q to be registered", feedsPollCronJobID)
+	}
+	if !foundFeedsRetention {
+		t.Fatalf("expected cron job %q to be registered", feedsRetentionCronJobID)
+	}
 }

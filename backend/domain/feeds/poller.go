@@ -94,9 +94,6 @@ func pollSourceRecord(ctx context.Context, app core.App, client HTTPDoer, now ti
 	if saveErr := app.Save(sourceRecord); saveErr != nil {
 		return summary, fmt.Errorf("save successful source status: %w", saveErr)
 	}
-	if _, cleanupErr := ExecuteCleanup(app); cleanupErr != nil {
-		return summary, fmt.Errorf("cleanup feed items: %w", cleanupErr)
-	}
 	if err := RefreshSourceItemCount(app, sourceRecord.Id); err != nil {
 		return summary, fmt.Errorf("refresh source item count: %w", err)
 	}

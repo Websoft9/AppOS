@@ -149,6 +149,7 @@ groups:
       - GET /api/feeds/favicon
       - GET /api/feeds/bookmarks
       - GET /api/feeds/items
+      - GET /api/feeds/sources
       - GET /api/feeds/summary
       - POST /api/feeds/bookmarks
       - POST /api/feeds/bookmarks/analyze
@@ -157,14 +158,50 @@ groups:
       - POST /api/feeds/items/{id}/bookmark
       - PATCH /api/feeds/items/{id}/state
       - POST /api/feeds/analyze
-      - POST /api/feeds/cleanup/preview
-      - POST /api/feeds/cleanup
+      - POST /api/feeds/delete
       - POST /api/feeds/poll
+      - POST /api/feeds/sources
+      - PATCH /api/feeds/sources/{id}
+      - DELETE /api/feeds/sources/{id}
+      - POST /api/feeds/sources/{id}/delete
       - POST /api/feeds/sources/{id}/poll
     nativeSurface: []
     sources:
       extRouteFiles:
         - feeds.go
+      nativeRefs: []
+
+  - group: Assets
+    description: Shared technical asset management APIs for phase-1 script and skill metadata plus content preview.
+    apiType: Ext
+    extSurface:
+      - GET /api/assets
+      - POST /api/assets
+      - POST /api/assets/script/pull
+      - POST /api/assets/skill/pull
+      - GET /api/assets/{id}
+      - PUT /api/assets/{id}
+      - DELETE /api/assets/{id}
+      - GET /api/assets/{id}/content
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - assets.go
+      nativeRefs: []
+
+  - group: Media
+    description: System media upload and delivery APIs for branding and future user-uploaded images.
+    apiType: Ext
+    extSurface:
+      - POST /api/media
+      - GET /api/media/{id}
+      - DELETE /api/media/{id}
+      - GET /api/media/{id}/content
+      - GET /api/media/{id}/public
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - media.go
       nativeRefs: []
 
   - group: Apps
@@ -475,6 +512,7 @@ groups:
     description: Configuration management spanning System and Workspace settings APIs.
     apiType: Mixed
     extSurface:
+      - /api/settings/public/branding
       - /api/settings/schema
       - /api/settings/entries
       - /api/settings/entries/*
@@ -487,6 +525,7 @@ groups:
       - POST /api/settings/apple/generate-client-secret
     sources:
       extRouteFiles:
+        - branding.go
         - settings_handlers.go
         - settings_rules.go
       nativeRefs:

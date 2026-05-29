@@ -2,6 +2,7 @@ package routes
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -33,6 +34,18 @@ type createBookmarkRequest struct {
 
 type analyzeBookmarkRequest struct {
 	URL string `json:"url"`
+}
+
+type feedDeleteRequest struct {
+	Count int `json:"count"`
+}
+
+type feedSourceUpsertRequest struct {
+	Name       string `json:"name"`
+	URL        string `json:"url"`
+	FaviconURL string `json:"favicon_url"`
+	Format     string `json:"format"`
+	Status     string `json:"status"`
 }
 
 type bookmarkConflictResponse struct {
@@ -119,6 +132,33 @@ type feedSummaryResponse struct {
 	SourceCounts []feedSummarySourceCount `json:"sourceCounts"`
 }
 
+type feedSourceRecordResponse struct {
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	URL           string `json:"url"`
+	FaviconURL    string `json:"favicon_url,omitempty"`
+	ItemCount     int    `json:"item_count"`
+	Format        string `json:"format"`
+	Status        string `json:"status"`
+	LastFetchedAt string `json:"last_fetched_at,omitempty"`
+	LastSuccessAt string `json:"last_success_at,omitempty"`
+	LastError     string `json:"last_error,omitempty"`
+	Created       string `json:"created,omitempty"`
+	Updated       string `json:"updated,omitempty"`
+}
+
+type feedSourceListResponse struct {
+	Items      []feedSourceRecordResponse `json:"items"`
+	Page       int                        `json:"page"`
+	PerPage    int                        `json:"perPage"`
+	TotalItems int                        `json:"totalItems"`
+}
+
+type feedSourceConflictResponse struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
 type feedListRow struct {
 	ID                  string `db:"id"`
 	SourceID            string `db:"source_id"`
@@ -181,6 +221,7 @@ func registerFeedsRoutes(se *core.ServeEvent) {
 
 	g.GET("/bookmarks", handleListBookmarks)
 	g.GET("/items", handleListFeedItems)
+	g.GET("/sources", handleListFeedSources)
 	g.GET("/summary", handleFeedSummary)
 	g.POST("/bookmarks", handleCreateBookmark)
 	g.POST("/bookmarks/analyze", handleAnalyzeBookmark)
@@ -189,10 +230,66 @@ func registerFeedsRoutes(se *core.ServeEvent) {
 	g.POST("/items/{id}/bookmark", handleFeedItemBookmark)
 	g.PATCH("/items/{id}/state", handleFeedItemStatePatch)
 	admin.POST("/analyze", handleFeedSourceAnalyze)
-	admin.POST("/cleanup/preview", handleFeedCleanupPreview)
-	admin.POST("/cleanup", handleFeedCleanup)
+	admin.POST("/delete", handleFeedDelete)
 	admin.POST("/poll", handleFeedsPoll)
+	admin.POST("/sources", handleCreateFeedSource)
+	admin.PATCH("/sources/{id}", handleUpdateFeedSource)
+	admin.DELETE("/sources/{id}", handleDeleteFeedSource)
+	admin.POST("/sources/{id}/delete", handleFeedSourceDelete)
 	admin.POST("/sources/{id}/poll", handleFeedSourcePoll)
+}
+
+func marshalFeedSourceRecord(record *core.Record) feedSourceRecordResponse {
+	if record == nil {
+		return feedSourceRecordResponse{}
+	}
+
+	return feedSourceRecordResponse{
+		ID:            record.Id,
+		Name:          record.GetString("name"),
+		URL:           record.GetString("url"),
+		FaviconURL:    record.GetString("favicon_url"),
+		ItemCount:     record.GetInt("item_count"),
+		Format:        record.GetString("format"),
+		Status:        record.GetString("status"),
+		LastFetchedAt: record.GetDateTime("last_fetched_at").String(),
+		LastSuccessAt: record.GetDateTime("last_success_at").String(),
+		LastError:     record.GetString("last_error"),
+		Created:       record.GetDateTime("created").String(),
+		Updated:       record.GetDateTime("updated").String(),
+	}
+}
+
+func toFeedSourceUpsertInput(body feedSourceUpsertRequest) feeds.SourceUpsertInput {
+	return feeds.SourceUpsertInput{
+		Name:       body.Name,
+		URL:        body.URL,
+		FaviconURL: body.FaviconURL,
+		Format:     body.Format,
+		Status:     body.Status,
+	}
+}
+
+func handleFeedSourceServiceError(e *core.RequestEvent, err error, fallbackMessage string) error {
+	var validationErr *feeds.SourceValidationError
+	if errors.As(err, &validationErr) {
+		return e.BadRequestError(validationErr.Message, nil)
+	}
+
+	var conflictErr *feeds.SourceConflictError
+	if errors.As(err, &conflictErr) {
+		return e.JSON(http.StatusConflict, feedSourceConflictResponse{
+			Code:    conflictErr.Code,
+			Message: conflictErr.Message,
+		})
+	}
+
+	var notFoundErr *feeds.SourceNotFoundError
+	if errors.As(err, &notFoundErr) {
+		return e.NotFoundError("feed source not found", err)
+	}
+
+	return e.InternalServerError(fallbackMessage, err)
 }
 
 func buildFeedListWhere(sourceID, query string, starred bool) (string, dbx.Params) {
@@ -341,7 +438,7 @@ func handleFeedSummary(e *core.RequestEvent) error {
 	var totals feedSummaryTotalsRow
 	if err := e.App.DB().NewQuery(`
 		SELECT
-			COALESCE((SELECT SUM(item_count) FROM feed_sources), 0) AS total_items,
+			COUNT(*) AS total_items,
 			COALESCE(SUM(CASE WHEN is_starred THEN 1 ELSE 0 END), 0) AS starred_items
 		FROM feed_items
 		WHERE origin_type = {:origin_type}`,
@@ -351,9 +448,13 @@ func handleFeedSummary(e *core.RequestEvent) error {
 
 	rows := make([]feedSummaryCountRow, 0)
 	if err := e.App.DB().NewQuery(`
-		SELECT id AS source_id, COALESCE(item_count, 0) AS count
-		FROM feed_sources`,
-	).All(&rows); err != nil {
+		SELECT
+			fs.id AS source_id,
+			COUNT(fi.id) AS count
+		FROM feed_sources fs
+		LEFT JOIN feed_items fi ON fi.source_id = fs.id AND fi.origin_type = {:origin_type}
+		GROUP BY fs.id`,
+	).Bind(dbx.Params{"origin_type": feeds.OriginTypeFeed}).All(&rows); err != nil {
 		return e.InternalServerError("failed to summarize feed source counts", err)
 	}
 
@@ -366,6 +467,35 @@ func handleFeedSummary(e *core.RequestEvent) error {
 		TotalItems:   totals.TotalItems,
 		StarredItems: totals.StarredItems,
 		SourceCounts: sourceCounts,
+	})
+}
+
+// handleListFeedSources returns feed subscriptions through the feeds bounded context.
+//
+// @Summary List feed sources
+// @Description Returns feed source records ordered by latest update. Authenticated users only.
+// @Tags Feeds
+// @Security BearerAuth
+// @Success 200 {object} feedSourceListResponse
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/feeds/sources [get]
+func handleListFeedSources(e *core.RequestEvent) error {
+	records, err := feeds.ListSources(e.App)
+	if err != nil {
+		return e.InternalServerError("failed to list feed sources", err)
+	}
+
+	items := make([]feedSourceRecordResponse, 0, len(records))
+	for _, record := range records {
+		items = append(items, marshalFeedSourceRecord(record))
+	}
+
+	return e.JSON(http.StatusOK, feedSourceListResponse{
+		Items:      items,
+		Page:       1,
+		PerPage:    len(items),
+		TotalItems: len(items),
 	})
 }
 
@@ -786,6 +916,89 @@ func handleFeedSourceAnalyze(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, analysis)
 }
 
+// handleCreateFeedSource creates one feed source through the feeds bounded context.
+//
+// @Summary Create feed source
+// @Description Creates one feed source record for the Feeds workspace. Superuser only.
+// @Tags Feeds
+// @Security BearerAuth
+// @Param body body feedSourceUpsertRequest true "feed source payload"
+// @Success 200 {object} feedSourceRecordResponse
+// @Failure 400 {object} map[string]any
+// @Failure 409 {object} feedSourceConflictResponse
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/feeds/sources [post]
+func handleCreateFeedSource(e *core.RequestEvent) error {
+	var body feedSourceUpsertRequest
+	if err := e.BindBody(&body); err != nil {
+		return e.BadRequestError("invalid JSON body", err)
+	}
+
+	record, err := feeds.CreateSource(e.App, toFeedSourceUpsertInput(body))
+	if err != nil {
+		return handleFeedSourceServiceError(e, err, "failed to create feed source")
+	}
+
+	return e.JSON(http.StatusOK, marshalFeedSourceRecord(record))
+}
+
+// handleUpdateFeedSource updates one feed source through the feeds bounded context.
+//
+// @Summary Update feed source
+// @Description Updates one feed source record for the Feeds workspace. Superuser only.
+// @Tags Feeds
+// @Security BearerAuth
+// @Param id path string true "feed source id"
+// @Param body body feedSourceUpsertRequest true "feed source payload"
+// @Success 200 {object} feedSourceRecordResponse
+// @Failure 400 {object} map[string]any
+// @Failure 409 {object} feedSourceConflictResponse
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/feeds/sources/{id} [patch]
+func handleUpdateFeedSource(e *core.RequestEvent) error {
+	id := e.Request.PathValue("id")
+	if strings.TrimSpace(id) == "" {
+		return e.BadRequestError("feed source id is required", nil)
+	}
+
+	var body feedSourceUpsertRequest
+	if err := e.BindBody(&body); err != nil {
+		return e.BadRequestError("invalid JSON body", err)
+	}
+
+	record, err := feeds.UpdateSource(e.App, id, toFeedSourceUpsertInput(body))
+	if err != nil {
+		return handleFeedSourceServiceError(e, err, "failed to update feed source")
+	}
+
+	return e.JSON(http.StatusOK, marshalFeedSourceRecord(record))
+}
+
+// handleDeleteFeedSource deletes one feed source through the feeds bounded context.
+//
+// @Summary Delete feed source
+// @Description Deletes one feed source record and its cascade-linked feed items. Superuser only.
+// @Tags Feeds
+// @Security BearerAuth
+// @Param id path string true "feed source id"
+// @Success 204 {string} string ""
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/feeds/sources/{id} [delete]
+func handleDeleteFeedSource(e *core.RequestEvent) error {
+	id := e.Request.PathValue("id")
+	if err := feeds.DeleteSource(e.App, id); err != nil {
+		return handleFeedSourceServiceError(e, err, "failed to delete feed source")
+	}
+
+	return e.NoContent(http.StatusNoContent)
+}
+
 // handleFeedItemStatePatch updates the reader-owned preferences of one normalized feed item.
 //
 // @Summary Patch feed item preferences
@@ -949,40 +1162,65 @@ func handleFeedsPoll(e *core.RequestEvent) error {
 
 	return e.JSON(http.StatusOK, map[string]any{"summary": summary})
 }
-
-// handleFeedCleanupPreview returns the deterministic cleanup summary without deleting rows.
+// handleFeedDelete deletes the oldest pulled feed articles globally.
 //
-// @Summary Preview feed cleanup
-// @Description Returns the deterministic feed cleanup summary without deleting any data. Superuser only.
+// @Summary Delete pulled feed articles globally
+// @Description Deletes the oldest pulled feed items globally by count. Bookmarks are preserved. Superuser only.
 // @Tags Feeds
 // @Security BearerAuth
-// @Success 200 {object} feeds.CleanupPreview
+// @Param body body feedDeleteRequest true "global delete payload"
+// @Success 200 {object} feeds.GlobalDeleteResult
+// @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]any
-// @Router /api/feeds/cleanup/preview [post]
-func handleFeedCleanupPreview(e *core.RequestEvent) error {
-	preview, err := feeds.PreviewCleanup(e.App)
-	if err != nil {
-		return e.InternalServerError("failed to preview feed cleanup", err)
+// @Router /api/feeds/delete [post]
+func handleFeedDelete(e *core.RequestEvent) error {
+	var body feedDeleteRequest
+	if err := e.BindBody(&body); err != nil {
+		return e.BadRequestError("invalid JSON body", err)
+	}
+	if body.Count <= 0 {
+		return e.BadRequestError("delete count must be greater than zero", nil)
 	}
 
-	return e.JSON(http.StatusOK, preview)
-}
+	result, err := feeds.DeleteGlobalItems(e.App, body.Count)
+	if err != nil {
+		return e.InternalServerError("failed to delete feed articles", err)
+	}
 
-// handleFeedCleanup deletes feed rows according to the platform cleanup policy.
+	return e.JSON(http.StatusOK, result)
+}
+// handleFeedSourceDelete deletes the oldest pulled feed articles for one source and keeps the source config.
 //
-// @Summary Execute feed cleanup
-// @Description Deletes feed items according to the platform retention policy. Superuser only.
+// @Summary Delete feed source articles by count
+// @Description Deletes the oldest feed items for one source by count and preserves the source record. Superuser only.
 // @Tags Feeds
 // @Security BearerAuth
-// @Success 200 {object} feeds.CleanupExecuteResult
+// @Param id path string true "feed source id"
+// @Param body body feedDeleteRequest true "source delete payload"
+// @Success 200 {object} feeds.SourceDeleteResult
+// @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
 // @Failure 500 {object} map[string]any
-// @Router /api/feeds/cleanup [post]
-func handleFeedCleanup(e *core.RequestEvent) error {
-	result, err := feeds.ExecuteCleanup(e.App)
+// @Router /api/feeds/sources/{id}/delete [post]
+func handleFeedSourceDelete(e *core.RequestEvent) error {
+	id := e.Request.PathValue("id")
+	if strings.TrimSpace(id) == "" {
+		return e.BadRequestError("feed source id is required", nil)
+	}
+
+	var body feedDeleteRequest
+	if err := e.BindBody(&body); err != nil {
+		return e.BadRequestError("invalid JSON body", err)
+	}
+	if body.Count <= 0 {
+		return e.BadRequestError("delete count must be greater than zero", nil)
+	}
+
+	result, err := feeds.DeleteSourceArticles(e.App, id, body.Count)
 	if err != nil {
-		return e.InternalServerError("failed to execute feed cleanup", err)
+		return handleFeedSourceServiceError(e, err, "failed to delete source feed articles")
 	}
 
 	return e.JSON(http.StatusOK, result)
@@ -1007,17 +1245,9 @@ func handleFeedSourcePoll(e *core.RequestEvent) error {
 		return e.BadRequestError("feed source id is required", nil)
 	}
 
-	record, err := e.App.FindRecordById(feeds.CollectionSources, id)
+	summary, err := feeds.PollSourceNow(nil, e.App, nil, time.Now().UTC(), id, pollFeedSourceNow)
 	if err != nil {
-		return e.NotFoundError("feed source not found", err)
-	}
-	if strings.TrimSpace(record.GetString("status")) != feeds.StatusActive {
-		return e.BadRequestError("feed source must be active to pull now", nil)
-	}
-
-	summary, err := pollFeedSourceNow(nil, e.App, nil, time.Now().UTC(), record, true)
-	if err != nil {
-		return e.InternalServerError("failed to poll feed source", err)
+		return handleFeedSourceServiceError(e, err, "failed to poll feed source")
 	}
 
 	return e.JSON(http.StatusOK, map[string]any{"summary": summary})

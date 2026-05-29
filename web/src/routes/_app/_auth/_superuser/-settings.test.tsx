@@ -130,24 +130,6 @@ describe('SettingsPage shared settings paths', () => {
               ],
             },
             {
-              id: 'feeds-policy',
-              title: 'Feeds Policy',
-              section: 'system',
-              source: 'custom',
-              fields: [
-                {
-                  id: 'pollIntervalMinutes',
-                  label: 'Poll Interval Minutes',
-                  type: 'integer',
-                },
-                {
-                  id: 'globalRetentionCap',
-                  label: 'Global Retention Cap',
-                  type: 'integer',
-                },
-              ],
-            },
-            {
               id: 'secrets-policy',
               title: 'Secrets',
               section: 'system',
@@ -267,6 +249,88 @@ describe('SettingsPage shared settings paths', () => {
               ],
             },
             {
+              id: 'topic-share',
+              title: 'Topic Share',
+              section: 'workspace',
+              source: 'custom',
+              fields: [
+                {
+                  id: 'shareDefaultMinutes',
+                  label: 'Share Default Minutes',
+                  type: 'integer',
+                },
+                {
+                  id: 'shareMaxMinutes',
+                  label: 'Share Max Minutes',
+                  type: 'integer',
+                },
+              ],
+            },
+            {
+              id: 'topic-comment-policy',
+              title: 'Topic Comment Policy',
+              section: 'workspace',
+              source: 'custom',
+              fields: [
+                {
+                  id: 'allowGuestComments',
+                  label: 'Allow Guest Comments',
+                  type: 'boolean',
+                },
+                {
+                  id: 'defaultGuestName',
+                  label: 'Default Guest Name',
+                  type: 'string',
+                },
+                {
+                  id: 'maxGuestNameLength',
+                  label: 'Max Guest Name Length',
+                  type: 'integer',
+                },
+                {
+                  id: 'maxCommentBodyLength',
+                  label: 'Max Comment Body Length',
+                  type: 'integer',
+                },
+              ],
+            },
+            {
+              id: 'topic-import-policy',
+              title: 'Topic Description Import',
+              section: 'workspace',
+              source: 'custom',
+              fields: [
+                {
+                  id: 'maxDescriptionImportKB',
+                  label: 'Max Description Import (KB)',
+                  type: 'integer',
+                },
+                {
+                  id: 'textOnly',
+                  label: 'Text-only Imports',
+                  type: 'boolean',
+                },
+              ],
+            },
+            {
+              id: 'feeds-policy',
+              title: 'Feeds',
+              section: 'workspace',
+              source: 'custom',
+              fields: [
+                {
+                  id: 'pollIntervalHours',
+                  label: 'Poll Interval (hours)',
+                  type: 'integer',
+                },
+                {
+                  id: 'globalRetentionCap',
+                  label: 'Global Retention Cap',
+                  type: 'integer',
+                },
+              ],
+            },
+            {
               id: 'docker-mirror',
               title: 'Docker Mirrors',
               description:
@@ -338,15 +402,30 @@ describe('SettingsPage shared settings paths', () => {
               {
                 id: 'feeds-policy',
                 value: {
-                  pollIntervalMinutes: 60,
-                  failureBackoffOneHours: 2,
-                  failureBackoffTwoHours: 6,
+                  pollIntervalHours: 3,
                   failureBackoffMaxHours: 24,
-                  perSourceRetentionCap: 1000,
-                  globalRetentionCap: 30000,
+                  perSourceRetentionCap: 100,
+                  globalRetentionCap: 10000,
                 },
               },
             { id: 'space-quota', value: {} },
+            { id: 'topic-share', value: { shareMaxMinutes: 60, shareDefaultMinutes: 30 } },
+            {
+              id: 'topic-comment-policy',
+              value: {
+                allowGuestComments: true,
+                defaultGuestName: 'Guest',
+                maxGuestNameLength: 100,
+                maxCommentBodyLength: 10000,
+              },
+            },
+            {
+              id: 'topic-import-policy',
+              value: {
+                maxDescriptionImportKB: 2,
+                textOnly: true,
+              },
+            },
             { id: 'connect-terminal', value: {} },
             { id: 'connect-sftp', value: { maxUploadFiles: 10 } },
             { id: 'deploy-preflight', value: { minFreeDiskBytes: 536870912 } },
@@ -667,13 +746,13 @@ describe('SettingsPage shared settings paths', () => {
     })
   })
 
-  it('saves feeds policy through the unified settings entry path from the system settings page', async () => {
+   it('saves feeds through the unified settings entry path from the workspace settings page', async () => {
     const { container } = render(<SettingsPage />)
 
     await waitFor(() => {
       const nav = container.querySelector('nav') as HTMLElement | null
       expect(nav).toBeTruthy()
-      expect(within(nav as HTMLElement).getByRole('button', { name: 'Feeds Policy' })).toBeInTheDocument()
+        expect(within(nav as HTMLElement).getByRole('button', { name: 'Feeds' })).toBeInTheDocument()
     })
 
     const nav = container.querySelector('nav') as HTMLElement | null
@@ -681,17 +760,17 @@ describe('SettingsPage shared settings paths', () => {
       throw new Error('expected settings navigation to be rendered')
     }
 
-    within(nav).getByRole('button', { name: 'Feeds Policy' }).click()
+      within(nav).getByRole('button', { name: 'Feeds' }).click()
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Poll Interval Minutes')).toBeInTheDocument()
+      expect(screen.getByLabelText('Poll Interval (hours)')).toBeInTheDocument()
     })
 
-    fireEvent.change(screen.getByLabelText('Poll Interval Minutes'), {
-      target: { value: '45' },
+    fireEvent.change(screen.getByLabelText('Poll Interval (hours)'), {
+      target: { value: '2' },
     })
 
-    const pollInput = screen.getByLabelText('Poll Interval Minutes')
+    const pollInput = screen.getByLabelText('Poll Interval (hours)')
     const feedsCard = pollInput.closest('[data-slot="card"]') as HTMLElement | null
     if (!feedsCard) {
       throw new Error('expected feeds policy card to be rendered')
@@ -702,7 +781,197 @@ describe('SettingsPage shared settings paths', () => {
       expect(sendMock).toHaveBeenCalledWith(settingsEntryPath('feeds-policy'), {
         method: 'PATCH',
         body: expect.objectContaining({
-          pollIntervalMinutes: 45,
+          pollIntervalHours: 2,
+        }),
+      })
+    })
+  })
+
+  it('deletes the oldest feed articles from the feeds settings danger zone', async () => {
+	const baseImplementation = sendMock.getMockImplementation()
+    sendMock.mockImplementation((path: string, options?: { method?: string; body?: unknown }) => {
+      if (path === SETTINGS_SCHEMA_API_PATH || path === SETTINGS_ENTRIES_API_PATH || path === '/api/connectors' || path === '/api/connectors/templates') {
+			if (baseImplementation) {
+				return baseImplementation(path, options)
+			}
+			return Promise.resolve({})
+      }
+      if (path === '/api/feeds/summary') {
+        return Promise.resolve({ totalItems: 12, starredItems: 0, sourceCounts: [] })
+      }
+      if (path === '/api/feeds/delete') {
+        return Promise.resolve({ deleted_count: 3, remaining_count: 9 })
+      }
+      return Promise.resolve({})
+    })
+
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      expect(within(nav as HTMLElement).getByRole('button', { name: 'Feeds' })).toBeInTheDocument()
+    })
+
+    const nav = container.querySelector('nav') as HTMLElement | null
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+
+    within(nav).getByRole('button', { name: 'Feeds' }).click()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Delete All Articles' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete All Articles' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/feeds/summary', { method: 'GET' })
+    })
+
+    const countInput = await screen.findByLabelText('Article count')
+    fireEvent.change(countInput, { target: { value: '3' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Delete oldest articles' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/feeds/delete', {
+        method: 'POST',
+        body: { count: 3 },
+      })
+    })
+  })
+
+  it('saves topic comment policy from the aggregated Topics settings page', async () => {
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      expect(within(nav as HTMLElement).getByRole('button', { name: 'Topics' })).toBeInTheDocument()
+    })
+
+    const nav = container.querySelector('nav') as HTMLElement | null
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+
+    within(nav).getByRole('button', { name: 'Topics' }).click()
+
+    await waitFor(() => {
+      expect(screen.getByText('Topic Share')).toBeInTheDocument()
+      expect(screen.getByText('Topic Comment Policy')).toBeInTheDocument()
+      expect(screen.getByLabelText('Default Guest Name')).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText('Default Guest Name'), {
+      target: { value: 'Visitor' },
+    })
+    fireEvent.click(screen.getByLabelText('Allow Guest Comments'))
+
+    const defaultGuestNameInput = screen.getByLabelText('Default Guest Name')
+    const commentPolicyCard = defaultGuestNameInput.closest('[data-slot="card"]') as HTMLElement | null
+    if (!commentPolicyCard) {
+      throw new Error('expected topic comment policy card to be rendered')
+    }
+    fireEvent.click(within(commentPolicyCard).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(settingsEntryPath('topic-comment-policy'), {
+        method: 'PATCH',
+        body: expect.objectContaining({
+          allowGuestComments: false,
+          defaultGuestName: 'Visitor',
+        }),
+      })
+    })
+  })
+
+  it('saves topic share from the aggregated Topics settings page', async () => {
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      expect(within(nav as HTMLElement).getByRole('button', { name: 'Topics' })).toBeInTheDocument()
+    })
+
+    const nav = container.querySelector('nav') as HTMLElement | null
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+
+    within(nav).getByRole('button', { name: 'Topics' }).click()
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Share Default Minutes')).toBeInTheDocument()
+      expect(screen.getByLabelText('Share Max Minutes')).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText('Share Default Minutes'), {
+      target: { value: '45' },
+    })
+    fireEvent.change(screen.getByLabelText('Share Max Minutes'), {
+      target: { value: '90' },
+    })
+
+    const shareInput = screen.getByLabelText('Share Default Minutes')
+    const shareCard = shareInput.closest('[data-slot="card"]') as HTMLElement | null
+    if (!shareCard) {
+      throw new Error('expected topic share card to be rendered')
+    }
+    fireEvent.click(within(shareCard).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(settingsEntryPath('topic-share'), {
+        method: 'PATCH',
+        body: expect.objectContaining({
+          shareDefaultMinutes: 45,
+          shareMaxMinutes: 90,
+        }),
+      })
+    })
+  })
+
+  it('saves topic import policy from the aggregated Topics settings page', async () => {
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      expect(within(nav as HTMLElement).getByRole('button', { name: 'Topics' })).toBeInTheDocument()
+    })
+
+    const nav = container.querySelector('nav') as HTMLElement | null
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+
+    within(nav).getByRole('button', { name: 'Topics' }).click()
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Max Description Import (KB)')).toBeInTheDocument()
+      expect(screen.getByLabelText('Text-only Imports')).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText('Max Description Import (KB)'), {
+      target: { value: '2048' },
+    })
+    fireEvent.click(screen.getByLabelText('Text-only Imports'))
+
+    const importInput = screen.getByLabelText('Max Description Import (KB)')
+    const importCard = importInput.closest('[data-slot="card"]') as HTMLElement | null
+    if (!importCard) {
+      throw new Error('expected topic import policy card to be rendered')
+    }
+    fireEvent.click(within(importCard).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(settingsEntryPath('topic-import-policy'), {
+        method: 'PATCH',
+        body: expect.objectContaining({
+          maxDescriptionImportKB: 2048,
+          textOnly: false,
         }),
       })
     })
@@ -852,7 +1121,7 @@ describe('SettingsPage shared settings paths', () => {
     })
   })
 
-  it('moves tunnel, proxy, and docker into System below Monitor', async () => {
+    it('keeps feeds in Workspace after Topics', async () => {
     const { container } = render(<SettingsPage />)
 
     await waitFor(() => {
@@ -868,13 +1137,14 @@ describe('SettingsPage shared settings paths', () => {
         'Tunnel',
         'Proxy',
         'Docker',
-        'Feeds Policy',
         'Secrets',
         'AI',
         'Space',
         'Terminal',
         'Deploy Preflight',
         'IaC Files',
+        'Topics',
+        'Feeds',
       ])
     })
   })
@@ -1050,6 +1320,38 @@ describe('SettingsPage shared settings paths', () => {
           httpsConnectorId: '',
         },
       })
+    })
+  })
+
+  it('opens proxy help from the registered help aliases', async () => {
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      expect(within(nav as HTMLElement).getByRole('button', { name: 'Proxy' })).toBeInTheDocument()
+    })
+
+    const nav = container.querySelector('nav') as HTMLElement | null
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+
+    fireEvent.click(within(nav).getByRole('button', { name: 'Proxy' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Open Proxy help' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Proxy help' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Help for:')).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          'Select reusable HTTP and HTTPS proxy connectors for platform outbound traffic.'
+        )
+      ).toBeInTheDocument()
     })
   })
 
@@ -1271,6 +1573,57 @@ describe('SettingsPage shared settings paths', () => {
       expect(
         screen.getByText('Highest port that can be assigned to a reverse tunnel session.')
       ).toBeInTheDocument()
+    })
+  })
+
+  it('falls back to the screen placeholder for unregistered sections', async () => {
+    sendMock.mockImplementation((path: string) => {
+      if (path === SETTINGS_SCHEMA_API_PATH) {
+        return Promise.resolve({
+          entries: [
+            { id: 'basic', title: 'Basic', section: 'system', source: 'native', fields: [] },
+            {
+              id: 'custom-unmapped',
+              title: 'Custom Unmapped',
+              description: 'An unregistered settings page used to verify screen fallback behavior.',
+              section: 'workspace',
+              source: 'custom',
+              fields: [],
+            },
+          ],
+          actions: [],
+        })
+      }
+      if (path === SETTINGS_ENTRIES_API_PATH) {
+        return Promise.resolve({
+          items: [
+            { id: 'basic', value: { appName: 'AppOS', appURL: 'https://appos.test' } },
+            { id: 'custom-unmapped', value: {} },
+          ],
+        })
+      }
+      return Promise.resolve({})
+    })
+
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      expect(
+        within(nav as HTMLElement).getByRole('button', { name: 'Custom Unmapped' })
+      ).toBeInTheDocument()
+    })
+
+    const nav = container.querySelector('nav') as HTMLElement | null
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+
+    fireEvent.click(within(nav).getByRole('button', { name: 'Custom Unmapped' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('No editor available for this entry.')).toBeInTheDocument()
     })
   })
 })

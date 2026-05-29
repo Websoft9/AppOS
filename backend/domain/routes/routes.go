@@ -52,8 +52,13 @@ func Register(se *core.ServeEvent) {
 	// Public topic share routes (unauthenticated — view shared topic and post comments)
 	registerTopicPublicRoutes(se)
 
+	// Public branding metadata for title, logo, and favicon
+	registerBrandingRoutes(se)
+	registerMediaRoutes(se)
+
 	// Topic routes (authenticated share management + public share token)
 	registerTopicRoutes(se)
+	registerAssetsRoutes(se)
 
 	// Space routes (authenticated quota/fetch/share + public share/preview)
 	registerSpaceRoutes(se)

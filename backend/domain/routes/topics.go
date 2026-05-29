@@ -51,6 +51,16 @@ type topicShareCommentResponse struct {
 	Created   string `json:"created"`
 }
 
+type topicImportPolicyResponse struct {
+	MaxDescriptionImportBytes int  `json:"maxDescriptionImportBytes"`
+	TextOnly                  bool `json:"textOnly"`
+}
+
+type topicSharePolicyResponse struct {
+	ShareMaxMinutes     int `json:"shareMaxMinutes"`
+	ShareDefaultMinutes int `json:"shareDefaultMinutes"`
+}
+
 var (
 	_ = topicShareCreateResponse{}
 	_ = topicShareCommentDocument{}
@@ -67,6 +77,8 @@ func registerTopicRoutes(se *core.ServeEvent) {
 
 	g.POST("/share/{id}", handleTopicShareCreate)
 	g.DELETE("/share/{id}", handleTopicShareRevoke)
+	g.GET("/policy/share", handleTopicSharePolicyGet)
+	g.GET("/policy/import", handleTopicImportPolicyGet)
 }
 
 // registerTopicPublicRoutes registers unauthenticated topic share routes.
@@ -77,6 +89,42 @@ func registerTopicPublicRoutes(se *core.ServeEvent) {
 }
 
 // ─── Handlers ──────────────────────────────────────────────────────────────
+
+// handleTopicSharePolicyGet returns the effective topic share policy for
+// authenticated Topics pages.
+//
+// @Summary Get topic share policy
+// @Description Returns the effective topic share policy for authenticated users.
+// @Tags Topics
+// @Security BearerAuth
+// @Success 200 {object} topicSharePolicyResponse
+// @Failure 401 {object} map[string]any
+// @Router /api/topics/policy/share [get]
+func handleTopicSharePolicyGet(e *core.RequestEvent) error {
+	policy := topics.GetShareConfig(e.App)
+	return e.JSON(http.StatusOK, map[string]any{
+		"shareMaxMinutes":     policy.MaxMinutes,
+		"shareDefaultMinutes": policy.DefaultMinutes,
+	})
+}
+
+// handleTopicImportPolicyGet returns the effective topic description import policy
+// for authenticated Topics pages.
+//
+// @Summary Get topic import policy
+// @Description Returns the effective topic description import policy for authenticated users.
+// @Tags Topics
+// @Security BearerAuth
+// @Success 200 {object} topicImportPolicyResponse
+// @Failure 401 {object} map[string]any
+// @Router /api/topics/policy/import [get]
+func handleTopicImportPolicyGet(e *core.RequestEvent) error {
+	policy := topics.GetImportPolicy(e.App)
+	return e.JSON(http.StatusOK, map[string]any{
+		"maxDescriptionImportBytes": policy.MaxDescriptionImportBytes(),
+		"textOnly":                  policy.TextOnly,
+	})
+}
 
 // handleTopicShareCreate creates or refreshes a share token on a topics record.
 //
@@ -264,9 +312,10 @@ func handleTopicShareComment(e *core.RequestEvent) error {
 	if err != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": "internal error"})
 	}
-	cm, err := t.NewGuestComment(col, body.Body, body.GuestName)
+	commentPolicy := topics.GetCommentPolicy(e.App)
+	cm, err := t.NewGuestComment(col, commentPolicy, body.Body, body.GuestName)
 	if err != nil {
-		return e.BadRequestError(topics.MessageForTopicError(err), nil)
+		return e.BadRequestError(topics.MessageForCommentPolicyError(err, commentPolicy), nil)
 	}
 	if err := cm.Save(e.App); err != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": "failed to save comment"})

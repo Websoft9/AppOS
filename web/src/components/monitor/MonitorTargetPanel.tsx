@@ -393,16 +393,6 @@ function monitorMetricsPipelineWarning(
   return null
 }
 
-function TrendLoadingIndicator({ visible }: { visible: boolean }) {
-  if (!visible) return null
-  return (
-    <div className="inline-flex items-center gap-2 rounded-md border bg-muted/20 px-2 py-1 text-xs text-muted-foreground">
-      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-      Updating...
-    </div>
-  )
-}
-
 export function MonitorTargetPanel({
   targetType,
   targetId,
@@ -786,7 +776,6 @@ export function MonitorTargetPanel({
               <CardDescription>{selectedWindowMeta.description}</CardDescription>
             </div>
             <div className="flex flex-col items-end gap-2">
-              <TrendLoadingIndicator visible={seriesLoading && hasTrendSeries} />
               <div
                 className="inline-flex flex-wrap items-center rounded-lg border bg-muted/20 p-1"
                 role="tablist"
@@ -1062,7 +1051,6 @@ export function MonitorTargetPanel({
                   <CardDescription>{selectedWindowMeta.description}</CardDescription>
                 </div>
                 <div className="flex flex-col items-end gap-2">
-                  <TrendLoadingIndicator visible={seriesLoading && hasTrendSeries} />
                   <div
                     className="inline-flex flex-wrap items-center rounded-lg border bg-muted/20 p-1"
                     role="tablist"
@@ -1696,7 +1684,6 @@ function TrendCard({
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <TrendLoadingIndicator visible={loading} />
           {name === 'network_traffic' &&
           availableNetworkInterfaces &&
           availableNetworkInterfaces.length > 0 &&

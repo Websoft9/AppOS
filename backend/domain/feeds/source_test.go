@@ -1,6 +1,8 @@
 package feeds
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -128,7 +130,66 @@ func TestSourceMarkFetchSuccessAndFailure(t *testing.T) {
 	if got := rec.GetInt("failure_streak"); got != 0 {
 		t.Fatalf("expected success to reset failure_streak, got %d", got)
 	}
-	if got := recordDateTime(rec, "next_poll_at"); got != now.Add(time.Minute).Add(time.Hour) {
-		t.Fatalf("expected success to schedule next poll in 1h, got %v", got)
+	if got := recordDateTime(rec, "next_poll_at"); got != now.Add(time.Minute).Add(3*time.Hour) {
+		t.Fatalf("expected success to schedule next poll in 3h, got %v", got)
+	}
+}
+
+func TestPollSourceNowLoadsSourceAndForces(t *testing.T) {
+	app := newFeedsTestApp(t)
+	col, err := app.FindCollectionByNameOrId(CollectionSources)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := core.NewRecord(col)
+	rec.Set("name", "Vendor feed")
+	rec.Set("url", "https://example.com/feed.xml")
+	rec.Set("format", FormatRSS)
+	rec.Set("status", StatusActive)
+	if err := app.Save(rec); err != nil {
+		t.Fatal(err)
+	}
+
+	called := false
+	summary, err := PollSourceNow(context.Background(), app, nil, time.Date(2026, 5, 29, 12, 0, 0, 0, time.UTC), rec.Id, func(_ context.Context, _ core.App, _ HTTPDoer, _ time.Time, record *core.Record, force bool) (PollSummary, error) {
+		called = true
+		if record.Id != rec.Id {
+			t.Fatalf("expected source %q, got %q", rec.Id, record.Id)
+		}
+		if !force {
+			t.Fatal("expected service poll to force source execution")
+		}
+		return PollSummary{ProcessedSources: 1, DueSources: 1, CreatedItems: 2}, nil
+	})
+	if err != nil {
+		t.Fatalf("poll source now: %v", err)
+	}
+	if !called {
+		t.Fatal("expected poll function to be called")
+	}
+	if summary.CreatedItems != 2 {
+		t.Fatalf("expected created items 2, got %#v", summary)
+	}
+}
+
+func TestPollSourceNowRejectsInactiveSource(t *testing.T) {
+	app := newFeedsTestApp(t)
+	col, err := app.FindCollectionByNameOrId(CollectionSources)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := core.NewRecord(col)
+	rec.Set("name", "Paused feed")
+	rec.Set("url", "https://example.com/feed.xml")
+	rec.Set("format", FormatRSS)
+	rec.Set("status", StatusPaused)
+	if err := app.Save(rec); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = PollSourceNow(context.Background(), app, nil, time.Date(2026, 5, 29, 12, 0, 0, 0, time.UTC), rec.Id, nil)
+	var validationErr *SourceValidationError
+	if err == nil || !strings.Contains(err.Error(), "active") || !errors.As(err, &validationErr) {
+		t.Fatalf("expected inactive source validation error, got %v", err)
 	}
 }

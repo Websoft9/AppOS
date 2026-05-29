@@ -10,6 +10,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	"github.com/websoft9/appos/backend/domain/topics"
 )
 
@@ -141,6 +142,62 @@ func TestTopicShareCreatePersistsShareToken(t *testing.T) {
 	}
 }
 
+func TestTopicImportPolicyGetReturnsConfiguredPolicy(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	if err := sysconfig.SetGroup(te.app, "topic", "import-policy", map[string]any{
+		"maxDescriptionImportKB": 2048,
+		"textOnly":               false,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := te.doTopics(t, http.MethodGet, "/api/topics/policy/import", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for topic import policy get, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("expected JSON response, got error: %v", err)
+	}
+	if int(payload["maxDescriptionImportBytes"].(float64)) != 2048*1024 {
+		t.Fatalf("expected configured maxDescriptionImportBytes, got %v", payload["maxDescriptionImportBytes"])
+	}
+	if payload["textOnly"] != false {
+		t.Fatalf("expected configured textOnly=false, got %v", payload["textOnly"])
+	}
+}
+
+func TestTopicSharePolicyGetReturnsConfiguredPolicy(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	if err := sysconfig.SetGroup(te.app, "topic", "share", map[string]any{
+		"shareMaxMinutes":     90,
+		"shareDefaultMinutes": 45,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := te.doTopics(t, http.MethodGet, "/api/topics/policy/share", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for topic share policy get, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("expected JSON response, got error: %v", err)
+	}
+	if int(payload["shareMaxMinutes"].(float64)) != 90 {
+		t.Fatalf("expected configured shareMaxMinutes, got %v", payload["shareMaxMinutes"])
+	}
+	if int(payload["shareDefaultMinutes"].(float64)) != 45 {
+		t.Fatalf("expected configured shareDefaultMinutes, got %v", payload["shareDefaultMinutes"])
+	}
+}
+
 func TestTopicShareCommentRejectsClosedTopic(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
@@ -203,5 +260,106 @@ func TestTopicShareCommentDefaultsGuestName(t *testing.T) {
 	}
 	if payload["created_by"] != topics.GuestAuthorID(topics.DefaultGuestName) {
 		t.Fatalf("expected default guest author id, got %v", payload["created_by"])
+	}
+}
+
+func TestTopicShareCommentRejectsWhenGuestCommentsDisabled(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	if err := sysconfig.SetGroup(te.app, "topic", "comment-policy", map[string]any{
+		"allowGuestComments":   false,
+		"defaultGuestName":     "Guest",
+		"maxGuestNameLength":   100,
+		"maxCommentBodyLength": 10000,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	topicRecord := seedSharedTopicForRouteTest(t, te, false)
+
+	rec := te.doTopics(t, http.MethodPost, "/api/topics/share/"+topicRecord.GetString("share_token")+"/comments", `{"body":"hello"}`, false)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 when guest comments are disabled, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "Guest comments are disabled") {
+		t.Fatalf("expected guest comments disabled message, got %s", rec.Body.String())
+	}
+}
+
+func TestTopicShareCommentUsesConfiguredDefaultGuestName(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	if err := sysconfig.SetGroup(te.app, "topic", "comment-policy", map[string]any{
+		"allowGuestComments":   true,
+		"defaultGuestName":     "Visitor",
+		"maxGuestNameLength":   100,
+		"maxCommentBodyLength": 10000,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	topicRecord := seedSharedTopicForRouteTest(t, te, false)
+
+	rec := te.doTopics(t, http.MethodPost, "/api/topics/share/"+topicRecord.GetString("share_token")+"/comments", `{"body":"hello"}`, false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for anonymous comment with configured default guest name, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("expected JSON response, got error: %v", err)
+	}
+	if payload["created_by"] != topics.GuestAuthorID("Visitor") {
+		t.Fatalf("expected configured guest author id, got %v", payload["created_by"])
+	}
+}
+
+func TestTopicShareCommentRejectsGuestNameOverConfiguredLimit(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	if err := sysconfig.SetGroup(te.app, "topic", "comment-policy", map[string]any{
+		"allowGuestComments":   true,
+		"defaultGuestName":     "Guest",
+		"maxGuestNameLength":   3,
+		"maxCommentBodyLength": 10000,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	topicRecord := seedSharedTopicForRouteTest(t, te, false)
+
+	rec := te.doTopics(t, http.MethodPost, "/api/topics/share/"+topicRecord.GetString("share_token")+"/comments", `{"body":"hello","guest_name":"Long"}`, false)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 when guest name exceeds configured limit, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "Guest name must be at most 3 characters") {
+		t.Fatalf("expected configured guest-name limit message, got %s", rec.Body.String())
+	}
+}
+
+func TestTopicShareCommentRejectsBodyOverConfiguredLimit(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	if err := sysconfig.SetGroup(te.app, "topic", "comment-policy", map[string]any{
+		"allowGuestComments":   true,
+		"defaultGuestName":     "Guest",
+		"maxGuestNameLength":   100,
+		"maxCommentBodyLength": 4,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	topicRecord := seedSharedTopicForRouteTest(t, te, false)
+
+	rec := te.doTopics(t, http.MethodPost, "/api/topics/share/"+topicRecord.GetString("share_token")+"/comments", `{"body":"hello"}`, false)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 when comment body exceeds configured limit, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "at most 4 characters") {
+		t.Fatalf("expected configured comment-body limit message, got %s", rec.Body.String())
 	}
 }

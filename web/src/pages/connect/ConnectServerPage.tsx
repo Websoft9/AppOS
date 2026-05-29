@@ -389,7 +389,7 @@ export function ConnectServerPage({
   const saveWorkspaceTimerRef = useRef<number | null>(null)
 
   const handleCreateScript = useCallback(() => {
-    void navigate({ to: '/assets/scripts' as never, search: { create: '1' } as never })
+    void navigate({ to: '/ai-assets' as never })
   }, [navigate])
 
   const handleCreateServer = useCallback(() => {

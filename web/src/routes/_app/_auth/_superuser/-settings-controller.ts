@@ -9,7 +9,9 @@ import {
   type SettingsSchemaResponse,
 } from '@/lib/settings-api'
 import { useToast } from './-settings-sections/shared'
+import { useFeedsSettingsController } from './-settings-controller-feeds'
 import { useIntegrationSettingsController } from './-settings-controller-integrations'
+import { useMonitorSettingsController } from './-settings-controller-monitor'
 import { useSystemSettingsController } from './-settings-controller-system'
 import { useWorkspaceSimpleSettingsController } from './-settings-controller-workspace-simple'
 
@@ -20,9 +22,13 @@ export function useSettingsPageController() {
   const [activeSection, setActiveSection] = useState<SectionId>('basic')
   const [schemaEntries, setSchemaEntries] = useState<SettingsSchemaEntry[]>([])
   const [pbLoading, setPbLoading] = useState(true)
+  const feeds = useFeedsSettingsController(showToast)
+  const monitor = useMonitorSettingsController(showToast)
   const system = useSystemSettingsController(showToast)
   const workspaceSimple = useWorkspaceSimpleSettingsController(showToast)
   const integrations = useIntegrationSettingsController(showToast)
+  const { hydrateFeedsEntries } = feeds
+  const { hydrateMonitorEntries } = monitor
   const { hydrateSystemEntries } = system
   const { hydrateWorkspaceSimpleEntries } = workspaceSimple
   const { hydrateIntegrationEntries } = integrations
@@ -92,6 +98,8 @@ export function useSettingsPageController() {
       }
 
       const entryMap = new Map(entriesResult.items.map(item => [item.id, item.value]))
+      hydrateFeedsEntries(entryMap)
+      hydrateMonitorEntries(entryMap)
       hydrateSystemEntries(entryMap)
       hydrateWorkspaceSimpleEntries(entryMap)
       hydrateIntegrationEntries(entryMap)
@@ -103,7 +111,7 @@ export function useSettingsPageController() {
     } finally {
       setPbLoading(false)
     }
-  }, [showToast, hydrateIntegrationEntries, hydrateSystemEntries, hydrateWorkspaceSimpleEntries])
+  }, [showToast, hydrateFeedsEntries, hydrateIntegrationEntries, hydrateMonitorEntries, hydrateSystemEntries, hydrateWorkspaceSimpleEntries])
 
   useEffect(() => {
     loadSettingsData()
@@ -116,6 +124,8 @@ export function useSettingsPageController() {
     setActiveSection,
     schemaEntries,
     pbLoading,
+    ...feeds,
+    ...monitor,
     ...system,
     ...workspaceSimple,
     ...integrations,
