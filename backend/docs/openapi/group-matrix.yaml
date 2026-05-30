@@ -360,17 +360,6 @@ groups:
         - instances.go
       nativeRefs: []
 
-  - group: Resource
-    description: Generic resource-store collection APIs for scripts only.
-    apiType: Ext
-    extSurface:
-      - /api/ext/resources/scripts*
-    nativeSurface: []
-    sources:
-      extRouteFiles:
-        - resources.go
-      nativeRefs: []
-
   - group: Groups
     description: Group registry and group-item membership CRUD via PocketBase native records API.
     note: Native endpoints are tracked here; runtime OpenAPI merge still depends on native-api.yaml maintenance.

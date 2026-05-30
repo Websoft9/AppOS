@@ -757,22 +757,6 @@ export async function checkServerStatus(server: Server): Promise<ServerStatusRes
   }
 }
 
-// ─── Scripts ──────────────────────────────────────────────────────────────────
-
-export interface Script {
-  id: string
-  name: string
-  language: string
-  code: string
-  description?: string
-  [key: string]: unknown
-}
-
-export async function listScripts(): Promise<Script[]> {
-  const result = await pb.collection('scripts').getFullList<Script>({ sort: 'name' })
-  return result
-}
-
 export interface ConnectTerminalSettings {
   idleTimeoutSeconds: number
   maxConnections: number

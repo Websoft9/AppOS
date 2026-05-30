@@ -128,15 +128,9 @@ resource/  server/  database/  integration/  registry/  ...
 1. 如果你要把“网络可达性”再升级成应用层探测，我下一步可以把 MySQL/PostgreSQL/Redis/Kafka 从 TCP 通断扩展到协议握手级检查。
 2. 把 connectors 和 servers 里还保留的旧版 “新建 Secret” 对话框也完全切到 SecretCreateDialog.tsx。
 
-
 add resource 统一入口，仍然没有链接到具体的创建弹窗，而仅仅是列表页。除了 server 之外
 
-
 tunnul 的Port Forward  Effective Mappings 区域没有显示具体的内容了
-
-Prerequisites
-
-
 
 请将 epic29 下的几个 story 名称更改一下
 
@@ -144,16 +138,14 @@ Prerequisites
 
 ports tab 不稳定，经常打开显示  somethins wrong
 
-
 addons 的 netdata restart 报错
 
 去掉所有与 docker.sock 的强依赖与硬编码
 
-rss 文章总数量，每个 source 文章上限问题，清理机制
-
-
-
-
-
-
 ## 去nginx 改造
+
+## dockerfile
+
+1. 明确 curl/wget, tar,unzip 等目前是走容器命令，还是走的 golang 包
+
+数据初始化怎么做的？

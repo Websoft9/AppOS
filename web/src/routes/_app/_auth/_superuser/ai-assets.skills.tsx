@@ -8,9 +8,10 @@ export function AssetsSkillsPage() {
   return (
     <AssetFamilyPage
       kind="skill"
-      title="Skills"
+      title="AI Skills"
       description="Bundled skill packages with structured files, entrypoints, and reusable guidance content."
       createLabel="Add Skill"
+      showHeaderCount={false}
       queryState={queryState}
       onQueryStateChange={patch => setQueryState(current => ({ ...current, ...patch }))}
     />

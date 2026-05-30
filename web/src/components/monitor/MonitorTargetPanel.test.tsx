@@ -1005,6 +1005,139 @@ describe('MonitorTargetPanel', () => {
     })
   })
 
+  it('keeps trend history controls stable while refresh reloads chart data', async () => {
+    let resolveTrendRefresh: (value: unknown) => void = () => {
+      throw new Error('expected pending trend refresh resolver')
+    }
+    let primarySeriesRequestCount = 0
+
+    sendMock.mockImplementation((url: unknown) => {
+      const request = String(url)
+      if (request === '/api/monitor/targets/server/srv-refresh-stable') {
+        return Promise.resolve({
+          hasData: true,
+          targetType: 'server',
+          targetId: 'srv-refresh-stable',
+          displayName: 'refresh-stable',
+          status: 'healthy',
+          reason: null,
+          signalSource: 'agent',
+          lastTransitionAt: '2026-04-14T12:03:00Z',
+          lastSuccessAt: '2026-04-14T12:03:00Z',
+          lastFailureAt: null,
+          lastCheckedAt: null,
+          lastReportedAt: '2026-04-14T12:03:00Z',
+          consecutiveFailures: 0,
+          summary: {},
+        })
+      }
+      if (request.includes('/latest?')) {
+        return Promise.resolve({
+          targetType: 'server',
+          targetId: 'srv-refresh-stable',
+          cadenceSeconds: 10,
+          selectedNetworkInterface: 'all',
+          series: [{ name: 'cpu', unit: 'percent', points: [[1713096120, 21]] }],
+        })
+      }
+      if (request.includes('series=network_traffic')) {
+        return Promise.resolve({
+          targetType: 'server',
+          targetId: 'srv-refresh-stable',
+          window: '1h',
+          availableNetworkInterfaces: ['eth0'],
+          selectedNetworkInterface: 'all',
+          series: [],
+        })
+      }
+      if (request.includes('/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork')) {
+        primarySeriesRequestCount += 1
+        if (primarySeriesRequestCount > 1) {
+          return new Promise(resolve => {
+            resolveTrendRefresh = resolve
+          })
+        }
+        return Promise.resolve({
+          targetType: 'server',
+          targetId: 'srv-refresh-stable',
+          window: '1h',
+          selectedNetworkInterface: 'all',
+          series: [
+            {
+              name: 'cpu',
+              unit: 'percent',
+              points: [
+                [1713096000, 20],
+                [1713096120, 21],
+              ],
+            },
+          ],
+        })
+      }
+      return Promise.resolve({
+        targetType: 'server',
+        targetId: 'srv-refresh-stable',
+        window: '1h',
+        selectedNetworkInterface: 'all',
+        series: [],
+      })
+    })
+
+    const { rerender } = render(
+      <MonitorTargetPanel
+        targetType="server"
+        targetId="srv-refresh-stable"
+        layout="detail"
+        refreshKey={0}
+      />
+    )
+
+    expect(await screen.findByText('Trend History')).toBeInTheDocument()
+    const oneHourButton = screen.getByRole('button', { name: '1h' })
+    const customButton = screen.getByRole('button', { name: 'custom' })
+
+    expect(oneHourButton).toBeEnabled()
+    expect(customButton).toBeEnabled()
+
+    rerender(
+      <MonitorTargetPanel
+        targetType="server"
+        targetId="srv-refresh-stable"
+        layout="detail"
+        refreshKey={1}
+      />
+    )
+
+    expect(oneHourButton).toBeEnabled()
+    expect(customButton).toBeEnabled()
+    expect(screen.getAllByText('CPU').length).toBeGreaterThan(0)
+
+    resolveTrendRefresh({
+      targetType: 'server',
+      targetId: 'srv-refresh-stable',
+      window: '1h',
+      selectedNetworkInterface: 'all',
+      series: [
+        {
+          name: 'cpu',
+          unit: 'percent',
+          points: [
+            [1713096000, 19],
+            [1713096120, 22],
+          ],
+        },
+      ],
+    })
+
+    await waitFor(() => {
+      expect(
+        sendMock.mock.calls.filter(call =>
+          String(call[0]).includes('/api/monitor/targets/server/srv-refresh-stable/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork')
+        ).length
+      ).toBeGreaterThan(1)
+    })
+  })
+
   it('pauses latest stat polling while the document is hidden and resumes on visibility restore', async () => {
     visibilityStateValue = 'hidden'
 

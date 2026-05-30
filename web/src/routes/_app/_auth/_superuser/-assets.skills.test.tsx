@@ -92,20 +92,29 @@ describe('AssetsSkillsPage', () => {
     render(<AssetsSkillsPage />)
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Skills' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'AI Skills' })).toBeInTheDocument()
     })
 
     expect(screen.getByText('Bundled skill packages with structured files, entrypoints, and reusable guidance content.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add Skill' })).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Search skills...')).toBeInTheDocument()
+    expect(screen.queryByText('1')).not.toBeInTheDocument()
     expect(screen.getByText('Total 1 items')).toBeInTheDocument()
     expect(screen.getByText('1/1')).toBeInTheDocument()
     expect(screen.getByText('Ops Skill')).toBeInTheDocument()
 
+    fireEvent.click(screen.getByRole('button', { name: 'Add Skill' }))
+    const createDialog = screen.getByRole('dialog')
+    expect(within(createDialog).getByRole('heading', { name: 'Add Skill' })).toBeInTheDocument()
+    expect((within(createDialog).getByLabelText('Name') as HTMLInputElement).value).not.toBe('')
+    expect(within(createDialog).getByLabelText('Skill Source')).toBeInTheDocument()
+    expect(within(createDialog).getByRole('button', { name: 'Skill source help' })).toBeInTheDocument()
+    expect(within(createDialog).getByText('Skill Files')).toBeInTheDocument()
+
     fireEvent.click(screen.getByText('Edit'))
     const dialog = screen.getByRole('dialog')
     expect(within(dialog).getByRole('heading', { name: 'Edit Skill' })).toBeInTheDocument()
-    expect(within(dialog).getByLabelText('GitHub Project URL')).toBeInTheDocument()
+    expect(within(dialog).getByLabelText('Skill Source')).toBeInTheDocument()
     expect(within(dialog).queryByText('Metadata')).not.toBeInTheDocument()
     expect(within(dialog).queryByText('Content')).not.toBeInTheDocument()
     expect(within(dialog).getAllByDisplayValue('SKILL.md')).toHaveLength(1)
@@ -117,7 +126,7 @@ describe('AssetsSkillsPage', () => {
     expect(within(dialog).getByLabelText('Description')).toBeInTheDocument()
     expect(within(dialog).getAllByDisplayValue('SKILL.md')).toHaveLength(2)
 
-    fireEvent.change(within(dialog).getByLabelText('GitHub Project URL'), {
+    fireEvent.change(within(dialog).getByLabelText('Skill Source'), {
       target: { value: 'https://github.com/example/skill-repo' },
     })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Pull' }))

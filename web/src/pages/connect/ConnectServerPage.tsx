@@ -57,7 +57,6 @@ import { TerminalPanel, type TerminalPanelHandle } from '@/components/connect/Te
 import { FileManagerPanel } from '@/components/connect/FileManagerPanel'
 import {
   listServers,
-  listScripts,
   checkServerStatus,
   listSystemdServices,
   getSystemdStatus,
@@ -73,9 +72,9 @@ import {
   type SystemdControlAction,
   type ConnectTerminalSettings,
   type Server as ServerType,
-  type Script,
   type SystemdService,
 } from '@/lib/connect-api'
+import { getAssetContent, listAssets, type AssetRecord } from '@/lib/assets-api'
 import {
   clearConnectSession,
   loadConnectSession,
@@ -333,7 +332,7 @@ export function ConnectServerPage({
   const opButtonClass = 'h-8 w-[116px] justify-start'
   const navigate = useNavigate()
   const [servers, setServers] = useState<ServerType[]>([])
-  const [scripts, setScripts] = useState<Script[]>([])
+  const [scripts, setScripts] = useState<AssetRecord[]>([])
   const [serverQuery, setServerQuery] = useState('')
   const [serverMenuOpen, setServerMenuOpen] = useState(false)
   const [connectingOpen, setConnectingOpen] = useState(false)
@@ -400,8 +399,12 @@ export function ConnectServerPage({
     listServers()
       .then(setServers)
       .catch(() => {})
-    listScripts()
-      .then(setScripts)
+    listAssets()
+      .then(items =>
+        setScripts(
+          items.filter(item => item.kind === 'script' && item.storage_kind === 'file' && item.source_kind === 'local')
+        )
+      )
       .catch(() => {})
     getConnectTerminalSettings()
       .then(setConnectSettings)
@@ -880,11 +883,16 @@ export function ConnectServerPage({
   }, [])
 
   const handleRunScript = useCallback(
-    (script: Script) => {
+    async (script: AssetRecord) => {
       if (!activeTabId) return
       const terminal = terminalRefs.current[activeTabId]
       if (!terminal) return
-      terminal.sendData(script.code + '\n')
+      try {
+        const content = await getAssetContent(script.id)
+        if (content.storage_kind !== 'file') return
+        terminal.sendData(content.content + '\n')
+      } catch {
+      }
     },
     [activeTabId]
   )

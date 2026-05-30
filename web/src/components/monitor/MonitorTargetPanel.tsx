@@ -791,7 +791,6 @@ export function MonitorTargetPanel({
                       variant={active ? 'secondary' : 'ghost'}
                       aria-pressed={active}
                       onClick={() => setSelectedWindow(window.value)}
-                      disabled={seriesLoading}
                     >
                       {window.label}
                     </Button>
@@ -804,7 +803,6 @@ export function MonitorTargetPanel({
                       size="xs"
                       variant={selectedWindow === 'custom' ? 'secondary' : 'ghost'}
                       aria-pressed={selectedWindow === 'custom'}
-                      disabled={seriesLoading}
                     >
                       {selectedWindow === 'custom'
                         ? formatCustomRangeLabel(appliedCustomRange)
@@ -867,7 +865,6 @@ export function MonitorTargetPanel({
                           setCustomRangeOpen(false)
                         }}
                         disabled={
-                          seriesLoading ||
                           !isValidCustomRange(draftCustomRange) ||
                           (selectedWindow === 'custom' && !customRangeDirty)
                         }
@@ -926,7 +923,6 @@ export function MonitorTargetPanel({
                         ? setSelectedTrendNetworkInterface
                         : undefined
                     }
-                    loading={item.name === 'network_traffic' && networkTrafficLoading}
                   />
                 ))}
               </div>
@@ -1190,7 +1186,6 @@ export function MonitorTargetPanel({
                           ? setSelectedTrendNetworkInterface
                           : undefined
                       }
-                      loading={item.name === 'network_traffic' && networkTrafficLoading}
                     />
                   ))}
                 </div>
@@ -1613,7 +1608,6 @@ function TrendCard({
   availableNetworkInterfaces,
   selectedNetworkInterface,
   onNetworkInterfaceChange,
-  loading = false,
 }: {
   name: string
   unit: string
@@ -1627,7 +1621,6 @@ function TrendCard({
   availableNetworkInterfaces?: string[]
   selectedNetworkInterface?: string
   onNetworkInterfaceChange?: (value: string) => void
-  loading?: boolean
 }) {
   const latest = latestValue(points)
   const used = segments?.find(segment => segment.name === 'used')
@@ -1694,7 +1687,6 @@ function TrendCard({
                 aria-label="Network interface"
                 className="h-8 rounded-md border bg-background px-2 text-xs text-foreground"
                 value={selectedNetworkInterface ?? 'all'}
-                disabled={loading}
                 onChange={event => onNetworkInterfaceChange(event.target.value)}
               >
                 <option value="all">All interfaces</option>

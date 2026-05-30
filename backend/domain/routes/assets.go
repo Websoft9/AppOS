@@ -31,17 +31,18 @@ var fetchRemoteScriptContent = pullRemoteTextContent
 var fetchGitHubSkillContent = pullGitHubSkillContent
 
 type assetWriteRequest struct {
-	Name        string            `json:"name"`
-	Description string            `json:"description"`
-	Kind        string            `json:"kind"`
-	StorageKind string            `json:"storage_kind"`
-	SourceKind  string            `json:"source_kind"`
-	Language    string            `json:"language"`
-	Reference   string            `json:"reference"`
-	Path        string            `json:"path"`
-	Entrypoint  string            `json:"entrypoint"`
-	Content     string            `json:"content"`
-	Files       map[string]string `json:"files"`
+	Name            string            `json:"name"`
+	Description     string            `json:"description"`
+	Kind            string            `json:"kind"`
+	StorageKind     string            `json:"storage_kind"`
+	SourceKind      string            `json:"source_kind"`
+	Language        string            `json:"language"`
+	ScriptExtension string            `json:"script_extension"`
+	Reference       string            `json:"reference"`
+	Path            string            `json:"path"`
+	Entrypoint      string            `json:"entrypoint"`
+	Content         string            `json:"content"`
+	Files           map[string]string `json:"files"`
 }
 
 func registerAssetsRoutes(se *core.ServeEvent) {
@@ -228,7 +229,7 @@ func handleAssetUpdate(e *core.RequestEvent) error {
 		return e.BadRequestError(err.Error(), nil)
 	}
 	if record.GetString("kind") == assets.KindScript {
-		req.Path = assets.ScriptFileName(req.Name, record.Id, req.Language)
+		req.Path = assets.ScriptFileName(req.Name, record.Id, req.Language, req.ScriptExtension)
 		req.Entrypoint = ""
 	}
 	bindAssetRecord(record, req)
@@ -346,18 +347,19 @@ func handleAssetDelete(e *core.RequestEvent) error {
 
 func assetRecordToMap(r *core.Record) map[string]any {
 	return map[string]any{
-		"id":           r.Id,
-		"name":         r.GetString("name"),
-		"description":  r.GetString("description"),
-		"kind":         r.GetString("kind"),
-		"storage_kind": r.GetString("storage_kind"),
-		"source_kind":  r.GetString("source_kind"),
-		"language":     r.GetString("language"),
-		"reference":    r.GetString("reference"),
-		"path":         r.GetString("path"),
-		"entrypoint":   r.GetString("entrypoint"),
-		"created":      r.GetString("created"),
-		"updated":      r.GetString("updated"),
+		"id":               r.Id,
+		"name":             r.GetString("name"),
+		"description":      r.GetString("description"),
+		"kind":             r.GetString("kind"),
+		"storage_kind":     r.GetString("storage_kind"),
+		"source_kind":      r.GetString("source_kind"),
+		"language":         r.GetString("language"),
+		"script_extension": r.GetString("script_extension"),
+		"reference":        r.GetString("reference"),
+		"path":             r.GetString("path"),
+		"entrypoint":       r.GetString("entrypoint"),
+		"created":          r.GetString("created"),
+		"updated":          r.GetString("updated"),
 	}
 }
 
@@ -368,6 +370,7 @@ func bindAssetRecord(record *core.Record, req assetWriteRequest) {
 	record.Set("storage_kind", req.StorageKind)
 	record.Set("source_kind", req.SourceKind)
 	record.Set("language", req.Language)
+	record.Set("script_extension", req.ScriptExtension)
 	record.Set("reference", req.Reference)
 	record.Set("path", req.Path)
 	record.Set("entrypoint", req.Entrypoint)
@@ -380,6 +383,7 @@ func normalizeAssetWriteRequest(req *assetWriteRequest) error {
 	req.StorageKind = strings.TrimSpace(req.StorageKind)
 	req.SourceKind = strings.TrimSpace(req.SourceKind)
 	req.Language = strings.TrimSpace(strings.ToLower(req.Language))
+	req.ScriptExtension = assets.NormalizeScriptExtension(req.ScriptExtension)
 	req.Reference = strings.TrimSpace(req.Reference)
 	req.Path = strings.TrimSpace(req.Path)
 	req.Entrypoint = strings.TrimSpace(req.Entrypoint)
@@ -401,6 +405,16 @@ func normalizeAssetWriteRequest(req *assetWriteRequest) error {
 		}
 		if !containsString(assets.SupportedLanguages, req.Language) {
 			return errors.New("unsupported language")
+		}
+		if req.Language == assets.LanguageOther {
+			if req.ScriptExtension == "" {
+				return errors.New("script_extension is required when language=other")
+			}
+			if !assets.ValidScriptExtension(req.ScriptExtension) {
+				return errors.New("unsupported script_extension")
+			}
+		} else {
+			req.ScriptExtension = ""
 		}
 		if req.Content == "" && req.Reference == "" {
 			return errors.New("script requires content or reference")
@@ -766,7 +780,7 @@ func applyDerivedScriptFields(app core.App, record *core.Record, req *assetWrite
 	if record.GetString("kind") != assets.KindScript {
 		return nil
 	}
-	derivedPath := assets.ScriptFileName(req.Name, record.Id, req.Language)
+	derivedPath := assets.ScriptFileName(req.Name, record.Id, req.Language, req.ScriptExtension)
 	if record.GetString("path") == derivedPath && record.GetString("entrypoint") == "" {
 		req.Path = derivedPath
 		req.Entrypoint = ""

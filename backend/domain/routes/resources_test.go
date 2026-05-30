@@ -127,8 +127,6 @@ func (te *testEnv) do(t *testing.T, method, url, body string, authenticated bool
 		t.Fatal(err)
 	}
 
-	g := r.Group("/api/ext")
-	registerResourceRoutes(g)
 	registerAIProviderRoutes(&core.ServeEvent{Router: r})
 	registerConnectorRoutes(&core.ServeEvent{Router: r})
 	registerInstanceRoutes(&core.ServeEvent{Router: r})

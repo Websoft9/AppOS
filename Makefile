@@ -44,7 +44,7 @@ help:
 	@echo "  make sync-store           Refresh web/public/store/*.json from artifact.websoft9.com"
 	@echo "  make run                  Copy artifacts + restart services (~10s)"
 	@echo "  make run 9092             Copy artifacts + restart on custom port"
-	@echo "  make redo                 Full rebuild: rm volumes + build + image + start dev"
+	@echo "  make redo                 Full rebuild: build + image, then replace container/volumes + start dev"
 	@echo ""
 	@printf "\033[36mTesting & Quality:\033[0m\n"
 	@echo "  make test                 Run strict tests (Go + JS + E2E smoke, stop early)"
@@ -236,10 +236,7 @@ else
 endif
 
 redo:
-	@echo "Full rebuild: removing container + volumes, then building and restarting..."
-	@docker rm -f $$(docker ps -aq --filter name=$(CONTAINER)) 2>/dev/null || true
-	@$(COMPOSE_CMD) down --timeout 5 -v 2>/dev/null || true
-	@echo "✓ Container and volumes removed"
+	@echo "Full rebuild: building artifacts and image before replacing container + volumes..."
 	@if grep -q '^APPOS_SECRET_KEY=replace-with-a-random-base64-secret' build/.env 2>/dev/null; then \
 		NEW_KEY=$$(openssl rand -base64 32); \
 		sed -i "s|^APPOS_SECRET_KEY=replace-with-a-random-base64-secret|APPOS_SECRET_KEY=$$NEW_KEY|" build/.env; \
@@ -247,6 +244,9 @@ redo:
 	fi
 	@$(MAKE) build
 	@$(MAKE) image build-local
+	@docker rm -f $$(docker ps -aq --filter name=$(CONTAINER)) 2>/dev/null || true
+	@$(COMPOSE_CMD) down --timeout 5 -v 2>/dev/null || true
+	@echo "✓ Previous container and volumes removed after successful build"
 	@$(MAKE) start dev
 	@sleep 3
 	@docker exec $(CONTAINER) supervisorctl -c /etc/supervisor/supervisord.conf restart appos 2>/dev/null || true

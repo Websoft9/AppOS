@@ -228,6 +228,56 @@ func TestAssetsRejectsScriptWithoutLanguage(t *testing.T) {
 	}
 }
 
+func TestAssetsCreateScriptSupportsExpandedLanguageCatalog(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	payload := `{"name":"Bash Script","kind":"script","storage_kind":"file","language":"bash","content":"echo hello"}`
+	rec := te.doAssets(t, http.MethodPost, "/api/assets", payload, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := parseJSON(t, rec)
+	if !strings.HasSuffix(body["path"].(string), ".bash") {
+		t.Fatalf("expected .bash path, got %v", body["path"])
+	}
+	if body["language"] != "bash" {
+		t.Fatalf("expected language bash, got %v", body["language"])
+	}
+}
+
+func TestAssetsCreateOtherScriptRequiresCustomExtension(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	payload := `{"name":"Custom Script","kind":"script","storage_kind":"file","language":"other","content":"echo hello"}`
+	rec := te.doAssets(t, http.MethodPost, "/api/assets", payload, true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(strings.ToLower(rec.Body.String()), "script_extension") {
+		t.Fatalf("expected script_extension error, got %s", rec.Body.String())
+	}
+}
+
+func TestAssetsCreateOtherScriptUsesCustomExtension(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	payload := `{"name":"Custom Script","kind":"script","storage_kind":"file","language":"other","script_extension":"nu","content":"echo hello"}`
+	rec := te.doAssets(t, http.MethodPost, "/api/assets", payload, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := parseJSON(t, rec)
+	if body["script_extension"] != "nu" {
+		t.Fatalf("expected script_extension nu, got %v", body["script_extension"])
+	}
+	if !strings.HasSuffix(body["path"].(string), ".nu") {
+		t.Fatalf("expected .nu path, got %v", body["path"])
+	}
+}
+
 func TestAssetsScriptPullRejectsLocalhost(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
@@ -307,10 +357,10 @@ func TestExtractGitHubSkillFiles(t *testing.T) {
 	var buffer bytes.Buffer
 	writer := zip.NewWriter(&buffer)
 	files := map[string]string{
-		"repo-main/SKILL.md":          "# Skill",
-		"repo-main/docs/guide.md":     "hello",
-		"repo-main/assets/logo.png":   string([]byte{0xff, 0xfe, 0xfd}),
-		"repo-main/scripts/check.sh":  "echo ok",
+		"repo-main/SKILL.md":         "# Skill",
+		"repo-main/docs/guide.md":    "hello",
+		"repo-main/assets/logo.png":  string([]byte{0xff, 0xfe, 0xfd}),
+		"repo-main/scripts/check.sh": "echo ok",
 	}
 	for name, content := range files {
 		entry, err := writer.Create(name)

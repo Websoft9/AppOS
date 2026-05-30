@@ -28,6 +28,12 @@ import {
   type AssetStorageKind,
   type AssetWriteRequest,
 } from '@/lib/assets-api'
+import {
+  formatScriptLanguageOptionLabel,
+  isScriptLanguage,
+  SCRIPT_LANGUAGE_OPTIONS,
+  SCRIPT_UPLOAD_ACCEPT,
+} from '@/lib/assets-script-languages'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -88,6 +94,7 @@ type AssetFormState = {
   storage_kind: AssetStorageKind
   source_kind: AssetSourceKind
   language: ScriptLanguage
+  script_extension: string
   reference: string
   path: string
   entrypoint: string
@@ -120,6 +127,7 @@ const scriptDefaults: AssetFormState = {
   storage_kind: 'file',
   source_kind: 'local',
   language: 'shell',
+  script_extension: '',
   reference: '',
   path: '',
   entrypoint: '',
@@ -134,6 +142,7 @@ const skillDefaults: AssetFormState = {
   storage_kind: 'folder',
   source_kind: 'local',
   language: 'other',
+  script_extension: '',
   reference: '',
   path: '',
   entrypoint: 'SKILL.md',
@@ -142,7 +151,7 @@ const skillDefaults: AssetFormState = {
 }
 
 function defaultsForKind(kind: AssetKind): AssetFormState {
-  return kind === 'skill' ? { ...skillDefaults } : createScriptDefaults()
+  return kind === 'skill' ? createSkillDefaults() : createScriptDefaults()
 }
 
 function normalizeSkillFiles(files: Array<{ path: string; content: string }>) {
@@ -162,9 +171,8 @@ function formatDate(value?: string) {
   return new Date(value).toLocaleString()
 }
 
-function randomScriptName() {
+function randomAssetName(suffixes: string[]) {
   const prefixes = ['backup', 'cleanup', 'deploy', 'health', 'repair', 'sync']
-  const suffixes = ['job', 'task', 'flow', 'script', 'runner', 'check']
   const prefix = prefixes[Math.floor(Math.random() * prefixes.length)]
   const suffix = suffixes[Math.floor(Math.random() * suffixes.length)]
   const token = Math.random().toString(36).slice(2, 6)
@@ -174,7 +182,14 @@ function randomScriptName() {
 function createScriptDefaults(): AssetFormState {
   return {
     ...scriptDefaults,
-    name: randomScriptName(),
+    name: randomAssetName(['job', 'task', 'flow', 'script', 'runner', 'check']),
+  }
+}
+
+function createSkillDefaults(): AssetFormState {
+  return {
+    ...skillDefaults,
+    name: randomAssetName(['skill', 'agent', 'guide', 'playbook', 'workflow', 'kit']),
   }
 }
 
@@ -206,6 +221,7 @@ async function readFolderFiles(fileList: FileList | null) {
 
 function buildFormFromAsset(asset: AssetRecord): AssetFormState {
   const base = defaultsForKind(asset.kind)
+  const language = asset.language ?? ''
   return {
     ...base,
     name: asset.name,
@@ -213,7 +229,8 @@ function buildFormFromAsset(asset: AssetRecord): AssetFormState {
     kind: asset.kind,
     storage_kind: asset.storage_kind,
     source_kind: asset.source_kind,
-    language: asset.language === 'python' || asset.language === 'other' ? asset.language : 'shell',
+    language: isScriptLanguage(language) ? language : 'shell',
+    script_extension: asset.script_extension ?? '',
     reference: asset.reference ?? '',
     path: asset.path ?? base.path,
     entrypoint: asset.entrypoint ?? base.entrypoint,
@@ -224,7 +241,7 @@ function buildFormFromAsset(asset: AssetRecord): AssetFormState {
 
 function assetDialogTitle(kind: AssetKind, editing: boolean) {
   if (kind === 'skill') {
-    return editing ? 'Edit Skill' : 'Create Skill'
+    return editing ? 'Edit Skill' : 'Add Skill'
   }
   return editing ? 'Edit Script' : 'Create Script'
 }
@@ -381,7 +398,7 @@ export function AssetFamilyPage({
 
   async function handlePullScriptReference() {
     if (!form.reference.trim()) {
-      setFormError('Reference URL is required before pull.')
+      setFormError('Script Source is required before pull.')
       return
     }
     setScriptPulling(true)
@@ -424,7 +441,7 @@ export function AssetFamilyPage({
 
   async function handlePullSkillReference() {
     if (!form.reference.trim()) {
-      setFormError('GitHub Project URL is required before pull.')
+      setFormError('Skill Source is required before pull.')
       return
     }
     setSkillPulling(true)
@@ -437,7 +454,7 @@ export function AssetFamilyPage({
         skillFiles: result.files.map(file => ({ path: file.path, content: file.content })),
       }))
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Failed to pull GitHub skill files.')
+      setFormError(err instanceof Error ? err.message : 'Failed to pull skill files.')
     } finally {
       setSkillPulling(false)
     }
@@ -470,6 +487,10 @@ export function AssetFamilyPage({
     setSaving(true)
     setFormError('')
     try {
+      if (form.kind === 'script' && form.language === 'other' && !form.script_extension.trim()) {
+        setFormError('File suffix is required when language is Other.')
+        return
+      }
       const payload: AssetWriteRequest = {
         name: form.name,
         description: form.description.trim() || undefined,
@@ -478,6 +499,7 @@ export function AssetFamilyPage({
       }
       if (form.kind === 'script') {
         payload.language = form.language
+        payload.script_extension = form.language === 'other' ? form.script_extension.trim() || undefined : undefined
         payload.reference = form.reference.trim() || undefined
         payload.content = form.content
       } else {
@@ -739,8 +761,6 @@ export function AssetFamilyPage({
             {form.kind === 'script' ? (
               <>
                 <section className="space-y-3">
-                  <h3 className="text-sm font-semibold">Metadata</h3>
-
                   <div className="grid gap-2">
                     <Label htmlFor="asset-name" className={fieldLabelClassName}>Name</Label>
                     <Input
@@ -754,39 +774,39 @@ export function AssetFamilyPage({
                     <Label className={fieldLabelClassName}>Language</Label>
                     <Select
                       value={form.language}
-                      onValueChange={value => setForm(current => ({ ...current, language: value as ScriptLanguage }))}
+                      onValueChange={value =>
+                        setForm(current => ({
+                          ...current,
+                          language: value as ScriptLanguage,
+                          script_extension: value === 'other' ? current.script_extension : '',
+                        }))
+                      }
                     >
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="shell">Shell</SelectItem>
-                        <SelectItem value="python">Python</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
+                        {SCRIPT_LANGUAGE_OPTIONS.map(option => (
+                          <SelectItem key={option.value} value={option.value}>{formatScriptLanguageOptionLabel(option.value)}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {form.language === 'other' ? (
+                    <div className="grid gap-2">
+                      <Label htmlFor="asset-script-extension" className={fieldLabelClassName}>File Suffix</Label>
+                      <Input
+                        id="asset-script-extension"
+                        value={form.script_extension}
+                        onChange={e => setForm(current => ({ ...current, script_extension: e.target.value }))}
+                        placeholder="txt"
+                      />
+                    </div>
+                  ) : null}
                 </section>
 
                 <section className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-semibold">Content</h3>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
-                          aria-label="Script content help"
-                        >
-                          <CircleHelp className="h-4 w-4" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="right" sideOffset={8} className="max-w-[260px] leading-5">
-                        Provide inline content, or pull/upload content into this field. Content or reference is required.
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-
                   <div className="grid gap-2">
-                    <Label htmlFor="asset-reference" className={fieldLabelClassName}>Reference URL</Label>
+                    <Label htmlFor="asset-reference" className={fieldLabelClassName}>Script Source</Label>
                     <div className="flex gap-2">
                       <Input
                         id="asset-reference"
@@ -807,33 +827,52 @@ export function AssetFamilyPage({
                   </div>
 
                   <div className="grid gap-2">
-                    <Label htmlFor="asset-content" className={fieldLabelClassName}>Script Content</Label>
-                    <div className="relative">
-                      <input
-                        ref={scriptUploadInputRef}
-                        type="file"
-                        className="hidden"
-                        accept=".sh,.bash,.py,.txt,.md,text/plain"
-                        onChange={event => void handleScriptUpload(event)}
-                      />
+                    <div className="flex items-center justify-between gap-3">
+                      <Label htmlFor="asset-content" className={fieldLabelClassName}>Script Content</Label>
+                      <div className="flex items-center gap-1">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                              aria-label="Script content help"
+                            >
+                              <CircleHelp className="h-4 w-4" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="left" sideOffset={8} className="max-w-[260px] leading-5">
+                            Provide inline content, or pull/upload content into this field. Content or source is required.
+                          </TooltipContent>
+                        </Tooltip>
+                        <input
+                          ref={scriptUploadInputRef}
+                          type="file"
+                          className="hidden"
+                          accept={SCRIPT_UPLOAD_ACCEPT}
+                          onChange={event => void handleScriptUpload(event)}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground"
+                          onClick={() => scriptUploadInputRef.current?.click()}
+                          aria-label="Upload script content"
+                        >
+                          <Upload className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div>
                       <Textarea
                         id="asset-content"
                         value={form.content}
                         onChange={e => setForm(current => ({ ...current, content: e.target.value }))}
                         rows={12}
                         wrap="soft"
-                        className="pr-12 [overflow-wrap:anywhere] [word-break:break-word]"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute bottom-2 right-2 h-8 w-8 rounded-md text-muted-foreground hover:text-foreground"
-                        onClick={() => scriptUploadInputRef.current?.click()}
-                        aria-label="Upload script content"
+                        className="[overflow-wrap:anywhere] [word-break:break-word]"
                       >
-                        <Upload className="h-4 w-4" />
-                      </Button>
+                      </Textarea>
                     </div>
                   </div>
                 </section>
@@ -873,11 +912,51 @@ export function AssetFamilyPage({
                 </div>
 
                 <section className="space-y-3 rounded-md border bg-muted/20 p-3">
+                  <div className="grid gap-2">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="asset-reference-path" className={fieldLabelClassName}>Skill Source</Label>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+                            aria-label="Skill source help"
+                          >
+                            <CircleHelp className="h-4 w-4" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" sideOffset={8} className="max-w-[280px] leading-5">
+                          Use a public git repository URL. Pull currently imports GitHub repository snapshots into this dialog.
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        id="asset-reference-path"
+                        value={form.reference}
+                        onChange={e => setForm(current => ({ ...current, reference: e.target.value }))}
+                        placeholder="https://github.com/example/skill-repo"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => void handlePullSkillReference()}
+                        disabled={skillPulling || !form.reference.trim()}
+                      >
+                        {skillPulling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                        Pull
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Add a public git repository URL here. Pull refreshes the editable file snapshot in this dialog.
+                    </p>
+                  </div>
+
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h3 className="text-sm font-semibold text-foreground">Files</h3>
+                      <h3 className="text-sm font-semibold text-foreground">Skill Files</h3>
                       <p className="text-xs text-muted-foreground">
-                        Upload a folder, pull from GitHub, or edit files inline. Skills need files or a GitHub URL.
+                        Upload a folder or edit files inline. Skills need files or a source URL.
                       </p>
                     </div>
                     <div className="flex gap-2">
@@ -902,30 +981,6 @@ export function AssetFamilyPage({
                         Add file
                       </Button>
                     </div>
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="asset-reference-path" className={fieldLabelClassName}>GitHub Project URL</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="asset-reference-path"
-                        value={form.reference}
-                        onChange={e => setForm(current => ({ ...current, reference: e.target.value }))}
-                        placeholder="https://github.com/example/skill-repo"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => void handlePullSkillReference()}
-                        disabled={skillPulling || !form.reference.trim()}
-                      >
-                        {skillPulling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                        Pull
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      GitHub only. Pull refreshes the editable file snapshot in this dialog.
-                    </p>
                   </div>
 
                   <div className="space-y-3">

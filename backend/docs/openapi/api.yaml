@@ -55,8 +55,6 @@ tags:
       name: Realtime
     - description: Release inventory and app-scoped release inspection APIs.
       name: Releases
-    - description: Generic resource-store collection APIs for scripts only.
-      name: Resource
     - description: Secret storage, rotation, resolve, and reveal APIs.
       name: Secrets
     - description: Server registry CRUD and remote operations APIs for connectivity, power, cron, ports, and systemd management.
@@ -111,6 +109,8 @@ components:
                 path:
                     type: string
                 reference:
+                    type: string
+                script_extension:
                     type: string
                 source_kind:
                     type: string
@@ -5494,138 +5494,6 @@ paths:
             summary: Reload proxy config
             tags:
                 - Proxy
-    /api/ext/resources/scripts:
-        get:
-            operationId: get_api_ext_resources_scripts
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Get resources scripts
-            tags:
-                - Resource
-        post:
-            operationId: post_api_ext_resources_scripts
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: false
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Create or execute resources scripts
-            tags:
-                - Resource
-    /api/ext/resources/scripts/{id}:
-        delete:
-            operationId: delete_api_ext_resources_scripts_id
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Delete resources scripts by id
-            tags:
-                - Resource
-        get:
-            operationId: get_api_ext_resources_scripts_id
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Get resources scripts by id
-            tags:
-                - Resource
-        put:
-            operationId: put_api_ext_resources_scripts_id
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                    type: string
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: false
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Update resources scripts by id
-            tags:
-                - Resource
     /api/ext/setup/init:
         post:
             operationId: post_api_ext_setup_init

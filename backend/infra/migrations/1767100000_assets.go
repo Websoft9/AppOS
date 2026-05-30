@@ -19,9 +19,13 @@ func init() {
 		col.DeleteRule = nil
 
 		col.Fields.Add(&core.TextField{Name: "name", Required: true, Max: 200})
+		col.Fields.Add(&core.TextField{Name: "description", Max: 4000})
 		col.Fields.Add(&core.SelectField{Name: "kind", Required: true, MaxSelect: 1, Values: assets.SupportedKinds})
 		col.Fields.Add(&core.SelectField{Name: "storage_kind", Required: true, MaxSelect: 1, Values: assets.SupportedStorageKinds})
 		col.Fields.Add(&core.SelectField{Name: "source_kind", Required: true, MaxSelect: 1, Values: assets.SupportedSourceKinds})
+		col.Fields.Add(&core.SelectField{Name: "language", MaxSelect: 1, Values: assets.SupportedLanguages})
+		col.Fields.Add(&core.TextField{Name: "script_extension", Max: 32})
+		col.Fields.Add(&core.TextField{Name: "reference", Max: 4096})
 		col.Fields.Add(&core.TextField{Name: "path", Max: 1024})
 		col.Fields.Add(&core.TextField{Name: "entrypoint", Max: 512})
 		col.Fields.Add(&core.AutodateField{Name: "created", OnCreate: true})

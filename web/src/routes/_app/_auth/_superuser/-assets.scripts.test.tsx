@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SCRIPT_LANGUAGE_OPTIONS, formatScriptLanguageOptionLabel } from '@/lib/assets-script-languages'
 import { AssetsScriptsPage } from './ai-assets.scripts'
 
 const sendMock = vi.fn()
@@ -104,11 +105,12 @@ describe('AssetsScriptsPage', () => {
     fireEvent.click(screen.getByText('Edit'))
     const dialog = screen.getByRole('dialog')
     expect(within(dialog).getByRole('heading', { name: 'Edit Script' })).toBeInTheDocument()
-    expect(within(dialog).getByText('Metadata')).toBeInTheDocument()
-    expect(within(dialog).getByText('Content')).toBeInTheDocument()
+    expect(within(dialog).queryByText('Metadata')).not.toBeInTheDocument()
+    expect(within(dialog).queryByText('Content')).not.toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Show advanced settings' })).toBeInTheDocument()
     expect(within(dialog).getByText('Language')).toBeInTheDocument()
-    expect(within(dialog).getByLabelText('Reference URL')).toBeInTheDocument()
+    expect(within(dialog).getByText(formatScriptLanguageOptionLabel('shell'))).toBeInTheDocument()
+    expect(within(dialog).getByLabelText('Script Source')).toBeInTheDocument()
     expect(within(dialog).getByLabelText('Script Content')).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Show advanced settings' }))
     expect(within(dialog).getByLabelText('Description')).toHaveValue('Script for backups')
@@ -154,7 +156,7 @@ describe('AssetsScriptsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add Script' }))
     expect((screen.getByLabelText('Name') as HTMLInputElement).value).not.toBe('')
 
-    fireEvent.change(screen.getByLabelText('Reference URL'), {
+    fireEvent.change(screen.getByLabelText('Script Source'), {
       target: { value: 'https://example.com/backup.sh' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Pull' }))
@@ -175,5 +177,13 @@ describe('AssetsScriptsPage', () => {
 
     expect(screen.getByRole('button', { name: 'Upload script content' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Script content help' })).toBeInTheDocument()
+  })
+
+  it('defines a richer script language catalog with explicit suffix labels', () => {
+    expect(SCRIPT_LANGUAGE_OPTIONS.map(option => option.value)).toEqual(
+      expect.arrayContaining(['shell', 'bash', 'zsh', 'python', 'javascript', 'typescript', 'powershell', 'ruby', 'perl', 'php', 'lua', 'groovy', 'r', 'other'])
+    )
+    expect(formatScriptLanguageOptionLabel('bash')).toBe('Bash (.bash, .sh)')
+    expect(formatScriptLanguageOptionLabel('other')).toBe('Other (custom suffix)')
   })
 })

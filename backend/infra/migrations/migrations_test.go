@@ -22,6 +22,7 @@ func TestResourceCollectionsCreated(t *testing.T) {
 	expected := []string{
 		"assets",
 		"secrets",
+		"user_files",
 		"feed_sources",
 		"feed_items",
 		"env_sets",
@@ -51,6 +52,32 @@ func TestResourceCollectionsCreated(t *testing.T) {
 		if col.Type != core.CollectionTypeBase {
 			t.Errorf("collection %q: expected type %q, got %q", name, core.CollectionTypeBase, col.Type)
 		}
+	}
+}
+
+func TestSpaceFilesCollectionFields(t *testing.T) {
+	app := newMigrationsTestApp(t)
+
+	col, err := app.FindCollectionByNameOrId("user_files")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertFieldExists(t, col, "owner", core.FieldTypeText, true)
+	assertFieldExists(t, col, "name", core.FieldTypeText, true)
+	assertFieldExists(t, col, "content", core.FieldTypeFile, false)
+	assertFieldExists(t, col, "mime_type", core.FieldTypeText, false)
+	assertFieldExists(t, col, "share_token", core.FieldTypeText, false)
+	assertFieldExists(t, col, "share_expires_at", core.FieldTypeText, false)
+	assertFieldExists(t, col, "is_folder", core.FieldTypeBool, false)
+	assertFieldExists(t, col, "parent", core.FieldTypeText, false)
+	assertFieldExists(t, col, "size", core.FieldTypeNumber, false)
+	assertFieldExists(t, col, "is_deleted", core.FieldTypeBool, false)
+	assertFieldExists(t, col, "created", core.FieldTypeAutodate, false)
+	assertFieldExists(t, col, "updated", core.FieldTypeAutodate, false)
+
+	if col.ListRule == nil || col.ViewRule == nil || col.CreateRule == nil || col.UpdateRule == nil || col.DeleteRule == nil {
+		t.Fatal("user_files should be owner-scoped for all operations")
 	}
 }
 
@@ -344,13 +371,28 @@ func TestServersCollectionFields(t *testing.T) {
 	assertFieldExists(t, col, "host", core.FieldTypeText, false)
 	assertFieldExists(t, col, "port", core.FieldTypeNumber, false)
 	assertFieldExists(t, col, "user", core.FieldTypeText, true)
+	assertFieldExists(t, col, "connect_type", core.FieldTypeText, false)
 	// auth_type removed in migration 1762700000 — credential type is inferred from secret.template_id
 	assertFieldExists(t, col, "credential", core.FieldTypeRelation, false)
+	assertFieldExists(t, col, "shell", core.FieldTypeText, false)
+	assertFieldExists(t, col, "tunnel_status", core.FieldTypeText, false)
+	assertFieldExists(t, col, "tunnel_last_seen", core.FieldTypeDate, false)
+	assertFieldExists(t, col, "tunnel_connected_at", core.FieldTypeDate, false)
+	assertFieldExists(t, col, "tunnel_remote_addr", core.FieldTypeText, false)
+	assertFieldExists(t, col, "tunnel_disconnect_at", core.FieldTypeDate, false)
+	assertFieldExists(t, col, "tunnel_disconnect_reason", core.FieldTypeText, false)
+	assertFieldExists(t, col, "tunnel_pause_until", core.FieldTypeDate, false)
+	assertFieldExists(t, col, "tunnel_forwards", core.FieldTypeJSON, false)
+	assertFieldExists(t, col, "tunnel_services", core.FieldTypeJSON, false)
 	assertFieldExists(t, col, "description", core.FieldTypeText, false)
+	assertFieldExists(t, col, "created_by", core.FieldTypeText, false)
 	assertFieldExists(t, col, "created", core.FieldTypeAutodate, false)
 	assertFieldExists(t, col, "updated", core.FieldTypeAutodate, false)
 	assertFieldExists(t, col, "facts_json", core.FieldTypeJSON, false)
 	assertFieldExists(t, col, "facts_observed_at", core.FieldTypeDate, false)
+	assertFieldExists(t, col, "access_status", core.FieldTypeText, false)
+	assertFieldExists(t, col, "access_reason", core.FieldTypeText, false)
+	assertFieldExists(t, col, "access_checked_at", core.FieldTypeDate, false)
 
 	// Verify credential relation points to secrets
 	assertRelationTarget(t, app, col, "credential", "secrets")
@@ -720,7 +762,7 @@ func TestResourceCollectionsHaveNoGroupsField(t *testing.T) {
 	collections := []string{
 		"servers", "secrets", "env_sets",
 		"databases", "cloud_accounts", "certificates", "provider_accounts",
-		"connectors", "ai_providers", "scripts",
+		"connectors", "ai_providers",
 	}
 	for _, colName := range collections {
 		col, err := app.FindCollectionByNameOrId(colName)
@@ -731,6 +773,14 @@ func TestResourceCollectionsHaveNoGroupsField(t *testing.T) {
 		if col.Fields.GetByName("groups") != nil {
 			t.Errorf("collection %q still has a legacy 'groups' field after migration", colName)
 		}
+	}
+}
+
+func TestLegacyScriptsCollectionRemoved(t *testing.T) {
+	app := newMigrationsTestApp(t)
+
+	if _, err := app.FindCollectionByNameOrId("scripts"); err == nil {
+		t.Fatal("legacy scripts collection should not exist after migrations")
 	}
 }
 
@@ -777,6 +827,7 @@ func TestAssetsCollectionFields(t *testing.T) {
 	assertFieldExists(t, col, "storage_kind", core.FieldTypeSelect, true)
 	assertFieldExists(t, col, "source_kind", core.FieldTypeSelect, true)
 	assertFieldExists(t, col, "language", core.FieldTypeSelect, false)
+	assertFieldExists(t, col, "script_extension", core.FieldTypeText, false)
 	assertFieldExists(t, col, "reference", core.FieldTypeText, false)
 	assertFieldExists(t, col, "path", core.FieldTypeText, false)
 	assertFieldExists(t, col, "entrypoint", core.FieldTypeText, false)
@@ -785,7 +836,7 @@ func TestAssetsCollectionFields(t *testing.T) {
 	assertSelectFieldValues(t, col, "kind", []string{"script", "skill"})
 	assertSelectFieldValues(t, col, "storage_kind", []string{"file", "folder"})
 	assertSelectFieldValues(t, col, "source_kind", []string{"local", "reference"})
-	assertSelectFieldValues(t, col, "language", []string{"shell", "python", "other"})
+	assertSelectFieldValues(t, col, "language", []string{"shell", "bash", "zsh", "python", "javascript", "typescript", "powershell", "ruby", "perl", "php", "lua", "groovy", "r", "other"})
 
 	if col.ListRule == nil || col.ViewRule == nil {
 		t.Fatal("assets should be readable by authenticated users")

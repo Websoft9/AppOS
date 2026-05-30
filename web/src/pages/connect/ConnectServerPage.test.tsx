@@ -6,7 +6,8 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 
 const navigateMock = vi.fn()
 const listServersMock = vi.fn()
-const listScriptsMock = vi.fn()
+const listAssetsMock = vi.fn()
+const getAssetContentMock = vi.fn()
 const getConnectTerminalSettingsMock = vi.fn()
 const terminalPanelMock = vi.fn()
 
@@ -16,7 +17,6 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('@/lib/connect-api', () => ({
   listServers: (...args: unknown[]) => listServersMock(...args),
-  listScripts: (...args: unknown[]) => listScriptsMock(...args),
   checkServerStatus: vi.fn(),
   listSystemdServices: vi.fn(),
   getSystemdStatus: vi.fn(),
@@ -28,6 +28,11 @@ vi.mock('@/lib/connect-api', () => ({
   applySystemdUnit: vi.fn(),
   controlSystemdService: vi.fn(),
   getConnectTerminalSettings: (...args: unknown[]) => getConnectTerminalSettingsMock(...args),
+}))
+
+vi.mock('@/lib/assets-api', () => ({
+  listAssets: (...args: unknown[]) => listAssetsMock(...args),
+  getAssetContent: (...args: unknown[]) => getAssetContentMock(...args),
 }))
 
 vi.mock('@/components/connect/TerminalPanel', () => ({
@@ -49,13 +54,21 @@ describe('ConnectServerPage', () => {
   beforeEach(() => {
     navigateMock.mockReset()
     listServersMock.mockReset()
-    listScriptsMock.mockReset()
+    listAssetsMock.mockReset()
+    getAssetContentMock.mockReset()
     getConnectTerminalSettingsMock.mockReset()
     terminalPanelMock.mockReset()
     localStorage.clear()
 
     listServersMock.mockResolvedValue([{ id: 'srv-1', name: 'Alpha', host: '10.0.0.1' }])
-    listScriptsMock.mockResolvedValue([])
+    listAssetsMock.mockResolvedValue([])
+    getAssetContentMock.mockResolvedValue({
+      id: 'asset-1',
+      storage_kind: 'file',
+      path: 'main.sh',
+      entrypoint: 'main.sh',
+      content: 'echo hello',
+    })
     getConnectTerminalSettingsMock.mockResolvedValue({
       idleTimeoutSeconds: 1800,
       maxConnections: 0,

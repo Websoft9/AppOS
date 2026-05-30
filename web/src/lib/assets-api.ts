@@ -1,9 +1,10 @@
 import { pb } from '@/lib/pb'
+import type { ScriptLanguage } from '@/lib/assets-script-languages'
 
 export type AssetKind = 'script' | 'skill'
 export type AssetStorageKind = 'file' | 'folder'
 export type AssetSourceKind = 'local' | 'reference'
-export type ScriptLanguage = 'shell' | 'python' | 'other'
+export type { ScriptLanguage } from '@/lib/assets-script-languages'
 
 export interface AssetRecord {
   id: string
@@ -13,6 +14,7 @@ export interface AssetRecord {
   storage_kind: AssetStorageKind
   source_kind: AssetSourceKind
   language?: ScriptLanguage | ''
+  script_extension?: string
   reference?: string
   path: string
   entrypoint: string
@@ -27,6 +29,7 @@ export interface AssetWriteRequest {
   storage_kind: AssetStorageKind
   source_kind?: AssetSourceKind
   language?: ScriptLanguage
+  script_extension?: string
   reference?: string
   path?: string
   entrypoint?: string

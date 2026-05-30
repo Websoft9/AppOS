@@ -80,6 +80,7 @@ func ensureSoftwareOperationsCollection(app core.App) error {
 	addFieldIfMissing(col, &core.SelectField{Name: "failure_phase", MaxSelect: 1, Values: failurePhases})
 	addFieldIfMissing(col, &core.SelectField{Name: "failure_code", MaxSelect: 1, Values: failureCodes})
 	addFieldIfMissing(col, &core.TextField{Name: "failure_reason", Max: 1000})
+	addFieldIfMissing(col, &core.TextField{Name: "event_log", Max: 20000})
 	addFieldIfMissing(col, &core.AutodateField{Name: "created", OnCreate: true})
 	addFieldIfMissing(col, &core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true})
 

@@ -31,6 +31,7 @@ func ensureAssetsCollection(t *testing.T, app *tests.TestApp) {
 	col.Fields.Add(&core.TextField{Name: "storage_kind", Required: true})
 	col.Fields.Add(&core.TextField{Name: "source_kind", Required: true})
 	col.Fields.Add(&core.TextField{Name: "language"})
+	col.Fields.Add(&core.TextField{Name: "script_extension"})
 	col.Fields.Add(&core.TextField{Name: "reference"})
 	col.Fields.Add(&core.TextField{Name: "path"})
 	col.Fields.Add(&core.TextField{Name: "entrypoint"})
@@ -87,18 +88,21 @@ func TestStoragePath(t *testing.T) {
 
 func TestScriptFileName(t *testing.T) {
 	tests := []struct {
-		name     string
-		language string
-		want     string
+		name      string
+		language  string
+		extension string
+		want      string
 	}{
 		{name: "shell", language: LanguageShell, want: "backup-script-abc123.sh"},
+		{name: "bash", language: LanguageBash, want: "backup-script-abc123.bash"},
 		{name: "python", language: LanguagePython, want: "backup-script-abc123.py"},
-		{name: "other", language: LanguageOther, want: "backup-script-abc123.txt"},
+		{name: "other", language: LanguageOther, extension: "nu", want: "backup-script-abc123.nu"},
+		{name: "other fallback", language: LanguageOther, want: "backup-script-abc123.txt"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := ScriptFileName("Backup Script", "abc123", tt.language); got != tt.want {
+			if got := ScriptFileName("Backup Script", "abc123", tt.language, tt.extension); got != tt.want {
 				t.Fatalf("expected %q, got %q", tt.want, got)
 			}
 		})
@@ -115,6 +119,7 @@ func TestAssetAccessorsAndHelpers(t *testing.T) {
 	rec.Set("storage_kind", StorageFile)
 	rec.Set("source_kind", SourceLocal)
 	rec.Set("language", LanguageShell)
+	rec.Set("script_extension", "")
 	rec.Set("reference", "https://example.com/script.sh")
 	rec.Set("path", "backup-script.sh")
 	rec.Set("entrypoint", "main.sh")
@@ -131,6 +136,9 @@ func TestAssetAccessorsAndHelpers(t *testing.T) {
 	}
 	if asset.Language() != LanguageShell {
 		t.Fatalf("unexpected language %q", asset.Language())
+	}
+	if asset.ScriptExtension() != "" {
+		t.Fatalf("unexpected script extension %q", asset.ScriptExtension())
 	}
 	if asset.Reference() != "https://example.com/script.sh" {
 		t.Fatalf("unexpected reference %q", asset.Reference())
