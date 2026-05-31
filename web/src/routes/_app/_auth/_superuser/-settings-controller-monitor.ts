@@ -15,8 +15,9 @@ import {
 import { extractFieldError, type ShowToast } from './-settings-controller-shared'
 
 export function useMonitorSettingsController(showToast: ShowToast) {
-  const [monitorSchedulingForm, setMonitorSchedulingForm] =
-    useState<MonitorSchedulingGroup>(DEFAULT_MONITOR_SCHEDULING)
+  const [monitorSchedulingForm, setMonitorSchedulingForm] = useState<MonitorSchedulingGroup>(
+    DEFAULT_MONITOR_SCHEDULING
+  )
   const [monitorSchedulingSaving, setMonitorSchedulingSaving] = useState(false)
   const [monitorSchedulingErrors, setMonitorSchedulingErrors] = useState<
     Partial<Record<keyof MonitorSchedulingGroup, string>>
@@ -60,14 +61,18 @@ export function useMonitorSettingsController(showToast: ShowToast) {
     })
 
     const monitorPlatformSelfObservation =
-      (entryMap.get('monitor-platform-self-observation') as Partial<MonitorPlatformSelfObservationGroup>) ?? {}
+      (entryMap.get(
+        'monitor-platform-self-observation'
+      ) as Partial<MonitorPlatformSelfObservationGroup>) ?? {}
     setMonitorPlatformSelfObservationForm({
       ...DEFAULT_MONITOR_PLATFORM_SELF_OBSERVATION,
       ...monitorPlatformSelfObservation,
     })
 
     const monitorManagedCollectorPolicy =
-      (entryMap.get('monitor-managed-collector-policy') as Partial<MonitorManagedCollectorPolicyGroup>) ?? {}
+      (entryMap.get(
+        'monitor-managed-collector-policy'
+      ) as Partial<MonitorManagedCollectorPolicyGroup>) ?? {}
     setMonitorManagedCollectorPolicyForm({
       ...DEFAULT_MONITOR_MANAGED_COLLECTOR_POLICY,
       ...monitorManagedCollectorPolicy,
@@ -94,7 +99,8 @@ export function useMonitorSettingsController(showToast: ShowToast) {
             ? (err.response.errors as Record<string, unknown>)
             : {}
         setMonitorSchedulingErrors({
-          reachabilityIntervalMinutes: extractFieldError(bag.reachabilityIntervalMinutes) ?? undefined,
+          reachabilityIntervalMinutes:
+            extractFieldError(bag.reachabilityIntervalMinutes) ?? undefined,
           metricsFreshnessIntervalMinutes:
             extractFieldError(bag.metricsFreshnessIntervalMinutes) ?? undefined,
           controlReachabilityIntervalMinutes:

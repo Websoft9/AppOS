@@ -143,7 +143,8 @@ export function PlatformComponentsPage() {
 
         <TabsContent value="services" className="mt-4 space-y-4">
           <p className="text-sm text-muted-foreground">
-            Services are grouped by operator visibility so the default surface stays focused while diagnostic dependencies remain accessible.
+            Services are grouped by operator visibility so the default surface stays focused while
+            diagnostic dependencies remain accessible.
           </p>
 
           <div className="space-y-6">
@@ -274,7 +275,9 @@ export function InstalledComponentsContent() {
   const controller = useInstalledComponentsController()
 
   const sorted = useMemo(() => {
-    return [...controller.components].sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+    return [...controller.components].sort((a, b) =>
+      String(a.name || '').localeCompare(String(b.name || ''))
+    )
   }, [controller.components])
 
   return (
@@ -512,7 +515,9 @@ export function ActiveServicesTableContent({
         </div>
       ) : sorted.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
-          <p className="text-muted-foreground">{emptyMessage || 'No active services are configured.'}</p>
+          <p className="text-muted-foreground">
+            {emptyMessage || 'No active services are configured.'}
+          </p>
         </div>
       ) : (
         <Table>
@@ -639,7 +644,9 @@ export function ActiveServicesTableContent({
           <ScrollArea className="flex-1 min-h-0 border-t px-5 py-3">
             <div className="rounded-xl bg-black px-4 py-3 font-mono text-[11px] leading-5 text-slate-100">
               <pre className="whitespace-pre-wrap break-all">
-                {logDialog?.loading ? 'Loading service logs...' : logDialog?.content || 'No log content'}
+                {logDialog?.loading
+                  ? 'Loading service logs...'
+                  : logDialog?.content || 'No log content'}
               </pre>
             </div>
           </ScrollArea>

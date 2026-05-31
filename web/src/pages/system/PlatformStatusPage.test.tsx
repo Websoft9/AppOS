@@ -5,7 +5,10 @@ import { PlatformStatusPage } from './PlatformStatusPage'
 const sendMock = vi.fn()
 let warnSpy: ReturnType<typeof vi.spyOn>
 let visibilityStateValue: DocumentVisibilityState = 'visible'
-const originalVisibilityStateDescriptor = Object.getOwnPropertyDescriptor(document, 'visibilityState')
+const originalVisibilityStateDescriptor = Object.getOwnPropertyDescriptor(
+  document,
+  'visibilityState'
+)
 
 Object.defineProperty(document, 'visibilityState', {
   configurable: true,
@@ -34,7 +37,9 @@ vi.mock('@/lib/pb', () => ({
 }))
 
 vi.mock('@/components/monitor/TimeSeriesChart', () => ({
-  TimeSeriesChart: ({ name }: { name: string }) => <div aria-label={`${name} time series chart`}>{name} chart</div>,
+  TimeSeriesChart: ({ name }: { name: string }) => (
+    <div aria-label={`${name} time series chart`}>{name} chart</div>
+  ),
 }))
 
 function mockPlatformStatusResponses() {
@@ -206,24 +211,60 @@ function mockPlatformStatusResponses() {
             name: 'disk',
             unit: 'bytes/s',
             segments: [
-              { name: 'read', points: [[1713705600, 4096], [1713705660, 8192]] },
-              { name: 'write', points: [[1713705600, 2048], [1713705660, 4096]] },
+              {
+                name: 'read',
+                points: [
+                  [1713705600, 4096],
+                  [1713705660, 8192],
+                ],
+              },
+              {
+                name: 'write',
+                points: [
+                  [1713705600, 2048],
+                  [1713705660, 4096],
+                ],
+              },
             ],
           },
           {
             name: 'network',
             unit: 'bytes/s',
             segments: [
-              { name: 'in', points: [[1713705600, 1024], [1713705660, 1536]] },
-              { name: 'out', points: [[1713705600, 768], [1713705660, 1280]] },
+              {
+                name: 'in',
+                points: [
+                  [1713705600, 1024],
+                  [1713705660, 1536],
+                ],
+              },
+              {
+                name: 'out',
+                points: [
+                  [1713705600, 768],
+                  [1713705660, 1280],
+                ],
+              },
             ],
           },
           {
             name: 'network_traffic',
             unit: 'bytes',
             segments: [
-              { name: 'in', points: [[1713705600, 4096], [1713705660, 5632]] },
-              { name: 'out', points: [[1713705600, 3072], [1713705660, 4352]] },
+              {
+                name: 'in',
+                points: [
+                  [1713705600, 4096],
+                  [1713705660, 5632],
+                ],
+              },
+              {
+                name: 'out',
+                points: [
+                  [1713705600, 3072],
+                  [1713705660, 4352],
+                ],
+              },
             ],
           },
         ],
@@ -286,15 +327,17 @@ function mockPlatformStatusResponses() {
     }
 
     if (path === '/api/software/local') {
-      return Promise.resolve({ items: [
-        {
-          id: 'docker',
-          name: 'Docker',
-          version: '28.x',
-          available: true,
-          updated_at: '2026-04-21T14:00:00Z',
-        },
-      ] })
+      return Promise.resolve({
+        items: [
+          {
+            id: 'docker',
+            name: 'Docker',
+            version: '28.x',
+            available: true,
+            updated_at: '2026-04-21T14:00:00Z',
+          },
+        ],
+      })
     }
 
     return Promise.resolve([])
@@ -349,7 +392,9 @@ describe('PlatformStatusPage', () => {
       expect(screen.getByRole('button', { name: label })).toBeInTheDocument()
     }
     expect(sendMock).toHaveBeenCalledWith(
-      expect.stringContaining('/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic'),
+      expect.stringContaining(
+        '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic'
+      ),
       { method: 'GET' }
     )
     expect(sendMock).toHaveBeenCalledWith(
@@ -491,7 +536,9 @@ describe('PlatformStatusPage', () => {
 
     render(<PlatformStatusPage />)
 
-    expect(await screen.findByText('Some status sections are temporarily unavailable.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Some status sections are temporarily unavailable.')
+    ).toBeInTheDocument()
 
     await waitFor(() => {
       expect(warnSpy).toHaveBeenCalledWith(
@@ -511,11 +558,16 @@ describe('PlatformStatusPage', () => {
 
     expect(await screen.findByText('Platform Availability')).toBeInTheDocument()
     vi.useFakeTimers()
-    const latestCallsBefore = sendMock.mock.calls.filter(call => String(call[0]).includes('/platform/appos-core/latest?')).length
+    const latestCallsBefore = sendMock.mock.calls.filter(call =>
+      String(call[0]).includes('/platform/appos-core/latest?')
+    ).length
 
     await vi.advanceTimersByTimeAsync(11000)
 
-    expect(sendMock.mock.calls.filter(call => String(call[0]).includes('/platform/appos-core/latest?')).length).toBe(latestCallsBefore)
+    expect(
+      sendMock.mock.calls.filter(call => String(call[0]).includes('/platform/appos-core/latest?'))
+        .length
+    ).toBe(latestCallsBefore)
 
     visibilityStateValue = 'visible'
     fireEvent(document, new Event('visibilitychange'))
@@ -523,6 +575,9 @@ describe('PlatformStatusPage', () => {
     await Promise.resolve()
     await Promise.resolve()
 
-    expect(sendMock.mock.calls.filter(call => String(call[0]).includes('/platform/appos-core/latest?')).length).toBe(latestCallsBefore + 1)
+    expect(
+      sendMock.mock.calls.filter(call => String(call[0]).includes('/platform/appos-core/latest?'))
+        .length
+    ).toBe(latestCallsBefore + 1)
   })
 })

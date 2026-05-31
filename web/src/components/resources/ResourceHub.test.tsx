@@ -127,9 +127,7 @@ describe('ResourceHub', () => {
       )
     ).toBeInTheDocument()
     expect(
-      screen.queryByText(
-        'Reusable shared configuration layers that support multiple applications.'
-      )
+      screen.queryByText('Reusable shared configuration layers that support multiple applications.')
     ).not.toBeInTheDocument()
     expect(
       screen.queryByText(

@@ -74,19 +74,19 @@ func TestSystemRuntimeRouteAggregatesPlatformRuntimeData(t *testing.T) {
 	loadSystemRuntimeFacts = func() (systemHostKernelFacts, systemRuntimeLimits, error) {
 		limit := int64(536870912)
 		return systemHostKernelFacts{
-			KernelRelease: "6.8.0-test",
-			Architecture:  "x86_64",
-			CPUTopologyVisible: systemVisibleCPUTopology{
-				ModelName:      "Test CPU",
-				OnlineCPUCount: 4,
-			},
-		}, systemRuntimeLimits{
-			CPUSetEffective: "0-3",
-			CPUQuota: systemCPUQuota{
-				Status: systemCPUQuotaUnrestricted,
-			},
-			MemoryLimitBytes: &limit,
-		}, nil
+				KernelRelease: "6.8.0-test",
+				Architecture:  "x86_64",
+				CPUTopologyVisible: systemVisibleCPUTopology{
+					ModelName:      "Test CPU",
+					OnlineCPUCount: 4,
+				},
+			}, systemRuntimeLimits{
+				CPUSetEffective: "0-3",
+				CPUQuota: systemCPUQuota{
+					Status: systemCPUQuotaUnrestricted,
+				},
+				MemoryLimitBytes: &limit,
+			}, nil
 	}
 
 	rec := te.doSystem(t, http.MethodGet, "/api/system/runtime", "", true)

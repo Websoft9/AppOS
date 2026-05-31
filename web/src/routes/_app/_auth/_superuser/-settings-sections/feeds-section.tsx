@@ -140,7 +140,8 @@ export function FeedsPolicySection({
           <div className="space-y-1">
             <div className="text-sm font-medium text-destructive">Delete All Articles</div>
             <p className="text-xs text-muted-foreground">
-              Manually delete pulled feed articles globally. If you choose fewer than the total, the oldest articles are deleted first.
+              Manually delete pulled feed articles globally. If you choose fewer than the total, the
+              oldest articles are deleted first.
             </p>
           </div>
           <div className="mt-4 flex items-center justify-between gap-3">
@@ -154,7 +155,11 @@ export function FeedsPolicySection({
               onClick={() => void openDeleteDialog()}
               disabled={deleteLoading}
             >
-              {deleteLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+              {deleteLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 h-4 w-4" />
+              )}
               Delete All Articles
             </Button>
           </div>

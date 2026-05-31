@@ -11,8 +11,8 @@ import (
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/websoft9/appos/backend/domain/software"
 	swcatalog "github.com/websoft9/appos/backend/domain/software/catalog"
-	swservice "github.com/websoft9/appos/backend/domain/software/service"
 	swinventory "github.com/websoft9/appos/backend/domain/software/inventory"
+	swservice "github.com/websoft9/appos/backend/domain/software/service"
 	"github.com/websoft9/appos/backend/domain/worker"
 	"github.com/websoft9/appos/backend/infra/collections"
 )
@@ -290,38 +290,38 @@ func markSoftwareOperationEnqueueFailed(e *core.RequestEvent, record *core.Recor
 
 type softwareComponentListItem struct {
 	software.SoftwareComponentSummary
-	TargetType    software.TargetType                  `json:"target_type"`
-	ID            string                               `json:"id,omitempty"`
-	Name          string                               `json:"name,omitempty"`
-	Criticality   string                               `json:"criticality,omitempty"`
-	RuntimeKind   string                               `json:"runtime_kind,omitempty"`
-	Role          string                               `json:"role,omitempty"`
-	OwnedCapability string                             `json:"owned_capability,omitempty"`
-	Version       string                               `json:"version,omitempty"`
-	Available     bool                                 `json:"available"`
-	ProbePending  bool                                 `json:"probe_pending,omitempty"`
-	UpdatedAt     string                               `json:"updated_at,omitempty"`
-	Description   string                               `json:"description,omitempty"`
-	Preflight     *software.TargetReadinessResult      `json:"preflight,omitempty"`
-	Verification  *software.SoftwareVerificationResult `json:"verification,omitempty"`
-	LastOperation *swservice.OperationSummary          `json:"last_operation,omitempty"`
+	TargetType      software.TargetType                  `json:"target_type"`
+	ID              string                               `json:"id,omitempty"`
+	Name            string                               `json:"name,omitempty"`
+	Criticality     string                               `json:"criticality,omitempty"`
+	RuntimeKind     string                               `json:"runtime_kind,omitempty"`
+	Role            string                               `json:"role,omitempty"`
+	OwnedCapability string                               `json:"owned_capability,omitempty"`
+	Version         string                               `json:"version,omitempty"`
+	Available       bool                                 `json:"available"`
+	ProbePending    bool                                 `json:"probe_pending,omitempty"`
+	UpdatedAt       string                               `json:"updated_at,omitempty"`
+	Description     string                               `json:"description,omitempty"`
+	Preflight       *software.TargetReadinessResult      `json:"preflight,omitempty"`
+	Verification    *software.SoftwareVerificationResult `json:"verification,omitempty"`
+	LastOperation   *swservice.OperationSummary          `json:"last_operation,omitempty"`
 }
 
 type softwareComponentDetailResponse struct {
 	software.SoftwareComponentDetail
-	TargetType    software.TargetType         `json:"target_type"`
-	ID            string                      `json:"id,omitempty"`
-	Name          string                      `json:"name,omitempty"`
-	Criticality   string                      `json:"criticality,omitempty"`
-	RuntimeKind   string                      `json:"runtime_kind,omitempty"`
-	Role          string                      `json:"role,omitempty"`
-	OwnedCapability string                    `json:"owned_capability,omitempty"`
-	Version       string                      `json:"version,omitempty"`
-	Available     bool                        `json:"available"`
-	InventoryPending bool                     `json:"inventory_pending,omitempty"`
-	ProbePending bool                         `json:"probe_pending,omitempty"`
-	UpdatedAt     string                      `json:"updated_at,omitempty"`
-	LastOperation *swservice.OperationSummary `json:"last_operation,omitempty"`
+	TargetType       software.TargetType         `json:"target_type"`
+	ID               string                      `json:"id,omitempty"`
+	Name             string                      `json:"name,omitempty"`
+	Criticality      string                      `json:"criticality,omitempty"`
+	RuntimeKind      string                      `json:"runtime_kind,omitempty"`
+	Role             string                      `json:"role,omitempty"`
+	OwnedCapability  string                      `json:"owned_capability,omitempty"`
+	Version          string                      `json:"version,omitempty"`
+	Available        bool                        `json:"available"`
+	InventoryPending bool                        `json:"inventory_pending,omitempty"`
+	ProbePending     bool                        `json:"probe_pending,omitempty"`
+	UpdatedAt        string                      `json:"updated_at,omitempty"`
+	LastOperation    *swservice.OperationSummary `json:"last_operation,omitempty"`
 }
 
 type localRuntimeComponentMetadata struct {

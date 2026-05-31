@@ -21,9 +21,9 @@ import (
 
 // Topic-local domain errors. Shared share lifecycle errors live in domain/share.
 var (
-	ErrTopicClosed        = errors.New("topic is closed")
-	ErrCommentBodyInvalid = errors.New("comment body invalid")
-	ErrGuestNameTooLong   = errors.New("guest name too long")
+	ErrTopicClosed           = errors.New("topic is closed")
+	ErrCommentBodyInvalid    = errors.New("comment body invalid")
+	ErrGuestNameTooLong      = errors.New("guest name too long")
 	ErrGuestCommentsDisabled = errors.New("guest comments disabled")
 )
 

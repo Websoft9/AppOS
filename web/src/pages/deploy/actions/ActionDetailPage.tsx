@@ -3,10 +3,7 @@ import { ArrowLeft, RefreshCw } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { ActionDetailContent } from '@/pages/deploy/actions/ActionDetailDialog'
-import {
-  buildActionListSearch,
-  formatTime,
-} from '@/pages/deploy/actions/action-utils'
+import { buildActionListSearch, formatTime } from '@/pages/deploy/actions/action-utils'
 import type { ActionDetailSearch } from '@/pages/deploy/actions/action-types'
 import { useActionDetailController } from '@/pages/deploy/actions/useActionDetailController'
 

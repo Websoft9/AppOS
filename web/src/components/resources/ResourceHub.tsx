@@ -77,7 +77,6 @@ const RUNTIME_INFRASTRUCTURE: ResourceDef[] = [
   },
 ]
 
-
 const EXTERNAL_INTEGRATIONS: ResourceDef[] = [
   {
     key: 'ai-providers',
@@ -134,10 +133,7 @@ const RESOURCE_SECTIONS: ResourceSection[] = [
   },
 ]
 
-const ALL_RESOURCES = [
-  ...RUNTIME_INFRASTRUCTURE,
-  ...EXTERNAL_INTEGRATIONS,
-]
+const ALL_RESOURCES = [...RUNTIME_INFRASTRUCTURE, ...EXTERNAL_INTEGRATIONS]
 
 // ─── Component ───────────────────────────────────────────
 

@@ -30,9 +30,9 @@ func newCanonicalContainerMetricPoint(series string, value float64, serverID str
 		return monitormetrics.MetricPoint{}, false
 	}
 	labels := map[string]string{
-		"server_id":   strings.TrimSpace(serverID),
-		"target_type": monitor.TargetTypeContainer,
-		"target_id":   identity,
+		"server_id":    strings.TrimSpace(serverID),
+		"target_type":  monitor.TargetTypeContainer,
+		"target_id":    identity,
 		"container_id": identity,
 	}
 	if containerName := normalizeContainerMetricName(firstNonEmptyLabel(rawLabels, "container_name", "name")); containerName != "" {

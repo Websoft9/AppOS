@@ -4,7 +4,10 @@ import { completeLoginRedirect, resolveLoginRedirectTarget } from './-login-redi
 describe('login redirect helpers', () => {
   it('normalizes same-origin absolute redirects into SPA targets', () => {
     expect(
-      resolveLoginRedirectTarget('http://appos.local/actions?returnTo=list#logs', 'http://appos.local')
+      resolveLoginRedirectTarget(
+        'http://appos.local/actions?returnTo=list#logs',
+        'http://appos.local'
+      )
     ).toBe('/actions?returnTo=list#logs')
   })
 

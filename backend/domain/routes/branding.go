@@ -52,14 +52,14 @@ func handleBrandingGet(e *core.RequestEvent) error {
 	faviconURL = resolveBrandingMediaURL(e.App, faviconMediaID, faviconURL)
 
 	return e.JSON(http.StatusOK, map[string]any{
-		"appName":           appName,
-		"appURL":            appURL,
-		"logoMediaId":       logoMediaID,
-		"logoUrl":           logoURL,
-		"wordmark":          wordmark,
+		"appName":          appName,
+		"appURL":           appURL,
+		"logoMediaId":      logoMediaID,
+		"logoUrl":          logoURL,
+		"wordmark":         wordmark,
 		"useLogoAsFavicon": useLogoAsFavicon,
-		"faviconMediaId":    faviconMediaID,
-		"faviconUrl":        faviconURL,
+		"faviconMediaId":   faviconMediaID,
+		"faviconUrl":       faviconURL,
 	})
 }
 

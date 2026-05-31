@@ -25,7 +25,7 @@ func TestLocalRegistryValidate_Valid(t *testing.T) {
 
 func TestLocalRegistryValidate_DuplicateComponentID(t *testing.T) {
 	reg := &LocalRegistry{
-		Version: 1,
+		Version:    1,
 		Components: []LocalComponent{{ID: "appos", Name: "AppOS"}, {ID: "appos", Name: "Duplicate"}},
 	}
 	if err := reg.Validate(); err == nil {
@@ -35,9 +35,9 @@ func TestLocalRegistryValidate_DuplicateComponentID(t *testing.T) {
 
 func TestLocalRegistryValidate_InvalidServiceVisibility(t *testing.T) {
 	reg := &LocalRegistry{
-		Version: 1,
+		Version:    1,
 		Components: []LocalComponent{{ID: "appos", Name: "AppOS"}},
-		Services: []LocalService{{Name: "appos", ComponentID: "appos", Enabled: true, Manager: "supervisor", Lifecycle: "always_on", Visibility: "secondary"}},
+		Services:   []LocalService{{Name: "appos", ComponentID: "appos", Enabled: true, Manager: "supervisor", Lifecycle: "always_on", Visibility: "secondary"}},
 	}
 	if err := reg.Validate(); err == nil {
 		t.Fatal("expected error for invalid service visibility")
@@ -93,7 +93,7 @@ func TestLoadLocalRegistry_FileNotFound(t *testing.T) {
 
 func TestLocalRegistryEnabledComponents(t *testing.T) {
 	reg := &LocalRegistry{
-		Version: 1,
+		Version:    1,
 		Components: []LocalComponent{{ID: "a", Name: "A", Enabled: true}, {ID: "b", Name: "B", Enabled: false}, {ID: "c", Name: "C", Enabled: true}},
 	}
 	enabled := reg.EnabledComponents()
@@ -107,7 +107,7 @@ func TestLocalRegistryEnabledComponents(t *testing.T) {
 
 func TestLocalRegistryEnabledServices(t *testing.T) {
 	reg := &LocalRegistry{
-		Version: 1,
+		Version:  1,
 		Services: []LocalService{{Name: "svc1", ComponentID: "c1", Enabled: true, Manager: "supervisor", Lifecycle: "always_on", Visibility: "default"}, {Name: "svc2", ComponentID: "c2", Enabled: false, Manager: "supervisor", Lifecycle: "on_demand", Visibility: "hidden"}},
 	}
 	enabled := reg.EnabledServices()
@@ -121,7 +121,7 @@ func TestLocalRegistryEnabledServices(t *testing.T) {
 
 func TestLocalRegistryFindService(t *testing.T) {
 	reg := &LocalRegistry{
-		Version: 1,
+		Version:  1,
 		Services: []LocalService{{Name: "appos", ComponentID: "appos", Enabled: true, Manager: "supervisor", Lifecycle: "always_on", Visibility: "default"}},
 	}
 	svc, ok := reg.FindService("appos")
@@ -138,22 +138,22 @@ func TestProjectLocalCatalog_UsesProjectionMetadataAndDerivedService(t *testing.
 		Version: 1,
 		Components: []LocalComponent{
 			{
-				ID:      "nginx",
-				Name:    "Nginx",
-				Enabled: true,
+				ID:          "nginx",
+				Name:        "Nginx",
+				Enabled:     true,
 				UpdateProbe: LocalInventoryProbe{Path: "/usr/sbin/nginx"},
-				Notes:      "Bundled reverse proxy service.",
+				Notes:       "Bundled reverse proxy service.",
 				SoftwareCatalog: &LocalSoftwareCatalogProjection{
 					ComponentKey:          software.ComponentKey("reverse-proxy"),
 					ReadinessRequirements: []string{"bundled_with_appos", "supervisor_process"},
 				},
 			},
 			{
-				ID:      "docker",
-				Name:    "Docker CLI",
-				Enabled: true,
+				ID:           "docker",
+				Name:         "Docker CLI",
+				Enabled:      true,
 				VersionProbe: LocalInventoryProbe{Type: "command", Command: []string{"docker", "version"}},
-				Notes:       "Bundled Docker CLI.",
+				Notes:        "Bundled Docker CLI.",
 				SoftwareCatalog: &LocalSoftwareCatalogProjection{
 					ComponentKey:          software.ComponentKeyDocker,
 					ReadinessRequirements: []string{"bundled_with_appos", "docker_socket_access"},

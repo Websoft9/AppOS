@@ -137,8 +137,20 @@ describe('MonitorOverviewContent', () => {
             name: 'disk',
             unit: 'bytes/s',
             segments: [
-              { name: 'read', points: [[1713096000, 4096], [1713096060, 8192]] },
-              { name: 'write', points: [[1713096000, 2048], [1713096060, 4096]] },
+              {
+                name: 'read',
+                points: [
+                  [1713096000, 4096],
+                  [1713096060, 8192],
+                ],
+              },
+              {
+                name: 'write',
+                points: [
+                  [1713096000, 2048],
+                  [1713096060, 4096],
+                ],
+              },
             ],
           },
         ],
@@ -158,14 +170,14 @@ describe('MonitorOverviewContent', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/platform/appos-core', {
         method: 'GET',
-          requestKey: null,
+        requestKey: null,
       })
       expect(sendMock).toHaveBeenCalledWith(
         '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork',
-          { method: 'GET', requestKey: null }
+        { method: 'GET', requestKey: null }
       )
     })
-      expectAppOSCorePlatformSeriesRequests()
+    expectAppOSCorePlatformSeriesRequests()
   })
 
   it('allows manual refresh after an error', async () => {
@@ -259,8 +271,20 @@ describe('MonitorOverviewContent', () => {
             name: 'network',
             unit: 'bytes/s',
             segments: [
-              { name: 'in', points: [[1713096000, 1024], [1713096060, 1536]] },
-              { name: 'out', points: [[1713096000, 768], [1713096060, 1280]] },
+              {
+                name: 'in',
+                points: [
+                  [1713096000, 1024],
+                  [1713096060, 1536],
+                ],
+              },
+              {
+                name: 'out',
+                points: [
+                  [1713096000, 768],
+                  [1713096060, 1280],
+                ],
+              },
             ],
           },
         ],
@@ -279,6 +303,6 @@ describe('MonitorOverviewContent', () => {
         { method: 'GET', requestKey: null }
       )
     })
-      expectAppOSCorePlatformSeriesRequests()
+    expectAppOSCorePlatformSeriesRequests()
   })
 })

@@ -32,19 +32,10 @@ var localDockerClient *docker.Client
 
 var enqueueDockerImagePullTask = worker.EnqueueDockerImagePull
 
-const dockerImageListCacheTTL = 15 * time.Second
-
 type dockerImageListCacheEntry struct {
 	output    string
 	host      string
 	fetchedAt time.Time
-}
-
-var dockerImageListCache = struct {
-	mu      sync.RWMutex
-	entries map[string]dockerImageListCacheEntry
-}{
-	entries: map[string]dockerImageListCacheEntry{},
 }
 
 func init() {
@@ -288,6 +279,12 @@ func dockerDependencyErrorCode(err error) string {
 		strings.Contains(normalized, "exec: \"docker\": executable file not found in $path") ||
 		strings.Contains(normalized, "no such file or directory: docker") {
 		return "docker_missing"
+	}
+
+	if strings.Contains(normalized, "docker: 'compose' is not a docker command") ||
+		strings.Contains(normalized, "docker compose is not a docker command") ||
+		strings.Contains(normalized, "unknown docker command: compose") {
+		return "compose_missing"
 	}
 
 	return ""

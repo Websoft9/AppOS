@@ -1432,7 +1432,13 @@ function FilesPage() {
             >
               <ChartColumn className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="icon" onClick={fetchAll} disabled={loading} aria-label="Refresh">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={fetchAll}
+              disabled={loading}
+              aria-label="Refresh"
+            >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </Button>
           </div>
@@ -1443,7 +1449,6 @@ function FilesPage() {
       <div className="space-y-4 border-t pt-4">
         {/* ── Unified toolbar ─────────────────────────── */}
         <div className="flex items-center gap-2 flex-wrap">
-
           {/* Trash breadcrumb OR normal folder breadcrumb */}
           {trashView ? (
             <div className="flex items-center gap-2 shrink-0">
@@ -1495,7 +1500,10 @@ function FilesPage() {
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
             />
           </div>
-          <Select value={sharedFilter} onValueChange={(value: SharedFilter) => setSharedFilter(value)}>
+          <Select
+            value={sharedFilter}
+            onValueChange={(value: SharedFilter) => setSharedFilter(value)}
+          >
             <SelectTrigger className="h-8 w-[92px] text-xs">
               <SelectValue placeholder="Shared" />
             </SelectTrigger>
@@ -1526,7 +1534,11 @@ function FilesPage() {
               title={viewMode === 'list' ? 'Switch to Grid view' : 'Switch to List view'}
               onClick={() => setViewMode(m => (m === 'list' ? 'grid' : 'list'))}
             >
-              {viewMode === 'list' ? <LayoutGrid className="h-4 w-4" /> : <List className="h-4 w-4" />}
+              {viewMode === 'list' ? (
+                <LayoutGrid className="h-4 w-4" />
+              ) : (
+                <List className="h-4 w-4" />
+              )}
             </Button>
             <Button
               variant={trashView ? 'secondary' : 'outline'}
@@ -1566,7 +1578,12 @@ function FilesPage() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="md:hidden" aria-label="Open space actions">
+              <Button
+                variant="outline"
+                size="icon"
+                className="md:hidden"
+                aria-label="Open space actions"
+              >
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -1603,390 +1620,393 @@ function FilesPage() {
         )}
         {error && <p className="text-destructive text-sm">{error}</p>}
 
-      {!loading && viewItems.length === 0 && !error && (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
+        {!loading && viewItems.length === 0 && !error && (
+          <Card>
+            <CardContent className="py-12 text-center text-muted-foreground">
+              {trashView ? (
+                <Archive className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              ) : (
+                <Folder className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              )}
+              <p>
+                {trashView
+                  ? 'Trash is empty.'
+                  : search
+                    ? `No items match "${search}".`
+                    : 'This folder is empty. Create a subfolder or upload your first file.'}
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ── Bulk action bar ────────────────────────────── */}
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-md border bg-muted/50 text-sm">
+            <span className="text-muted-foreground">{selectedIds.size} selected</span>
+            <div className="flex-1" />
             {trashView ? (
-              <Archive className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              <>
+                <Button size="sm" variant="outline" onClick={handleBulkRestore}>
+                  <RotateCcw className="h-4 w-4 mr-1" /> Restore
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  disabled={bulkDeleting}
+                  onClick={handleBulkDelete}
+                >
+                  {bulkDeleting && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+                  <Trash2 className="h-4 w-4 mr-1" /> Delete Permanently
+                </Button>
+              </>
             ) : (
-              <Folder className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setBulkMoveFolderId('')
+                    setBulkMoveOpen(true)
+                  }}
+                >
+                  <FolderInput className="h-4 w-4 mr-1" /> Move to…
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  disabled={bulkDeleting}
+                  onClick={handleBulkDelete}
+                >
+                  {bulkDeleting && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+                  <Trash2 className="h-4 w-4 mr-1" /> Move to Trash
+                </Button>
+              </>
             )}
-            <p>
-              {trashView
-                ? 'Trash is empty.'
-                : search
-                  ? `No items match "${search}".`
-                  : 'This folder is empty. Create a subfolder or upload your first file.'}
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ── Bulk action bar ────────────────────────────── */}
-      {selectedIds.size > 0 && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-md border bg-muted/50 text-sm">
-          <span className="text-muted-foreground">{selectedIds.size} selected</span>
-          <div className="flex-1" />
-          {trashView ? (
-            <>
-              <Button size="sm" variant="outline" onClick={handleBulkRestore}>
-                <RotateCcw className="h-4 w-4 mr-1" /> Restore
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                disabled={bulkDeleting}
-                onClick={handleBulkDelete}
-              >
-                {bulkDeleting && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-                <Trash2 className="h-4 w-4 mr-1" /> Delete Permanently
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setBulkMoveFolderId('')
-                  setBulkMoveOpen(true)
-                }}
-              >
-                <FolderInput className="h-4 w-4 mr-1" /> Move to…
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                disabled={bulkDeleting}
-                onClick={handleBulkDelete}
-              >
-                {bulkDeleting && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-                <Trash2 className="h-4 w-4 mr-1" /> Move to Trash
-              </Button>
-            </>
-          )}
-          <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      )}
-
-      {/* ── File list (table) ──────────────────────────── */}
-      {!loading && viewItems.length > 0 && viewMode === 'list' && (
-        <Card className="overflow-hidden rounded-lg bg-background">
-          <CardContent className="p-0">
-            <div className="px-2">
-              <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90">
-                <TableRow>
-                  <TableHead className="w-[36%] min-w-[260px] pl-5 pr-2">
-                    <div className="flex items-center gap-2">
-                      <input
-                        ref={headerCheckboxRef}
-                        type="checkbox"
-                        className="h-4 w-4 cursor-pointer"
-                        checked={isAllPageSelected()}
-                        onChange={toggleSelectPage}
-                        title="Select all on this page"
-                      />
-                      <button
-                        className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
-                        onClick={() => toggleSort('name')}
-                      >
-                        Name <SortIcon field="name" sortBy={sortBy} sortDir={sortDir} />
-                      </button>
-                    </div>
-                  </TableHead>
-                  <TableHead className="min-w-[140px]">
-                    <button
-                      className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
-                      onClick={() => toggleSort('type')}
-                    >
-                      Type <SortIcon field="type" sortBy={sortBy} sortDir={sortDir} />
-                    </button>
-                  </TableHead>
-                  <TableHead className="w-[110px] min-w-[110px]">
-                    <button
-                      className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
-                      onClick={() => toggleSort('size')}
-                    >
-                      Size <SortIcon field="size" sortBy={sortBy} sortDir={sortDir} />
-                    </button>
-                  </TableHead>
-                  <TableHead className="w-[96px] min-w-[96px] text-xs font-medium text-foreground">Shared</TableHead>
-                  <TableHead className="min-w-[150px]">
-                    <button
-                      className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
-                      onClick={() => toggleSort('created')}
-                    >
-                      Created <SortIcon field="created" sortBy={sortBy} sortDir={sortDir} />
-                    </button>
-                  </TableHead>
-                  <TableHead className="min-w-[150px]">
-                    <button
-                      className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
-                      onClick={() => toggleSort('updated')}
-                    >
-                      Modified <SortIcon field="updated" sortBy={sortBy} sortDir={sortDir} />
-                    </button>
-                  </TableHead>
-                  <TableHead className="w-[52px] text-xs font-medium text-foreground" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pagedItems.map(item => {
-                  const editable = isEditable(item, quota)
-                  const itemPath = buildPath(item, items)
-                  const previewType = getPreviewType(item, quota)
-                  const isExpanded = expandedId === item.id
-                  const mime = item.is_folder ? 'Folder' : item.mime_type || '—'
-                  return (
-                    <>
-                      <TableRow key={item.id} className={isExpanded ? 'bg-muted/30' : ''}>
-                        <TableCell className="pl-5 pr-3 py-3 text-xs font-medium">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <input
-                              type="checkbox"
-                              className="h-4 w-4 cursor-pointer shrink-0"
-                              checked={selectedIds.has(item.id)}
-                              onChange={() => toggleSelect(item.id)}
-                            />
-                            {item.is_folder ? (
-                              <button
-                                className="flex items-center gap-1.5 hover:underline cursor-pointer whitespace-nowrap"
-                                onClick={() => navigateTo(item.id)}
-                              >
-                                <FileIcon file={item} />
-                                {item.name}
-                              </button>
-                            ) : (
-                              <button
-                                className="flex items-center gap-1.5 hover:underline cursor-pointer text-left whitespace-nowrap"
-                                onClick={() => toggleExpand(item)}
-                              >
-                                <FileIcon file={item} />
-                                {item.name}
-                              </button>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell
-                          className="max-w-[140px] truncate py-3 text-xs text-muted-foreground"
-                          title={mime}
-                        >
-                          {truncateMime(mime)}
-                        </TableCell>
-                        <TableCell className="py-3 text-xs text-muted-foreground whitespace-nowrap">
-                          {item.is_folder ? '—' : formatFileSize(item.size)}
-                        </TableCell>
-                        <TableCell className="py-3">
-                          {isShared(item) ? (
-                            <Badge variant="secondary" className="text-xs whitespace-nowrap">
-                              Shared
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="py-3 text-xs text-muted-foreground whitespace-nowrap">
-                          {formatDate(item.created)}
-                        </TableCell>
-                        <TableCell className="py-3 text-xs text-muted-foreground whitespace-nowrap">
-                          {formatDate(item.updated)}
-                        </TableCell>
-                        <TableCell className="py-3">
-                          <ItemMenu
-                            item={item}
-                            editable={editable}
-                            previewType={previewType}
-                            inTrash={trashView}
-                            onOpen={() => navigateTo(item.id)}
-                            onPreview={() => openPreview(item)}
-                            onEdit={() => openEditor(item)}
-                            onDownloadUrl={buildDownloadUrl(item)}
-                            onShare={() => openShare(item)}
-                            onRename={() => openRename(item)}
-                            onDuplicate={() => handleDuplicate(item)}
-                            onDelete={() => setDeleteItem(item)}
-                            onRestore={() => handleRestore(item)}
-                            onHardDelete={() => setDeleteItem(item)}
-                          />
-                        </TableCell>
-                      </TableRow>
-                      {isExpanded && (
-                        <TableRow
-                          key={`${item.id}-expand`}
-                          className="bg-muted/20 hover:bg-muted/20"
-                        >
-                          <TableCell colSpan={7} className="bg-muted/20 px-4 py-3">
-                            <div className="flex gap-6 flex-wrap">
-                              {previewType === 'image' && (
-                                <div className="shrink-0">
-                                  <img
-                                    src={buildPreviewUrl(item)}
-                                    alt={item.name}
-                                    className="max-h-48 max-w-xs object-contain rounded border"
-                                  />
-                                </div>
-                              )}
-                              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-                                <dt className="text-muted-foreground font-medium">Name</dt>
-                                <dd className="font-mono break-all">{item.name}</dd>
-                                <dt className="text-muted-foreground font-medium">Path</dt>
-                                <dd className="font-mono break-all">{itemPath}</dd>
-                                <dt className="text-muted-foreground font-medium">Type</dt>
-                                <dd>{item.mime_type || '—'}</dd>
-                                <dt className="text-muted-foreground font-medium">Size</dt>
-                                <dd>{formatFileSize(item.size)}</dd>
-                                <dt className="text-muted-foreground font-medium">Created</dt>
-                                <dd>{formatDate(item.created)}</dd>
-                                <dt className="text-muted-foreground font-medium">Modified</dt>
-                                <dd>{formatDate(item.updated)}</dd>
-                                {item.share_token && !isExpired(item.share_expires_at) && (
-                                  <>
-                                    <dt className="text-muted-foreground font-medium">
-                                      Shared until
-                                    </dt>
-                                    <dd>{formatDate(item.share_expires_at)}</dd>
-                                  </>
-                                )}
-                              </dl>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </>
-                  )
-                })}
-              </TableBody>
-            </Table>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ── File list (grid) ───────────────────────────── */}
-      {!loading && viewItems.length > 0 && viewMode === 'grid' && (
-        <Card className="overflow-hidden rounded-lg bg-background">
-          <CardContent className="p-4">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-              {pagedItems.map(item => {
-                const editable = isEditable(item, quota)
-                const previewType = getPreviewType(item, quota)
-                const isSelected = selectedIds.has(item.id)
-                return (
-                  <div
-                    key={item.id}
-                    className={`group relative flex flex-col items-center gap-1.5 rounded-lg border p-3 cursor-pointer select-none transition-colors
-                      ${isSelected ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}
-                  >
-                    {/* Selection checkbox */}
-                    <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 cursor-pointer"
-                        checked={isSelected}
-                        onChange={() => toggleSelect(item.id)}
-                        onClick={e => e.stopPropagation()}
-                      />
-                    </div>
-                    {/* Icon */}
-                    <div
-                      className="flex items-center justify-center h-12 w-12 mt-1"
-                      onClick={() => (item.is_folder ? navigateTo(item.id) : toggleExpand(item))}
-                    >
-                      <FileIcon file={item} className="h-10 w-10 shrink-0" />
-                    </div>
-                    {/* Name */}
-                    <span
-                      className="text-xs text-center leading-tight max-w-full break-words line-clamp-2"
-                      title={item.name}
-                      onClick={() => (item.is_folder ? navigateTo(item.id) : toggleExpand(item))}
-                    >
-                      {item.name}
-                    </span>
-                    {/* More menu */}
-                    <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <ItemMenu
-                        item={item}
-                        editable={editable}
-                        previewType={previewType}
-                        inTrash={trashView}
-                        onOpen={() => navigateTo(item.id)}
-                        onPreview={() => openPreview(item)}
-                        onEdit={() => openEditor(item)}
-                        onDownloadUrl={buildDownloadUrl(item)}
-                        onShare={() => openShare(item)}
-                        onRename={() => openRename(item)}
-                        onDuplicate={() => handleDuplicate(item)}
-                        onDelete={() => setDeleteItem(item)}
-                        onRestore={() => handleRestore(item)}
-                        onHardDelete={() => setDeleteItem(item)}
-                      />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ── Pagination ─────────────────────────────────── */}
-      {viewItems.length > 0 && (
-        <div className="flex items-center justify-end text-sm text-muted-foreground flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-1.5 text-xs">
-              Per page
-              <select
-                className="h-7 rounded-md border border-input bg-background px-2 text-xs"
-                value={pageSize}
-                onChange={e => {
-                  setPageSize(Number(e.target.value) as (typeof PAGE_SIZES)[number])
-                  setPage(1)
-                }}
-              >
-                {PAGE_SIZES.map(s => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={safePage <= 1}
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              aria-label="Previous page"
-            >
-              ‹
-            </Button>
-            <span className="min-w-12 text-center text-xs font-medium text-foreground">
-              {safePage}/{totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={safePage >= totalPages}
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              aria-label="Next page"
-            >
-              ›
+            <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+              <X className="h-4 w-4" />
             </Button>
           </div>
-        </div>
-      )}
-      {trashView && trashCount > 0 && (
-        <div className="flex items-center gap-2">
-          <Button variant="destructive" size="sm" onClick={handleEmptyTrash}>
-            <Trash2 className="h-4 w-4 mr-1" /> Empty Trash ({trashCount})
-          </Button>
-        </div>
-      )}
+        )}
 
+        {/* ── File list (table) ──────────────────────────── */}
+        {!loading && viewItems.length > 0 && viewMode === 'list' && (
+          <Card className="overflow-hidden rounded-lg bg-background">
+            <CardContent className="p-0">
+              <div className="px-2">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90">
+                      <TableRow>
+                        <TableHead className="w-[36%] min-w-[260px] pl-5 pr-2">
+                          <div className="flex items-center gap-2">
+                            <input
+                              ref={headerCheckboxRef}
+                              type="checkbox"
+                              className="h-4 w-4 cursor-pointer"
+                              checked={isAllPageSelected()}
+                              onChange={toggleSelectPage}
+                              title="Select all on this page"
+                            />
+                            <button
+                              className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
+                              onClick={() => toggleSort('name')}
+                            >
+                              Name <SortIcon field="name" sortBy={sortBy} sortDir={sortDir} />
+                            </button>
+                          </div>
+                        </TableHead>
+                        <TableHead className="min-w-[140px]">
+                          <button
+                            className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
+                            onClick={() => toggleSort('type')}
+                          >
+                            Type <SortIcon field="type" sortBy={sortBy} sortDir={sortDir} />
+                          </button>
+                        </TableHead>
+                        <TableHead className="w-[110px] min-w-[110px]">
+                          <button
+                            className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
+                            onClick={() => toggleSort('size')}
+                          >
+                            Size <SortIcon field="size" sortBy={sortBy} sortDir={sortDir} />
+                          </button>
+                        </TableHead>
+                        <TableHead className="w-[96px] min-w-[96px] text-xs font-medium text-foreground">
+                          Shared
+                        </TableHead>
+                        <TableHead className="min-w-[150px]">
+                          <button
+                            className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
+                            onClick={() => toggleSort('created')}
+                          >
+                            Created <SortIcon field="created" sortBy={sortBy} sortDir={sortDir} />
+                          </button>
+                        </TableHead>
+                        <TableHead className="min-w-[150px]">
+                          <button
+                            className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
+                            onClick={() => toggleSort('updated')}
+                          >
+                            Modified <SortIcon field="updated" sortBy={sortBy} sortDir={sortDir} />
+                          </button>
+                        </TableHead>
+                        <TableHead className="w-[52px] text-xs font-medium text-foreground" />
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pagedItems.map(item => {
+                        const editable = isEditable(item, quota)
+                        const itemPath = buildPath(item, items)
+                        const previewType = getPreviewType(item, quota)
+                        const isExpanded = expandedId === item.id
+                        const mime = item.is_folder ? 'Folder' : item.mime_type || '—'
+                        return (
+                          <>
+                            <TableRow key={item.id} className={isExpanded ? 'bg-muted/30' : ''}>
+                              <TableCell className="pl-5 pr-3 py-3 text-xs font-medium">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <input
+                                    type="checkbox"
+                                    className="h-4 w-4 cursor-pointer shrink-0"
+                                    checked={selectedIds.has(item.id)}
+                                    onChange={() => toggleSelect(item.id)}
+                                  />
+                                  {item.is_folder ? (
+                                    <button
+                                      className="flex items-center gap-1.5 hover:underline cursor-pointer whitespace-nowrap"
+                                      onClick={() => navigateTo(item.id)}
+                                    >
+                                      <FileIcon file={item} />
+                                      {item.name}
+                                    </button>
+                                  ) : (
+                                    <button
+                                      className="flex items-center gap-1.5 hover:underline cursor-pointer text-left whitespace-nowrap"
+                                      onClick={() => toggleExpand(item)}
+                                    >
+                                      <FileIcon file={item} />
+                                      {item.name}
+                                    </button>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell
+                                className="max-w-[140px] truncate py-3 text-xs text-muted-foreground"
+                                title={mime}
+                              >
+                                {truncateMime(mime)}
+                              </TableCell>
+                              <TableCell className="py-3 text-xs text-muted-foreground whitespace-nowrap">
+                                {item.is_folder ? '—' : formatFileSize(item.size)}
+                              </TableCell>
+                              <TableCell className="py-3">
+                                {isShared(item) ? (
+                                  <Badge variant="secondary" className="text-xs whitespace-nowrap">
+                                    Shared
+                                  </Badge>
+                                ) : (
+                                  <span className="text-muted-foreground text-xs">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="py-3 text-xs text-muted-foreground whitespace-nowrap">
+                                {formatDate(item.created)}
+                              </TableCell>
+                              <TableCell className="py-3 text-xs text-muted-foreground whitespace-nowrap">
+                                {formatDate(item.updated)}
+                              </TableCell>
+                              <TableCell className="py-3">
+                                <ItemMenu
+                                  item={item}
+                                  editable={editable}
+                                  previewType={previewType}
+                                  inTrash={trashView}
+                                  onOpen={() => navigateTo(item.id)}
+                                  onPreview={() => openPreview(item)}
+                                  onEdit={() => openEditor(item)}
+                                  onDownloadUrl={buildDownloadUrl(item)}
+                                  onShare={() => openShare(item)}
+                                  onRename={() => openRename(item)}
+                                  onDuplicate={() => handleDuplicate(item)}
+                                  onDelete={() => setDeleteItem(item)}
+                                  onRestore={() => handleRestore(item)}
+                                  onHardDelete={() => setDeleteItem(item)}
+                                />
+                              </TableCell>
+                            </TableRow>
+                            {isExpanded && (
+                              <TableRow
+                                key={`${item.id}-expand`}
+                                className="bg-muted/20 hover:bg-muted/20"
+                              >
+                                <TableCell colSpan={7} className="bg-muted/20 px-4 py-3">
+                                  <div className="flex gap-6 flex-wrap">
+                                    {previewType === 'image' && (
+                                      <div className="shrink-0">
+                                        <img
+                                          src={buildPreviewUrl(item)}
+                                          alt={item.name}
+                                          className="max-h-48 max-w-xs object-contain rounded border"
+                                        />
+                                      </div>
+                                    )}
+                                    <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+                                      <dt className="text-muted-foreground font-medium">Name</dt>
+                                      <dd className="font-mono break-all">{item.name}</dd>
+                                      <dt className="text-muted-foreground font-medium">Path</dt>
+                                      <dd className="font-mono break-all">{itemPath}</dd>
+                                      <dt className="text-muted-foreground font-medium">Type</dt>
+                                      <dd>{item.mime_type || '—'}</dd>
+                                      <dt className="text-muted-foreground font-medium">Size</dt>
+                                      <dd>{formatFileSize(item.size)}</dd>
+                                      <dt className="text-muted-foreground font-medium">Created</dt>
+                                      <dd>{formatDate(item.created)}</dd>
+                                      <dt className="text-muted-foreground font-medium">
+                                        Modified
+                                      </dt>
+                                      <dd>{formatDate(item.updated)}</dd>
+                                      {item.share_token && !isExpired(item.share_expires_at) && (
+                                        <>
+                                          <dt className="text-muted-foreground font-medium">
+                                            Shared until
+                                          </dt>
+                                          <dd>{formatDate(item.share_expires_at)}</dd>
+                                        </>
+                                      )}
+                                    </dl>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ── File list (grid) ───────────────────────────── */}
+        {!loading && viewItems.length > 0 && viewMode === 'grid' && (
+          <Card className="overflow-hidden rounded-lg bg-background">
+            <CardContent className="p-4">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+                {pagedItems.map(item => {
+                  const editable = isEditable(item, quota)
+                  const previewType = getPreviewType(item, quota)
+                  const isSelected = selectedIds.has(item.id)
+                  return (
+                    <div
+                      key={item.id}
+                      className={`group relative flex flex-col items-center gap-1.5 rounded-lg border p-3 cursor-pointer select-none transition-colors
+                      ${isSelected ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}
+                    >
+                      {/* Selection checkbox */}
+                      <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 cursor-pointer"
+                          checked={isSelected}
+                          onChange={() => toggleSelect(item.id)}
+                          onClick={e => e.stopPropagation()}
+                        />
+                      </div>
+                      {/* Icon */}
+                      <div
+                        className="flex items-center justify-center h-12 w-12 mt-1"
+                        onClick={() => (item.is_folder ? navigateTo(item.id) : toggleExpand(item))}
+                      >
+                        <FileIcon file={item} className="h-10 w-10 shrink-0" />
+                      </div>
+                      {/* Name */}
+                      <span
+                        className="text-xs text-center leading-tight max-w-full break-words line-clamp-2"
+                        title={item.name}
+                        onClick={() => (item.is_folder ? navigateTo(item.id) : toggleExpand(item))}
+                      >
+                        {item.name}
+                      </span>
+                      {/* More menu */}
+                      <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <ItemMenu
+                          item={item}
+                          editable={editable}
+                          previewType={previewType}
+                          inTrash={trashView}
+                          onOpen={() => navigateTo(item.id)}
+                          onPreview={() => openPreview(item)}
+                          onEdit={() => openEditor(item)}
+                          onDownloadUrl={buildDownloadUrl(item)}
+                          onShare={() => openShare(item)}
+                          onRename={() => openRename(item)}
+                          onDuplicate={() => handleDuplicate(item)}
+                          onDelete={() => setDeleteItem(item)}
+                          onRestore={() => handleRestore(item)}
+                          onHardDelete={() => setDeleteItem(item)}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ── Pagination ─────────────────────────────────── */}
+        {viewItems.length > 0 && (
+          <div className="flex items-center justify-end text-sm text-muted-foreground flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1.5 text-xs">
+                Per page
+                <select
+                  className="h-7 rounded-md border border-input bg-background px-2 text-xs"
+                  value={pageSize}
+                  onChange={e => {
+                    setPageSize(Number(e.target.value) as (typeof PAGE_SIZES)[number])
+                    setPage(1)
+                  }}
+                >
+                  {PAGE_SIZES.map(s => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={safePage <= 1}
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                aria-label="Previous page"
+              >
+                ‹
+              </Button>
+              <span className="min-w-12 text-center text-xs font-medium text-foreground">
+                {safePage}/{totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={safePage >= totalPages}
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                aria-label="Next page"
+              >
+                ›
+              </Button>
+            </div>
+          </div>
+        )}
+        {trashView && trashCount > 0 && (
+          <div className="flex items-center gap-2">
+            <Button variant="destructive" size="sm" onClick={handleEmptyTrash}>
+              <Trash2 className="h-4 w-4 mr-1" /> Empty Trash ({trashCount})
+            </Button>
+          </div>
+        )}
       </div>
 
       <Dialog open={statsOpen} onOpenChange={setStatsOpen}>
@@ -2008,7 +2028,9 @@ function FilesPage() {
               <div className="text-xs text-muted-foreground">Items Used</div>
               <div className="mt-1 text-2xl font-semibold text-foreground">
                 {items.filter(i => !i.is_deleted).length}
-                {quota ? <span className="text-base text-muted-foreground">/{quota.max_per_user}</span> : null}
+                {quota ? (
+                  <span className="text-base text-muted-foreground">/{quota.max_per_user}</span>
+                ) : null}
               </div>
             </div>
             <div className="rounded-lg border bg-muted/20 px-4 py-3">
@@ -2438,7 +2460,12 @@ function FilesPage() {
                   )}
                 </Button>
                 <DialogClose asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Close preview">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    aria-label="Close preview"
+                  >
                     <X className="h-4 w-4" />
                   </Button>
                 </DialogClose>

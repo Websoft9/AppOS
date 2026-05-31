@@ -2,9 +2,9 @@ package filesvc_test
 
 import (
 	"errors"
-	"strings"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/websoft9/appos/backend/infra/filesvc"
@@ -329,7 +329,7 @@ func mustWriteFile(t *testing.T, path string, data []byte) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("MkdirAll(%s): %v", filepath.Dir(path), err)
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatalf("WriteFile(%s): %v", path, err)
 	}
 }

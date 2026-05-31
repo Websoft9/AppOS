@@ -65,7 +65,9 @@ function normalizeWorkspaceState(value: unknown): PersistedWorkspaceState | null
     panel: state.panel === 'files' ? 'files' : undefined,
     path: typeof state.path === 'string' && state.path.trim() ? state.path : undefined,
     lockedRoot:
-      typeof state.lockedRoot === 'string' && state.lockedRoot.trim() ? state.lockedRoot : undefined,
+      typeof state.lockedRoot === 'string' && state.lockedRoot.trim()
+        ? state.lockedRoot
+        : undefined,
     split:
       typeof state.split === 'number' && Number.isFinite(state.split)
         ? state.split

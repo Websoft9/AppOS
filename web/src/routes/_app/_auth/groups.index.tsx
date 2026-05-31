@@ -207,7 +207,9 @@ function GroupsListPage() {
     () => filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
     [filteredRows, page]
   )
-  useEffect(() => { setPage(1) }, [filteredRows])
+  useEffect(() => {
+    setPage(1)
+  }, [filteredRows])
 
   // ─── Dialog handlers ────────────────────────────────────
 

@@ -224,7 +224,7 @@ func TestServiceUploadRejectsBlockedExtensionAndOversize(t *testing.T) {
 		t.Fatalf("expected ErrExtensionBlocked, got %v", err)
 	}
 
-	oversize := strings.Repeat("a", int((2*1024*1024)))
+	oversize := strings.Repeat("a", int((2 * 1024 * 1024)))
 	if _, err := svc.Upload("apps/demo", "big.yml", strings.NewReader(oversize), int64(len(oversize)), limits); !errors.Is(err, iac.ErrLimitExceeded) {
 		t.Fatalf("expected ErrLimitExceeded, got %v", err)
 	}
@@ -274,7 +274,7 @@ func mustWriteFile(t *testing.T, path string, data []byte) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("MkdirAll %s: %v", path, err)
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatalf("WriteFile %s: %v", path, err)
 	}
 }

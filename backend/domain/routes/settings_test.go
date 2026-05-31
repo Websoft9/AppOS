@@ -126,6 +126,7 @@ func TestSettingsSchemaPreservesCatalogOrder(t *testing.T) {
 
 	expectedPrefix := []string{
 		"basic",
+		"branding",
 		"smtp",
 		"s3",
 		"logs",

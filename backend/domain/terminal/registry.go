@@ -40,14 +40,14 @@ type registeredSession struct {
 }
 
 type SessionSummary struct {
-	ID           string    `json:"id"`
-	UserID       string    `json:"user_id"`
-	ResourceType string    `json:"resource_type"`
-	ResourceID   string    `json:"resource_id"`
-	SessionType  string    `json:"session_type"`
-	State        string    `json:"state"`
-	StartedAt    time.Time `json:"started_at"`
-	LastActiveAt time.Time `json:"last_active_at"`
+	ID           string                    `json:"id"`
+	UserID       string                    `json:"user_id"`
+	ResourceType string                    `json:"resource_type"`
+	ResourceID   string                    `json:"resource_id"`
+	SessionType  string                    `json:"session_type"`
+	State        string                    `json:"state"`
+	StartedAt    time.Time                 `json:"started_at"`
+	LastActiveAt time.Time                 `json:"last_active_at"`
 	Workspace    TerminalWorkspaceSnapshot `json:"workspace"`
 }
 

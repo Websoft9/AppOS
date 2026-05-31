@@ -92,6 +92,8 @@ describe('TimeSeriesChart', () => {
     const source = readFileSync('src/components/monitor/TimeSeriesChart.tsx', 'utf8')
 
     expect(source).toContain("const shouldStackSegments = name === 'disk_usage'")
-    expect(source).not.toContain("const shouldStackSegments = name === 'memory' || name === 'disk_usage'")
+    expect(source).not.toContain(
+      "const shouldStackSegments = name === 'memory' || name === 'disk_usage'"
+    )
   })
 })

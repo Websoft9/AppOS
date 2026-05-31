@@ -53,27 +53,8 @@ func registerServerOpsRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	serverOps.POST("/systemd/{service}/unit/apply", handleSystemdServiceUnitApply)
 }
 
-// ════════════════════════════════════════════════════════════
-// Shared helpers & SSH infrastructure (Story 20.4)
-// ════════════════════════════════════════════════════════════
-
-var systemdServicePattern = regexp.MustCompile(`^[a-zA-Z0-9@._-]+(?:\.service)?$`)
 var ssUsersProcessPattern = regexp.MustCompile(`\("([^"]+)",pid=([0-9]+),fd=[0-9]+\)`)
 var dockerPublishedPortPattern = regexp.MustCompile(`:([0-9]+)->[^/]+/(tcp|udp)`)
-
-func normalizeServiceName(name string) (string, error) {
-	service := strings.TrimSpace(name)
-	if service == "" {
-		return "", fmt.Errorf("service required")
-	}
-	if !systemdServicePattern.MatchString(service) {
-		return "", fmt.Errorf("invalid service name")
-	}
-	if !strings.HasSuffix(service, ".service") {
-		service += ".service"
-	}
-	return service, nil
-}
 
 func normalizePortInspectParams(e *core.RequestEvent) (string, string, error) {
 	protocol := strings.ToLower(strings.TrimSpace(e.Request.URL.Query().Get("protocol")))

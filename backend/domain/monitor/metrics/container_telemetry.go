@@ -264,26 +264,6 @@ func buildContainerTelemetrySelector(serverID string, containerIDs []string) str
 	return fmt.Sprintf(`{server_id=%q,container_id=~"^(%s)$"}`, serverID, strings.Join(escaped, "|"))
 }
 
-func containerTelemetrySeriesExists(item *ContainerTelemetryItem, name string, segment string) bool {
-	if item == nil {
-		return false
-	}
-	for _, series := range item.Series {
-		if series.Name != name {
-			continue
-		}
-		if segment == "" {
-			return len(series.Points) > 0
-		}
-		for _, existing := range series.Segments {
-			if existing.Name == segment && len(existing.Points) > 0 {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func normalizeContainerTelemetryName(value string) string {
 	return normalizeContainerTelemetryAlias(value)
 }

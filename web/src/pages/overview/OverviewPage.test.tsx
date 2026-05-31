@@ -202,32 +202,80 @@ describe('OverviewPage', () => {
               name: 'disk_usage',
               unit: 'bytes',
               segments: [
-                { name: 'used', points: [[1713096000, 8589934592], [1713096060, 9663676416]] },
-                { name: 'free', points: [[1713096000, 21474836480], [1713096060, 20401094656]] },
+                {
+                  name: 'used',
+                  points: [
+                    [1713096000, 8589934592],
+                    [1713096060, 9663676416],
+                  ],
+                },
+                {
+                  name: 'free',
+                  points: [
+                    [1713096000, 21474836480],
+                    [1713096060, 20401094656],
+                  ],
+                },
               ],
             },
             {
               name: 'disk',
               unit: 'bytes/s',
               segments: [
-                { name: 'read', points: [[1713096000, 4096], [1713096060, 8192]] },
-                { name: 'write', points: [[1713096000, 2048], [1713096060, 4096]] },
+                {
+                  name: 'read',
+                  points: [
+                    [1713096000, 4096],
+                    [1713096060, 8192],
+                  ],
+                },
+                {
+                  name: 'write',
+                  points: [
+                    [1713096000, 2048],
+                    [1713096060, 4096],
+                  ],
+                },
               ],
             },
             {
               name: 'network',
               unit: 'bytes/s',
               segments: [
-                { name: 'in', points: [[1713096000, 1024], [1713096060, 1536]] },
-                { name: 'out', points: [[1713096000, 768], [1713096060, 1280]] },
+                {
+                  name: 'in',
+                  points: [
+                    [1713096000, 1024],
+                    [1713096060, 1536],
+                  ],
+                },
+                {
+                  name: 'out',
+                  points: [
+                    [1713096000, 768],
+                    [1713096060, 1280],
+                  ],
+                },
               ],
             },
             {
               name: 'network_traffic',
               unit: 'bytes',
               segments: [
-                { name: 'in', points: [[1713096000, 8192], [1713096060, 9728]] },
-                { name: 'out', points: [[1713096000, 6144], [1713096060, 7424]] },
+                {
+                  name: 'in',
+                  points: [
+                    [1713096000, 8192],
+                    [1713096060, 9728],
+                  ],
+                },
+                {
+                  name: 'out',
+                  points: [
+                    [1713096000, 6144],
+                    [1713096060, 7424],
+                  ],
+                },
               ],
             },
           ],
@@ -274,7 +322,9 @@ describe('OverviewPage', () => {
     expect(await screen.findByText('Needs Attention')).toBeInTheDocument()
     expect(await screen.findByText('1H Trends')).toBeInTheDocument()
     expect(
-      await screen.findByText('AppOS control-plane CPU, memory usage versus limit, disk, and network over the last hour.')
+      await screen.findByText(
+        'AppOS control-plane CPU, memory usage versus limit, disk, and network over the last hour.'
+      )
     ).toBeInTheDocument()
     expect(await screen.findByRole('link', { name: 'View system status' })).toHaveAttribute(
       'href',
@@ -372,7 +422,9 @@ describe('OverviewPage', () => {
 
     render(<OverviewPage />)
 
-    expect(await screen.findByText('Some overview sections are temporarily unavailable.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Some overview sections are temporarily unavailable.')
+    ).toBeInTheDocument()
 
     await waitFor(() => {
       expect(warnSpy).toHaveBeenCalledWith(

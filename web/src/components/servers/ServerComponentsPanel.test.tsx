@@ -307,7 +307,9 @@ describe('ServerComponentsPanel', () => {
       />
     )
 
-    const prerequisitesSection = await screen.findByRole('region', { name: 'Prerequisites section' })
+    const prerequisitesSection = await screen.findByRole('region', {
+      name: 'Prerequisites section',
+    })
     expect(within(prerequisitesSection).getByText('Docker Compose:')).toBeInTheDocument()
     expect(within(prerequisitesSection).getByText('2.27.0')).toBeInTheDocument()
     expect(within(prerequisitesSection).getByText('Verification Checklist')).toBeInTheDocument()
@@ -342,8 +344,12 @@ describe('ServerComponentsPanel', () => {
       />
     )
 
-    const prerequisitesSection = await screen.findByRole('region', { name: 'Prerequisites section' })
-    expect(await within(prerequisitesSection).findByText('Operation History (1)')).toBeInTheDocument()
+    const prerequisitesSection = await screen.findByRole('region', {
+      name: 'Prerequisites section',
+    })
+    expect(
+      await within(prerequisitesSection).findByText('Operation History (1)')
+    ).toBeInTheDocument()
     expect(onFocusRequestConsumed).toHaveBeenCalledWith('docker', 'history', undefined, undefined)
   })
 
@@ -358,8 +364,12 @@ describe('ServerComponentsPanel', () => {
       />
     )
 
-    const prerequisitesSection = await screen.findByRole('region', { name: 'Prerequisites section' })
-    expect(within(prerequisitesSection).getByText('Opened from Docker > Compose')).toBeInTheDocument()
+    const prerequisitesSection = await screen.findByRole('region', {
+      name: 'Prerequisites section',
+    })
+    expect(
+      within(prerequisitesSection).getByText('Opened from Docker > Compose')
+    ).toBeInTheDocument()
     expect(
       within(prerequisitesSection).getByText(
         'Docker prerequisite checks were opened from the Docker Compose view. Start by checking Docker Compose availability here, then return to that Docker screen and retry.'
@@ -387,9 +397,14 @@ describe('ServerComponentsPanel', () => {
     await user.click(within(inventory).getByRole('button', { name: 'Repair' }))
 
     await waitFor(() => {
-      expect(invokeSoftwareActionMock).toHaveBeenCalledWith('server-1', 'reverse-proxy', 'reinstall', {
-        apposBaseUrl: window.location.origin,
-      })
+      expect(invokeSoftwareActionMock).toHaveBeenCalledWith(
+        'server-1',
+        'reverse-proxy',
+        'reinstall',
+        {
+          apposBaseUrl: window.location.origin,
+        }
+      )
     })
 
     const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
@@ -448,7 +463,9 @@ describe('ServerComponentsPanel', () => {
     expect(within(inventory).getByText('Service: Running')).toBeInTheDocument()
     expect(within(inventory).getByText('AppOS: Connected')).toBeInTheDocument()
 
-    fireEvent.click(within(inventory).getByRole('button', { name: 'Monitor Agent (Native Telegraf)' }))
+    fireEvent.click(
+      within(inventory).getByRole('button', { name: 'Monitor Agent (Native Telegraf)' })
+    )
 
     const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
     expect(within(selectedAddon).getByText('Service Status:')).toBeInTheDocument()
@@ -491,7 +508,9 @@ describe('ServerComponentsPanel', () => {
     render(<ServerComponentsPanel serverId="server-1" />)
 
     const inventory = await screen.findByRole('region', { name: 'Addon inventory' })
-    fireEvent.click(within(inventory).getByRole('button', { name: 'Monitor Agent (Native Telegraf)' }))
+    fireEvent.click(
+      within(inventory).getByRole('button', { name: 'Monitor Agent (Native Telegraf)' })
+    )
 
     const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
     expect(within(selectedAddon).getByText('Service Status:')).toBeInTheDocument()
@@ -534,7 +553,9 @@ describe('ServerComponentsPanel', () => {
     const inventory = await screen.findByRole('region', { name: 'Addon inventory' })
     expect(within(inventory).getByText('AppOS: Connecting')).toBeInTheDocument()
 
-    fireEvent.click(within(inventory).getByRole('button', { name: 'Monitor Agent (Native Telegraf)' }))
+    fireEvent.click(
+      within(inventory).getByRole('button', { name: 'Monitor Agent (Native Telegraf)' })
+    )
 
     const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
     expect(within(selectedAddon).getByText('AppOS Connection:')).toBeInTheDocument()
@@ -610,11 +631,17 @@ describe('ServerComponentsPanel', () => {
     expect(within(inventory).getByText('In progress')).toBeInTheDocument()
     expect(within(inventory).getByText('Operation: Accepted')).toBeInTheDocument()
 
-    fireEvent.click(within(inventory).getByRole('button', { name: 'Monitor Agent (Native Telegraf)' }))
+    fireEvent.click(
+      within(inventory).getByRole('button', { name: 'Monitor Agent (Native Telegraf)' })
+    )
 
     const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
     expect(within(selectedAddon).getByText('Operation in progress')).toBeInTheDocument()
-    expect(within(selectedAddon).getByText('Restart is still Accepted for Monitor Agent (Native Telegraf).')).toBeInTheDocument()
+    expect(
+      within(selectedAddon).getByText(
+        'Restart is still Accepted for Monitor Agent (Native Telegraf).'
+      )
+    ).toBeInTheDocument()
     expect(within(selectedAddon).getByText('Operation History')).toBeInTheDocument()
     expect(await within(selectedAddon).findByText('Current')).toBeInTheDocument()
   })
@@ -626,7 +653,9 @@ describe('ServerComponentsPanel', () => {
     expect(await screen.findByRole('heading', { name: 'Addons' })).toBeInTheDocument()
 
     const inventory = screen.getByRole('region', { name: 'Addon inventory' })
-    await user.click(within(inventory).getByRole('button', { name: 'More actions for Reverse Proxy' }))
+    await user.click(
+      within(inventory).getByRole('button', { name: 'More actions for Reverse Proxy' })
+    )
     await user.click(screen.getByRole('menuitem', { name: 'Check' }))
 
     await waitFor(() => {
@@ -647,21 +676,17 @@ describe('ServerComponentsPanel', () => {
     expect(await screen.findByRole('heading', { name: 'Addons' })).toBeInTheDocument()
 
     const inventory = screen.getByRole('region', { name: 'Addon inventory' })
-    await user.click(within(inventory).getByRole('button', { name: 'More actions for Reverse Proxy' }))
+    await user.click(
+      within(inventory).getByRole('button', { name: 'More actions for Reverse Proxy' })
+    )
 
     expect(screen.getByText('Recommended')).toBeInTheDocument()
     expect(screen.getByText('Secondary')).toBeInTheDocument()
     expect(screen.getByText('Dangerous')).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'InstallLocked' })).toHaveAttribute(
-      'data-disabled'
-    )
+    expect(screen.getByRole('menuitem', { name: 'InstallLocked' })).toHaveAttribute('data-disabled')
     expect(screen.getByRole('menuitem', { name: 'Check' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'StartLocked' })).toHaveAttribute(
-      'data-disabled'
-    )
-    expect(screen.getByRole('menuitem', { name: 'RestartLocked' })).toHaveAttribute(
-      'data-disabled'
-    )
+    expect(screen.getByRole('menuitem', { name: 'StartLocked' })).toHaveAttribute('data-disabled')
+    expect(screen.getByRole('menuitem', { name: 'RestartLocked' })).toHaveAttribute('data-disabled')
     expect(screen.getByRole('menuitem', { name: 'StopLocked' })).toHaveAttribute('data-disabled')
     expect(screen.getByRole('menuitem', { name: 'Remove' })).toBeInTheDocument()
   })
@@ -913,7 +938,9 @@ describe('ServerComponentsPanel', () => {
       )
     ).toBeInTheDocument()
     expect(
-      within(prerequisitesSection).getByText('2026-05-16T03:00:05Z · Docker verification is running.')
+      within(prerequisitesSection).getByText(
+        '2026-05-16T03:00:05Z · Docker verification is running.'
+      )
     ).toBeInTheDocument()
   })
 
@@ -1006,7 +1033,9 @@ describe('ServerComponentsPanel', () => {
     const selectedAddon = await screen.findByRole('region', { name: 'Selected Addon' })
     expect(await within(selectedAddon).findByText('Repair Log')).toBeInTheDocument()
     expect(within(selectedAddon).getByText('Streaming')).toBeInTheDocument()
-    expect(within(selectedAddon).getByText('2026-05-16T04:10:00Z · Repair is running.')).toBeInTheDocument()
+    expect(
+      within(selectedAddon).getByText('2026-05-16T04:10:00Z · Repair is running.')
+    ).toBeInTheDocument()
     expect(within(selectedAddon).getByText('Reverse Proxy')).toBeInTheDocument()
   })
 
@@ -1128,9 +1157,14 @@ describe('ServerComponentsPanel', () => {
     fireEvent.click(within(inventory).getByRole('button', { name: 'Reverse Proxy' }))
 
     await user.click(within(inventory).getByRole('button', { name: 'Repair' }))
-    expect(invokeSoftwareActionMock).toHaveBeenCalledWith('server-1', 'reverse-proxy', 'reinstall', {
-      apposBaseUrl: window.location.origin,
-    })
+    expect(invokeSoftwareActionMock).toHaveBeenCalledWith(
+      'server-1',
+      'reverse-proxy',
+      'reinstall',
+      {
+        apposBaseUrl: window.location.origin,
+      }
+    )
 
     await waitFor(() => {
       expect(within(inventory).getByRole('button', { name: 'Check' })).toBeInTheDocument()
@@ -1145,7 +1179,9 @@ describe('ServerComponentsPanel', () => {
 
     const inventory = screen.getByRole('region', { name: 'Addon inventory' })
     fireEvent.click(within(inventory).getByRole('button', { name: 'Reverse Proxy' }))
-  await user.click(within(inventory).getByRole('button', { name: 'More actions for Reverse Proxy' }))
+    await user.click(
+      within(inventory).getByRole('button', { name: 'More actions for Reverse Proxy' })
+    )
     await user.click(screen.getByRole('menuitem', { name: 'Check' }))
 
     await waitFor(() => {
@@ -1726,7 +1762,9 @@ describe('ServerComponentsPanel', () => {
     ).toBeInTheDocument()
     expect(await within(prerequisitesSection).findByText('Timed out')).toBeInTheDocument()
     expect(
-      within(prerequisitesSection).getByText('execute "upgrade" timed out: context deadline exceeded')
+      within(prerequisitesSection).getByText(
+        'execute "upgrade" timed out: context deadline exceeded'
+      )
     ).toBeInTheDocument()
   })
 

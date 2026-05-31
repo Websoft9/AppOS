@@ -18,4 +18,6 @@ export function AssetsSkillsPage() {
   )
 }
 
-export const Route = createFileRoute('/_app/_auth/_superuser/ai-assets/skills' as never)({ component: AssetsSkillsPage })
+export const Route = createFileRoute('/_app/_auth/_superuser/ai-assets/skills' as never)({
+  component: AssetsSkillsPage,
+})

@@ -64,17 +64,19 @@ func TestScanFile_WithHelperSeedsDiscoversSoftwareRoutes(t *testing.T) {
 	}
 
 	want := map[string]string{
-		"GET /api/servers/{serverId}/software":                          "auth",
-		"GET /api/servers/{serverId}/software/{componentKey}":           "auth",
-		"POST /api/servers/{serverId}/software/{componentKey}/{action}": "auth",
-		"GET /api/servers/{serverId}/software/capabilities":             "auth",
-		"GET /api/servers/{serverId}/software/operations":               "auth",
-		"GET /api/servers/{serverId}/software/operations/{operationId}": "auth",
+		"GET /api/servers/{serverId}/software":                             "auth",
+		"GET /api/servers/{serverId}/software/{componentKey}":              "auth",
+		"POST /api/servers/{serverId}/software/{componentKey}/{action}":    "auth",
+		"GET /api/servers/{serverId}/software/capabilities":                "auth",
+		"GET /api/servers/{serverId}/software/operations":                  "auth",
+		"GET /api/servers/{serverId}/software/operations/{operationId}":    "auth",
 		"DELETE /api/servers/{serverId}/software/operations/{operationId}": "auth",
-		"GET /api/software/local":                                       "auth",
-		"GET /api/software/local/{componentKey}":                        "auth",
-		"GET /api/software/server-catalog":                              "auth",
-		"GET /api/software/server-catalog/{componentKey}":               "auth",
+		"GET /api/software/local":                                          "auth",
+		"GET /api/software/local/services":                                 "auth",
+		"GET /api/software/local/services/{name}/logs":                     "auth",
+		"GET /api/software/local/{componentKey}":                           "auth",
+		"GET /api/software/server-catalog":                                 "auth",
+		"GET /api/software/server-catalog/{componentKey}":                  "auth",
 	}
 
 	got := map[string]string{}

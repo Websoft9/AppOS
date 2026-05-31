@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from 'react'
 import { ResourceDialogForm } from '@/components/resources/ResourceDialogForm'
 import type { FieldDef, RelationOption, SelectOption } from '@/components/resources/ResourcePage'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
@@ -75,7 +83,9 @@ export function ProxyConnectorDialog({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [secretDialogOpen, setSecretDialogOpen] = useState(false)
-  const [secretAddOption, setSecretAddOption] = useState<((id: string, label: string) => void) | null>(null)
+  const [secretAddOption, setSecretAddOption] = useState<
+    ((id: string, label: string) => void) | null
+  >(null)
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   useEffect(() => {
@@ -87,7 +97,9 @@ export function ProxyConnectorDialog({
         const data = await pb.send<ConnectorTemplate[]>('/api/connectors/templates', {
           method: 'GET',
         })
-        const proxyTemplates = (Array.isArray(data) ? data : []).filter(template => template.kind === 'proxy')
+        const proxyTemplates = (Array.isArray(data) ? data : []).filter(
+          template => template.kind === 'proxy'
+        )
         setTemplates(proxyTemplates)
         setFormData(defaultProxyFormData(proxyTemplates, initialProtocol))
       } catch {
@@ -96,7 +108,10 @@ export function ProxyConnectorDialog({
     })()
   }, [initialProtocol, open])
 
-  const templatesById = useMemo(() => new Map(templates.map(template => [template.id, template])), [templates])
+  const templatesById = useMemo(
+    () => new Map(templates.map(template => [template.id, template])),
+    [templates]
+  )
 
   const profileOptions = useMemo<SelectOption[]>(
     () =>
@@ -158,7 +173,12 @@ export function ProxyConnectorDialog({
     const selectedTemplate = templatesById.get(String(formData.template_id ?? ''))
     const dynamicFields = selectedTemplate
       ? (selectedTemplate.fields ?? []).map(field =>
-          mapTemplateFieldToResourceField(selectedTemplate, field, openSecretDialog, openSecretEditor)
+          mapTemplateFieldToResourceField(
+            selectedTemplate,
+            field,
+            openSecretDialog,
+            openSecretEditor
+          )
         )
       : []
     return [baseFields[0], baseFields[1], ...dynamicFields, ...baseFields.slice(2)]
@@ -171,16 +191,19 @@ export function ProxyConnectorDialog({
     activeFields
       .filter(field => field.type === 'relation' && field.relationApiPath)
       .forEach(field => {
-        void pb.send<Record<string, unknown>[] | Record<string, unknown>>(field.relationApiPath!, {
-          method: 'GET',
-        }).then(raw => {
-          setRelationOptions(prev => ({
-            ...prev,
-            [field.key]: normalizeRelationOptions(raw, field),
-          }))
-        }).catch(() => {
-          setRelationOptions(prev => ({ ...prev, [field.key]: [] }))
-        })
+        void pb
+          .send<Record<string, unknown>[] | Record<string, unknown>>(field.relationApiPath!, {
+            method: 'GET',
+          })
+          .then(raw => {
+            setRelationOptions(prev => ({
+              ...prev,
+              [field.key]: normalizeRelationOptions(raw, field),
+            }))
+          })
+          .catch(() => {
+            setRelationOptions(prev => ({ ...prev, [field.key]: [] }))
+          })
       })
   }, [activeFields, open])
 
@@ -200,14 +223,20 @@ export function ProxyConnectorDialog({
     })
   }, [])
 
-  const addRelationOption = useCallback((fieldKey: string, id: string, label: string, raw?: Record<string, unknown>) => {
-    setRelationOptions(prev => ({
-      ...prev,
-      [fieldKey]: [...(prev[fieldKey] ?? []), { id, label, raw }],
-    }))
-  }, [])
+  const addRelationOption = useCallback(
+    (fieldKey: string, id: string, label: string, raw?: Record<string, unknown>) => {
+      setRelationOptions(prev => ({
+        ...prev,
+        [fieldKey]: [...(prev[fieldKey] ?? []), { id, label, raw }],
+      }))
+    },
+    []
+  )
 
-  const handleFileUpload = useCallback((_key: string, _event: ChangeEvent<HTMLInputElement>) => {}, [])
+  const handleFileUpload = useCallback(
+    (_key: string, _event: ChangeEvent<HTMLInputElement>) => {},
+    []
+  )
   const fileInputRef = useCallback((key: string, element: HTMLInputElement | null) => {
     fileRefs.current[key] = element
   }, [])
@@ -262,7 +291,8 @@ export function ProxyConnectorDialog({
           .filter(field => !field.hidden)
           .filter(
             field =>
-              !field.showWhen || field.showWhen.values.includes(String(formData[field.showWhen.field] ?? ''))
+              !field.showWhen ||
+              field.showWhen.values.includes(String(formData[field.showWhen.field] ?? ''))
           )}
         advancedFields={[]}
         relationOptions={relationOptions}

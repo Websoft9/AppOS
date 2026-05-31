@@ -23,14 +23,16 @@ const ASSET_FAMILY_CARDS: AssetFamilyCardDef[] = [
   {
     key: 'script',
     title: 'Scripts',
-    description: 'Reusable single-file assets for terminal snippets, operator workflows, and recovery actions.',
+    description:
+      'Reusable single-file assets for terminal snippets, operator workflows, and recovery actions.',
     href: '/ai-assets/scripts',
     icon: <FileCode2 className="h-5 w-5" />,
   },
   {
     key: 'skill',
     title: 'Skills',
-    description: 'Bundled skill packages with structured files, entrypoints, and reusable guidance content.',
+    description:
+      'Bundled skill packages with structured files, entrypoints, and reusable guidance content.',
     href: '/ai-assets/skills',
     icon: <ScrollText className="h-5 w-5" />,
   },
@@ -74,7 +76,8 @@ export function AssetsPage() {
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold tracking-tight">Assets</h1>
           <p className="mt-1 text-muted-foreground">
-            Reusable technical definitions shared across operators, terminal workflows, and future automation.
+            Reusable technical definitions shared across operators, terminal workflows, and future
+            automation.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span className="rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 font-medium text-foreground/80">
@@ -90,8 +93,20 @@ export function AssetsPage() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => navigate({ to: '/ai-assets/scripts' as never, search: { create: '1' } as never })}>Add Script</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate({ to: '/ai-assets/skills' as never, search: { create: '1' } as never })}>Add Skill</DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() =>
+                navigate({ to: '/ai-assets/scripts' as never, search: { create: '1' } as never })
+              }
+            >
+              Add Script
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() =>
+                navigate({ to: '/ai-assets/skills' as never, search: { create: '1' } as never })
+              }
+            >
+              Add Skill
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -140,7 +155,10 @@ export function AssetsPage() {
                     </div>
                   </div>
 
-                  <p id={`${family.key}-description`} className="mt-3 pl-7 text-xs leading-relaxed text-muted-foreground">
+                  <p
+                    id={`${family.key}-description`}
+                    className="mt-3 pl-7 text-xs leading-relaxed text-muted-foreground"
+                  >
                     {family.description}
                   </p>
                 </CardContent>

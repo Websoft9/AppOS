@@ -51,17 +51,7 @@ type MonitorLatestResponse = {
   series: MonitorSeries[]
 }
 
-type RangeOption =
-  | '1m'
-  | '5m'
-  | '15m'
-  | '0.5h'
-  | '1h'
-  | '5h'
-  | '12h'
-  | '24h'
-  | '7d'
-  | 'custom'
+type RangeOption = '1m' | '5m' | '15m' | '0.5h' | '1h' | '5h' | '12h' | '24h' | '7d' | 'custom'
 
 type CapabilityLevel = 'available' | 'limited' | 'unavailable'
 type SignalLevel = 'healthy' | 'degraded' | 'unavailable' | 'unknown'
@@ -210,7 +200,9 @@ function buildPlatformSummaryFallbackSeries(
       unit: 'bytes',
       segments: [
         { name: 'used', points: [[timestamp, memoryUsed]] },
-        ...(memoryAvailable !== null ? [{ name: 'available', points: [[timestamp, memoryAvailable]] }] : []),
+        ...(memoryAvailable !== null
+          ? [{ name: 'available', points: [[timestamp, memoryAvailable]] }]
+          : []),
       ],
     })
   }
@@ -256,7 +248,10 @@ function latestMetricTimestamp(item: MonitorSeries): number | null {
   return Math.max(direct, segmentLatest)
 }
 
-function latestStatsUpdatedAt(series: MonitorSeries[]): { oldest: number | null; newest: number | null } {
+function latestStatsUpdatedAt(series: MonitorSeries[]): {
+  oldest: number | null
+  newest: number | null
+} {
   return series.reduce(
     (current, item) => {
       const timestamp = latestMetricTimestamp(item)
@@ -399,7 +394,10 @@ function buildSummaryFallbackLatestStatItems(summary?: Record<string, unknown>):
     items.push({
       key: 'memory',
       label: formatSeriesLabel('memory'),
-      value: limit !== null ? `${formatBytes(memoryUsed)} used / ${formatBytes(limit)} limit` : `${formatBytes(memoryUsed)} used`,
+      value:
+        limit !== null
+          ? `${formatBytes(memoryUsed)} used / ${formatBytes(limit)} limit`
+          : `${formatBytes(memoryUsed)} used`,
       unit: 'bytes',
       variant: 'gauge',
       updatedAt: null,
@@ -504,7 +502,9 @@ function orderedPlatformPerformanceSeries(input: MonitorSeries[] | undefined): M
   const network = items.find(item => item.name === 'network')
   const networkTraffic = items.find(item => item.name === 'network_traffic')
 
-  return [cpu, memory, diskUsage, disk, network, networkTraffic].filter((item): item is MonitorSeries => Boolean(item))
+  return [cpu, memory, diskUsage, disk, network, networkTraffic].filter(
+    (item): item is MonitorSeries => Boolean(item)
+  )
 }
 
 function summarizePlatformTarget(item: MonitorOverviewItem): string {
@@ -740,91 +740,85 @@ export function PlatformStatusPage() {
   const startInputRef = useRef<HTMLInputElement | null>(null)
   const endInputRef = useRef<HTMLInputElement | null>(null)
 
-  const loadStatus = useCallback(
-    async (silent = false) => {
-      if (silent) {
-        setRefreshing(true)
-      } else {
-        setLoading(true)
-      }
-      setError('')
+  const loadStatus = useCallback(async (silent = false) => {
+    if (silent) {
+      setRefreshing(true)
+    } else {
+      setLoading(true)
+    }
+    setError('')
 
-      try {
-        const [overviewResult, servicesResult, platformLatestResult] = await Promise.allSettled([
-          pb.send<MonitorOverviewResponse>('/api/monitor/overview', { method: 'GET' }),
-          fetchActiveServices(),
-          pb.send<MonitorLatestResponse>(
-            `/api/monitor/targets/platform/appos-core/latest?${new URLSearchParams({ series: PLATFORM_LATEST_QUERY }).toString()}`,
-            { method: 'GET' }
-          ),
-        ])
-
-        const failures = getRejectedSections([
-          { section: 'overview', result: overviewResult },
-          { section: 'services', result: servicesResult },
-          { section: 'platformLatest', result: platformLatestResult },
-        ])
-
-        if (failures.length === 3) {
-          throw new Error('Failed to load platform status')
-        }
-
-        if (failures.length > 0) {
-          warnDegradedSections('Platform status', failures)
-          setError('Some status sections are temporarily unavailable.')
-        }
-
-        if (overviewResult.status === 'fulfilled') {
-          setOverview(normalizeOverviewResponse(overviewResult.value))
-        }
-        if (servicesResult.status === 'fulfilled') {
-          setServices(servicesResult.value)
-        }
-        if (platformLatestResult.status === 'fulfilled') {
-          setPlatformLatest({
-            ...platformLatestResult.value,
-            series: Array.isArray(platformLatestResult.value.series)
-              ? platformLatestResult.value.series
-              : [],
-          })
-        } else {
-          setPlatformLatest(null)
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load platform status')
-        setPlatformLatest(null)
-      } finally {
-        setLoading(false)
-        setRefreshing(false)
-      }
-    },
-    []
-  )
-
-  const loadTrend = useCallback(
-    async () => {
-      setTrendLoading(true)
-      try {
-        const rangeQuery =
-          selectedRange === 'custom'
-            ? buildCustomRangeQuery(appliedCustomRange)
-            : buildRangeQuery(selectedRange)
-        const result = await pb.send<MonitorSeriesResponse>(
-          `/api/monitor/targets/platform/appos-core/series?${(rangeQuery ?? buildRangeQuery('1h')).toString()}`,
+    try {
+      const [overviewResult, servicesResult, platformLatestResult] = await Promise.allSettled([
+        pb.send<MonitorOverviewResponse>('/api/monitor/overview', { method: 'GET' }),
+        fetchActiveServices(),
+        pb.send<MonitorLatestResponse>(
+          `/api/monitor/targets/platform/appos-core/latest?${new URLSearchParams({ series: PLATFORM_LATEST_QUERY }).toString()}`,
           { method: 'GET' }
-        )
-        setPlatformPerformance({
-          ...result,
-          series: Array.isArray(result.series) ? result.series : [],
-        })
-      } catch {
-        setPlatformPerformance(null)
-      } finally {
-        setTrendLoading(false)
+        ),
+      ])
+
+      const failures = getRejectedSections([
+        { section: 'overview', result: overviewResult },
+        { section: 'services', result: servicesResult },
+        { section: 'platformLatest', result: platformLatestResult },
+      ])
+
+      if (failures.length === 3) {
+        throw new Error('Failed to load platform status')
       }
-    },
-    [selectedRange, appliedCustomRange]
-  )
+
+      if (failures.length > 0) {
+        warnDegradedSections('Platform status', failures)
+        setError('Some status sections are temporarily unavailable.')
+      }
+
+      if (overviewResult.status === 'fulfilled') {
+        setOverview(normalizeOverviewResponse(overviewResult.value))
+      }
+      if (servicesResult.status === 'fulfilled') {
+        setServices(servicesResult.value)
+      }
+      if (platformLatestResult.status === 'fulfilled') {
+        setPlatformLatest({
+          ...platformLatestResult.value,
+          series: Array.isArray(platformLatestResult.value.series)
+            ? platformLatestResult.value.series
+            : [],
+        })
+      } else {
+        setPlatformLatest(null)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load platform status')
+      setPlatformLatest(null)
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }, [])
+
+  const loadTrend = useCallback(async () => {
+    setTrendLoading(true)
+    try {
+      const rangeQuery =
+        selectedRange === 'custom'
+          ? buildCustomRangeQuery(appliedCustomRange)
+          : buildRangeQuery(selectedRange)
+      const result = await pb.send<MonitorSeriesResponse>(
+        `/api/monitor/targets/platform/appos-core/series?${(rangeQuery ?? buildRangeQuery('1h')).toString()}`,
+        { method: 'GET' }
+      )
+      setPlatformPerformance({
+        ...result,
+        series: Array.isArray(result.series) ? result.series : [],
+      })
+    } catch {
+      setPlatformPerformance(null)
+    } finally {
+      setTrendLoading(false)
+    }
+  }, [selectedRange, appliedCustomRange])
 
   useEffect(() => {
     void loadStatus()
@@ -844,7 +838,7 @@ export function PlatformStatusPage() {
   }, [])
 
   useEffect(() => {
-		if (!documentVisible) return
+    if (!documentVisible) return
     const timer = window.setInterval(() => {
       void loadStatus(true)
       void loadTrend()
@@ -853,7 +847,7 @@ export function PlatformStatusPage() {
   }, [documentVisible, loadStatus, loadTrend])
 
   useEffect(() => {
-		if (!documentVisible) return
+    if (!documentVisible) return
     const cadenceSeconds = Math.max(platformLatest?.cadenceSeconds ?? 10, 1)
     const timer = window.setInterval(() => {
       void pb
@@ -901,17 +895,18 @@ export function PlatformStatusPage() {
 
   const platformPerformanceSeries = useMemo(() => {
     const apposCore = overview.platformItems.find(item => item.targetId === 'appos-core')
-    const primary = (Array.isArray(platformPerformance?.series) ? platformPerformance.series : []).filter(
-      item => !['cpu', 'memory'].includes(item.name) || hasUsableSeriesData(item)
-    )
+    const primary = (
+      Array.isArray(platformPerformance?.series) ? platformPerformance.series : []
+    ).filter(item => !['cpu', 'memory'].includes(item.name) || hasUsableSeriesData(item))
     const existing = new Set(
       primary
         .filter(item => !['cpu', 'memory'].includes(item.name) || hasUsableSeriesData(item))
         .map(item => item.name)
     )
-    const fallback = buildPlatformSummaryFallbackSeries(apposCore?.summary, apposCore?.lastTransitionAt).filter(
-      item => !existing.has(item.name)
-    )
+    const fallback = buildPlatformSummaryFallbackSeries(
+      apposCore?.summary,
+      apposCore?.lastTransitionAt
+    ).filter(item => !existing.has(item.name))
     return orderedPlatformPerformanceSeries([...primary, ...fallback])
   }, [overview.platformItems, platformPerformance])
 
@@ -1054,7 +1049,8 @@ export function PlatformStatusPage() {
         <CardHeader>
           <CardTitle>Platform performance</CardTitle>
           <CardDescription>
-            Control-plane self metrics for the AppOS runtime container, including memory usage versus container limit.
+            Control-plane self metrics for the AppOS runtime container, including memory usage
+            versus container limit.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -1074,19 +1070,20 @@ export function PlatformStatusPage() {
                 )}
               </div>
               <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {loading && latestStatItems.length === 0 ? (
-                  Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="flex h-full flex-col rounded-md border bg-background px-4 py-4 animate-pulse">
-                      <div className="h-2.5 w-14 rounded bg-muted mb-2" />
-                      <div className="h-4 w-24 rounded bg-muted" />
-                      <div className="mt-4 h-24 rounded bg-muted" />
-                    </div>
-                  ))
-                ) : (
-                  latestStatItems.map(item => (
-                    <PlatformLatestStatCard key={item.key} item={item} />
-                  ))
-                )}
+                {loading && latestStatItems.length === 0
+                  ? Array.from({ length: 6 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="flex h-full flex-col rounded-md border bg-background px-4 py-4 animate-pulse"
+                      >
+                        <div className="h-2.5 w-14 rounded bg-muted mb-2" />
+                        <div className="h-4 w-24 rounded bg-muted" />
+                        <div className="mt-4 h-24 rounded bg-muted" />
+                      </div>
+                    ))
+                  : latestStatItems.map(item => (
+                      <PlatformLatestStatCard key={item.key} item={item} />
+                    ))}
               </div>
             </section>
             <section className="space-y-3">
@@ -1115,7 +1112,10 @@ export function PlatformStatusPage() {
                     <div className="absolute right-0 top-full z-20 mt-2 w-[420px] max-w-[calc(100vw-2rem)] rounded-lg border bg-background p-5 shadow-lg">
                       <div className="space-y-3">
                         <div className="space-y-2">
-                          <label className="text-sm font-medium text-foreground" htmlFor="platformPerfStart">
+                          <label
+                            className="text-sm font-medium text-foreground"
+                            htmlFor="platformPerfStart"
+                          >
                             Start
                           </label>
                           <div className="relative">
@@ -1144,7 +1144,10 @@ export function PlatformStatusPage() {
                           </div>
                         </div>
                         <div className="space-y-2">
-                          <label className="text-sm font-medium text-foreground" htmlFor="platformPerfEnd">
+                          <label
+                            className="text-sm font-medium text-foreground"
+                            htmlFor="platformPerfEnd"
+                          >
                             End
                           </label>
                           <div className="relative">
@@ -1179,7 +1182,10 @@ export function PlatformStatusPage() {
                           <Button variant="outline" onClick={cancelCustomRange}>
                             Cancel
                           </Button>
-                          <Button onClick={applyCustomRange} disabled={!isValidCustomRange(draftCustomRange)}>
+                          <Button
+                            onClick={applyCustomRange}
+                            disabled={!isValidCustomRange(draftCustomRange)}
+                          >
                             Apply
                           </Button>
                         </div>
@@ -1321,11 +1327,39 @@ function PlatformLatestGauge({ itemKey, percent }: { itemKey: string; percent: n
   const dashOffset = arcLength * (1 - clamped / 100)
 
   return (
-    <div className="flex h-full flex-col justify-end gap-2" aria-label={`${itemKey} latest stat gauge`}>
-      <svg viewBox="0 0 120 72" className="mx-auto h-24 w-full max-w-[10.5rem] overflow-visible" preserveAspectRatio="xMidYMid meet">
-        <path d={arcPath} fill="none" stroke="currentColor" strokeWidth="9" className="text-muted-foreground/20" strokeLinecap="round" />
-        <path d={arcPath} fill="none" stroke="currentColor" strokeWidth="9" className="text-primary/90" strokeLinecap="round" strokeDasharray={arcLength} strokeDashoffset={dashOffset} />
-        <text x="60" y="52" textAnchor="middle" className="fill-foreground text-[20px] font-semibold tabular-nums">
+    <div
+      className="flex h-full flex-col justify-end gap-2"
+      aria-label={`${itemKey} latest stat gauge`}
+    >
+      <svg
+        viewBox="0 0 120 72"
+        className="mx-auto h-24 w-full max-w-[10.5rem] overflow-visible"
+        preserveAspectRatio="xMidYMid meet"
+      >
+        <path
+          d={arcPath}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="9"
+          className="text-muted-foreground/20"
+          strokeLinecap="round"
+        />
+        <path
+          d={arcPath}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="9"
+          className="text-primary/90"
+          strokeLinecap="round"
+          strokeDasharray={arcLength}
+          strokeDashoffset={dashOffset}
+        />
+        <text
+          x="60"
+          y="52"
+          textAnchor="middle"
+          className="fill-foreground text-[20px] font-semibold tabular-nums"
+        >
           {percent === null ? '—' : `${Math.round(clamped)}%`}
         </text>
       </svg>
@@ -1349,22 +1383,32 @@ function PlatformLatestBarComparison({
     <div className="space-y-3" aria-label={`${itemKey} latest stat comparison`}>
       <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-3">
         <div className="space-y-1 text-right">
-          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{left?.label ?? '—'}</div>
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            {left?.label ?? '—'}
+          </div>
           <div className="text-xs font-medium text-foreground">{left?.display ?? '—'}</div>
         </div>
         <div className="h-16 w-px bg-border/80" />
         <div className="space-y-1">
-          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{right?.label ?? '—'}</div>
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            {right?.label ?? '—'}
+          </div>
           <div className="text-xs font-medium text-foreground">{right?.display ?? '—'}</div>
         </div>
       </div>
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
         <div className="flex justify-end">
-          <div className="h-3 w-full max-w-32 rounded-l-full bg-primary/75 transition-all" style={{ width: `${left?.percent ?? 0}%` }} />
+          <div
+            className="h-3 w-full max-w-32 rounded-l-full bg-primary/75 transition-all"
+            style={{ width: `${left?.percent ?? 0}%` }}
+          />
         </div>
         <div className="h-6 w-px bg-border/80" />
         <div className="flex">
-          <div className="h-3 w-full max-w-32 rounded-r-full bg-primary/40 transition-all" style={{ width: `${right?.percent ?? 0}%` }} />
+          <div
+            className="h-3 w-full max-w-32 rounded-r-full bg-primary/40 transition-all"
+            style={{ width: `${right?.percent ?? 0}%` }}
+          />
         </div>
       </div>
     </div>
@@ -1376,10 +1420,16 @@ function PlatformLatestStatCard({ item }: { item: LatestStatItem }) {
     <div className="flex h-full flex-col rounded-md border bg-background px-4 py-4">
       <div className="flex min-h-[3.25rem] items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="truncate text-xs uppercase tracking-wide text-muted-foreground">{item.label}</div>
-          <div className="mt-1.5 break-words text-sm font-medium leading-snug text-foreground">{item.value}</div>
+          <div className="truncate text-xs uppercase tracking-wide text-muted-foreground">
+            {item.label}
+          </div>
+          <div className="mt-1.5 break-words text-sm font-medium leading-snug text-foreground">
+            {item.value}
+          </div>
         </div>
-        {item.variant === 'bars' ? <div className="shrink-0 text-[11px] text-muted-foreground">{item.unit}</div> : null}
+        {item.variant === 'bars' ? (
+          <div className="shrink-0 text-[11px] text-muted-foreground">{item.unit}</div>
+        ) : null}
       </div>
       <div className="mt-4 flex-1">
         {item.variant === 'gauge' ? (

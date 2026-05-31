@@ -420,7 +420,9 @@ export function MonitorTargetPanel({
   const [error, setError] = useState('')
   const [series, setSeries] = useState<MonitorSeriesResponse | null>(null)
   const [seriesLoading, setSeriesLoading] = useState(false)
-  const [networkTrafficSeries, setNetworkTrafficSeries] = useState<MonitorSeriesResponse | null>(null)
+  const [networkTrafficSeries, setNetworkTrafficSeries] = useState<MonitorSeriesResponse | null>(
+    null
+  )
   const [networkTrafficLoading, setNetworkTrafficLoading] = useState(false)
   const [latestStats, setLatestStats] = useState<MonitorLatestResponse | null>(null)
   const [latestStatsLoading, setLatestStatsLoading] = useState(false)
@@ -491,7 +493,9 @@ export function MonitorTargetPanel({
         `/api/monitor/targets/${encodeURIComponent(targetType)}/${encodeURIComponent(targetId)}/series?${params.toString()}`,
         { method: 'GET', ...noAutoCancel }
       )
-      setSeries(normalizeSeriesResponse(response, Array.isArray(response.series) ? response.series : []))
+      setSeries(
+        normalizeSeriesResponse(response, Array.isArray(response.series) ? response.series : [])
+      )
     } catch {
       setSeries(null)
     } finally {
@@ -650,9 +654,12 @@ export function MonitorTargetPanel({
 
   useEffect(() => {
     if (!detailLayout || !documentVisible) return
-    const interval = window.setInterval(() => {
-      void loadLatestStats()
-    }, Math.max((latestStats?.cadenceSeconds ?? DEFAULT_AGENT_METRIC_CADENCE_MS / 1000) * 1000, 1000))
+    const interval = window.setInterval(
+      () => {
+        void loadLatestStats()
+      },
+      Math.max((latestStats?.cadenceSeconds ?? DEFAULT_AGENT_METRIC_CADENCE_MS / 1000) * 1000, 1000)
+    )
     return () => window.clearInterval(interval)
   }, [detailLayout, documentVisible, latestStats?.cadenceSeconds, loadLatestStats])
 
@@ -680,7 +687,9 @@ export function MonitorTargetPanel({
   const summaryEntries = Object.entries(data?.summary ?? {})
   const latestStatItems = useMemo(() => {
     const items = buildLatestStatItems(latestStats?.series ?? []).filter(
-      item => !['cpu', 'memory'].includes(item.key) || hasUsableSeriesData((latestStats?.series ?? []).find(series => series.name === item.key))
+      item =>
+        !['cpu', 'memory'].includes(item.key) ||
+        hasUsableSeriesData((latestStats?.series ?? []).find(series => series.name === item.key))
     )
     if (!data?.summary) return items
     const existingKeys = new Set(items.map(item => item.key))
@@ -696,8 +705,7 @@ export function MonitorTargetPanel({
   const hasTrendSeries = trendSeries.length > 0
   const pipelineWarning = monitorMetricsPipelineWarning(
     data,
-    seriesHasUsableData(series) ||
-      seriesHasUsableData(networkTrafficSeries)
+    seriesHasUsableData(series) || seriesHasUsableData(networkTrafficSeries)
   )
 
   if (detailLayout) {
@@ -709,30 +717,30 @@ export function MonitorTargetPanel({
           </Alert>
         ) : null}
 
-            {pipelineWarning ? (
-              <Alert>
-                <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <span>{pipelineWarning}</span>
-                  {metricsPipelineAction ? (
-                    <span className="flex shrink-0 flex-col gap-1 sm:items-end">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={metricsPipelineAction.onClick}
-                        className="h-7 px-2 text-xs"
-                      >
-                        {metricsPipelineAction.label}
-                      </Button>
-                      {metricsPipelineAction.description ? (
-                        <span className="text-[10px] text-muted-foreground">
-                          {metricsPipelineAction.description}
-                        </span>
-                      ) : null}
+        {pipelineWarning ? (
+          <Alert>
+            <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span>{pipelineWarning}</span>
+              {metricsPipelineAction ? (
+                <span className="flex shrink-0 flex-col gap-1 sm:items-end">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={metricsPipelineAction.onClick}
+                    className="h-7 px-2 text-xs"
+                  >
+                    {metricsPipelineAction.label}
+                  </Button>
+                  {metricsPipelineAction.description ? (
+                    <span className="text-[10px] text-muted-foreground">
+                      {metricsPipelineAction.description}
                     </span>
                   ) : null}
-                </AlertDescription>
-              </Alert>
+                </span>
+              ) : null}
+            </AlertDescription>
+          </Alert>
         ) : null}
 
         <Card>
@@ -919,9 +927,7 @@ export function MonitorTargetPanel({
                         : undefined
                     }
                     onNetworkInterfaceChange={
-                      item.name === 'network_traffic'
-                        ? setSelectedTrendNetworkInterface
-                        : undefined
+                      item.name === 'network_traffic' ? setSelectedTrendNetworkInterface : undefined
                     }
                   />
                 ))}
@@ -947,7 +953,14 @@ export function MonitorTargetPanel({
           variant="outline"
           size="sm"
           onClick={() => void handleRefresh()}
-          disabled={loading || refreshing || seriesLoading || networkTrafficLoading || latestStatsLoading || !targetId}
+          disabled={
+            loading ||
+            refreshing ||
+            seriesLoading ||
+            networkTrafficLoading ||
+            latestStatsLoading ||
+            !targetId
+          }
         >
           {loading || refreshing ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -1082,7 +1095,10 @@ export function MonitorTargetPanel({
                             : 'custom'}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent align="end" className="w-[min(24rem,calc(100vw-2rem))] space-y-3">
+                      <PopoverContent
+                        align="end"
+                        className="w-[min(24rem,calc(100vw-2rem))] space-y-3"
+                      >
                         <div className="space-y-1">
                           <div className="text-sm font-medium">Custom time range</div>
                           <div className="text-xs text-muted-foreground">
@@ -1151,47 +1167,59 @@ export function MonitorTargetPanel({
                     </Popover>
                   </div>
                 </div>
-            </CardHeader>
-            <CardContent>
-              {!hasTrendSeries ? (
-                <div className="rounded-md border border-dashed px-3 py-6 text-sm text-muted-foreground">
-                  {emptyMessage || 'Trend history is unavailable until monitoring data arrives.'}
-                </div>
-              ) : (
-                <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(20rem,1fr))]">
-                  {trendSeries.map(item => (
-                    <TrendCard
-                      key={item.name}
-                      name={item.name}
-                      unit={item.unit}
-                      window={selectedWindow}
-                      points={item.points ?? []}
-                      segments={item.segments}
-                      metadata={item.metadata}
-                      rangeStartAt={item.name === 'network_traffic' ? networkTrafficSeries?.rangeStartAt : series?.rangeStartAt}
-                      rangeEndAt={item.name === 'network_traffic' ? networkTrafficSeries?.rangeEndAt : series?.rangeEndAt}
-                      stepSeconds={item.name === 'network_traffic' ? networkTrafficSeries?.stepSeconds : series?.stepSeconds}
-                      availableNetworkInterfaces={
-                        item.name === 'network' || item.name === 'network_traffic'
-                          ? availableTrendNetworkInterfaces
-                          : undefined
-                      }
-                      selectedNetworkInterface={
-                        item.name === 'network' || item.name === 'network_traffic'
-                          ? selectedTrendNetworkInterface
-                          : undefined
-                      }
-                      onNetworkInterfaceChange={
-                        item.name === 'network_traffic'
-                          ? setSelectedTrendNetworkInterface
-                          : undefined
-                      }
-                    />
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent>
+                {!hasTrendSeries ? (
+                  <div className="rounded-md border border-dashed px-3 py-6 text-sm text-muted-foreground">
+                    {emptyMessage || 'Trend history is unavailable until monitoring data arrives.'}
+                  </div>
+                ) : (
+                  <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(20rem,1fr))]">
+                    {trendSeries.map(item => (
+                      <TrendCard
+                        key={item.name}
+                        name={item.name}
+                        unit={item.unit}
+                        window={selectedWindow}
+                        points={item.points ?? []}
+                        segments={item.segments}
+                        metadata={item.metadata}
+                        rangeStartAt={
+                          item.name === 'network_traffic'
+                            ? networkTrafficSeries?.rangeStartAt
+                            : series?.rangeStartAt
+                        }
+                        rangeEndAt={
+                          item.name === 'network_traffic'
+                            ? networkTrafficSeries?.rangeEndAt
+                            : series?.rangeEndAt
+                        }
+                        stepSeconds={
+                          item.name === 'network_traffic'
+                            ? networkTrafficSeries?.stepSeconds
+                            : series?.stepSeconds
+                        }
+                        availableNetworkInterfaces={
+                          item.name === 'network' || item.name === 'network_traffic'
+                            ? availableTrendNetworkInterfaces
+                            : undefined
+                        }
+                        selectedNetworkInterface={
+                          item.name === 'network' || item.name === 'network_traffic'
+                            ? selectedTrendNetworkInterface
+                            : undefined
+                        }
+                        onNetworkInterfaceChange={
+                          item.name === 'network_traffic'
+                            ? setSelectedTrendNetworkInterface
+                            : undefined
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           ) : null}
         </div>
       ) : error ? null : (
@@ -1323,9 +1351,9 @@ type LatestStatItem = {
 }
 
 function buildLatestStatItems(series: MonitorSeriesResponse['series']): LatestStatItem[] {
-  const supported = LATEST_STAT_ORDER
-    .map(name => series.find(item => item.name === name))
-    .filter((item): item is MonitorSeriesResponse['series'][number] => Boolean(item))
+  const supported = LATEST_STAT_ORDER.map(name => series.find(item => item.name === name)).filter(
+    (item): item is MonitorSeriesResponse['series'][number] => Boolean(item)
+  )
 
   return supported.map(item => {
     const percent = metricPercent(item)
@@ -1429,13 +1457,7 @@ function formatUpdatedAtText(timestamps: { oldest: number | null; newest: number
   return `Updated at ${formatUpdatedAtValue(timestamps.newest, includeDate)}`
 }
 
-function LatestGauge({
-  itemKey,
-  percent,
-}: {
-  itemKey: string
-  percent: number | null
-}) {
+function LatestGauge({ itemKey, percent }: { itemKey: string; percent: number | null }) {
   const clamped = percent === null ? 0 : clampPercent(percent)
   const radius = 46
   const centerX = 60
@@ -1445,7 +1467,10 @@ function LatestGauge({
   const dashOffset = arcLength * (1 - clamped / 100)
 
   return (
-    <div className="flex h-full flex-col justify-end gap-2" aria-label={`${itemKey} latest stat gauge`}>
+    <div
+      className="flex h-full flex-col justify-end gap-2"
+      aria-label={`${itemKey} latest stat gauge`}
+    >
       <svg
         viewBox="0 0 120 72"
         className="mx-auto h-24 w-full max-w-[10.5rem] overflow-visible"
@@ -1486,24 +1511,22 @@ function LatestGauge({
   )
 }
 
-function LatestBarComparison({
-  itemKey,
-  bars,
-}: {
-  itemKey: string
-  bars: LatestStatItem['bars']
-}) {
+function LatestBarComparison({ itemKey, bars }: { itemKey: string; bars: LatestStatItem['bars'] }) {
   const [left, right] = bars
   return (
     <div className="space-y-3" aria-label={`${itemKey} latest stat comparison`}>
       <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-3">
         <div className="space-y-1 text-right">
-          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{left?.label ?? '—'}</div>
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            {left?.label ?? '—'}
+          </div>
           <div className="text-xs font-medium text-foreground">{left?.display ?? '—'}</div>
         </div>
         <div className="h-16 w-px bg-border/80" />
         <div className="space-y-1">
-          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{right?.label ?? '—'}</div>
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            {right?.label ?? '—'}
+          </div>
           <div className="text-xs font-medium text-foreground">{right?.display ?? '—'}</div>
         </div>
       </div>

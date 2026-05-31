@@ -145,7 +145,10 @@ function renderProxySection(
   )
 }
 
-function renderAISection(controller: SettingsPageController, _options?: RegisteredSectionRenderOptions) {
+function renderAISection(
+  controller: SettingsPageController,
+  _options?: RegisteredSectionRenderOptions
+) {
   return (
     <AISettingsSection
       title="AI"
@@ -278,7 +281,10 @@ function renderBrandingSection(
   )
 }
 
-function renderS3Section(controller: SettingsPageController, _options?: RegisteredSectionRenderOptions) {
+function renderS3Section(
+  controller: SettingsPageController,
+  _options?: RegisteredSectionRenderOptions
+) {
   return (
     <S3Section
       s3Enabled={controller.s3Enabled}
@@ -405,7 +411,10 @@ const registeredSectionRenderers: RegisteredSectionRenderer[] = [
     render: (controller, _options) => renderActiveDomainSection(controller) ?? null,
   },
   createRegisteredRenderer({ sectionIds: [...BASIC_SECTION_IDS], render: renderBasicSection }),
-  createRegisteredRenderer({ sectionIds: [...BRANDING_SECTION_IDS], render: renderBrandingSection }),
+  createRegisteredRenderer({
+    sectionIds: [...BRANDING_SECTION_IDS],
+    render: renderBrandingSection,
+  }),
   createRegisteredRenderer({ sectionIds: [...S3_SECTION_IDS], render: renderS3Section }),
   createRegisteredRenderer({ sectionIds: [...LOGS_SECTION_IDS], render: renderLogsSection }),
   createRegisteredRenderer({ sectionIds: [...SPACE_SECTION_IDS], render: renderSpaceQuotaSection }),
@@ -414,7 +423,10 @@ const registeredSectionRenderers: RegisteredSectionRenderer[] = [
     sectionIds: [...SECRETS_POLICY_SECTION_IDS],
     render: renderSecretsPolicySection,
   }),
-  createRegisteredRenderer({ sectionIds: [...TERMINAL_SECTION_IDS], render: renderTerminalSection }),
+  createRegisteredRenderer({
+    sectionIds: [...TERMINAL_SECTION_IDS],
+    render: renderTerminalSection,
+  }),
   createRegisteredRenderer({ sectionIds: [...DOCKER_SECTION_IDS], render: renderDockerSection }),
   createRegisteredRenderer({ sectionIds: [...PROXY_SECTION_IDS], render: renderProxySection }),
   createRegisteredRenderer({ sectionIds: [...AI_SECTION_IDS], render: renderAISection }),
@@ -423,8 +435,14 @@ const registeredSectionRenderers: RegisteredSectionRenderer[] = [
     sectionIds: [...DEPLOY_PREFLIGHT_SECTION_IDS],
     render: renderDeployPreflightSection,
   }),
-  createRegisteredRenderer({ sectionIds: [...IAC_FILES_SECTION_IDS], render: renderIacFilesSection }),
-  createRegisteredRenderer({ sectionIds: [...TUNNEL_SECTION_IDS], render: renderTunnelPortRangeSection }),
+  createRegisteredRenderer({
+    sectionIds: [...IAC_FILES_SECTION_IDS],
+    render: renderIacFilesSection,
+  }),
+  createRegisteredRenderer({
+    sectionIds: [...TUNNEL_SECTION_IDS],
+    render: renderTunnelPortRangeSection,
+  }),
 ]
 
 export function renderRegisteredSection(

@@ -66,15 +66,17 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     Partial<Record<keyof TopicShare, string>>
   >({})
 
-  const [topicCommentPolicyForm, setTopicCommentPolicyForm] =
-    useState<TopicCommentPolicy>(DEFAULT_TOPIC_COMMENT_POLICY)
+  const [topicCommentPolicyForm, setTopicCommentPolicyForm] = useState<TopicCommentPolicy>(
+    DEFAULT_TOPIC_COMMENT_POLICY
+  )
   const [topicCommentPolicySaving, setTopicCommentPolicySaving] = useState(false)
   const [topicCommentPolicyErrors, setTopicCommentPolicyErrors] = useState<
     Partial<Record<keyof TopicCommentPolicy, string>>
   >({})
 
-  const [topicImportPolicyForm, setTopicImportPolicyForm] =
-    useState<TopicImportPolicy>(DEFAULT_TOPIC_IMPORT_POLICY)
+  const [topicImportPolicyForm, setTopicImportPolicyForm] = useState<TopicImportPolicy>(
+    DEFAULT_TOPIC_IMPORT_POLICY
+  )
   const [topicImportPolicySaving, setTopicImportPolicySaving] = useState(false)
   const [topicImportPolicyErrors, setTopicImportPolicyErrors] = useState<
     Partial<Record<keyof TopicImportPolicy, string>>
@@ -197,7 +199,8 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
       maxDescriptionImportKB:
         Number.isFinite(maxDescriptionImportKB) && maxDescriptionImportKB >= 1
           ? Math.floor(maxDescriptionImportKB)
-          : Number.isFinite(legacyMaxDescriptionImportBytes) && legacyMaxDescriptionImportBytes >= 1024
+          : Number.isFinite(legacyMaxDescriptionImportBytes) &&
+              legacyMaxDescriptionImportBytes >= 1024
             ? Math.ceil(legacyMaxDescriptionImportBytes / 1024)
             : DEFAULT_TOPIC_IMPORT_POLICY.maxDescriptionImportKB,
       textOnly:
@@ -250,9 +253,13 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
       ...network,
       enabled: Boolean(network.enabled),
       httpConnectorId:
-        typeof network.httpConnectorId === 'string' ? network.httpConnectorId : EMPTY_PROXY.httpConnectorId,
+        typeof network.httpConnectorId === 'string'
+          ? network.httpConnectorId
+          : EMPTY_PROXY.httpConnectorId,
       httpsConnectorId:
-        typeof network.httpsConnectorId === 'string' ? network.httpsConnectorId : EMPTY_PROXY.httpsConnectorId,
+        typeof network.httpsConnectorId === 'string'
+          ? network.httpsConnectorId
+          : EMPTY_PROXY.httpsConnectorId,
     }
     setProxyNetwork(mergedProxy)
     setProxyForm(mergedProxy)
@@ -443,7 +450,10 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
 
   const validateTopicShare = (): boolean => {
     const errors: Partial<Record<keyof TopicShare, string>> = {}
-    if (!Number.isInteger(topicShareForm.shareDefaultMinutes) || topicShareForm.shareDefaultMinutes < 1) {
+    if (
+      !Number.isInteger(topicShareForm.shareDefaultMinutes) ||
+      topicShareForm.shareDefaultMinutes < 1
+    ) {
       errors.shareDefaultMinutes = 'Must be an integer ≥ 1'
     }
     if (!Number.isInteger(topicShareForm.shareMaxMinutes) || topicShareForm.shareMaxMinutes < 1) {
@@ -475,9 +485,7 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
       const next = res.value ?? topicShareForm
       setTopicShareForm({
         shareMaxMinutes: Number(next.shareMaxMinutes ?? topicShareForm.shareMaxMinutes),
-        shareDefaultMinutes: Number(
-          next.shareDefaultMinutes ?? topicShareForm.shareDefaultMinutes
-        ),
+        shareDefaultMinutes: Number(next.shareDefaultMinutes ?? topicShareForm.shareDefaultMinutes),
       })
       showToast('Topic share settings saved')
     } catch (err) {
@@ -554,12 +562,8 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
           typeof next.defaultGuestName === 'string'
             ? next.defaultGuestName
             : payload.defaultGuestName,
-        maxGuestNameLength: Number(
-          next.maxGuestNameLength ?? payload.maxGuestNameLength
-        ),
-        maxCommentBodyLength: Number(
-          next.maxCommentBodyLength ?? payload.maxCommentBodyLength
-        ),
+        maxGuestNameLength: Number(next.maxGuestNameLength ?? payload.maxGuestNameLength),
+        maxCommentBodyLength: Number(next.maxCommentBodyLength ?? payload.maxCommentBodyLength),
       })
       showToast('Topic comment policy saved')
     } catch (err) {

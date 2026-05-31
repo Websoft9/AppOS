@@ -315,7 +315,10 @@ describe('AppDetailPage', () => {
             output: 'demo log line 1\ndemo log line 2',
           })
         }
-        if (path === '/api/servers/local/docker/containers/container-1' && options?.method === 'GET') {
+        if (
+          path === '/api/servers/local/docker/containers/container-1' &&
+          options?.method === 'GET'
+        ) {
           return Promise.resolve({
             output: JSON.stringify([
               {
@@ -557,9 +560,7 @@ describe('AppDetailPage', () => {
       expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
     })
 
-    expect(
-      screen.getByText((_, node) => node?.textContent === 'Server: Remote Demo Server')
-    ).toBeInTheDocument()
+    expect(screen.getByText('Remote Demo Server')).toBeInTheDocument()
     expect(screen.getByText('Connection summary: SSH access is reachable.')).toBeInTheDocument()
     expect(screen.getByText('Endpoint: 10.0.0.8')).toBeInTheDocument()
     expect(screen.getByText('Next server step: Open Terminal')).toBeInTheDocument()
@@ -936,8 +937,12 @@ describe('AppDetailPage', () => {
     fireEvent.click(runtimeTab)
 
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith('/api/servers/local/docker/containers', { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith('/api/servers/local/docker/containers/stats', { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith('/api/servers/local/docker/containers', {
+        method: 'GET',
+      })
+      expect(sendMock).toHaveBeenCalledWith('/api/servers/local/docker/containers/stats', {
+        method: 'GET',
+      })
       expect(screen.getByText('demo-app-web-1')).toBeInTheDocument()
       expect(screen.queryByText('other-app-web-1')).not.toBeInTheDocument()
       expect(screen.getByText('12.5%')).toBeInTheDocument()
@@ -985,12 +990,19 @@ describe('AppDetailPage', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/apps/app-1/logs', { method: 'GET' })
       expect(sendMock).toHaveBeenCalledWith('/api/actions', { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith('/api/servers/local/docker/containers', { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith('/api/servers/local/docker/containers/stats', { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/app/app-1', { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith('/api/servers/local/docker/containers', {
+        method: 'GET',
+      })
+      expect(sendMock).toHaveBeenCalledWith('/api/servers/local/docker/containers/stats', {
+        method: 'GET',
+      })
+      expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/app/app-1', {
+        method: 'GET',
+        requestKey: null,
+      })
       expect(sendMock).toHaveBeenCalledWith(
         '/api/monitor/targets/app/app-1/series?window=1h&series=cpu%2Cmemory',
-        { method: 'GET' }
+        { method: 'GET', requestKey: null }
       )
     })
 

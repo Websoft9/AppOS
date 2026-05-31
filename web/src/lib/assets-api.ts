@@ -99,7 +99,10 @@ export async function deleteAsset(id: string): Promise<void> {
 }
 
 export async function getAssetContent(id: string): Promise<AssetContentResponse> {
-  return pb.send<AssetContentResponse>(`/api/assets/${encodeURIComponent(id)}/content`, noAutoCancel)
+  return pb.send<AssetContentResponse>(
+    `/api/assets/${encodeURIComponent(id)}/content`,
+    noAutoCancel
+  )
 }
 
 export async function pullScriptReference(reference: string): Promise<ScriptPullResponse> {

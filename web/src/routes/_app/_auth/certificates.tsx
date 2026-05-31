@@ -479,7 +479,9 @@ function CertificatesPage() {
     () => filteredItems.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
     [filteredItems, page]
   )
-  useEffect(() => { setPage(1) }, [filteredItems])
+  useEffect(() => {
+    setPage(1)
+  }, [filteredItems])
 
   function handleSort(field: SortField) {
     if (sortField === field) setSortDir(prev => (prev === 'asc' ? 'desc' : 'asc'))

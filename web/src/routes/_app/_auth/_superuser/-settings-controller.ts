@@ -41,11 +41,7 @@ export function useSettingsPageController() {
         pb.send<SettingsEntriesListResponse>(SETTINGS_ENTRIES_API_PATH, { method: 'GET' }),
       ])
 
-      const movedToSystemIds = new Set([
-        'tunnel-port-range',
-        'proxy-network',
-        'docker-mirror',
-      ])
+      const movedToSystemIds = new Set(['tunnel-port-range', 'proxy-network', 'docker-mirror'])
       const monitorTailIndex = schemaResult.entries.reduce((lastIndex, entry, index) => {
         return entry.id.startsWith('monitor-') ? index : lastIndex
       }, -1)
@@ -69,13 +65,14 @@ export function useSettingsPageController() {
       const aiEntry = {
         id: 'ai' as const,
         title: 'AI',
-        description:
-          'Choose the platform default AI model and manage AI providers from one place.',
+        description: 'Choose the platform default AI model and manage AI providers from one place.',
         section: 'workspace',
         source: 'custom' as const,
         fields: [{ id: 'defaultModel', label: 'Default Model', type: 'relation' }],
       }
-      const firstWorkspaceIndex = normalizedEntries.findIndex(entry => entry.section === 'workspace')
+      const firstWorkspaceIndex = normalizedEntries.findIndex(
+        entry => entry.section === 'workspace'
+      )
       const allEntries =
         firstWorkspaceIndex >= 0
           ? [
@@ -88,10 +85,10 @@ export function useSettingsPageController() {
       if (allEntries.length > 0) {
         setActiveSection(prev =>
           allEntries.some(entry => entry.id === prev) ||
-            (prev === 'monitor' &&
-              allEntries.some(
-                entry => entry.id === 'monitor-scheduling' || entry.id === 'monitor-policy'
-              ))
+          (prev === 'monitor' &&
+            allEntries.some(
+              entry => entry.id === 'monitor-scheduling' || entry.id === 'monitor-policy'
+            ))
             ? prev
             : allEntries[0].id
         )
@@ -111,7 +108,14 @@ export function useSettingsPageController() {
     } finally {
       setPbLoading(false)
     }
-  }, [showToast, hydrateFeedsEntries, hydrateIntegrationEntries, hydrateMonitorEntries, hydrateSystemEntries, hydrateWorkspaceSimpleEntries])
+  }, [
+    showToast,
+    hydrateFeedsEntries,
+    hydrateIntegrationEntries,
+    hydrateMonitorEntries,
+    hydrateSystemEntries,
+    hydrateWorkspaceSimpleEntries,
+  ])
 
   useEffect(() => {
     loadSettingsData()

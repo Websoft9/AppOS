@@ -51,7 +51,8 @@ export function DockerMirrorsSection({
           </Button>
         </div>
         <CardDescription>
-          Speeds up AppOS image pulls during deployment and update. Does not change server Docker settings.
+          Speeds up AppOS image pulls during deployment and update. Does not change server Docker
+          settings.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -102,7 +103,9 @@ export function DockerMirrorsSection({
                   </button>
                   <Input
                     value={url}
-                    onChange={e => setMirrors(m => m.map((v, idx) => (idx === i ? e.target.value : v)))}
+                    onChange={e =>
+                      setMirrors(m => m.map((v, idx) => (idx === i ? e.target.value : v)))
+                    }
                     placeholder="https://mirror.example.com"
                   />
                   <Button
@@ -123,15 +126,16 @@ export function DockerMirrorsSection({
 
         <div className="space-y-2 border-t pt-4">
           <div className="flex items-center gap-3">
-          <Toggle
-            id="docker-allow-insecure-registries"
-            checked={allowInsecureRegistries}
-            onChange={setAllowInsecureRegistries}
-          />
+            <Toggle
+              id="docker-allow-insecure-registries"
+              checked={allowInsecureRegistries}
+              onChange={setAllowInsecureRegistries}
+            />
             <Label htmlFor="docker-allow-insecure-registries">Allow Insecure Registries</Label>
           </div>
           <p className="pl-11 text-sm text-muted-foreground">
-            Allow AppOS to pull from insecure registries when a mirror or upstream endpoint requires it.
+            Allow AppOS to pull from insecure registries when a mirror or upstream endpoint requires
+            it.
           </p>
         </div>
 

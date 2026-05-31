@@ -87,15 +87,20 @@ function inferMonitorAgentAction(
 }
 
 function monitorTargetSummaryFromResponse(response: unknown): MonitorTargetStatusSummary {
-  const payload = response && typeof response === 'object' ? (response as Record<string, unknown>) : {}
+  const payload =
+    response && typeof response === 'object' ? (response as Record<string, unknown>) : {}
   const summary =
     payload.summary && typeof payload.summary === 'object' && !Array.isArray(payload.summary)
       ? (payload.summary as Record<string, unknown>)
       : {}
   return {
-    monitoringState: String(summary.monitoring_state ?? '').trim().toLowerCase(),
+    monitoringState: String(summary.monitoring_state ?? '')
+      .trim()
+      .toLowerCase(),
     hasData: Boolean(payload.hasData),
-    reason: String(payload.reason ?? '').trim().toLowerCase(),
+    reason: String(payload.reason ?? '')
+      .trim()
+      .toLowerCase(),
   }
 }
 
@@ -139,7 +144,7 @@ function useMonitorAgentStatus(serverId: string) {
     setLoadingStatus(true)
     setStatusError('')
     try {
-		const response = await getSystemdStatus(serverId, MONITOR_COLLECTOR_SERVICE)
+      const response = await getSystemdStatus(serverId, MONITOR_COLLECTOR_SERVICE)
       setStatus(response.status)
     } catch (error) {
       setStatus(null)
@@ -213,7 +218,8 @@ export function ServerMonitorConclusions({
         detail: checkingMonitoring
           ? 'AppOS is checking whether the monitor collector can provide usable trend data.'
           : 'Trend cards on the left are the source of truth for whether data is current and complete.',
-        nextStep: 'If charts stay empty or stale, open Components to verify the Monitor Agent addon.',
+        nextStep:
+          'If charts stay empty or stale, open Components to verify the Monitor Agent addon.',
         observedAt,
       },
       {
@@ -321,10 +327,7 @@ export function ServerMonitorConclusions({
                     </span>
                   </button>
                   <div className="flex shrink-0 items-center gap-2 self-start pt-0.5">
-                    <Badge
-                      variant={stateBadgeVariant(item.state)}
-                      className="shrink-0 text-[11px]"
-                    >
+                    <Badge variant={stateBadgeVariant(item.state)} className="shrink-0 text-[11px]">
                       {stateLabel(item.state)}
                     </Badge>
                     <Button
@@ -395,12 +398,12 @@ export function ServerMonitorTab({
   const monitoringNeedsIntervention =
     !monitorAgent.loadingStatus && !monitorTarget.loading && !monitoringConnected
   const monitorHint = monitorAgent.loadingStatus
-  ? 'Checking monitoring'
-  : awaitingFirstSample
-    ? 'Monitoring active · waiting for first sample'
-    : monitoringConnected
-      ? `Monitoring active${monitorAgent.connected && monitorAgent.subState ? ` · ${monitorAgent.subState}` : ''}`
-      : 'Monitoring not connected'
+    ? 'Checking monitoring'
+    : awaitingFirstSample
+      ? 'Monitoring active · waiting for first sample'
+      : monitoringConnected
+        ? `Monitoring active${monitorAgent.connected && monitorAgent.subState ? ` · ${monitorAgent.subState}` : ''}`
+        : 'Monitoring not connected'
   const refreshMonitorStatus = useCallback(() => {
     void monitorAgent.refresh()
     void monitorTarget.refresh()
@@ -445,7 +448,8 @@ export function ServerMonitorTab({
             <div>
               <div className="font-medium">Monitoring is not connected on this server.</div>
               <div className="mt-1 text-sm">
-				Install or repair the Monitor Agent addon from Components before relying on monitor data.
+                Install or repair the Monitor Agent addon from Components before relying on monitor
+                data.
                 {monitorAgent.statusError ? ` ${monitorAgent.statusError}` : ''}
               </div>
             </div>

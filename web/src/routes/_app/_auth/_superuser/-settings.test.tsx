@@ -333,8 +333,7 @@ describe('SettingsPage shared settings paths', () => {
             {
               id: 'docker-mirror',
               title: 'Docker Mirrors',
-              description:
-                'Speed up AppOS image pulls. Does not change server Docker settings.',
+              description: 'Speed up AppOS image pulls. Does not change server Docker settings.',
               section: 'workspace',
               source: 'custom',
               fields: [
@@ -399,15 +398,15 @@ describe('SettingsPage shared settings paths', () => {
                 flushJitterSeconds: 1,
               },
             },
-              {
-                id: 'feeds-policy',
-                value: {
-                  pollIntervalHours: 3,
-                  failureBackoffMaxHours: 24,
-                  perSourceRetentionCap: 100,
-                  globalRetentionCap: 10000,
-                },
+            {
+              id: 'feeds-policy',
+              value: {
+                pollIntervalHours: 3,
+                failureBackoffMaxHours: 24,
+                perSourceRetentionCap: 100,
+                globalRetentionCap: 10000,
               },
+            },
             { id: 'space-quota', value: {} },
             { id: 'topic-share', value: { shareMaxMinutes: 60, shareDefaultMinutes: 30 } },
             {
@@ -579,7 +578,9 @@ describe('SettingsPage shared settings paths', () => {
       monitorButton.compareDocumentPosition(tunnelButton) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
     expect(screen.queryByText('Help for:')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Open Docker Mirrors help' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Open Docker Mirrors help' })
+    ).not.toBeInTheDocument()
   })
 
   it('shows Deploy Preflight under Workspace', async () => {
@@ -643,7 +644,9 @@ describe('SettingsPage shared settings paths', () => {
       expect(nav).toBeTruthy()
       const navQueries = within(nav as HTMLElement)
       expect(navQueries.getByRole('button', { name: 'Monitor' })).toBeInTheDocument()
-      expect(navQueries.queryByRole('button', { name: 'Monitor Scheduling' })).not.toBeInTheDocument()
+      expect(
+        navQueries.queryByRole('button', { name: 'Monitor Scheduling' })
+      ).not.toBeInTheDocument()
       expect(navQueries.queryByRole('button', { name: 'Monitor Policy' })).not.toBeInTheDocument()
     })
 
@@ -672,7 +675,9 @@ describe('SettingsPage shared settings paths', () => {
     await waitFor(() => {
       const nav = container.querySelector('nav') as HTMLElement | null
       expect(nav).toBeTruthy()
-      expect(within(nav as HTMLElement).getByRole('button', { name: 'Monitor' })).toBeInTheDocument()
+      expect(
+        within(nav as HTMLElement).getByRole('button', { name: 'Monitor' })
+      ).toBeInTheDocument()
     })
 
     const nav = container.querySelector('nav') as HTMLElement | null
@@ -712,7 +717,9 @@ describe('SettingsPage shared settings paths', () => {
     await waitFor(() => {
       const nav = container.querySelector('nav') as HTMLElement | null
       expect(nav).toBeTruthy()
-      expect(within(nav as HTMLElement).getByRole('button', { name: 'Monitor' })).toBeInTheDocument()
+      expect(
+        within(nav as HTMLElement).getByRole('button', { name: 'Monitor' })
+      ).toBeInTheDocument()
     })
 
     const nav = container.querySelector('nav') as HTMLElement | null
@@ -746,13 +753,13 @@ describe('SettingsPage shared settings paths', () => {
     })
   })
 
-   it('saves feeds through the unified settings entry path from the workspace settings page', async () => {
+  it('saves feeds through the unified settings entry path from the workspace settings page', async () => {
     const { container } = render(<SettingsPage />)
 
     await waitFor(() => {
       const nav = container.querySelector('nav') as HTMLElement | null
       expect(nav).toBeTruthy()
-        expect(within(nav as HTMLElement).getByRole('button', { name: 'Feeds' })).toBeInTheDocument()
+      expect(within(nav as HTMLElement).getByRole('button', { name: 'Feeds' })).toBeInTheDocument()
     })
 
     const nav = container.querySelector('nav') as HTMLElement | null
@@ -760,7 +767,7 @@ describe('SettingsPage shared settings paths', () => {
       throw new Error('expected settings navigation to be rendered')
     }
 
-      within(nav).getByRole('button', { name: 'Feeds' }).click()
+    within(nav).getByRole('button', { name: 'Feeds' }).click()
 
     await waitFor(() => {
       expect(screen.getByLabelText('Poll Interval (hours)')).toBeInTheDocument()
@@ -788,13 +795,18 @@ describe('SettingsPage shared settings paths', () => {
   })
 
   it('deletes the oldest feed articles from the feeds settings danger zone', async () => {
-	const baseImplementation = sendMock.getMockImplementation()
+    const baseImplementation = sendMock.getMockImplementation()
     sendMock.mockImplementation((path: string, options?: { method?: string; body?: unknown }) => {
-      if (path === SETTINGS_SCHEMA_API_PATH || path === SETTINGS_ENTRIES_API_PATH || path === '/api/connectors' || path === '/api/connectors/templates') {
-			if (baseImplementation) {
-				return baseImplementation(path, options)
-			}
-			return Promise.resolve({})
+      if (
+        path === SETTINGS_SCHEMA_API_PATH ||
+        path === SETTINGS_ENTRIES_API_PATH ||
+        path === '/api/connectors' ||
+        path === '/api/connectors/templates'
+      ) {
+        if (baseImplementation) {
+          return baseImplementation(path, options)
+        }
+        return Promise.resolve({})
       }
       if (path === '/api/feeds/summary') {
         return Promise.resolve({ totalItems: 12, starredItems: 0, sourceCounts: [] })
@@ -870,7 +882,9 @@ describe('SettingsPage shared settings paths', () => {
     fireEvent.click(screen.getByLabelText('Allow Guest Comments'))
 
     const defaultGuestNameInput = screen.getByLabelText('Default Guest Name')
-    const commentPolicyCard = defaultGuestNameInput.closest('[data-slot="card"]') as HTMLElement | null
+    const commentPolicyCard = defaultGuestNameInput.closest(
+      '[data-slot="card"]'
+    ) as HTMLElement | null
     if (!commentPolicyCard) {
       throw new Error('expected topic comment policy card to be rendered')
     }
@@ -983,7 +997,9 @@ describe('SettingsPage shared settings paths', () => {
     await waitFor(() => {
       const nav = container.querySelector('nav') as HTMLElement | null
       expect(nav).toBeTruthy()
-      expect(within(nav as HTMLElement).getByRole('button', { name: 'Monitor' })).toBeInTheDocument()
+      expect(
+        within(nav as HTMLElement).getByRole('button', { name: 'Monitor' })
+      ).toBeInTheDocument()
     })
 
     const nav = container.querySelector('nav') as HTMLElement | null
@@ -1010,13 +1026,16 @@ describe('SettingsPage shared settings paths', () => {
     fireEvent.click(within(platformCard).getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith(settingsEntryPath('monitor-platform-self-observation'), {
-        method: 'PATCH',
-        body: expect.objectContaining({
-          platformObserverIntervalSeconds: 45,
-          enableHostTelemetry: true,
-        }),
-      })
+      expect(sendMock).toHaveBeenCalledWith(
+        settingsEntryPath('monitor-platform-self-observation'),
+        {
+          method: 'PATCH',
+          body: expect.objectContaining({
+            platformObserverIntervalSeconds: 45,
+            enableHostTelemetry: true,
+          }),
+        }
+      )
     })
   })
 
@@ -1026,7 +1045,9 @@ describe('SettingsPage shared settings paths', () => {
     await waitFor(() => {
       const nav = container.querySelector('nav') as HTMLElement | null
       expect(nav).toBeTruthy()
-      expect(within(nav as HTMLElement).getByRole('button', { name: 'Monitor' })).toBeInTheDocument()
+      expect(
+        within(nav as HTMLElement).getByRole('button', { name: 'Monitor' })
+      ).toBeInTheDocument()
     })
 
     const nav = container.querySelector('nav') as HTMLElement | null
@@ -1121,7 +1142,7 @@ describe('SettingsPage shared settings paths', () => {
     })
   })
 
-    it('keeps feeds in Workspace after Topics', async () => {
+  it('keeps feeds in Workspace after Topics', async () => {
     const { container } = render(<SettingsPage />)
 
     await waitFor(() => {
@@ -1203,7 +1224,9 @@ describe('SettingsPage shared settings paths', () => {
       expect(screen.getByRole('combobox', { name: 'Default Model' })).toBeInTheDocument()
     })
 
-    expect(screen.getByRole('option', { name: 'Workspace OpenAI / OpenAI / gpt-4.1-mini' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('option', { name: 'Workspace OpenAI / OpenAI / gpt-4.1-mini' })
+    ).toBeInTheDocument()
     expect(screen.getByRole('option', { name: '+ Add a new model...' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Open AI Providers' })).not.toBeInTheDocument()
@@ -1437,8 +1460,7 @@ describe('SettingsPage shared settings paths', () => {
             {
               id: 'docker-mirror',
               title: 'Docker Mirrors',
-              description:
-                'Speed up AppOS image pulls. Does not change server Docker settings.',
+              description: 'Speed up AppOS image pulls. Does not change server Docker settings.',
               section: 'workspace',
               source: 'custom',
               fields: [
@@ -1511,7 +1533,9 @@ describe('SettingsPage shared settings paths', () => {
     fireEvent.dragOver(dropRow)
     fireEvent.drop(dropRow)
 
-    const inputs = screen.getAllByPlaceholderText('https://mirror.example.com') as HTMLInputElement[]
+    const inputs = screen.getAllByPlaceholderText(
+      'https://mirror.example.com'
+    ) as HTMLInputElement[]
     expect(inputs.map(input => input.value)).toEqual([
       'https://mirror-a.example.com',
       'https://mirror-b.example.com',

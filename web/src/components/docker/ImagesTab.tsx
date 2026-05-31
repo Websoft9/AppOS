@@ -62,7 +62,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { DockerTextDialog } from '@/components/docker/DockerTextDialog'
 import { getApiErrorMessage } from '@/lib/api-error'
-import { DockerDependencyAlert, getDockerDependencyIssue } from '@/components/docker/DockerDependencyAlert'
+import {
+  DockerDependencyAlert,
+  getDockerDependencyIssue,
+} from '@/components/docker/DockerDependencyAlert'
 import { cn } from '@/lib/utils'
 
 const IMAGES_SORT_KEY = 'docker.images.sort'
@@ -235,7 +238,9 @@ function formatImageBytes(bytes?: unknown): string {
 function formatImagePorts(inspect?: Record<string, any> | null): string[] {
   const ports = inspect?.Config?.ExposedPorts
   if (!ports || typeof ports !== 'object') return []
-  return Object.keys(ports as Record<string, unknown>).sort((left, right) => left.localeCompare(right))
+  return Object.keys(ports as Record<string, unknown>).sort((left, right) =>
+    left.localeCompare(right)
+  )
 }
 
 function metadataValue(value: string | string[] | undefined): string {
@@ -349,7 +354,9 @@ function formatPullOperationTimestamp(value?: string): string {
   return new Date(parsed).toLocaleString()
 }
 
-function pullOperationTone(operation: DockerImagePullOperation): 'default' | 'secondary' | 'destructive' {
+function pullOperationTone(
+  operation: DockerImagePullOperation
+): 'default' | 'secondary' | 'destructive' {
   if (operation.terminal_status === 'failed') return 'destructive'
   if (operation.terminal_status === 'cancelled') return 'secondary'
   if (operation.terminal_status === 'success') return 'secondary'
@@ -374,7 +381,8 @@ function pullOperationStatusHint(operation: DockerImagePullOperation): string {
     return operation.failure_reason || 'Pull failed.'
   }
   if (operation.terminal_status === 'success') return 'Pull completed successfully.'
-  if (operation.phase === 'accepted') return 'Queued and waiting for an available pull slot on this server.'
+  if (operation.phase === 'accepted')
+    return 'Queued and waiting for an available pull slot on this server.'
   return 'Actively pulling on the target server.'
 }
 
@@ -391,7 +399,10 @@ function scoreReferenceMatch(reference: string, input: string): number {
   if (parsedInput.name && parsedInput.tag) {
     if (parsedReference.name === parsedInput.name && parsedReference.tag === parsedInput.tag)
       return 95
-    if (parsedReference.name === parsedInput.name && parsedReference.tag.startsWith(parsedInput.tag))
+    if (
+      parsedReference.name === parsedInput.name &&
+      parsedReference.tag.startsWith(parsedInput.tag)
+    )
       return 90
     if (
       parsedReference.imageName === parsedInput.imageName &&
@@ -453,19 +464,22 @@ export const ImagesTab = forwardRef<
       unusedItems: number
     }) => void
   }
->(function ImagesTab({
-  serverId,
-  refreshSignal = 0,
-  embeddedInWorkspace = false,
-  externalFilter,
-  externalUsageFilter,
-  page: externalPage,
-  pageSize: externalPageSize,
-  onPageChange,
-  onOpenContainerFilter,
-  onPullActivityChange,
-  onSummaryChange,
-}, ref) {
+>(function ImagesTab(
+  {
+    serverId,
+    refreshSignal = 0,
+    embeddedInWorkspace = false,
+    externalFilter,
+    externalUsageFilter,
+    page: externalPage,
+    pageSize: externalPageSize,
+    onPageChange,
+    onOpenContainerFilter,
+    onPullActivityChange,
+    onSummaryChange,
+  },
+  ref
+) {
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState('')
   const [usageFilter, setUsageFilter] = useState<'all' | 'used' | 'unused'>('all')
@@ -522,7 +536,9 @@ export const ImagesTab = forwardRef<
   const [mockPruneNotice, setMockPruneNotice] = useState<string | null>(null)
 
   const [pullDialogOpen, setPullDialogOpen] = useState(false)
-  const [selectedRegistryId, setSelectedRegistryId] = useState(PULL_REGISTRY_OPTIONS[0]?.id ?? 'docker-hub')
+  const [selectedRegistryId, setSelectedRegistryId] = useState(
+    PULL_REGISTRY_OPTIONS[0]?.id ?? 'docker-hub'
+  )
   const [pullImageInput, setPullImageInput] = useState('')
   const [pulling, setPulling] = useState(false)
   const [pullLog, setPullLog] = useState('')
@@ -702,7 +718,9 @@ export const ImagesTab = forwardRef<
     try {
       setActionError(null)
       setPullOperationActionId(operation.id)
-      await pb.send(dockerApiPath(serverId, `/image-pull-operations/${operation.id}`), { method: 'DELETE' })
+      await pb.send(dockerApiPath(serverId, `/image-pull-operations/${operation.id}`), {
+        method: 'DELETE',
+      })
       if (selectedPullOperation?.id === operation.id) {
         setSelectedPullOperation(null)
       }
@@ -849,7 +867,11 @@ export const ImagesTab = forwardRef<
 
   const openOfficialSearch = () => {
     if (typeof window === 'undefined') return
-    window.open(selectedRegistry.officialSearchUrl(referenceKeyword), '_blank', 'noopener,noreferrer')
+    window.open(
+      selectedRegistry.officialSearchUrl(referenceKeyword),
+      '_blank',
+      'noopener,noreferrer'
+    )
   }
 
   const useReference = (reference: string) => {
@@ -924,7 +946,8 @@ export const ImagesTab = forwardRef<
       })
       setRegistryStatus({
         available: !!response.available,
-        registry: typeof response.registry === 'string' ? response.registry : selectedRegistry.label,
+        registry:
+          typeof response.registry === 'string' ? response.registry : selectedRegistry.label,
         reason: typeof response.reason === 'string' ? response.reason : undefined,
       })
     } catch (err) {
@@ -968,7 +991,8 @@ export const ImagesTab = forwardRef<
   const dependencyIssue = getDockerDependencyIssue(error ?? visibleError)
 
   const recentCompletedPulls = useMemo(
-    () => recentPullOperations.filter(operation => operation.terminal_status !== 'none').slice(0, 6),
+    () =>
+      recentPullOperations.filter(operation => operation.terminal_status !== 'none').slice(0, 6),
     [recentPullOperations]
   )
   const executingPullOperations = useMemo(
@@ -1179,10 +1203,7 @@ export const ImagesTab = forwardRef<
 
   return (
     <div
-      className={cn(
-        'h-full min-h-0 flex flex-col gap-4',
-        embeddedInWorkspace ? 'pt-0' : 'pt-4'
-      )}
+      className={cn('h-full min-h-0 flex flex-col gap-4', embeddedInWorkspace ? 'pt-0' : 'pt-4')}
     >
       {dependencyIssue && visibleError ? (
         <DockerDependencyAlert serverId={serverId} message={visibleError} focusSource="images" />
@@ -1215,7 +1236,6 @@ export const ImagesTab = forwardRef<
               <option value="unused">Unused ({unusedCount})</option>
             </select>
 
-
             <div className="flex-1" />
 
             <Button variant="link" size="sm" onClick={() => openPullDialog()}>
@@ -1239,7 +1259,9 @@ export const ImagesTab = forwardRef<
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed bg-muted/10 px-3 py-2 shrink-0">
             {usageFilter === 'unused' && <Badge variant="outline">Only unused images</Badge>}
             {usageFilter === 'used' && <Badge variant="outline">Only used images</Badge>}
-            {registryFilter !== 'all' && <Badge variant="outline">Registry: {registryFilter}</Badge>}
+            {registryFilter !== 'all' && (
+              <Badge variant="outline">Registry: {registryFilter}</Badge>
+            )}
             {mockPruneNotice && <Badge variant="secondary">{mockPruneNotice}</Badge>}
           </div>
         </>
@@ -1249,7 +1271,9 @@ export const ImagesTab = forwardRef<
           {filter.trim() ? <Badge variant="outline">Search: {filter.trim()}</Badge> : null}
           {usageFilter === 'used' ? <Badge variant="outline">Only used images</Badge> : null}
           {usageFilter === 'unused' ? <Badge variant="outline">Only unused images</Badge> : null}
-          {registryFilter !== 'all' ? <Badge variant="outline">Registry: {registryFilter}</Badge> : null}
+          {registryFilter !== 'all' ? (
+            <Badge variant="outline">Registry: {registryFilter}</Badge>
+          ) : null}
           <Button
             variant="outline"
             size="sm"
@@ -1265,11 +1289,7 @@ export const ImagesTab = forwardRef<
       )}
       {embeddedInWorkspace && selectedIds.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 shrink-0 pb-1">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setBatchDeleteOpen(true)}
-          >
+          <Button variant="outline" size="sm" onClick={() => setBatchDeleteOpen(true)}>
             <Trash2 className="h-4 w-4 mr-1" /> Remove selected ({selectedIds.length})
           </Button>
         </div>
@@ -1282,7 +1302,13 @@ export const ImagesTab = forwardRef<
                 <TableHead className="w-[26%] min-w-[220px] pl-4 pr-2">
                   <div className="flex items-center gap-2">
                     <Checkbox
-                      checked={allSelectableChecked ? true : someSelectableChecked ? 'indeterminate' : false}
+                      checked={
+                        allSelectableChecked
+                          ? true
+                          : someSelectableChecked
+                            ? 'indeterminate'
+                            : false
+                      }
                       disabled={selectableIds.length === 0}
                       onCheckedChange={() => toggleSelectAll()}
                       aria-label="Select all unused images"
@@ -1304,7 +1330,11 @@ export const ImagesTab = forwardRef<
                               'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
                           )}
                           aria-label="Filter by registry"
-                          title={registryFilter === 'all' ? 'Filter by registry' : `Registry: ${registryFilter}`}
+                          title={
+                            registryFilter === 'all'
+                              ? 'Filter by registry'
+                              : `Registry: ${registryFilter}`
+                          }
                         >
                           <Filter className="h-3.5 w-3.5" />
                         </Button>
@@ -1314,9 +1344,7 @@ export const ImagesTab = forwardRef<
                           value={registryFilter}
                           onValueChange={setRegistryFilter}
                         >
-                          <DropdownMenuRadioItem value="all">
-                            All
-                          </DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
                           {registryOptions.map(({ registry, count }) => (
                             <DropdownMenuRadioItem key={registry} value={registry}>
                               {registry} ({count})
@@ -1346,7 +1374,9 @@ export const ImagesTab = forwardRef<
                     <SortHead label="Created" keyName="created" />
                   </div>
                 </TableHead>
-                <TableHead className="w-[52px] text-xs font-medium text-foreground">Actions</TableHead>
+                <TableHead className="w-[52px] text-xs font-medium text-foreground">
+                  Actions
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1414,18 +1444,30 @@ export const ImagesTab = forwardRef<
                               type="button"
                               className="inline-flex h-8 w-full items-center justify-start gap-1 text-left text-xs text-primary hover:underline"
                               title={linkedContainers.join(', ')}
-                              onClick={() => onOpenContainerFilter?.(imageRef(img) || img.Repository, linkedContainers)}
+                              onClick={() =>
+                                onOpenContainerFilter?.(
+                                  imageRef(img) || img.Repository,
+                                  linkedContainers
+                                )
+                              }
                             >
-                              <span className="truncate">{linkedContainers.length} container{linkedContainers.length > 1 ? 's' : ''}</span>
+                              <span className="truncate">
+                                {linkedContainers.length} container
+                                {linkedContainers.length > 1 ? 's' : ''}
+                              </span>
                               <ExternalLink className="ml-1 h-3 w-3" />
                             </button>
                           ) : (
-                            <span className="inline-flex h-8 items-center text-muted-foreground">-</span>
+                            <span className="inline-flex h-8 items-center text-muted-foreground">
+                              -
+                            </span>
                           )}
                         </div>
                       </TableCell>
                       <TableCell className="py-3 text-xs">{img.Size}</TableCell>
-                      <TableCell className="py-3 text-xs text-muted-foreground">{img.CreatedSince}</TableCell>
+                      <TableCell className="py-3 text-xs text-muted-foreground">
+                        {img.CreatedSince}
+                      </TableCell>
                       <TableCell className="py-3">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -1441,7 +1483,9 @@ export const ImagesTab = forwardRef<
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
-                              onSelect={() => setTimeout(() => openPullDialog(imageRef(img) || img.Repository), 0)}
+                              onSelect={() =>
+                                setTimeout(() => openPullDialog(imageRef(img) || img.Repository), 0)
+                              }
                             >
                               <Download className="h-4 w-4 mr-2" /> Pull
                             </DropdownMenuItem>
@@ -1467,49 +1511,104 @@ export const ImagesTab = forwardRef<
                               <div className="text-sm font-medium">Image Details</div>
 
                               <div className="overflow-hidden rounded-md border">
-                                <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">Metadata</div>
+                                <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">
+                                  Metadata
+                                </div>
                                 <div className="grid gap-x-6 gap-y-3 p-3 md:grid-cols-2 xl:grid-cols-3">
                                   <div className="space-y-1">
-                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">ID</div>
-                                    <div className="font-mono text-foreground" title={inspect?.Id || img.ID || ''}>
+                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                      ID
+                                    </div>
+                                    <div
+                                      className="font-mono text-foreground"
+                                      title={inspect?.Id || img.ID || ''}
+                                    >
                                       {img.ID?.substring(0, 12) || '-'}
                                     </div>
                                   </div>
                                   <div className="space-y-1">
-                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Names</div>
-                                    <div className="break-all text-foreground">{metadataValue(imageNames)}</div>
+                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                      Names
+                                    </div>
+                                    <div className="break-all text-foreground">
+                                      {metadataValue(imageNames)}
+                                    </div>
                                   </div>
                                   <div className="space-y-1">
-                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Registry</div>
+                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                      Registry
+                                    </div>
                                     <div className="break-all text-foreground">{registry}</div>
                                   </div>
                                   <div className="space-y-1">
-                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Repository</div>
-                                    <div className="break-all text-foreground">{metadataValue(repositories.length > 0 ? repositories : [img.Repository].filter(Boolean))}</div>
+                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                      Repository
+                                    </div>
+                                    <div className="break-all text-foreground">
+                                      {metadataValue(
+                                        repositories.length > 0
+                                          ? repositories
+                                          : [img.Repository].filter(Boolean)
+                                      )}
+                                    </div>
                                   </div>
                                   <div className="space-y-1">
-                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Size</div>
-                                    <div className="text-foreground">{imageSize !== '-' ? imageSize : img.Size || '-'}</div>
+                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                      Size
+                                    </div>
+                                    <div className="text-foreground">
+                                      {imageSize !== '-' ? imageSize : img.Size || '-'}
+                                    </div>
                                   </div>
                                   <div className="space-y-1">
-                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Created</div>
-                                    <div className="text-foreground">{createdAt !== '-' ? createdAt : img.CreatedSince || '-'}</div>
+                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                      Created
+                                    </div>
+                                    <div className="text-foreground">
+                                      {createdAt !== '-' ? createdAt : img.CreatedSince || '-'}
+                                    </div>
                                   </div>
                                   <div className="space-y-1">
-                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Workdir</div>
-                                    <div className="break-all text-foreground">{metadataValue(typeof inspect?.Config?.WorkingDir === 'string' ? inspect.Config.WorkingDir : undefined)}</div>
+                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                      Workdir
+                                    </div>
+                                    <div className="break-all text-foreground">
+                                      {metadataValue(
+                                        typeof inspect?.Config?.WorkingDir === 'string'
+                                          ? inspect.Config.WorkingDir
+                                          : undefined
+                                      )}
+                                    </div>
                                   </div>
                                   <div className="space-y-1">
-                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Architecture</div>
-                                    <div className="text-foreground">{metadataValue(typeof inspect?.Architecture === 'string' ? inspect.Architecture : undefined)}</div>
+                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                      Architecture
+                                    </div>
+                                    <div className="text-foreground">
+                                      {metadataValue(
+                                        typeof inspect?.Architecture === 'string'
+                                          ? inspect.Architecture
+                                          : undefined
+                                      )}
+                                    </div>
                                   </div>
                                   <div className="space-y-1">
-                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">OS</div>
-                                    <div className="text-foreground">{metadataValue(typeof inspect?.Os === 'string' ? inspect.Os : undefined)}</div>
+                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                      OS
+                                    </div>
+                                    <div className="text-foreground">
+                                      {metadataValue(
+                                        typeof inspect?.Os === 'string' ? inspect.Os : undefined
+                                      )}
+                                    </div>
                                   </div>
                                   <div className="space-y-1">
-                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Ports</div>
-                                    <div className="break-all text-foreground">{metadataValue(imagePorts)}</div>
+                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                      Ports
+                                    </div>
+                                    <div className="break-all text-foreground">
+                                      {metadataValue(imagePorts)}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
@@ -1537,7 +1636,7 @@ export const ImagesTab = forwardRef<
               })}
               {!loading && sorted.length === 0 && (
                 <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground">
                     No images found
                   </TableCell>
                 </TableRow>
@@ -1574,7 +1673,9 @@ export const ImagesTab = forwardRef<
             >
               <ChevronLeft className="h-3.5 w-3.5" />
             </Button>
-            <span className="text-center font-medium tabular-nums">{effectivePage}/{totalPages}</span>
+            <span className="text-center font-medium tabular-nums">
+              {effectivePage}/{totalPages}
+            </span>
             <Button
               variant="ghost"
               size="sm"
@@ -1691,7 +1792,9 @@ export const ImagesTab = forwardRef<
               {registryStatus && (
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <Badge variant={registryStatus.available ? 'secondary' : 'destructive'}>
-                    {registryStatus.available ? 'Reachable from target server' : 'Not reachable from target server'}
+                    {registryStatus.available
+                      ? 'Reachable from target server'
+                      : 'Not reachable from target server'}
                   </Badge>
                   {registryStatus.reason && (
                     <span className="break-all text-muted-foreground">{registryStatus.reason}</span>
@@ -1730,7 +1833,12 @@ export const ImagesTab = forwardRef<
                 }}
               />
               <div className="flex items-center justify-end">
-                <Button variant="link" size="sm" className="h-auto px-0" onClick={openOfficialSearch}>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto px-0"
+                  onClick={openOfficialSearch}
+                >
                   <ExternalLink className="mr-1 h-4 w-4" /> Online search
                 </Button>
               </div>
@@ -1747,11 +1855,15 @@ export const ImagesTab = forwardRef<
                         >
                           <div className="min-w-0">
                             <div className="flex min-w-0 items-center gap-2 text-sm font-medium">
-                              <Badge variant="outline" className="text-[10px] font-normal">LOCAL</Badge>
+                              <Badge variant="outline" className="text-[10px] font-normal">
+                                LOCAL
+                              </Badge>
                               <span className="truncate">{item.displayRef}</span>
                             </div>
                             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                              <span className="truncate">Organization: {item.organizationLabel}</span>
+                              <span className="truncate">
+                                Organization: {item.organizationLabel}
+                              </span>
                               <span className="hidden sm:inline">·</span>
                               <span>{item.usageLabel}</span>
                             </div>
@@ -1761,7 +1873,9 @@ export const ImagesTab = forwardRef<
                       ))}
                     </div>
                   ) : (
-                    <div className="px-3 py-2 text-xs text-muted-foreground">No precise local matches</div>
+                    <div className="px-3 py-2 text-xs text-muted-foreground">
+                      No precise local matches
+                    </div>
                   )}
                 </div>
               )}
@@ -1801,7 +1915,9 @@ export const ImagesTab = forwardRef<
       >
         <DialogContent className="max-w-2xl overflow-hidden">
           <DialogHeader>
-            <DialogTitle>{selectedPullOperation ? 'Image pull details' : 'Image pull activity'}</DialogTitle>
+            <DialogTitle>
+              {selectedPullOperation ? 'Image pull details' : 'Image pull activity'}
+            </DialogTitle>
             <DialogDescription>
               {selectedPullOperation
                 ? selectedPullOperation.image_name || 'Selected image pull operation'
@@ -1811,7 +1927,12 @@ export const ImagesTab = forwardRef<
           {selectedPullOperation ? (
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
-                <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => setSelectedPullOperation(null)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2"
+                  onClick={() => setSelectedPullOperation(null)}
+                >
                   <ChevronLeft className="mr-1 h-4 w-4" /> Back to list
                 </Button>
                 {canCancelPullOperation(selectedPullOperation) ? (
@@ -1841,7 +1962,11 @@ export const ImagesTab = forwardRef<
                 {pullOperationStatusHint(selectedPullOperation)}
               </p>
               {selectedPullOperation.failure_reason && (
-                <Alert variant={selectedPullOperation.terminal_status === 'failed' ? 'destructive' : 'default'}>
+                <Alert
+                  variant={
+                    selectedPullOperation.terminal_status === 'failed' ? 'destructive' : 'default'
+                  }
+                >
                   <AlertDescription>{selectedPullOperation.failure_reason}</AlertDescription>
                 </Alert>
               )}
@@ -1881,13 +2006,18 @@ export const ImagesTab = forwardRef<
                                   onClick={() => void openPullOperationViewer(operation)}
                                   className="min-w-0 flex-1 text-left hover:text-primary"
                                 >
-                                  <div className="truncate text-sm font-medium">{operation.image_name}</div>
+                                  <div className="truncate text-sm font-medium">
+                                    {operation.image_name}
+                                  </div>
                                   <div className="mt-1 text-xs text-muted-foreground">
-                                    {pullOperationStatusHint(operation)} Updated {formatPullOperationTimestamp(operation.updated)}
+                                    {pullOperationStatusHint(operation)} Updated{' '}
+                                    {formatPullOperationTimestamp(operation.updated)}
                                   </div>
                                 </button>
                                 <div className="flex shrink-0 items-center gap-2 self-center">
-                                  <Badge variant={pullOperationTone(operation)}>{pullOperationLabel(operation)}</Badge>
+                                  <Badge variant={pullOperationTone(operation)}>
+                                    {pullOperationLabel(operation)}
+                                  </Badge>
                                 </div>
                               </div>
                             ))}
@@ -1906,13 +2036,18 @@ export const ImagesTab = forwardRef<
                                   onClick={() => void openPullOperationViewer(operation)}
                                   className="min-w-0 flex-1 text-left hover:text-primary"
                                 >
-                                  <div className="truncate text-sm font-medium">{operation.image_name}</div>
+                                  <div className="truncate text-sm font-medium">
+                                    {operation.image_name}
+                                  </div>
                                   <div className="mt-1 text-xs text-muted-foreground">
-                                    {pullOperationStatusHint(operation)} Updated {formatPullOperationTimestamp(operation.updated)}
+                                    {pullOperationStatusHint(operation)} Updated{' '}
+                                    {formatPullOperationTimestamp(operation.updated)}
                                   </div>
                                 </button>
                                 <div className="flex shrink-0 items-center gap-2 self-center">
-                                  <Badge variant={pullOperationTone(operation)}>{pullOperationLabel(operation)}</Badge>
+                                  <Badge variant={pullOperationTone(operation)}>
+                                    {pullOperationLabel(operation)}
+                                  </Badge>
                                   <Button
                                     type="button"
                                     variant="outline"
@@ -1966,13 +2101,18 @@ export const ImagesTab = forwardRef<
                             onClick={() => void openPullOperationViewer(operation)}
                             className="min-w-0 flex-1 text-left hover:text-primary"
                           >
-                            <div className="truncate text-sm font-medium">{operation.image_name}</div>
+                            <div className="truncate text-sm font-medium">
+                              {operation.image_name}
+                            </div>
                             <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                              {operation.failure_reason || `Updated ${formatPullOperationTimestamp(operation.updated)}`}
+                              {operation.failure_reason ||
+                                `Updated ${formatPullOperationTimestamp(operation.updated)}`}
                             </div>
                           </button>
                           <div className="flex shrink-0 items-center gap-2 self-center">
-                            <Badge variant={pullOperationTone(operation)}>{pullOperationLabel(operation)}</Badge>
+                            <Badge variant={pullOperationTone(operation)}>
+                              {pullOperationLabel(operation)}
+                            </Badge>
                             {operation.terminal_status === 'failed' ? (
                               <Button
                                 type="button"
@@ -2047,14 +2187,18 @@ export const ImagesTab = forwardRef<
         loading={!!(inspectDialogImage && inspectLoadingMap[inspectDialogImage.ID])}
         loadingText="Loading inspect..."
         emptyText="(no output)"
-        onRefresh={inspectDialogImage ? () => {
-          setInspectMap(state => {
-            const next = { ...state }
-            delete next[inspectDialogImage.ID]
-            return next
-          })
-          return void loadImageInspect(inspectDialogImage.ID)
-        } : undefined}
+        onRefresh={
+          inspectDialogImage
+            ? () => {
+                setInspectMap(state => {
+                  const next = { ...state }
+                  delete next[inspectDialogImage.ID]
+                  return next
+                })
+                return void loadImageInspect(inspectDialogImage.ID)
+              }
+            : undefined
+        }
         refreshDisabled={!inspectDialogImage}
         downloadBaseName={`${inspectDialogImage ? (imageRef(inspectDialogImage) || inspectDialogImage.Repository || 'image').replace(/[^a-zA-Z0-9._-]+/g, '-') : 'image'}-inspect`}
         downloadExtension="json"

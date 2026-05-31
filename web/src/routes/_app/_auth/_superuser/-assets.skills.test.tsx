@@ -34,8 +34,18 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
   DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DropdownMenuItem: ({ children, onClick, className }: { children: React.ReactNode; onClick?: () => void; className?: string }) => (
-    <button onClick={onClick} className={className}>{children}</button>
+  DropdownMenuItem: ({
+    children,
+    onClick,
+    className,
+  }: {
+    children: React.ReactNode
+    onClick?: () => void
+    className?: string
+  }) => (
+    <button onClick={onClick} className={className}>
+      {children}
+    </button>
   ),
   DropdownMenuSeparator: () => <div />,
 }))
@@ -95,7 +105,11 @@ describe('AssetsSkillsPage', () => {
       expect(screen.getByRole('heading', { name: 'AI Skills' })).toBeInTheDocument()
     })
 
-    expect(screen.getByText('Bundled skill packages with structured files, entrypoints, and reusable guidance content.')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Bundled skill packages with structured files, entrypoints, and reusable guidance content.'
+      )
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add Skill' })).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Search skills...')).toBeInTheDocument()
     expect(screen.queryByText('1')).not.toBeInTheDocument()
@@ -108,7 +122,9 @@ describe('AssetsSkillsPage', () => {
     expect(within(createDialog).getByRole('heading', { name: 'Add Skill' })).toBeInTheDocument()
     expect((within(createDialog).getByLabelText('Name') as HTMLInputElement).value).not.toBe('')
     expect(within(createDialog).getByLabelText('Skill Source')).toBeInTheDocument()
-    expect(within(createDialog).getByRole('button', { name: 'Skill source help' })).toBeInTheDocument()
+    expect(
+      within(createDialog).getByRole('button', { name: 'Skill source help' })
+    ).toBeInTheDocument()
     expect(within(createDialog).getByText('Skill Files')).toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Edit'))
@@ -120,7 +136,9 @@ describe('AssetsSkillsPage', () => {
     expect(within(dialog).getAllByDisplayValue('SKILL.md')).toHaveLength(1)
     expect(within(dialog).getByRole('button', { name: 'Upload folder' })).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Add file' })).toBeInTheDocument()
-    expect(within(dialog).getByRole('button', { name: 'Show advanced settings' })).toBeInTheDocument()
+    expect(
+      within(dialog).getByRole('button', { name: 'Show advanced settings' })
+    ).toBeInTheDocument()
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Show advanced settings' }))
     expect(within(dialog).getByLabelText('Description')).toBeInTheDocument()

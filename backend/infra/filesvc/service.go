@@ -17,19 +17,19 @@ var (
 	// ErrInvalidPath reports paths that violate the service boundary, including
 	// non-allowlisted roots, traversal escapes, symlink escapes, and absolute
 	// path input.
-	ErrInvalidPath       = errors.New("invalid path")
+	ErrInvalidPath = errors.New("invalid path")
 	// ErrNotFound reports a missing filesystem target after path validation.
-	ErrNotFound          = errors.New("not found")
+	ErrNotFound = errors.New("not found")
 	// ErrConflict reports an existing destination when overwrite is not allowed.
-	ErrConflict          = errors.New("conflict")
+	ErrConflict = errors.New("conflict")
 	// ErrReadOnly reports attempted mutations through a read-only service.
-	ErrReadOnly          = errors.New("read only")
+	ErrReadOnly = errors.New("read only")
 	// ErrDirectoryRequired reports operations that expected a directory target.
 	ErrDirectoryRequired = errors.New("directory required")
 	// ErrFileRequired reports operations that expected a file target.
-	ErrFileRequired      = errors.New("file required")
+	ErrFileRequired = errors.New("file required")
 	// ErrLimitExceeded reports streaming writes that exceed their configured limit.
-	ErrLimitExceeded     = errors.New("limit exceeded")
+	ErrLimitExceeded = errors.New("limit exceeded")
 )
 
 // Config defines one local filesystem service boundary.
@@ -194,7 +194,7 @@ func (s *LocalService) WriteFile(path string, data []byte, overwrite bool) (Entr
 	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
 		return Entry{}, err
 	}
-	if err := os.WriteFile(abs, data, 0o644); err != nil {
+	if err := os.WriteFile(abs, data, 0o600); err != nil {
 		return Entry{}, err
 	}
 	return s.Stat(path)

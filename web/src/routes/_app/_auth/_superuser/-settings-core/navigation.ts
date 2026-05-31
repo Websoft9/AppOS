@@ -14,10 +14,7 @@ function resolveNavigationAliasById(group: SettingsSection, itemId: string) {
   return navigationAliasesForGroup(group).find(alias => alias.id === itemId)
 }
 
-export function buildNavigationItems(
-  controller: SettingsPageController,
-  group: SettingsSection
-) {
+export function buildNavigationItems(controller: SettingsPageController, group: SettingsSection) {
   const items = controller.schemaEntries.filter(entry => entry.section === group)
   const result: Array<{ id: string; title: string }> = []
   const addedAliases = new Set<string>()
@@ -38,7 +35,11 @@ export function buildNavigationItems(
   return result
 }
 
-export function isNavigationItemActive(group: SettingsSection, itemId: string, activeSection: string) {
+export function isNavigationItemActive(
+  group: SettingsSection,
+  itemId: string,
+  activeSection: string
+) {
   const alias = resolveNavigationAliasById(group, itemId)
   if (alias) {
     return alias.matchesActiveSection(activeSection)

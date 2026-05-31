@@ -2,7 +2,6 @@ package routes
 
 import (
 	"bytes"
-	"encoding/json"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -154,15 +153,6 @@ func TestPublicMediaHidesPrivateItems(t *testing.T) {
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
 	}
-}
-
-func parseMediaJSON(t *testing.T, rec *httptest.ResponseRecorder) map[string]any {
-	t.Helper()
-	var v map[string]any
-	if err := json.Unmarshal(rec.Body.Bytes(), &v); err != nil {
-		t.Fatal(err)
-	}
-	return v
 }
 
 var _ = io.EOF

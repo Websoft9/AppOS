@@ -19,7 +19,14 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
 function componentSortWeight(component: ComponentItem): number {
   const id = String(component.id || '').toLowerCase()
@@ -302,14 +309,20 @@ function BundledComponentsDetailContent({
       <TableBody>
         {components.map(component => (
           <TableRow key={component.id} className="border-b-0 hover:bg-transparent">
-            <TableCell className="font-medium text-foreground">{component.name || component.id}</TableCell>
+            <TableCell className="font-medium text-foreground">
+              {component.name || component.id}
+            </TableCell>
             <TableCell className="text-muted-foreground">
               {formatComponentVersion(component.version, component.probe_pending)}
             </TableCell>
             <TableCell>
               <Badge
                 variant={
-                  component.probe_pending ? 'outline' : component.available ? 'default' : 'destructive'
+                  component.probe_pending
+                    ? 'outline'
+                    : component.available
+                      ? 'default'
+                      : 'destructive'
                 }
               >
                 {component.probe_pending
@@ -376,7 +389,8 @@ export function PlatformRuntimePage() {
         <CardHeader>
           <CardTitle>Runtime Summary</CardTitle>
           <CardDescription>
-            {runtimeController.summary.runtimeShape || summarizeRuntimeShape(runtimeController.components)}
+            {runtimeController.summary.runtimeShape ||
+              summarizeRuntimeShape(runtimeController.components)}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-4">
@@ -384,24 +398,34 @@ export function PlatformRuntimePage() {
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
               Built-in Components
             </div>
-            <div className="mt-2 text-2xl font-semibold text-foreground">{runtimeController.components.length}</div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">
+              {runtimeController.components.length}
+            </div>
           </div>
           <div className="rounded-lg border bg-background px-4 py-3">
-            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Available</div>
-            <div className="mt-2 text-2xl font-semibold text-foreground">{runtimeController.summary.runningComponents}</div>
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              Available
+            </div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">
+              {runtimeController.summary.runningComponents}
+            </div>
           </div>
           <div className="rounded-lg border bg-background px-4 py-3">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
               Unavailable
             </div>
-            <div className="mt-2 text-2xl font-semibold text-foreground">{runtimeController.summary.degradedComponents}</div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">
+              {runtimeController.summary.degradedComponents}
+            </div>
           </div>
           {runtimeController.summary.checkingComponents > 0 ? (
             <div className="rounded-lg border bg-background px-4 py-3">
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
                 Checking
               </div>
-              <div className="mt-2 text-2xl font-semibold text-foreground">{runtimeController.summary.checkingComponents}</div>
+              <div className="mt-2 text-2xl font-semibold text-foreground">
+                {runtimeController.summary.checkingComponents}
+              </div>
             </div>
           ) : null}
           <div className="rounded-lg border bg-background px-4 py-3">
@@ -422,13 +446,17 @@ export function PlatformRuntimePage() {
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div className="rounded-lg border bg-background px-4 py-3">
-            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Kernel Release</div>
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              Kernel Release
+            </div>
             <div className="mt-2 text-sm font-medium text-foreground">
               {runtimeValue(runtimeController.hostKernelFacts.kernel_release)}
             </div>
           </div>
           <div className="rounded-lg border bg-background px-4 py-3">
-            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Architecture</div>
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              Architecture
+            </div>
             <div className="mt-2 text-sm font-medium text-foreground">
               {runtimeValue(runtimeController.hostKernelFacts.architecture)}
             </div>
@@ -442,19 +470,25 @@ export function PlatformRuntimePage() {
             </div>
           </div>
           <div className="rounded-lg border bg-background px-4 py-3">
-            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Effective CPU Set</div>
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              Effective CPU Set
+            </div>
             <div className="mt-2 text-sm font-medium text-foreground">
               {runtimeValue(runtimeController.runtimeLimits.cpuset_effective)}
             </div>
           </div>
           <div className="rounded-lg border bg-background px-4 py-3">
-            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">CPU Quota</div>
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              CPU Quota
+            </div>
             <div className="mt-2 text-sm font-medium text-foreground">
               {formatCPUQuota(runtimeController.runtimeLimits)}
             </div>
           </div>
           <div className="rounded-lg border bg-background px-4 py-3">
-            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Memory Limit</div>
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              Memory Limit
+            </div>
             <div className="mt-2 text-sm font-medium text-foreground">
               {formatRuntimeLimitBytes(runtimeController.runtimeLimits.memory_limit_bytes)}
             </div>
@@ -468,7 +502,8 @@ export function PlatformRuntimePage() {
             <div>
               <CardTitle>Active Services</CardTitle>
               <CardDescription>
-                Runtime services currently detected for this AppOS instance, including diagnostic services.
+                Runtime services currently detected for this AppOS instance, including diagnostic
+                services.
               </CardDescription>
             </div>
             <ActiveServicesControls controller={runtimeController} />

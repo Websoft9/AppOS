@@ -16,13 +16,7 @@ import {
 import { pb } from '@/lib/pb'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { TimeSeriesChart } from '@/components/monitor/TimeSeriesChart'
 import { useAuth } from '@/contexts/AuthContext'
@@ -160,7 +154,14 @@ const QUICK_LINKS = [
 
 const APPOS_CORE_OVERVIEW_SERIES_QUERY = 'cpu,memory,disk_usage,disk,network,network_traffic'
 
-const APPOS_CORE_OVERVIEW_SERIES_ORDER = ['cpu', 'memory', 'disk_usage', 'disk', 'network', 'network_traffic'] as const
+const APPOS_CORE_OVERVIEW_SERIES_ORDER = [
+  'cpu',
+  'memory',
+  'disk_usage',
+  'disk',
+  'network',
+  'network_traffic',
+] as const
 
 function formatStatusLabel(value: string): string {
   return value
@@ -244,7 +245,9 @@ function buildOverviewSummaryFallbackSeries(
       unit: 'bytes',
       segments: [
         { name: 'used', points: [[timestamp, memoryUsed]] },
-        ...(memoryAvailable !== null ? [{ name: 'available', points: [[timestamp, memoryAvailable]] }] : []),
+        ...(memoryAvailable !== null
+          ? [{ name: 'available', points: [[timestamp, memoryAvailable]] }]
+          : []),
       ],
     })
   }
@@ -707,9 +710,10 @@ export function OverviewPage() {
         .filter(item => !['cpu', 'memory'].includes(item.name) || hasUsableSeriesData(item))
         .map(item => item.name)
     )
-    const fallback = buildOverviewSummaryFallbackSeries(apposCore?.summary, apposCore?.lastTransitionAt).filter(
-      item => !existing.has(item.name)
-    )
+    const fallback = buildOverviewSummaryFallbackSeries(
+      apposCore?.summary,
+      apposCore?.lastTransitionAt
+    ).filter(item => !existing.has(item.name))
     return orderedOverviewSeries([...primary, ...fallback])
   }, [data.monitor.platformItems, trendSeries])
 
@@ -810,7 +814,8 @@ export function OverviewPage() {
           <CardHeader className="relative pr-16">
             <CardTitle>1H Trends</CardTitle>
             <CardDescription>
-              AppOS control-plane CPU, memory usage versus limit, disk, and network over the last hour.
+              AppOS control-plane CPU, memory usage versus limit, disk, and network over the last
+              hour.
             </CardDescription>
             <Link
               to="/status"

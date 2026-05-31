@@ -178,7 +178,9 @@ export function ServerConnectionTab({
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(340px,0.95fr)_minmax(0,1.25fr)]">
-      <Card className={`overflow-hidden rounded-xl py-0 shadow-none ${heroTone(presentation.state)}`}>
+      <Card
+        className={`overflow-hidden rounded-xl py-0 shadow-none ${heroTone(presentation.state)}`}
+      >
         <CardContent className="px-0">
           <section className="space-y-4 p-4 sm:p-5">
             <div className="flex flex-wrap items-center gap-2 border-b border-border/50 pb-3">
@@ -207,13 +209,17 @@ export function ServerConnectionTab({
                 <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
                   Mode
                 </div>
-                <div className="font-medium text-foreground">{modeSummary(presentation.modeLabel)}</div>
+                <div className="font-medium text-foreground">
+                  {modeSummary(presentation.modeLabel)}
+                </div>
               </div>
               <div className="grid grid-cols-[124px_minmax(0,1fr)] gap-3 text-sm">
                 <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
                   Interactive Session
                 </div>
-                <div className="font-medium text-foreground">{formatSessionLabel(sessionCount)}</div>
+                <div className="font-medium text-foreground">
+                  {formatSessionLabel(sessionCount)}
+                </div>
               </div>
               <div className="grid grid-cols-[124px_minmax(0,1fr)] gap-3 text-sm">
                 <div className="text-[11px] uppercase tracking-wide text-muted-foreground">

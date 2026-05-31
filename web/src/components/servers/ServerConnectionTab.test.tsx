@@ -123,9 +123,7 @@ describe('ServerConnectionTab', () => {
     window.localStorage.setItem(
       'connect.session.v1',
       JSON.stringify({
-        tabs: [
-          { id: 'tab-1', serverId: 'server-1', title: 'root@server', reconnectNonce: 1 },
-        ],
+        tabs: [{ id: 'tab-1', serverId: 'server-1', title: 'root@server', reconnectNonce: 1 }],
         activeTabId: 'tab-1',
         updatedAt: Date.now(),
       })

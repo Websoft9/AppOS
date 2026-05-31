@@ -41,30 +41,30 @@ type ServiceOperations struct {
 }
 
 type LocalComponent struct {
-	ID                string                       `yaml:"id"`
-	Name              string                       `yaml:"name"`
-	Enabled           bool                         `yaml:"enabled"`
-	Criticality       string                       `yaml:"criticality"`
-	RuntimeKind       string                       `yaml:"runtime_kind"`
-	Role              string                       `yaml:"role"`
-	OwnedCapability   string                       `yaml:"owned_capability"`
+	ID                string                          `yaml:"id"`
+	Name              string                          `yaml:"name"`
+	Enabled           bool                            `yaml:"enabled"`
+	Criticality       string                          `yaml:"criticality"`
+	RuntimeKind       string                          `yaml:"runtime_kind"`
+	Role              string                          `yaml:"role"`
+	OwnedCapability   string                          `yaml:"owned_capability"`
 	SoftwareCatalog   *LocalSoftwareCatalogProjection `yaml:"software_catalog"`
-	VersionProbe      LocalInventoryProbe          `yaml:"version_probe"`
-	AvailabilityProbe LocalInventoryProbe          `yaml:"availability_probe"`
-	UpdateProbe       LocalInventoryProbe          `yaml:"update_probe"`
-	LogAccess         ServiceLogAccess             `yaml:"log_access"`
-	Operations        ServiceOperations            `yaml:"operations"`
-	Notes             string                       `yaml:"notes"`
+	VersionProbe      LocalInventoryProbe             `yaml:"version_probe"`
+	AvailabilityProbe LocalInventoryProbe             `yaml:"availability_probe"`
+	UpdateProbe       LocalInventoryProbe             `yaml:"update_probe"`
+	LogAccess         ServiceLogAccess                `yaml:"log_access"`
+	Operations        ServiceOperations               `yaml:"operations"`
+	Notes             string                          `yaml:"notes"`
 }
 
 type LocalSoftwareCatalogProjection struct {
-	ComponentKey          software.ComponentKey        `yaml:"component_key"`
-	Label                 string                       `yaml:"label"`
-	Capability            software.Capability          `yaml:"capability"`
-	ArtifactKind          software.ArtifactKind        `yaml:"artifact_kind"`
-	Binary                string                       `yaml:"binary"`
-	Description           string                       `yaml:"description"`
-	ReadinessRequirements []string                     `yaml:"readiness_requirements"`
+	ComponentKey          software.ComponentKey `yaml:"component_key"`
+	Label                 string                `yaml:"label"`
+	Capability            software.Capability   `yaml:"capability"`
+	ArtifactKind          software.ArtifactKind `yaml:"artifact_kind"`
+	Binary                string                `yaml:"binary"`
+	Description           string                `yaml:"description"`
+	ReadinessRequirements []string              `yaml:"readiness_requirements"`
 }
 
 type LocalService struct {

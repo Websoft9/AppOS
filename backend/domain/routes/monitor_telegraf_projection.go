@@ -20,10 +20,10 @@ type telegrafLine struct {
 }
 
 type telegrafFieldValue struct {
-	floatValue float64
+	floatValue  float64
 	stringValue string
-	isNumber   bool
-	isString   bool
+	isNumber    bool
+	isString    bool
 }
 
 type telegrafCounterState struct {
@@ -37,14 +37,14 @@ type telegrafProjectionCache struct {
 }
 
 type telegrafHostAggregate struct {
-	observedAt time.Time
+	observedAt       time.Time
 	rxBytesPerSecond float64
 	txBytesPerSecond float64
 }
 
 type telegrafDiskAggregate struct {
-	observedAt time.Time
-	readBytesPerSecond float64
+	observedAt          time.Time
+	readBytesPerSecond  float64
 	writeBytesPerSecond float64
 }
 

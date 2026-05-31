@@ -4,7 +4,10 @@ import { MonitorTargetPanel } from './MonitorTargetPanel'
 
 const sendMock = vi.fn()
 let visibilityStateValue: DocumentVisibilityState = 'visible'
-const originalVisibilityStateDescriptor = Object.getOwnPropertyDescriptor(document, 'visibilityState')
+const originalVisibilityStateDescriptor = Object.getOwnPropertyDescriptor(
+  document,
+  'visibilityState'
+)
 
 Object.defineProperty(document, 'visibilityState', {
   configurable: true,
@@ -337,8 +340,20 @@ describe('MonitorTargetPanel', () => {
             name: 'memory',
             unit: 'bytes',
             segments: [
-              { name: 'used', points: [[1713096000, 268435456], [1713096060, 272629760]] },
-              { name: 'available', points: [[1713096000, 805306368], [1713096060, 801112064]] },
+              {
+                name: 'used',
+                points: [
+                  [1713096000, 268435456],
+                  [1713096060, 272629760],
+                ],
+              },
+              {
+                name: 'available',
+                points: [
+                  [1713096000, 805306368],
+                  [1713096060, 801112064],
+                ],
+              },
             ],
           },
         ],
@@ -470,24 +485,60 @@ describe('MonitorTargetPanel', () => {
             name: 'disk_usage',
             unit: 'bytes',
             segments: [
-              { name: 'used', points: [[1713096000, 8589934592], [1713096060, 9663676416]] },
-              { name: 'free', points: [[1713096000, 21474836480], [1713096060, 20401094656]] },
+              {
+                name: 'used',
+                points: [
+                  [1713096000, 8589934592],
+                  [1713096060, 9663676416],
+                ],
+              },
+              {
+                name: 'free',
+                points: [
+                  [1713096000, 21474836480],
+                  [1713096060, 20401094656],
+                ],
+              },
             ],
           },
           {
             name: 'disk',
             unit: 'bytes/s',
             segments: [
-              { name: 'read', points: [[1713096000, 4096], [1713096060, 8192]] },
-              { name: 'write', points: [[1713096000, 2048], [1713096060, 4096]] },
+              {
+                name: 'read',
+                points: [
+                  [1713096000, 4096],
+                  [1713096060, 8192],
+                ],
+              },
+              {
+                name: 'write',
+                points: [
+                  [1713096000, 2048],
+                  [1713096060, 4096],
+                ],
+              },
             ],
           },
           {
             name: 'network',
             unit: 'bytes/s',
             segments: [
-              { name: 'in', points: [[1713096000, 1024], [1713096060, 1536]] },
-              { name: 'out', points: [[1713096000, 768], [1713096060, 1280]] },
+              {
+                name: 'in',
+                points: [
+                  [1713096000, 1024],
+                  [1713096060, 1536],
+                ],
+              },
+              {
+                name: 'out',
+                points: [
+                  [1713096000, 768],
+                  [1713096060, 1280],
+                ],
+              },
             ],
           },
         ],
@@ -502,9 +553,7 @@ describe('MonitorTargetPanel', () => {
           {
             name: 'cpu',
             unit: 'percent',
-            points: [
-              [1713096060, 11.8],
-            ],
+            points: [[1713096060, 11.8]],
           },
           {
             name: 'memory',
@@ -651,7 +700,17 @@ describe('MonitorTargetPanel', () => {
         return Promise.resolve({
           targetType: 'server',
           targetId: 'srv-2',
-          window: request.includes('window=12h') ? '12h' : request.includes('window=24h') ? '24h' : request.includes('window=7d') ? '7d' : request.includes('window=custom') ? 'custom' : request.includes('window=5h') ? '5h' : '1h',
+          window: request.includes('window=12h')
+            ? '12h'
+            : request.includes('window=24h')
+              ? '24h'
+              : request.includes('window=7d')
+                ? '7d'
+                : request.includes('window=custom')
+                  ? 'custom'
+                  : request.includes('window=5h')
+                    ? '5h'
+                    : '1h',
           availableNetworkInterfaces: ['eth0'],
           selectedNetworkInterface: 'all',
           series: [],
@@ -788,13 +847,14 @@ describe('MonitorTargetPanel', () => {
       .find(
         call =>
           typeof call === 'string' &&
-          call.includes('/api/monitor/targets/server/srv-2/series?window=custom&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork')
+          call.includes(
+            '/api/monitor/targets/server/srv-2/series?window=custom&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork'
+          )
       )
     expect(customPrimaryRequest).toEqual(expect.stringContaining('startAt='))
     expect(customPrimaryRequest).toEqual(expect.stringContaining('endAt='))
     expect(screen.queryByText('Custom time range')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'custom' })).not.toBeInTheDocument()
-
   }, 15000)
 
   it('keeps latest stat independent when trend window changes', async () => {
@@ -919,7 +979,9 @@ describe('MonitorTargetPanel', () => {
       )
     })
     expect(
-      sendMock.mock.calls.filter(call => String(call[0]).includes('/api/monitor/targets/server/srv-detail/latest?')).length
+      sendMock.mock.calls.filter(call =>
+        String(call[0]).includes('/api/monitor/targets/server/srv-detail/latest?')
+      ).length
     ).toBe(1)
     expect(screen.getByText(initialUpdatedAt ?? 'Updated at —')).toBeInTheDocument()
   })
@@ -968,9 +1030,7 @@ describe('MonitorTargetPanel', () => {
           })
       )
 
-    render(
-      <MonitorTargetPanel targetType="server" targetId="srv-detail-loading" layout="detail" />
-    )
+    render(<MonitorTargetPanel targetType="server" targetId="srv-detail-loading" layout="detail" />)
 
     expect(await screen.findByText('Trend History')).toBeInTheDocument()
     expect(screen.getAllByText('CPU').length).toBeGreaterThan(0)
@@ -1132,7 +1192,9 @@ describe('MonitorTargetPanel', () => {
     await waitFor(() => {
       expect(
         sendMock.mock.calls.filter(call =>
-          String(call[0]).includes('/api/monitor/targets/server/srv-refresh-stable/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork')
+          String(call[0]).includes(
+            '/api/monitor/targets/server/srv-refresh-stable/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork'
+          )
         ).length
       ).toBeGreaterThan(1)
     })
@@ -1185,19 +1247,32 @@ describe('MonitorTargetPanel', () => {
         targetId: 'srv-hidden',
         window: '1h',
         selectedNetworkInterface: 'all',
-        series: [{ name: 'cpu', unit: 'percent', points: [[1713096000, 20], [1713096120, 21]] }],
+        series: [
+          {
+            name: 'cpu',
+            unit: 'percent',
+            points: [
+              [1713096000, 20],
+              [1713096120, 21],
+            ],
+          },
+        ],
       })
     })
 
     render(<MonitorTargetPanel targetType="server" targetId="srv-hidden" layout="detail" />)
 
     expect(await screen.findByText('Latest Stat')).toBeInTheDocument()
-  vi.useFakeTimers()
-    const latestCallsBefore = sendMock.mock.calls.filter(call => String(call[0]).includes('/latest?')).length
+    vi.useFakeTimers()
+    const latestCallsBefore = sendMock.mock.calls.filter(call =>
+      String(call[0]).includes('/latest?')
+    ).length
 
     await vi.advanceTimersByTimeAsync(12000)
 
-    expect(sendMock.mock.calls.filter(call => String(call[0]).includes('/latest?')).length).toBe(latestCallsBefore)
+    expect(sendMock.mock.calls.filter(call => String(call[0]).includes('/latest?')).length).toBe(
+      latestCallsBefore
+    )
 
     visibilityStateValue = 'visible'
     fireEvent(document, new Event('visibilitychange'))
@@ -1205,7 +1280,9 @@ describe('MonitorTargetPanel', () => {
     await Promise.resolve()
     await Promise.resolve()
 
-    expect(sendMock.mock.calls.filter(call => String(call[0]).includes('/latest?')).length).toBe(latestCallsBefore + 1)
+    expect(sendMock.mock.calls.filter(call => String(call[0]).includes('/latest?')).length).toBe(
+      latestCallsBefore + 1
+    )
   })
 
   it('shows a write-path warning when monitor status reports missing metrics', async () => {
@@ -1432,7 +1509,9 @@ describe('MonitorTargetPanel', () => {
 
     expect(await screen.findByText('prod-03')).toBeInTheDocument()
 
-    fireEvent.change(await screen.findByLabelText('Network interface'), { target: { value: 'eth0' } })
+    fireEvent.change(await screen.findByLabelText('Network interface'), {
+      target: { value: 'eth0' },
+    })
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(

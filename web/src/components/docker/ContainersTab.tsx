@@ -41,7 +41,10 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { TimeSeriesChart } from '@/components/monitor/TimeSeriesChart'
 import { getApiErrorMessage } from '@/lib/api-error'
 import { DockerTextDialog } from '@/components/docker/DockerTextDialog'
-import { DockerDependencyAlert, getDockerDependencyIssue } from '@/components/docker/DockerDependencyAlert'
+import {
+  DockerDependencyAlert,
+  getDockerDependencyIssue,
+} from '@/components/docker/DockerDependencyAlert'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -197,7 +200,13 @@ function formatPercent(value?: number): string {
 }
 
 function memoryUsagePercent(usage?: number, limit?: number): number | undefined {
-  if (usage == null || limit == null || !Number.isFinite(usage) || !Number.isFinite(limit) || limit <= 0) {
+  if (
+    usage == null ||
+    limit == null ||
+    !Number.isFinite(usage) ||
+    !Number.isFinite(limit) ||
+    limit <= 0
+  ) {
     return undefined
   }
   return (usage / limit) * 100
@@ -249,7 +258,10 @@ function buildTelemetryItemMap(
 ): Record<string, MonitorContainerTelemetryItem> {
   const next: Record<string, MonitorContainerTelemetryItem> = {}
   for (const item of items || []) {
-    const keys = [normalizeTelemetryContainerKey(item.containerId), normalizeTelemetryContainerKey(item.containerName)]
+    const keys = [
+      normalizeTelemetryContainerKey(item.containerId),
+      normalizeTelemetryContainerKey(item.containerName),
+    ]
     for (const key of keys) {
       if (!key) continue
       next[key] = item
@@ -392,7 +404,11 @@ function parseDockerIoPair(value: string | undefined): { input?: number; output?
 }
 
 function parseDockerPercent(value: string | undefined): number | undefined {
-  const parsed = Number.parseFloat(String(value || '').replace('%', '').trim())
+  const parsed = Number.parseFloat(
+    String(value || '')
+      .replace('%', '')
+      .trim()
+  )
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
@@ -713,9 +729,9 @@ export function ContainersTab({
   const telemetryTargets = useMemo(
     () =>
       containers
-		.map(container => ({ id: container.ID, name: container.Names }))
-		.filter(container => Boolean(container.id))
-		.sort((left, right) => left.id.localeCompare(right.id)),
+        .map(container => ({ id: container.ID, name: container.Names }))
+        .filter(container => Boolean(container.id))
+        .sort((left, right) => left.id.localeCompare(right.id)),
     [containers]
   )
 
@@ -738,7 +754,8 @@ export function ContainersTab({
       CONTAINER_SNAPSHOT_WINDOW,
       refreshSignal,
     ],
-    queryFn: () => getServerContainerTelemetry(serverId, telemetryTargets, CONTAINER_SNAPSHOT_WINDOW),
+    queryFn: () =>
+      getServerContainerTelemetry(serverId, telemetryTargets, CONTAINER_SNAPSHOT_WINDOW),
     enabled: telemetryTargets.length > 0,
     placeholderData: previousData => previousData,
     staleTime: statsLive ? 0 : 60_000,
@@ -777,9 +794,12 @@ export function ContainersTab({
   } = useQuery<Record<string, DockerContainerStats>>({
     queryKey: ['docker', 'container-stats', serverId, refreshSignal],
     queryFn: async () => {
-      const response = await pb.send<{ output?: string }>(dockerApiPath(serverId, '/containers/stats'), {
-        method: 'GET',
-      })
+      const response = await pb.send<{ output?: string }>(
+        dockerApiPath(serverId, '/containers/stats'),
+        {
+          method: 'GET',
+        }
+      )
       return buildDockerStatsMap(parseDockerContainerStats(response.output || ''))
     },
     enabled: Boolean(statsContainer),
@@ -790,10 +810,13 @@ export function ContainersTab({
     refetchInterval: false,
   })
 
-  const [runtimeStatsStreamMap, setRuntimeStatsStreamMap] = useState<Record<string, DockerContainerStats>>({})
+  const [runtimeStatsStreamMap, setRuntimeStatsStreamMap] = useState<
+    Record<string, DockerContainerStats>
+  >({})
   const [runtimeStatsStreamLoading, setRuntimeStatsStreamLoading] = useState(false)
   const [runtimeStatsStreamError, setRuntimeStatsStreamError] = useState<unknown>(null)
-  const shouldStreamRuntimeStats = visibleColumns.cpu || visibleColumns.mem || (Boolean(statsContainer) && statsLive)
+  const shouldStreamRuntimeStats =
+    visibleColumns.cpu || visibleColumns.mem || (Boolean(statsContainer) && statsLive)
 
   useEffect(() => {
     if (!shouldStreamRuntimeStats) {
@@ -817,12 +840,15 @@ export function ContainersTab({
 
     void (async () => {
       try {
-        const response = await fetch(dockerApiUrl(serverId, '/containers/stats', { stream: true }), {
-          method: 'GET',
-          headers,
-          credentials: 'same-origin',
-          signal: controller.signal,
-        })
+        const response = await fetch(
+          dockerApiUrl(serverId, '/containers/stats', { stream: true }),
+          {
+            method: 'GET',
+            headers,
+            credentials: 'same-origin',
+            signal: controller.signal,
+          }
+        )
 
         if (!response.ok || !response.body) {
           throw new Error(`Container stats stream failed (${response.status})`)
@@ -843,13 +869,17 @@ export function ContainersTab({
           }
 
           if (parsed.event === 'stats') {
-            setRuntimeStatsStreamMap(buildDockerStatsMap(parseDockerContainerStats(payload.output || '')))
+            setRuntimeStatsStreamMap(
+              buildDockerStatsMap(parseDockerContainerStats(payload.output || ''))
+            )
             setRuntimeStatsStreamLoading(false)
             return
           }
 
           if (parsed.event === 'error') {
-            setRuntimeStatsStreamError(new Error(payload.message || 'Failed to stream container stats'))
+            setRuntimeStatsStreamError(
+              new Error(payload.message || 'Failed to stream container stats')
+            )
             setRuntimeStatsStreamLoading(false)
           }
         }
@@ -882,7 +912,14 @@ export function ContainersTab({
     return () => {
       controller.abort()
     }
-  }, [refreshSignal, serverId, shouldStreamRuntimeStats, statsLive, visibleColumns.cpu, visibleColumns.mem])
+  }, [
+    refreshSignal,
+    serverId,
+    shouldStreamRuntimeStats,
+    statsLive,
+    visibleColumns.cpu,
+    visibleColumns.mem,
+  ])
 
   const runtimeStatsError = runtimeStatsStreamError || runtimeStatsSnapshotError
   const telemetryError = snapshotTelemetryError || trendTelemetryError || runtimeStatsError
@@ -905,12 +942,21 @@ export function ContainersTab({
     setComposeFilter('all')
   }, [serverId])
 
-  const telemetryMap = useMemo(() => buildTelemetryItemMap(snapshotTelemetry?.items), [snapshotTelemetry?.items])
+  const telemetryMap = useMemo(
+    () => buildTelemetryItemMap(snapshotTelemetry?.items),
+    [snapshotTelemetry?.items]
+  )
 
-  const trendTelemetryMap = useMemo(() => buildTelemetryItemMap(trendTelemetry?.items), [trendTelemetry?.items])
+  const trendTelemetryMap = useMemo(
+    () => buildTelemetryItemMap(trendTelemetry?.items),
+    [trendTelemetry?.items]
+  )
 
   const dialogRuntimeStatsMap = useMemo(
-    () => (Object.keys(runtimeStatsStreamMap).length > 0 ? runtimeStatsStreamMap : runtimeStatsSnapshotMap),
+    () =>
+      Object.keys(runtimeStatsStreamMap).length > 0
+        ? runtimeStatsStreamMap
+        : runtimeStatsSnapshotMap,
     [runtimeStatsSnapshotMap, runtimeStatsStreamMap]
   )
 
@@ -1000,9 +1046,12 @@ export function ContainersTab({
     try {
       setActionError(null)
       if (act === 'remove') {
-        await pb.send(dockerApiUrl(serverId, `/containers/${id}`, { force: options?.force ? 1 : undefined }), {
-          method: 'DELETE',
-        })
+        await pb.send(
+          dockerApiUrl(serverId, `/containers/${id}`, { force: options?.force ? 1 : undefined }),
+          {
+            method: 'DELETE',
+          }
+        )
       } else {
         await pb.send(dockerApiPath(serverId, `/containers/${id}/${act}`), {
           method: 'POST',
@@ -1125,7 +1174,9 @@ export function ContainersTab({
   const composeFiltered = useMemo(() => {
     if (composeFilter === 'all') return nameFiltered
     if (!allDetailsCached && allDetailsLoading) return nameFiltered
-    return nameFiltered.filter(container => metadataComposeName(metadataMap[container.ID]) === composeFilter)
+    return nameFiltered.filter(
+      container => metadataComposeName(metadataMap[container.ID]) === composeFilter
+    )
   }, [allDetailsCached, allDetailsLoading, composeFilter, metadataMap, nameFiltered])
 
   const sorted = useMemo(() => {
@@ -1269,7 +1320,9 @@ export function ContainersTab({
       ? getApiErrorMessage(telemetryError, 'Failed to load container telemetry')
       : detailsErrorMessage
   const visibleError = loadError || actionError
-  const dependencyIssue = getDockerDependencyIssue(containersError ?? telemetryError ?? visibleError)
+  const dependencyIssue = getDockerDependencyIssue(
+    containersError ?? telemetryError ?? visibleError
+  )
 
   const tableColSpan =
     4 +
@@ -1286,26 +1339,31 @@ export function ContainersTab({
   const hasSearchFilter = activeSearchQuery.length > 0
   const hasStateFilter = stateFilter !== 'all'
   const hasAnyFilter =
-    hasSearchFilter || hasStateFilter || hasComposeFilter || !!(includeNames && includeNames.length > 0)
+    hasSearchFilter ||
+    hasStateFilter ||
+    hasComposeFilter ||
+    !!(includeNames && includeNames.length > 0)
   const hasStatusBadges =
-    (includeNames && includeNames.length > 0) || currentTelemetryLoading || currentRuntimeStatsLoading || copiedTip
+    (includeNames && includeNames.length > 0) ||
+    currentTelemetryLoading ||
+    currentRuntimeStatsLoading ||
+    copiedTip
 
   return (
     <div className="min-h-0 flex flex-col gap-3">
       {dependencyIssue && visibleError ? (
-        <DockerDependencyAlert serverId={serverId} message={visibleError} focusSource="containers" />
+        <DockerDependencyAlert
+          serverId={serverId}
+          message={visibleError}
+          focusSource="containers"
+        />
       ) : visibleError ? (
         <Alert variant="destructive" className="shrink-0">
           <AlertDescription>{visibleError}</AlertDescription>
         </Alert>
       ) : null}
       <div className="overflow-hidden rounded-lg bg-background">
-        <div
-          className={cn(
-            'flex flex-col',
-            showPanelChrome ? 'gap-3 px-3 py-3' : 'gap-2'
-          )}
-        >
+        <div className={cn('flex flex-col', showPanelChrome ? 'gap-3 px-3 py-3' : 'gap-2')}>
           {showPanelChrome ? (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-sm font-semibold">
@@ -1313,142 +1371,146 @@ export function ContainersTab({
                 <span>Containers</span>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2">
-              <input
-                value={searchQuery ?? ''}
-                onChange={event => onSearchQueryChange?.(event.target.value)}
-                placeholder="Search containers"
-                className="h-8 w-full min-w-0 rounded-md border bg-background px-3 text-sm sm:mr-[5ch] sm:w-[20ch]"
-              />
-              <span className="text-xs text-muted-foreground">{totalItems} total</span>
-              <div className="flex items-center gap-0.5 text-xs">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 min-w-0 px-0.5"
-                  onClick={() => onPageChange?.(Math.max(1, page - 1))}
-                  disabled={page <= 1}
-                  aria-label="Previous containers page"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                </Button>
-                <span className="text-center font-medium tabular-nums">{page}/{totalPages}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 min-w-0 px-0.5"
-                  onClick={() => onPageChange?.(Math.min(totalPages, page + 1))}
-                  disabled={page >= totalPages}
-                  aria-label="Next containers page"
-                >
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="shrink-0"
-                onClick={() => onRefresh?.()}
-                disabled={refreshDisabled || refreshing}
-                title="Refresh Docker data"
-                aria-label="Refresh Docker data"
-              >
-                {refreshing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+                <input
+                  value={searchQuery ?? ''}
+                  onChange={event => onSearchQueryChange?.(event.target.value)}
+                  placeholder="Search containers"
+                  className="h-8 w-full min-w-0 rounded-md border bg-background px-3 text-sm sm:mr-[5ch] sm:w-[20ch]"
+                />
+                <span className="text-xs text-muted-foreground">{totalItems} total</span>
+                <div className="flex items-center gap-0.5 text-xs">
                   <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8"
-                    aria-label="Container display settings"
-                    title="Container display settings"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 min-w-0 px-0.5"
+                    onClick={() => onPageChange?.(Math.max(1, page - 1))}
+                    disabled={page <= 1}
+                    aria-label="Previous containers page"
                   >
-                    <Settings2 className="h-4 w-4" />
+                    <ChevronLeft className="h-3.5 w-3.5" />
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>Rows Per Page</DropdownMenuLabel>
-                  <DropdownMenuRadioGroup
-                    value={String(pageSize)}
-                    onValueChange={value => onPageSizeChange?.(Number(value) as ContainerPageSize)}
+                  <span className="text-center font-medium tabular-nums">
+                    {page}/{totalPages}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 min-w-0 px-0.5"
+                    onClick={() => onPageChange?.(Math.min(totalPages, page + 1))}
+                    disabled={page >= totalPages}
+                    aria-label="Next containers page"
                   >
-                    <DropdownMenuRadioItem value="25">25 / page</DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="50">50 / page</DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="100">100 / page</DropdownMenuRadioItem>
-                  </DropdownMenuRadioGroup>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Visible Columns</DropdownMenuLabel>
-                  <DropdownMenuCheckboxItem
-                    checked={visibleColumns.ports}
-                    onCheckedChange={checked =>
-                      onVisibleColumnsChange?.({ ...visibleColumns, ports: checked === true })
-                    }
-                  >
-                    Ports
-                  </DropdownMenuCheckboxItem>
-                  <DropdownMenuCheckboxItem
-                    checked={visibleColumns.volumes}
-                    onCheckedChange={checked =>
-                      onVisibleColumnsChange?.({ ...visibleColumns, volumes: checked === true })
-                    }
-                  >
-                    Volumes
-                  </DropdownMenuCheckboxItem>
-                  <DropdownMenuCheckboxItem
-                    checked={visibleColumns.status}
-                    onCheckedChange={checked =>
-                      onVisibleColumnsChange?.({ ...visibleColumns, status: checked === true })
-                    }
-                  >
-                    Lifecycle
-                  </DropdownMenuCheckboxItem>
-                  <DropdownMenuCheckboxItem
-                    checked={visibleColumns.created}
-                    onCheckedChange={checked =>
-                      onVisibleColumnsChange?.({ ...visibleColumns, created: checked === true })
-                    }
-                  >
-                    Created
-                  </DropdownMenuCheckboxItem>
-                  <DropdownMenuCheckboxItem
-                    checked={visibleColumns.cpu}
-                    onCheckedChange={checked =>
-                      onVisibleColumnsChange?.({ ...visibleColumns, cpu: checked === true })
-                    }
-                  >
-                    CPU
-                  </DropdownMenuCheckboxItem>
-                  <DropdownMenuCheckboxItem
-                    checked={visibleColumns.mem}
-                    onCheckedChange={checked =>
-                      onVisibleColumnsChange?.({ ...visibleColumns, mem: checked === true })
-                    }
-                  >
-                    Memory
-                  </DropdownMenuCheckboxItem>
-                  <DropdownMenuCheckboxItem
-                    checked={visibleColumns.network}
-                    onCheckedChange={checked =>
-                      onVisibleColumnsChange?.({ ...visibleColumns, network: checked === true })
-                    }
-                  >
-                    Network
-                  </DropdownMenuCheckboxItem>
-                  <DropdownMenuCheckboxItem
-                    checked={visibleColumns.compose}
-                    onCheckedChange={checked =>
-                      onVisibleColumnsChange?.({ ...visibleColumns, compose: checked === true })
-                    }
-                  >
-                    Compose
-                  </DropdownMenuCheckboxItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => onRefresh?.()}
+                  disabled={refreshDisabled || refreshing}
+                  title="Refresh Docker data"
+                  aria-label="Refresh Docker data"
+                >
+                  {refreshing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      aria-label="Container display settings"
+                      title="Container display settings"
+                    >
+                      <Settings2 className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel>Rows Per Page</DropdownMenuLabel>
+                    <DropdownMenuRadioGroup
+                      value={String(pageSize)}
+                      onValueChange={value =>
+                        onPageSizeChange?.(Number(value) as ContainerPageSize)
+                      }
+                    >
+                      <DropdownMenuRadioItem value="25">25 / page</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="50">50 / page</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="100">100 / page</DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel>Visible Columns</DropdownMenuLabel>
+                    <DropdownMenuCheckboxItem
+                      checked={visibleColumns.ports}
+                      onCheckedChange={checked =>
+                        onVisibleColumnsChange?.({ ...visibleColumns, ports: checked === true })
+                      }
+                    >
+                      Ports
+                    </DropdownMenuCheckboxItem>
+                    <DropdownMenuCheckboxItem
+                      checked={visibleColumns.volumes}
+                      onCheckedChange={checked =>
+                        onVisibleColumnsChange?.({ ...visibleColumns, volumes: checked === true })
+                      }
+                    >
+                      Volumes
+                    </DropdownMenuCheckboxItem>
+                    <DropdownMenuCheckboxItem
+                      checked={visibleColumns.status}
+                      onCheckedChange={checked =>
+                        onVisibleColumnsChange?.({ ...visibleColumns, status: checked === true })
+                      }
+                    >
+                      Lifecycle
+                    </DropdownMenuCheckboxItem>
+                    <DropdownMenuCheckboxItem
+                      checked={visibleColumns.created}
+                      onCheckedChange={checked =>
+                        onVisibleColumnsChange?.({ ...visibleColumns, created: checked === true })
+                      }
+                    >
+                      Created
+                    </DropdownMenuCheckboxItem>
+                    <DropdownMenuCheckboxItem
+                      checked={visibleColumns.cpu}
+                      onCheckedChange={checked =>
+                        onVisibleColumnsChange?.({ ...visibleColumns, cpu: checked === true })
+                      }
+                    >
+                      CPU
+                    </DropdownMenuCheckboxItem>
+                    <DropdownMenuCheckboxItem
+                      checked={visibleColumns.mem}
+                      onCheckedChange={checked =>
+                        onVisibleColumnsChange?.({ ...visibleColumns, mem: checked === true })
+                      }
+                    >
+                      Memory
+                    </DropdownMenuCheckboxItem>
+                    <DropdownMenuCheckboxItem
+                      checked={visibleColumns.network}
+                      onCheckedChange={checked =>
+                        onVisibleColumnsChange?.({ ...visibleColumns, network: checked === true })
+                      }
+                    >
+                      Network
+                    </DropdownMenuCheckboxItem>
+                    <DropdownMenuCheckboxItem
+                      checked={visibleColumns.compose}
+                      onCheckedChange={checked =>
+                        onVisibleColumnsChange?.({ ...visibleColumns, compose: checked === true })
+                      }
+                    >
+                      Compose
+                    </DropdownMenuCheckboxItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
           ) : null}
           {hasAnyFilter && (
@@ -1458,9 +1520,7 @@ export function ContainersTab({
               {includeNames && includeNames.length > 0 && (
                 <Badge variant="outline">Linked containers: {includeNames.length}</Badge>
               )}
-              {hasComposeFilter && (
-                <Badge variant="outline">Compose: {composeFilter}</Badge>
-              )}
+              {hasComposeFilter && <Badge variant="outline">Compose: {composeFilter}</Badge>}
               <Button
                 variant="outline"
                 size="sm"
@@ -1479,7 +1539,9 @@ export function ContainersTab({
             <div className="flex items-center gap-2 flex-wrap shrink-0">
               {currentTelemetryLoading && <Badge variant="outline">Loading telemetry...</Badge>}
               {currentRuntimeStatsLoading && <Badge variant="outline">Loading stats...</Badge>}
-              {copiedTip && <div className="text-xs text-muted-foreground shrink-0">{copiedTip}</div>}
+              {copiedTip && (
+                <div className="text-xs text-muted-foreground shrink-0">{copiedTip}</div>
+              )}
             </div>
           )}
         </div>
@@ -1579,7 +1641,11 @@ export function ContainersTab({
                                   'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
                               )}
                               aria-label="Filter compose project"
-                              title={composeFilter === 'all' ? 'Filter compose project' : `Compose: ${composeFilter}`}
+                              title={
+                                composeFilter === 'all'
+                                  ? 'Filter compose project'
+                                  : `Compose: ${composeFilter}`
+                              }
                             >
                               <Filter className="h-3.5 w-3.5" />
                             </Button>
@@ -1627,555 +1693,686 @@ export function ContainersTab({
                 </TableRow>
               </TableHeader>
               <TableBody>
-            {loading && (
-              <TableRow>
-                <TableCell colSpan={tableColSpan} className="text-center text-muted-foreground">
-                  <span className="inline-flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading...
-                  </span>
-                </TableCell>
-              </TableRow>
-            )}
-            {paged.map(c => {
-              const inspect = inspectMap[c.ID]
-              const metadata = metadataMap[c.ID]
-              const linkedVolumes = metadata?.volume_names || []
-              const linkedNetworks = inspectNetworks(inspect)
-                .map(network => network.name)
-                .filter(Boolean)
-              const uniqueLinkedNetworks = Array.from(new Set(linkedNetworks))
-              const telemetryItem = resolveTelemetryItem(telemetryMap, c)
-              const runtimeStatsItem = resolveDockerStatsItem(runtimeStatsStreamMap, c)
-              return (
-                <Fragment key={c.ID}>
-                  <TableRow
-                    className={cn(
-                      'border-b border-border/60 align-top transition-colors hover:bg-muted/30',
-                      c.State.toLowerCase() === 'running' && 'bg-emerald-500/[0.015]',
-                      expandedId === c.ID && 'bg-muted/35'
-                    )}
-                  >
-                    <TableCell className="pl-4 pr-3 py-3 text-xs">
-                      <Button
-                        variant="link"
-                        className="group min-h-8 w-full justify-start p-0 text-left no-underline hover:no-underline"
-                        onClick={() => {
-                          setExpandedId(id => {
-                            const nextId = id === c.ID ? null : c.ID
-                            if (nextId === c.ID) {
-                              void loadInspectForContainer(c.ID)
-                            }
-                            return nextId
-                          })
-                        }}
+                {loading && (
+                  <TableRow>
+                    <TableCell colSpan={tableColSpan} className="text-center text-muted-foreground">
+                      <span className="inline-flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading...
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                )}
+                {paged.map(c => {
+                  const inspect = inspectMap[c.ID]
+                  const metadata = metadataMap[c.ID]
+                  const linkedVolumes = metadata?.volume_names || []
+                  const linkedNetworks = inspectNetworks(inspect)
+                    .map(network => network.name)
+                    .filter(Boolean)
+                  const uniqueLinkedNetworks = Array.from(new Set(linkedNetworks))
+                  const telemetryItem = resolveTelemetryItem(telemetryMap, c)
+                  const runtimeStatsItem = resolveDockerStatsItem(runtimeStatsStreamMap, c)
+                  return (
+                    <Fragment key={c.ID}>
+                      <TableRow
+                        className={cn(
+                          'border-b border-border/60 align-top transition-colors hover:bg-muted/30',
+                          c.State.toLowerCase() === 'running' && 'bg-emerald-500/[0.015]',
+                          expandedId === c.ID && 'bg-muted/35'
+                        )}
                       >
-                        <div className="min-w-0 space-y-1 text-left">
-                          <div
-                            className="truncate text-xs font-semibold leading-tight text-foreground group-hover:underline"
-                            title={c.Names}
-                          >
-                            {shortName(c.Names)}
-                          </div>
-                          <div
-                            className="truncate font-mono text-[11px] font-semibold leading-tight text-muted-foreground"
-                            title={c.Image}
-                          >
-                            {shortImageLabel(c.Image)}
-                          </div>
-                        </div>
-                      </Button>
-                    </TableCell>
-                    <TableCell className="py-3">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {statusBadge(c.State)}
-                        {telemetryBadge(telemetryItem)}
-                      </div>
-                    </TableCell>
-                    <TableCell className="py-3">
-                      <div className="flex items-center gap-0.5">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-muted-foreground"
-                          onClick={event => {
-                            event.preventDefault()
-                            event.stopPropagation()
-                            void fetchOutput(c, 'logs')
-                          }}
-                          aria-label={`Open logs for ${c.Names}`}
-                          title="Logs"
-                        >
-                          <FileText className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-muted-foreground"
-                          onClick={event => {
-                            event.preventDefault()
-                            event.stopPropagation()
-                            setStatsContainer(c)
-                          }}
-                          aria-label={`Open monitor for ${c.Names}`}
-                          title="Monitor"
-                        >
-                          <Activity className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-muted-foreground"
-                          onClick={event => {
-                            event.preventDefault()
-                            event.stopPropagation()
-                            onOpenTerminal?.(c.ID)
-                          }}
-                          disabled={c.State !== 'running' || !onOpenTerminal}
-                          aria-label={`Open exec for ${c.Names}`}
-                          title={c.State === 'running' ? 'Exec' : 'Exec unavailable'}
-                        >
-                          <TerminalSquare className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                    {visibleColumns.ports && (
-                      <TableCell className="py-3 text-xs text-foreground/90">
-                        {hostPublishedPorts(c.Ports)}
-                      </TableCell>
-                    )}
-                    {visibleColumns.volumes && (
-                      <TableCell className="w-[160px] min-w-[160px] py-3 text-left text-xs align-middle">
-                        <div className="flex h-8 items-center">
-                          {linkedVolumes.length > 0 ? (
-                            <button
-                              type="button"
-                              className="inline-flex h-8 w-full items-center justify-start gap-1 text-left text-xs text-primary hover:underline"
-                              title={linkedVolumes.join(', ')}
-                              onClick={() => onOpenVolumeFilter?.(linkedVolumes)}
-                            >
-                              <span className="truncate">
-                                {linkedVolumes.length} volume{linkedVolumes.length > 1 ? 's' : ''}
-                              </span>
-                              <ExternalLink className="ml-1 h-3 w-3" />
-                            </button>
-                          ) : (
-                            <span className="inline-flex h-8 items-center text-muted-foreground">-</span>
-                          )}
-                        </div>
-                      </TableCell>
-                    )}
-                    {visibleColumns.created && (
-                      <TableCell className="py-3 text-xs text-muted-foreground">
-                        {allDetailsLoading
-                          ? '...'
-                          : metadata?.created
-                            ? new Date(metadata.created).toLocaleString()
-                            : '-'}
-                      </TableCell>
-                    )}
-                    {visibleColumns.compose && (
-                      <TableCell className="py-3 text-xs">
-                        {metadataComposeName(metadata) !== '-' ? (
+                        <TableCell className="pl-4 pr-3 py-3 text-xs">
                           <Button
                             variant="link"
-                            className="h-auto w-full justify-start p-0 text-left text-xs"
-                            onClick={() => setComposeFilter(metadataComposeName(metadata))}
+                            className="group min-h-8 w-full justify-start p-0 text-left no-underline hover:no-underline"
+                            onClick={() => {
+                              setExpandedId(id => {
+                                const nextId = id === c.ID ? null : c.ID
+                                if (nextId === c.ID) {
+                                  void loadInspectForContainer(c.ID)
+                                }
+                                return nextId
+                              })
+                            }}
                           >
-                            {metadataComposeName(metadata)}
+                            <div className="min-w-0 space-y-1 text-left">
+                              <div
+                                className="truncate text-xs font-semibold leading-tight text-foreground group-hover:underline"
+                                title={c.Names}
+                              >
+                                {shortName(c.Names)}
+                              </div>
+                              <div
+                                className="truncate font-mono text-[11px] font-semibold leading-tight text-muted-foreground"
+                                title={c.Image}
+                              >
+                                {shortImageLabel(c.Image)}
+                              </div>
+                            </div>
                           </Button>
-                        ) : (
-                          '-'
-                        )}
-                      </TableCell>
-                    )}
-                    {visibleColumns.cpu && (
-                      <TableCell className="py-3 text-xs tabular-nums text-foreground/90">
-                        {currentRuntimeStatsLoading
-                          ? '...'
-                          : !runtimeStatsItem
-                            ? <span className="text-muted-foreground">-</span>
-                            : <span className="font-medium text-foreground">{formatPercent(parseDockerPercent(runtimeStatsItem.CPUPerc))}</span>}
-                      </TableCell>
-                    )}
-                    {visibleColumns.mem && (
-                      <TableCell className="py-3 text-xs tabular-nums text-foreground/90">
-                        {currentRuntimeStatsLoading
-                          ? '...'
-                          : !runtimeStatsItem
-                            ? <span className="text-muted-foreground">-</span>
-                            : <span className="font-medium text-foreground">{formatRuntimeMemoryUsage(runtimeStatsItem.MemUsage)}</span>}
-                      </TableCell>
-                    )}
-                    {visibleColumns.network && (
-                      <TableCell className="min-w-[170px] py-3 text-left text-xs align-middle">
-                        <div className="flex h-8 items-center">
-                          {!inspect && detailsLoadingMap[c.ID] ? (
-                            <span className="inline-flex h-8 items-center text-muted-foreground">Loading...</span>
-                          ) : uniqueLinkedNetworks.length > 0 ? (
-                            <button
-                              type="button"
-                              className="inline-flex h-8 w-full items-center justify-start gap-1 text-left text-xs text-primary hover:underline"
-                              title={uniqueLinkedNetworks.join(', ')}
-                              onClick={() => onOpenNetworkFilter?.(uniqueLinkedNetworks[0])}
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {statusBadge(c.State)}
+                            {telemetryBadge(telemetryItem)}
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <div className="flex items-center gap-0.5">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-muted-foreground"
+                              onClick={event => {
+                                event.preventDefault()
+                                event.stopPropagation()
+                                void fetchOutput(c, 'logs')
+                              }}
+                              aria-label={`Open logs for ${c.Names}`}
+                              title="Logs"
                             >
-                              <span className="truncate">{uniqueLinkedNetworks.join(', ')}</span>
-                              <ExternalLink className="ml-1 h-3 w-3" />
-                            </button>
-                          ) : (
-                            <span className="inline-flex h-8 items-center text-muted-foreground">-</span>
-                          )}
-                        </div>
-                      </TableCell>
-                    )}
-                    {visibleColumns.status && (
-                      <TableCell className="py-3 text-xs text-muted-foreground">
-                        {c.Status || '-'}
-                      </TableCell>
-                    )}
-                    <TableCell className="py-3">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            aria-label={`More actions for ${c.Names}`}
-                            title={`More actions for ${c.Names}`}
-                            onClick={event => event.stopPropagation()}
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            {c.State === 'running' && onOpenTerminal && (
+                              <FileText className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-muted-foreground"
+                              onClick={event => {
+                                event.preventDefault()
+                                event.stopPropagation()
+                                setStatsContainer(c)
+                              }}
+                              aria-label={`Open monitor for ${c.Names}`}
+                              title="Monitor"
+                            >
+                              <Activity className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-muted-foreground"
+                              onClick={event => {
+                                event.preventDefault()
+                                event.stopPropagation()
+                                onOpenTerminal?.(c.ID)
+                              }}
+                              disabled={c.State !== 'running' || !onOpenTerminal}
+                              aria-label={`Open exec for ${c.Names}`}
+                              title={c.State === 'running' ? 'Exec' : 'Exec unavailable'}
+                            >
+                              <TerminalSquare className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                        {visibleColumns.ports && (
+                          <TableCell className="py-3 text-xs text-foreground/90">
+                            {hostPublishedPorts(c.Ports)}
+                          </TableCell>
+                        )}
+                        {visibleColumns.volumes && (
+                          <TableCell className="w-[160px] min-w-[160px] py-3 text-left text-xs align-middle">
+                            <div className="flex h-8 items-center">
+                              {linkedVolumes.length > 0 ? (
+                                <button
+                                  type="button"
+                                  className="inline-flex h-8 w-full items-center justify-start gap-1 text-left text-xs text-primary hover:underline"
+                                  title={linkedVolumes.join(', ')}
+                                  onClick={() => onOpenVolumeFilter?.(linkedVolumes)}
+                                >
+                                  <span className="truncate">
+                                    {linkedVolumes.length} volume
+                                    {linkedVolumes.length > 1 ? 's' : ''}
+                                  </span>
+                                  <ExternalLink className="ml-1 h-3 w-3" />
+                                </button>
+                              ) : (
+                                <span className="inline-flex h-8 items-center text-muted-foreground">
+                                  -
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                        )}
+                        {visibleColumns.created && (
+                          <TableCell className="py-3 text-xs text-muted-foreground">
+                            {allDetailsLoading
+                              ? '...'
+                              : metadata?.created
+                                ? new Date(metadata.created).toLocaleString()
+                                : '-'}
+                          </TableCell>
+                        )}
+                        {visibleColumns.compose && (
+                          <TableCell className="py-3 text-xs">
+                            {metadataComposeName(metadata) !== '-' ? (
+                              <Button
+                                variant="link"
+                                className="h-auto w-full justify-start p-0 text-left text-xs"
+                                onClick={() => setComposeFilter(metadataComposeName(metadata))}
+                              >
+                                {metadataComposeName(metadata)}
+                              </Button>
+                            ) : (
+                              '-'
+                            )}
+                          </TableCell>
+                        )}
+                        {visibleColumns.cpu && (
+                          <TableCell className="py-3 text-xs tabular-nums text-foreground/90">
+                            {currentRuntimeStatsLoading ? (
+                              '...'
+                            ) : !runtimeStatsItem ? (
+                              <span className="text-muted-foreground">-</span>
+                            ) : (
+                              <span className="font-medium text-foreground">
+                                {formatPercent(parseDockerPercent(runtimeStatsItem.CPUPerc))}
+                              </span>
+                            )}
+                          </TableCell>
+                        )}
+                        {visibleColumns.mem && (
+                          <TableCell className="py-3 text-xs tabular-nums text-foreground/90">
+                            {currentRuntimeStatsLoading ? (
+                              '...'
+                            ) : !runtimeStatsItem ? (
+                              <span className="text-muted-foreground">-</span>
+                            ) : (
+                              <span className="font-medium text-foreground">
+                                {formatRuntimeMemoryUsage(runtimeStatsItem.MemUsage)}
+                              </span>
+                            )}
+                          </TableCell>
+                        )}
+                        {visibleColumns.network && (
+                          <TableCell className="min-w-[170px] py-3 text-left text-xs align-middle">
+                            <div className="flex h-8 items-center">
+                              {!inspect && detailsLoadingMap[c.ID] ? (
+                                <span className="inline-flex h-8 items-center text-muted-foreground">
+                                  Loading...
+                                </span>
+                              ) : uniqueLinkedNetworks.length > 0 ? (
+                                <button
+                                  type="button"
+                                  className="inline-flex h-8 w-full items-center justify-start gap-1 text-left text-xs text-primary hover:underline"
+                                  title={uniqueLinkedNetworks.join(', ')}
+                                  onClick={() => onOpenNetworkFilter?.(uniqueLinkedNetworks[0])}
+                                >
+                                  <span className="truncate">
+                                    {uniqueLinkedNetworks.join(', ')}
+                                  </span>
+                                  <ExternalLink className="ml-1 h-3 w-3" />
+                                </button>
+                              ) : (
+                                <span className="inline-flex h-8 items-center text-muted-foreground">
+                                  -
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                        )}
+                        {visibleColumns.status && (
+                          <TableCell className="py-3 text-xs text-muted-foreground">
+                            {c.Status || '-'}
+                          </TableCell>
+                        )}
+                        <TableCell className="py-3">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                aria-label={`More actions for ${c.Names}`}
+                                title={`More actions for ${c.Names}`}
+                                onClick={event => event.stopPropagation()}
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {c.State === 'running' && onOpenTerminal && (
+                                <DropdownMenuItem
+                                  onSelect={event => {
+                                    event.stopPropagation()
+                                    window.setTimeout(() => onOpenTerminal(c.ID), 0)
+                                  }}
+                                >
+                                  <TerminalSquare className="h-4 w-4 mr-2" /> Exec
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem
                                 onSelect={event => {
                                   event.stopPropagation()
-                                  window.setTimeout(() => onOpenTerminal(c.ID), 0)
+                                  window.setTimeout(() => setStatsContainer(c), 0)
                                 }}
                               >
-                                <TerminalSquare className="h-4 w-4 mr-2" /> Exec
+                                <Activity className="h-4 w-4 mr-2" /> Stats
                               </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem
-                              onSelect={event => {
-                                event.stopPropagation()
-                                window.setTimeout(() => setStatsContainer(c), 0)
-                              }}
-                            >
-                              <Activity className="h-4 w-4 mr-2" /> Stats
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onSelect={event => {
-                                event.stopPropagation()
-                                window.setTimeout(() => void fetchOutput(c, 'logs'), 0)
-                              }}
-                            >
-                              <FileText className="h-4 w-4 mr-2" /> Logs
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onSelect={event => {
-                                event.stopPropagation()
-                                window.setTimeout(() => void fetchOutput(c, 'inspect'), 0)
-                              }}
-                            >
-                              <FileText className="h-4 w-4 mr-2" /> Inspect
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onSelect={event => {
-                              event.stopPropagation()
-                              window.setTimeout(() => void action(c.ID, 'start'), 0)
-                            }}
-                            disabled={(c.State || '').toLowerCase() === 'running'}
-                          >
-                            <Play className="h-4 w-4 mr-2" /> Start
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onSelect={event => {
-                              event.stopPropagation()
-                              window.setTimeout(
-                                () => setPendingAction({ container: c, action: 'stop' }),
-                                0
-                              )
-                            }}
-                          >
-                            <Square className="h-4 w-4 mr-2" /> Stop
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onSelect={event => {
-                              event.stopPropagation()
-                              window.setTimeout(
-                                () => setPendingAction({ container: c, action: 'restart' }),
-                                0
-                              )
-                            }}
-                          >
-                            <RotateCw className="h-4 w-4 mr-2" /> Restart
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onSelect={event => {
-                              event.stopPropagation()
-                              window.setTimeout(
-                                () =>
-                                  setPendingAction({ container: c, action: 'remove', force: false }),
-                                0
-                              )
-                            }}
-                            className="text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" /> Remove
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                  {expandedId === c.ID && (
-                    <TableRow>
-                      <TableCell colSpan={tableColSpan} className="bg-muted/20 px-3 py-3">
-                        <div className="space-y-3 rounded-lg bg-background/80 p-3">
-                          <div className="text-sm font-medium">Container Details</div>
-                          {detailsLoadingMap[c.ID] ? (
-                            <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                              <Loader2 className="h-4 w-4 animate-spin" /> Loading inspect details...
-                            </div>
-                          ) : (
-                            <div className="space-y-4 text-xs">
-                              <div className="overflow-hidden rounded-md border">
-                                <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">Metadata</div>
-                                <div className="grid gap-x-6 gap-y-3 p-3 md:grid-cols-2 xl:grid-cols-3">
-                                  <div className="space-y-1">
-                                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Name</div>
-                                    <div className="font-mono text-foreground">{c.Names || '-'}</div>
-                                  </div>
-                                  <div className="space-y-1">
-                                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">ID</div>
-                                    <button
-                                      type="button"
-                                      className="font-mono text-left text-foreground hover:underline"
-                                      onClick={() => void copyText(c.ID || '-', 'ID')}
-                                      title="Click to copy ID"
-                                    >
-                                      {c.ID || '-'}
-                                    </button>
-                                  </div>
-                                  <div className="space-y-1">
-                                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Image</div>
-                                    {onOpenImageFilter ? (
-                                      <Button
-                                        variant="link"
-                                        className="h-auto p-0 font-mono text-xs"
-                                        onClick={() => onOpenImageFilter(c.Image)}
-                                      >
-                                        {c.Image || '-'}
-                                      </Button>
-                                    ) : (
-                                      <div className="font-mono text-foreground">{c.Image || '-'}</div>
-                                    )}
-                                  </div>
-                                  <div className="space-y-1">
-                                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Compose</div>
-                                    {metadataComposeName(metadata) !== '-' ? (
-                                      <Button
-                                        variant="link"
-                                        className="h-auto p-0 text-xs"
-                                        onClick={() => setComposeFilter(metadataComposeName(metadata))}
-                                      >
-                                        {metadataComposeName(metadata)}
-                                      </Button>
-                                    ) : (
-                                      <div className="text-muted-foreground">-</div>
-                                    )}
-                                  </div>
-                                  <div className="space-y-1">
-                                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Runtime</div>
-                                    <div className="text-foreground">{c.Status || '-'}</div>
-                                  </div>
-                                  <div className="space-y-1">
-                                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Lifecycle</div>
-                                    <div>{statusBadge(c.State)}</div>
-                                  </div>
-                                  <div className="space-y-1">
-                                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Created</div>
-                                    <div className="text-foreground">
-                                      {metadata?.created ? new Date(metadata.created).toLocaleString() : '-'}
+                              <DropdownMenuItem
+                                onSelect={event => {
+                                  event.stopPropagation()
+                                  window.setTimeout(() => void fetchOutput(c, 'logs'), 0)
+                                }}
+                              >
+                                <FileText className="h-4 w-4 mr-2" /> Logs
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onSelect={event => {
+                                  event.stopPropagation()
+                                  window.setTimeout(() => void fetchOutput(c, 'inspect'), 0)
+                                }}
+                              >
+                                <FileText className="h-4 w-4 mr-2" /> Inspect
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onSelect={event => {
+                                  event.stopPropagation()
+                                  window.setTimeout(() => void action(c.ID, 'start'), 0)
+                                }}
+                                disabled={(c.State || '').toLowerCase() === 'running'}
+                              >
+                                <Play className="h-4 w-4 mr-2" /> Start
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onSelect={event => {
+                                  event.stopPropagation()
+                                  window.setTimeout(
+                                    () => setPendingAction({ container: c, action: 'stop' }),
+                                    0
+                                  )
+                                }}
+                              >
+                                <Square className="h-4 w-4 mr-2" /> Stop
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onSelect={event => {
+                                  event.stopPropagation()
+                                  window.setTimeout(
+                                    () => setPendingAction({ container: c, action: 'restart' }),
+                                    0
+                                  )
+                                }}
+                              >
+                                <RotateCw className="h-4 w-4 mr-2" /> Restart
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onSelect={event => {
+                                  event.stopPropagation()
+                                  window.setTimeout(
+                                    () =>
+                                      setPendingAction({
+                                        container: c,
+                                        action: 'remove',
+                                        force: false,
+                                      }),
+                                    0
+                                  )
+                                }}
+                                className="text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" /> Remove
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                      {expandedId === c.ID && (
+                        <TableRow>
+                          <TableCell colSpan={tableColSpan} className="bg-muted/20 px-3 py-3">
+                            <div className="space-y-3 rounded-lg bg-background/80 p-3">
+                              <div className="text-sm font-medium">Container Details</div>
+                              {detailsLoadingMap[c.ID] ? (
+                                <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                                  <Loader2 className="h-4 w-4 animate-spin" /> Loading inspect
+                                  details...
+                                </div>
+                              ) : (
+                                <div className="space-y-4 text-xs">
+                                  <div className="overflow-hidden rounded-md border">
+                                    <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">
+                                      Metadata
+                                    </div>
+                                    <div className="grid gap-x-6 gap-y-3 p-3 md:grid-cols-2 xl:grid-cols-3">
+                                      <div className="space-y-1">
+                                        <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                          Name
+                                        </div>
+                                        <div className="font-mono text-foreground">
+                                          {c.Names || '-'}
+                                        </div>
+                                      </div>
+                                      <div className="space-y-1">
+                                        <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                          ID
+                                        </div>
+                                        <button
+                                          type="button"
+                                          className="font-mono text-left text-foreground hover:underline"
+                                          onClick={() => void copyText(c.ID || '-', 'ID')}
+                                          title="Click to copy ID"
+                                        >
+                                          {c.ID || '-'}
+                                        </button>
+                                      </div>
+                                      <div className="space-y-1">
+                                        <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                          Image
+                                        </div>
+                                        {onOpenImageFilter ? (
+                                          <Button
+                                            variant="link"
+                                            className="h-auto p-0 font-mono text-xs"
+                                            onClick={() => onOpenImageFilter(c.Image)}
+                                          >
+                                            {c.Image || '-'}
+                                          </Button>
+                                        ) : (
+                                          <div className="font-mono text-foreground">
+                                            {c.Image || '-'}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="space-y-1">
+                                        <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                          Compose
+                                        </div>
+                                        {metadataComposeName(metadata) !== '-' ? (
+                                          <Button
+                                            variant="link"
+                                            className="h-auto p-0 text-xs"
+                                            onClick={() =>
+                                              setComposeFilter(metadataComposeName(metadata))
+                                            }
+                                          >
+                                            {metadataComposeName(metadata)}
+                                          </Button>
+                                        ) : (
+                                          <div className="text-muted-foreground">-</div>
+                                        )}
+                                      </div>
+                                      <div className="space-y-1">
+                                        <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                          Runtime
+                                        </div>
+                                        <div className="text-foreground">{c.Status || '-'}</div>
+                                      </div>
+                                      <div className="space-y-1">
+                                        <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                          Lifecycle
+                                        </div>
+                                        <div>{statusBadge(c.State)}</div>
+                                      </div>
+                                      <div className="space-y-1">
+                                        <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                          Created
+                                        </div>
+                                        <div className="text-foreground">
+                                          {metadata?.created
+                                            ? new Date(metadata.created).toLocaleString()
+                                            : '-'}
+                                        </div>
+                                      </div>
+                                      <div className="space-y-1">
+                                        <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                          Running For
+                                        </div>
+                                        <div className="text-foreground">{c.RunningFor || '-'}</div>
+                                      </div>
+                                      <div className="space-y-1">
+                                        <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                          IP
+                                        </div>
+                                        <button
+                                          type="button"
+                                          className="font-mono text-left text-foreground hover:underline"
+                                          onClick={() => void copyText(containerIP(inspect), 'IP')}
+                                          title="Click to copy IP"
+                                        >
+                                          {containerIP(inspect)}
+                                        </button>
+                                      </div>
                                     </div>
                                   </div>
-                                  <div className="space-y-1">
-                                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Running For</div>
-                                    <div className="text-foreground">{c.RunningFor || '-'}</div>
+
+                                  <div className="overflow-hidden rounded-md border">
+                                    <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">
+                                      Ports
+                                    </div>
+                                    {inspectPorts(inspect).length > 0 ? (
+                                      <div className="overflow-x-auto">
+                                        <table className="min-w-full">
+                                          <thead className="bg-muted/10 text-muted-foreground">
+                                            <tr>
+                                              <th className="px-3 py-2 text-left font-medium">
+                                                Host IP
+                                              </th>
+                                              <th className="px-3 py-2 text-left font-medium">
+                                                Host Port
+                                              </th>
+                                              <th className="px-3 py-2 text-left font-medium">
+                                                Container Port
+                                              </th>
+                                              <th className="px-3 py-2 text-left font-medium">
+                                                Protocol
+                                              </th>
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {inspectPorts(inspect).map(port => (
+                                              <tr
+                                                key={`${port.hostIP}-${port.hostPort}-${port.containerPort}-${port.protocol}`}
+                                                className="border-t"
+                                              >
+                                                <td className="px-3 py-2 font-mono">
+                                                  {port.hostIP}
+                                                </td>
+                                                <td className="px-3 py-2 font-mono">
+                                                  {port.hostPort}
+                                                </td>
+                                                <td className="px-3 py-2 font-mono">
+                                                  {port.containerPort}
+                                                </td>
+                                                <td className="px-3 py-2 font-mono">
+                                                  {port.protocol}
+                                                </td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    ) : (
+                                      <div className="px-3 py-3 text-muted-foreground">
+                                        No exposed ports
+                                      </div>
+                                    )}
                                   </div>
-                                  <div className="space-y-1">
-                                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">IP</div>
-                                    <button
-                                      type="button"
-                                      className="font-mono text-left text-foreground hover:underline"
-                                      onClick={() => void copyText(containerIP(inspect), 'IP')}
-                                      title="Click to copy IP"
-                                    >
-                                      {containerIP(inspect)}
-                                    </button>
+
+                                  <div className="overflow-hidden rounded-md border">
+                                    <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">
+                                      Networks
+                                    </div>
+                                    {inspectNetworks(inspect).length > 0 ? (
+                                      <div className="overflow-x-auto">
+                                        <table className="min-w-full">
+                                          <thead className="bg-muted/10 text-muted-foreground">
+                                            <tr>
+                                              <th className="px-3 py-2 text-left font-medium">
+                                                Network
+                                              </th>
+                                              <th className="px-3 py-2 text-left font-medium">
+                                                IP
+                                              </th>
+                                              <th className="px-3 py-2 text-left font-medium">
+                                                Gateway
+                                              </th>
+                                              <th className="px-3 py-2 text-left font-medium">
+                                                Aliases
+                                              </th>
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {inspectNetworks(inspect).map(network => (
+                                              <tr key={network.name} className="border-t">
+                                                <td className="px-3 py-2">
+                                                  {onOpenNetworkFilter ? (
+                                                    <Button
+                                                      variant="link"
+                                                      className="h-auto p-0 text-xs"
+                                                      onClick={() =>
+                                                        onOpenNetworkFilter(network.name)
+                                                      }
+                                                    >
+                                                      {network.name}
+                                                    </Button>
+                                                  ) : (
+                                                    <span className="font-mono">
+                                                      {network.name}
+                                                    </span>
+                                                  )}
+                                                </td>
+                                                <td className="px-3 py-2 font-mono">
+                                                  {network.ip}
+                                                </td>
+                                                <td className="px-3 py-2 font-mono">
+                                                  {network.gateway}
+                                                </td>
+                                                <td className="px-3 py-2 font-mono">
+                                                  {network.aliases.join(', ') || '-'}
+                                                </td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    ) : (
+                                      <div className="px-3 py-3 text-muted-foreground">
+                                        No attached networks
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="overflow-hidden rounded-md border">
+                                    <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">
+                                      Volumes
+                                    </div>
+                                    {inspectVolumes(inspect).length > 0 ? (
+                                      <div className="overflow-x-auto">
+                                        <table className="min-w-full">
+                                          <thead className="bg-muted/10 text-muted-foreground">
+                                            <tr>
+                                              <th className="px-3 py-2 text-left font-medium">
+                                                Type
+                                              </th>
+                                              <th className="px-3 py-2 text-left font-medium">
+                                                Source / Name
+                                              </th>
+                                              <th className="px-3 py-2 text-left font-medium">
+                                                Destination
+                                              </th>
+                                              <th className="px-3 py-2 text-left font-medium">
+                                                Mode
+                                              </th>
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {inspectVolumes(inspect).map(volume => (
+                                              <tr
+                                                key={`${volume.source}-${volume.destination}`}
+                                                className="border-t"
+                                              >
+                                                <td className="px-3 py-2 font-mono">
+                                                  {volume.type}
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                  {volume.name && onOpenVolumeFilter ? (
+                                                    <Button
+                                                      variant="link"
+                                                      className="h-auto p-0 text-xs"
+                                                      onClick={() =>
+                                                        onOpenVolumeFilter([volume.name])
+                                                      }
+                                                    >
+                                                      {volume.name}
+                                                    </Button>
+                                                  ) : (
+                                                    <span className="font-mono">
+                                                      {volume.name || volume.source}
+                                                    </span>
+                                                  )}
+                                                </td>
+                                                <td className="px-3 py-2 font-mono">
+                                                  {volume.destination}
+                                                </td>
+                                                <td className="px-3 py-2 font-mono">{volume.rw}</td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    ) : (
+                                      <div className="px-3 py-3 text-muted-foreground">
+                                        No mounted volumes
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="overflow-hidden rounded-md border">
+                                    <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">
+                                      Environment
+                                    </div>
+                                    {inspectEnvRows(inspect).length > 0 ? (
+                                      <div className="max-h-72 overflow-auto">
+                                        <table className="min-w-full">
+                                          <thead className="bg-muted/10 text-muted-foreground">
+                                            <tr>
+                                              <th className="px-3 py-2 text-left font-medium">
+                                                Key
+                                              </th>
+                                              <th className="px-3 py-2 text-left font-medium">
+                                                Value
+                                              </th>
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {inspectEnvRows(inspect).map(env => (
+                                              <tr
+                                                key={`${env.key}-${env.value}`}
+                                                className="border-t align-top"
+                                              >
+                                                <td className="px-3 py-2 font-mono">{env.key}</td>
+                                                <td className="px-3 py-2 font-mono break-all">
+                                                  {env.value || '-'}
+                                                </td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    ) : (
+                                      <div className="px-3 py-3 text-muted-foreground">
+                                        No environment variables
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
-                              </div>
-
-                              <div className="overflow-hidden rounded-md border">
-                                <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">Ports</div>
-                                {inspectPorts(inspect).length > 0 ? (
-                                  <div className="overflow-x-auto">
-                                    <table className="min-w-full">
-                                      <thead className="bg-muted/10 text-muted-foreground">
-                                        <tr>
-                                          <th className="px-3 py-2 text-left font-medium">Host IP</th>
-                                          <th className="px-3 py-2 text-left font-medium">Host Port</th>
-                                          <th className="px-3 py-2 text-left font-medium">Container Port</th>
-                                          <th className="px-3 py-2 text-left font-medium">Protocol</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {inspectPorts(inspect).map(port => (
-                                          <tr key={`${port.hostIP}-${port.hostPort}-${port.containerPort}-${port.protocol}`} className="border-t">
-                                            <td className="px-3 py-2 font-mono">{port.hostIP}</td>
-                                            <td className="px-3 py-2 font-mono">{port.hostPort}</td>
-                                            <td className="px-3 py-2 font-mono">{port.containerPort}</td>
-                                            <td className="px-3 py-2 font-mono">{port.protocol}</td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                ) : (
-                                  <div className="px-3 py-3 text-muted-foreground">No exposed ports</div>
-                                )}
-                              </div>
-
-                              <div className="overflow-hidden rounded-md border">
-                                <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">Networks</div>
-                                {inspectNetworks(inspect).length > 0 ? (
-                                  <div className="overflow-x-auto">
-                                    <table className="min-w-full">
-                                      <thead className="bg-muted/10 text-muted-foreground">
-                                        <tr>
-                                          <th className="px-3 py-2 text-left font-medium">Network</th>
-                                          <th className="px-3 py-2 text-left font-medium">IP</th>
-                                          <th className="px-3 py-2 text-left font-medium">Gateway</th>
-                                          <th className="px-3 py-2 text-left font-medium">Aliases</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {inspectNetworks(inspect).map(network => (
-                                          <tr key={network.name} className="border-t">
-                                            <td className="px-3 py-2">
-                                              {onOpenNetworkFilter ? (
-                                                <Button
-                                                  variant="link"
-                                                  className="h-auto p-0 text-xs"
-                                                  onClick={() => onOpenNetworkFilter(network.name)}
-                                                >
-                                                  {network.name}
-                                                </Button>
-                                              ) : (
-                                                <span className="font-mono">{network.name}</span>
-                                              )}
-                                            </td>
-                                            <td className="px-3 py-2 font-mono">{network.ip}</td>
-                                            <td className="px-3 py-2 font-mono">{network.gateway}</td>
-                                            <td className="px-3 py-2 font-mono">{network.aliases.join(', ') || '-'}</td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                ) : (
-                                  <div className="px-3 py-3 text-muted-foreground">No attached networks</div>
-                                )}
-                              </div>
-
-                              <div className="overflow-hidden rounded-md border">
-                                <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">Volumes</div>
-                                {inspectVolumes(inspect).length > 0 ? (
-                                  <div className="overflow-x-auto">
-                                    <table className="min-w-full">
-                                      <thead className="bg-muted/10 text-muted-foreground">
-                                        <tr>
-                                          <th className="px-3 py-2 text-left font-medium">Type</th>
-                                          <th className="px-3 py-2 text-left font-medium">Source / Name</th>
-                                          <th className="px-3 py-2 text-left font-medium">Destination</th>
-                                          <th className="px-3 py-2 text-left font-medium">Mode</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {inspectVolumes(inspect).map(volume => (
-                                          <tr key={`${volume.source}-${volume.destination}`} className="border-t">
-                                            <td className="px-3 py-2 font-mono">{volume.type}</td>
-                                            <td className="px-3 py-2">
-                                              {volume.name && onOpenVolumeFilter ? (
-                                                <Button
-                                                  variant="link"
-                                                  className="h-auto p-0 text-xs"
-                                                  onClick={() => onOpenVolumeFilter([volume.name])}
-                                                >
-                                                  {volume.name}
-                                                </Button>
-                                              ) : (
-                                                <span className="font-mono">{volume.name || volume.source}</span>
-                                              )}
-                                            </td>
-                                            <td className="px-3 py-2 font-mono">{volume.destination}</td>
-                                            <td className="px-3 py-2 font-mono">{volume.rw}</td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                ) : (
-                                  <div className="px-3 py-3 text-muted-foreground">No mounted volumes</div>
-                                )}
-                              </div>
-
-                              <div className="overflow-hidden rounded-md border">
-                                <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">Environment</div>
-                                {inspectEnvRows(inspect).length > 0 ? (
-                                  <div className="max-h-72 overflow-auto">
-                                    <table className="min-w-full">
-                                      <thead className="bg-muted/10 text-muted-foreground">
-                                        <tr>
-                                          <th className="px-3 py-2 text-left font-medium">Key</th>
-                                          <th className="px-3 py-2 text-left font-medium">Value</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {inspectEnvRows(inspect).map(env => (
-                                          <tr key={`${env.key}-${env.value}`} className="border-t align-top">
-                                            <td className="px-3 py-2 font-mono">{env.key}</td>
-                                            <td className="px-3 py-2 font-mono break-all">{env.value || '-'}</td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                ) : (
-                                  <div className="px-3 py-3 text-muted-foreground">No environment variables</div>
-                                )}
-                              </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </Fragment>
-              )
-            })}
-            {!loading && sorted.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={tableColSpan} className="text-center text-muted-foreground">
-                  No containers found
-                </TableCell>
-              </TableRow>
-            )}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </Fragment>
+                  )
+                })}
+                {!loading && sorted.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={tableColSpan} className="text-center text-muted-foreground">
+                      No containers found
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </div>
@@ -2248,7 +2445,8 @@ export function ContainersTab({
           <DialogHeader>
             <DialogTitle>Container Stats: {statsContainer?.Names}</DialogTitle>
             <DialogDescription>
-              Direct Docker snapshot with canonical monitor trends for {telemetryWindowMeta.description.toLowerCase()}
+              Direct Docker snapshot with canonical monitor trends for{' '}
+              {telemetryWindowMeta.description.toLowerCase()}
             </DialogDescription>
           </DialogHeader>
           {(() => {
@@ -2258,7 +2456,10 @@ export function ContainersTab({
             const runtimeNetwork = parseDockerIoPair(runtimeStats?.NetIO)
             const runtimeBlock = parseDockerIoPair(runtimeStats?.BlockIO)
             const runtimeMemory = parseDockerMemoryPair(runtimeStats?.MemUsage)
-            const runtimeMemoryPercent = memoryUsagePercent(runtimeMemory.usage, runtimeMemory.limit)
+            const runtimeMemoryPercent = memoryUsagePercent(
+              runtimeMemory.usage,
+              runtimeMemory.limit
+            )
             const runtimeCPU = parseDockerPercent(runtimeStats?.CPUPerc)
             const cpuSeries = telemetrySeries(trendItem, 'cpu')
             const memorySeries = telemetrySeries(trendItem, 'memory')
@@ -2461,7 +2662,9 @@ export function ContainersTab({
         downloadBaseName={`${outputContainer?.Names || 'container'}-${outputMode}`}
         downloadExtension={outputMode === 'inspect' ? 'json' : 'log'}
         copySuccessText={outputMode === 'inspect' ? 'Inspect copied' : 'Logs copied'}
-        copyFailureText={outputMode === 'inspect' ? 'Failed to copy inspect' : 'Failed to copy logs'}
+        copyFailureText={
+          outputMode === 'inspect' ? 'Failed to copy inspect' : 'Failed to copy logs'
+        }
         downloadFailureText={
           outputMode === 'inspect' ? 'Failed to download inspect' : 'Failed to download logs'
         }

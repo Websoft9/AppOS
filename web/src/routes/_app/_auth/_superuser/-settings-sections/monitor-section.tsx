@@ -93,7 +93,9 @@ export function MonitorPolicySection({
     <Card>
       <CardHeader>
         <CardTitle>Monitor Policy</CardTitle>
-        <CardDescription>Freshness thresholds and probe runtime limits for monitoring.</CardDescription>
+        <CardDescription>
+          Freshness thresholds and probe runtime limits for monitoring.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
@@ -250,13 +252,17 @@ export function MonitorSection({
   platformSelfObservationForm: MonitorPlatformSelfObservationGroup
   platformSelfObservationErrors: Partial<Record<keyof MonitorPlatformSelfObservationGroup, string>>
   platformSelfObservationSaving: boolean
-  setPlatformSelfObservationForm: React.Dispatch<React.SetStateAction<MonitorPlatformSelfObservationGroup>>
+  setPlatformSelfObservationForm: React.Dispatch<
+    React.SetStateAction<MonitorPlatformSelfObservationGroup>
+  >
   savePlatformSelfObservation: () => void
   managedCollectorPolicyEntry: SettingsSchemaEntry | undefined
   managedCollectorPolicyForm: MonitorManagedCollectorPolicyGroup
   managedCollectorPolicyErrors: Partial<Record<keyof MonitorManagedCollectorPolicyGroup, string>>
   managedCollectorPolicySaving: boolean
-  setManagedCollectorPolicyForm: React.Dispatch<React.SetStateAction<MonitorManagedCollectorPolicyGroup>>
+  setManagedCollectorPolicyForm: React.Dispatch<
+    React.SetStateAction<MonitorManagedCollectorPolicyGroup>
+  >
   saveManagedCollectorPolicy: () => void
 }) {
   return (

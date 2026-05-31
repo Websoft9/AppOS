@@ -465,7 +465,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       return () => {
         cancelAnimationFrame(frame)
         clearFitTimers()
-	        disposeSocket(1000, 'detach')
+        disposeSocket(1000, 'detach')
         disposeTerminal()
       }
     }, [connect, clearFitTimers, disposeSocket, disposeTerminal])

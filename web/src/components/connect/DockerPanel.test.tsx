@@ -135,7 +135,9 @@ function mockDockerEndpoints() {
         })
       }
       if (path === '/api/servers/srv-1/docker/compose/ls') {
-        return Promise.resolve({ output: JSON.stringify([{ Name: 'stack-a', Status: 'running(1)' }]) })
+        return Promise.resolve({
+          output: JSON.stringify([{ Name: 'stack-a', Status: 'running(1)' }]),
+        })
       }
     } else if (scenario === 'many') {
       if (path === '/api/servers/srv-1/docker/containers') {
@@ -272,7 +274,8 @@ describe('DockerPanel overview', () => {
       .firstElementChild as HTMLElement
     expect(containersOverviewCard).not.toHaveClass('border-amber-300/70', 'bg-amber-50/40')
 
-    const quickActions = screen.getByText('Quick Actions').closest('div')?.parentElement?.parentElement
+    const quickActions = screen.getByText('Quick Actions').closest('div')
+      ?.parentElement?.parentElement
     expect(quickActions).toBeTruthy()
     expect(within(quickActions as HTMLElement).getByText('Create Compose')).toBeInTheDocument()
     expect(within(quickActions as HTMLElement).getByText('Pull Image')).toBeInTheDocument()
@@ -292,7 +295,9 @@ describe('DockerPanel overview', () => {
 
     expect(await screen.findByText('No issues detected')).toBeInTheDocument()
     expect(
-      screen.getByText('All discovered Docker resources look operational from current inventory data.')
+      screen.getByText(
+        'All discovered Docker resources look operational from current inventory data.'
+      )
     ).toBeInTheDocument()
     expect(screen.getByText('0 issues')).toBeInTheDocument()
   })
@@ -366,7 +371,9 @@ describe('DockerPanel overview', () => {
 
     renderPanel()
 
-    expect(await screen.findByText('Docker Compose is not available on this server')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Docker Compose is not available on this server')
+    ).toBeInTheDocument()
     expect(
       screen.getByText(
         'Compose commands cannot run until the Docker Compose plugin or compatible compose command is installed and working.'

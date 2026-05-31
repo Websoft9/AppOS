@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 	"syscall"
+	"time"
 )
 
 // ResourceInfo holds CPU and memory usage for a process.

@@ -172,7 +172,10 @@ interface InitialTerminalSessionState {
   activeTabId: string
   initialSidePanel: 'none' | 'files'
   initialSplitRatio?: number
-  initialFilePanelPresets: Record<string, { path: string; lockedRoot: string | null; nonce: number }>
+  initialFilePanelPresets: Record<
+    string,
+    { path: string; lockedRoot: string | null; nonce: number }
+  >
   restoredWorkspaceByTabId: Record<string, RestoredTabWorkspaceSeed>
 }
 
@@ -345,7 +348,9 @@ export function ConnectServerPage({
     useState<ConnectTerminalSettings>(DEFAULT_CONNECT_SETTINGS)
   const [duplicateConnectConfirmOpen, setDuplicateConnectConfirmOpen] = useState(false)
   const [duplicateConnectTarget, setDuplicateConnectTarget] = useState<ServerType | null>(null)
-  const [tabRailCollapsed, setTabRailCollapsed] = useState(initialSession.initialSidePanel === 'files')
+  const [tabRailCollapsed, setTabRailCollapsed] = useState(
+    initialSession.initialSidePanel === 'files'
+  )
   const [safeExitingTabId, setSafeExitingTabId] = useState<string | null>(null)
   const [lastActivityAt, setLastActivityAt] = useState<number>(Date.now())
   const [terminalTabs, setTerminalTabs] = useState<TerminalConnectionTab[]>(initialSession.tabs)
@@ -402,7 +407,10 @@ export function ConnectServerPage({
     listAssets()
       .then(items =>
         setScripts(
-          items.filter(item => item.kind === 'script' && item.storage_kind === 'file' && item.source_kind === 'local')
+          items.filter(
+            item =>
+              item.kind === 'script' && item.storage_kind === 'file' && item.source_kind === 'local'
+          )
         )
       )
       .catch(() => {})
@@ -494,23 +502,22 @@ export function ConnectServerPage({
     }
 
     const activeSessionId = terminalTabs.find(tab => tab.id === activeTabId)?.sessionId
-    const workspaceBySessionId = tabs.reduce<Record<string, { panel?: 'files'; path?: string; lockedRoot?: string; split?: number }>>(
-      (acc, tab) => {
-        const workspace = restoredWorkspaceByTabIdRef.current[tab.id]
-        if (!workspace) {
-          acc[tab.sessionId] = {}
-          return acc
-        }
-        acc[tab.sessionId] = {
-          panel: workspace.sidePanel === 'files' ? 'files' : undefined,
-          path: workspace.path,
-          lockedRoot: workspace.lockedRoot || undefined,
-          split: workspace.splitRatio,
-        }
+    const workspaceBySessionId = tabs.reduce<
+      Record<string, { panel?: 'files'; path?: string; lockedRoot?: string; split?: number }>
+    >((acc, tab) => {
+      const workspace = restoredWorkspaceByTabIdRef.current[tab.id]
+      if (!workspace) {
+        acc[tab.sessionId] = {}
         return acc
-      },
-      {}
-    )
+      }
+      acc[tab.sessionId] = {
+        panel: workspace.sidePanel === 'files' ? 'files' : undefined,
+        path: workspace.path,
+        lockedRoot: workspace.lockedRoot || undefined,
+        split: workspace.splitRatio,
+      }
+      return acc
+    }, {})
 
     saveConnectWorkspaceSnapshot({
       tabs: tabs.map(({ sessionId, serverId, title }) => ({ sessionId, serverId, title })),
@@ -769,7 +776,9 @@ export function ConnectServerPage({
 
   const handleSessionEstablished = useCallback((tabId: string, sessionId: string) => {
     setTerminalTabs(prev =>
-      prev.map(tab => (tab.id === tabId && tab.sessionId !== sessionId ? { ...tab, sessionId } : tab))
+      prev.map(tab =>
+        tab.id === tabId && tab.sessionId !== sessionId ? { ...tab, sessionId } : tab
+      )
     )
   }, [])
 
@@ -785,7 +794,11 @@ export function ConnectServerPage({
     (targetServerId: string, location: { path: string; lockedRoot: string | null }) => {
       setFilePanelPresets(state => {
         const current = state[targetServerId]
-        if (current && current.path === location.path && current.lockedRoot === location.lockedRoot) {
+        if (
+          current &&
+          current.path === location.path &&
+          current.lockedRoot === location.lockedRoot
+        ) {
           return state
         }
         return {
@@ -891,8 +904,7 @@ export function ConnectServerPage({
         const content = await getAssetContent(script.id)
         if (content.storage_kind !== 'file') return
         terminal.sendData(content.content + '\n')
-      } catch {
-      }
+      } catch {}
     },
     [activeTabId]
   )

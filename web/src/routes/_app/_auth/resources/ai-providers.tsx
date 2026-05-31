@@ -450,18 +450,21 @@ export function AIProvidersPage() {
     []
   )
 
-  const openSecretEditor = useCallback((secretId: string) => {
-    const targetUrl = new URL('/secrets', window.location.origin)
-    targetUrl.searchParams.set('id', secretId)
-    targetUrl.searchParams.set('edit', secretId)
-    const opened = window.open(targetUrl.toString(), '_blank', 'noopener,noreferrer')
-    if (!opened) {
-      void navigate({
-        to: '/secrets' as never,
-        search: { id: secretId, edit: secretId } as never,
-      })
-    }
-  }, [navigate])
+  const openSecretEditor = useCallback(
+    (secretId: string) => {
+      const targetUrl = new URL('/secrets', window.location.origin)
+      targetUrl.searchParams.set('id', secretId)
+      targetUrl.searchParams.set('edit', secretId)
+      const opened = window.open(targetUrl.toString(), '_blank', 'noopener,noreferrer')
+      if (!opened) {
+        void navigate({
+          to: '/secrets' as never,
+          search: { id: secretId, edit: secretId } as never,
+        })
+      }
+    },
+    [navigate]
+  )
 
   const renderCredentialField = useCallback(
     ({

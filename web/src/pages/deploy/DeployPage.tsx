@@ -24,11 +24,7 @@ import {
 import { AppDetailModal } from '@/components/store/AppDetailModal'
 import { ActionHomeView } from '@/pages/deploy/actions/ActionHomeView'
 import { ActionListView } from '@/pages/deploy/actions/ActionListView'
-import {
-  formatTime,
-  isActiveStatus,
-  statusVariant,
-} from '@/pages/deploy/actions/action-utils'
+import { formatTime, isActiveStatus, statusVariant } from '@/pages/deploy/actions/action-utils'
 import type {
   ActionListSearch,
   ActionRecord,

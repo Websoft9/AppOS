@@ -352,7 +352,9 @@ export function ProxySection({
         const endpoint = typeof connector.endpoint === 'string' ? connector.endpoint : ''
         return {
           id: connector.id,
-          label: endpoint ? `${connector.name} · ${protocol} · ${endpoint}` : `${connector.name} · ${protocol}`,
+          label: endpoint
+            ? `${connector.name} · ${protocol} · ${endpoint}`
+            : `${connector.name} · ${protocol}`,
         }
       }),
     [connectors]
@@ -477,8 +479,10 @@ export function ProxySection({
                     setProxyForm(current => ({
                       ...current,
                       enabled: true,
-                      httpConnectorId: createTarget === 'http' ? createdID : current.httpConnectorId,
-                      httpsConnectorId: createTarget === 'https' ? createdID : current.httpsConnectorId,
+                      httpConnectorId:
+                        createTarget === 'http' ? createdID : current.httpConnectorId,
+                      httpsConnectorId:
+                        createTarget === 'https' ? createdID : current.httpsConnectorId,
                     }))
                   }
                   void loadConnectors()
@@ -539,7 +543,9 @@ export function TopicsSection({
       <Card>
         <CardHeader>
           <CardTitle>Topic Share</CardTitle>
-          <CardDescription>Control the default and maximum lifetime of public topic share links.</CardDescription>
+          <CardDescription>
+            Control the default and maximum lifetime of public topic share links.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -561,7 +567,9 @@ export function TopicsSection({
       <Card>
         <CardHeader>
           <CardTitle>Topic Comment Policy</CardTitle>
-          <CardDescription>Configure guest comment availability and text limits for shared topics.</CardDescription>
+          <CardDescription>
+            Configure guest comment availability and text limits for shared topics.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-4">
@@ -613,7 +621,10 @@ export function TopicsSection({
       <Card>
         <CardHeader>
           <CardTitle>Topic Description Import</CardTitle>
-          <CardDescription>Control the maximum imported file size and whether topic description imports must stay text-only.</CardDescription>
+          <CardDescription>
+            Control the maximum imported file size and whether topic description imports must stay
+            text-only.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-4">

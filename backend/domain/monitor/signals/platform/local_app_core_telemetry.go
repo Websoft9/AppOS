@@ -23,11 +23,11 @@ type LocalAppCoreTelemetryState = localAppCoreTelemetryState
 type localAppCoreSnapshot struct {
 	MemoryUsedBytes  float64
 	MemoryAvailBytes float64
-	DiskUsedBytes   float64
-	DiskFreeBytes   float64
-	DiskReadBytes   float64
-	DiskWriteBytes  float64
-	NetworkCounters map[string]localNetworkCounters
+	DiskUsedBytes    float64
+	DiskFreeBytes    float64
+	DiskReadBytes    float64
+	DiskWriteBytes   float64
+	NetworkCounters  map[string]localNetworkCounters
 }
 
 func collectLocalAppCoreMetricPoints(now time.Time, previous localAppCoreTelemetryState) ([]MetricPoint, localAppCoreTelemetryState, error) {
@@ -125,11 +125,11 @@ func readLocalAppCoreSnapshot() (localAppCoreSnapshot, error) {
 	return localAppCoreSnapshot{
 		MemoryUsedBytes:  memoryUsed,
 		MemoryAvailBytes: memoryAvailable,
-		DiskUsedBytes:   diskUsed,
-		DiskFreeBytes:   diskFree,
-		DiskReadBytes:   diskRead,
-		DiskWriteBytes:  diskWrite,
-		NetworkCounters: networkCounters,
+		DiskUsedBytes:    diskUsed,
+		DiskFreeBytes:    diskFree,
+		DiskReadBytes:    diskRead,
+		DiskWriteBytes:   diskWrite,
+		NetworkCounters:  networkCounters,
 	}, nil
 }
 

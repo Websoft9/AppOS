@@ -209,8 +209,7 @@ describe('Sidebar', () => {
     expect(assetsLink).toHaveAttribute('href', '/ai-assets')
     expect(within(adminNav).queryByRole('link', { name: 'Assets' })).toBeNull()
     expect(
-      assetsLink.compareDocumentPosition(spaceLink) &
-        Node.DOCUMENT_POSITION_FOLLOWING
+      assetsLink.compareDocumentPosition(spaceLink) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
   })
 

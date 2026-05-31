@@ -17,7 +17,6 @@ import (
 )
 
 const serverFactsPullTimeout = 20 * time.Second
-const serverFactsPullConcurrency = 5
 
 var executeServerFactsCommand = terminal.ExecuteSSHCommand
 

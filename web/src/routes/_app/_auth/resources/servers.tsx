@@ -410,7 +410,18 @@ const fields: FieldDef[] = [
 ]
 
 export function ServersPage() {
-  const { create, returnGroup, returnType, edit, server, tab, focusComponent, focusPanel, focusSource, focusIssue } = Route.useSearch()
+  const {
+    create,
+    returnGroup,
+    returnType,
+    edit,
+    server,
+    tab,
+    focusComponent,
+    focusPanel,
+    focusSource,
+    focusIssue,
+  } = Route.useSearch()
   const { user } = useAuth()
   const [duplicateDraft, setDuplicateDraft] = useState<Record<string, unknown> | null>(null)
   const autoCreate = create === '1' || !!returnGroup || duplicateDraft !== null
@@ -1295,7 +1306,9 @@ export function ServersPage() {
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
               checked={visibleOptionalColumns.has('secret_type_label')}
-              onCheckedChange={checked => toggleOptionalColumn('secret_type_label', checked === true)}
+              onCheckedChange={checked =>
+                toggleOptionalColumn('secret_type_label', checked === true)
+              }
             >
               Secret Type
             </DropdownMenuCheckboxItem>
@@ -1378,211 +1391,211 @@ export function ServersPage() {
               />
             </div>
           ) : (
-          <Tabs
-            value={detailTab}
-            onValueChange={value => {
-              void navigate({
-                to: '/resources/servers',
-                search: prev => ({ ...prev, tab: value as ServerDetailTab }),
-              })
-            }}
-            className="gap-4"
-          >
-            <div className="flex items-end justify-between gap-4 border-b border-border/40">
-              <TabsList
-                variant="line"
-                className="h-auto w-full justify-start gap-7 rounded-none border-0 px-0 pb-0"
-              >
-                <TabsTrigger value="overview" className={detailTabTriggerClassName}>
-                  Overview
-                </TabsTrigger>
-                <TabsTrigger value="connection" className={detailTabTriggerClassName}>
-                  Connection
-                </TabsTrigger>
-                <TabsTrigger value="components" className={detailTabTriggerClassName}>
-                  Components
-                </TabsTrigger>
-                <TabsTrigger value="monitor" className={detailTabTriggerClassName}>
-                  Monitor
-                </TabsTrigger>
-                <TabsTrigger value="docker" className={detailTabTriggerClassName}>
-                  Docker
-                </TabsTrigger>
-                <TabsTrigger value="runtime" className={detailTabTriggerClassName}>
-                  Runtime
-                </TabsTrigger>
-                <TabsTrigger value="ports" className={detailTabTriggerClassName}>
-                  Ports
-                </TabsTrigger>
-                <TabsTrigger value="cron" className={detailTabTriggerClassName}>
-                  Crontab
-                </TabsTrigger>
-                <TabsTrigger value="systemd" className={detailTabTriggerClassName}>
-                  Systemd
-                </TabsTrigger>
-              </TabsList>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="mb-2 shrink-0"
-                    aria-label="Server actions"
-                    title="Server actions"
-                  >
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={() => {
-                      void handleConnect(item)
-                    }}
-                  >
-                    <SquareTerminal className="h-4 w-4" />
-                    Open Terminal
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={checkingIds.has(id)}
-                    onClick={() => {
-                      void checkServerStatus(item)
-                    }}
-                  >
-                    {checkingIds.has(id) ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <PlugZap className="h-4 w-4" />
-                    )}
-                    Test Connection
-                  </DropdownMenuItem>
-                  {isTunnelAction && (
-                    <DropdownMenuItem onClick={() => executePrimaryAction(item, 'tunnel_setup')}>
-                      <Cable className="h-4 w-4" />
-                      Tunnel Setup
+            <Tabs
+              value={detailTab}
+              onValueChange={value => {
+                void navigate({
+                  to: '/resources/servers',
+                  search: prev => ({ ...prev, tab: value as ServerDetailTab }),
+                })
+              }}
+              className="gap-4"
+            >
+              <div className="flex items-end justify-between gap-4 border-b border-border/40">
+                <TabsList
+                  variant="line"
+                  className="h-auto w-full justify-start gap-7 rounded-none border-0 px-0 pb-0"
+                >
+                  <TabsTrigger value="overview" className={detailTabTriggerClassName}>
+                    Overview
+                  </TabsTrigger>
+                  <TabsTrigger value="connection" className={detailTabTriggerClassName}>
+                    Connection
+                  </TabsTrigger>
+                  <TabsTrigger value="components" className={detailTabTriggerClassName}>
+                    Components
+                  </TabsTrigger>
+                  <TabsTrigger value="monitor" className={detailTabTriggerClassName}>
+                    Monitor
+                  </TabsTrigger>
+                  <TabsTrigger value="docker" className={detailTabTriggerClassName}>
+                    Docker
+                  </TabsTrigger>
+                  <TabsTrigger value="runtime" className={detailTabTriggerClassName}>
+                    Runtime
+                  </TabsTrigger>
+                  <TabsTrigger value="ports" className={detailTabTriggerClassName}>
+                    Ports
+                  </TabsTrigger>
+                  <TabsTrigger value="cron" className={detailTabTriggerClassName}>
+                    Crontab
+                  </TabsTrigger>
+                  <TabsTrigger value="systemd" className={detailTabTriggerClassName}>
+                    Systemd
+                  </TabsTrigger>
+                </TabsList>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="mb-2 shrink-0"
+                      aria-label="Server actions"
+                      title="Server actions"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={() => {
+                        void handleConnect(item)
+                      }}
+                    >
+                      <SquareTerminal className="h-4 w-4" />
+                      Open Terminal
                     </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem onClick={() => handlePowerRequest(item, 'restart')}>
-                    <RotateCcw className="h-4 w-4" />
-                    Restart
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handlePowerRequest(item, 'shutdown')}>
-                    <Power className="h-4 w-4" />
-                    Shutdown
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-
-            <TabsContent value="overview" className="pt-4">
-              <ServerOverviewTab
-                item={item}
-                serverId={id}
-                facts={facts}
-                status={status}
-                tunnelState={tunnelState}
-                isTunnel={isTunnel}
-                credentialType={credentialType}
-                credentialId={credentialId}
-                createdBy={createdBy}
-                onEditServer={() => handleEditServer(item)}
-                onRefresh={async () => {
-                  await checkServerStatus(item)
-                  setListRefreshKey(current => current + 1)
-                }}
-                refreshLoading={checkingIds.has(id)}
-              />
-            </TabsContent>
-
-            <TabsContent value="connection" className="pt-4">
-              <ServerConnectionTab
-                item={item}
-                presentation={presentation}
-                isTunnel={isTunnel}
-                tunnelState={tunnelState}
-                tunnel={tunnel}
-                services={services}
-                onExecutePrimaryAction={executePrimaryAction}
-                onOpenTab={handleOpenServer}
-              />
-            </TabsContent>
-
-            <TabsContent value="monitor" className="pt-4">
-              <ServerMonitorTab
-                serverId={String(item.id || '')}
-                serverName={String(item.name || item.id || '')}
-                connectionStatus={status}
-                onOpenComponents={() => handleOpenServer(item, 'components')}
-                onMonitorAgentAction={(action: 'install' | 'upgrade' | 'reinstall') => {
-                  setComponentActionIntent({
-                    serverId: id,
-                    componentKey: 'monitor-agent',
-                    action: action as SoftwareActionType,
-                    nonce: Date.now(),
-                  })
-                  handleOpenServer(item, 'components')
-                }}
-              />
-            </TabsContent>
-
-            <TabsContent value="docker" className="pt-4">
-              <div className="min-h-[32rem] min-w-0">
-                <DockerPanel serverId={String(item.id || '')} className="h-full" />
+                    <DropdownMenuItem
+                      disabled={checkingIds.has(id)}
+                      onClick={() => {
+                        void checkServerStatus(item)
+                      }}
+                    >
+                      {checkingIds.has(id) ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <PlugZap className="h-4 w-4" />
+                      )}
+                      Test Connection
+                    </DropdownMenuItem>
+                    {isTunnelAction && (
+                      <DropdownMenuItem onClick={() => executePrimaryAction(item, 'tunnel_setup')}>
+                        <Cable className="h-4 w-4" />
+                        Tunnel Setup
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onClick={() => handlePowerRequest(item, 'restart')}>
+                      <RotateCcw className="h-4 w-4" />
+                      Restart
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handlePowerRequest(item, 'shutdown')}>
+                      <Power className="h-4 w-4" />
+                      Shutdown
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
-            </TabsContent>
 
-            <TabsContent value="runtime" className="pt-4">
-              <div className="text-sm text-muted-foreground">
-                Runtime details can later include active sessions, deployed workloads, and process
-                information for {String(item.name || item.id)}.
-              </div>
-            </TabsContent>
+              <TabsContent value="overview" className="pt-4">
+                <ServerOverviewTab
+                  item={item}
+                  serverId={id}
+                  facts={facts}
+                  status={status}
+                  tunnelState={tunnelState}
+                  isTunnel={isTunnel}
+                  credentialType={credentialType}
+                  credentialId={credentialId}
+                  createdBy={createdBy}
+                  onEditServer={() => handleEditServer(item)}
+                  onRefresh={async () => {
+                    await checkServerStatus(item)
+                    setListRefreshKey(current => current + 1)
+                  }}
+                  refreshLoading={checkingIds.has(id)}
+                />
+              </TabsContent>
 
-            <TabsContent value="ports" className="pt-4">
-              <ServerPortsPanel serverId={String(item.id || '')} />
-            </TabsContent>
+              <TabsContent value="connection" className="pt-4">
+                <ServerConnectionTab
+                  item={item}
+                  presentation={presentation}
+                  isTunnel={isTunnel}
+                  tunnelState={tunnelState}
+                  tunnel={tunnel}
+                  services={services}
+                  onExecutePrimaryAction={executePrimaryAction}
+                  onOpenTab={handleOpenServer}
+                />
+              </TabsContent>
 
-			<TabsContent value="cron" className="pt-4">
-				<ServerCronPanel serverId={String(item.id || '')} />
-			</TabsContent>
+              <TabsContent value="monitor" className="pt-4">
+                <ServerMonitorTab
+                  serverId={String(item.id || '')}
+                  serverName={String(item.name || item.id || '')}
+                  connectionStatus={status}
+                  onOpenComponents={() => handleOpenServer(item, 'components')}
+                  onMonitorAgentAction={(action: 'install' | 'upgrade' | 'reinstall') => {
+                    setComponentActionIntent({
+                      serverId: id,
+                      componentKey: 'monitor-agent',
+                      action: action as SoftwareActionType,
+                      nonce: Date.now(),
+                    })
+                    handleOpenServer(item, 'components')
+                  }}
+                />
+              </TabsContent>
 
-            <TabsContent value="systemd" className="pt-4">
-              <ServerServicesPanel serverId={String(item.id || '')} />
-            </TabsContent>
+              <TabsContent value="docker" className="pt-4">
+                <div className="min-h-[32rem] min-w-0">
+                  <DockerPanel serverId={String(item.id || '')} className="h-full" />
+                </div>
+              </TabsContent>
 
-            <TabsContent value="components" className="pt-4">
-              <ServerComponentsPanel
-                serverId={String(item.id || '')}
-                actionIntent={componentActionIntent}
-                onActionIntentConsumed={nonce => {
-                  setComponentActionIntent(current => (current?.nonce === nonce ? null : current))
-                }}
-                focusComponentKey={focusComponent}
-                focusPanelMode={resolvedFocusPanel}
-                focusSource={resolvedFocusSource}
-                focusIssueCode={resolvedFocusIssue}
-                onFocusRequestConsumed={(componentKey, panelMode, source, issueCode) => {
-                  if (
-                    focusComponent !== componentKey ||
-                    (resolvedFocusPanel ?? 'checklist') !== panelMode ||
-                    (resolvedFocusSource ?? null) !== (source ?? null) ||
-                    (resolvedFocusIssue ?? null) !== (issueCode ?? null)
-                  ) {
-                    return
-                  }
-                  void navigate({
-                    to: '/resources/servers',
-                    search: prev => ({
-                      ...prev,
-                      focusComponent: undefined,
-                      focusPanel: undefined,
-                      focusSource: undefined,
-                      focusIssue: undefined,
-                    }),
-                  })
-                }}
-              />
-            </TabsContent>
-          </Tabs>
+              <TabsContent value="runtime" className="pt-4">
+                <div className="text-sm text-muted-foreground">
+                  Runtime details can later include active sessions, deployed workloads, and process
+                  information for {String(item.name || item.id)}.
+                </div>
+              </TabsContent>
+
+              <TabsContent value="ports" className="pt-4">
+                <ServerPortsPanel serverId={String(item.id || '')} />
+              </TabsContent>
+
+              <TabsContent value="cron" className="pt-4">
+                <ServerCronPanel serverId={String(item.id || '')} />
+              </TabsContent>
+
+              <TabsContent value="systemd" className="pt-4">
+                <ServerServicesPanel serverId={String(item.id || '')} />
+              </TabsContent>
+
+              <TabsContent value="components" className="pt-4">
+                <ServerComponentsPanel
+                  serverId={String(item.id || '')}
+                  actionIntent={componentActionIntent}
+                  onActionIntentConsumed={nonce => {
+                    setComponentActionIntent(current => (current?.nonce === nonce ? null : current))
+                  }}
+                  focusComponentKey={focusComponent}
+                  focusPanelMode={resolvedFocusPanel}
+                  focusSource={resolvedFocusSource}
+                  focusIssueCode={resolvedFocusIssue}
+                  onFocusRequestConsumed={(componentKey, panelMode, source, issueCode) => {
+                    if (
+                      focusComponent !== componentKey ||
+                      (resolvedFocusPanel ?? 'checklist') !== panelMode ||
+                      (resolvedFocusSource ?? null) !== (source ?? null) ||
+                      (resolvedFocusIssue ?? null) !== (issueCode ?? null)
+                    ) {
+                      return
+                    }
+                    void navigate({
+                      to: '/resources/servers',
+                      search: prev => ({
+                        ...prev,
+                        focusComponent: undefined,
+                        focusPanel: undefined,
+                        focusSource: undefined,
+                        focusIssue: undefined,
+                      }),
+                    })
+                  }}
+                />
+              </TabsContent>
+            </Tabs>
           )}
         </div>
       )
@@ -2052,8 +2065,7 @@ export const Route = createFileRoute('/_app/_auth/resources/servers')({
     returnType: typeof search.returnType === 'string' ? search.returnType : undefined,
     edit: typeof search.edit === 'string' ? search.edit : undefined,
     server: typeof search.server === 'string' ? search.server : undefined,
-    focusComponent:
-      typeof search.focusComponent === 'string' ? search.focusComponent : undefined,
+    focusComponent: typeof search.focusComponent === 'string' ? search.focusComponent : undefined,
     focusPanel:
       search.focusPanel === 'checklist' ||
       search.focusPanel === 'operation' ||
@@ -2084,7 +2096,7 @@ export const Route = createFileRoute('/_app/_auth/resources/servers')({
       search.tab === 'docker' ||
       search.tab === 'runtime' ||
       search.tab === 'ports' ||
-  		search.tab === 'cron' ||
+      search.tab === 'cron' ||
       search.tab === 'systemd' ||
       search.tab === 'tunnel' ||
       search.tab === 'components' ||

@@ -46,9 +46,9 @@ var allowedMetricSeries = map[string]struct{}{
 }
 
 var containerMetricSeries = map[string]struct{}{
-	"appos_container_cpu_usage_percent":            {},
-	"appos_container_memory_usage_bytes":           {},
-	"appos_container_memory_limit_bytes":           {},
+	"appos_container_cpu_usage_percent":                 {},
+	"appos_container_memory_usage_bytes":                {},
+	"appos_container_memory_limit_bytes":                {},
 	"appos_container_network_receive_bytes_per_second":  {},
 	"appos_container_network_transmit_bytes_per_second": {},
 	"appos_container_block_read_bytes_per_second":       {},

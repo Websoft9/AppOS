@@ -10,10 +10,10 @@ func TestBuildLocalAppCoreMetricPointsIncludesDiskAndNetworkRates(t *testing.T) 
 	points := buildLocalAppCoreMetricPoints(now, localAppCoreSnapshot{
 		MemoryUsedBytes:  1024,
 		MemoryAvailBytes: 2048,
-		DiskUsedBytes:  2048,
-		DiskFreeBytes:  4096,
-		DiskReadBytes:  9000,
-		DiskWriteBytes: 12000,
+		DiskUsedBytes:    2048,
+		DiskFreeBytes:    4096,
+		DiskReadBytes:    9000,
+		DiskWriteBytes:   12000,
 		NetworkCounters: map[string]localNetworkCounters{
 			"eth0": {RxBytes: 6000, TxBytes: 9000},
 		},

@@ -66,6 +66,8 @@ var (
 	_ = topicShareCommentDocument{}
 	_ = topicShareResolveResponse{}
 	_ = topicShareCommentResponse{}
+	_ = topicImportPolicyResponse{}
+	_ = topicSharePolicyResponse{}
 )
 
 // ─── Route registration ────────────────────────────────────────────────────

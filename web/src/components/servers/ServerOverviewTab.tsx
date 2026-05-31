@@ -164,7 +164,9 @@ export function ServerOverviewTab({
             </div>
           ) : null}
           <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Credential type</dt>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+              Credential type
+            </dt>
             <dd className="mt-1">
               {credentialTypeLabel === '—' ? (
                 <span className="text-muted-foreground">—</span>

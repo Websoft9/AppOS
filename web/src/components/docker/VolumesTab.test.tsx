@@ -143,14 +143,20 @@ describe('VolumesTab', () => {
     const pruneButton = within(dialog).getByRole('button', { name: 'Prune' })
     expect(pruneButton).toBeDisabled()
 
-    fireEvent.change(within(dialog).getByLabelText(/Type prune unused volumes to enable prune\./i), {
-      target: { value: 'wrong phrase' },
-    })
+    fireEvent.change(
+      within(dialog).getByLabelText(/Type prune unused volumes to enable prune\./i),
+      {
+        target: { value: 'wrong phrase' },
+      }
+    )
     expect(pruneButton).toBeDisabled()
 
-    fireEvent.change(within(dialog).getByLabelText(/Type prune unused volumes to enable prune\./i), {
-      target: { value: 'prune unused volumes' },
-    })
+    fireEvent.change(
+      within(dialog).getByLabelText(/Type prune unused volumes to enable prune\./i),
+      {
+        target: { value: 'prune unused volumes' },
+      }
+    )
     expect(pruneButton).toBeEnabled()
 
     fireEvent.click(pruneButton)

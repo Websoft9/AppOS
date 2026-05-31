@@ -23,10 +23,7 @@ function activeSectionHelp(controller: SettingsPageController) {
 
   const entry = findSchemaEntry(controller, controller.activeSection)
   return {
-    title:
-      controller.activeSection === 'space-quota'
-        ? 'Space'
-        : entry?.title ?? 'Settings',
+    title: controller.activeSection === 'space-quota' ? 'Space' : (entry?.title ?? 'Settings'),
     description:
       entry?.description ??
       'Select a setting from the menu to review its current purpose and controls.',
@@ -123,18 +120,18 @@ export function SettingsScreen({ controller }: SettingsScreenProps) {
                 </p>
                 <div className="space-y-0.5">
                   {buildNavigationItems(controller, group).map(item => (
-                      <button
-                        key={item.id}
-                        onClick={() => controller.setActiveSection(item.id)}
-                        className={`w-full text-left px-3 py-2 text-sm rounded-md transition-colors ${
-                          isNavigationItemActive(group, item.id, controller.activeSection)
-                            ? 'bg-accent text-accent-foreground font-medium'
-                            : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
-                        }`}
-                      >
-                        {item.title}
-                      </button>
-                    ))}
+                    <button
+                      key={item.id}
+                      onClick={() => controller.setActiveSection(item.id)}
+                      className={`w-full text-left px-3 py-2 text-sm rounded-md transition-colors ${
+                        isNavigationItemActive(group, item.id, controller.activeSection)
+                          ? 'bg-accent text-accent-foreground font-medium'
+                          : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                      }`}
+                    >
+                      {item.title}
+                    </button>
+                  ))}
                 </div>
               </div>
             ))}

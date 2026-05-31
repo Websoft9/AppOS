@@ -51,7 +51,9 @@ export function resolveBranding(payload?: BrandingPayload | null): ResolvedBrand
 }
 
 export function dispatchBrandingUpdated(payload: BrandingPayload) {
-  window.dispatchEvent(new CustomEvent<BrandingPayload>(BRANDING_UPDATED_EVENT, { detail: payload }))
+  window.dispatchEvent(
+    new CustomEvent<BrandingPayload>(BRANDING_UPDATED_EVENT, { detail: payload })
+  )
 }
 
 function createGeneratedLogoDataUrl(source: string) {
@@ -61,14 +63,16 @@ function createGeneratedLogoDataUrl(source: string) {
 }
 
 function createMonogram(source: string) {
-  const parts = source
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
+  const parts = source.trim().split(/\s+/).filter(Boolean)
   if (parts.length >= 2) {
     return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase()
   }
-  return source.replace(/[^a-zA-Z0-9]/g, '').slice(0, 2).toUpperCase() || 'AO'
+  return (
+    source
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .slice(0, 2)
+      .toUpperCase() || 'AO'
+  )
 }
 
 function escapeXml(value: string) {

@@ -16,12 +16,12 @@ import (
 const maxMediaSize = 2 << 20
 
 var allowedMediaTypes = map[string]struct{}{
-	"image/svg+xml":             {},
-	"image/png":                 {},
-	"image/jpeg":                {},
-	"image/webp":                {},
-	"image/x-icon":              {},
-	"image/vnd.microsoft.icon":  {},
+	"image/svg+xml":            {},
+	"image/png":                {},
+	"image/jpeg":               {},
+	"image/webp":               {},
+	"image/x-icon":             {},
+	"image/vnd.microsoft.icon": {},
 }
 
 func registerMediaRoutes(se *core.ServeEvent) {

@@ -1,7 +1,10 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SCRIPT_LANGUAGE_OPTIONS, formatScriptLanguageOptionLabel } from '@/lib/assets-script-languages'
+import {
+  SCRIPT_LANGUAGE_OPTIONS,
+  formatScriptLanguageOptionLabel,
+} from '@/lib/assets-script-languages'
 import { AssetsScriptsPage } from './ai-assets.scripts'
 
 const sendMock = vi.fn()
@@ -34,10 +37,20 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
   DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DropdownMenuItem: ({ children, onClick, className }: { children: React.ReactNode; onClick?: () => void; className?: string }) => (
-    <button onClick={onClick} className={className}>{children}</button>
+  DropdownMenuItem: ({
+    children,
+    onClick,
+    className,
+  }: {
+    children: React.ReactNode
+    onClick?: () => void
+    className?: string
+  }) => (
+    <button onClick={onClick} className={className}>
+      {children}
+    </button>
   ),
-  DropdownMenuSeparator: () => <div />, 
+  DropdownMenuSeparator: () => <div />,
 }))
 
 describe('AssetsScriptsPage', () => {
@@ -93,7 +106,11 @@ describe('AssetsScriptsPage', () => {
       expect(screen.getByRole('heading', { name: 'Scripts' })).toBeInTheDocument()
     })
 
-    expect(screen.getByText('Reusable single-file assets for terminal snippets, operator workflows, and recovery actions.')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Reusable single-file assets for terminal snippets, operator workflows, and recovery actions.'
+      )
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add Script' })).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Search scripts...')).toBeInTheDocument()
     expect(screen.getByText('Total 1 items')).toBeInTheDocument()
@@ -107,7 +124,9 @@ describe('AssetsScriptsPage', () => {
     expect(within(dialog).getByRole('heading', { name: 'Edit Script' })).toBeInTheDocument()
     expect(within(dialog).queryByText('Metadata')).not.toBeInTheDocument()
     expect(within(dialog).queryByText('Content')).not.toBeInTheDocument()
-    expect(within(dialog).getByRole('button', { name: 'Show advanced settings' })).toBeInTheDocument()
+    expect(
+      within(dialog).getByRole('button', { name: 'Show advanced settings' })
+    ).toBeInTheDocument()
     expect(within(dialog).getByText('Language')).toBeInTheDocument()
     expect(within(dialog).getByText(formatScriptLanguageOptionLabel('shell'))).toBeInTheDocument()
     expect(within(dialog).getByLabelText('Script Source')).toBeInTheDocument()
@@ -181,7 +200,22 @@ describe('AssetsScriptsPage', () => {
 
   it('defines a richer script language catalog with explicit suffix labels', () => {
     expect(SCRIPT_LANGUAGE_OPTIONS.map(option => option.value)).toEqual(
-      expect.arrayContaining(['shell', 'bash', 'zsh', 'python', 'javascript', 'typescript', 'powershell', 'ruby', 'perl', 'php', 'lua', 'groovy', 'r', 'other'])
+      expect.arrayContaining([
+        'shell',
+        'bash',
+        'zsh',
+        'python',
+        'javascript',
+        'typescript',
+        'powershell',
+        'ruby',
+        'perl',
+        'php',
+        'lua',
+        'groovy',
+        'r',
+        'other',
+      ])
     )
     expect(formatScriptLanguageOptionLabel('bash')).toBe('Bash (.bash, .sh)')
     expect(formatScriptLanguageOptionLabel('other')).toBe('Other (custom suffix)')

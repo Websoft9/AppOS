@@ -16,7 +16,6 @@ import (
 )
 
 const serverRuntimePullTimeout = 20 * time.Second
-const serverRuntimePullConcurrency = 5
 
 var executeServerRuntimeCommand = terminal.ExecuteSSHCommand
 

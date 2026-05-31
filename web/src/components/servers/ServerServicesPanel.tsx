@@ -69,7 +69,11 @@ type DetailRow = {
   value: string
 }
 
-const DEFAULT_FOCUS_SERVICES = ['docker.service', 'appos-monitor.service', 'appos-tunnel.service'] as const
+const DEFAULT_FOCUS_SERVICES = [
+  'docker.service',
+  'appos-monitor.service',
+  'appos-tunnel.service',
+] as const
 
 const PAGE_SIZE = 12
 const DETAIL_STATUS_KEYS = new Set([

@@ -10,20 +10,20 @@ import (
 )
 
 type SupportedServerCatalogEntry struct {
-	ComponentKey           software.ComponentKey        `json:"component_key"`
-	Label                  string                       `json:"label"`
-	Capability             software.Capability          `json:"capability,omitempty"`
-	SupportedActions       []software.Action            `json:"supported_actions"`
-	ActionTimeouts         map[software.Action]int      `json:"action_timeouts,omitempty"`
+	ComponentKey           software.ComponentKey                            `json:"component_key"`
+	Label                  string                                           `json:"label"`
+	Capability             software.Capability                              `json:"capability,omitempty"`
+	SupportedActions       []software.Action                                `json:"supported_actions"`
+	ActionTimeouts         map[software.Action]int                          `json:"action_timeouts,omitempty"`
 	TimeoutPolicy          map[software.Action]software.TimeoutPolicyResult `json:"timeout_policy,omitempty"`
-	TemplateKind           software.TemplateKind        `json:"template_kind"`
-	ArtifactKind           software.ArtifactKind        `json:"artifact_kind,omitempty"`
-	ServiceName            string                       `json:"service_name,omitempty"`
-	Description            string                       `json:"description"`
-	ReadinessRequirements  []string                     `json:"readiness_requirements"`
-	RequiresAppOSBaseURL   bool                         `json:"requires_appos_base_url,omitempty"`
-	FavoriteSystemdService bool                         `json:"favorite_systemd_service,omitempty"`
-	Visibility             []software.CatalogVisibility `json:"visibility"`
+	TemplateKind           software.TemplateKind                            `json:"template_kind"`
+	ArtifactKind           software.ArtifactKind                            `json:"artifact_kind,omitempty"`
+	ServiceName            string                                           `json:"service_name,omitempty"`
+	Description            string                                           `json:"description"`
+	ReadinessRequirements  []string                                         `json:"readiness_requirements"`
+	RequiresAppOSBaseURL   bool                                             `json:"requires_appos_base_url,omitempty"`
+	FavoriteSystemdService bool                                             `json:"favorite_systemd_service,omitempty"`
+	Visibility             []software.CatalogVisibility                     `json:"visibility"`
 }
 
 func (s *Service) ListSupportedServerCatalog(_ context.Context) ([]SupportedServerCatalogEntry, error) {

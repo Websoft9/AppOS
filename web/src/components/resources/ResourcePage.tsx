@@ -1235,8 +1235,12 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                 <RefreshCw
                   className={cn(
                     'h-4 w-4',
-                    config.refreshButtonIconOnly === false && !compactHeaderActionsOnMobile && 'mr-2',
-                    compactHeaderActionsOnMobile && config.refreshButtonIconOnly === false && 'sm:mr-2'
+                    config.refreshButtonIconOnly === false &&
+                      !compactHeaderActionsOnMobile &&
+                      'mr-2',
+                    compactHeaderActionsOnMobile &&
+                      config.refreshButtonIconOnly === false &&
+                      'sm:mr-2'
                   )}
                 />
               )}
@@ -1911,7 +1915,8 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
           fileRefs.current[key] = element
         }}
         selectedSummary={
-          !dialogHeader?.hideSelectedProductSummary && String(formData['selected_product'] ?? '').trim() ? (
+          !dialogHeader?.hideSelectedProductSummary &&
+          String(formData['selected_product'] ?? '').trim() ? (
             <div className="rounded-lg border bg-muted/40 px-4 py-3">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                 <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

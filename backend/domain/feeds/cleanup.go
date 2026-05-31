@@ -35,7 +35,6 @@ type retentionCandidateRow struct {
 	SourceName string `db:"source_name"`
 }
 
-
 type retentionPlan struct {
 	GlobalTotalBefore      int
 	GlobalDeleteCount      int

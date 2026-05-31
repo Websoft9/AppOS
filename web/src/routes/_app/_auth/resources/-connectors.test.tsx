@@ -315,7 +315,9 @@ describe('ConnectorsPage', () => {
     const authSelect = within(dialog).getByLabelText(/^Authentication/) as HTMLSelectElement
     expect(authSelect.value).toBe('none')
     expect(within(dialog).queryByLabelText(/^Username/)).not.toBeInTheDocument()
-    expect(within(dialog).queryByRole('button', { name: 'Password Secret' })).not.toBeInTheDocument()
+    expect(
+      within(dialog).queryByRole('button', { name: 'Password Secret' })
+    ).not.toBeInTheDocument()
 
     fireEvent.change(authSelect, { target: { value: 'username_password' } })
 

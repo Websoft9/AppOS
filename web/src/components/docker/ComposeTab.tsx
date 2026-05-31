@@ -42,7 +42,10 @@ import {
 import { getApiErrorMessage } from '@/lib/api-error'
 import { cn } from '@/lib/utils'
 import { DockerTextDialog } from '@/components/docker/DockerTextDialog'
-import { DockerDependencyAlert, getDockerDependencyIssue } from '@/components/docker/DockerDependencyAlert'
+import {
+  DockerDependencyAlert,
+  getDockerDependencyIssue,
+} from '@/components/docker/DockerDependencyAlert'
 
 const COMPOSE_SORT_KEY = 'docker.compose.sort'
 const DOCKER_PAGE_SIZE_KEY = 'docker.list.page_size'
@@ -387,7 +390,12 @@ export function ComposeTab({
   )
 
   const projectNamesKey = useMemo(
-    () => projects.map(project => project.Name).filter(Boolean).sort().join(','),
+    () =>
+      projects
+        .map(project => project.Name)
+        .filter(Boolean)
+        .sort()
+        .join(','),
     [projects]
   )
 
@@ -424,12 +432,13 @@ export function ComposeTab({
           })
           const containers = parseContainers(String(containersRes.output || ''))
           const ids = containers.map(container => container.ID).filter(Boolean)
-          const metadata = ids.length > 0
-            ? ((await pb.send(dockerApiPath(serverId, '/containers/metadata'), {
-                method: 'POST',
-                body: { ids },
-              })) as ContainerMetadataResponse)
-            : undefined
+          const metadata =
+            ids.length > 0
+              ? ((await pb.send(dockerApiPath(serverId, '/containers/metadata'), {
+                  method: 'POST',
+                  body: { ids },
+                })) as ContainerMetadataResponse)
+              : undefined
           grouped = groupContainersByMetadata(projects, containers, metadata)
         }
         if (!grouped[projectName]) grouped[projectName] = []
@@ -482,7 +491,13 @@ export function ComposeTab({
     if (hasMissingProject) {
       void loadProjectContainers(projects[0].Name, { force: true })
     }
-  }, [loadProjectContainers, projectContainers, projectContainersHydrated, projectNamesKey, projects])
+  }, [
+    loadProjectContainers,
+    projectContainers,
+    projectContainersHydrated,
+    projectNamesKey,
+    projects,
+  ])
 
   useEffect(() => {
     if (!projectContainersHydrated || projects.length === 0) return
@@ -516,61 +531,58 @@ export function ComposeTab({
       await queryClient.invalidateQueries({ queryKey: ['docker', 'compose', serverId] })
     } catch (err) {
       setOperationFailed(true)
-      setOperationOutput(
-        getApiErrorMessage(err, `${request.label} failed`)
-      )
-    }
-    finally {
+      setOperationOutput(getApiErrorMessage(err, `${request.label} failed`))
+    } finally {
       setOperationLoading(false)
     }
   }
 
   const loadTextDialog = useCallback(
-		async (request: ComposeTextRequest) => {
-			setTextDialogLoading(true)
-			setTextDialogContent('')
-			try {
-				if (request.kind === 'logs') {
-					const res = await pb.send(dockerApiPath(serverId, '/compose/logs'), {
-						method: 'GET',
-						query: { projectDir: request.projectDir, tail: '200' },
-					})
-					setTextDialogContent(String(res.output || ''))
-					return
-				}
+    async (request: ComposeTextRequest) => {
+      setTextDialogLoading(true)
+      setTextDialogContent('')
+      try {
+        if (request.kind === 'logs') {
+          const res = await pb.send(dockerApiPath(serverId, '/compose/logs'), {
+            method: 'GET',
+            query: { projectDir: request.projectDir, tail: '200' },
+          })
+          setTextDialogContent(String(res.output || ''))
+          return
+        }
 
-				const res = await pb.send(dockerApiPath(serverId, '/compose/config'), {
-					method: 'GET',
-					query: { projectDir: request.projectDir },
-				})
-				setTextDialogContent(String(res.content || ''))
-			} catch (err) {
-				setTextDialogContent(
-					getApiErrorMessage(
-						err,
-						request.kind === 'logs' ? 'Failed to load logs' : 'Failed to load config'
-					)
-				)
-			} finally {
-				setTextDialogLoading(false)
-			}
-		},
-		[serverId]
-	)
+        const res = await pb.send(dockerApiPath(serverId, '/compose/config'), {
+          method: 'GET',
+          query: { projectDir: request.projectDir },
+        })
+        setTextDialogContent(String(res.content || ''))
+      } catch (err) {
+        setTextDialogContent(
+          getApiErrorMessage(
+            err,
+            request.kind === 'logs' ? 'Failed to load logs' : 'Failed to load config'
+          )
+        )
+      } finally {
+        setTextDialogLoading(false)
+      }
+    },
+    [serverId]
+  )
 
   const openLogs = (projectName: string, projectDir: string) => {
-		const request: ComposeTextRequest = { kind: 'logs', projectName, projectDir }
-		setTextDialogRequest(request)
-		setTextDialogOpen(true)
-		void loadTextDialog(request)
-	}
+    const request: ComposeTextRequest = { kind: 'logs', projectName, projectDir }
+    setTextDialogRequest(request)
+    setTextDialogOpen(true)
+    void loadTextDialog(request)
+  }
 
   const openConfig = (projectName: string, projectDir: string, configPath?: string) => {
-		const request: ComposeTextRequest = { kind: 'config', projectName, projectDir, configPath }
-		setTextDialogRequest(request)
-		setTextDialogOpen(true)
-		void loadTextDialog(request)
-	}
+    const request: ComposeTextRequest = { kind: 'config', projectName, projectDir, configPath }
+    setTextDialogRequest(request)
+    setTextDialogOpen(true)
+    void loadTextDialog(request)
+  }
 
   const pendingProjectName = operationLoading ? operationRequest?.projectName || null : null
 
@@ -674,7 +686,9 @@ export function ComposeTab({
   const hasActiveFilters = filter.trim().length > 0 || statusFilter !== 'all'
 
   return (
-    <div className={cn('h-full min-h-0 flex flex-col gap-4', embeddedInWorkspace ? 'pt-0' : 'pt-4')}>
+    <div
+      className={cn('h-full min-h-0 flex flex-col gap-4', embeddedInWorkspace ? 'pt-0' : 'pt-4')}
+    >
       {dependencyIssue && visibleError ? (
         <DockerDependencyAlert serverId={serverId} message={visibleError} focusSource="compose" />
       ) : visibleError ? (
@@ -703,7 +717,9 @@ export function ComposeTab({
             >
               <ChevronLeft className="h-3.5 w-3.5" />
             </Button>
-            <span className="font-medium tabular-nums">{effectivePage}/{totalPages}</span>
+            <span className="font-medium tabular-nums">
+              {effectivePage}/{totalPages}
+            </span>
             <Button
               variant="ghost"
               size="sm"
@@ -761,7 +777,9 @@ export function ComposeTab({
 
       {(hasProjectContainerLoading || operationLoading) && !embeddedInWorkspace && (
         <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-lg border border-dashed bg-muted/10 px-3 py-2">
-          {hasProjectContainerLoading ? <Badge variant="outline">Loading project containers...</Badge> : null}
+          {hasProjectContainerLoading ? (
+            <Badge variant="outline">Loading project containers...</Badge>
+          ) : null}
           {operationLoading && operationRequest ? (
             <Badge variant="outline" className="inline-flex items-center gap-1">
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -796,7 +814,11 @@ export function ComposeTab({
                                 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
                             )}
                             aria-label="Filter compose status"
-                            title={statusFilter === 'all' ? 'Filter compose status' : `Compose status: ${statusFilter}`}
+                            title={
+                              statusFilter === 'all'
+                                ? 'Filter compose status'
+                                : `Compose status: ${statusFilter}`
+                            }
                           >
                             <Filter className="h-3.5 w-3.5" />
                           </Button>
@@ -825,9 +847,15 @@ export function ComposeTab({
                     ) : null}
                   </div>
                 </TableHead>
-                <TableHead className="w-[160px] min-w-[160px] text-left text-xs font-medium text-foreground">Containers</TableHead>
-                <TableHead className="min-w-[240px] text-xs font-medium text-foreground">Config</TableHead>
-                <TableHead className="w-[52px] text-center text-xs font-medium text-foreground">Actions</TableHead>
+                <TableHead className="w-[160px] min-w-[160px] text-left text-xs font-medium text-foreground">
+                  Containers
+                </TableHead>
+                <TableHead className="min-w-[240px] text-xs font-medium text-foreground">
+                  Config
+                </TableHead>
+                <TableHead className="w-[52px] text-center text-xs font-medium text-foreground">
+                  Actions
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -852,7 +880,12 @@ export function ComposeTab({
                 const rowBusy = pendingProjectName === project.Name
                 return (
                   <Fragment key={project.Name}>
-                    <TableRow className={cn('border-b border-border/60 align-middle transition-colors hover:bg-muted/30', isExpanded && 'bg-muted/20')}>
+                    <TableRow
+                      className={cn(
+                        'border-b border-border/60 align-middle transition-colors hover:bg-muted/30',
+                        isExpanded && 'bg-muted/20'
+                      )}
+                    >
                       <TableCell
                         className="cursor-pointer pl-4 pr-3 py-3 text-xs"
                         onClick={event => {
@@ -878,7 +911,10 @@ export function ComposeTab({
                             {project.Status || 'unknown'}
                           </Badge>
                           {rowBusy && operationRequest ? (
-                            <Badge variant="outline" className="inline-flex items-center gap-1 text-[11px] font-normal">
+                            <Badge
+                              variant="outline"
+                              className="inline-flex items-center gap-1 text-[11px] font-normal"
+                            >
                               <Loader2 className="h-3 w-3 animate-spin" />
                               {operationRequest.label}
                             </Badge>
@@ -887,20 +923,31 @@ export function ComposeTab({
                       </TableCell>
                       <TableCell className="w-[160px] min-w-[160px] py-3 text-left text-xs align-middle">
                         <div className="flex h-8 items-center">
-                          {projectContainersLoading[project.Name] || (!projectContainersHydrated && !(project.Name in projectContainers)) ? (
-                            <span className="inline-flex h-8 items-center text-muted-foreground">...</span>
+                          {projectContainersLoading[project.Name] ||
+                          (!projectContainersHydrated && !(project.Name in projectContainers)) ? (
+                            <span className="inline-flex h-8 items-center text-muted-foreground">
+                              ...
+                            </span>
                           ) : containers.length > 0 ? (
                             <button
                               type="button"
                               className="inline-flex h-8 w-full items-center justify-start gap-1 text-left text-xs text-primary hover:underline"
                               title={containers.map(container => container.Names).join(', ')}
-                              onClick={() => onOpenContainerNames?.(containers.map(container => container.Names).filter(Boolean))}
+                              onClick={() =>
+                                onOpenContainerNames?.(
+                                  containers.map(container => container.Names).filter(Boolean)
+                                )
+                              }
                             >
-                              <span className="truncate">{containers.length} container{containers.length > 1 ? 's' : ''}</span>
+                              <span className="truncate">
+                                {containers.length} container{containers.length > 1 ? 's' : ''}
+                              </span>
                               <ExternalLink className="ml-1 h-3 w-3" />
                             </button>
                           ) : projectContainersHydrated ? (
-                            <span className="inline-flex h-8 items-center text-muted-foreground">-</span>
+                            <span className="inline-flex h-8 items-center text-muted-foreground">
+                              -
+                            </span>
                           ) : null}
                         </div>
                       </TableCell>
@@ -917,7 +964,12 @@ export function ComposeTab({
                       <TableCell className="py-3 text-center align-middle">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" disabled={operationLoading}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              disabled={operationLoading}
+                            >
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -1030,10 +1082,19 @@ export function ComposeTab({
                             >
                               <ArrowDown className="mr-2 h-4 w-4" /> Down
                             </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => setTimeout(() => openLogs(project.Name, dir), 0)}>
+                            <DropdownMenuItem
+                              onSelect={() => setTimeout(() => openLogs(project.Name, dir), 0)}
+                            >
                               <FileText className="mr-2 h-4 w-4" /> Logs
                             </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => setTimeout(() => openConfig(project.Name, dir, primaryConfigPath), 0)}>
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                setTimeout(
+                                  () => openConfig(project.Name, dir, primaryConfigPath),
+                                  0
+                                )
+                              }
+                            >
                               <Settings2 className="mr-2 h-4 w-4" /> View Config
                             </DropdownMenuItem>
                             <DropdownMenuItem
@@ -1065,30 +1126,43 @@ export function ComposeTab({
                         <TableCell colSpan={5} className="bg-muted/20 px-4 py-3">
                           <div className="space-y-4 rounded-lg border bg-background p-4 shadow-sm">
                             <div>
-                              <div className="mb-2 text-xs font-medium text-muted-foreground">Compose Services</div>
+                              <div className="mb-2 text-xs font-medium text-muted-foreground">
+                                Compose Services
+                              </div>
                               {projectPsLoading[project.Name] ? (
-                                <div className="text-xs text-muted-foreground">Loading project status...</div>
+                                <div className="text-xs text-muted-foreground">
+                                  Loading project status...
+                                </div>
                               ) : psRows.length > 0 ? (
                                 <div className="overflow-x-auto rounded-md border">
                                   <table className="min-w-full text-xs">
                                     <thead className="bg-muted/30 text-muted-foreground">
                                       <tr>
                                         <th className="px-3 py-2 text-left font-medium">Service</th>
-                                        <th className="px-3 py-2 text-left font-medium">Container</th>
+                                        <th className="px-3 py-2 text-left font-medium">
+                                          Container
+                                        </th>
                                         <th className="px-3 py-2 text-left font-medium">State</th>
                                         <th className="px-3 py-2 text-left font-medium">Ports</th>
                                       </tr>
                                     </thead>
                                     <tbody>
                                       {psRows.map((row, index) => (
-                                        <tr key={`${row.Name || row.Service || 'service'}-${index}`} className="border-t align-middle">
-                                          <td className="px-3 py-2 font-medium text-foreground">{row.Service || '-'}</td>
+                                        <tr
+                                          key={`${row.Name || row.Service || 'service'}-${index}`}
+                                          className="border-t align-middle"
+                                        >
+                                          <td className="px-3 py-2 font-medium text-foreground">
+                                            {row.Service || '-'}
+                                          </td>
                                           <td className="px-3 py-2 font-mono text-muted-foreground">
                                             {row.Name && onOpenContainerFilter ? (
                                               <button
                                                 type="button"
                                                 className="inline-flex items-center gap-1 text-left text-xs text-primary hover:underline"
-                                                onClick={() => onOpenContainerFilter(row.Name || '')}
+                                                onClick={() =>
+                                                  onOpenContainerFilter(row.Name || '')
+                                                }
                                                 title={row.Name}
                                               >
                                                 <span className="truncate">{row.Name}</span>
@@ -1099,18 +1173,27 @@ export function ComposeTab({
                                             )}
                                           </td>
                                           <td className="px-3 py-2">
-                                            <Badge variant={statusVariant(row.State || composePsStateLabel(row))} className="text-[11px]">
+                                            <Badge
+                                              variant={statusVariant(
+                                                row.State || composePsStateLabel(row)
+                                              )}
+                                              className="text-[11px]"
+                                            >
                                               {composePsStateLabel(row)}
                                             </Badge>
                                           </td>
-                                          <td className="px-3 py-2 text-muted-foreground">{formatComposePsPorts(row.Publishers)}</td>
+                                          <td className="px-3 py-2 text-muted-foreground">
+                                            {formatComposePsPorts(row.Publishers)}
+                                          </td>
                                         </tr>
                                       ))}
                                     </tbody>
                                   </table>
                                 </div>
                               ) : (
-                                <div className="text-xs text-muted-foreground">No services found for this project.</div>
+                                <div className="text-xs text-muted-foreground">
+                                  No services found for this project.
+                                </div>
                               )}
                             </div>
                           </div>
@@ -1175,7 +1258,9 @@ export function ComposeTab({
         open={operationDialogOpen}
         onOpenChange={setOperationDialogOpen}
         title={
-          operationRequest ? `Compose ${operationRequest.label}: ${operationRequest.projectName}` : 'Compose Operation'
+          operationRequest
+            ? `Compose ${operationRequest.label}: ${operationRequest.projectName}`
+            : 'Compose Operation'
         }
         description={
           operationRequest
@@ -1188,8 +1273,16 @@ export function ComposeTab({
         }
         content={operationOutput}
         loading={operationLoading}
-        loadingText={operationRequest ? `${operationRequest.label} ${operationRequest.projectName}...` : 'Running compose operation...'}
-        emptyText={operationFailed ? '(operation failed without output)' : '(operation completed with no output)'}
+        loadingText={
+          operationRequest
+            ? `${operationRequest.label} ${operationRequest.projectName}...`
+            : 'Running compose operation...'
+        }
+        emptyText={
+          operationFailed
+            ? '(operation failed without output)'
+            : '(operation completed with no output)'
+        }
         downloadBaseName={
           operationRequest
             ? `${operationRequest.projectName}-${operationRequest.key}`

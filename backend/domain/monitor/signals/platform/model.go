@@ -35,19 +35,19 @@ type RuntimeSnapshot struct {
 }
 
 type PlatformObserver struct {
-	app              core.App
-	snapshotFn       func() RuntimeSnapshot
-	resourceFn       func([]int) map[int]supervisor.ResourceInfo
+	app                core.App
+	snapshotFn         func() RuntimeSnapshot
+	resourceFn         func([]int) map[int]supervisor.ResourceInfo
 	appCoreTelemetryFn func(time.Time, localAppCoreTelemetryState) ([]MetricPoint, localAppCoreTelemetryState, error)
-	appCoreMemoryFn  func() (float64, float64, bool, error)
-	hostTelemetryFn  func(time.Time, localHostTelemetryState) ([]MetricPoint, localHostTelemetryState, error)
-	containerStatsFn func(context.Context) (string, error)
-	nowFn            func() time.Time
-	appCoreState     localAppCoreTelemetryState
-	hostState        localHostTelemetryState
-	containerSamples map[string]localContainerCounters
-	mu               sync.Mutex
-	cancel           context.CancelFunc
+	appCoreMemoryFn    func() (float64, float64, bool, error)
+	hostTelemetryFn    func(time.Time, localHostTelemetryState) ([]MetricPoint, localHostTelemetryState, error)
+	containerStatsFn   func(context.Context) (string, error)
+	nowFn              func() time.Time
+	appCoreState       localAppCoreTelemetryState
+	hostState          localHostTelemetryState
+	containerSamples   map[string]localContainerCounters
+	mu                 sync.Mutex
+	cancel             context.CancelFunc
 }
 
 func platformRuntimeCapabilityEnabled(name string) bool {

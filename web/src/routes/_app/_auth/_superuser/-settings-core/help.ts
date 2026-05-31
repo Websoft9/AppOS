@@ -8,7 +8,9 @@ export function getRegisteredSectionHelp(controller: SettingsPageController) {
     return domainHelp
   }
 
-  return settingsNavigationAliases.find(
-    alias => alias.help && alias.matchesActiveSection(controller.activeSection)
-  )?.help ?? null
+  return (
+    settingsNavigationAliases.find(
+      alias => alias.help && alias.matchesActiveSection(controller.activeSection)
+    )?.help ?? null
+  )
 }

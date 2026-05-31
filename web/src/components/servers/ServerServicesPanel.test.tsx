@@ -91,13 +91,13 @@ describe('ServerServicesPanel', () => {
         sub_state: 'running',
         description: 'Docker Application Container Engine',
       },
-    {
-    name: 'appos-monitor.service',
-    load_state: 'loaded',
-    active_state: 'active',
-    sub_state: 'running',
-    description: 'Native Telegraf agent for AppOS metrics collector',
-    },
+      {
+        name: 'appos-monitor.service',
+        load_state: 'loaded',
+        active_state: 'active',
+        sub_state: 'running',
+        description: 'Native Telegraf agent for AppOS metrics collector',
+      },
       {
         name: 'appos-tunnel.service',
         load_state: 'loaded',
@@ -230,7 +230,7 @@ describe('ServerServicesPanel', () => {
 
     expect(getRowLabels()).toEqual([
       'docker',
-  		'appos-monitor',
+      'appos-monitor',
       'appos-tunnel',
       'auditd',
       'backup-task',
@@ -245,7 +245,7 @@ describe('ServerServicesPanel', () => {
     expect(within(inventory).queryByText('Z-A')).toBeNull()
     expect(getRowLabels()).toEqual([
       'docker',
-  		'appos-monitor',
+      'appos-monitor',
       'appos-tunnel',
       'connman',
       'backup-task',

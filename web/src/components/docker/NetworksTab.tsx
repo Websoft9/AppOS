@@ -51,7 +51,10 @@ import {
 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { getApiErrorMessage } from '@/lib/api-error'
-import { DockerDependencyAlert, getDockerDependencyIssue } from '@/components/docker/DockerDependencyAlert'
+import {
+  DockerDependencyAlert,
+  getDockerDependencyIssue,
+} from '@/components/docker/DockerDependencyAlert'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 
@@ -389,10 +392,7 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
 
   return (
     <div
-      className={cn(
-        'h-full min-h-0 flex flex-col gap-4',
-        embeddedInWorkspace ? 'pt-0' : 'pt-4'
-      )}
+      className={cn('h-full min-h-0 flex flex-col gap-4', embeddedInWorkspace ? 'pt-0' : 'pt-4')}
     >
       {dependencyIssue && visibleError ? (
         <DockerDependencyAlert serverId={serverId} message={visibleError} focusSource="networks" />
@@ -422,7 +422,9 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
             >
               <ChevronLeft className="h-3.5 w-3.5" />
             </Button>
-            <span className="text-center font-medium tabular-nums">{effectivePage}/{totalPages}</span>
+            <span className="text-center font-medium tabular-nums">
+              {effectivePage}/{totalPages}
+            </span>
             <Button
               variant="ghost"
               size="sm"
@@ -500,7 +502,9 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                     <SortHead label="Name" keyName="name" />
                   </div>
                 </TableHead>
-                <TableHead className="min-w-[120px] text-xs font-medium text-foreground">ID</TableHead>
+                <TableHead className="min-w-[120px] text-xs font-medium text-foreground">
+                  ID
+                </TableHead>
                 <TableHead className="min-w-[160px]">
                   <div className="flex items-center gap-1">
                     <span className="text-xs font-medium text-foreground">Driver</span>
@@ -515,13 +519,20 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                               'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
                           )}
                           aria-label="Filter network driver"
-                          title={driverFilter === 'all' ? 'Filter network driver' : `Network driver: ${driverFilter}`}
+                          title={
+                            driverFilter === 'all'
+                              ? 'Filter network driver'
+                              : `Network driver: ${driverFilter}`
+                          }
                         >
                           <Filter className="h-3.5 w-3.5" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start">
-                        <DropdownMenuRadioGroup value={driverFilter} onValueChange={setDriverFilter}>
+                        <DropdownMenuRadioGroup
+                          value={driverFilter}
+                          onValueChange={setDriverFilter}
+                        >
                           <DropdownMenuRadioItem value="all">
                             All drivers ({networks.length})
                           </DropdownMenuRadioItem>
@@ -549,7 +560,11 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                               'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
                           )}
                           aria-label="Filter network type"
-                          title={typeFilter === 'all' ? 'Filter network type' : `Network type: ${typeFilter}`}
+                          title={
+                            typeFilter === 'all'
+                              ? 'Filter network type'
+                              : `Network type: ${typeFilter}`
+                          }
                         >
                           <Filter className="h-3.5 w-3.5" />
                         </Button>
@@ -559,9 +574,15 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                           value={typeFilter}
                           onValueChange={value => setTypeFilter(value as 'all' | 'system' | 'user')}
                         >
-                          <DropdownMenuRadioItem value="all">All types ({typeCounts.all})</DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="system">System ({typeCounts.system})</DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="user">User ({typeCounts.user})</DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="all">
+                            All types ({typeCounts.all})
+                          </DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="system">
+                            System ({typeCounts.system})
+                          </DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="user">
+                            User ({typeCounts.user})
+                          </DropdownMenuRadioItem>
                         </DropdownMenuRadioGroup>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -581,7 +602,11 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                               'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
                           )}
                           aria-label="Filter network scope"
-                          title={scopeFilter === 'all' ? 'Filter network scope' : `Network scope: ${scopeFilter}`}
+                          title={
+                            scopeFilter === 'all'
+                              ? 'Filter network scope'
+                              : `Network scope: ${scopeFilter}`
+                          }
                         >
                           <Filter className="h-3.5 w-3.5" />
                         </Button>
@@ -621,7 +646,12 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                 const isExpanded = expandedNetworkId === network.ID
                 return (
                   <Fragment key={network.ID}>
-                    <TableRow className={cn('border-b border-border/60 align-top transition-colors hover:bg-muted/30', isExpanded && 'bg-muted/20')}>
+                    <TableRow
+                      className={cn(
+                        'border-b border-border/60 align-top transition-colors hover:bg-muted/30',
+                        isExpanded && 'bg-muted/20'
+                      )}
+                    >
                       <TableCell
                         className="cursor-pointer pl-4 pr-3 py-3 text-left text-xs"
                         onClick={event => {
@@ -659,7 +689,9 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                       <TableCell className="py-3 text-xs">{network.Scope}</TableCell>
                       <TableCell className="py-3 text-center align-middle">
                         {isSystemNetwork(network) ? (
-                          <span className="inline-flex h-7 w-7 items-center justify-center text-xs text-muted-foreground">-</span>
+                          <span className="inline-flex h-7 w-7 items-center justify-center text-xs text-muted-foreground">
+                            -
+                          </span>
                         ) : (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -751,7 +783,9 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={removingNetworkId === pendingDelete?.ID}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={removingNetworkId === pendingDelete?.ID}>
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={!pendingDelete || removingNetworkId === pendingDelete.ID}

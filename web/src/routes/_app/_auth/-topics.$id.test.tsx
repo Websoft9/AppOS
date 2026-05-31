@@ -95,7 +95,10 @@ describe('TopicDetailPage', () => {
     globalThis.FileReader = originalFileReader
   })
 
-  function mockTopicPage(importPolicy?: { maxDescriptionImportBytes?: number; textOnly?: boolean }) {
+  function mockTopicPage(importPolicy?: {
+    maxDescriptionImportBytes?: number
+    textOnly?: boolean
+  }) {
     sendMock.mockImplementation((path: string) => {
       if (path === '/api/collections/topics/records/topic-1') {
         return Promise.resolve({
@@ -219,7 +222,9 @@ describe('TopicDetailPage', () => {
     fireEvent.change(fileInput, { target: { files: [file] } })
 
     await waitFor(() => {
-      expect(screen.getByText('Binary file detected, please upload a text file')).toBeInTheDocument()
+      expect(
+        screen.getByText('Binary file detected, please upload a text file')
+      ).toBeInTheDocument()
     })
   })
 

@@ -119,7 +119,9 @@ describe('ServerMonitorTab', () => {
 
     render(<ServerMonitorTab serverId="server-1" serverName="alpha" connectionStatus="online" />)
 
-    expect(await screen.findByText('Monitoring active · waiting for first sample')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Monitoring active · waiting for first sample')
+    ).toBeInTheDocument()
   })
 
   it('routes metrics pipeline repair to monitor-agent reinstall', async () => {

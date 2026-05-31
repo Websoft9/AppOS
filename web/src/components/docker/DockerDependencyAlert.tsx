@@ -2,7 +2,11 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { cn } from '@/lib/utils'
 
 export interface DockerDependencyIssue {
-  code: 'docker_missing' | 'compose_missing' | 'docker_daemon_unavailable' | 'docker_permission_denied'
+  code:
+    | 'docker_missing'
+    | 'compose_missing'
+    | 'docker_daemon_unavailable'
+    | 'docker_permission_denied'
   title: string
   description: string
 }

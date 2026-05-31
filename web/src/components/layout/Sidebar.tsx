@@ -187,7 +187,14 @@ export function buildNavGroups(isSuperuser: boolean): NavGroup[] {
       id: 'admin',
       label: 'Platform',
       items: isSuperuser
-        ? [systemNavItem, resourcesNavItem, extensionsNavItem, credentialsNavItem, usersNavItem, settingsNavItem]
+        ? [
+            systemNavItem,
+            resourcesNavItem,
+            extensionsNavItem,
+            credentialsNavItem,
+            usersNavItem,
+            settingsNavItem,
+          ]
         : [systemNavItemBasic, resourcesNavItem, extensionsNavItem],
     },
   ]

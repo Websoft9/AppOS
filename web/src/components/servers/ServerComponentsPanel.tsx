@@ -12,11 +12,7 @@ import {
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from '@/components/ui/alert'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -113,9 +109,7 @@ function isStoppedAddon(component: SoftwareComponentSummary): boolean {
   return (
     component.installed_state === 'installed' &&
     component.verification_state === 'degraded' &&
-    (reason.includes('stopped') ||
-      reason.includes('inactive') ||
-      reason.includes('not running'))
+    (reason.includes('stopped') || reason.includes('inactive') || reason.includes('not running'))
   )
 }
 
@@ -194,7 +188,9 @@ function addonArtifactLabel(
   component: Pick<SoftwareComponentSummary, 'artifact_kind' | 'template_kind'>,
   entry?: Pick<SupportedServerSoftwareEntry, 'artifact_kind'>
 ): string | null {
-  return addonFormatLabel(component.artifact_kind ?? entry?.artifact_kind ?? component.template_kind)
+  return addonFormatLabel(
+    component.artifact_kind ?? entry?.artifact_kind ?? component.template_kind
+  )
 }
 
 function primaryPrerequisiteAction(component: SoftwareComponentSummary): SoftwareActionType | null {
@@ -337,7 +333,9 @@ function displayComponentKey(componentKey: string): string {
   return isMonitorAgentComponentKey(componentKey) ? MONITOR_AGENT_DISPLAY_KEY : componentKey
 }
 
-function displayComponentLabel(component: Pick<SoftwareComponentSummary, 'component_key' | 'label'>): string {
+function displayComponentLabel(
+  component: Pick<SoftwareComponentSummary, 'component_key' | 'label'>
+): string {
   if (isMonitorAgentComponentKey(component.component_key)) {
     return MONITOR_AGENT_DISPLAY_LABEL
   }
@@ -398,10 +396,10 @@ function acceptedActionMessage(
   action: SoftwareActionType,
   operationId?: string
 ): string {
-	const componentDisplayKey = displayComponentKey(componentKey)
+  const componentDisplayKey = displayComponentKey(componentKey)
   const base = operationId
-		? `${action} accepted for ${componentDisplayKey} (${operationId})`
-		: `${action} accepted for ${componentDisplayKey}`
+    ? `${action} accepted for ${componentDisplayKey} (${operationId})`
+    : `${action} accepted for ${componentDisplayKey}`
   if (!isMonitorAgentReportingAction(componentKey, action)) {
     return base
   }
@@ -563,7 +561,9 @@ function statusLabel(component: SoftwareComponentSummary): string {
 }
 
 function appOSConnectionLabel(component: SoftwareComponentSummary): string | null {
-  const reasons = (component.health_reasons ?? []).map(reason => String(reason).trim().toLowerCase())
+  const reasons = (component.health_reasons ?? []).map(reason =>
+    String(reason).trim().toLowerCase()
+  )
   const awaitingFirstSample =
     reasons.includes('appos_connection:not_connected_no_sample') ||
     reasons.includes('appos_connection:unknown_monitor_summary')
@@ -991,7 +991,9 @@ function AddonActions({
                     variant={DANGEROUS_ADDON_ACTIONS.has(action) ? 'destructive' : 'default'}
                     onSelect={() => runAction(action)}
                     className="cursor-pointer text-xs"
-                    aria-label={available ? addonActionLabel(action) : `${addonActionLabel(action)}Locked`}
+                    aria-label={
+                      available ? addonActionLabel(action) : `${addonActionLabel(action)}Locked`
+                    }
                   >
                     {loading ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
                     <span>{addonActionLabel(action)}</span>
@@ -1058,7 +1060,9 @@ function AddonInventoryRow({
           <Tooltip>
             <TooltipTrigger asChild>
               <div className="flex items-center gap-2">
-                <div className="min-w-0 truncate font-medium text-foreground">{displayComponentLabel(component)}</div>
+                <div className="min-w-0 truncate font-medium text-foreground">
+                  {displayComponentLabel(component)}
+                </div>
                 {inProgress ? (
                   <Badge variant="outline" className="shrink-0 text-[11px] font-normal">
                     In progress
@@ -1076,9 +1080,7 @@ function AddonInventoryRow({
         {artifact ? <div className="text-[11px] text-muted-foreground">{artifact}</div> : null}
       </div>
       <div className="min-w-0 space-y-0.5">
-        <div className="break-all text-muted-foreground/70">
-          Installed: {detected || '—'}
-        </div>
+        <div className="break-all text-muted-foreground/70">Installed: {detected || '—'}</div>
         <div
           className={`break-all ${hasUpgrade ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground/70'}`}
         >
@@ -1395,7 +1397,10 @@ function PrerequisiteCard({
                         : 'Verification Checklist'}
                   </div>
                   {liveLogStreaming ? (
-                    <Badge variant="secondary" className="inline-flex items-center gap-1 text-[11px]">
+                    <Badge
+                      variant="secondary"
+                      className="inline-flex items-center gap-1 text-[11px]"
+                    >
                       <Loader2 className="h-3 w-3 animate-spin" />
                       Streaming
                     </Badge>
@@ -1542,14 +1547,14 @@ export function ServerComponentsPanel({
   const actionConflictComponent = useMemo(
     () =>
       actionConflictComponentKey
-        ? allComponents.find(component => component.component_key === actionConflictComponentKey) ?? null
+        ? (allComponents.find(
+            component => component.component_key === actionConflictComponentKey
+          ) ?? null)
         : null,
     [actionConflictComponentKey, allComponents]
   )
 
-  const actionsLocked =
-    actionLoading !== null ||
-    Object.values(activeOperationKeys).some(Boolean)
+  const actionsLocked = actionLoading !== null || Object.values(activeOperationKeys).some(Boolean)
 
   const ensureSupportedCatalog = useCallback(async (): Promise<SupportedServerSoftwareEntry[]> => {
     if (supportedCatalogLoadedRef.current) return supportedCatalog
@@ -1644,7 +1649,14 @@ export function ServerComponentsPanel({
     })
 
     onFocusRequestConsumed?.(focusComponentKey, nextPanelMode, focusSource, focusIssueCode)
-  }, [focusComponentKey, focusIssueCode, focusPanelMode, focusSource, onFocusRequestConsumed, prerequisiteComponents])
+  }, [
+    focusComponentKey,
+    focusIssueCode,
+    focusPanelMode,
+    focusSource,
+    onFocusRequestConsumed,
+    prerequisiteComponents,
+  ])
 
   useEffect(() => {
     return () => {
@@ -1859,14 +1871,23 @@ export function ServerComponentsPanel({
 
       void poll()
     },
-    [appendAddonLog, appendPrerequisiteLog, loadComponents, schedulePostActionRefresh, serverId, stopOperationPolling]
+    [
+      appendAddonLog,
+      appendPrerequisiteLog,
+      loadComponents,
+      schedulePostActionRefresh,
+      serverId,
+      stopOperationPolling,
+    ]
   )
 
   useEffect(() => {
     const inFlightPrerequisites = prerequisiteComponents.filter(component =>
       isInProgress(component.last_operation)
     )
-    const inFlightAddons = addonComponents.filter(component => isInProgress(component.last_operation))
+    const inFlightAddons = addonComponents.filter(component =>
+      isInProgress(component.last_operation)
+    )
 
     for (const component of [...prerequisiteComponents, ...addonComponents]) {
       if (!isInProgress(component.last_operation)) {
@@ -1930,7 +1951,13 @@ export function ServerComponentsPanel({
     inFlightAddons.forEach(component => {
       void restoreOperation(component, 'addon')
     })
-  }, [activeOperationKeys, addonComponents, prerequisiteComponents, serverId, startOperationPolling])
+  }, [
+    activeOperationKeys,
+    addonComponents,
+    prerequisiteComponents,
+    serverId,
+    startOperationPolling,
+  ])
 
   useEffect(() => {
     void loadComponents()
@@ -1944,7 +1971,9 @@ export function ServerComponentsPanel({
       setActionConflictComponentKey(null)
       setActionMessage('')
       const isPrerequisite = PREREQUISITE_COMPONENT_KEYS.has(componentKey)
-      const actionLabel = isPrerequisite ? prerequisiteActionLabel(action) : addonActionLabel(action)
+      const actionLabel = isPrerequisite
+        ? prerequisiteActionLabel(action)
+        : addonActionLabel(action)
 
       if (isPrerequisite) {
         setPrerequisiteOpen(current => ({ ...current, [componentKey]: true }))
@@ -2006,7 +2035,9 @@ export function ServerComponentsPanel({
           stopOperationPolling(componentKey)
         }
 
-        setActionMessage(acceptedActionMessage(componentKey, action, response.operation_id || undefined))
+        setActionMessage(
+          acceptedActionMessage(componentKey, action, response.operation_id || undefined)
+        )
 
         if (isPrerequisite && response.operation_id) {
           setActiveOperationKeys(current => ({ ...current, [componentKey]: true }))
@@ -2049,7 +2080,15 @@ export function ServerComponentsPanel({
         setActionLoading(null)
       }
     },
-    [appendPrerequisiteLog, cancelPostActionRefresh, loadComponents, schedulePostActionRefresh, serverId, startOperationPolling, stopOperationPolling]
+    [
+      appendPrerequisiteLog,
+      cancelPostActionRefresh,
+      loadComponents,
+      schedulePostActionRefresh,
+      serverId,
+      startOperationPolling,
+      stopOperationPolling,
+    ]
   )
 
   useEffect(() => {
@@ -2268,13 +2307,16 @@ export function ServerComponentsPanel({
       </AlertDialog>
 
       {actionMessage && <p className="text-sm text-muted-foreground">{actionMessage}</p>}
-      {actionError && actionConflictComponent && isInProgress(actionConflictComponent.last_operation) ? (
+      {actionError &&
+      actionConflictComponent &&
+      isInProgress(actionConflictComponent.last_operation) ? (
         <Alert variant="destructive">
           <AlertTitle>Operation already in progress</AlertTitle>
           <AlertDescription className="space-y-2">
             <div>
               {displayComponentLabel(actionConflictComponent)} already has an active{' '}
-              {softwareActionLabel(actionConflictComponent.last_operation?.action).toLowerCase()} request.
+              {softwareActionLabel(actionConflictComponent.last_operation?.action).toLowerCase()}{' '}
+              request.
             </div>
             <div>
               Current phase: {phaseLabel(actionConflictComponent.last_operation)}. Last updated:{' '}
@@ -2368,11 +2410,15 @@ export function ServerComponentsPanel({
                         [component.component_key]: mode,
                       }))
                     }
-                    activeActionLabel={prerequisiteActiveActionLabel[component.component_key] ?? null}
+                    activeActionLabel={
+                      prerequisiteActiveActionLabel[component.component_key] ?? null
+                    }
                     actionLogs={prerequisiteActionLogs[component.component_key] ?? []}
                     serverId={serverId}
                     actionsLocked={actionsLocked}
-                    focusHint={focusHint?.componentKey === component.component_key ? focusHint : null}
+                    focusHint={
+                      focusHint?.componentKey === component.component_key ? focusHint : null
+                    }
                   />
                 </div>
               ))}
@@ -2434,7 +2480,9 @@ export function ServerComponentsPanel({
                 Selected Addon
               </h3>
               <p className="text-xs text-muted-foreground">
-				{selectedAddon ? displayComponentLabel(selectedAddon) : 'Select one addon from the inventory.'}
+                {selectedAddon
+                  ? displayComponentLabel(selectedAddon)
+                  : 'Select one addon from the inventory.'}
               </p>
             </div>
 
@@ -2451,7 +2499,8 @@ export function ServerComponentsPanel({
                     <AlertDescription className="space-y-2">
                       <div>
                         {softwareActionLabel(selectedAddon.last_operation?.action)} is still{' '}
-						{phaseLabel(selectedAddon.last_operation)} for {displayComponentLabel(selectedAddon)}.
+                        {phaseLabel(selectedAddon.last_operation)} for{' '}
+                        {displayComponentLabel(selectedAddon)}.
                       </div>
                       <div>
                         Last updated:{' '}
@@ -2462,85 +2511,92 @@ export function ServerComponentsPanel({
                 ) : null}
                 <div className="space-y-2">
                   {(() => {
-                    const selectedAddonMode = addonPanelMode[selectedAddon.component_key] ?? 'details'
+                    const selectedAddonMode =
+                      addonPanelMode[selectedAddon.component_key] ?? 'details'
                     const liveLogStreaming =
-                      selectedAddonMode === 'operation' && isInProgress(selectedAddon.last_operation)
+                      selectedAddonMode === 'operation' &&
+                      isInProgress(selectedAddon.last_operation)
 
                     return (
-                  <div className="flex min-w-0 items-center justify-between gap-3">
-                    <div className="inline-flex shrink-0 items-center gap-1 rounded-md bg-muted/35 p-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          setAddonPanelMode(current => ({
-                            ...current,
-                            [selectedAddon.component_key]: 'details',
-                          }))
-                        }
-                        className={`h-7 rounded-sm px-2.5 text-xs ${
-                          (addonPanelMode[selectedAddon.component_key] ?? 'details') === 'details'
-                            ? 'bg-background text-foreground shadow-sm'
-                            : 'text-muted-foreground hover:bg-transparent hover:text-foreground'
-                        }`}
-                      >
-                        Details
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          setAddonPanelMode(current => ({
-                            ...current,
-                            [selectedAddon.component_key]: 'operation',
-                          }))
-                        }
-                        className={`h-7 rounded-sm px-2.5 text-xs ${
-                          (addonPanelMode[selectedAddon.component_key] ?? 'details') ===
-                          'operation'
-                            ? 'bg-background text-foreground shadow-sm'
-                            : 'text-muted-foreground hover:bg-transparent hover:text-foreground'
-                        }`}
-                      >
-                        Live Log
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          setAddonPanelMode(current => ({
-                            ...current,
-                            [selectedAddon.component_key]: 'history',
-                          }))
-                        }
-                        className={`h-7 rounded-sm px-2.5 text-xs ${
-                          (addonPanelMode[selectedAddon.component_key] ?? 'details') === 'history'
-                            ? 'bg-background text-foreground shadow-sm'
-                            : 'text-muted-foreground hover:bg-transparent hover:text-foreground'
-                        }`}
-                      >
-                        History
-                      </Button>
-                    </div>
-                    <div className="flex min-w-0 items-center gap-2">
-                      <div className="min-w-0 truncate text-sm font-medium text-foreground">
-                        {selectedAddonMode === 'operation'
-                          ? `${addonActiveActionLabel[selectedAddon.component_key] || 'Action'} Log`
-                          : selectedAddonMode === 'history'
-                            ? 'Operation History'
-                            : 'Addon Details'}
+                      <div className="flex min-w-0 items-center justify-between gap-3">
+                        <div className="inline-flex shrink-0 items-center gap-1 rounded-md bg-muted/35 p-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              setAddonPanelMode(current => ({
+                                ...current,
+                                [selectedAddon.component_key]: 'details',
+                              }))
+                            }
+                            className={`h-7 rounded-sm px-2.5 text-xs ${
+                              (addonPanelMode[selectedAddon.component_key] ?? 'details') ===
+                              'details'
+                                ? 'bg-background text-foreground shadow-sm'
+                                : 'text-muted-foreground hover:bg-transparent hover:text-foreground'
+                            }`}
+                          >
+                            Details
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              setAddonPanelMode(current => ({
+                                ...current,
+                                [selectedAddon.component_key]: 'operation',
+                              }))
+                            }
+                            className={`h-7 rounded-sm px-2.5 text-xs ${
+                              (addonPanelMode[selectedAddon.component_key] ?? 'details') ===
+                              'operation'
+                                ? 'bg-background text-foreground shadow-sm'
+                                : 'text-muted-foreground hover:bg-transparent hover:text-foreground'
+                            }`}
+                          >
+                            Live Log
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              setAddonPanelMode(current => ({
+                                ...current,
+                                [selectedAddon.component_key]: 'history',
+                              }))
+                            }
+                            className={`h-7 rounded-sm px-2.5 text-xs ${
+                              (addonPanelMode[selectedAddon.component_key] ?? 'details') ===
+                              'history'
+                                ? 'bg-background text-foreground shadow-sm'
+                                : 'text-muted-foreground hover:bg-transparent hover:text-foreground'
+                            }`}
+                          >
+                            History
+                          </Button>
+                        </div>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <div className="min-w-0 truncate text-sm font-medium text-foreground">
+                            {selectedAddonMode === 'operation'
+                              ? `${addonActiveActionLabel[selectedAddon.component_key] || 'Action'} Log`
+                              : selectedAddonMode === 'history'
+                                ? 'Operation History'
+                                : 'Addon Details'}
+                          </div>
+                          {liveLogStreaming ? (
+                            <Badge
+                              variant="secondary"
+                              className="inline-flex items-center gap-1 text-[11px]"
+                            >
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              Streaming
+                            </Badge>
+                          ) : null}
+                        </div>
                       </div>
-                      {liveLogStreaming ? (
-                        <Badge variant="secondary" className="inline-flex items-center gap-1 text-[11px]">
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                          Streaming
-                        </Badge>
-                      ) : null}
-                    </div>
-                  </div>
                     )
                   })()}
 
@@ -2589,7 +2645,9 @@ export function ServerComponentsPanel({
                             key={`${selectedAddon.component_key}:${item.label}`}
                             className="flex flex-col gap-1 sm:flex-row sm:gap-2"
                           >
-                            <span className="shrink-0 font-medium text-foreground">{item.label}:</span>
+                            <span className="shrink-0 font-medium text-foreground">
+                              {item.label}:
+                            </span>
                             <span className="break-words text-muted-foreground">{item.value}</span>
                           </div>
                         ))}

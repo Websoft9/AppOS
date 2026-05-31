@@ -39,7 +39,15 @@ export const PROXY_AUTH_OPTIONS: SelectOption[] = [
   { label: 'Username + Password', value: 'username_password' },
 ]
 
-export const SUPPORTED_KINDS = ['rest_api', 'webhook', 'mcp', 'proxy', 'smtp', 'registry', 'dns'] as const
+export const SUPPORTED_KINDS = [
+  'rest_api',
+  'webhook',
+  'mcp',
+  'proxy',
+  'smtp',
+  'registry',
+  'dns',
+] as const
 
 export const KIND_LABELS: Record<(typeof SUPPORTED_KINDS)[number], string> = {
   rest_api: 'REST API',
@@ -108,7 +116,9 @@ function inferEndpointScheme(
   template: ConnectorTemplate,
   payload: Record<string, unknown>
 ): string {
-  const explicitProtocol = String(payload.protocol ?? '').trim().toLowerCase()
+  const explicitProtocol = String(payload.protocol ?? '')
+    .trim()
+    .toLowerCase()
   if (explicitProtocol) {
     return explicitProtocol
   }

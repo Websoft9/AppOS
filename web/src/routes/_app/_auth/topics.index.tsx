@@ -219,7 +219,9 @@ function TopicsListPage() {
     () => filteredRows.slice((page - 1) * TOPICS_PAGE_SIZE, page * TOPICS_PAGE_SIZE),
     [filteredRows, page]
   )
-  useEffect(() => { setPage(1) }, [filteredRows])
+  useEffect(() => {
+    setPage(1)
+  }, [filteredRows])
 
   // ─── Dialog handlers ────────────────────────────────────
 

@@ -46,7 +46,7 @@ FROM victoriametrics/victoria-metrics:${VICTORIAMETRICS_VERSION} AS victoriametr
 # ===========================
 # Stage 2: Build Backend (PocketBase Framework)
 # ===========================
-FROM golang:1.26.2-alpine AS backend-builder
+FROM golang:1.26.3-alpine AS backend-builder
 
 ARG HTTP_PROXY
 ARG HTTPS_PROXY

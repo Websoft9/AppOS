@@ -21,15 +21,12 @@ function normalizeRestoreSessions(
     if (!item || typeof item !== 'object') return []
     const record = item as Record<string, unknown>
     const sessionId =
-      typeof record.sessionId === 'string' && record.sessionId.trim()
-        ? record.sessionId
-        : undefined
+      typeof record.sessionId === 'string' && record.sessionId.trim() ? record.sessionId : undefined
     const serverId =
       typeof record.serverId === 'string' && record.serverId.trim() ? record.serverId : undefined
     if (!sessionId || !serverId) return []
 
-    const title =
-      typeof record.title === 'string' && record.title.trim() ? record.title : serverId
+    const title = typeof record.title === 'string' && record.title.trim() ? record.title : serverId
 
     return [
       {
@@ -64,7 +61,9 @@ const LazyConnectServerPage = lazy(() =>
 export const Route = createFileRoute('/_app/_auth/_superuser/terminal/server/$serverId')({
   validateSearch: (search: Record<string, unknown>): TerminalServerSearch => ({
     sessionId:
-      typeof search.sessionId === 'string' && search.sessionId.trim() ? search.sessionId : undefined,
+      typeof search.sessionId === 'string' && search.sessionId.trim()
+        ? search.sessionId
+        : undefined,
     activeSessionId:
       typeof search.activeSessionId === 'string' && search.activeSessionId.trim()
         ? search.activeSessionId

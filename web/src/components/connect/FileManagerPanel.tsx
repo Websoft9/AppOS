@@ -1046,10 +1046,23 @@ export function FileManagerPanel({
             autoFocus
             disabled={busy}
           />
-          <Button type="button" size="sm" variant="outline" className="h-7" onClick={handleMkdir} disabled={busy}>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7"
+            onClick={handleMkdir}
+            disabled={busy}
+          >
             Create
           </Button>
-          <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => setMkdirMode(false)}>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7"
+            onClick={() => setMkdirMode(false)}
+          >
             Cancel
           </Button>
         </div>
@@ -1122,7 +1135,13 @@ export function FileManagerPanel({
           >
             Rename
           </Button>
-          <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => setRenameTarget(null)}>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7"
+            onClick={() => setRenameTarget(null)}
+          >
             Cancel
           </Button>
         </div>
@@ -1230,7 +1249,9 @@ export function FileManagerPanel({
                       <DropdownMenuContent align="end">
                         {entry.type !== 'dir' && (
                           <DropdownMenuItem
-                            onClick={() => openFileAtPath(joinPath(currentPath, entry.name), entry.name)}
+                            onClick={() =>
+                              openFileAtPath(joinPath(currentPath, entry.name), entry.name)
+                            }
                           >
                             <Pencil className="h-4 w-4 mr-2" />
                             Edit
@@ -1249,7 +1270,10 @@ export function FileManagerPanel({
                           <Eye className="h-4 w-4 mr-2" />
                           Properties
                         </DropdownMenuItem>
-                        <DropdownMenuItem data-testid={`symlink-${entry.name}`} onClick={() => handleCreateSymlink(entry)}>
+                        <DropdownMenuItem
+                          data-testid={`symlink-${entry.name}`}
+                          onClick={() => handleCreateSymlink(entry)}
+                        >
                           <Link2 className="h-4 w-4 mr-2" />
                           Create Symbolic Link
                         </DropdownMenuItem>
@@ -1257,7 +1281,10 @@ export function FileManagerPanel({
                           <FilePlus className="h-4 w-4 mr-2" />
                           Copy
                         </DropdownMenuItem>
-                        <DropdownMenuItem data-testid={`move-${entry.name}`} onClick={() => runCopyOrMove(entry, true)}>
+                        <DropdownMenuItem
+                          data-testid={`move-${entry.name}`}
+                          onClick={() => runCopyOrMove(entry, true)}
+                        >
                           <FolderPlus className="h-4 w-4 mr-2" />
                           Move
                         </DropdownMenuItem>
@@ -1343,7 +1370,9 @@ export function FileManagerPanel({
                         <DropdownMenuContent align="end">
                           {entry.type !== 'dir' && (
                             <DropdownMenuItem
-                              onClick={() => openFileAtPath(joinPath(currentPath, entry.name), entry.name)}
+                              onClick={() =>
+                                openFileAtPath(joinPath(currentPath, entry.name), entry.name)
+                              }
                             >
                               <Pencil className="h-4 w-4 mr-2" />
                               Edit
@@ -1362,7 +1391,10 @@ export function FileManagerPanel({
                             <Eye className="h-4 w-4 mr-2" />
                             Properties
                           </DropdownMenuItem>
-                          <DropdownMenuItem data-testid={`symlink-${entry.name}`} onClick={() => handleCreateSymlink(entry)}>
+                          <DropdownMenuItem
+                            data-testid={`symlink-${entry.name}`}
+                            onClick={() => handleCreateSymlink(entry)}
+                          >
                             <Link2 className="h-4 w-4 mr-2" />
                             Create Symbolic Link
                           </DropdownMenuItem>
@@ -1370,7 +1402,10 @@ export function FileManagerPanel({
                             <FilePlus className="h-4 w-4 mr-2" />
                             Copy
                           </DropdownMenuItem>
-                          <DropdownMenuItem data-testid={`move-${entry.name}`} onClick={() => runCopyOrMove(entry, true)}>
+                          <DropdownMenuItem
+                            data-testid={`move-${entry.name}`}
+                            onClick={() => runCopyOrMove(entry, true)}
+                          >
                             <FolderPlus className="h-4 w-4 mr-2" />
                             Move
                           </DropdownMenuItem>
@@ -1697,7 +1732,11 @@ export function FileManagerPanel({
             <Button type="button" variant="outline" onClick={() => setCopyMoveEntry(null)}>
               Cancel
             </Button>
-            <Button type="button" onClick={executeCopyOrMove} disabled={copyMoveSaving || !copyMoveTo.trim()}>
+            <Button
+              type="button"
+              onClick={executeCopyOrMove}
+              disabled={copyMoveSaving || !copyMoveTo.trim()}
+            >
               {copyMoveSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               {copyMoveMode === 'move' ? 'Move' : 'Copy'}
             </Button>

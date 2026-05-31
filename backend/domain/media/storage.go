@@ -19,7 +19,7 @@ func WriteFile(rel string, data []byte) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(abs, data, 0o644); err != nil {
+	if err := os.WriteFile(abs, data, 0o600); err != nil {
 		return "", err
 	}
 	return abs, nil

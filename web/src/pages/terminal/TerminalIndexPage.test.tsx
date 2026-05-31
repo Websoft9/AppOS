@@ -24,9 +24,7 @@ vi.mock('@/lib/connect-api', () => ({
 
 describe('TerminalIndexPage', () => {
   function getButtonByText(label: string) {
-    const match = screen
-      .getAllByRole('button')
-      .find(button => button.textContent?.trim() === label)
+    const match = screen.getAllByRole('button').find(button => button.textContent?.trim() === label)
 
     if (!match) {
       throw new Error(`Button not found: ${label}`)

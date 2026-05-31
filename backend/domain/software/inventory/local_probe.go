@@ -135,11 +135,15 @@ func querySQLiteScalar(app core.App, query string) (string, error) {
 	if query == "" {
 		return "", errors.New("sqlite_query probe requires query")
 	}
+	db := app.DB()
+	if db == nil {
+		return "", errors.New("sqlite_query probe requires database")
+	}
 
 	var row struct {
 		Version string `db:"version"`
 	}
-	if err := app.DB().NewQuery(query).One(&row); err != nil {
+	if err := db.NewQuery(query).One(&row); err != nil {
 		return "", err
 	}
 	return strings.TrimSpace(fmt.Sprint(row.Version)), nil
@@ -151,6 +155,7 @@ func runCommandProbe(command []string) (string, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
+	// #nosec G204 -- probe command definitions come from trusted catalog metadata bundled with AppOS.
 	cmd := exec.CommandContext(ctx, command[0], command[1:]...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {

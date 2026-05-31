@@ -17,12 +17,12 @@ import (
 type MetricPoint = monitormetrics.MetricPoint
 
 type localHostTelemetryState struct {
-	ObservedAt time.Time
-	CPUTotal   float64
-	CPUIdle    float64
+	ObservedAt     time.Time
+	CPUTotal       float64
+	CPUIdle        float64
 	DiskReadBytes  float64
 	DiskWriteBytes float64
-	Network map[string]localNetworkCounters
+	Network        map[string]localNetworkCounters
 }
 
 type LocalHostTelemetryState = localHostTelemetryState
@@ -53,12 +53,12 @@ func collectLocalHostMetricPoints(now time.Time, previous localHostTelemetryStat
 	}
 	points := buildLocalHostMetricPoints(now, snapshot, previous)
 	next := localHostTelemetryState{
-		ObservedAt: now,
-		CPUTotal: snapshot.CPUTotal,
-		CPUIdle: snapshot.CPUIdle,
-		DiskReadBytes: snapshot.DiskReadBytes,
+		ObservedAt:     now,
+		CPUTotal:       snapshot.CPUTotal,
+		CPUIdle:        snapshot.CPUIdle,
+		DiskReadBytes:  snapshot.DiskReadBytes,
 		DiskWriteBytes: snapshot.DiskWriteBytes,
-		Network: snapshot.Network,
+		Network:        snapshot.Network,
 	}
 	return points, next, nil
 }
@@ -163,15 +163,15 @@ func readLocalHostSnapshot() (localHostSnapshot, error) {
 		return localHostSnapshot{}, err
 	}
 	return localHostSnapshot{
-		CPUTotal: cpuTotal,
-		CPUIdle: cpuIdle,
-		MemoryUsedBytes: memoryUsed,
+		CPUTotal:         cpuTotal,
+		CPUIdle:          cpuIdle,
+		MemoryUsedBytes:  memoryUsed,
 		MemoryAvailBytes: memoryAvailable,
-		DiskUsedBytes: diskUsed,
-		DiskFreeBytes: diskFree,
-		DiskReadBytes: diskRead,
-		DiskWriteBytes: diskWrite,
-		Network: network,
+		DiskUsedBytes:    diskUsed,
+		DiskFreeBytes:    diskFree,
+		DiskReadBytes:    diskRead,
+		DiskWriteBytes:   diskWrite,
+		Network:          network,
 	}, nil
 }
 

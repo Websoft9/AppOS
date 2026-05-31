@@ -1,7 +1,6 @@
 package monitor
 
 import (
-	"sync"
 	"testing"
 	"time"
 
@@ -14,21 +13,26 @@ func TestObserveLocalServicesReturnsFastSnapshotThenBackgroundCPU(t *testing.T) 
 	originalResourceFn := localServiceResourceFn
 	originalMemoryFn := localServiceMemoryFn
 	originalUptimeFn := localServiceUptimeFn
-	originalCache := localServiceObservationCache
+	originalItems := append([]LocalServiceObservation(nil), localServiceObservationCache.items...)
+	originalInitialized := localServiceObservationCache.initialized
+	originalRefreshing := localServiceObservationCache.refreshing
 
-	localServiceObservationCache = struct {
-		mu          sync.Mutex
-		items       []LocalServiceObservation
-		initialized bool
-		refreshing  bool
-	}{}
+	localServiceObservationCache.mu.Lock()
+	localServiceObservationCache.items = nil
+	localServiceObservationCache.initialized = false
+	localServiceObservationCache.refreshing = false
+	localServiceObservationCache.mu.Unlock()
 
 	t.Cleanup(func() {
 		localServiceProcessInfoFn = originalProcessInfoFn
 		localServiceResourceFn = originalResourceFn
 		localServiceMemoryFn = originalMemoryFn
 		localServiceUptimeFn = originalUptimeFn
-		localServiceObservationCache = originalCache
+		localServiceObservationCache.mu.Lock()
+		localServiceObservationCache.items = append([]LocalServiceObservation(nil), originalItems...)
+		localServiceObservationCache.initialized = originalInitialized
+		localServiceObservationCache.refreshing = originalRefreshing
+		localServiceObservationCache.mu.Unlock()
 	})
 
 	registry := &swcatalog.LocalRegistry{

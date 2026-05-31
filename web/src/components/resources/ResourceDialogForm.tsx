@@ -26,7 +26,12 @@ type ResourceDialogFormProps = {
   relationOptions: Record<string, RelationOption[]>
   updateField: (key: string, value: unknown) => void
   handleChange: (field: FieldDef, raw: unknown) => void
-  addRelationOption: (fieldKey: string, id: string, label: string, raw?: Record<string, unknown>) => void
+  addRelationOption: (
+    fieldKey: string,
+    id: string,
+    label: string,
+    raw?: Record<string, unknown>
+  ) => void
   openRelationCreate: (field: FieldDef) => void
   handleFileUpload: (key: string, e: ChangeEvent<HTMLInputElement>) => void
   fileInputRef: (key: string, element: HTMLInputElement | null) => void
@@ -96,7 +101,9 @@ export function ResourceDialogForm({
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
             {description ? <DialogDescription>{description}</DialogDescription> : null}
-            {headerFields.length > 0 ? <div className="mt-4 grid gap-3">{headerFields.map(renderField)}</div> : null}
+            {headerFields.length > 0 ? (
+              <div className="mt-4 grid gap-3">{headerFields.map(renderField)}</div>
+            ) : null}
           </DialogHeader>
 
           {selectedSummary ?? null}
@@ -120,7 +127,11 @@ export function ResourceDialogForm({
                 )}
               </button>
 
-              {advancedOpen ? <div className="space-y-4 bg-background/90 px-5 py-5">{advancedFields.map(renderField)}</div> : null}
+              {advancedOpen ? (
+                <div className="space-y-4 bg-background/90 px-5 py-5">
+                  {advancedFields.map(renderField)}
+                </div>
+              ) : null}
             </div>
           )}
 

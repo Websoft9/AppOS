@@ -34,7 +34,8 @@ const mockContainers: Array<unknown> = []
 const mockPullOperations: Array<unknown> = []
 
 vi.mock('@tanstack/react-query', async () => {
-  const actual = await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query')
+  const actual =
+    await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query')
   return {
     ...actual,
     useQuery: (...args: unknown[]) => useQueryMock(...args),
@@ -88,7 +89,10 @@ vi.mock('@/components/ui/dropdown-menu', () => {
       children,
       value,
       ...rest
-    }: { children: React.ReactNode; value: string } & Omit<React.ComponentProps<'button'>, 'value'>) => (
+    }: { children: React.ReactNode; value: string } & Omit<
+      React.ComponentProps<'button'>,
+      'value'
+    >) => (
       <button role="radio" onClick={() => _radioOnValueChange?.(value)} {...rest}>
         {children}
       </button>
@@ -215,7 +219,9 @@ describe('ImagesTab pull history labels', () => {
     expect(source).not.toContain('<TabsTrigger value="recents">Recents</TabsTrigger>')
     expect(source).not.toContain('Running now')
     expect(source).not.toContain('These pulls are actively downloading on the target server.')
-    expect(source).not.toContain('These pulls are waiting for an available pull slot on this server.')
+    expect(source).not.toContain(
+      'These pulls are waiting for an available pull slot on this server.'
+    )
   })
 
   it('adds a registry column inferred from repository names', () => {

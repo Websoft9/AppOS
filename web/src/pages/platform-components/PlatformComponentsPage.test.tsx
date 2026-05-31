@@ -26,7 +26,25 @@ describe('PlatformComponentsPage built-in components presentation', () => {
       if (path === '/api/software/local') {
         componentCalls += 1
         if (componentCalls === 1) {
-          return Promise.resolve({ items: [
+          return Promise.resolve({
+            items: [
+              {
+                id: 'c1',
+                name: 'Redis',
+                criticality: 'important',
+                runtime_kind: 'service',
+                role: 'cache store',
+                owned_capability: 'background state cache',
+                version: 'unknown',
+                available: false,
+                probe_pending: true,
+                updated_at: '2026-03-20T09:30:00Z',
+              },
+            ],
+          })
+        }
+        return Promise.resolve({
+          items: [
             {
               id: 'c1',
               name: 'Redis',
@@ -34,27 +52,13 @@ describe('PlatformComponentsPage built-in components presentation', () => {
               runtime_kind: 'service',
               role: 'cache store',
               owned_capability: 'background state cache',
-              version: 'unknown',
-              available: false,
-              probe_pending: true,
+              version: '7.2.0',
+              available: true,
+              probe_pending: false,
               updated_at: '2026-03-20T09:30:00Z',
             },
-          ] })
-        }
-        return Promise.resolve({ items: [
-          {
-            id: 'c1',
-            name: 'Redis',
-            criticality: 'important',
-            runtime_kind: 'service',
-            role: 'cache store',
-            owned_capability: 'background state cache',
-            version: '7.2.0',
-            available: true,
-            probe_pending: false,
-            updated_at: '2026-03-20T09:30:00Z',
-          },
-        ] })
+          ],
+        })
       }
 
       if (path === '/api/software/local/services') {
@@ -84,31 +88,33 @@ describe('PlatformComponentsPage built-in components presentation', () => {
   it('renders built-in components as read-only text cards in the current responsive grid container', async () => {
     sendMock.mockImplementation((path: string) => {
       if (path === '/api/software/local') {
-        return Promise.resolve({ items: [
-          {
-            id: 'c1',
-            name: 'Nginx',
-            criticality: 'core',
-            runtime_kind: 'service',
-            role: 'reverse proxy',
-            owned_capability: 'web ingress',
-            version: '1.27.0',
-            available: true,
-            updated_at: '2026-03-20T10:00:00Z',
-          },
-          {
-            id: 'c2',
-            name: 'Redis',
-            criticality: 'important',
-            runtime_kind: 'service',
-            role: 'cache store',
-            owned_capability: 'background state cache',
-            version: 'unknown',
-            available: false,
-            probe_pending: true,
-            updated_at: '2026-03-20T09:30:00Z',
-          },
-        ] })
+        return Promise.resolve({
+          items: [
+            {
+              id: 'c1',
+              name: 'Nginx',
+              criticality: 'core',
+              runtime_kind: 'service',
+              role: 'reverse proxy',
+              owned_capability: 'web ingress',
+              version: '1.27.0',
+              available: true,
+              updated_at: '2026-03-20T10:00:00Z',
+            },
+            {
+              id: 'c2',
+              name: 'Redis',
+              criticality: 'important',
+              runtime_kind: 'service',
+              role: 'cache store',
+              owned_capability: 'background state cache',
+              version: 'unknown',
+              available: false,
+              probe_pending: true,
+              updated_at: '2026-03-20T09:30:00Z',
+            },
+          ],
+        })
       }
 
       if (path === '/api/software/local/services') {
@@ -137,7 +143,9 @@ describe('PlatformComponentsPage built-in components presentation', () => {
     })
 
     expect(
-      screen.getByText('Read-only runtime inventory for quick awareness. No actions are required here.')
+      screen.getByText(
+        'Read-only runtime inventory for quick awareness. No actions are required here.'
+      )
     ).toBeInTheDocument()
     expect(screen.getAllByText('Service').length).toBeGreaterThan(0)
     expect(screen.getByText('reverse proxy')).toBeInTheDocument()
@@ -214,7 +222,9 @@ describe('PlatformComponentsPage built-in components presentation', () => {
         'Services are grouped by operator visibility so the default surface stays focused while diagnostic dependencies remain accessible.'
       )
     ).toBeInTheDocument()
-    expect(screen.getByText('Default operator-visible services for the current AppOS instance.')).toBeInTheDocument()
+    expect(
+      screen.getByText('Default operator-visible services for the current AppOS instance.')
+    ).toBeInTheDocument()
     expect(screen.getByText('Diagnostic Services')).toBeInTheDocument()
     expect(screen.getByText('appos')).toBeInTheDocument()
     expect(screen.getByText('victoriametrics')).toBeInTheDocument()

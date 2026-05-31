@@ -46,7 +46,10 @@ import { ImagesTab, type ImagesTabRef } from '@/components/docker/ImagesTab'
 import { NetworksTab, type NetworksTabRef } from '@/components/docker/NetworksTab'
 import { VolumesTab, type VolumesTabRef } from '@/components/docker/VolumesTab'
 import { ComposeTab, type ComposeTabSummary } from '@/components/docker/ComposeTab'
-import { DockerDependencyAlert, getDockerDependencyIssue } from '@/components/docker/DockerDependencyAlert'
+import {
+  DockerDependencyAlert,
+  getDockerDependencyIssue,
+} from '@/components/docker/DockerDependencyAlert'
 import { TerminalPanel } from '@/components/connect/TerminalPanel'
 import { dockerApiPath, dockerTargetsPath } from '@/lib/docker-api'
 import { cn } from '@/lib/utils'
@@ -383,18 +386,16 @@ function OverviewTab({
             : 'overview'
 
   if (loadError) {
-    return (
-      dependencyIssue && loadErrorMessage ? (
-        <DockerDependencyAlert
-          serverId={serverId}
-          message={loadErrorMessage}
-          focusSource={dependencyFocusSource}
-        />
-      ) : (
-        <Alert variant="destructive">
-          <AlertDescription>{loadErrorMessage}</AlertDescription>
-        </Alert>
-      )
+    return dependencyIssue && loadErrorMessage ? (
+      <DockerDependencyAlert
+        serverId={serverId}
+        message={loadErrorMessage}
+        focusSource={dependencyFocusSource}
+      />
+    ) : (
+      <Alert variant="destructive">
+        <AlertDescription>{loadErrorMessage}</AlertDescription>
+      </Alert>
     )
   }
 
@@ -410,16 +411,14 @@ function OverviewTab({
               onClick={() => onSelectTab(card.tab)}
               className="min-w-0 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
-              <Card
-                className={cn(
-                  'h-full gap-3 py-4 transition-colors hover:bg-muted/30'
-                )}
-              >
+              <Card className={cn('h-full gap-3 py-4 transition-colors hover:bg-muted/30')}>
                 <CardHeader className="px-4 pb-0">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <CardDescription>{card.label}</CardDescription>
-                      <CardTitle className="mt-2 text-3xl">{loading ? '...' : card.count}</CardTitle>
+                      <CardTitle className="mt-2 text-3xl">
+                        {loading ? '...' : card.count}
+                      </CardTitle>
                     </div>
                     <div
                       className={cn(
@@ -452,7 +451,9 @@ function OverviewTab({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <CardTitle className="text-base">Needs Attention</CardTitle>
-              <CardDescription>Actionable Docker issues found from current inventory data.</CardDescription>
+              <CardDescription>
+                Actionable Docker issues found from current inventory data.
+              </CardDescription>
             </div>
             {!loading && (
               <Badge variant={attentionIssues.length > 0 ? 'secondary' : 'outline'}>
@@ -511,7 +512,8 @@ function OverviewTab({
               {hiddenAttentionCount > 0 && (
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/10 px-3 py-2">
                   <div className="text-xs text-muted-foreground">
-                    Showing first {visibleAttentionIssues.length} of {attentionIssues.length} issues.
+                    Showing first {visibleAttentionIssues.length} of {attentionIssues.length}{' '}
+                    issues.
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {hasContainerIssues && (
@@ -583,11 +585,7 @@ function OverviewTab({
   )
 }
 
-export function DockerPanel({
-  serverId,
-  className,
-  showWorkspaceHeader = true,
-}: DockerPanelProps) {
+export function DockerPanel({ serverId, className, showWorkspaceHeader = true }: DockerPanelProps) {
   const queryClient = useQueryClient()
   const rootRef = useRef<HTMLDivElement | null>(null)
   const refreshFeedbackTimerRef = useRef<number | null>(null)
@@ -640,8 +638,7 @@ export function DockerPanel({
   const [composeSummary, setComposeSummary] = useState<ComposeTabSummary | null>(null)
   const [containerPage, setContainerPage] = useState(1)
   const [containerPageSize, setContainerPageSize] = useState<ContainerPageSize>(loadGlobalPageSize)
-  const [containerStateFilter, setContainerStateFilter] =
-    useState<ContainerStateFilter>('all')
+  const [containerStateFilter, setContainerStateFilter] = useState<ContainerStateFilter>('all')
   const [containerSummary, setContainerSummary] = useState<{
     totalItems: number
     totalPages: number
@@ -824,7 +821,9 @@ export function DockerPanel({
     try {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['docker', 'containers', serverId] }),
-        queryClient.invalidateQueries({ queryKey: ['docker', 'containers', 'for-images', serverId] }),
+        queryClient.invalidateQueries({
+          queryKey: ['docker', 'containers', 'for-images', serverId],
+        }),
         queryClient.invalidateQueries({ queryKey: ['monitor', 'container-telemetry', serverId] }),
         queryClient.invalidateQueries({ queryKey: ['docker', 'images', serverId] }),
         queryClient.invalidateQueries({ queryKey: ['docker', 'networks', serverId] }),
@@ -857,7 +856,7 @@ export function DockerPanel({
             <div className="space-y-1 min-w-0">
               <h2 className="text-sm font-semibold">Docker</h2>
               <p className="text-sm text-muted-foreground">
-              Inspect containers, compose projects, images, volumes, and networks on this server.
+                Inspect containers, compose projects, images, volumes, and networks on this server.
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -947,551 +946,572 @@ export function DockerPanel({
                     <h3 className="text-sm font-semibold text-foreground">{activeTabMeta.label}</h3>
                   </div>
                   {activeTab === 'containers' ? (
-                  <div className="flex flex-wrap items-center justify-end gap-2">
-                    <input
-                      value={containerFilter}
-                      onChange={event => setContainerFilter(event.target.value)}
-                      placeholder="Search containers"
-                      className="h-8 w-full min-w-[12rem] rounded-md border bg-background px-3 text-sm sm:w-[20ch]"
-                    />
-                    <select
-                      value={containerStateFilter}
-                      onChange={event =>
-                        setContainerStateFilter(event.target.value as ContainerStateFilter)
-                      }
-                      className="h-8 rounded-md border bg-background px-2 text-sm"
-                    >
-                      <option value="all">All states ({containerSummary.stateCounts.all})</option>
-                      <option value="running">Running ({containerSummary.stateCounts.running})</option>
-                      <option value="exited">Exited ({containerSummary.stateCounts.exited})</option>
-                      <option value="paused">Paused ({containerSummary.stateCounts.paused})</option>
-                      <option value="created">Created ({containerSummary.stateCounts.created})</option>
-                    </select>
-                    <div className="ml-4 flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>{containerSummary.totalItems} total</span>
-                      <div className="flex items-center gap-0 text-xs text-foreground">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-5 px-0"
-                          onClick={() => setContainerPage(Math.max(1, containerPage - 1))}
-                          disabled={containerPage <= 1}
-                          aria-label="Previous containers page"
-                        >
-                          <ChevronLeft className="h-3.5 w-3.5" />
-                        </Button>
-                        <span className="min-w-[2rem] text-center font-medium tabular-nums">
-                          {containerPage}/{containerSummary.totalPages}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-5 px-0"
-                          onClick={() =>
-                            setContainerPage(Math.min(containerSummary.totalPages, containerPage + 1))
-                          }
-                          disabled={containerPage >= containerSummary.totalPages}
-                          aria-label="Next containers page"
-                        >
-                          <ChevronRight className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                    <Link
-                      to="/deploy/create"
-                      search={{
-                        entry: undefined,
-                        prefillMode: undefined,
-                        prefillSource: undefined,
-                        prefillAppId: undefined,
-                        prefillAppKey: undefined,
-                        prefillAppName: undefined,
-                        prefillServerId: undefined,
-                      }}
-                      className="inline-flex h-8 items-center px-2 text-xs font-medium text-primary hover:underline"
-                    >
-                      <Plus className="mr-1 h-4 w-4" /> Create
-                    </Link>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          aria-label="Container display settings"
-                          title="Container display settings"
-                        >
-                          <Settings2 className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-56">
-                        <DropdownMenuLabel>Rows Per Page</DropdownMenuLabel>
-                        <DropdownMenuRadioGroup
-                          value={String(containerPageSize)}
-                          onValueChange={value => {
-                            setContainerPageSize(Number(value) as ContainerPageSize)
-                            setContainerPage(1)
-                          }}
-                        >
-                          <DropdownMenuRadioItem value="25">25 / page</DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="50">50 / page</DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="100">100 / page</DropdownMenuRadioItem>
-                        </DropdownMenuRadioGroup>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuLabel>Visible Columns</DropdownMenuLabel>
-                        <DropdownMenuCheckboxItem
-                          checked={containerVisibleColumns.ports}
-                          onCheckedChange={checked =>
-                            setContainerVisibleColumns({
-                              ...containerVisibleColumns,
-                              ports: checked === true,
-                            })
-                          }
-                        >
-                          Ports
-                        </DropdownMenuCheckboxItem>
-                        <DropdownMenuCheckboxItem
-                          checked={containerVisibleColumns.status}
-                          onCheckedChange={checked =>
-                            setContainerVisibleColumns({
-                              ...containerVisibleColumns,
-                              status: checked === true,
-                            })
-                          }
-                        >
-                          Lifecycle
-                        </DropdownMenuCheckboxItem>
-                        <DropdownMenuCheckboxItem
-                          checked={containerVisibleColumns.created}
-                          onCheckedChange={checked =>
-                            setContainerVisibleColumns({
-                              ...containerVisibleColumns,
-                              created: checked === true,
-                            })
-                          }
-                        >
-                          Created
-                        </DropdownMenuCheckboxItem>
-                        <DropdownMenuCheckboxItem
-                          checked={containerVisibleColumns.cpu}
-                          onCheckedChange={checked =>
-                            setContainerVisibleColumns({
-                              ...containerVisibleColumns,
-                              cpu: checked === true,
-                            })
-                          }
-                        >
-                          CPU
-                        </DropdownMenuCheckboxItem>
-                        <DropdownMenuCheckboxItem
-                          checked={containerVisibleColumns.mem}
-                          onCheckedChange={checked =>
-                            setContainerVisibleColumns({
-                              ...containerVisibleColumns,
-                              mem: checked === true,
-                            })
-                          }
-                        >
-                          Memory
-                        </DropdownMenuCheckboxItem>
-                        <DropdownMenuCheckboxItem
-                          checked={containerVisibleColumns.network}
-                          onCheckedChange={checked =>
-                            setContainerVisibleColumns({
-                              ...containerVisibleColumns,
-                              network: checked === true,
-                            })
-                          }
-                        >
-                          Network
-                        </DropdownMenuCheckboxItem>
-                        <DropdownMenuCheckboxItem
-                          checked={containerVisibleColumns.compose}
-                          onCheckedChange={checked =>
-                            setContainerVisibleColumns({
-                              ...containerVisibleColumns,
-                              compose: checked === true,
-                            })
-                          }
-                        >
-                          Compose
-                        </DropdownMenuCheckboxItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                ) : activeTab === 'images' ? (
-                  <div className="flex flex-wrap items-center justify-end gap-2">
-                    <input
-                      value={imagesFilter}
-                      onChange={e => setImagesFilter(e.target.value)}
-                      placeholder="Filter images..."
-                      className="h-8 w-full min-w-0 rounded-md border bg-background px-3 text-sm sm:mr-[5ch] sm:w-[20ch]"
-                    />
-                    <select
-                      value={imagesUsageFilter}
-                      onChange={e => setImagesUsageFilter(e.target.value as 'all' | 'used' | 'unused')}
-                      className="h-8 shrink-0 rounded-md border bg-background px-2 text-sm"
-                    >
-                      <option value="all">All images</option>
-                      <option value="used">Used ({imagesSummary?.usedItems ?? 0})</option>
-                      <option value="unused">Unused ({imagesSummary?.unusedItems ?? 0})</option>
-                    </select>
-                    <div className="ml-4 flex items-center gap-2 text-xs text-muted-foreground">
-                      {imagesSummary && <span>{imagesSummary.totalItems} total</span>}
-                      <div className="flex items-center gap-0 text-xs text-foreground">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-5 px-0"
-                          onClick={() => setImagesPage(p => Math.max(1, p - 1))}
-                          disabled={imagesPage <= 1}
-                          aria-label="Previous images page"
-                        >
-                          <ChevronLeft className="h-3.5 w-3.5" />
-                        </Button>
-                        <span className="min-w-[2rem] text-center font-medium tabular-nums">
-                          {imagesPage}/{imagesSummary?.totalPages ?? 1}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-5 px-0"
-                          onClick={() => setImagesPage(p => Math.min(imagesSummary?.totalPages ?? 1, p + 1))}
-                          disabled={imagesPage >= (imagesSummary?.totalPages ?? 1)}
-                          aria-label="Next images page"
-                        >
-                          <ChevronRight className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 shrink-0 px-2 text-xs"
-                      onClick={() =>
-                        imagesPullActivity.activeCount > 0
-                          ? imagesTabRef.current?.openPullHistory('pulling')
-                          : imagesTabRef.current?.openPullDialog()
-                      }
-                      title="Pull image"
-                    >
-                      {imagesPullActivity.activeCount > 0 ? (
-                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                      ) : (
-                        <Download className="h-4 w-4 mr-1" />
-                      )}
-                      {imagesPullActivity.activeCount > 0
-                        ? `Pulling (${imagesPullActivity.activeCount})`
-                        : 'Pull'}
-                    </Button>
-                    {imagesPullActivity.recentFailedCount > 0 ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 shrink-0 gap-1.5 px-2 text-xs"
-                        onClick={() => imagesTabRef.current?.openPullHistory('recents')}
-                        title="View failed image pulls"
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <input
+                        value={containerFilter}
+                        onChange={event => setContainerFilter(event.target.value)}
+                        placeholder="Search containers"
+                        className="h-8 w-full min-w-[12rem] rounded-md border bg-background px-3 text-sm sm:w-[20ch]"
+                      />
+                      <select
+                        value={containerStateFilter}
+                        onChange={event =>
+                          setContainerStateFilter(event.target.value as ContainerStateFilter)
+                        }
+                        className="h-8 rounded-md border bg-background px-2 text-sm"
                       >
-                        <Badge variant="outline" className="h-5 rounded-sm border-destructive/30 px-1.5 text-[10px] text-destructive">
-                          {imagesPullActivity.recentFailedCount}
-                        </Badge>
-                        Failed
-                      </Button>
-                    ) : imagesPullActivity.hasRecentHistory ? (
+                        <option value="all">All states ({containerSummary.stateCounts.all})</option>
+                        <option value="running">
+                          Running ({containerSummary.stateCounts.running})
+                        </option>
+                        <option value="exited">
+                          Exited ({containerSummary.stateCounts.exited})
+                        </option>
+                        <option value="paused">
+                          Paused ({containerSummary.stateCounts.paused})
+                        </option>
+                        <option value="created">
+                          Created ({containerSummary.stateCounts.created})
+                        </option>
+                      </select>
+                      <div className="ml-4 flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>{containerSummary.totalItems} total</span>
+                        <div className="flex items-center gap-0 text-xs text-foreground">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-5 px-0"
+                            onClick={() => setContainerPage(Math.max(1, containerPage - 1))}
+                            disabled={containerPage <= 1}
+                            aria-label="Previous containers page"
+                          >
+                            <ChevronLeft className="h-3.5 w-3.5" />
+                          </Button>
+                          <span className="min-w-[2rem] text-center font-medium tabular-nums">
+                            {containerPage}/{containerSummary.totalPages}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-5 px-0"
+                            onClick={() =>
+                              setContainerPage(
+                                Math.min(containerSummary.totalPages, containerPage + 1)
+                              )
+                            }
+                            disabled={containerPage >= containerSummary.totalPages}
+                            aria-label="Next containers page"
+                          >
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                      <Link
+                        to="/deploy/create"
+                        search={{
+                          entry: undefined,
+                          prefillMode: undefined,
+                          prefillSource: undefined,
+                          prefillAppId: undefined,
+                          prefillAppKey: undefined,
+                          prefillAppName: undefined,
+                          prefillServerId: undefined,
+                        }}
+                        className="inline-flex h-8 items-center px-2 text-xs font-medium text-primary hover:underline"
+                      >
+                        <Plus className="mr-1 h-4 w-4" /> Create
+                      </Link>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            aria-label="Container display settings"
+                            title="Container display settings"
+                          >
+                            <Settings2 className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                          <DropdownMenuLabel>Rows Per Page</DropdownMenuLabel>
+                          <DropdownMenuRadioGroup
+                            value={String(containerPageSize)}
+                            onValueChange={value => {
+                              setContainerPageSize(Number(value) as ContainerPageSize)
+                              setContainerPage(1)
+                            }}
+                          >
+                            <DropdownMenuRadioItem value="25">25 / page</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="50">50 / page</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="100">100 / page</DropdownMenuRadioItem>
+                          </DropdownMenuRadioGroup>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuLabel>Visible Columns</DropdownMenuLabel>
+                          <DropdownMenuCheckboxItem
+                            checked={containerVisibleColumns.ports}
+                            onCheckedChange={checked =>
+                              setContainerVisibleColumns({
+                                ...containerVisibleColumns,
+                                ports: checked === true,
+                              })
+                            }
+                          >
+                            Ports
+                          </DropdownMenuCheckboxItem>
+                          <DropdownMenuCheckboxItem
+                            checked={containerVisibleColumns.status}
+                            onCheckedChange={checked =>
+                              setContainerVisibleColumns({
+                                ...containerVisibleColumns,
+                                status: checked === true,
+                              })
+                            }
+                          >
+                            Lifecycle
+                          </DropdownMenuCheckboxItem>
+                          <DropdownMenuCheckboxItem
+                            checked={containerVisibleColumns.created}
+                            onCheckedChange={checked =>
+                              setContainerVisibleColumns({
+                                ...containerVisibleColumns,
+                                created: checked === true,
+                              })
+                            }
+                          >
+                            Created
+                          </DropdownMenuCheckboxItem>
+                          <DropdownMenuCheckboxItem
+                            checked={containerVisibleColumns.cpu}
+                            onCheckedChange={checked =>
+                              setContainerVisibleColumns({
+                                ...containerVisibleColumns,
+                                cpu: checked === true,
+                              })
+                            }
+                          >
+                            CPU
+                          </DropdownMenuCheckboxItem>
+                          <DropdownMenuCheckboxItem
+                            checked={containerVisibleColumns.mem}
+                            onCheckedChange={checked =>
+                              setContainerVisibleColumns({
+                                ...containerVisibleColumns,
+                                mem: checked === true,
+                              })
+                            }
+                          >
+                            Memory
+                          </DropdownMenuCheckboxItem>
+                          <DropdownMenuCheckboxItem
+                            checked={containerVisibleColumns.network}
+                            onCheckedChange={checked =>
+                              setContainerVisibleColumns({
+                                ...containerVisibleColumns,
+                                network: checked === true,
+                              })
+                            }
+                          >
+                            Network
+                          </DropdownMenuCheckboxItem>
+                          <DropdownMenuCheckboxItem
+                            checked={containerVisibleColumns.compose}
+                            onCheckedChange={checked =>
+                              setContainerVisibleColumns({
+                                ...containerVisibleColumns,
+                                compose: checked === true,
+                              })
+                            }
+                          >
+                            Compose
+                          </DropdownMenuCheckboxItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  ) : activeTab === 'images' ? (
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <input
+                        value={imagesFilter}
+                        onChange={e => setImagesFilter(e.target.value)}
+                        placeholder="Filter images..."
+                        className="h-8 w-full min-w-0 rounded-md border bg-background px-3 text-sm sm:mr-[5ch] sm:w-[20ch]"
+                      />
+                      <select
+                        value={imagesUsageFilter}
+                        onChange={e =>
+                          setImagesUsageFilter(e.target.value as 'all' | 'used' | 'unused')
+                        }
+                        className="h-8 shrink-0 rounded-md border bg-background px-2 text-sm"
+                      >
+                        <option value="all">All images</option>
+                        <option value="used">Used ({imagesSummary?.usedItems ?? 0})</option>
+                        <option value="unused">Unused ({imagesSummary?.unusedItems ?? 0})</option>
+                      </select>
+                      <div className="ml-4 flex items-center gap-2 text-xs text-muted-foreground">
+                        {imagesSummary && <span>{imagesSummary.totalItems} total</span>}
+                        <div className="flex items-center gap-0 text-xs text-foreground">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-5 px-0"
+                            onClick={() => setImagesPage(p => Math.max(1, p - 1))}
+                            disabled={imagesPage <= 1}
+                            aria-label="Previous images page"
+                          >
+                            <ChevronLeft className="h-3.5 w-3.5" />
+                          </Button>
+                          <span className="min-w-[2rem] text-center font-medium tabular-nums">
+                            {imagesPage}/{imagesSummary?.totalPages ?? 1}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-5 px-0"
+                            onClick={() =>
+                              setImagesPage(p => Math.min(imagesSummary?.totalPages ?? 1, p + 1))
+                            }
+                            disabled={imagesPage >= (imagesSummary?.totalPages ?? 1)}
+                            aria-label="Next images page"
+                          >
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
                       <Button
                         variant="ghost"
                         size="sm"
                         className="h-8 shrink-0 px-2 text-xs"
-                        onClick={() => imagesTabRef.current?.openPullHistory('recents')}
-                        title="View pull history"
+                        onClick={() =>
+                          imagesPullActivity.activeCount > 0
+                            ? imagesTabRef.current?.openPullHistory('pulling')
+                            : imagesTabRef.current?.openPullDialog()
+                        }
+                        title="Pull image"
                       >
-                        History
+                        {imagesPullActivity.activeCount > 0 ? (
+                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                        ) : (
+                          <Download className="h-4 w-4 mr-1" />
+                        )}
+                        {imagesPullActivity.activeCount > 0
+                          ? `Pulling (${imagesPullActivity.activeCount})`
+                          : 'Pull'}
                       </Button>
-                    ) : null}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 shrink-0 px-2 text-xs"
-                      onClick={() => imagesTabRef.current?.openPruneDialog()}
-                      title="Prune unused images"
-                    >
-                      <Eraser className="h-4 w-4 mr-1" /> Prune
-                    </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          aria-label="Images display settings"
-                          title="Images display settings"
-                        >
-                          <Settings2 className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-44">
-                        <DropdownMenuLabel>Rows Per Page</DropdownMenuLabel>
-                        <DropdownMenuRadioGroup
-                          value={String(imagesPageSize)}
-                          onValueChange={value => {
-                            const s = Number(value) as 25 | 50 | 100
-                            setImagesPageSize(s)
-                            setImagesPage(1)
-                          }}
-                        >
-                          <DropdownMenuRadioItem value="25">25 / page</DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="50">50 / page</DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="100">100 / page</DropdownMenuRadioItem>
-                        </DropdownMenuRadioGroup>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                ) : activeTab === 'volumes' ? (
-                  <div className="flex flex-wrap items-center justify-end gap-2">
-                    <input
-                      value={volumesFilter}
-                      onChange={e => setVolumesFilter(e.target.value)}
-                      placeholder="Filter volumes..."
-                      className="h-8 w-full min-w-0 rounded-md border bg-background px-3 text-sm sm:mr-[5ch] sm:w-[20ch]"
-                    />
-                    <div className="ml-4 flex items-center gap-2 text-xs text-muted-foreground">
-                      {volumesSummary && <span>{volumesSummary.totalItems} total</span>}
-                      <div className="flex items-center gap-0 text-xs text-foreground">
+                      {imagesPullActivity.recentFailedCount > 0 ? (
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-7 w-5 px-0"
-                          onClick={() => setVolumesPage(p => Math.max(1, p - 1))}
-                          disabled={volumesPage <= 1}
-                          aria-label="Previous volumes page"
+                          className="h-8 shrink-0 gap-1.5 px-2 text-xs"
+                          onClick={() => imagesTabRef.current?.openPullHistory('recents')}
+                          title="View failed image pulls"
                         >
-                          <ChevronLeft className="h-3.5 w-3.5" />
+                          <Badge
+                            variant="outline"
+                            className="h-5 rounded-sm border-destructive/30 px-1.5 text-[10px] text-destructive"
+                          >
+                            {imagesPullActivity.recentFailedCount}
+                          </Badge>
+                          Failed
                         </Button>
-                        <span className="min-w-[2rem] text-center font-medium tabular-nums">
-                          {volumesPage}/{volumesSummary?.totalPages ?? 1}
-                        </span>
+                      ) : imagesPullActivity.hasRecentHistory ? (
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-7 w-5 px-0"
-                          onClick={() =>
-                            setVolumesPage(p => Math.min(volumesSummary?.totalPages ?? 1, p + 1))
-                          }
-                          disabled={volumesPage >= (volumesSummary?.totalPages ?? 1)}
-                          aria-label="Next volumes page"
+                          className="h-8 shrink-0 px-2 text-xs"
+                          onClick={() => imagesTabRef.current?.openPullHistory('recents')}
+                          title="View pull history"
                         >
-                          <ChevronRight className="h-3.5 w-3.5" />
+                          History
                         </Button>
-                      </div>
+                      ) : null}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 shrink-0 px-2 text-xs"
+                        onClick={() => imagesTabRef.current?.openPruneDialog()}
+                        title="Prune unused images"
+                      >
+                        <Eraser className="h-4 w-4 mr-1" /> Prune
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            aria-label="Images display settings"
+                            title="Images display settings"
+                          >
+                            <Settings2 className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuLabel>Rows Per Page</DropdownMenuLabel>
+                          <DropdownMenuRadioGroup
+                            value={String(imagesPageSize)}
+                            onValueChange={value => {
+                              const s = Number(value) as 25 | 50 | 100
+                              setImagesPageSize(s)
+                              setImagesPage(1)
+                            }}
+                          >
+                            <DropdownMenuRadioItem value="25">25 / page</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="50">50 / page</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="100">100 / page</DropdownMenuRadioItem>
+                          </DropdownMenuRadioGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 shrink-0 px-2 text-xs"
-                      onClick={() => volumesTabRef.current?.openPruneDialog()}
-                      title="Prune unused volumes"
-                    >
-                      <Eraser className="h-4 w-4 mr-1" /> Prune
-                    </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          aria-label="Volumes display settings"
-                          title="Volumes display settings"
-                        >
-                          <Settings2 className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-44">
-                        <DropdownMenuLabel>Rows Per Page</DropdownMenuLabel>
-                        <DropdownMenuRadioGroup
-                          value={String(volumesPageSize)}
-                          onValueChange={value => {
-                            const size = Number(value) as 25 | 50 | 100
-                            setVolumesPageSize(size)
-                            setVolumesPage(1)
-                          }}
-                        >
-                          <DropdownMenuRadioItem value="25">25 / page</DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="50">50 / page</DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="100">100 / page</DropdownMenuRadioItem>
-                        </DropdownMenuRadioGroup>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                ) : activeTab === 'networks' ? (
-                  <div className="flex flex-wrap items-center justify-end gap-2">
-                    <input
-                      value={networksFilter}
-                      onChange={e => setNetworksFilter(e.target.value)}
-                      placeholder="Search networks"
-                      className="h-8 w-full min-w-0 rounded-md border bg-background px-3 text-sm sm:mr-[5ch] sm:w-[20ch]"
-                    />
-                    <div className="ml-4 flex items-center gap-2 text-xs text-muted-foreground">
-                      {networksSummary && <span>{networksSummary.totalItems} total</span>}
-                      <div className="flex items-center gap-0 text-xs text-foreground">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-5 px-0"
-                          onClick={() => setNetworksPage(p => Math.max(1, p - 1))}
-                          disabled={networksPage <= 1}
-                          aria-label="Previous networks page"
-                        >
-                          <ChevronLeft className="h-3.5 w-3.5" />
-                        </Button>
-                        <span className="min-w-[2rem] text-center font-medium tabular-nums">
-                          {networksPage}/{networksSummary?.totalPages ?? 1}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-5 px-0"
-                          onClick={() =>
-                            setNetworksPage(p => Math.min(networksSummary?.totalPages ?? 1, p + 1))
-                          }
-                          disabled={networksPage >= (networksSummary?.totalPages ?? 1)}
-                          aria-label="Next networks page"
-                        >
-                          <ChevronRight className="h-3.5 w-3.5" />
-                        </Button>
+                  ) : activeTab === 'volumes' ? (
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <input
+                        value={volumesFilter}
+                        onChange={e => setVolumesFilter(e.target.value)}
+                        placeholder="Filter volumes..."
+                        className="h-8 w-full min-w-0 rounded-md border bg-background px-3 text-sm sm:mr-[5ch] sm:w-[20ch]"
+                      />
+                      <div className="ml-4 flex items-center gap-2 text-xs text-muted-foreground">
+                        {volumesSummary && <span>{volumesSummary.totalItems} total</span>}
+                        <div className="flex items-center gap-0 text-xs text-foreground">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-5 px-0"
+                            onClick={() => setVolumesPage(p => Math.max(1, p - 1))}
+                            disabled={volumesPage <= 1}
+                            aria-label="Previous volumes page"
+                          >
+                            <ChevronLeft className="h-3.5 w-3.5" />
+                          </Button>
+                          <span className="min-w-[2rem] text-center font-medium tabular-nums">
+                            {volumesPage}/{volumesSummary?.totalPages ?? 1}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-5 px-0"
+                            onClick={() =>
+                              setVolumesPage(p => Math.min(volumesSummary?.totalPages ?? 1, p + 1))
+                            }
+                            disabled={volumesPage >= (volumesSummary?.totalPages ?? 1)}
+                            aria-label="Next volumes page"
+                          >
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 shrink-0 px-2 text-xs"
+                        onClick={() => volumesTabRef.current?.openPruneDialog()}
+                        title="Prune unused volumes"
+                      >
+                        <Eraser className="h-4 w-4 mr-1" /> Prune
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            aria-label="Volumes display settings"
+                            title="Volumes display settings"
+                          >
+                            <Settings2 className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuLabel>Rows Per Page</DropdownMenuLabel>
+                          <DropdownMenuRadioGroup
+                            value={String(volumesPageSize)}
+                            onValueChange={value => {
+                              const size = Number(value) as 25 | 50 | 100
+                              setVolumesPageSize(size)
+                              setVolumesPage(1)
+                            }}
+                          >
+                            <DropdownMenuRadioItem value="25">25 / page</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="50">50 / page</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="100">100 / page</DropdownMenuRadioItem>
+                          </DropdownMenuRadioGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 shrink-0 px-2 text-xs"
-                      onClick={() => networksTabRef.current?.openCreateDialog()}
-                      title="Create network"
-                    >
-                      <Plus className="mr-1 h-4 w-4" /> Create
-                    </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          aria-label="Networks display settings"
-                          title="Networks display settings"
-                        >
-                          <Settings2 className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-44">
-                        <DropdownMenuLabel>Rows Per Page</DropdownMenuLabel>
-                        <DropdownMenuRadioGroup
-                          value={String(networksPageSize)}
-                          onValueChange={value => {
-                            const size = Number(value) as 25 | 50 | 100
-                            setNetworksPageSize(size)
-                            setNetworksPage(1)
-                          }}
-                        >
-                          <DropdownMenuRadioItem value="25">25 / page</DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="50">50 / page</DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="100">100 / page</DropdownMenuRadioItem>
-                        </DropdownMenuRadioGroup>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                ) : activeTab === 'compose' ? (
-                  <div className="flex flex-wrap items-center justify-end gap-2">
-                    <input
-                      value={composeFilter}
-                      onChange={e => setComposeFilter(e.target.value)}
-                      placeholder="Search projects"
-                      className="h-8 w-full min-w-0 rounded-md border bg-background px-3 text-sm sm:mr-[5ch] sm:w-[20ch]"
-                    />
-                    <select
-                      value={composeStatusFilter}
-                      onChange={e => setComposeStatusFilter(e.target.value)}
-                      className="h-8 shrink-0 rounded-md border bg-background px-2 text-sm"
-                      aria-label="Filter compose status"
-                    >
-                      <option value="all">All status</option>
-                      {(composeSummary?.statusCounts ?? []).map(({ status, count }) => (
-                        <option key={status} value={status}>
-                          {status} ({count})
-                        </option>
-                      ))}
-                    </select>
-                    <div className="ml-4 flex items-center gap-2 text-xs text-muted-foreground">
-                      {composeSummary && <span>{composeSummary.totalItems} total</span>}
-                      <div className="flex items-center gap-0 text-xs text-foreground">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-5 px-0"
-                          onClick={() => setComposePage(p => Math.max(1, p - 1))}
-                          disabled={composePage <= 1}
-                          aria-label="Previous compose page"
-                        >
-                          <ChevronLeft className="h-3.5 w-3.5" />
-                        </Button>
-                        <span className="min-w-[2rem] text-center font-medium tabular-nums">
-                          {composePage}/{composeSummary?.totalPages ?? 1}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-5 px-0"
-                          onClick={() => setComposePage(p => Math.min(composeSummary?.totalPages ?? 1, p + 1))}
-                          disabled={composePage >= (composeSummary?.totalPages ?? 1)}
-                          aria-label="Next compose page"
-                        >
-                          <ChevronRight className="h-3.5 w-3.5" />
-                        </Button>
+                  ) : activeTab === 'networks' ? (
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <input
+                        value={networksFilter}
+                        onChange={e => setNetworksFilter(e.target.value)}
+                        placeholder="Search networks"
+                        className="h-8 w-full min-w-0 rounded-md border bg-background px-3 text-sm sm:mr-[5ch] sm:w-[20ch]"
+                      />
+                      <div className="ml-4 flex items-center gap-2 text-xs text-muted-foreground">
+                        {networksSummary && <span>{networksSummary.totalItems} total</span>}
+                        <div className="flex items-center gap-0 text-xs text-foreground">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-5 px-0"
+                            onClick={() => setNetworksPage(p => Math.max(1, p - 1))}
+                            disabled={networksPage <= 1}
+                            aria-label="Previous networks page"
+                          >
+                            <ChevronLeft className="h-3.5 w-3.5" />
+                          </Button>
+                          <span className="min-w-[2rem] text-center font-medium tabular-nums">
+                            {networksPage}/{networksSummary?.totalPages ?? 1}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-5 px-0"
+                            onClick={() =>
+                              setNetworksPage(p =>
+                                Math.min(networksSummary?.totalPages ?? 1, p + 1)
+                              )
+                            }
+                            disabled={networksPage >= (networksSummary?.totalPages ?? 1)}
+                            aria-label="Next networks page"
+                          >
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 shrink-0 px-2 text-xs"
+                        onClick={() => networksTabRef.current?.openCreateDialog()}
+                        title="Create network"
+                      >
+                        <Plus className="mr-1 h-4 w-4" /> Create
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            aria-label="Networks display settings"
+                            title="Networks display settings"
+                          >
+                            <Settings2 className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuLabel>Rows Per Page</DropdownMenuLabel>
+                          <DropdownMenuRadioGroup
+                            value={String(networksPageSize)}
+                            onValueChange={value => {
+                              const size = Number(value) as 25 | 50 | 100
+                              setNetworksPageSize(size)
+                              setNetworksPage(1)
+                            }}
+                          >
+                            <DropdownMenuRadioItem value="25">25 / page</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="50">50 / page</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="100">100 / page</DropdownMenuRadioItem>
+                          </DropdownMenuRadioGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
-                    <Link
-                      to="/deploy/create"
-                      search={{
-                        entry: undefined,
-                        prefillMode: undefined,
-                        prefillSource: undefined,
-                        prefillAppId: undefined,
-                        prefillAppKey: undefined,
-                        prefillAppName: undefined,
-                        prefillServerId: undefined,
-                      }}
-                      className="inline-flex h-8 shrink-0 items-center px-2 text-xs font-medium text-primary hover:underline"
-                    >
-                      <Plus className="mr-1 h-4 w-4" /> Create
-                    </Link>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          aria-label="Compose display settings"
-                          title="Compose display settings"
-                        >
-                          <Settings2 className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-44">
-                        <DropdownMenuLabel>Rows Per Page</DropdownMenuLabel>
-                        <DropdownMenuRadioGroup
-                          value={String(composePageSize)}
-                          onValueChange={value => {
-                            const size = Number(value) as 25 | 50 | 100
-                            setComposePageSize(size)
-                            setComposePage(1)
-                          }}
-                        >
-                          <DropdownMenuRadioItem value="25">25 / page</DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="50">50 / page</DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="100">100 / page</DropdownMenuRadioItem>
-                        </DropdownMenuRadioGroup>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                ) : null}
+                  ) : activeTab === 'compose' ? (
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <input
+                        value={composeFilter}
+                        onChange={e => setComposeFilter(e.target.value)}
+                        placeholder="Search projects"
+                        className="h-8 w-full min-w-0 rounded-md border bg-background px-3 text-sm sm:mr-[5ch] sm:w-[20ch]"
+                      />
+                      <select
+                        value={composeStatusFilter}
+                        onChange={e => setComposeStatusFilter(e.target.value)}
+                        className="h-8 shrink-0 rounded-md border bg-background px-2 text-sm"
+                        aria-label="Filter compose status"
+                      >
+                        <option value="all">All status</option>
+                        {(composeSummary?.statusCounts ?? []).map(({ status, count }) => (
+                          <option key={status} value={status}>
+                            {status} ({count})
+                          </option>
+                        ))}
+                      </select>
+                      <div className="ml-4 flex items-center gap-2 text-xs text-muted-foreground">
+                        {composeSummary && <span>{composeSummary.totalItems} total</span>}
+                        <div className="flex items-center gap-0 text-xs text-foreground">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-5 px-0"
+                            onClick={() => setComposePage(p => Math.max(1, p - 1))}
+                            disabled={composePage <= 1}
+                            aria-label="Previous compose page"
+                          >
+                            <ChevronLeft className="h-3.5 w-3.5" />
+                          </Button>
+                          <span className="min-w-[2rem] text-center font-medium tabular-nums">
+                            {composePage}/{composeSummary?.totalPages ?? 1}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-5 px-0"
+                            onClick={() =>
+                              setComposePage(p => Math.min(composeSummary?.totalPages ?? 1, p + 1))
+                            }
+                            disabled={composePage >= (composeSummary?.totalPages ?? 1)}
+                            aria-label="Next compose page"
+                          >
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                      <Link
+                        to="/deploy/create"
+                        search={{
+                          entry: undefined,
+                          prefillMode: undefined,
+                          prefillSource: undefined,
+                          prefillAppId: undefined,
+                          prefillAppKey: undefined,
+                          prefillAppName: undefined,
+                          prefillServerId: undefined,
+                        }}
+                        className="inline-flex h-8 shrink-0 items-center px-2 text-xs font-medium text-primary hover:underline"
+                      >
+                        <Plus className="mr-1 h-4 w-4" /> Create
+                      </Link>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            aria-label="Compose display settings"
+                            title="Compose display settings"
+                          >
+                            <Settings2 className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuLabel>Rows Per Page</DropdownMenuLabel>
+                          <DropdownMenuRadioGroup
+                            value={String(composePageSize)}
+                            onValueChange={value => {
+                              const size = Number(value) as 25 | 50 | 100
+                              setComposePageSize(size)
+                              setComposePage(1)
+                            }}
+                          >
+                            <DropdownMenuRadioItem value="25">25 / page</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="50">50 / page</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="100">100 / page</DropdownMenuRadioItem>
+                          </DropdownMenuRadioGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>

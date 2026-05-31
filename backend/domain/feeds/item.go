@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	CollectionItems = "feed_items"
+	CollectionItems        = "feed_items"
 	MaxItemContentRawChars = 1 << 20
 
 	OriginTypeFeed     = "feed"

@@ -141,7 +141,9 @@ function buildProviderOptionLabel(
 ) {
   const template = templatesById.get(String(provider.template_id ?? ''))
   const model = String(provider.config?.defaultModel ?? provider.config?.model ?? '').trim()
-  const providerName = template ? chooserTitle(template) : humanizeTemplateId(String(provider.template_id ?? ''))
+  const providerName = template
+    ? chooserTitle(template)
+    : humanizeTemplateId(String(provider.template_id ?? ''))
   const recordName = String(provider.name ?? '').trim() || providerName
   const parts = [recordName]
   if (providerName && providerName !== recordName) {
@@ -155,7 +157,9 @@ function buildProviderOptionLabel(
 
 async function listSecretOptions(secretTemplate?: string): Promise<RelationOption[]> {
   const apiPath = buildSecretRelationApiPath(secretTemplate)
-  const result = await pb.send<{ items?: Array<Record<string, unknown>> }>(apiPath, { method: 'GET' })
+  const result = await pb.send<{ items?: Array<Record<string, unknown>> }>(apiPath, {
+    method: 'GET',
+  })
   const items = Array.isArray(result?.items) ? result.items : []
   return items.map(item => ({
     id: String(item.id ?? ''),
@@ -334,16 +338,18 @@ function AIProviderCreateDialog({
                     size="icon"
                     title="Edit title"
                     onClick={() => {
-                      const input = document.getElementById('settings-ai-provider-name') as
-                        | HTMLInputElement
-                        | null
+                      const input = document.getElementById(
+                        'settings-ai-provider-name'
+                      ) as HTMLInputElement | null
                       input?.focus()
                     }}
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>
                 </DialogTitle>
-                <DialogDescription>Add {productTitle(selectedTemplate)} AI Provider</DialogDescription>
+                <DialogDescription>
+                  Add {productTitle(selectedTemplate)} AI Provider
+                </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-4">
@@ -452,7 +458,11 @@ function AIProviderCreateDialog({
                 })}
 
                 <div className="flex items-center justify-between gap-3">
-                  <Button type="button" variant="outline" onClick={() => setAdvancedOpen(prev => !prev)}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setAdvancedOpen(prev => !prev)}
+                  >
                     {advancedOpen ? 'Hide Advanced' : 'Advanced'}
                   </Button>
                   <p className="text-xs text-muted-foreground">
@@ -644,7 +654,8 @@ export function AISettingsSection({
                   </optgroup>
                 </select>
                 <p className="text-xs text-muted-foreground">
-                  Pick the AI Provider record that should be used as the platform default model. If your preferred model is missing, use the last dropdown item to add it.
+                  Pick the AI Provider record that should be used as the platform default model. If
+                  your preferred model is missing, use the last dropdown item to add it.
                 </p>
               </div>
 

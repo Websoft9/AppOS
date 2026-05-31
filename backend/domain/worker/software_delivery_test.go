@@ -20,28 +20,28 @@ import (
 )
 
 type fakeSoftwareExecutor struct {
-	preflightCalled bool
-	preflight       software.TargetReadinessResult
-	preflightErr    error
-	preflightFn     func(context.Context, string, software.ResolvedTemplate) (software.TargetReadinessResult, error)
-	verifyCalled    int
-	installTemplate software.ResolvedTemplate
+	preflightCalled   bool
+	preflight         software.TargetReadinessResult
+	preflightErr      error
+	preflightFn       func(context.Context, string, software.ResolvedTemplate) (software.TargetReadinessResult, error)
+	verifyCalled      int
+	installTemplate   software.ResolvedTemplate
 	reinstallTemplate software.ResolvedTemplate
-	upgradeTemplate software.ResolvedTemplate
-	installDetail   software.SoftwareComponentDetail
-	installErr      error
-	startErr        error
-	stopErr         error
-	restartErr      error
-	verifyDetail    software.SoftwareComponentDetail
-	verifyErr       error
-	uninstallDetail software.SoftwareComponentDetail
-	uninstallErr    error
-	detectState     software.InstalledState
-	detectVersion   string
-	detectSource    software.InstallSource
-	detectEvidence  string
-	detectErr       error
+	upgradeTemplate   software.ResolvedTemplate
+	installDetail     software.SoftwareComponentDetail
+	installErr        error
+	startErr          error
+	stopErr           error
+	restartErr        error
+	verifyDetail      software.SoftwareComponentDetail
+	verifyErr         error
+	uninstallDetail   software.SoftwareComponentDetail
+	uninstallErr      error
+	detectState       software.InstalledState
+	detectVersion     string
+	detectSource      software.InstallSource
+	detectEvidence    string
+	detectErr         error
 }
 
 func ensureWorkerSecretRuntime(t *testing.T) {

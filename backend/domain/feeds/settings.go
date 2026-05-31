@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	SettingsModule     = "feeds"
+	SettingsModule    = "feeds"
 	PolicySettingsKey = "policy"
 )
 
@@ -50,13 +50,6 @@ func LoadPolicySettings(app core.App) PolicySettings {
 		settings.GlobalCap = defaults.GlobalCap
 	}
 	return settings
-}
-
-func clampMinimum(value, minimum, fallback int) int {
-	if value < minimum {
-		return fallback
-	}
-	return value
 }
 
 func clampRange(value, minimum, maximum, fallback int) int {

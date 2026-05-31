@@ -21,11 +21,11 @@ var (
 )
 
 type systemRuntimeResponse struct {
-	Summary         systemRuntimeSummary         `json:"summary"`
-	Components      []softwareComponentListItem  `json:"components"`
-	Processes       []componentServiceItem       `json:"processes"`
-	HostKernelFacts systemHostKernelFacts        `json:"host_kernel_facts"`
-	RuntimeLimits   systemRuntimeLimits          `json:"runtime_limits"`
+	Summary         systemRuntimeSummary        `json:"summary"`
+	Components      []softwareComponentListItem `json:"components"`
+	Processes       []componentServiceItem      `json:"processes"`
+	HostKernelFacts systemHostKernelFacts       `json:"host_kernel_facts"`
+	RuntimeLimits   systemRuntimeLimits         `json:"runtime_limits"`
 }
 
 type systemRuntimeSummary struct {
@@ -38,8 +38,8 @@ type systemRuntimeSummary struct {
 type systemCPUQuotaStatus string
 
 type systemHostKernelFacts struct {
-	KernelRelease     string                  `json:"kernel_release"`
-	Architecture      string                  `json:"architecture"`
+	KernelRelease      string                   `json:"kernel_release"`
+	Architecture       string                   `json:"architecture"`
 	CPUTopologyVisible systemVisibleCPUTopology `json:"cpu_topology_visible"`
 }
 
@@ -193,17 +193,17 @@ func readSystemRuntimeFacts() (systemHostKernelFacts, systemRuntimeLimits, error
 	}
 
 	return systemHostKernelFacts{
-		KernelRelease: utsString(uname.Release[:]),
-		Architecture:  utsString(uname.Machine[:]),
-		CPUTopologyVisible: systemVisibleCPUTopology{
-			ModelName:      modelName,
-			OnlineCPUCount: onlineCPUCount,
-		},
-	}, systemRuntimeLimits{
-		CPUSetEffective: readCPUSetEffective(),
-		CPUQuota:        readCPUQuota(),
-		MemoryLimitBytes: memoryLimitBytes,
-	}, nil
+			KernelRelease: utsString(uname.Release[:]),
+			Architecture:  utsString(uname.Machine[:]),
+			CPUTopologyVisible: systemVisibleCPUTopology{
+				ModelName:      modelName,
+				OnlineCPUCount: onlineCPUCount,
+			},
+		}, systemRuntimeLimits{
+			CPUSetEffective:  readCPUSetEffective(),
+			CPUQuota:         readCPUQuota(),
+			MemoryLimitBytes: memoryLimitBytes,
+		}, nil
 }
 
 func utsString(raw []int8) string {

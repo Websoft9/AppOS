@@ -816,7 +816,9 @@ describe('ServersPage layout', () => {
     const hostInput = within(duplicateDialog).getByLabelText(/^Host\*/) as HTMLInputElement
     const portInput = within(duplicateDialog).getByLabelText(/^Port\*/) as HTMLInputElement
     const userInput = within(duplicateDialog).getByLabelText(/^User\*/) as HTMLInputElement
-    const descriptionInput = within(duplicateDialog).getByLabelText(/^Description/) as HTMLTextAreaElement
+    const descriptionInput = within(duplicateDialog).getByLabelText(
+      /^Description/
+    ) as HTMLTextAreaElement
 
     expect(nameInput.value).toMatch(/^server-\d{6}$/)
     expect(nameInput.value).not.toBe('alpha')
@@ -968,7 +970,9 @@ describe('ServersPage layout', () => {
 
     render(<ServersPage />)
 
-    expect(await screen.findByRole('tab', { name: 'Connection', selected: true })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('tab', { name: 'Connection', selected: true })
+    ).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Start Setup' }))
 
     expect(await screen.findByText('Tunnel setup wizard for server-1')).toBeInTheDocument()

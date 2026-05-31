@@ -48,7 +48,7 @@ func TestComponentMaterialMapping(t *testing.T) {
 
 // TestMonitorBoundaryIsNotOwner verifies that Monitor does not own any Software
 // Delivery subdomain — it is a consumer, not an owner.
-	// It also verifies that local service observation concerns
+// It also verifies that local service observation concerns
 // are not claimed by Software Delivery.
 func TestMonitorBoundaryIsNotOwner(t *testing.T) {
 	monitorConcerns := []string{

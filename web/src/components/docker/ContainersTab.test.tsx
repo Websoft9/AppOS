@@ -62,16 +62,18 @@ function renderTab(overrides?: {
         stateFilter="all"
         page={1}
         pageSize={50}
-        visibleColumns={overrides?.visibleColumns ?? {
-          ports: true,
-          volumes: true,
-          status: true,
-          created: false,
-          cpu: true,
-          mem: true,
-          network: true,
-          compose: true,
-        }}
+        visibleColumns={
+          overrides?.visibleColumns ?? {
+            ports: true,
+            volumes: true,
+            status: true,
+            created: false,
+            cpu: true,
+            mem: true,
+            network: true,
+            compose: true,
+          }
+        }
         includeNames={overrides?.includeNames}
         onClearIncludeNames={overrides?.onClearIncludeNames}
         onClearFilterPreset={overrides?.onClearFilterPreset}
@@ -594,7 +596,9 @@ describe('ContainersTab', () => {
       const table = screen.getByRole('table')
       const rows = within(table)
         .getAllByRole('row')
-        .filter(row => within(row).queryByText('zulu-web') || within(row).queryByText('alpha-worker'))
+        .filter(
+          row => within(row).queryByText('zulu-web') || within(row).queryByText('alpha-worker')
+        )
 
       expect(rows).toHaveLength(2)
       expect(within(rows[0]).getByText(/alpha-worker|zulu-web/)).toBeInTheDocument()

@@ -130,11 +130,25 @@ describe('AssetsPage', () => {
 
     expect(screen.getByText('2 canonical families')).toBeInTheDocument()
     expect(screen.getAllByText('Open family').length).toBeGreaterThan(0)
-    expect(screen.getByText('Reusable single-file assets for terminal snippets, operator workflows, and recovery actions.')).toBeInTheDocument()
-    expect(screen.getByText('Bundled skill packages with structured files, entrypoints, and reusable guidance content.')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Reusable single-file assets for terminal snippets, operator workflows, and recovery actions.'
+      )
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Bundled skill packages with structured files, entrypoints, and reusable guidance content.'
+      )
+    ).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Search assets')).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Scripts/i })).toHaveAttribute('href', '/ai-assets/scripts')
-    expect(screen.getByRole('link', { name: /Skills/i })).toHaveAttribute('href', '/ai-assets/skills')
+    expect(screen.getByRole('link', { name: /Scripts/i })).toHaveAttribute(
+      'href',
+      '/ai-assets/scripts'
+    )
+    expect(screen.getByRole('link', { name: /Skills/i })).toHaveAttribute(
+      'href',
+      '/ai-assets/skills'
+    )
 
     fireEvent.click(screen.getByRole('button', { name: /Add Skill/i }))
     expect(navigateMock).toHaveBeenCalledWith({ to: '/ai-assets/skills', search: { create: '1' } })

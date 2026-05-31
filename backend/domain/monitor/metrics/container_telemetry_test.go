@@ -2,7 +2,6 @@ package metrics
 
 import "testing"
 
-
 func TestContainerTelemetryTargetNamesPreferNames(t *testing.T) {
 	values := containerTelemetryTargetNames([]ContainerTelemetryTarget{{ID: "ctr-1", Name: "demo-web"}, {ID: "ctr-2", Name: "/demo-worker"}})
 	if len(values) != 2 {

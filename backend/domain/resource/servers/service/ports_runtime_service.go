@@ -13,10 +13,10 @@ import (
 type PortCommandRunner func(context.Context, string, time.Duration) (string, error)
 
 type PortRuntimeService struct {
-	Run                         PortCommandRunner
-	SSUsersProcessPattern       string
-	DockerPublishedPortPattern  string
-	Pause                       func(time.Duration)
+	Run                        PortCommandRunner
+	SSUsersProcessPattern      string
+	DockerPublishedPortPattern string
+	Pause                      func(time.Duration)
 }
 
 var (

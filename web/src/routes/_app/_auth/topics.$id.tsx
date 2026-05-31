@@ -685,7 +685,8 @@ function TopicDetailPage() {
                       onChange={handleFileUpload}
                     />
                     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-                      <Upload className="h-3.5 w-3.5" /> {importPolicy.textOnly ? 'Upload text file' : 'Upload file'}
+                      <Upload className="h-3.5 w-3.5" />{' '}
+                      {importPolicy.textOnly ? 'Upload text file' : 'Upload file'}
                     </span>
                   </label>
                 </div>

@@ -340,7 +340,7 @@ func handleMonitorServerContainerTelemetry(e *core.RequestEvent) error {
 	}
 	if serverID != localContainerTelemetryServerID {
 		if _, err := findMonitorServer(e.App, serverID); err != nil {
-		return e.NotFoundError("server not found", err)
+			return e.NotFoundError("server not found", err)
 		}
 	}
 	window := strings.TrimSpace(e.Request.URL.Query().Get("window"))
@@ -455,38 +455,6 @@ func handleMonitorTargetStatus(e *core.RequestEvent) error {
 
 func findMonitorServer(app core.App, serverID string) (*core.Record, error) {
 	return app.FindRecordById("servers", strings.TrimSpace(serverID))
-}
-
-func monitorBaseURL(e *core.RequestEvent) string {
-	scheme := "http"
-	if strings.EqualFold(strings.TrimSpace(e.Request.Header.Get("X-Forwarded-Proto")), "https") || e.Request.TLS != nil {
-		scheme = "https"
-	}
-	return scheme + "://" + resolveMonitorHTTPHost(e)
-}
-
-// resolveMonitorHTTPHost builds the host portion of the remote-write URL returned
-// to managed-server agents. It honours standard proxy forwarding headers. The
-// resulting URL is validated by buildNetdataExportingConfig before use, and only
-// operators with existing server-management access receive it.
-func resolveMonitorHTTPHost(e *core.RequestEvent) string {
-	host := firstForwardedHostValue(e.Request.Host)
-	forwardedHost := firstForwardedHostValue(e.Request.Header.Get("X-Forwarded-Host"))
-	if host == "" {
-		host = forwardedHost
-	}
-	if forwardedHost != "" && forwardedHostCarriesPort(host, forwardedHost) {
-		host = forwardedHost
-	}
-	if !hostHasExplicitPort(host) {
-		if forwardedPort := firstForwardedPortValue(e.Request.Header.Get("X-Forwarded-Port")); forwardedPort != "" {
-			host = appendPortIfMissing(host, forwardedPort)
-		}
-	}
-	if host == "" {
-		host = "appos-host"
-	}
-	return host
 }
 
 func firstForwardedHostValue(value string) string {

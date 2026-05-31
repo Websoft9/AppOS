@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	executeServerCronCommand  = terminal.ExecuteSSHCommand
+	executeServerCronCommand = terminal.ExecuteSSHCommand
 )
 
 const managedCronMarkerPrefix = serversvc.ManagedCronMarkerPrefix

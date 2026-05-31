@@ -76,7 +76,7 @@ describe('getConnectTerminalSettings', () => {
 
     await listSystemdServices('srv-1')
     await listServerPorts('srv-1', 'all', 'tcp')
-  await listServerCronJobs('srv-1')
+    await listServerCronJobs('srv-1')
 
     expect(sendMock).toHaveBeenCalledWith('/api/servers/srv-1/ops/systemd/services', {
       requestKey: null,
@@ -84,9 +84,9 @@ describe('getConnectTerminalSettings', () => {
     expect(sendMock).toHaveBeenCalledWith('/api/servers/srv-1/ops/ports?view=all&protocol=tcp', {
       requestKey: null,
     })
-  expect(sendMock).toHaveBeenCalledWith('/api/servers/srv-1/ops/cron/jobs', {
-    requestKey: null,
-  })
+    expect(sendMock).toHaveBeenCalledWith('/api/servers/srv-1/ops/cron/jobs', {
+      requestKey: null,
+    })
   })
 
   it('disables PocketBase auto-cancellation for SFTP reads used by the files panel', async () => {
@@ -100,10 +100,9 @@ describe('getConnectTerminalSettings', () => {
     expect(sendMock).toHaveBeenCalledWith('/api/terminal/sftp/srv-1/list?path=%2Fvar', {
       requestKey: null,
     })
-    expect(sendMock).toHaveBeenCalledWith(
-      '/api/terminal/sftp/srv-1/search?path=%2Fvar&query=log',
-      { requestKey: null }
-    )
+    expect(sendMock).toHaveBeenCalledWith('/api/terminal/sftp/srv-1/search?path=%2Fvar&query=log', {
+      requestKey: null,
+    })
     expect(sendMock).toHaveBeenCalledWith('/api/terminal/sftp/srv-1/stat?path=%2Fvar%2Flog', {
       requestKey: null,
     })

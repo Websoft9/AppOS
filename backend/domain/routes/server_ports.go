@@ -314,7 +314,7 @@ func handleServerPortRelease(e *core.RequestEvent) error {
 
 func newPortRuntimeService(run routeSSHCommandRunner) serversvc.PortRuntimeService {
 	return serversvc.PortRuntimeService{
-		Run: routeSSHCommandAdapter(run),
+		Run:                        routeSSHCommandAdapter(run),
 		SSUsersProcessPattern:      ssUsersProcessPattern.String(),
 		DockerPublishedPortPattern: dockerPublishedPortPattern.String(),
 	}
@@ -322,7 +322,7 @@ func newPortRuntimeService(run routeSSHCommandRunner) serversvc.PortRuntimeServi
 
 func newDirectPortRuntimeService(cfg terminal.ConnectorConfig) serversvc.PortRuntimeService {
 	return serversvc.PortRuntimeService{
-		Run: directSSHCommandAdapter(cfg),
+		Run:                        directSSHCommandAdapter(cfg),
 		SSUsersProcessPattern:      ssUsersProcessPattern.String(),
 		DockerPublishedPortPattern: dockerPublishedPortPattern.String(),
 	}

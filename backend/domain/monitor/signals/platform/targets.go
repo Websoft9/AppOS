@@ -22,9 +22,9 @@ func (o *PlatformObserver) collectAppCoreTarget(now time.Time, snapshot RuntimeS
 	hasMemoryLimit := false
 	if o.appCoreMemoryFn != nil {
 		if localMemoryUsedBytes, localMemoryAvailableBytes, localHasMemoryLimit, err := o.appCoreMemoryFn(); err == nil {
-		if localMemoryUsedBytes > 0 {
-			memoryUsedBytes = localMemoryUsedBytes
-		}
+			if localMemoryUsedBytes > 0 {
+				memoryUsedBytes = localMemoryUsedBytes
+			}
 			hasMemoryLimit = localHasMemoryLimit
 			if hasMemoryLimit {
 				memoryAvailableBytes = localMemoryAvailableBytes

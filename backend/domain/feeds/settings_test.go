@@ -10,10 +10,10 @@ import (
 func TestLoadPolicySettingsReadsStoredValues(t *testing.T) {
 	app := newFeedsTestApp(t)
 	if err := sysconfig.SetGroup(app, SettingsModule, PolicySettingsKey, map[string]any{
-		"pollIntervalHours":     3,
+		"pollIntervalHours":      3,
 		"failureBackoffMaxHours": 36,
-		"perSourceRetentionCap": 800,
-		"globalRetentionCap":    45000,
+		"perSourceRetentionCap":  800,
+		"globalRetentionCap":     45000,
 	}); err != nil {
 		t.Fatalf("set feeds policy: %v", err)
 	}

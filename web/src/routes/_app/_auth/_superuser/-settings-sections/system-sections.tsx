@@ -139,7 +139,8 @@ export function BrandingSection({
       <CardHeader>
         <CardTitle>Branding</CardTitle>
         <CardDescription>
-          Configure the platform logo, wordmark, and favicon. If no logo is provided, one is generated automatically.
+          Configure the platform logo, wordmark, and favicon. If no logo is provided, one is
+          generated automatically.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -163,7 +164,9 @@ export function BrandingSection({
         <div className="space-y-1">
           <div className="space-y-1">
             <Label htmlFor="logoUrl">Logo</Label>
-            <p className="text-sm text-muted-foreground">Enter an online URL, or upload an image to fill this field automatically.</p>
+            <p className="text-sm text-muted-foreground">
+              Enter an online URL, or upload an image to fill this field automatically.
+            </p>
           </div>
           <div className="flex gap-2">
             <Input
@@ -201,7 +204,9 @@ export function BrandingSection({
         <div className="space-y-3">
           <div className="space-y-1">
             <Label htmlFor="faviconUrl">Favicon</Label>
-            <p className="text-sm text-muted-foreground">Same as Logo, with an optional switch to reuse the Logo directly.</p>
+            <p className="text-sm text-muted-foreground">
+              Same as Logo, with an optional switch to reuse the Logo directly.
+            </p>
           </div>
           <div className="flex items-center gap-3">
             <Toggle
@@ -231,7 +236,11 @@ export function BrandingSection({
                 className="hidden"
                 onChange={event => handleImageUpload(event, setFaviconMediaId, setFaviconUrl)}
               />
-              <Button type="button" variant="outline" onClick={() => faviconUploadRef.current?.click()}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => faviconUploadRef.current?.click()}
+              >
                 <Upload className="mr-2 h-4 w-4" /> Upload
               </Button>
             </div>
@@ -420,4 +429,3 @@ export function LogsSection({
     </Card>
   )
 }
-

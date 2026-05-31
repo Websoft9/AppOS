@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -42,7 +43,7 @@ func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 		feedsPollCronJobID,
 		"*/5 * * * *",
 		cronutil.Wrap(app, feedsPollCronJobID, func() {
-			if _, err := feeds.PollDueSources(nil, app, nil, time.Now().UTC()); err != nil {
+			if _, err := feeds.PollDueSources(context.TODO(), app, nil, time.Now().UTC()); err != nil {
 				panic(err)
 			}
 		}),

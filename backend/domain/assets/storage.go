@@ -52,7 +52,7 @@ func WriteLocalFile(basePath, rel, content string) error {
 	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(abs, []byte(content), 0o644)
+	return os.WriteFile(abs, []byte(content), 0o600)
 }
 
 func WriteLocalFolder(basePath string, files map[string]string) error {

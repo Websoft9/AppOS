@@ -7,7 +7,12 @@ export const MONITOR_SECTION_IDS = [
   'monitor-managed-collector-policy',
 ] as const
 export const SPACE_SECTION_IDS = ['space-quota'] as const
-export const TOPIC_SECTION_IDS = ['topics', 'topic-share', 'topic-comment-policy', 'topic-import-policy'] as const
+export const TOPIC_SECTION_IDS = [
+  'topics',
+  'topic-share',
+  'topic-comment-policy',
+  'topic-import-policy',
+] as const
 export const TERMINAL_SECTION_IDS = ['terminal', 'connect-terminal', 'connect-sftp'] as const
 export const DOCKER_SECTION_IDS = ['docker-mirror', 'docker-registries'] as const
 export const PROXY_SECTION_IDS = ['proxy-network'] as const

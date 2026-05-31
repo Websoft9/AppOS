@@ -45,7 +45,7 @@ type atomDocument struct {
 	Title    string      `xml:"title"`
 	SubTitle string      `xml:"subtitle"`
 	Links    []atomLink  `xml:"link"`
-	Entries []atomEntry `xml:"entry"`
+	Entries  []atomEntry `xml:"entry"`
 }
 
 type atomEntry struct {
@@ -70,12 +70,12 @@ type atomLink struct {
 }
 
 type SourceAnalysis struct {
-	Name    string `json:"name"`
-	FeedURL string `json:"feed_url"`
-	SiteURL string `json:"site_url"`
-	SiteTitle string `json:"site_title"`
+	Name       string `json:"name"`
+	FeedURL    string `json:"feed_url"`
+	SiteURL    string `json:"site_url"`
+	SiteTitle  string `json:"site_title"`
 	FaviconURL string `json:"favicon_url"`
-	Format  string `json:"format"`
+	Format     string `json:"format"`
 }
 
 type xmlRoot struct {

@@ -53,7 +53,10 @@ import {
 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { getApiErrorMessage } from '@/lib/api-error'
-import { DockerDependencyAlert, getDockerDependencyIssue } from '@/components/docker/DockerDependencyAlert'
+import {
+  DockerDependencyAlert,
+  getDockerDependencyIssue,
+} from '@/components/docker/DockerDependencyAlert'
 import { cn } from '@/lib/utils'
 import { FileManagerPanel } from '@/components/connect/FileManagerPanel'
 
@@ -163,19 +166,22 @@ export const VolumesTab = forwardRef<
     onOpenContainerFilter?: (volumeName: string, containerNames: string[]) => void
     onClearIncludeNames?: () => void
   }
->(function VolumesTab({
-  serverId,
-  refreshSignal = 0,
-  embeddedInWorkspace = false,
-  externalFilter,
-  includeNames,
-  page: externalPage,
-  pageSize: externalPageSize,
-  onPageChange,
-  onSummaryChange,
-  onOpenContainerFilter,
-  onClearIncludeNames,
-}, ref) {
+>(function VolumesTab(
+  {
+    serverId,
+    refreshSignal = 0,
+    embeddedInWorkspace = false,
+    externalFilter,
+    includeNames,
+    page: externalPage,
+    pageSize: externalPageSize,
+    onPageChange,
+    onSummaryChange,
+    onOpenContainerFilter,
+    onClearIncludeNames,
+  },
+  ref
+) {
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState('')
   const [driverFilter, setDriverFilter] = useState<string>('all')
@@ -254,11 +260,17 @@ export const VolumesTab = forwardRef<
   })
 
   const volumeNamesKey = useMemo(
-    () => volumes.map(volume => volume.Name).sort().join(','),
+    () =>
+      volumes
+        .map(volume => volume.Name)
+        .sort()
+        .join(','),
     [volumes]
   )
 
-  const { data: volumeContainerLinks = {}, isLoading: volumeContainersLoading } = useQuery<Record<string, VolumeContainerLink>>({
+  const { data: volumeContainerLinks = {}, isLoading: volumeContainersLoading } = useQuery<
+    Record<string, VolumeContainerLink>
+  >({
     queryKey: ['docker', 'volumes', 'containers', serverId, refreshSignal, volumeNamesKey],
     queryFn: async () => {
       const containersRes = await pb.send(dockerApiPath(serverId, '/containers'), {
@@ -269,9 +281,12 @@ export const VolumesTab = forwardRef<
       const inspectEntries = await Promise.all(
         containers.map(async container => {
           try {
-            const inspectRes = await pb.send(dockerApiPath(serverId, `/containers/${container.ID}`), {
-              method: 'GET',
-            })
+            const inspectRes = await pb.send(
+              dockerApiPath(serverId, `/containers/${container.ID}`),
+              {
+                method: 'GET',
+              }
+            )
             return [container.Names, parseInspect(inspectRes.output)] as const
           } catch {
             return [container.Names, null] as const
@@ -431,13 +446,7 @@ export const VolumesTab = forwardRef<
     setSortDir('asc')
   }
 
-  const SortHead = ({
-    label,
-    keyName,
-  }: {
-    label: string
-    keyName: 'name'
-  }) => (
+  const SortHead = ({ label, keyName }: { label: string; keyName: 'name' }) => (
     <button
       type="button"
       className="inline-flex h-7 cursor-pointer items-center gap-1 rounded px-0 text-xs font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
@@ -480,15 +489,12 @@ export const VolumesTab = forwardRef<
     !!(includeNames && includeNames.length > 0)
 
   const filesVolumeRunningContainers = filesVolume
-    ? volumeContainerLinks[filesVolume.Name]?.runningNames ?? []
+    ? (volumeContainerLinks[filesVolume.Name]?.runningNames ?? [])
     : []
 
   return (
     <div
-      className={cn(
-        'h-full min-h-0 flex flex-col gap-4',
-        embeddedInWorkspace ? 'pt-0' : 'pt-4'
-      )}
+      className={cn('h-full min-h-0 flex flex-col gap-4', embeddedInWorkspace ? 'pt-0' : 'pt-4')}
     >
       {dependencyIssue && visibleError ? (
         <DockerDependencyAlert serverId={serverId} message={visibleError} focusSource="volumes" />
@@ -521,7 +527,9 @@ export const VolumesTab = forwardRef<
         <div className="flex items-center justify-end gap-2 shrink-0">
           {includeNames && includeNames.length > 0 && (
             <Alert className="border-dashed bg-muted/10 px-3 py-2">
-              <AlertDescription className="text-xs">Linked containers: {includeNames.length}</AlertDescription>
+              <AlertDescription className="text-xs">
+                Linked containers: {includeNames.length}
+              </AlertDescription>
             </Alert>
           )}
           <Button
@@ -540,251 +548,265 @@ export const VolumesTab = forwardRef<
       )}
       <div className="overflow-hidden rounded-lg bg-background">
         <div className="overflow-x-auto">
-        <Table>
-          <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90">
-            <TableRow>
-              <TableHead className="min-w-[220px] pl-4 pr-2">
-                <SortHead label="Name" keyName="name" />
-              </TableHead>
-              <TableHead className="min-w-[120px]">
-                <div className="flex items-center gap-1">
-                  <span className="text-xs font-medium text-foreground">Driver</span>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className={cn(
-                          'h-7 w-7',
-                          driverFilter !== 'all' &&
-                            'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
-                        )}
-                        aria-label="Filter volume driver"
-                        title={
-                          driverFilter === 'all'
-                            ? 'Filter volume driver'
-                            : `Volume driver: ${driverFilter}`
-                        }
-                      >
-                        <Filter className="h-3.5 w-3.5" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                      <DropdownMenuRadioGroup value={driverFilter} onValueChange={setDriverFilter}>
-                        <DropdownMenuRadioItem value="all">
-                          All drivers ({volumes.length})
-                        </DropdownMenuRadioItem>
-                        {driverCounts.map(([driver, count]) => (
-                          <DropdownMenuRadioItem key={driver} value={driver}>
-                            {driver} ({count})
-                          </DropdownMenuRadioItem>
-                        ))}
-                      </DropdownMenuRadioGroup>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </TableHead>
-              <TableHead className="min-w-[280px] text-xs font-medium text-foreground">
-                Mountpoint
-              </TableHead>
-              <TableHead className="w-[180px] min-w-[180px] text-left">
-                <div className="flex items-center gap-1">
-                  <span className="text-xs font-medium text-foreground">Containers</span>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className={cn(
-                          'h-7 w-7',
-                          linkedContainerFilter !== 'all' &&
-                            'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
-                        )}
-                        aria-label="Filter linked containers"
-                        title={
-                          linkedContainerFilter === 'all'
-                            ? 'All'
-                            : linkedContainerFilter === 'linked'
-                              ? 'With container'
-                              : 'Without container'
-                        }
-                      >
-                        <Filter className="h-3.5 w-3.5" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                      <DropdownMenuRadioGroup
-                        value={linkedContainerFilter}
-                        onValueChange={value => setLinkedContainerFilter(value as LinkedContainerFilter)}
-                      >
-                        <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="linked">With container</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="unlinked">Without container</DropdownMenuRadioItem>
-                      </DropdownMenuRadioGroup>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </TableHead>
-              <TableHead className="w-[52px] text-xs font-medium text-foreground">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading && (
+          <Table>
+            <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90">
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">
-                  <span className="inline-flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading...
-                  </span>
-                </TableCell>
-              </TableRow>
-            )}
-            {paged.map(v => {
-              const isExpanded = expandedVolume === v.Name
-              const linkedContainers = volumeContainerLinks[v.Name]?.allNames || []
-              return (
-                <Fragment key={v.Name}>
-                  <TableRow className={cn(isExpanded && 'bg-muted/20')}>
-                    <TableCell
-                      className="cursor-pointer pl-4 pr-3 py-3 text-xs"
-                      onClick={event => {
-                        const target = event.target as HTMLElement
-                        if (target.closest('button')) return
-                        toggleVolumeExpansion(v.Name)
-                      }}
-                    >
-                      <Button
-                        variant="link"
-                        className="group min-h-8 w-full justify-start p-0 text-left no-underline hover:no-underline"
-                        onClick={() => toggleVolumeExpansion(v.Name)}
-                      >
-                        <span
-                          className="truncate text-xs font-semibold leading-tight text-foreground group-hover:underline"
-                          title={v.Name}
+                <TableHead className="min-w-[220px] pl-4 pr-2">
+                  <SortHead label="Name" keyName="name" />
+                </TableHead>
+                <TableHead className="min-w-[120px]">
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-medium text-foreground">Driver</span>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className={cn(
+                            'h-7 w-7',
+                            driverFilter !== 'all' &&
+                              'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+                          )}
+                          aria-label="Filter volume driver"
+                          title={
+                            driverFilter === 'all'
+                              ? 'Filter volume driver'
+                              : `Volume driver: ${driverFilter}`
+                          }
                         >
-                          {shortVolumeName(v.Name)}
-                        </span>
-                      </Button>
-                    </TableCell>
-                    <TableCell className="py-3 text-xs">{v.Driver}</TableCell>
-                    <TableCell className="py-3 font-mono text-xs" title={v.Mountpoint}>
-                      {shortMountpoint(v.Mountpoint)}
-                    </TableCell>
-                    <TableCell className="w-[180px] min-w-[180px] py-3 text-left text-xs align-middle">
-                      <div className="flex h-8 max-w-[180px] items-center">
-                        {volumeContainersLoading ? (
-                          <span className="inline-flex h-8 items-center truncate text-muted-foreground">Loading...</span>
-                        ) : linkedContainers.length > 0 ? (
-                          <button
-                            type="button"
-                            className="inline-flex h-8 w-full items-center justify-start gap-1 text-left text-xs text-primary hover:underline"
-                            onClick={() => onOpenContainerFilter?.(v.Name, linkedContainers)}
-                            title={linkedContainers.join(', ')}
+                          <Filter className="h-3.5 w-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuRadioGroup
+                          value={driverFilter}
+                          onValueChange={setDriverFilter}
+                        >
+                          <DropdownMenuRadioItem value="all">
+                            All drivers ({volumes.length})
+                          </DropdownMenuRadioItem>
+                          {driverCounts.map(([driver, count]) => (
+                            <DropdownMenuRadioItem key={driver} value={driver}>
+                              {driver} ({count})
+                            </DropdownMenuRadioItem>
+                          ))}
+                        </DropdownMenuRadioGroup>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </TableHead>
+                <TableHead className="min-w-[280px] text-xs font-medium text-foreground">
+                  Mountpoint
+                </TableHead>
+                <TableHead className="w-[180px] min-w-[180px] text-left">
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-medium text-foreground">Containers</span>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className={cn(
+                            'h-7 w-7',
+                            linkedContainerFilter !== 'all' &&
+                              'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+                          )}
+                          aria-label="Filter linked containers"
+                          title={
+                            linkedContainerFilter === 'all'
+                              ? 'All'
+                              : linkedContainerFilter === 'linked'
+                                ? 'With container'
+                                : 'Without container'
+                          }
+                        >
+                          <Filter className="h-3.5 w-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuRadioGroup
+                          value={linkedContainerFilter}
+                          onValueChange={value =>
+                            setLinkedContainerFilter(value as LinkedContainerFilter)
+                          }
+                        >
+                          <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="linked">
+                            With container
+                          </DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="unlinked">
+                            Without container
+                          </DropdownMenuRadioItem>
+                        </DropdownMenuRadioGroup>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </TableHead>
+                <TableHead className="w-[52px] text-xs font-medium text-foreground">
+                  Actions
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading...
+                    </span>
+                  </TableCell>
+                </TableRow>
+              )}
+              {paged.map(v => {
+                const isExpanded = expandedVolume === v.Name
+                const linkedContainers = volumeContainerLinks[v.Name]?.allNames || []
+                return (
+                  <Fragment key={v.Name}>
+                    <TableRow className={cn(isExpanded && 'bg-muted/20')}>
+                      <TableCell
+                        className="cursor-pointer pl-4 pr-3 py-3 text-xs"
+                        onClick={event => {
+                          const target = event.target as HTMLElement
+                          if (target.closest('button')) return
+                          toggleVolumeExpansion(v.Name)
+                        }}
+                      >
+                        <Button
+                          variant="link"
+                          className="group min-h-8 w-full justify-start p-0 text-left no-underline hover:no-underline"
+                          onClick={() => toggleVolumeExpansion(v.Name)}
+                        >
+                          <span
+                            className="truncate text-xs font-semibold leading-tight text-foreground group-hover:underline"
+                            title={v.Name}
                           >
-                            <span className="truncate">
-                              {linkedContainers.length} linked container{linkedContainers.length > 1 ? 's' : ''}
+                            {shortVolumeName(v.Name)}
+                          </span>
+                        </Button>
+                      </TableCell>
+                      <TableCell className="py-3 text-xs">{v.Driver}</TableCell>
+                      <TableCell className="py-3 font-mono text-xs" title={v.Mountpoint}>
+                        {shortMountpoint(v.Mountpoint)}
+                      </TableCell>
+                      <TableCell className="w-[180px] min-w-[180px] py-3 text-left text-xs align-middle">
+                        <div className="flex h-8 max-w-[180px] items-center">
+                          {volumeContainersLoading ? (
+                            <span className="inline-flex h-8 items-center truncate text-muted-foreground">
+                              Loading...
                             </span>
-                            <ExternalLink className="ml-1 h-3 w-3" />
-                          </button>
-                        ) : (
-                          <span className="inline-flex h-8 items-center text-muted-foreground">-</span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="py-3">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-7 w-7">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => openVolumeFiles(v)}
-                          >
-                            <FolderOpen className="h-4 w-4 mr-2" /> Open in Files
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => setPendingRemoveVolume(v.Name)}
-                            className="text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" /> Remove
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                  {isExpanded && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="bg-muted/20 px-0 py-3">
-                        {inspectLoadingMap[v.Name] ? (
-                          <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                            <Loader2 className="h-4 w-4 animate-spin" /> Loading inspect...
-                          </div>
-                        ) : (
-                          <pre className="text-xs font-mono bg-muted/40 rounded-md border p-3 overflow-auto max-h-[300px] whitespace-pre-wrap">
-                            {inspectMap[v.Name] || '(empty output)'}
-                          </pre>
-                        )}
+                          ) : linkedContainers.length > 0 ? (
+                            <button
+                              type="button"
+                              className="inline-flex h-8 w-full items-center justify-start gap-1 text-left text-xs text-primary hover:underline"
+                              onClick={() => onOpenContainerFilter?.(v.Name, linkedContainers)}
+                              title={linkedContainers.join(', ')}
+                            >
+                              <span className="truncate">
+                                {linkedContainers.length} linked container
+                                {linkedContainers.length > 1 ? 's' : ''}
+                              </span>
+                              <ExternalLink className="ml-1 h-3 w-3" />
+                            </button>
+                          ) : (
+                            <span className="inline-flex h-8 items-center text-muted-foreground">
+                              -
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openVolumeFiles(v)}>
+                              <FolderOpen className="h-4 w-4 mr-2" /> Open in Files
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setPendingRemoveVolume(v.Name)}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" /> Remove
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
-                  )}
-                </Fragment>
-              )
-            })}
-            {!loading && sorted.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">
-                  No volumes found
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+                    {isExpanded && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="bg-muted/20 px-0 py-3">
+                          {inspectLoadingMap[v.Name] ? (
+                            <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                              <Loader2 className="h-4 w-4 animate-spin" /> Loading inspect...
+                            </div>
+                          ) : (
+                            <pre className="text-xs font-mono bg-muted/40 rounded-md border p-3 overflow-auto max-h-[300px] whitespace-pre-wrap">
+                              {inspectMap[v.Name] || '(empty output)'}
+                            </pre>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
+                )
+              })}
+              {!loading && sorted.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    No volumes found
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </div>
       </div>
       {!embeddedInWorkspace && (
-      <div className="flex items-center justify-between gap-2 shrink-0">
-        <div className="text-xs text-muted-foreground">
-          {sorted.length === 0
-            ? '0 items'
-            : `${(effectivePage - 1) * effectivePageSize + 1}-${Math.min(effectivePage * effectivePageSize, sorted.length)} of ${sorted.length}`}
+        <div className="flex items-center justify-between gap-2 shrink-0">
+          <div className="text-xs text-muted-foreground">
+            {sorted.length === 0
+              ? '0 items'
+              : `${(effectivePage - 1) * effectivePageSize + 1}-${Math.min(effectivePage * effectivePageSize, sorted.length)} of ${sorted.length}`}
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <select
+              className="h-8 rounded-md border bg-background px-2 text-xs"
+              value={String(effectivePageSize)}
+              onChange={e => changePageSize(Number(e.target.value) as 25 | 50 | 100)}
+            >
+              <option value={25}>25 / page</option>
+              <option value={50}>50 / page</option>
+              <option value={100}>100 / page</option>
+            </select>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 min-w-0 px-0.5"
+              onClick={() => changePage(Math.max(1, effectivePage - 1))}
+              disabled={effectivePage <= 1}
+              aria-label="Previous volumes page"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </Button>
+            <span className="w-16 text-center font-medium tabular-nums">
+              {effectivePage} / {totalPages}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 min-w-0 px-0.5"
+              onClick={() => changePage(Math.min(totalPages, effectivePage + 1))}
+              disabled={effectivePage >= totalPages}
+              aria-label="Next volumes page"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2 text-xs">
-          <select
-            className="h-8 rounded-md border bg-background px-2 text-xs"
-            value={String(effectivePageSize)}
-            onChange={e => changePageSize(Number(e.target.value) as 25 | 50 | 100)}
-          >
-            <option value={25}>25 / page</option>
-            <option value={50}>50 / page</option>
-            <option value={100}>100 / page</option>
-          </select>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 min-w-0 px-0.5"
-            onClick={() => changePage(Math.max(1, effectivePage - 1))}
-            disabled={effectivePage <= 1}
-            aria-label="Previous volumes page"
-          >
-            <ChevronLeft className="h-3.5 w-3.5" />
-          </Button>
-          <span className="w-16 text-center font-medium tabular-nums">
-            {effectivePage} / {totalPages}
-          </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 min-w-0 px-0.5"
-            onClick={() => changePage(Math.min(totalPages, effectivePage + 1))}
-            disabled={effectivePage >= totalPages}
-            aria-label="Next volumes page"
-          >
-            <ChevronRight className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      </div>
       )}
 
       <AlertDialog
@@ -823,8 +845,8 @@ export const VolumesTab = forwardRef<
           <AlertDialogHeader>
             <AlertDialogTitle>Review unused volumes</AlertDialogTitle>
             <AlertDialogDescription>
-              Review the local volumes that are not used by any container before running prune.
-              This action cannot be undone.
+              Review the local volumes that are not used by any container before running prune. This
+              action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-4">
@@ -847,10 +869,16 @@ export const VolumesTab = forwardRef<
                           className="flex items-start justify-between gap-3 px-3 py-2.5"
                         >
                           <div className="min-w-0">
-                            <div className="truncate font-mono text-xs text-foreground" title={volume.Name}>
+                            <div
+                              className="truncate font-mono text-xs text-foreground"
+                              title={volume.Name}
+                            >
                               {volume.Name}
                             </div>
-                            <div className="truncate text-xs text-muted-foreground" title={volume.Mountpoint}>
+                            <div
+                              className="truncate text-xs text-muted-foreground"
+                              title={volume.Mountpoint}
+                            >
                               {volume.Driver || '-'} · {shortMountpoint(volume.Mountpoint)}
                             </div>
                           </div>
@@ -860,14 +888,20 @@ export const VolumesTab = forwardRef<
                   </div>
                 </div>
               ) : (
-                <div className="text-muted-foreground">No unused volumes are available to prune.</div>
+                <div className="text-muted-foreground">
+                  No unused volumes are available to prune.
+                </div>
               )}
             </div>
 
             {unusedVolumes.length > 0 && !volumeContainersLoading ? (
               <div className="space-y-2">
-                <label htmlFor="prune-volumes-confirmation" className="text-sm font-medium text-foreground">
-                  Type <span className="font-mono">{PRUNE_CONFIRMATION_PHRASE}</span> to enable prune.
+                <label
+                  htmlFor="prune-volumes-confirmation"
+                  className="text-sm font-medium text-foreground"
+                >
+                  Type <span className="font-mono">{PRUNE_CONFIRMATION_PHRASE}</span> to enable
+                  prune.
                 </label>
                 <Input
                   id="prune-volumes-confirmation"
@@ -911,7 +945,8 @@ export const VolumesTab = forwardRef<
               {filesVolumeRunningContainers.length > 0 ? (
                 <Alert className="mx-4 mt-4 mb-0 min-w-0 w-auto shrink-0 border-amber-500/40 bg-amber-500/8 text-foreground">
                   <AlertDescription className="min-w-0 pr-8 leading-5">
-                    This volume is currently used by {filesVolumeRunningContainers.length} running container
+                    This volume is currently used by {filesVolumeRunningContainers.length} running
+                    container
                     {filesVolumeRunningContainers.length > 1 ? 's' : ''}:{' '}
                     {filesVolumeRunningContainers.join(', ')}. Editing may affect the running app.
                   </AlertDescription>

@@ -5,10 +5,7 @@ import { preloadSoftwareLogos, SoftwareLogo } from '@/components/software/softwa
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  listSupportedServerSoftware,
-  type SupportedServerSoftwareEntry,
-} from '@/lib/software-api'
+import { listSupportedServerSoftware, type SupportedServerSoftwareEntry } from '@/lib/software-api'
 
 function capabilityLabel(capability?: string): string {
   if (!capability) return 'Platform'
@@ -33,13 +30,16 @@ function PlatformExtensionEmptyState({ loading }: { loading: boolean }) {
     <Card className="border-dashed border-border/70 bg-muted/20">
       <CardContent className="space-y-3 px-5 py-6">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="text-base font-semibold leading-tight">Platform extensions are coming later</p>
+          <p className="text-base font-semibold leading-tight">
+            Platform extensions are coming later
+          </p>
           <span className="rounded-full border border-border/70 bg-background px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
             Coming soon
           </span>
         </div>
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          AppOS does not expose a real platform extension model yet. Built-in runtime components stay outside this tab until that packaging model exists.
+          AppOS does not expose a real platform extension model yet. Built-in runtime components
+          stay outside this tab until that packaging model exists.
         </p>
       </CardContent>
     </Card>
@@ -191,7 +191,8 @@ export function ExtensionsPage() {
                 Platform Extensions
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Reserved for future AppOS platform extension packages, not built-in runtime components.
+                Reserved for future AppOS platform extension packages, not built-in runtime
+                components.
               </p>
             </div>
             <PlatformExtensionEmptyState loading={loading} />
@@ -208,7 +209,8 @@ export function ExtensionsPage() {
                 Server Extensions
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                What AppOS can extend onto managed servers through software-backed capability delivery.
+                What AppOS can extend onto managed servers through software-backed capability
+                delivery.
               </p>
             </div>
             <ServerExtensionGrid items={serverItems} loading={loading} error={error} />

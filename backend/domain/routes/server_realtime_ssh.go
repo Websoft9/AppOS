@@ -19,12 +19,6 @@ var (
 	serverRealtimeSSHGates  = map[string]chan struct{}{}
 )
 
-func defaultRouteSSHCommandRunner(cfg terminal.ConnectorConfig) routeSSHCommandRunner {
-	return func(ctx context.Context, command string, timeout time.Duration) (string, error) {
-		return executeSSHCommand(ctx, cfg, command, timeout)
-	}
-}
-
 func routeSSHCommandAdapter(run routeSSHCommandRunner) func(context.Context, string, time.Duration) (string, error) {
 	return func(ctx context.Context, command string, timeout time.Duration) (string, error) {
 		return run(ctx, command, timeout)

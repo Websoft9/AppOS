@@ -249,7 +249,9 @@ describe('TerminalPanel regressions', () => {
   })
 
   it('passes session_id when reconnecting a container terminal', async () => {
-    render(<TerminalPanel containerId="c1" sessionId="dock-sess-1" dockerServerId="srv-1" isActive />)
+    render(
+      <TerminalPanel containerId="c1" sessionId="dock-sess-1" dockerServerId="srv-1" isActive />
+    )
 
     await waitFor(() => {
       expect(mocks.MockWebSocket.instances.length).toBeGreaterThan(0)

@@ -1,8 +1,5 @@
 import { type SettingsSection } from '@/lib/settings-api'
-import {
-  getFeedsSectionHelp,
-  renderFeedsSection,
-} from '../-settings-domain-feeds'
+import { getFeedsSectionHelp, renderFeedsSection } from '../-settings-domain-feeds'
 import {
   getMonitorSectionHelp,
   isMonitorSectionId,
@@ -63,8 +60,7 @@ export const settingsNavigationAliases: SettingsNavigationAlias[] = [
     matchesActiveSection: activeSection => matchesSectionIds(activeSection, TOPIC_SECTION_IDS),
     help: {
       title: 'Topics',
-      description:
-        'Configure public topic share duration and guest comment policy from one place.',
+      description: 'Configure public topic share duration and guest comment policy from one place.',
     },
   },
   {
@@ -85,8 +81,7 @@ export const settingsNavigationAliases: SettingsNavigationAlias[] = [
     matchesActiveSection: activeSection => matchesSectionIds(activeSection, DOCKER_SECTION_IDS),
     help: {
       title: 'Docker',
-      description:
-        'Configure AppOS image pull acceleration for deployment and update workflows.',
+      description: 'Configure AppOS image pull acceleration for deployment and update workflows.',
     },
   },
   {

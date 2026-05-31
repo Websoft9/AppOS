@@ -479,18 +479,6 @@ func (e *SSHExecutor) verifySystemd(ctx context.Context, serverID string, tpl so
 	return detail, nil
 }
 
-func parseBoolKeyValueOutput(out string) map[string]bool {
-	result := map[string]bool{}
-	for _, line := range strings.Split(out, "\n") {
-		key, value, ok := strings.Cut(strings.TrimSpace(line), "=")
-		if !ok {
-			continue
-		}
-		result[strings.TrimSpace(key)] = strings.EqualFold(strings.TrimSpace(value), "true")
-	}
-	return result
-}
-
 func (e *SSHExecutor) detectDockerInstallSource(ctx context.Context, tpl software.ResolvedTemplate) (software.InstallSource, string) {
 	binaryPathOut, _ := e.runCommand(ctx, "command -v docker 2>/dev/null || true", detectTimeout)
 	binaryPath := strings.TrimSpace(firstLine(binaryPathOut))

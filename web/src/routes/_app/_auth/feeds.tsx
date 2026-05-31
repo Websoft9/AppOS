@@ -220,7 +220,21 @@ function buildTrackedShareURL(rawURL: string): string {
   }
 }
 
-const CONTENT_BLOCKED_TAGS = new Set(['script', 'style', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'textarea', 'select', 'video', 'audio', 'svg'])
+const CONTENT_BLOCKED_TAGS = new Set([
+  'script',
+  'style',
+  'iframe',
+  'object',
+  'embed',
+  'form',
+  'input',
+  'button',
+  'textarea',
+  'select',
+  'video',
+  'audio',
+  'svg',
+])
 
 function stripHTMLToText(value?: string): string {
   const trimmed = value?.trim() || ''
@@ -263,7 +277,10 @@ function sanitizeFeedContentHTML(value?: string): string {
   return doc.body.innerHTML.trim()
 }
 
-function getFeedItemDetail(item: Pick<FeedItemRecord, 'content_raw' | 'summary'>): { html: string; text: string } {
+function getFeedItemDetail(item: Pick<FeedItemRecord, 'content_raw' | 'summary'>): {
+  html: string
+  text: string
+} {
   const html = sanitizeFeedContentHTML(item.content_raw)
   if (html) {
     return {
@@ -419,7 +436,7 @@ function SourceFavicon({
   fallbackLabel,
 }: {
   name: string
-  url?: string  // accepted but not used; kept so callers need no update
+  url?: string // accepted but not used; kept so callers need no update
   faviconUrl?: string
   fallbackLabel?: string
 }) {
@@ -482,11 +499,15 @@ function StepBadge({
 
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 text-sm font-semibold shadow-sm ${circleClassName}`}>
+      <div
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 text-sm font-semibold shadow-sm ${circleClassName}`}
+      >
         {state === 'complete' ? <Check className="h-5 w-5" /> : index}
       </div>
       <div className="min-w-0">
-        <div className={`text-sm font-semibold ${state === 'upcoming' ? 'text-muted-foreground' : 'text-foreground'}`}>
+        <div
+          className={`text-sm font-semibold ${state === 'upcoming' ? 'text-muted-foreground' : 'text-foreground'}`}
+        >
           {title}
         </div>
         <div className="text-xs text-muted-foreground">{description}</div>
@@ -498,22 +519,36 @@ function StepBadge({
 function MetaField({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl bg-muted/35 px-4 py-3">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label}</div>
+      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        {label}
+      </div>
       <div className="mt-1 break-words text-sm font-medium text-foreground/85">{value}</div>
     </div>
   )
 }
 
-function WebsiteMetaCard({ title, url, faviconUrl }: { title: string; url: string; faviconUrl?: string }) {
+function WebsiteMetaCard({
+  title,
+  url,
+  faviconUrl,
+}: {
+  title: string
+  url: string
+  faviconUrl?: string
+}) {
   return (
     <div className="rounded-xl bg-muted/35 px-4 py-3">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Website</div>
+      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        Website
+      </div>
       <div className="mt-2 flex items-start gap-3">
         <div className="pt-0.5">
           <SourceFavicon name={title || url || 'W'} url={url} faviconUrl={faviconUrl} />
         </div>
         <div className="min-w-0">
-          <div className="truncate text-sm font-medium text-foreground/90">{title || 'Unknown site'}</div>
+          <div className="truncate text-sm font-medium text-foreground/90">
+            {title || 'Unknown site'}
+          </div>
           <div className="truncate text-xs text-muted-foreground">{url || 'Not available'}</div>
         </div>
       </div>
@@ -521,16 +556,30 @@ function WebsiteMetaCard({ title, url, faviconUrl }: { title: string; url: strin
   )
 }
 
-function FaviconMetaCard({ title, url, faviconUrl }: { title: string; url: string; faviconUrl?: string }) {
+function FaviconMetaCard({
+  title,
+  url,
+  faviconUrl,
+}: {
+  title: string
+  url: string
+  faviconUrl?: string
+}) {
   const trimmedFaviconUrl = faviconUrl?.trim() || ''
   if (!trimmedFaviconUrl) return null
 
   return (
     <div className="flex items-start gap-3 rounded-xl border bg-muted/20 px-4 py-3">
-      <SourceFavicon name={title || url || 'F'} url={url || trimmedFaviconUrl} faviconUrl={trimmedFaviconUrl} />
+      <SourceFavicon
+        name={title || url || 'F'}
+        url={url || trimmedFaviconUrl}
+        faviconUrl={trimmedFaviconUrl}
+      />
       <div className="min-w-0">
         <div className="text-sm font-medium text-foreground">Detected favicon</div>
-        <div className="truncate text-xs text-muted-foreground" title={trimmedFaviconUrl}>{trimmedFaviconUrl}</div>
+        <div className="truncate text-xs text-muted-foreground" title={trimmedFaviconUrl}>
+          {trimmedFaviconUrl}
+        </div>
       </div>
     </div>
   )
@@ -553,13 +602,10 @@ function SourceInlineLabel({
 }) {
   return (
     <span className="flex min-w-0 items-center gap-2">
-      <SourceFavicon
-        name={name}
-        url={url}
-        faviconUrl={faviconUrl}
-        fallbackLabel={fallbackLabel}
-      />
-      <span className={textClassName} title={title || name}>{name}</span>
+      <SourceFavicon name={name} url={url} faviconUrl={faviconUrl} fallbackLabel={fallbackLabel} />
+      <span className={textClassName} title={title || name}>
+        {name}
+      </span>
     </span>
   )
 }
@@ -669,7 +715,9 @@ function FeedsPage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
-  const [itemSourceFilter, setItemSourceFilter] = useState<'all' | 'bookmark' | 'starred' | string>('all')
+  const [itemSourceFilter, setItemSourceFilter] = useState<'all' | 'bookmark' | 'starred' | string>(
+    'all'
+  )
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null)
   const [sourcePollingId, setSourcePollingId] = useState<'all' | string>('')
   const [itemUpdatingId, setItemUpdatingId] = useState('')
@@ -719,7 +767,10 @@ function FeedsPage() {
   const shareCopyResetTimer = useRef<number | null>(null)
   const skipFirstFeedQueryEffect = useRef(true)
 
-  const shareURL = useMemo(() => (shareTarget ? buildTrackedShareURL(shareTarget.url) : ''), [shareTarget])
+  const shareURL = useMemo(
+    () => (shareTarget ? buildTrackedShareURL(shareTarget.url) : ''),
+    [shareTarget]
+  )
 
   useEffect(() => {
     if (!shareTarget) {
@@ -768,7 +819,9 @@ function FeedsPage() {
       const nextSources = sourcesResponse.items ?? []
 
       setSources(nextSources)
-      setSourceItemCounts(Object.fromEntries(nextSources.map(source => [source.id, source.item_count ?? 0])))
+      setSourceItemCounts(
+        Object.fromEntries(nextSources.map(source => [source.id, source.item_count ?? 0]))
+      )
       setError('')
     } catch (err) {
       setError(getApiErrorMessage(err, 'Failed to load feed sources'))
@@ -785,7 +838,9 @@ function FeedsPage() {
       const summaryResponse = await pb.send<FeedSummaryResponse>('/api/feeds/summary', {})
       setFeedStarredItems(summaryResponse.starredItems ?? 0)
       setSourceItemCounts(
-        Object.fromEntries((summaryResponse.sourceCounts ?? []).map(entry => [entry.sourceId, entry.count]))
+        Object.fromEntries(
+          (summaryResponse.sourceCounts ?? []).map(entry => [entry.sourceId, entry.count])
+        )
       )
     } catch {
       // Keep the last known counts instead of blocking the page on non-critical summary data.
@@ -825,7 +880,10 @@ function FeedsPage() {
       }
 
       try {
-        const response = await pb.send<FeedListResponse>(`/api/feeds/items?${params.toString()}`, {})
+        const response = await pb.send<FeedListResponse>(
+          `/api/feeds/items?${params.toString()}`,
+          {}
+        )
         const nextItems = response.items ?? []
         setItems(current => {
           if (!append) return nextItems
@@ -859,7 +917,10 @@ function FeedsPage() {
 
     setBookmarkLoading(true)
     try {
-      const response = await pb.send<BookmarkListResponse>(`/api/feeds/bookmarks?${params.toString()}`, {})
+      const response = await pb.send<BookmarkListResponse>(
+        `/api/feeds/bookmarks?${params.toString()}`,
+        {}
+      )
       setBookmarkItems(response.items ?? [])
       setBookmarkTotalItems(response.totalItems ?? 0)
       setBookmarkTotalBookmarks(response.totalBookmarks ?? 0)
@@ -881,10 +942,7 @@ function FeedsPage() {
     void (async () => {
       setLoading(true)
       try {
-        await Promise.all([
-          fetchSources(),
-          fetchFeedItems({ filter: 'all', query: '', page: 1 }),
-        ])
+        await Promise.all([fetchSources(), fetchFeedItems({ filter: 'all', query: '', page: 1 })])
         void fetchFeedSummary()
       } finally {
         if (!cancelled) {
@@ -955,7 +1013,12 @@ function FeedsPage() {
   }, [bookmarkItems.length, bookmarkPage, bookmarkPageCount, bookmarkTotalItems])
 
   const selectedSource = useMemo(() => {
-    if (itemSourceFilter === 'all' || itemSourceFilter === 'bookmark' || itemSourceFilter === 'starred') return null
+    if (
+      itemSourceFilter === 'all' ||
+      itemSourceFilter === 'bookmark' ||
+      itemSourceFilter === 'starred'
+    )
+      return null
     return sources.find(source => source.id === itemSourceFilter) ?? null
   }, [itemSourceFilter, sources])
 
@@ -965,7 +1028,7 @@ function FeedsPage() {
     return getSourcePullStatus(selectedSource)
   }, [selectedSource, sourcePollingId])
 
-  const clearSourceMaxCount = clearSourceTarget ? sourceItemCounts[clearSourceTarget.id] ?? 0 : 0
+  const clearSourceMaxCount = clearSourceTarget ? (sourceItemCounts[clearSourceTarget.id] ?? 0) : 0
 
   function dismissNotice() {
     setNotice('')
@@ -981,9 +1044,9 @@ function FeedsPage() {
       ? 'All'
       : itemSourceFilter === 'bookmark'
         ? 'Bookmark'
-      : itemSourceFilter === 'starred'
-        ? 'Starred'
-        : sourceNameByID.get(itemSourceFilter) || 'Unknown source'
+        : itemSourceFilter === 'starred'
+          ? 'Starred'
+          : sourceNameByID.get(itemSourceFilter) || 'Unknown source'
 
   function openBookmarkCreate() {
     setBookmarkEditTarget(null)
@@ -1056,15 +1119,20 @@ function FeedsPage() {
     setBookmarkSaving(true)
     setBookmarkError('')
     try {
-      await pb.send<BookmarkCreateResponse>(bookmarkEditTarget ? `/api/feeds/bookmarks/${bookmarkEditTarget.id}` : '/api/feeds/bookmarks', {
-        method: bookmarkEditTarget ? 'PATCH' : 'POST',
-        body: {
-          url,
-          title: bookmarkTitle.trim(),
-          summary: bookmarkSummary.trim(),
-          favicon_url: bookmarkFaviconURL.trim(),
-        },
-      })
+      await pb.send<BookmarkCreateResponse>(
+        bookmarkEditTarget
+          ? `/api/feeds/bookmarks/${bookmarkEditTarget.id}`
+          : '/api/feeds/bookmarks',
+        {
+          method: bookmarkEditTarget ? 'PATCH' : 'POST',
+          body: {
+            url,
+            title: bookmarkTitle.trim(),
+            summary: bookmarkSummary.trim(),
+            favicon_url: bookmarkFaviconURL.trim(),
+          },
+        }
+      )
       setBookmarkDialogOpen(false)
       setBookmarkEditTarget(null)
       setItemSourceFilter('bookmark')
@@ -1198,7 +1266,9 @@ function FeedsPage() {
               method: 'POST',
             })
           } catch (pollErr) {
-            setError(getApiErrorMessage(pollErr, `Source saved, but initial pull failed for ${name}`))
+            setError(
+              getApiErrorMessage(pollErr, `Source saved, but initial pull failed for ${name}`)
+            )
           }
 
           setItemSourceFilter(createdSource.id)
@@ -1303,10 +1373,13 @@ function FeedsPage() {
     setClearingSource(true)
     setError('')
     try {
-      const result = await pb.send<FeedSourceDeleteResult>(`/api/feeds/sources/${clearSourceTarget.id}/delete`, {
-        method: 'POST',
-        body: { count: requestedCount },
-      })
+      const result = await pb.send<FeedSourceDeleteResult>(
+        `/api/feeds/sources/${clearSourceTarget.id}/delete`,
+        {
+          method: 'POST',
+          body: { count: requestedCount },
+        }
+      )
 
       await fetchSources()
       await fetchFeedItems({ filter: itemSourceFilter, query: searchQuery, page: 1 })
@@ -1533,11 +1606,17 @@ function FeedsPage() {
     setItemUpdatingId(item.id)
     setError('')
     try {
-      const bookmark = await pb.send<BookmarkCreateResponse>(`/api/feeds/items/${item.id}/bookmark`, {
-        method: 'POST',
-      })
+      const bookmark = await pb.send<BookmarkCreateResponse>(
+        `/api/feeds/items/${item.id}/bookmark`,
+        {
+          method: 'POST',
+        }
+      )
       setItems(current => current.filter(candidate => candidate.id !== item.id))
-      setBookmarkItems(current => [bookmark as FeedItemRecord, ...current.filter(candidate => candidate.id !== bookmark.id)])
+      setBookmarkItems(current => [
+        bookmark as FeedItemRecord,
+        ...current.filter(candidate => candidate.id !== bookmark.id),
+      ])
       setFeedTotalItems(current => Math.max(0, current - 1))
       if (item.is_starred) {
         setFeedStarredItems(current => Math.max(0, current - 1))
@@ -1563,7 +1642,13 @@ function FeedsPage() {
   }
 
   useEffect(() => {
-    if (loading || feedLoadingMore || itemSourceFilter === 'bookmark' || items.length >= feedTotalItems) return
+    if (
+      loading ||
+      feedLoadingMore ||
+      itemSourceFilter === 'bookmark' ||
+      items.length >= feedTotalItems
+    )
+      return
 
     const maybeLoadMore = () => {
       const doc = document.documentElement
@@ -1583,7 +1668,16 @@ function FeedsPage() {
       window.removeEventListener('scroll', maybeLoadMore)
       window.removeEventListener('resize', maybeLoadMore)
     }
-  }, [feedLoadingMore, feedPage, feedTotalItems, fetchFeedItems, itemSourceFilter, items.length, loading, searchQuery])
+  }, [
+    feedLoadingMore,
+    feedPage,
+    feedTotalItems,
+    fetchFeedItems,
+    itemSourceFilter,
+    items.length,
+    loading,
+    searchQuery,
+  ])
 
   return (
     <div className="space-y-6">
@@ -1621,7 +1715,9 @@ function FeedsPage() {
             )}
           </Button>
           {isSuperuser ? (
-            <Button type="button" onClick={openCreate}>Add Source</Button>
+            <Button type="button" onClick={openCreate}>
+              Add Source
+            </Button>
           ) : null}
         </div>
       </div>
@@ -1630,7 +1726,13 @@ function FeedsPage() {
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           <div className="flex items-center justify-between gap-3">
             <span className="min-w-0 flex-1 break-words">{error}</span>
-            <Button type="button" variant="ghost" size="icon" aria-label="Dismiss error" onClick={dismissError}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Dismiss error"
+              onClick={dismissError}
+            >
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -1643,11 +1745,22 @@ function FeedsPage() {
             <span className="min-w-0 flex-1 break-words">{notice}</span>
             <div className="flex items-center gap-2">
               {pendingBookmarkUndo ? (
-                <Button type="button" variant="outline" size="sm" onClick={() => void handleBookmarkUndo()}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleBookmarkUndo()}
+                >
                   Undo
                 </Button>
               ) : null}
-              <Button type="button" variant="ghost" size="icon" aria-label="Dismiss notification" onClick={dismissNotice}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Dismiss notification"
+                onClick={dismissNotice}
+              >
                 <X className="h-4 w-4" />
               </Button>
             </div>
@@ -1669,7 +1782,9 @@ function FeedsPage() {
                 onClick={() => void handleSelectSource('all')}
               >
                 <span className="flex min-w-0 items-center gap-2">
-                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-muted text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground ring-1 ring-border/70">A</div>
+                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-muted text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground ring-1 ring-border/70">
+                    A
+                  </div>
                   <span className="truncate">All</span>
                 </span>
                 <span className="rounded-full border border-border/70 bg-background px-2.5 py-0.5 text-xs font-medium text-foreground/80">
@@ -1687,7 +1802,13 @@ function FeedsPage() {
                   <span className="truncate">Bookmark</span>
                 </span>
                 <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700">
-                  {bookmarkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : bookmarkDataLoaded ? bookmarkTotalBookmarks : '...'}
+                  {bookmarkLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : bookmarkDataLoaded ? (
+                    bookmarkTotalBookmarks
+                  ) : (
+                    '...'
+                  )}
                 </span>
               </button>
 
@@ -1727,7 +1848,11 @@ function FeedsPage() {
                       textClassName="min-w-0 truncate"
                     />
                     <span className="ml-3 shrink-0 rounded-full border border-border/70 bg-background px-2.5 py-0.5 text-xs font-medium text-foreground/80">
-                      {sourcePollingId === source.id ? <Loader2 className="h-4 w-4 animate-spin" /> : `(${sourceItemCounts[source.id] ?? 0})`}
+                      {sourcePollingId === source.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        `(${sourceItemCounts[source.id] ?? 0})`
+                      )}
                     </span>
                   </button>
                 ))
@@ -1741,8 +1866,16 @@ function FeedsPage() {
             <div className="flex items-center gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2.5">
-                  {selectedSource ? <SourceFavicon name={selectedSource.name} url={selectedSource.url} faviconUrl={selectedSource.favicon_url} /> : null}
-                  <h2 className="min-w-0 truncate text-lg font-semibold tracking-tight">{activeSourceName}</h2>
+                  {selectedSource ? (
+                    <SourceFavicon
+                      name={selectedSource.name}
+                      url={selectedSource.url}
+                      faviconUrl={selectedSource.favicon_url}
+                    />
+                  ) : null}
+                  <h2 className="min-w-0 truncate text-lg font-semibold tracking-tight">
+                    {activeSourceName}
+                  </h2>
                   {selectedSource && isSuperuser ? (
                     <div className="ml-5 flex items-center gap-1">
                       <Button
@@ -1755,9 +1888,9 @@ function FeedsPage() {
                         onClick={() => void handleSourcePoll(selectedSource)}
                       >
                         {sourcePollingId === selectedSource.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                          <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
-                        <ArrowDownToLine className="h-4 w-4" />
+                          <ArrowDownToLine className="h-4 w-4" />
                         )}
                       </Button>
                       <Button
@@ -1784,7 +1917,10 @@ function FeedsPage() {
                   ) : null}
                 </div>
                 {selectedSource ? (
-                  <div className="mt-1 truncate text-xs text-muted-foreground" title={selectedSourcePullStatus}>
+                  <div
+                    className="mt-1 truncate text-xs text-muted-foreground"
+                    title={selectedSourcePullStatus}
+                  >
                     {selectedSourcePullStatus}
                   </div>
                 ) : null}
@@ -1805,12 +1941,24 @@ function FeedsPage() {
                     aria-label="Search articles"
                     className="w-64"
                   />
-                  <Button type="button" variant="ghost" size="icon" aria-label="Close search" onClick={toggleSearch}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Close search"
+                    onClick={toggleSearch}
+                  >
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
               ) : (
-                <Button type="button" variant="outline" size="icon" aria-label="Open article search" onClick={toggleSearch}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="Open article search"
+                  onClick={toggleSearch}
+                >
                   <Search className="h-4 w-4" />
                 </Button>
               )}
@@ -1828,7 +1976,14 @@ function FeedsPage() {
                 <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-muted/20 px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <Button type="button" variant="outline" size="icon" aria-label="Add Bookmark" title="Add Bookmark" onClick={openBookmarkCreate}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        aria-label="Add Bookmark"
+                        title="Add Bookmark"
+                        onClick={openBookmarkCreate}
+                      >
                         <Plus className="h-4 w-4" />
                       </Button>
                       <Input
@@ -1864,7 +2019,9 @@ function FeedsPage() {
                           className="h-7 min-w-0 px-0.5"
                           aria-label="Next bookmark page"
                           disabled={bookmarkPage >= bookmarkPageCount}
-                          onClick={() => setBookmarkPage(current => Math.min(bookmarkPageCount, current + 1))}
+                          onClick={() =>
+                            setBookmarkPage(current => Math.min(bookmarkPageCount, current + 1))
+                          }
                         >
                           <ChevronRight className="h-3.5 w-3.5" />
                         </Button>
@@ -1910,7 +2067,10 @@ function FeedsPage() {
                               <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                             </a>
                           </div>
-                          <div className="flex min-w-0 items-center justify-start gap-1 text-left font-mono text-xs text-muted-foreground" title={item.link}>
+                          <div
+                            className="flex min-w-0 items-center justify-start gap-1 text-left font-mono text-xs text-muted-foreground"
+                            title={item.link}
+                          >
                             <span className="min-w-0 truncate">{displayHost}</span>
                             <Button
                               type="button"
@@ -1921,9 +2081,15 @@ function FeedsPage() {
                               title={`Copy bookmark URL ${displayTitle}`}
                               onClick={() => void handleCopyBookmarkURL(item)}
                             >
-                              {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                              {copied ? (
+                                <Check className="h-3.5 w-3.5 text-emerald-600" />
+                              ) : (
+                                <Copy className="h-3.5 w-3.5" />
+                              )}
                             </Button>
-                            {copied ? <span className="shrink-0 text-[11px] text-emerald-600">Copied</span> : null}
+                            {copied ? (
+                              <span className="shrink-0 text-[11px] text-emerald-600">Copied</span>
+                            ) : null}
                           </div>
                           <div className="flex w-28 shrink-0 items-center justify-start gap-1 text-left">
                             <Button
@@ -1946,7 +2112,11 @@ function FeedsPage() {
                               disabled={isUpdating}
                               onClick={() => void handleBookmarkRemove(item)}
                             >
-                              {isUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                              {isUpdating ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
                             </Button>
                           </div>
                         </div>
@@ -1961,7 +2131,9 @@ function FeedsPage() {
                 ) : null}
                 {!bookmarkLoading && bookmarkTotalItems === 0 ? (
                   <div className="rounded-lg border bg-card px-4 py-12 text-center text-sm text-muted-foreground shadow-sm">
-                    {bookmarkTotalBookmarks === 0 ? 'No bookmarks saved yet.' : 'No bookmarks match this search.'}
+                    {bookmarkTotalBookmarks === 0
+                      ? 'No bookmarks saved yet.'
+                      : 'No bookmarks match this search.'}
                   </div>
                 ) : null}
               </>
@@ -1974,12 +2146,17 @@ function FeedsPage() {
             ) : (
               visibleItems.map(item => {
                 const displayTitle = getDisplayItemTitle(item)
-                const sourceName = item.origin_type === 'bookmark'
-                  ? getHostLabel(item.link)
-                  : item.expand?.source_id?.name || (item.source_id ? sourceNameByID.get(item.source_id) : '') || 'Unknown source'
-                const source = item.origin_type === 'bookmark'
-                  ? undefined
-                  : item.expand?.source_id || sources.find(candidate => candidate.id === item.source_id)
+                const sourceName =
+                  item.origin_type === 'bookmark'
+                    ? getHostLabel(item.link)
+                    : item.expand?.source_id?.name ||
+                      (item.source_id ? sourceNameByID.get(item.source_id) : '') ||
+                      'Unknown source'
+                const source =
+                  item.origin_type === 'bookmark'
+                    ? undefined
+                    : item.expand?.source_id ||
+                      sources.find(candidate => candidate.id === item.source_id)
                 const expanded = expandedItemId === item.id
                 const isRead = item.read_state === 'read'
                 const isStarred = item.is_starred
@@ -1989,11 +2166,21 @@ function FeedsPage() {
                 return (
                   <div key={item.id} className="rounded-lg border bg-card px-4 py-3">
                     <div className="flex items-start justify-between gap-3">
-                      <button type="button" className="min-w-0 flex-1 text-left" onClick={() => toggleItemDetails(item)}>
-                        <div className={`leading-6 text-[13px] ${isRead ? 'font-normal text-muted-foreground' : 'font-medium'}`}>
+                      <button
+                        type="button"
+                        className="min-w-0 flex-1 text-left"
+                        onClick={() => toggleItemDetails(item)}
+                      >
+                        <div
+                          className={`leading-6 text-[13px] ${isRead ? 'font-normal text-muted-foreground' : 'font-medium'}`}
+                        >
                           <span className="inline-flex items-center gap-2">
-                            {isStarred ? <Star className="h-4 w-4 fill-amber-400 text-amber-400" /> : null}
-                            {item.origin_type === 'bookmark' ? <Bookmark className="h-4 w-4 text-sky-600" /> : null}
+                            {isStarred ? (
+                              <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                            ) : null}
+                            {item.origin_type === 'bookmark' ? (
+                              <Bookmark className="h-4 w-4 text-sky-600" />
+                            ) : null}
                             <span>{displayTitle}</span>
                           </span>
                         </div>
@@ -2003,8 +2190,14 @@ function FeedsPage() {
                           <SourceInlineLabel
                             name={sourceName}
                             url={source?.url || item.link}
-                            faviconUrl={item.origin_type === 'bookmark' ? item.favicon_url : source?.favicon_url}
-                            fallbackLabel={item.origin_type === 'bookmark' ? getHostLabel(item.link) : sourceName}
+                            faviconUrl={
+                              item.origin_type === 'bookmark'
+                                ? item.favicon_url
+                                : source?.favicon_url
+                            }
+                            fallbackLabel={
+                              item.origin_type === 'bookmark' ? getHostLabel(item.link) : sourceName
+                            }
                             textClassName="truncate"
                           />
                         </div>
@@ -2037,8 +2230,15 @@ function FeedsPage() {
                         </div>
 
                         <div className="space-y-2 text-xs leading-5 text-muted-foreground">
-                          <div>Type: {item.origin_type === 'bookmark' ? 'Bookmark' : 'Feed item'}</div>
-                          <div>Published: {item.published_at ? new Date(item.published_at).toLocaleString() : 'Unknown'}</div>
+                          <div>
+                            Type: {item.origin_type === 'bookmark' ? 'Bookmark' : 'Feed item'}
+                          </div>
+                          <div>
+                            Published:{' '}
+                            {item.published_at
+                              ? new Date(item.published_at).toLocaleString()
+                              : 'Unknown'}
+                          </div>
                           <div>Source: {sourceName}</div>
                         </div>
 
@@ -2048,9 +2248,19 @@ function FeedsPage() {
                             variant="outline"
                             size="sm"
                             disabled={isUpdating}
-                            onClick={() => void patchItemPreferences(item.id, { read_state: 'unread' }, 'Failed to keep feed item unread')}
+                            onClick={() =>
+                              void patchItemPreferences(
+                                item.id,
+                                { read_state: 'unread' },
+                                'Failed to keep feed item unread'
+                              )
+                            }
                           >
-                            {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Undo2 className="mr-2 h-4 w-4" />}
+                            {isUpdating ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Undo2 className="mr-2 h-4 w-4" />
+                            )}
                             Keep Unread
                           </Button>
                           <Button
@@ -2058,7 +2268,13 @@ function FeedsPage() {
                             variant="outline"
                             size="sm"
                             disabled={isUpdating}
-                            onClick={() => void patchItemPreferences(item.id, { is_starred: !isStarred }, 'Failed to update feed item star')}
+                            onClick={() =>
+                              void patchItemPreferences(
+                                item.id,
+                                { is_starred: !isStarred },
+                                'Failed to update feed item star'
+                              )
+                            }
                           >
                             {isUpdating ? (
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -2067,7 +2283,12 @@ function FeedsPage() {
                             )}
                             {isStarred ? 'Starred' : 'Star'}
                           </Button>
-                          <Button type="button" variant="outline" size="sm" onClick={() => void handleShare(item)}>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void handleShare(item)}
+                          >
                             <Share2 className="mr-2 h-4 w-4" />
                             Share
                           </Button>
@@ -2078,7 +2299,11 @@ function FeedsPage() {
                             disabled={isUpdating}
                             onClick={() => void handleConvertItemToBookmark(item)}
                           >
-                            {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bookmark className="mr-2 h-4 w-4" />}
+                            {isUpdating ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Bookmark className="mr-2 h-4 w-4" />
+                            )}
                             Bookmark
                           </Button>
                           <Button type="button" variant="outline" size="sm" asChild>
@@ -2126,7 +2351,9 @@ function FeedsPage() {
                         state={createStep === 'url' ? 'active' : 'complete'}
                       />
                     </div>
-                    <div className={`mt-5 hidden h-0.5 flex-1 rounded-full md:block ${createStep === 'details' ? 'bg-primary/50' : 'bg-border/80'}`} />
+                    <div
+                      className={`mt-5 hidden h-0.5 flex-1 rounded-full md:block ${createStep === 'details' ? 'bg-primary/50' : 'bg-border/80'}`}
+                    />
                     <div className="min-w-0 flex-1">
                       <StepBadge
                         index={2}
@@ -2144,7 +2371,9 @@ function FeedsPage() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="feed-source-discovery-url">RSS or Atom URL</Label>
-                  <p className="text-xs text-muted-foreground">Paste the feed URL and we will auto-fill the next step.</p>
+                  <p className="text-xs text-muted-foreground">
+                    Paste the feed URL and we will auto-fill the next step.
+                  </p>
                   <Input
                     id="feed-source-discovery-url"
                     value={analyzeURL}
@@ -2160,7 +2389,10 @@ function FeedsPage() {
                     <Loader2 className="mt-0.5 h-4 w-4 animate-spin" />
                     <div>
                       <div className="font-medium">Analyzing feed URL</div>
-                      <div className="text-primary/80">Fetching metadata, detecting feed format, and preparing the subscription details.</div>
+                      <div className="text-primary/80">
+                        Fetching metadata, detecting feed format, and preparing the subscription
+                        details.
+                      </div>
                     </div>
                   </div>
                 ) : null}
@@ -2182,7 +2414,9 @@ function FeedsPage() {
                     <Check className="mt-0.5 h-4 w-4" />
                     <div>
                       <div className="font-medium">Analysis complete</div>
-                      <div className="text-primary/80">The source metadata has been detected and stored for this subscription.</div>
+                      <div className="text-primary/80">
+                        The source metadata has been detected and stored for this subscription.
+                      </div>
                     </div>
                   </div>
                 ) : null}
@@ -2195,7 +2429,9 @@ function FeedsPage() {
                         <Label>Status</Label>
                         <Select
                           value={formStatus}
-                          onValueChange={value => setFormStatus(value as FeedSourceRecord['status'])}
+                          onValueChange={value =>
+                            setFormStatus(value as FeedSourceRecord['status'])
+                          }
                         >
                           <SelectTrigger>
                             <SelectValue />
@@ -2211,19 +2447,32 @@ function FeedsPage() {
                       <MetaField label="Website" value={analyzedSiteURL || 'Not available'} />
                     </div>
                     <div className="rounded-md border border-border/70 bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-                      Feed URL and format are immutable identity fields. Create a new source if the upstream feed changes.
+                      Feed URL and format are immutable identity fields. Create a new source if the
+                      upstream feed changes.
                     </div>
-                    <FaviconMetaCard title={analyzedSiteTitle || formName} url={analyzedSiteURL || formURL} faviconUrl={formFaviconURL} />
+                    <FaviconMetaCard
+                      title={analyzedSiteTitle || formName}
+                      url={analyzedSiteURL || formURL}
+                      faviconUrl={formFaviconURL}
+                    />
                   </div>
                 ) : (
                   <div className="space-y-4">
                     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                       <MetaField label="Feed URL" value={formURL || 'Not available'} />
-                      <WebsiteMetaCard title={analyzedSiteTitle} url={analyzedSiteURL} faviconUrl={formFaviconURL} />
+                      <WebsiteMetaCard
+                        title={analyzedSiteTitle}
+                        url={analyzedSiteURL}
+                        faviconUrl={formFaviconURL}
+                      />
                       <MetaField label="Format" value={formFormat.toUpperCase()} />
                       <MetaField label="Status" value={formStatus} />
                     </div>
-                    <FaviconMetaCard title={analyzedSiteTitle || formName} url={analyzedSiteURL || formURL} faviconUrl={formFaviconURL} />
+                    <FaviconMetaCard
+                      title={analyzedSiteTitle || formName}
+                      url={analyzedSiteURL || formURL}
+                      faviconUrl={formFaviconURL}
+                    />
                   </div>
                 )}
               </>
@@ -2267,7 +2516,11 @@ function FeedsPage() {
                 </Button>
               ) : null}
               {!editingSource && createStep === 'url' ? (
-                <Button type="button" onClick={() => void handleAnalyzeSource()} disabled={analyzing}>
+                <Button
+                  type="button"
+                  onClick={() => void handleAnalyzeSource()}
+                  disabled={analyzing}
+                >
                   {analyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Analyze Feed
                 </Button>
@@ -2303,20 +2556,36 @@ function FeedsPage() {
                   onChange={event => setBookmarkURL(event.target.value)}
                   placeholder="https://example.com/article"
                 />
-                <Button type="button" variant="outline" onClick={() => void handleAnalyzeBookmark()} disabled={bookmarkAnalyzing}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void handleAnalyzeBookmark()}
+                  disabled={bookmarkAnalyzing}
+                >
                   {bookmarkAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Fetch Details
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">Fetch the page metadata to auto-fill title, description, and favicon.</p>
+              <p className="text-xs text-muted-foreground">
+                Fetch the page metadata to auto-fill title, description, and favicon.
+              </p>
             </div>
 
             {bookmarkFaviconURL ? (
               <div className="flex items-start gap-3 rounded-xl border bg-muted/20 px-4 py-3">
-                <SourceFavicon name={bookmarkTitle || bookmarkURL || 'B'} url={bookmarkURL || bookmarkFaviconURL} faviconUrl={bookmarkFaviconURL} />
+                <SourceFavicon
+                  name={bookmarkTitle || bookmarkURL || 'B'}
+                  url={bookmarkURL || bookmarkFaviconURL}
+                  faviconUrl={bookmarkFaviconURL}
+                />
                 <div className="min-w-0">
                   <div className="text-sm font-medium text-foreground">Detected favicon</div>
-                  <div className="truncate text-xs text-muted-foreground" title={bookmarkFaviconURL}>{bookmarkFaviconURL}</div>
+                  <div
+                    className="truncate text-xs text-muted-foreground"
+                    title={bookmarkFaviconURL}
+                  >
+                    {bookmarkFaviconURL}
+                  </div>
                 </div>
               </div>
             ) : null}
@@ -2360,7 +2629,13 @@ function FeedsPage() {
                 Cancel
               </Button>
               <Button type="submit" disabled={bookmarkSaving || bookmarkAnalyzing}>
-                {bookmarkSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : bookmarkEditTarget ? <Pencil className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
+                {bookmarkSaving ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : bookmarkEditTarget ? (
+                  <Pencil className="mr-2 h-4 w-4" />
+                ) : (
+                  <Plus className="mr-2 h-4 w-4" />
+                )}
                 {bookmarkEditTarget ? 'Save Changes' : 'Save Bookmark'}
               </Button>
             </DialogFooter>
@@ -2368,11 +2643,14 @@ function FeedsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={shareTarget !== null} onOpenChange={open => {
-        if (!open) {
-          setShareTarget(null)
-        }
-      }}>
+      <Dialog
+        open={shareTarget !== null}
+        onOpenChange={open => {
+          if (!open) {
+            setShareTarget(null)
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-xl">
           {shareTarget ? (
             <>
@@ -2388,7 +2666,12 @@ function FeedsPage() {
                   <Label htmlFor="share-url">Share URL</Label>
                   <Input id="share-url" value={shareURL} readOnly aria-label="Share URL" />
                   <div className="flex flex-wrap items-center gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={() => void handleCopyShareURL()}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleCopyShareURL()}
+                    >
                       <Copy className="mr-2 h-4 w-4" />
                       {shareLinkCopied ? 'Copied' : 'Copy URL'}
                     </Button>
@@ -2404,7 +2687,11 @@ function FeedsPage() {
                         Generating QR code...
                       </div>
                     ) : shareQRCodeURL ? (
-                      <img src={shareQRCodeURL} alt={`QR code for ${shareTarget.title}`} className="h-60 w-60 rounded-md bg-white p-3" />
+                      <img
+                        src={shareQRCodeURL}
+                        alt={`QR code for ${shareTarget.title}`}
+                        className="h-60 w-60 rounded-md bg-white p-3"
+                      />
                     ) : (
                       <div className="text-sm text-muted-foreground">QR code unavailable.</div>
                     )}
@@ -2422,7 +2709,10 @@ function FeedsPage() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!deleteSourceTarget} onOpenChange={open => !open && !deletingSource && setDeleteSourceTarget(null)}>
+      <AlertDialog
+        open={!!deleteSourceTarget}
+        onOpenChange={open => !open && !deletingSource && setDeleteSourceTarget(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Feed Source</AlertDialogTitle>
@@ -2477,7 +2767,11 @@ function FeedsPage() {
                   variant="outline"
                   size="icon"
                   className="h-9 w-9"
-                  onClick={() => setClearSourceCount(current => clampDeleteCount(current - 1, clearSourceMaxCount))}
+                  onClick={() =>
+                    setClearSourceCount(current =>
+                      clampDeleteCount(current - 1, clearSourceMaxCount)
+                    )
+                  }
                   disabled={clearingSource || clearSourceCount <= 1}
                 >
                   <Minus className="h-4 w-4" />
@@ -2488,14 +2782,22 @@ function FeedsPage() {
                   inputMode="numeric"
                   pattern="[0-9]*"
                   value={clearSourceCount > 0 ? clearSourceCount : ''}
-                  onChange={event => setClearSourceCount(clampDeleteCount(Number(event.target.value), clearSourceMaxCount))}
+                  onChange={event =>
+                    setClearSourceCount(
+                      clampDeleteCount(Number(event.target.value), clearSourceMaxCount)
+                    )
+                  }
                 />
                 <Button
                   type="button"
                   variant="outline"
                   size="icon"
                   className="h-9 w-9"
-                  onClick={() => setClearSourceCount(current => clampDeleteCount(current + 1, clearSourceMaxCount))}
+                  onClick={() =>
+                    setClearSourceCount(current =>
+                      clampDeleteCount(current + 1, clearSourceMaxCount)
+                    )
+                  }
                   disabled={clearingSource || clearSourceCount >= clearSourceMaxCount}
                 >
                   <Plus className="h-4 w-4" />

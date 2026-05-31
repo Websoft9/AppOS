@@ -59,7 +59,9 @@ function getSessionUpdatedAt(session: TerminalSessionSummary): number | null {
 }
 
 function isServerOnline(server: ServerType) {
-  const connectType = String(server.connect_type ?? 'direct').trim().toLowerCase()
+  const connectType = String(server.connect_type ?? 'direct')
+    .trim()
+    .toLowerCase()
   if (connectType === 'tunnel') {
     return String(server.tunnel_status ?? '') === 'online'
   }
@@ -248,8 +250,12 @@ function ActiveSessionCard({
             )}
           </div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            {server.name && <span className="text-xs text-muted-foreground truncate">{server.host}</span>}
-            <span className="text-xs font-mono text-muted-foreground">{session.id.slice(0, 8)}</span>
+            {server.name && (
+              <span className="text-xs text-muted-foreground truncate">{server.host}</span>
+            )}
+            <span className="text-xs font-mono text-muted-foreground">
+              {session.id.slice(0, 8)}
+            </span>
             {sessionMinAgo != null && (
               <span className="text-xs text-muted-foreground flex items-center gap-1">
                 <Clock className="h-2.5 w-2.5" />
@@ -388,26 +394,32 @@ function ServersPanel({
               </div>
             ) : (
               <div className="space-y-2">
-              {onlineServers.map(server => {
-                const latestSession = latestSessionByServer.get(server.id)
-                const lastSessionUpdatedAt = latestSession ? getSessionUpdatedAt(latestSession) : null
-                const lastSessionMin =
-                  lastSessionUpdatedAt != null
-                    ? Math.max(1, Math.floor((nowTs - lastSessionUpdatedAt) / 60000))
-                    : undefined
+                {onlineServers.map(server => {
+                  const latestSession = latestSessionByServer.get(server.id)
+                  const lastSessionUpdatedAt = latestSession
+                    ? getSessionUpdatedAt(latestSession)
+                    : null
+                  const lastSessionMin =
+                    lastSessionUpdatedAt != null
+                      ? Math.max(1, Math.floor((nowTs - lastSessionUpdatedAt) / 60000))
+                      : undefined
 
-                return (
-                  <ServerCard
-                    key={server.id}
-                    server={server}
-                    isConnected={sessionCounts.has(server.id)}
-                    isIdle={latestSession ? isSessionIdle(lastSessionUpdatedAt, idleTimeoutSeconds) : false}
-                    lastSessionMin={lastSessionMin}
-                    sessionCount={sessionCounts.get(server.id)}
-                    onConnect={onConnect}
-                  />
-                )
-              })}
+                  return (
+                    <ServerCard
+                      key={server.id}
+                      server={server}
+                      isConnected={sessionCounts.has(server.id)}
+                      isIdle={
+                        latestSession
+                          ? isSessionIdle(lastSessionUpdatedAt, idleTimeoutSeconds)
+                          : false
+                      }
+                      lastSessionMin={lastSessionMin}
+                      sessionCount={sessionCounts.get(server.id)}
+                      onConnect={onConnect}
+                    />
+                  )
+                })}
               </div>
             )}
           </div>
@@ -611,13 +623,11 @@ export function TerminalIndexPage() {
       .filter((item): item is NonNullable<typeof item> => item != null)
     const workspaceSnapshot = loadConnectWorkspaceSnapshot()
 
-    let restoreSessions = liveRestoreSessions
-      .slice()
-      .sort((left, right) => {
-        const leftTs = Number.isFinite(left.lastActiveAt) ? left.lastActiveAt : 0
-        const rightTs = Number.isFinite(right.lastActiveAt) ? right.lastActiveAt : 0
-        return rightTs - leftTs
-      })
+    let restoreSessions = liveRestoreSessions.slice().sort((left, right) => {
+      const leftTs = Number.isFinite(left.lastActiveAt) ? left.lastActiveAt : 0
+      const rightTs = Number.isFinite(right.lastActiveAt) ? right.lastActiveAt : 0
+      return rightTs - leftTs
+    })
 
     let activeSessionId: string | undefined = restoreSessions[0]?.sessionId
 
@@ -656,8 +666,7 @@ export function TerminalIndexPage() {
     const primary = restoreSessions[0]
     if (!primary) return
 
-    const activeTarget =
-      restoreSessions.find(item => item.sessionId === activeSessionId) ?? primary
+    const activeTarget = restoreSessions.find(item => item.sessionId === activeSessionId) ?? primary
 
     navigate({
       to: '/terminal/server/$serverId',

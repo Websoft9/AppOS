@@ -463,10 +463,6 @@ func handleSystemdServiceUnitApply(e *core.RequestEvent) error {
 	})
 }
 
-func resolveSystemdUnitPath(ctx context.Context, cfg terminal.ConnectorConfig, service string) (string, error) {
-	return resolveSystemdUnitPathWithRunner(ctx, defaultRouteSSHCommandRunner(cfg), service)
-}
-
 func resolveSystemdUnitPathWithRunner(ctx context.Context, run routeSSHCommandRunner, service string) (string, error) {
 	return newSystemdRuntimeService(run).ResolveUnitPath(ctx, service)
 }

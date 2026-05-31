@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
 	"strings"
+	"sync"
 	"time"
 
 	swcatalog "github.com/websoft9/appos/backend/domain/software/catalog"
@@ -35,10 +35,10 @@ var localServiceMemoryFn = supervisor.GetProcessMemory
 var localServiceUptimeFn = supervisor.GetProcessUptime
 
 var localServiceObservationCache = struct {
-	mu         sync.Mutex
-	items      []LocalServiceObservation
+	mu          sync.Mutex
+	items       []LocalServiceObservation
 	initialized bool
-	refreshing bool
+	refreshing  bool
 }{}
 
 func ObserveLocalServices(registry *swcatalog.LocalRegistry) []LocalServiceObservation {

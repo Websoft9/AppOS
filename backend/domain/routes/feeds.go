@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/dbx"
+	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/feeds"
 )
@@ -460,7 +460,7 @@ func handleFeedSummary(e *core.RequestEvent) error {
 
 	sourceCounts := make([]feedSummarySourceCount, 0, len(rows))
 	for _, row := range rows {
-		sourceCounts = append(sourceCounts, feedSummarySourceCount{SourceID: row.SourceID, Count: row.Count})
+		sourceCounts = append(sourceCounts, feedSummarySourceCount(row))
 	}
 
 	return e.JSON(http.StatusOK, feedSummaryResponse{
@@ -1162,6 +1162,7 @@ func handleFeedsPoll(e *core.RequestEvent) error {
 
 	return e.JSON(http.StatusOK, map[string]any{"summary": summary})
 }
+
 // handleFeedDelete deletes the oldest pulled feed articles globally.
 //
 // @Summary Delete pulled feed articles globally
@@ -1190,6 +1191,7 @@ func handleFeedDelete(e *core.RequestEvent) error {
 
 	return e.JSON(http.StatusOK, result)
 }
+
 // handleFeedSourceDelete deletes the oldest pulled feed articles for one source and keeps the source config.
 //
 // @Summary Delete feed source articles by count
@@ -1245,7 +1247,7 @@ func handleFeedSourcePoll(e *core.RequestEvent) error {
 		return e.BadRequestError("feed source id is required", nil)
 	}
 
-	summary, err := feeds.PollSourceNow(nil, e.App, nil, time.Now().UTC(), id, pollFeedSourceNow)
+	summary, err := feeds.PollSourceNow(context.TODO(), e.App, nil, time.Now().UTC(), id, pollFeedSourceNow)
 	if err != nil {
 		return handleFeedSourceServiceError(e, err, "failed to poll feed source")
 	}

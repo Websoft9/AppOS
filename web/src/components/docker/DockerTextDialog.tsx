@@ -86,7 +86,12 @@ export function DockerTextDialog({
         </DialogHeader>
         <div className="px-5 pb-2 flex items-center gap-2">
           {onRefresh ? (
-            <Button variant="outline" size="sm" onClick={onRefresh} disabled={loading || refreshDisabled}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRefresh}
+              disabled={loading || refreshDisabled}
+            >
               Refresh
             </Button>
           ) : null}

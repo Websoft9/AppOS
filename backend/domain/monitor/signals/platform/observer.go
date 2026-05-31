@@ -19,14 +19,14 @@ func NewPlatformObserver(app core.App, snapshotFn func() RuntimeSnapshot) *Platf
 	localDockerClient := docker.New(docker.NewLocalExecutor(""))
 
 	return &PlatformObserver{
-		app:              app,
-		snapshotFn:       snapshotFn,
-		resourceFn:       supervisor.GetProcessResources,
+		app:                app,
+		snapshotFn:         snapshotFn,
+		resourceFn:         supervisor.GetProcessResources,
 		appCoreTelemetryFn: collectLocalAppCoreMetricPoints,
-		appCoreMemoryFn:  readLocalAppCoreMemory,
-		hostTelemetryFn:  collectLocalHostMetricPoints,
-		containerStatsFn: localDockerClient.ContainerStats,
-		containerSamples: map[string]localContainerCounters{},
+		appCoreMemoryFn:    readLocalAppCoreMemory,
+		hostTelemetryFn:    collectLocalHostMetricPoints,
+		containerStatsFn:   localDockerClient.ContainerStats,
+		containerSamples:   map[string]localContainerCounters{},
 		nowFn: func() time.Time {
 			return time.Now().UTC()
 		},
