@@ -17,6 +17,7 @@ import { ResourcePage, type Column, type FieldDef } from '@/components/resources
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { SecretCredentialField } from '@/components/secrets/SecretCredentialField'
 import { SecretForm, type SecretTemplate } from '@/components/secrets/SecretForm'
+import { buildResourceSecretRelationApiPath } from '@/components/secrets/SecretVisibilityField'
 import { pb } from '@/lib/pb'
 
 type InstanceRecord = {
@@ -244,8 +245,10 @@ function defaultPortForTemplate(template: InstanceTemplate | null | undefined) {
 }
 
 function buildSecretRelationApiPath(secretTemplateIds: string[]) {
-  const filter = secretTemplateIds.map(id => `template_id='${id}'`).join('||')
-  return `/api/collections/secrets/records?filter=(status='active'%26%26(${filter}))&sort=name`
+  return buildResourceSecretRelationApiPath({
+    visibleTo: 'service_instance',
+    templateIds: secretTemplateIds,
+  })
 }
 
 function databaseCredentialLabel(template: InstanceTemplate | null | undefined) {
@@ -424,6 +427,7 @@ async function buildInstancePayload(
           description: `Password for ${instanceName || productTitle(template)}`,
           template_id: 'single_value',
           scope: 'global',
+          visible_to: ['service_instance'],
           payload: { value: passwordValue },
         })
         body.credential = String(createdSecret.id ?? '')
@@ -1238,6 +1242,7 @@ export function ServiceInstancesPage() {
         allowedTemplateIds={Array.from(SECRET_TEMPLATE_IDS)}
         templateLabels={SECRET_TEMPLATE_LABELS}
         defaultTemplateId="single_value"
+        defaultVisibleTo={['service_instance']}
         onCreated={({ id, label }) => {
           secretAddOption?.(id, label)
         }}

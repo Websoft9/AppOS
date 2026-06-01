@@ -149,3 +149,5 @@ addons 的 netdata restart 报错
 1. 明确 curl/wget, tar,unzip 等目前是走容器命令，还是走的 golang 包
 
 数据初始化怎么做的？
+
+rss hub 网站

@@ -1,0 +1,53 @@
+{
+  "nav": {
+    "label": "AI Copilot"
+  },
+  "page": {
+    "title": "AI Copilot",
+    "subtitle": "Resolve tasks faster with context-aware operational guidance.",
+    "loading": "Loading...",
+    "emptyTitle": "Start a conversation",
+    "emptyDescription": "Ask about operations or upload a file for context.",
+    "defaultSessionTitle": "New chat",
+    "conversationList": "Conversations"
+  },
+  "actions": {
+    "refresh": "Refresh conversations",
+    "newChat": "New chat",
+    "createConversation": "Create conversation",
+    "shrinkConversationList": "Shrink conversation list",
+    "expandConversationList": "Expand conversation list",
+    "save": "Save",
+    "cancel": "Cancel",
+    "editName": "Edit name",
+    "delete": "Delete",
+    "uploadFiles": "Upload files",
+    "sendMessage": "Send message",
+    "copyMarkdown": "Copy markdown"
+  },
+  "fields": {
+    "conversationTitle": "Conversation title",
+    "messagePlaceholder": "Ask about operations, diagnosis, or AppOS knowledge",
+    "fileUpload": "Chat file upload"
+  },
+  "messages": {
+    "loadError": "Failed to load AI Copilot",
+    "renameError": "Failed to rename conversation",
+    "deleteError": "Failed to delete conversation",
+    "sendError": "Failed to send message",
+    "thinking": "Thinking...",
+    "attachedFiles": "Attached files",
+    "justNow": "just now",
+    "textPreviewSkipped": "Text preview skipped: file exceeds {{limit}}.",
+    "textPreviewUnavailable": "Text preview unavailable for this file."
+  },
+  "dialog": {
+    "deleteTitle": "Delete conversation?",
+    "deleteDescriptionPrefix": "This will permanently delete",
+    "deleteDescriptionSuffix": "and its message history. This action cannot be undone."
+  },
+  "aria": {
+    "conversationActions": "Conversation actions for {{title}}",
+    "removeAttachment": "Remove {{name}}"
+  }
+}

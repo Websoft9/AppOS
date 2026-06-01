@@ -1,18 +1,17 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { useQueryClient } from '@tanstack/react-query'
 import { getLocale } from '@/lib/i18n'
 import { pb } from '@/lib/pb'
 import { getApiErrorMessage } from '@/lib/api-error'
 import {
+  toLegacyProducts,
   toLegacyPrimaryCategories,
   useCatalogAppDetail,
   useCatalogApps,
   useCatalogCategories,
   useCatalogDeploySource,
 } from '@/lib/catalog-api'
-import { useProducts } from '@/lib/store-api'
 import { useUserApps, useToggleFavorite, useSaveNote } from '@/lib/store-user-api'
 import {
   useCustomApps,
@@ -22,17 +21,33 @@ import {
   customAppToProduct,
 } from '@/lib/store-custom-api'
 import type { CustomApp, CustomAppFormData } from '@/lib/store-custom-api'
-import type { ProductWithCategories, PageSize, Screenshot } from '@/lib/store-types'
+import type { ProductWithCategories, PageSize } from '@/lib/store-types'
 import { PAGE_SIZES } from '@/lib/store-types'
-import { CategoryFilter } from '@/components/store/CategoryFilter'
 import { SearchAutocomplete } from '@/components/store/SearchAutocomplete'
 import { AppCard } from '@/components/store/AppCard'
 import { CustomAppCard } from '@/components/store/CustomAppCard'
 import { CustomAppDialog } from '@/components/store/CustomAppDialog'
-import { StorePagination } from '@/components/store/StorePagination'
 import { AppDetailModal } from '@/components/store/AppDetailModal'
-import { Loader2, RefreshCw, PlusCircle, ChevronDown, ChevronRight } from 'lucide-react'
+import {
+  ArrowDownToLine,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  PlusCircle,
+  RefreshCw,
+  Settings2,
+  Star,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 // ─── Route definition ──────────────────────────────────────────────────────────
 
@@ -45,7 +60,6 @@ export const Route = createFileRoute('/_app/_auth/store/')({
 function StorePage() {
   const navigate = useNavigate()
   const { t } = useTranslation('store')
-  const queryClient = useQueryClient()
   const locale = getLocale()
 
   // ─── Filters & pagination state ──────────────────────────────────────────────
@@ -64,7 +78,6 @@ function StorePage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedAppIsCustom, setSelectedAppIsCustom] = useState(false)
   const [selectedCustomAppRaw, setSelectedCustomAppRaw] = useState<CustomApp | null>(null)
-  const [enScreenshots, setEnScreenshots] = useState<Screenshot[]>([])
 
   // ─── Custom app dialog state ──────────────────────────────────────────────────
   const [customAppDialogOpen, setCustomAppDialogOpen] = useState(false)
@@ -105,13 +118,6 @@ function StorePage() {
 
   // ─── Data fetching ────────────────────────────────────────────────────────────
   const {
-    data: productsData,
-    isLoading: productsLoading,
-    isError: productsError,
-    refetch: refetchProducts,
-  } = useProducts(locale, queryClient)
-
-  const {
     data: categoryTree,
     isLoading: catalogLoading,
     isError: catalogError,
@@ -139,11 +145,23 @@ function StorePage() {
     refetch: refetchOfficialApps,
   } = useCatalogApps(catalogAppsQuery)
 
-  // Always fetch en products for screenshot URL fallback (cached, no extra network if locale === 'en')
-  const { data: enProductsData } = useProducts('en', queryClient)
+  const officialCatalogSeedQuery = useMemo(
+    () => ({
+      locale,
+      source: 'official' as const,
+      limit: 1000,
+      offset: 0,
+    }),
+    [locale]
+  )
 
-  const isLoading = catalogLoading || productsLoading || officialAppsLoading
-  const isError = catalogError || productsError || officialAppsError
+  const {
+    data: officialCatalogSeed,
+    refetch: refetchOfficialCatalogSeed,
+  } = useCatalogApps(officialCatalogSeedQuery)
+
+  const isLoading = catalogLoading || officialAppsLoading
+  const isError = catalogError || officialAppsError
 
   const selectedAppKey = selectedApp?.key ?? null
   const {
@@ -151,6 +169,11 @@ function StorePage() {
     isLoading: selectedAppDetailLoading,
     error: selectedAppDetailError,
   } = useCatalogAppDetail(locale, selectedAppKey, modalOpen)
+  const { data: selectedAppDetailEn } = useCatalogAppDetail(
+    'en',
+    selectedAppKey,
+    modalOpen && locale !== 'en'
+  )
   const { data: selectedDeploySource, error: selectedDeploySourceError } = useCatalogDeploySource(
     locale,
     selectedAppKey,
@@ -184,6 +207,28 @@ function StorePage() {
     return counts
   }, [categoryTree])
 
+  const officialCatalogSeedProducts = useMemo(
+    () =>
+      toLegacyProducts(
+        officialCatalogSeed ?? {
+          items: [],
+          page: { limit: 0, offset: 0, total: 0, hasMore: false },
+          meta: { locale, sourceVersion: '' },
+        }
+      ),
+    [officialCatalogSeed, locale]
+  )
+
+  const fallbackScreenshots = useMemo(
+    () =>
+      (selectedAppDetailEn?.screenshots ?? []).map(shot => ({
+        id: shot.key,
+        key: shot.key,
+        value: shot.url,
+      })),
+    [selectedAppDetailEn]
+  )
+
   const paginatedProducts = useMemo(
     () =>
       (officialAppsPage?.items ?? []).map(item => ({
@@ -209,9 +254,21 @@ function StorePage() {
   )
 
   const officialTotal = officialAppsPage?.page.total ?? 0
-  const totalCount = useMemo(
-    () => categoryTree?.items.reduce((sum, item) => sum + item.appCount, 0) ?? officialTotal,
-    [categoryTree, officialTotal]
+  const totalPages = Math.max(1, Math.ceil(officialTotal / pageSize))
+  const favoriteCount = useMemo(
+    () => userApps.filter(item => item.is_favorite).length,
+    [userApps]
+  )
+  const selectedPrimaryNode = useMemo(
+    () => categoryTree?.items.find(item => item.key === primaryCategory) ?? null,
+    [categoryTree, primaryCategory]
+  )
+  const secondaryOptions = useMemo(
+    () =>
+      [...(selectedPrimaryNode?.children ?? [])].sort(
+        (a, b) => (a.position ?? 999) - (b.position ?? 999)
+      ),
+    [selectedPrimaryNode]
   )
 
   // Filtered custom apps
@@ -230,6 +287,17 @@ function StorePage() {
     return apps
   }, [customApps, currentUserId, search, showFavoritesOnly, userApps])
 
+  const totalCount = useMemo(
+    () => officialTotal + visibleCustomApps.length,
+    [officialTotal, visibleCustomApps.length]
+  )
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages)
+    }
+  }, [page, totalPages])
+
   // Reset to page 1 when filters change
   const handleSetPrimary = (key: string | null) => {
     setPrimaryCategory(key)
@@ -247,13 +315,14 @@ function StorePage() {
     setPage(1)
   }
 
+  const handleRefresh = async () => {
+    await Promise.all([refetchCatalog(), refetchOfficialApps(), refetchOfficialCatalogSeed()])
+  }
+
   const openDetail = (product: ProductWithCategories) => {
     setSelectedApp(product)
     setSelectedAppIsCustom(false)
     setSelectedCustomAppRaw(null)
-    // Set en screenshots for fallback when locale URLs fail
-    const enProduct = enProductsData?.find(p => p.key === product.key)
-    setEnScreenshots(enProduct?.screenshots ?? [])
     setModalOpen(true)
   }
 
@@ -261,7 +330,6 @@ function StorePage() {
     setSelectedApp(customAppToProduct(app))
     setSelectedAppIsCustom(true)
     setSelectedCustomAppRaw(app)
-    setEnScreenshots([])
     setModalOpen(true)
   }
 
@@ -295,10 +363,14 @@ function StorePage() {
     setSyncing(true)
     setSyncResult(null)
     try {
-      await Promise.all([refetchCatalog(), refetchOfficialApps(), refetchProducts()])
+      await pb.send('/api/ext/catalog/sources/sync', {
+        method: 'POST',
+      })
+      await handleRefresh()
       setSyncResult('success')
-    } catch {
+    } catch (error) {
       setSyncResult('error')
+      showError(getApiErrorMessage(error, t('sync.unavailable')))
     }
     setSyncing(false)
     setTimeout(() => setSyncResult(null), 3000)
@@ -324,7 +396,7 @@ function StorePage() {
           onClick={() => {
             refetchCatalog()
             refetchOfficialApps()
-            refetchProducts()
+            refetchOfficialCatalogSeed()
           }}
         >
           {t('error.retry')}
@@ -335,75 +407,189 @@ function StorePage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h2 className="text-2xl font-bold">{t('title')}</h2>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold">{t('title')}</h2>
+          <p className="max-w-3xl text-sm text-muted-foreground">{t('description')}</p>
+        </div>
+        <div className="flex items-center gap-2 self-start">
           <Button
             variant="outline"
             size="sm"
             onClick={() => {
-              setEditingCustomApp(null)
-              setCustomAppDialogOpen(true)
+              void handleRefresh()
             }}
-            className="flex items-center gap-1.5"
+            aria-label={t('refresh.button')}
+            title={t('refresh.button')}
           >
-            <PlusCircle className="w-4 h-4" />
-            {t('customApp.add')}
+            <RefreshCw className="h-4 w-4" />
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={handleSync}
             disabled={syncing}
-            className="flex items-center gap-1.5"
+            aria-label={
+              syncing
+                ? t('sync.syncing')
+                : syncResult === 'success'
+                  ? t('sync.success')
+                  : syncResult === 'error'
+                    ? t('sync.error')
+                    : t('sync.button')
+            }
+            title={
+              syncing
+                ? t('sync.syncing')
+                : syncResult === 'success'
+                  ? t('sync.success')
+                  : syncResult === 'error'
+                    ? t('sync.error')
+                    : t('sync.button')
+            }
           >
-            <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing
-              ? t('sync.syncing')
-              : syncResult === 'success'
-                ? t('sync.success')
-                : syncResult === 'error'
-                  ? t('sync.error')
-                  : t('sync.button')}
+            <ArrowDownToLine className={`h-4 w-4 ${syncing ? 'animate-bounce' : ''}`} />
           </Button>
-          <SearchAutocomplete
-            value={search}
-            products={productsData ?? []}
-            primaryCategories={primaryCategories}
-            onChange={handleSearch}
-            onCommit={handleSearch}
-          />
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => {
+              setEditingCustomApp(null)
+              setCustomAppDialogOpen(true)
+            }}
+            className="bg-black text-white hover:bg-black/90 dark:bg-white dark:text-black dark:hover:bg-white/90"
+          >
+            <PlusCircle className="w-4 h-4" />
+            {t('customApp.add')}
+          </Button>
         </div>
       </div>
 
-      {/* Category filter */}
-      <CategoryFilter
-        primaryCategories={primaryCategories}
-        primaryCounts={primaryCounts}
-        secondaryCounts={secondaryCounts}
-        selectedPrimary={primaryCategory}
-        selectedSecondary={secondaryCategory}
-        totalCount={totalCount}
-        onSelectPrimary={handleSetPrimary}
-        onSelectSecondary={handleSetSecondary}
-      />
+      <div className="border-b pb-4">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <label className="min-w-[170px] flex-1 sm:max-w-[220px]">
+              <select
+                className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+                value={primaryCategory ?? ''}
+                onChange={e => handleSetPrimary(e.target.value || null)}
+                aria-label={t('filters.primaryCategory')}
+              >
+                <option value="">
+                  {t('categories.allApps')} ({totalCount})
+                </option>
+                {primaryCategories.map(cat => (
+                  <option key={cat.key} value={cat.key}>
+                    {cat.title} ({primaryCounts[cat.key] ?? 0})
+                  </option>
+                ))}
+              </select>
+            </label>
 
-      {/* Favorites filter */}
-      <div className="flex items-center gap-2">
-        <input
-          id="show-favorites"
-          type="checkbox"
-          checked={showFavoritesOnly}
-          onChange={e => {
-            setShowFavoritesOnly(e.target.checked)
-            setPage(1)
-          }}
-          className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
-        />
-        <label htmlFor="show-favorites" className="text-sm cursor-pointer select-none">
-          {t('favorites.showOnly')}
-        </label>
+            <label className="min-w-[170px] flex-1 sm:max-w-[220px]">
+              <select
+                className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+                value={secondaryCategory ?? ''}
+                onChange={e => handleSetSecondary(e.target.value || null)}
+                disabled={!selectedPrimaryNode || secondaryOptions.length === 0}
+                aria-label={t('filters.secondaryCategory')}
+              >
+                <option value="">{t('categories.all')}</option>
+                {secondaryOptions.map(category => (
+                  <option key={category.key} value={category.key}>
+                    {category.title} ({secondaryCounts[category.key] ?? 0})
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="w-full sm:w-[180px] md:w-[200px] lg:w-[220px] shrink-0">
+              <SearchAutocomplete
+                value={search}
+                products={officialCatalogSeedProducts}
+                primaryCategories={primaryCategories}
+                onChange={handleSearch}
+                onCommit={handleSearch}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-1 sm:gap-2 xl:justify-end">
+            <div className="flex items-center gap-0.5">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className={`h-7 px-2 text-sm ${showFavoritesOnly ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'}`}
+                onClick={() => {
+                  setShowFavoritesOnly(value => !value)
+                  setPage(1)
+                }}
+                aria-pressed={showFavoritesOnly}
+                aria-label={`${t('favorites.showOnly')} (${favoriteCount})`}
+                title={`${t('favorites.showOnly')} (${favoriteCount})`}
+              >
+                <Star className={`h-4 w-4 ${showFavoritesOnly ? 'fill-current text-amber-500' : ''}`} />
+                <span className="tabular-nums">{favoriteCount}</span>
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="h-7 w-7"
+                onClick={() => setPage(current => Math.max(1, current - 1))}
+                disabled={page <= 1 || officialTotal === 0}
+                aria-label={t('pagination.previous')}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="min-w-[36px] text-center text-sm font-medium tracking-tight">
+                {page}/{totalPages}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="h-7 w-7"
+                onClick={() => setPage(current => Math.min(totalPages, current + 1))}
+                disabled={page >= totalPages || officialTotal === 0}
+                aria-label={t('pagination.next')}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="h-7 w-7"
+                  aria-label={t('filters.pageSize')}
+                >
+                  <Settings2 className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuLabel>{t('filters.pageSize')}</DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={String(pageSize)}
+                  onValueChange={value => {
+                    setPageSize(Number(value) as PageSize)
+                    setPage(1)
+                  }}
+                >
+                  {PAGE_SIZES.map(size => (
+                    <DropdownMenuRadioItem key={size} value={String(size)}>
+                      {size} / page
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
       </div>
 
       {/* App grid: custom apps group + official apps group */}
@@ -490,20 +676,6 @@ function StorePage() {
         </div>
       )}
 
-      {/* Pagination — hidden when official apps are collapsed */}
-      {!officialCollapsed && (
-        <StorePagination
-          page={page}
-          pageSize={pageSize}
-          total={officialTotal}
-          onPageChange={setPage}
-          onPageSizeChange={size => {
-            setPageSize(size)
-            setPage(1)
-          }}
-        />
-      )}
-
       {/* App Detail Modal */}
       <AppDetailModal
         product={selectedApp}
@@ -543,7 +715,7 @@ function StorePage() {
               }
             : undefined
         }
-        fallbackScreenshots={enScreenshots}
+        fallbackScreenshots={fallbackScreenshots}
         onEdit={
           selectedAppIsCustom &&
           selectedCustomAppRaw &&
@@ -583,7 +755,7 @@ function StorePage() {
         onSave={handleSaveCustomApp}
         isSaving={createCustomApp.isPending || updateCustomApp.isPending}
         editApp={editingCustomApp ?? undefined}
-        allProducts={productsData ?? []}
+        allProducts={officialCatalogSeedProducts}
         existingCustomKeys={customApps.map(a => a.key)}
       />
 

@@ -321,6 +321,7 @@ func TestSecretsCollectionFields(t *testing.T) {
 	assertFieldExists(t, col, "value", core.FieldTypeText, false)
 	assertFieldExists(t, col, "description", core.FieldTypeText, false)
 	assertFieldExists(t, col, "template_id", core.FieldTypeText, false)
+	assertFieldExists(t, col, "visible_to", core.FieldTypeSelect, false)
 	assertFieldExists(t, col, "scope", core.FieldTypeSelect, false)
 	assertFieldExists(t, col, "access_mode", core.FieldTypeSelect, false)
 	assertFieldExists(t, col, "payload_encrypted", core.FieldTypeText, false)

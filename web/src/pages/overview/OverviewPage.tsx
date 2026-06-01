@@ -895,6 +895,7 @@ export function OverviewPage() {
                   key={app.id}
                   to="/apps/$appId"
                   params={{ appId: app.id }}
+                  search={{ catalogAppKey: undefined }}
                   className="flex items-center justify-between gap-3 rounded-lg border bg-background px-4 py-3 transition-colors hover:bg-muted/20"
                 >
                   <div className="min-w-0 space-y-1">

@@ -1,0 +1,42 @@
+{
+  "groups": {
+    "workspace": "工作区",
+    "platform": "平台"
+  },
+  "items": {
+    "overview": "总览",
+    "applications": "应用",
+    "myApps": "我的应用",
+    "appStore": "应用商店",
+    "deploy": "部署",
+    "actions": "操作",
+    "terminal": "终端",
+    "aiChat": "AI 助手",
+    "collaboration": "协作",
+    "groups": "群组",
+    "topics": "话题",
+    "feeds": "订阅源",
+    "assets": "资产",
+    "space": "空间",
+    "resources": "资源",
+    "extensions": "扩展",
+    "system": "系统",
+    "status": "状态",
+    "platformRuntime": "平台运行时",
+    "tunnels": "隧道",
+    "audit": "审计",
+    "logs": "日志",
+    "platformCrons": "平台计划任务",
+    "sharedEnvs": "共享环境",
+    "orchestrationFiles": "编排文件",
+    "platformComponents": "平台组件",
+    "users": "用户",
+    "settings": "设置",
+    "credentials": "凭据",
+    "secrets": "密钥",
+    "certificates": "证书"
+  },
+  "mobile": {
+    "description": "在工作区、应用和平台管理区域之间导航。"
+  }
+}

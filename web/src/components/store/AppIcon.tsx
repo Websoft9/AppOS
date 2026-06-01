@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import { getKeyColor } from '@/lib/store-api'
+import { getKeyColor } from '@/lib/store-presenter'
 
 interface AppIconProps {
   appKey: string

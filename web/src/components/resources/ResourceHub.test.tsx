@@ -25,6 +25,121 @@ vi.mock('@tanstack/react-router', () => ({
   ),
 }))
 
+vi.mock('react-i18next', () => ({
+  initReactI18next: {
+    type: '3rdParty',
+    init: () => {},
+  },
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, string | number>) => {
+      switch (key) {
+        case 'hub.title':
+          return 'Resources'
+        case 'hub.subtitle':
+          return 'Shared platform resources for where applications run, what they depend on, and how AppOS connects outward.'
+        case 'hub.sectionCount':
+          return `${options?.count ?? 0} grouped areas`
+        case 'hub.familyCount':
+          return `${options?.count ?? 0} canonical families`
+        case 'hub.resourceGroups':
+          return 'Resource Groups'
+        case 'hub.addResource':
+          return 'Add Resource'
+        case 'hub.openFamily':
+          return 'Open family'
+        case 'hub.refreshingCount':
+          return 'Refreshing count'
+        case 'hub.itemsCount':
+          return `${options?.count ?? 0} items`
+        case 'hub.cancel':
+          return 'Cancel'
+        case 'sections.runtimeInfrastructure.title':
+          return 'Runtime Infrastructure'
+        case 'sections.runtimeInfrastructure.description':
+          return 'Where applications run and the startup-critical dependencies they cannot run without.'
+        case 'sections.externalIntegrations.title':
+          return 'External Integrations'
+        case 'sections.externalIntegrations.description':
+          return 'How platform connects to AI providers, external platforms, APIs, and cloud services.'
+        case 'resources.servers.title':
+          return 'Servers'
+        case 'resources.servers.description':
+          return 'Linux hosts, SSH targets, and deployment nodes where workloads run.'
+        case 'resources.servers.createDescription':
+          return 'Linux hosts, SSH targets, and deployment nodes.'
+        case 'resources.serviceInstances.title':
+          return 'Service Instances'
+        case 'resources.serviceInstances.description':
+          return 'Runtime dependencies required for application startup, including databases, middleware, and storage instances such as MySQL, PostgreSQL, Redis, Kafka, and S3.'
+        case 'resources.serviceInstances.createDescription':
+          return 'MySQL, PostgreSQL, Redis, Kafka, and S3-backed application dependencies.'
+        case 'resources.serviceInstances.examples.database':
+          return 'Database'
+        case 'resources.serviceInstances.examples.cache':
+          return 'Cache'
+        case 'resources.serviceInstances.examples.queue':
+          return 'Queue'
+        case 'resources.serviceInstances.examples.objectStorage':
+          return 'Object Storage'
+        case 'resources.aiProviders.title':
+          return 'AI Providers'
+        case 'resources.aiProviders.description':
+          return 'Hosted and local AI capability sources such as OpenAI, Anthropic, OpenRouter, and Ollama endpoints.'
+        case 'resources.aiProviders.createDescription':
+          return 'OpenAI, Anthropic, OpenRouter, Ollama, and similar AI providers.'
+        case 'resources.aiProviders.examples.openai':
+          return 'OpenAI'
+        case 'resources.aiProviders.examples.anthropic':
+          return 'Anthropic'
+        case 'resources.aiProviders.examples.openrouter':
+          return 'OpenRouter'
+        case 'resources.aiProviders.examples.ollama':
+          return 'Ollama'
+        case 'resources.connectors.title':
+          return 'Connectors'
+        case 'resources.connectors.description':
+          return 'SMTP, DNS, webhook, MCP, proxy, registry, and other reusable external capability connections.'
+        case 'resources.connectors.createDescription':
+          return 'SMTP, DNS, webhook, MCP, proxy, registry, and other reusable external connections.'
+        case 'resources.connectors.examples.restApi':
+          return 'REST API'
+        case 'resources.connectors.examples.webhook':
+          return 'Webhook'
+        case 'resources.connectors.examples.mcp':
+          return 'MCP'
+        case 'resources.connectors.examples.proxy':
+          return 'Proxy'
+        case 'resources.connectors.examples.smtp':
+          return 'SMTP'
+        case 'resources.connectors.examples.registry':
+          return 'Registry'
+        case 'resources.connectors.examples.dns':
+          return 'DNS'
+        case 'resources.platformAccounts.title':
+          return 'Platform Accounts'
+        case 'resources.platformAccounts.description':
+          return 'AWS, Azure, Google Cloud, GitHub, Cloudflare, and similar platform identities.'
+        case 'resources.platformAccounts.createDescription':
+          return 'AWS, Azure, Google Cloud, GitHub, Cloudflare, and similar platforms.'
+        case 'resources.platformAccounts.examples.cloudAccount':
+          return 'Cloud Account'
+        case 'resources.platformAccounts.examples.subscription':
+          return 'Subscription'
+        case 'resources.platformAccounts.examples.tenant':
+          return 'Tenant'
+        case 'resources.platformAccounts.examples.installation':
+          return 'Installation'
+        case 'dialog.title':
+          return 'Add Resource'
+        case 'dialog.sectionDescriptionAria':
+          return `${options?.title ?? ''} description`
+        default:
+          return key
+      }
+    },
+  }),
+}))
+
 vi.mock('@/components/ui/tooltip', () => {
   function Tooltip({ children }: { children: React.ReactNode }) {
     return <>{children}</>
@@ -96,7 +211,7 @@ describe('ResourceHub', () => {
 
     expect(
       screen.getByText(
-        'Shared platform resources for where Applications run, what they depend on, and how AppOS connects outward.'
+        'Shared platform resources for where applications run, what they depend on, and how AppOS connects outward.'
       )
     ).toBeInTheDocument()
     expect(screen.getByText('2 grouped areas')).toBeInTheDocument()

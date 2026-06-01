@@ -1,4 +1,8 @@
 import type { FieldDef, SelectOption } from '@/components/resources/ResourcePage'
+import {
+  buildResourceSecretRelationApiPath,
+  type ResourceSecretVisibleTo,
+} from '@/components/secrets/SecretVisibilityField'
 
 export type ConnectorRecord = {
   id: string
@@ -94,11 +98,13 @@ function resolveSecretTemplateId(secretTemplate?: string) {
   return SECRET_TEMPLATE_IDS.has(normalized) ? normalized : ''
 }
 
-export function buildUserVisibleSecretRelationApiPath(secretTemplate?: string) {
+export function buildUserVisibleSecretRelationApiPath(
+  visibleTo: ResourceSecretVisibleTo,
+  secretTemplate?: string
+) {
   const explicit = resolveSecretTemplateId(secretTemplate)
   const templateIds = explicit ? [explicit] : Array.from(SECRET_TEMPLATE_IDS)
-  const filter = templateIds.map(id => `template_id='${id}'`).join('||')
-  return `/api/collections/secrets/records?filter=((created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(${filter}))&sort=name`
+  return buildResourceSecretRelationApiPath({ visibleTo, templateIds })
 }
 
 export function normalizeTemplateFieldDefault(field: ConnectorTemplateField) {
@@ -193,7 +199,7 @@ export function mapTemplateFieldToResourceField(
       label: field.label,
       type: 'relation',
       required: field.required,
-      relationApiPath: buildUserVisibleSecretRelationApiPath(field.secretTemplate),
+      relationApiPath: buildUserVisibleSecretRelationApiPath('connector', field.secretTemplate),
       relationFormatLabel: formatSecretLabel,
       relationCreateButton: {
         label: 'New Secret',

@@ -5,6 +5,7 @@ import { pb } from '@/lib/pb'
 import type { RelationOption } from '@/components/resources/resource-page-types'
 import { SecretCredentialField } from '@/components/secrets/SecretCredentialField'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
+import { buildResourceSecretRelationApiPath } from '@/components/secrets/SecretVisibilityField'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -119,8 +120,7 @@ function resolveSecretTemplateId(secretTemplate?: string) {
 function buildSecretRelationApiPath(secretTemplate?: string) {
   const explicit = resolveSecretTemplateId(secretTemplate)
   const templateIds = explicit ? [explicit] : Array.from(SECRET_TEMPLATE_IDS)
-  const filter = templateIds.map(id => `template_id='${id}'`).join('||')
-  return `/api/collections/secrets/records?filter=(status='active'%26%26(${filter}))&sort=name`
+  return buildResourceSecretRelationApiPath({ visibleTo: 'ai_provider', templateIds })
 }
 
 function isAdvancedProviderField(field: AIProviderTemplateField) {
@@ -504,6 +504,7 @@ function AIProviderCreateDialog({
         allowedTemplateIds={[AI_PROVIDER_CREDENTIAL_TEMPLATE_ID]}
         templateLabels={SECRET_TEMPLATE_LABELS}
         defaultTemplateId={AI_PROVIDER_CREDENTIAL_TEMPLATE_ID}
+        defaultVisibleTo={['ai_provider']}
         onCreated={({ id, name, templateId }) => {
           const suffix = SECRET_TEMPLATE_LABELS[templateId]
           const label = suffix ? `${name} (${suffix})` : name

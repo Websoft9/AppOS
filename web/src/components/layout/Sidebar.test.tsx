@@ -31,6 +31,54 @@ vi.mock('@tanstack/react-router', () => ({
   }),
 }))
 
+vi.mock('react-i18next', () => ({
+  initReactI18next: {
+    type: '3rdParty',
+    init: () => {},
+  },
+  useTranslation: () => ({
+    t: (key: string) => {
+      const labels: Record<string, string> = {
+        'groups.workspace': 'Workspace',
+        'groups.platform': 'Platform',
+        'items.overview': 'Overview',
+        'items.applications': 'Applications',
+        'items.myApps': 'My Apps',
+        'items.appStore': 'App Store',
+        'items.deploy': 'Deploy',
+        'items.actions': 'Actions',
+        'items.terminal': 'Terminal',
+        'items.aiChat': 'AI Copilot',
+        'items.collaboration': 'Collaboration',
+        'items.groups': 'Groups',
+        'items.topics': 'Topics',
+        'items.feeds': 'Feeds',
+        'items.assets': 'Assets',
+        'items.space': 'Space',
+        'items.resources': 'Resources',
+        'items.extensions': 'Extensions',
+        'items.system': 'System',
+        'items.status': 'Status',
+        'items.platformRuntime': 'Platform Runtime',
+        'items.tunnels': 'Tunnels',
+        'items.audit': 'Audit',
+        'items.logs': 'Logs',
+        'items.platformCrons': 'Platform Crons',
+        'items.sharedEnvs': 'Shared Envs',
+        'items.orchestrationFiles': 'Orchestration Files',
+        'items.platformComponents': 'Platform Components',
+        'items.users': 'Users',
+        'items.settings': 'Settings',
+        'items.credentials': 'Credentials',
+        'items.secrets': 'Secrets',
+        'items.certificates': 'Certificates',
+        'mobile.description': 'Navigate between workspace, application, and admin sections.',
+      }
+      return labels[key] ?? key
+    },
+  }),
+}))
+
 vi.mock('@/contexts/LayoutContext', () => ({
   useLayout: () => ({
     sidebarCollapsed: false,

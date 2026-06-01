@@ -1,0 +1,82 @@
+{
+  "hub": {
+    "title": "Resources",
+    "subtitle": "Shared platform resources for where applications run, what they depend on, and how AppOS connects outward.",
+    "sectionCount": "{{count}} grouped areas",
+    "familyCount": "{{count}} canonical families",
+    "resourceGroups": "Resource Groups",
+    "addResource": "Add Resource",
+    "openFamily": "Open family",
+    "refreshingCount": "Refreshing count",
+    "itemsCount": "{{count}} items",
+    "cancel": "Cancel"
+  },
+  "sections": {
+    "runtimeInfrastructure": {
+      "title": "Runtime Infrastructure",
+      "description": "Where applications run and the startup-critical dependencies they cannot run without."
+    },
+    "externalIntegrations": {
+      "title": "External Integrations",
+      "description": "How platform connects to AI providers, external platforms, APIs, and cloud services."
+    }
+  },
+  "resources": {
+    "servers": {
+      "title": "Servers",
+      "description": "Linux hosts, SSH targets, and deployment nodes where workloads run.",
+      "createDescription": "Linux hosts, SSH targets, and deployment nodes."
+    },
+    "serviceInstances": {
+      "title": "Service Instances",
+      "description": "Runtime dependencies required for application startup, including databases, middleware, and storage instances such as MySQL, PostgreSQL, Redis, Kafka, and S3.",
+      "createDescription": "MySQL, PostgreSQL, Redis, Kafka, and S3-backed application dependencies.",
+      "examples": {
+        "database": "Database",
+        "cache": "Cache",
+        "queue": "Queue",
+        "objectStorage": "Object Storage"
+      }
+    },
+    "aiProviders": {
+      "title": "AI Providers",
+      "description": "Hosted and local AI capability sources such as OpenAI, Anthropic, OpenRouter, and Ollama endpoints.",
+      "createDescription": "OpenAI, Anthropic, OpenRouter, Ollama, and similar AI providers.",
+      "examples": {
+        "openai": "OpenAI",
+        "anthropic": "Anthropic",
+        "openrouter": "OpenRouter",
+        "ollama": "Ollama"
+      }
+    },
+    "connectors": {
+      "title": "Connectors",
+      "description": "SMTP, DNS, webhook, MCP, proxy, registry, and other reusable external capability connections.",
+      "createDescription": "SMTP, DNS, webhook, MCP, proxy, registry, and other reusable external connections.",
+      "examples": {
+        "restApi": "REST API",
+        "webhook": "Webhook",
+        "mcp": "MCP",
+        "proxy": "Proxy",
+        "smtp": "SMTP",
+        "registry": "Registry",
+        "dns": "DNS"
+      }
+    },
+    "platformAccounts": {
+      "title": "Platform Accounts",
+      "description": "AWS, Azure, Google Cloud, GitHub, Cloudflare, and similar platform identities.",
+      "createDescription": "AWS, Azure, Google Cloud, GitHub, Cloudflare, and similar platforms.",
+      "examples": {
+        "cloudAccount": "Cloud Account",
+        "subscription": "Subscription",
+        "tenant": "Tenant",
+        "installation": "Installation"
+      }
+    }
+  },
+  "dialog": {
+    "title": "Add Resource",
+    "sectionDescriptionAria": "{{title}} description"
+  }
+}

@@ -24,7 +24,7 @@ export function AppDetailHeader({
   return (
     <div className="space-y-3">
       <Button variant="ghost" className="w-fit px-0 text-muted-foreground" asChild>
-        <Link to="/apps">
+      <Link to="/apps" search={{ catalogAppKey: undefined }}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to My Apps
         </Link>

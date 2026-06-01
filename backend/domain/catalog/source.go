@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -8,6 +9,18 @@ import (
 	"strings"
 	"time"
 )
+
+//go:embed seed/*.json
+var embeddedCatalogSeed embed.FS
+
+const defaultRuntimeCatalogDir = "/appos/data/catalog"
+
+var embeddedCatalogSeedFiles = []string{
+	"catalog_en.json",
+	"catalog_zh.json",
+	"product_en.json",
+	"product_zh.json",
+}
 
 type SourceCategory struct {
 	Key        string   `json:"key"`
@@ -105,37 +118,62 @@ func LoadBundle(locale string) (*Bundle, error) {
 }
 
 func resolveStoreDir() (string, error) {
-	if configured := strings.TrimSpace(os.Getenv("APPOS_CATALOG_STORE_PATH")); configured != "" && isReadableDir(configured) {
+	if configured := strings.TrimSpace(os.Getenv("APPOS_CATALOG_STORE_PATH")); configured != "" {
+		if err := ensureCatalogSeedDir(configured); err != nil {
+			return "", err
+		}
 		return configured, nil
 	}
 
-	wd, _ := os.Getwd()
-	candidates := []string{"/usr/share/nginx/html/web/store"}
-	base := wd
-	for range 6 {
-		candidates = append(candidates,
-			filepath.Join(base, "web", "public", "store"),
-			filepath.Join(base, "web", "dist", "store"),
-		)
-		parent := filepath.Dir(base)
-		if parent == base {
-			break
-		}
-		base = parent
+	if err := ensureCatalogSeedDir(defaultRuntimeCatalogDir); err != nil {
+		return "", err
 	}
+	return defaultRuntimeCatalogDir, nil
+}
 
-	for _, candidate := range candidates {
-		if isReadableDir(candidate) {
-			return candidate, nil
+func ensureCatalogSeedDir(dir string) error {
+	if strings.TrimSpace(dir) == "" {
+		return fmt.Errorf("catalog store directory not configured")
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("create catalog store directory: %w", err)
+	}
+	for _, name := range embeddedCatalogSeedFiles {
+		targetPath := filepath.Join(dir, name)
+		if catalogSeedFileExists(targetPath) {
+			continue
+		}
+		data, err := embeddedCatalogSeed.ReadFile(filepath.Join("seed", name))
+		if err != nil {
+			return fmt.Errorf("read embedded catalog seed %s: %w", name, err)
+		}
+		if err := writeCatalogSeedFile(targetPath, data); err != nil {
+			return fmt.Errorf("write catalog seed %s: %w", name, err)
 		}
 	}
+	return nil
+}
 
-	return "", fmt.Errorf("catalog store directory not found")
+func writeCatalogSeedFile(path string, data []byte) error {
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	return nil
 }
 
 func isReadableDir(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.IsDir()
+}
+
+func catalogSeedFileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }
 
 func latestModTimeRFC3339(paths ...string) string {

@@ -45,6 +45,10 @@ AI Runtime provides:
 - audit and trace records
 - approval gates
 
+## Stories
+
+- [Story 31.1: Chat MVP](story31.1-chat-mvp.md) — Eino + DeepSeek foundation slice with persisted, continuous chat and a minimal authenticated frontend.
+
 ## Direction
 
 AI Runtime should stay small and boundary-focused. It coordinates agent execution and delegates domain-specific actions to existing AppOS domains through explicit tools.

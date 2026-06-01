@@ -58,6 +58,7 @@ func seedAppInstance(t *testing.T, te *testEnv, name string) *core.Record {
 	record.Set("key", name+"-key")
 	record.Set("server_id", "local")
 	record.Set("name", name)
+	record.Set("template_key", name+"-catalog")
 	record.Set("lifecycle_state", string(model.AppStateRunningHealthy))
 	record.Set("desired_state", string(model.DesiredStateRunning))
 	record.Set("health_summary", string(model.HealthHealthy))
@@ -85,6 +86,11 @@ func seedAppInstance(t *testing.T, te *testEnv, name string) *core.Record {
 	operation.Set("spec_json", map[string]any{
 		"project_dir": projectDir,
 		"source":      string(model.TriggerSourceManualOps),
+		"metadata": map[string]any{
+			"prefill_context": map[string]any{
+				"app_key": name + "-catalog",
+			},
+		},
 	})
 	if err := te.app.Save(operation); err != nil {
 		t.Fatal(err)
@@ -164,6 +170,9 @@ func TestAppInstancesListAndDetail(t *testing.T) {
 	if items[0]["name"] != "demo-app" {
 		t.Fatalf("expected demo-app, got %v", items[0]["name"])
 	}
+	if items[0]["catalog_app_key"] != "demo-app-catalog" {
+		t.Fatalf("expected catalog_app_key demo-app-catalog, got %v", items[0]["catalog_app_key"])
+	}
 	currentPipeline, ok := items[0]["current_pipeline"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected current_pipeline map in list, got %T", items[0]["current_pipeline"])
@@ -184,6 +193,9 @@ func TestAppInstancesListAndDetail(t *testing.T) {
 	if item["status"] != "installed" {
 		t.Fatalf("expected installed, got %v", item["status"])
 	}
+	if item["catalog_app_key"] != "demo-app-catalog" {
+		t.Fatalf("expected detail catalog_app_key demo-app-catalog, got %v", item["catalog_app_key"])
+	}
 	currentPipeline, ok = item["current_pipeline"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected current_pipeline map in detail, got %T", item["current_pipeline"])
@@ -197,6 +209,38 @@ func TestAppInstancesListAndDetail(t *testing.T) {
 	}
 	if selector["operation_type"] != string(model.OperationTypeInstall) || selector["source"] != string(model.TriggerSourceManualOps) {
 		t.Fatalf("unexpected current pipeline selector: %v", selector)
+	}
+}
+
+func TestAppInstancesCatalogAppKeyFallsBackToOperationSpec(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	record := seedAppInstance(t, te, "legacy-app")
+	record.Set("template_key", "")
+	if err := te.app.Save(record); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := te.doApps(t, http.MethodGet, "/api/apps", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	items := parseJSONArray(t, rec)
+	if len(items) != 1 {
+		t.Fatalf("expected 1 app instance, got %d", len(items))
+	}
+	if items[0]["catalog_app_key"] != "legacy-app-catalog" {
+		t.Fatalf("expected fallback catalog_app_key legacy-app-catalog, got %v", items[0]["catalog_app_key"])
+	}
+
+	rec = te.doApps(t, http.MethodGet, "/api/apps/"+record.Id, "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("detail: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	item := parseJSON(t, rec)
+	if item["catalog_app_key"] != "legacy-app-catalog" {
+		t.Fatalf("expected detail fallback catalog_app_key legacy-app-catalog, got %v", item["catalog_app_key"])
 	}
 }
 

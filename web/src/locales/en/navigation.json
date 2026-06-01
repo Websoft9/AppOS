@@ -1,0 +1,42 @@
+{
+  "groups": {
+    "workspace": "Workspace",
+    "platform": "Platform"
+  },
+  "items": {
+    "overview": "Overview",
+    "applications": "Applications",
+    "myApps": "My Apps",
+    "appStore": "App Store",
+    "deploy": "Deploy",
+    "actions": "Actions",
+    "terminal": "Terminal",
+    "aiChat": "AI Copilot",
+    "collaboration": "Collaboration",
+    "groups": "Groups",
+    "topics": "Topics",
+    "feeds": "Feeds",
+    "assets": "Assets",
+    "space": "Space",
+    "resources": "Resources",
+    "extensions": "Extensions",
+    "system": "System",
+    "status": "Status",
+    "platformRuntime": "Platform Runtime",
+    "tunnels": "Tunnels",
+    "audit": "Audit",
+    "logs": "Logs",
+    "platformCrons": "Platform Crons",
+    "sharedEnvs": "Shared Envs",
+    "orchestrationFiles": "Orchestration Files",
+    "platformComponents": "Platform Components",
+    "users": "Users",
+    "settings": "Settings",
+    "credentials": "Credentials",
+    "secrets": "Secrets",
+    "certificates": "Certificates"
+  },
+  "mobile": {
+    "description": "Navigate between workspace, application, and admin sections."
+  }
+}

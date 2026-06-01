@@ -1,0 +1,82 @@
+{
+  "hub": {
+    "title": "资源",
+    "subtitle": "用于管理应用运行位置、运行依赖以及 AppOS 对外连接方式的共享平台资源。",
+    "sectionCount": "{{count}} 个分组区域",
+    "familyCount": "{{count}} 个标准资源族",
+    "resourceGroups": "资源分组",
+    "addResource": "添加资源",
+    "openFamily": "打开资源族",
+    "refreshingCount": "正在刷新数量",
+    "itemsCount": "{{count}} 项",
+    "cancel": "取消"
+  },
+  "sections": {
+    "runtimeInfrastructure": {
+      "title": "运行时基础设施",
+      "description": "应用运行所在的位置，以及缺少后就无法启动的关键依赖。"
+    },
+    "externalIntegrations": {
+      "title": "外部集成",
+      "description": "平台如何连接 AI 提供方、外部平台、API 与云服务。"
+    }
+  },
+  "resources": {
+    "servers": {
+      "title": "服务器",
+      "description": "运行工作负载的 Linux 主机、SSH 目标和部署节点。",
+      "createDescription": "Linux 主机、SSH 目标和部署节点。"
+    },
+    "serviceInstances": {
+      "title": "服务实例",
+      "description": "应用启动所需的运行时依赖，包括 MySQL、PostgreSQL、Redis、Kafka 和 S3 等数据库、中间件与存储实例。",
+      "createDescription": "MySQL、PostgreSQL、Redis、Kafka 和 S3 等应用依赖。",
+      "examples": {
+        "database": "数据库",
+        "cache": "缓存",
+        "queue": "队列",
+        "objectStorage": "对象存储"
+      }
+    },
+    "aiProviders": {
+      "title": "AI 提供方",
+      "description": "OpenAI、Anthropic、OpenRouter、Ollama 等托管或本地 AI 能力来源。",
+      "createDescription": "OpenAI、Anthropic、OpenRouter、Ollama 等 AI 提供方。",
+      "examples": {
+        "openai": "OpenAI",
+        "anthropic": "Anthropic",
+        "openrouter": "OpenRouter",
+        "ollama": "Ollama"
+      }
+    },
+    "connectors": {
+      "title": "连接器",
+      "description": "SMTP、DNS、Webhook、MCP、代理、镜像仓库等可复用的外部能力连接。",
+      "createDescription": "SMTP、DNS、Webhook、MCP、代理、镜像仓库等可复用外部连接。",
+      "examples": {
+        "restApi": "REST API",
+        "webhook": "Webhook",
+        "mcp": "MCP",
+        "proxy": "代理",
+        "smtp": "SMTP",
+        "registry": "镜像仓库",
+        "dns": "DNS"
+      }
+    },
+    "platformAccounts": {
+      "title": "平台账号",
+      "description": "AWS、Azure、Google Cloud、GitHub、Cloudflare 等平台身份。",
+      "createDescription": "AWS、Azure、Google Cloud、GitHub、Cloudflare 等平台。",
+      "examples": {
+        "cloudAccount": "云账号",
+        "subscription": "订阅",
+        "tenant": "租户",
+        "installation": "安装"
+      }
+    }
+  },
+  "dialog": {
+    "title": "添加资源",
+    "sectionDescriptionAria": "{{title}} 说明"
+  }
+}

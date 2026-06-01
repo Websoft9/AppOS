@@ -3,9 +3,14 @@ import { useNavigate } from '@tanstack/react-router'
 import { getLocale } from '@/lib/i18n'
 import { iacLoadLibraryAppFiles, iacRead } from '@/lib/iac-api'
 import { pb } from '@/lib/pb'
+import {
+  toLegacyPrimaryCategories,
+  toLegacyProducts,
+  type CatalogAppListResponse,
+  type CatalogCategoryTreeResponse,
+} from '@/lib/catalog-api'
 import { dockerTargetsPath } from '@/lib/docker-api'
-import { fetchStoreJson } from '@/lib/store-api'
-import { type PrimaryCategory, type Product, type ProductWithCategories } from '@/lib/store-types'
+import { type PrimaryCategory, type ProductWithCategories } from '@/lib/store-types'
 import { useUserApps } from '@/lib/store-user-api'
 import { type AppConfigResponse } from '@/pages/apps/types'
 import { buildActionDetailSearch, isActiveStatus } from '@/pages/deploy/actions/action-utils'
@@ -686,10 +691,16 @@ export function useActionsController({
 
   async function fetchStoreShortcuts() {
     try {
-      const [products, categories] = await Promise.all([
-        fetchStoreJson<Product[]>(locale, 'product'),
-        fetchStoreJson<PrimaryCategory[]>(locale, 'catalog'),
+      const [appsResponse, categoriesResponse] = await Promise.all([
+        pb.send('/api/catalog/apps?locale=' + encodeURIComponent(locale) + '&source=official&limit=1000&offset=0', {
+          method: 'GET',
+        }) as Promise<CatalogAppListResponse>,
+        pb.send('/api/catalog/categories?locale=' + encodeURIComponent(locale), {
+          method: 'GET',
+        }) as Promise<CatalogCategoryTreeResponse>,
       ])
+      const products = toLegacyProducts(appsResponse)
+      const categories = toLegacyPrimaryCategories(categoriesResponse)
       const uniqueProducts = Array.from(new Map(products.map(item => [item.key, item])).values())
       const favoriteOrder = new Map(
         userApps

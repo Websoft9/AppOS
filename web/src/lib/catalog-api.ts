@@ -127,6 +127,9 @@ export interface CatalogAppDetail {
     isFavorite: boolean
     note?: string | null
   }
+  installed?: {
+    count: number
+  } | null
   audit: {
     createdAt?: string | null
     updatedAt?: string | null
@@ -286,6 +289,7 @@ export function useCatalogApps(query: CatalogAppsQuery) {
   return useQuery({
     queryKey: ['catalog', 'apps', query],
     queryFn: () => fetchCatalogApps(query),
+    placeholderData: previousData => previousData,
     staleTime: 60 * 1000,
   })
 }

@@ -1,0 +1,53 @@
+{
+  "nav": {
+    "label": "AI 助手"
+  },
+  "page": {
+    "title": "AI 助手",
+    "subtitle": "通过具备上下文的运维指导，更快解决任务。",
+    "loading": "加载中...",
+    "emptyTitle": "开始一段对话",
+    "emptyDescription": "询问运维问题，或上传文件补充上下文。",
+    "defaultSessionTitle": "新对话",
+    "conversationList": "对话列表"
+  },
+  "actions": {
+    "refresh": "刷新对话",
+    "newChat": "新对话",
+    "createConversation": "创建对话",
+    "shrinkConversationList": "收起对话列表",
+    "expandConversationList": "展开对话列表",
+    "save": "保存",
+    "cancel": "取消",
+    "editName": "编辑名称",
+    "delete": "删除",
+    "uploadFiles": "上传文件",
+    "sendMessage": "发送消息",
+    "copyMarkdown": "复制 Markdown"
+  },
+  "fields": {
+    "conversationTitle": "对话标题",
+    "messagePlaceholder": "询问运维、诊断或 AppOS 相关知识",
+    "fileUpload": "聊天文件上传"
+  },
+  "messages": {
+    "loadError": "加载 AI 助手失败",
+    "renameError": "重命名对话失败",
+    "deleteError": "删除对话失败",
+    "sendError": "发送消息失败",
+    "thinking": "思考中...",
+    "attachedFiles": "已附加文件",
+    "justNow": "刚刚",
+    "textPreviewSkipped": "已跳过文本预览：文件超过 {{limit}}。",
+    "textPreviewUnavailable": "该文件无法提供文本预览。"
+  },
+  "dialog": {
+    "deleteTitle": "删除这段对话？",
+    "deleteDescriptionPrefix": "这将永久删除",
+    "deleteDescriptionSuffix": "及其消息历史，此操作无法撤销。"
+  },
+  "aria": {
+    "conversationActions": "{{title}} 的对话操作",
+    "removeAttachment": "移除 {{name}}"
+  }
+}

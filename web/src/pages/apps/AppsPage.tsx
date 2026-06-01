@@ -152,7 +152,7 @@ function FilterHeader({
   )
 }
 
-export function AppsPage() {
+export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
   const navigate = useNavigate()
   const [apps, setApps] = useState<AppInstance[]>([])
   const [loading, setLoading] = useState(true)
@@ -278,12 +278,13 @@ export function AppsPage() {
     return apps.filter(item => {
       if (excludeRuntime.has(item.runtime_status)) return false
       if (excludeServer.has(item.server_id || 'local')) return false
+      if (catalogAppKey && item.catalog_app_key !== catalogAppKey) return false
       if (!query) return true
-      return [item.id, item.name, item.project_dir, item.server_id]
+      return [item.id, item.name, item.project_dir, item.server_id, item.catalog_app_key]
         .filter(Boolean)
         .some(value => String(value).toLowerCase().includes(query))
     })
-  }, [apps, excludeRuntime, excludeServer, search])
+  }, [apps, catalogAppKey, excludeRuntime, excludeServer, search])
 
   const sortedItems = useMemo(() => {
     if (!sortField) return filteredItems
@@ -352,7 +353,12 @@ export function AppsPage() {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-44">
           <DropdownMenuItem
-            onSelect={() => void navigate({ to: '/apps/$appId', params: { appId: app.id } })}
+          onSelect={() =>
+            void navigate({
+              to: '/apps/$appId',
+              params: { appId: app.id },
+              search: { catalogAppKey: undefined },
+            })}
           >
             <ExternalLink className="h-4 w-4" />
             Open detail
@@ -450,6 +456,23 @@ export function AppsPage() {
           <AlertDescription>{success}</AlertDescription>
         </Alert>
       ) : null}
+      {catalogAppKey ? (
+        <Alert>
+          <AlertTitle>Store Filter Active</AlertTitle>
+          <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              Showing installed instances for catalog app <span className="font-mono">{catalogAppKey}</span>.
+            </span>
+            <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void navigate({ to: '/apps', search: { catalogAppKey: undefined } })}
+            >
+              Clear filter
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
       <Alert>
         <AlertTitle>Execution Handoff</AlertTitle>
         <AlertDescription>
@@ -515,7 +538,11 @@ export function AppsPage() {
                   <Badge variant="outline">{app.status}</Badge>
                   <div className="flex items-center gap-1">
                     <Button asChild variant="outline">
-                      <Link to="/apps/$appId" params={{ appId: app.id }}>
+                    <Link
+                    to="/apps/$appId"
+                    params={{ appId: app.id }}
+                    search={{ catalogAppKey: undefined }}
+                    >
                         Open Detail
                       </Link>
                     </Button>

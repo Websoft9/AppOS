@@ -631,6 +631,9 @@ func appInstanceResponse(app core.App, record *core.Record, runtimeIndex map[str
 		"created":                 record.GetDateTime("created").String(),
 		"updated":                 record.GetDateTime("updated").String(),
 	}
+	if catalogAppKey := appInstanceCatalogAppKey(app, record); catalogAppKey != "" {
+		result["catalog_app_key"] = catalogAppKey
+	}
 	if strings.TrimSpace(runtimeReason) != "" && runtimeStatus == "unknown" {
 		result["runtime_reason"] = runtimeReason
 	}
@@ -638,6 +641,64 @@ func appInstanceResponse(app core.App, record *core.Record, runtimeIndex map[str
 		result["installed_at"] = value.String()
 	}
 	return result
+}
+
+func appInstanceCatalogAppKey(app core.App, record *core.Record) string {
+	if record == nil {
+		return ""
+	}
+	if templateKey := strings.TrimSpace(record.GetString("template_key")); templateKey != "" {
+		return templateKey
+	}
+	operationID := strings.TrimSpace(record.GetString("last_operation"))
+	if operationID == "" {
+		return ""
+	}
+	operationRecord, err := app.FindRecordById("app_operations", operationID)
+	if err != nil {
+		return ""
+	}
+	spec, ok := operationSpecMap(operationRecord.Get("spec_json"))
+	if !ok {
+		return ""
+	}
+	metadata, ok := operationSpecMap(spec["metadata"])
+	if !ok {
+		return ""
+	}
+	prefillContext, ok := operationSpecMap(metadata["prefill_context"])
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprint(prefillContext["app_key"]))
+}
+
+func operationSpecMap(value any) (map[string]any, bool) {
+	switch typed := value.(type) {
+	case map[string]any:
+		return typed, true
+	case string:
+		return decodeOperationSpecJSON([]byte(typed))
+	case []byte:
+		return decodeOperationSpecJSON(typed)
+	default:
+		raw, err := json.Marshal(value)
+		if err != nil {
+			return nil, false
+		}
+		return decodeOperationSpecJSON(raw)
+	}
+}
+
+func decodeOperationSpecJSON(raw []byte) (map[string]any, bool) {
+	if len(raw) == 0 {
+		return nil, false
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return nil, false
+	}
+	return parsed, true
 }
 
 func appCurrentPipelineResponse(app core.App, record *core.Record) (map[string]any, error) {

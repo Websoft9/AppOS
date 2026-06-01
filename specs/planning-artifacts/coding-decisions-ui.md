@@ -115,7 +115,8 @@ Use `beforeLoad` for route guards.
 Use TanStack Query + PocketBase SDK. API logic lives in `src/lib/*-api.ts`.
 
 - `pb.ts`: singleton PocketBase client
-- `store-api.ts`: store catalog and products
+- `catalog-api.ts`: normalized backend catalog reads
+- `store-presenter.ts`: store presentation helpers and local search-history helpers
 - `iac-api.ts`: IaC file read and write
 - `store-user-api.ts`: user favorites and notes
 - `store-custom-api.ts`: custom app management

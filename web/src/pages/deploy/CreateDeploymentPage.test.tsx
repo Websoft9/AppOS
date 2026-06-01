@@ -20,11 +20,6 @@ vi.mock('@/lib/i18n', () => ({
   getLocale: () => 'en',
 }))
 
-vi.mock('@/lib/store-api', () => ({
-  fetchStoreJson: vi.fn().mockResolvedValue([]),
-  getIconUrl: (key: string) => `/${key}.png`,
-}))
-
 vi.mock('@/lib/store-user-api', () => ({
   useUserApps: () => ({ data: [] }),
 }))

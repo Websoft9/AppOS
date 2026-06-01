@@ -729,7 +729,7 @@ export function TerminalIndexPage() {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* ── Top: page header ── */}
-      <div className="shrink-0 pb-4 border-b">
+      <div className="shrink-0 pb-4">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Server Terminal</h1>

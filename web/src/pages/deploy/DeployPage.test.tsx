@@ -23,14 +23,6 @@ vi.mock('react-i18next', () => ({
   }),
 }))
 
-vi.mock('@/lib/store-api', () => ({
-  fetchStoreJson: vi.fn().mockResolvedValue([
-    { key: 'wordpress', trademark: 'WordPress', logo: { imageurl: '/wordpress.png' } },
-    { key: 'mysql', trademark: 'MySQL', logo: { imageurl: '/mysql.png' } },
-  ]),
-  getIconUrl: (key: string) => `/${key}.png`,
-}))
-
 vi.mock('@/lib/store-user-api', () => ({
   useUserApps: () => ({
     data: [

@@ -533,7 +533,7 @@ describe('SettingsPage shared settings paths', () => {
       }
       if (
         path ===
-        "/api/collections/secrets/records?filter=((created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value'))&sort=name"
+        "/api/collections/secrets/records?filter=(created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value')%26%26(visible_to:length=0||visible_to%3F='ai_provider')&sort=name"
       ) {
         return Promise.resolve({ items: [] })
       }

@@ -47,6 +47,7 @@ import { ServerMonitorTab } from '@/components/servers/ServerMonitorTab'
 import { ServerOverviewTab } from '@/components/servers/ServerOverviewTab'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { SecretForm, type SecretTemplate } from '@/components/secrets/SecretForm'
+import { buildResourceSecretRelationApiPath } from '@/components/secrets/SecretVisibilityField'
 import {
   ServerComponentsPanel,
   type ServerComponentActionIntent,
@@ -402,7 +403,10 @@ const fields: FieldDef[] = [
     label: 'Credential (Secret)',
     type: 'relation',
     relationApiPath:
-      "/api/collections/secrets/records?filter=((created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value'||template_id='ssh_key'))&sort=name",
+      buildResourceSecretRelationApiPath({
+        visibleTo: 'server',
+        templateIds: ['single_value', 'ssh_key'],
+      }),
     relationLabelKey: 'name',
     relationFormatLabel: formatSecretLabel,
   },
@@ -1964,6 +1968,7 @@ export function ServersPage() {
         templateLabels={TEMPLATE_ALIASES}
         defaultTemplateId="single_value"
         defaultName={defaultCredentialSecretName}
+        defaultVisibleTo={['server']}
         onCreated={({ id, name, templateId }) => {
           const label = formatSecretLabel({ name, template_id: templateId, id })
           secretAddOption?.(id, label)

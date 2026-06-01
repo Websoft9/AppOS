@@ -210,3 +210,8 @@ development_status:
   27.2-feed-item-ingestion-and-query: backlog
   27.3-judgment-and-binding: backlog
   epic27-retrospective: optional
+
+  # Epic 31: AI Runtime
+  epic31: in-progress
+  31.1-chat-mvp: review
+  epic31-retrospective: optional

@@ -4,6 +4,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	m "github.com/pocketbase/pocketbase/migrations"
 	"github.com/pocketbase/pocketbase/tools/types"
+	secretdomain "github.com/websoft9/appos/backend/domain/secrets"
 )
 
 // Secrets domain — single migration file for the secrets collection schema.
@@ -26,6 +27,7 @@ func init() {
 		secrets.Fields.Add(&core.TextField{Name: "value", Hidden: true})
 		secrets.Fields.Add(&core.TextField{Name: "description", Max: 500})
 		secrets.Fields.Add(&core.TextField{Name: "template_id", Max: 120})
+		secrets.Fields.Add(&core.SelectField{Name: "visible_to", Values: append([]string(nil), secretdomain.VisibleToValues...), MaxSelect: len(secretdomain.VisibleToValues)})
 		secrets.Fields.Add(&core.SelectField{Name: "scope", MaxSelect: 1, Values: []string{"global", "user_private"}})
 		secrets.Fields.Add(&core.SelectField{Name: "access_mode", MaxSelect: 1, Values: []string{"use_only", "reveal_once", "reveal_allowed"}})
 		secrets.Fields.Add(&core.JSONField{Name: "payload", Hidden: true})

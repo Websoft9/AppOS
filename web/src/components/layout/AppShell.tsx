@@ -18,7 +18,7 @@ function AppShellInner({ headerActions }: AppShellProps) {
   return (
     <div
       className={cn(
-        'grid min-h-screen bg-background',
+        'grid h-screen overflow-hidden bg-background',
         isDesktop
           ? 'grid-cols-[var(--sidebar-width)_1fr] grid-rows-[var(--header-height)_1fr_auto]'
           : 'grid-cols-[1fr] grid-rows-[var(--header-height-mobile)_1fr_auto]'

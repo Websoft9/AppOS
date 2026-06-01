@@ -262,6 +262,7 @@ export function ConnectorsPage() {
         allowedTemplateIds={['single_value']}
         templateLabels={SECRET_TEMPLATE_LABELS}
         defaultTemplateId="single_value"
+        defaultVisibleTo={['connector']}
         onCreated={({ id, name, templateId }) => {
           const suffix = SECRET_TEMPLATE_LABELS[templateId]
           secretAddOption?.(id, suffix ? `${name} (${suffix})` : name)

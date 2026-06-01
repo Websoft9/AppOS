@@ -4,6 +4,10 @@ const Connectors = "connectors"
 
 const AIProviders = "ai_providers"
 
+const AIChatSessions = "ai_chat_sessions"
+
+const AIChatMessages = "ai_chat_messages"
+
 const Instances = "instances"
 
 const ProviderAccounts = "provider_accounts"

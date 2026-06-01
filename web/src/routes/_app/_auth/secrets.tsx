@@ -66,6 +66,12 @@ import {
   SECRET_ACCESS_MODE_OPTIONS,
   type SecretPolicy,
 } from '@/lib/secrets-policy'
+import {
+  RESOURCE_SECRET_VISIBLE_TO_VALUES,
+  SecretVisibilityField,
+  normalizeResourceSecretVisibleTo,
+  type ResourceSecretVisibleTo,
+} from '@/components/secrets/SecretVisibilityField'
 
 interface SecretRecord {
   id: string
@@ -73,6 +79,7 @@ interface SecretRecord {
   description?: string
   type?: string
   template_id: string
+  visible_to?: string[]
   created_source?: string
   scope: string
   access_mode: string
@@ -297,6 +304,9 @@ export function SecretsPage() {
   const [createDescription, setCreateDescription] = useState('')
   const [createScope, setCreateScope] = useState('global')
   const [createAccessMode, setCreateAccessMode] = useState(DEFAULT_SECRET_ACCESS_MODE)
+  const [createVisibleTo, setCreateVisibleTo] = useState<ResourceSecretVisibleTo[]>([
+    ...RESOURCE_SECRET_VISIBLE_TO_VALUES,
+  ])
   const [createTemplateId, setCreateTemplateId] = useState('')
   const [createPayload, setCreatePayload] = useState<Record<string, string>>({})
   const [createSaving, setCreateSaving] = useState(false)
@@ -310,6 +320,9 @@ export function SecretsPage() {
   const [editDescription, setEditDescription] = useState('')
   const [editScope, setEditScope] = useState('global')
   const [editAccessMode, setEditAccessMode] = useState(DEFAULT_SECRET_ACCESS_MODE)
+  const [editVisibleTo, setEditVisibleTo] = useState<ResourceSecretVisibleTo[]>([
+    ...RESOURCE_SECRET_VISIBLE_TO_VALUES,
+  ])
   const [editTemplateId, setEditTemplateId] = useState('')
   const [editPayload, setEditPayload] = useState<Record<string, string>>({})
   const [editSavingMeta, setEditSavingMeta] = useState(false)
@@ -522,6 +535,7 @@ export function SecretsPage() {
     setCreateDescription('')
     setCreateScope('global')
     setCreateAccessMode(secretPolicy.defaultAccessMode)
+    setCreateVisibleTo([...RESOURCE_SECRET_VISIBLE_TO_VALUES])
     setCreateTemplateId('')
     setCreatePayload({})
     setCreateError('')
@@ -549,6 +563,7 @@ export function SecretsPage() {
         template_id: createTemplateId,
         scope: createScope,
         access_mode: createAccessMode,
+        visible_to: createVisibleTo,
         payload: createPayload,
       })) as { id: string }
       setCreateOpen(false)
@@ -577,6 +592,7 @@ export function SecretsPage() {
     setEditDescription('')
     setEditScope('global')
     setEditAccessMode(DEFAULT_SECRET_ACCESS_MODE)
+    setEditVisibleTo([...RESOURCE_SECRET_VISIBLE_TO_VALUES])
     setEditTemplateId('')
     setEditPayload({})
     setEditError('')
@@ -599,6 +615,7 @@ export function SecretsPage() {
     setEditDescription(item.description || '')
     setEditScope(item.scope || 'global')
     setEditAccessMode(item.access_mode || DEFAULT_SECRET_ACCESS_MODE)
+    setEditVisibleTo(normalizeResourceSecretVisibleTo(item.visible_to))
     setEditTemplateId(item.template_id)
     setEditPayload({})
     setEditError('')
@@ -635,6 +652,7 @@ export function SecretsPage() {
         description: editDescription,
         scope: editScope,
         access_mode: editAccessMode,
+        visible_to: editVisibleTo,
       })
       setEditNotice('Metadata updated')
       await loadData()
@@ -1132,6 +1150,7 @@ export function SecretsPage() {
               options={ACCESS_MODE_OPTIONS}
               onChange={setEditAccessMode}
             />
+            <SecretVisibilityField value={editVisibleTo} onChange={setEditVisibleTo} />
             <Button type="submit" disabled={editSavingMeta || !editId}>
               {editSavingMeta ? 'Saving...' : 'Save Metadata'}
             </Button>
@@ -1230,6 +1249,7 @@ export function SecretsPage() {
                   options={ACCESS_MODE_OPTIONS}
                   onChange={setCreateAccessMode}
                 />
+                <SecretVisibilityField value={createVisibleTo} onChange={setCreateVisibleTo} />
               </CollapsibleContent>
             </Collapsible>
 

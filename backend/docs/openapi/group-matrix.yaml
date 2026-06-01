@@ -233,6 +233,14 @@ groups:
     apiType: Ext
     extSurface:
       - GET /api/catalog/categories
+      - GET /api/catalog/admin/status
+      - POST /api/catalog/admin/reindex
+      - GET /api/catalog/admin/categories/raw
+      - GET /api/catalog/admin/apps/{key}/raw
+      - GET /api/catalog/custom-apps
+      - POST /api/catalog/custom-apps
+      - PATCH /api/catalog/custom-apps/{id}
+      - DELETE /api/catalog/custom-apps/{id}
       - GET /api/catalog/apps
       - GET /api/catalog/apps/{key}
       - GET /api/catalog/apps/{key}/deploy-source
@@ -347,6 +355,22 @@ groups:
     sources:
       extRouteFiles:
         - ai_providers.go
+      nativeRefs: []
+
+  - group: AI Chat
+    description: AI Runtime chat session and message APIs backed by the default AI Provider.
+    apiType: Ext
+    extSurface:
+      - GET /api/ai/chat/sessions
+      - POST /api/ai/chat/sessions
+      - PATCH /api/ai/chat/sessions/{sessionId}
+      - DELETE /api/ai/chat/sessions/{sessionId}
+      - GET /api/ai/chat/sessions/{sessionId}/messages
+      - POST /api/ai/chat/sessions/{sessionId}/messages
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - ai_chat.go
       nativeRefs: []
 
   - group: Service Instances

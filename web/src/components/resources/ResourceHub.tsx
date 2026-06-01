@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import {
   Server,
   Database,
@@ -30,14 +31,13 @@ import { cn } from '@/lib/utils'
 
 interface ResourceDef {
   key: string
-  title: string
-  description: string
+  titleKey: string
+  descriptionKey: string
   icon: React.ReactNode
   href: string
   readOnly?: boolean
-  createLabel?: string
-  createDescription?: string
-  exampleItems?: string[]
+  createDescriptionKey?: string
+  exampleItemKeys?: string[]
   apiPath?: string
   countQuery?: {
     collection: string
@@ -47,32 +47,34 @@ interface ResourceDef {
 
 interface ResourceSection {
   key: string
-  title: string
-  description: string
+  titleKey: string
+  descriptionKey: string
   resources: ResourceDef[]
 }
 
 const RUNTIME_INFRASTRUCTURE: ResourceDef[] = [
   {
     key: 'servers',
-    title: 'Servers',
-    description: 'Linux hosts, SSH targets, and deployment nodes where workloads run.',
+    titleKey: 'resources.servers.title',
+    descriptionKey: 'resources.servers.description',
     icon: <Server className="h-5 w-5" />,
     href: '/resources/servers',
-    createLabel: 'Add a deployment target',
-    createDescription: 'Linux hosts, SSH targets, and deployment nodes.',
+    createDescriptionKey: 'resources.servers.createDescription',
     countQuery: { collection: 'servers' },
   },
   {
     key: 'service-instances',
-    title: 'Service Instances',
-    description:
-      'Runtime dependencies required for application startup, including databases, middleware, and storage instances such as MySQL, PostgreSQL, Redis, Kafka, and S3.',
+    titleKey: 'resources.serviceInstances.title',
+    descriptionKey: 'resources.serviceInstances.description',
     icon: <Database className="h-5 w-5" />,
     href: '/resources/service-instances',
-    createLabel: 'Register an application dependency',
-    createDescription: 'MySQL, PostgreSQL, Redis, Kafka, and S3-backed application dependencies.',
-    exampleItems: ['Database', 'Cache', 'Queue', 'Object Storage'],
+    createDescriptionKey: 'resources.serviceInstances.createDescription',
+    exampleItemKeys: [
+      'resources.serviceInstances.examples.database',
+      'resources.serviceInstances.examples.cache',
+      'resources.serviceInstances.examples.queue',
+      'resources.serviceInstances.examples.objectStorage',
+    ],
     apiPath: '/api/instances',
   },
 ]
@@ -80,38 +82,50 @@ const RUNTIME_INFRASTRUCTURE: ResourceDef[] = [
 const EXTERNAL_INTEGRATIONS: ResourceDef[] = [
   {
     key: 'ai-providers',
-    title: 'AI Providers',
-    description:
-      'Hosted and local AI capability sources such as OpenAI, Anthropic, OpenRouter, and Ollama endpoints.',
+    titleKey: 'resources.aiProviders.title',
+    descriptionKey: 'resources.aiProviders.description',
     icon: <Bot className="h-5 w-5" />,
     href: '/resources/ai-providers',
-    createLabel: 'Choose an AI capability source',
-    createDescription: 'OpenAI, Anthropic, OpenRouter, Ollama, and similar AI providers.',
-    exampleItems: ['OpenAI', 'Anthropic', 'OpenRouter', 'Ollama'],
+    createDescriptionKey: 'resources.aiProviders.createDescription',
+    exampleItemKeys: [
+      'resources.aiProviders.examples.openai',
+      'resources.aiProviders.examples.anthropic',
+      'resources.aiProviders.examples.openrouter',
+      'resources.aiProviders.examples.ollama',
+    ],
     apiPath: '/api/ai-providers',
   },
   {
     key: 'connectors',
-    title: 'Connectors',
-    description:
-      'SMTP, DNS, webhook, MCP, proxy, registry, and other reusable external capability connections.',
+    titleKey: 'resources.connectors.title',
+    descriptionKey: 'resources.connectors.description',
     icon: <Plug className="h-5 w-5" />,
     href: '/resources/connectors',
-    createLabel: 'Configure an external connection',
-    createDescription:
-      'SMTP, DNS, webhook, MCP, proxy, registry, and other reusable external connections.',
-    exampleItems: ['REST API', 'Webhook', 'MCP', 'Proxy', 'SMTP', 'Registry', 'DNS'],
+    createDescriptionKey: 'resources.connectors.createDescription',
+    exampleItemKeys: [
+      'resources.connectors.examples.restApi',
+      'resources.connectors.examples.webhook',
+      'resources.connectors.examples.mcp',
+      'resources.connectors.examples.proxy',
+      'resources.connectors.examples.smtp',
+      'resources.connectors.examples.registry',
+      'resources.connectors.examples.dns',
+    ],
     apiPath: '/api/connectors?kind=rest_api,webhook,mcp,proxy,smtp,registry,dns',
   },
   {
     key: 'platform-accounts',
-    title: 'Platform Accounts',
-    description: 'AWS, Azure, Google Cloud, GitHub, Cloudflare, and similar platform identities.',
+    titleKey: 'resources.platformAccounts.title',
+    descriptionKey: 'resources.platformAccounts.description',
     icon: <Cloud className="h-5 w-5" />,
     href: '/resources/platform-accounts',
-    createLabel: 'Save a platform account',
-    createDescription: 'AWS, Azure, Google Cloud, GitHub, Cloudflare, and similar platforms.',
-    exampleItems: ['Cloud Account', 'Subscription', 'Tenant', 'Installation'],
+    createDescriptionKey: 'resources.platformAccounts.createDescription',
+    exampleItemKeys: [
+      'resources.platformAccounts.examples.cloudAccount',
+      'resources.platformAccounts.examples.subscription',
+      'resources.platformAccounts.examples.tenant',
+      'resources.platformAccounts.examples.installation',
+    ],
     apiPath: '/api/provider-accounts',
   },
 ]
@@ -119,16 +133,14 @@ const EXTERNAL_INTEGRATIONS: ResourceDef[] = [
 const RESOURCE_SECTIONS: ResourceSection[] = [
   {
     key: 'runtime-infrastructure',
-    title: 'Runtime Infrastructure',
-    description:
-      'Where applications run and the startup-critical dependencies they cannot run without.',
+    titleKey: 'sections.runtimeInfrastructure.title',
+    descriptionKey: 'sections.runtimeInfrastructure.description',
     resources: RUNTIME_INFRASTRUCTURE,
   },
   {
     key: 'external-integrations',
-    title: 'External Integrations',
-    description:
-      'How platform connects to AI providers, external platforms, APIs, and cloud services.',
+    titleKey: 'sections.externalIntegrations.title',
+    descriptionKey: 'sections.externalIntegrations.description',
     resources: EXTERNAL_INTEGRATIONS,
   },
 ]
@@ -138,6 +150,7 @@ const ALL_RESOURCES = [...RUNTIME_INFRASTRUCTURE, ...EXTERNAL_INTEGRATIONS]
 // ─── Component ───────────────────────────────────────────
 
 export function ResourceHub() {
+  const { t } = useTranslation('resources')
   const navigate = useNavigate()
   const [counts, setCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
@@ -190,17 +203,14 @@ export function ResourceHub() {
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-bold tracking-tight">Resources</h1>
-          <p className="text-muted-foreground mt-1">
-            Shared platform resources for where Applications run, what they depend on, and how AppOS
-            connects outward.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">{t('hub.title')}</h1>
+          <p className="text-muted-foreground mt-1">{t('hub.subtitle')}</p>
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span className="rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 font-medium text-foreground/80">
-              {sectionCount} grouped areas
+              {t('hub.sectionCount', { count: sectionCount })}
             </span>
             <span className="rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 font-medium text-foreground/80">
-              {resourceFamilyCount} canonical families
+              {t('hub.familyCount', { count: resourceFamilyCount })}
             </span>
           </div>
         </div>
@@ -210,13 +220,13 @@ export function ResourceHub() {
           <Button variant="outline" asChild className="w-full sm:w-auto">
             <Link to="/groups">
               <Layers className="h-4 w-4 mr-2" />
-              Resource Groups
+              {t('hub.resourceGroups')}
             </Link>
           </Button>
 
           <Button className="w-full sm:w-auto" onClick={() => setCreateChooserOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
-            Add Resource
+            {t('hub.addResource')}
             <ChevronDown className="h-4 w-4 ml-2" />
           </Button>
         </div>
@@ -225,30 +235,26 @@ export function ResourceHub() {
       <Dialog open={createChooserOpen} onOpenChange={setCreateChooserOpen}>
         <DialogContent className="sm:max-w-2xl" aria-describedby={undefined}>
           <DialogHeader className="text-left">
-            <DialogTitle className="text-2xl font-semibold tracking-tight">
-              Add Resource
-            </DialogTitle>
+            <DialogTitle className="text-2xl font-semibold tracking-tight">{t('dialog.title')}</DialogTitle>
           </DialogHeader>
 
           <div className="max-h-[70vh] space-y-6 overflow-y-auto pr-1">
             {RESOURCE_SECTIONS.map(section => (
               <section key={section.key} className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-base font-semibold tracking-tight text-foreground">
-                    {section.title}
-                  </h3>
+                  <h3 className="text-base font-semibold tracking-tight text-foreground">{t(section.titleKey)}</h3>
                   <Tooltip delayDuration={100}>
                     <TooltipTrigger asChild>
                       <button
                         type="button"
                         className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
-                        aria-label={`${section.title} description`}
+                        aria-label={t('dialog.sectionDescriptionAria', { title: t(section.titleKey) })}
                       >
                         <CircleQuestionMark className="h-4 w-4" />
                       </button>
                     </TooltipTrigger>
                     <TooltipContent side="right" className="max-w-xs leading-5">
-                      {section.description}
+                      {t(section.descriptionKey)}
                     </TooltipContent>
                   </Tooltip>
                 </div>
@@ -266,21 +272,21 @@ export function ResourceHub() {
                           <div className="mt-0.5 shrink-0 text-muted-foreground">{r.icon}</div>
                           <div className="min-w-0 space-y-2">
                             <div>
-                              <p className="text-base font-medium leading-tight">{r.title}</p>
+                              <p className="text-base font-medium leading-tight">{t(r.titleKey)}</p>
                               <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                                {r.createDescription ?? r.description}
+                                {t(r.createDescriptionKey ?? r.descriptionKey)}
                               </p>
                             </div>
-                            {r.exampleItems && r.exampleItems.length > 0 && (
+                            {r.exampleItemKeys && r.exampleItemKeys.length > 0 && (
                               <ul className="flex flex-wrap gap-2">
-                                {r.exampleItems.map(example => (
+                                {r.exampleItemKeys.map(exampleKey => (
                                   <li
-                                    key={example}
+                                    key={exampleKey}
                                     className={cn(
                                       'rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground'
                                     )}
                                   >
-                                    {example}
+                                    {t(exampleKey)}
                                   </li>
                                 ))}
                               </ul>
@@ -297,7 +303,7 @@ export function ResourceHub() {
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setCreateChooserOpen(false)}>
-              Cancel
+              {t('hub.cancel')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -311,9 +317,9 @@ export function ResourceHub() {
         >
           <div>
             <h2 id={`${section.key}-title`} className="text-lg font-semibold tracking-tight">
-              {section.title}
+              {t(section.titleKey)}
             </h2>
-            <p className="text-sm text-muted-foreground mt-1">{section.description}</p>
+            <p className="text-sm text-muted-foreground mt-1">{t(section.descriptionKey)}</p>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -334,7 +340,7 @@ export function ResourceHub() {
                           {r.icon}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-medium leading-tight truncate">{r.title}</p>
+                          <p className="text-sm font-medium leading-tight truncate">{t(r.titleKey)}</p>
                           <p
                             id={`${r.key}-meta`}
                             className="mt-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground"
@@ -342,16 +348,16 @@ export function ResourceHub() {
                             {loading ? (
                               <>
                                 <Loader2 className="h-3 w-3 animate-spin" />
-                                <span>Refreshing count</span>
+                                <span>{t('hub.refreshingCount')}</span>
                               </>
                             ) : (
-                              <span>{counts[r.key] ?? 0} items</span>
+                              <span>{t('hub.itemsCount', { count: counts[r.key] ?? 0 })}</span>
                             )}
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-1 rounded-full border border-border/70 px-2 py-1 text-[11px] font-medium text-foreground/80">
-                        <span>Open family</span>
+                        <span>{t('hub.openFamily')}</span>
                         <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/70 transition-colors transition-transform shrink-0 group-hover:translate-x-0.5 group-hover:text-foreground group-focus-visible:translate-x-0.5 group-focus-visible:text-foreground" />
                       </div>
                     </div>
@@ -360,7 +366,7 @@ export function ResourceHub() {
                       id={`${r.key}-description`}
                       className="text-xs text-muted-foreground leading-relaxed mt-3 pl-7"
                     >
-                      {r.description}
+                      {t(r.descriptionKey)}
                     </p>
                   </CardContent>
                 </Card>

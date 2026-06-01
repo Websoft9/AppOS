@@ -11,6 +11,8 @@ info:
 tags:
     - description: Lifecycle action APIs for install inputs, action history, execution detail, and logs.
       name: Actions
+    - description: AI Runtime chat session and message APIs backed by the default AI Provider.
+      name: AI Chat
     - description: AI provider template discovery and managed AI provider CRUD APIs.
       name: AI Providers
     - description: Installed app inventory and lifecycle APIs backed by compose projects.
@@ -1371,6 +1373,171 @@ paths:
             summary: Get ai providers templates by id
             tags:
                 - AI Providers
+    /api/ai/chat/sessions:
+        get:
+            operationId: get_api_ai_chat_sessions
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get ai chat sessions
+            tags:
+                - AI Chat
+        post:
+            operationId: post_api_ai_chat_sessions
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Create or execute ai chat sessions
+            tags:
+                - AI Chat
+    /api/ai/chat/sessions/{sessionId}:
+        delete:
+            operationId: delete_api_ai_chat_sessions_sessionid
+            parameters:
+                - in: path
+                  name: sessionId
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Delete ai chat sessions by sessionId
+            tags:
+                - AI Chat
+        patch:
+            operationId: patch_api_ai_chat_sessions_sessionid
+            parameters:
+                - in: path
+                  name: sessionId
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Patch ai chat sessions by sessionId
+            tags:
+                - AI Chat
+    /api/ai/chat/sessions/{sessionId}/messages:
+        get:
+            operationId: get_api_ai_chat_sessions_sessionid_messages
+            parameters:
+                - in: path
+                  name: sessionId
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get ai chat sessions by sessionId messages
+            tags:
+                - AI Chat
+        post:
+            operationId: post_api_ai_chat_sessions_sessionid_messages
+            parameters:
+                - in: path
+                  name: sessionId
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Create or execute ai chat sessions by sessionId messages
+            tags:
+                - AI Chat
     /api/apps:
         get:
             description: Returns installed app inventory with normalized runtime status. Superuser only.
@@ -2655,6 +2822,207 @@ paths:
             summary: Restore backup by name
             tags:
                 - Backups
+    /api/catalog/admin/apps/{key}/raw:
+        get:
+            description: Returns the raw official app source payload for one app key from the backend-managed runtime catalog directory. Superuser only.
+            operationId: get_api_catalog_admin_apps_key_raw
+            parameters:
+                - description: catalog app key
+                  in: path
+                  name: key
+                  required: true
+                  schema:
+                    type: string
+                - description: bundle locale
+                  in: query
+                  name: locale
+                  required: false
+                  schema:
+                    enum:
+                        - en
+                        - zh
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Forbidden
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Get one raw catalog app bundle entry
+            tags:
+                - Catalog
+    /api/catalog/admin/categories/raw:
+        get:
+            description: Returns the raw official category source bundle for one locale from the backend-managed runtime catalog directory. Superuser only.
+            operationId: get_api_catalog_admin_categories_raw
+            parameters:
+                - description: bundle locale
+                  in: query
+                  name: locale
+                  required: false
+                  schema:
+                    enum:
+                        - en
+                        - zh
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Forbidden
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Get raw catalog categories bundle
+            tags:
+                - Catalog
+    /api/catalog/admin/reindex:
+        post:
+            description: Reloads the backend-managed runtime catalog bundles and returns current locale counts. Remote artifact sync is intentionally unavailable. Superuser only.
+            operationId: post_api_catalog_admin_reindex
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Forbidden
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Reindex local catalog source bundles
+            tags:
+                - Catalog
+    /api/catalog/admin/status:
+        get:
+            description: Returns backend-managed runtime catalog source status, seed file metadata, and current locale bundle counts. Superuser only.
+            operationId: get_api_catalog_admin_status
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Forbidden
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Get catalog source runtime status
+            tags:
+                - Catalog
     /api/catalog/apps:
         get:
             operationId: get_api_catalog_apps
@@ -2749,6 +3117,217 @@ paths:
             security:
                 - bearerAuth: []
             summary: Get catalog categories
+            tags:
+                - Catalog
+    /api/catalog/custom-apps:
+        get:
+            description: Returns custom apps visible to the authenticated caller, including owned and shared entries.
+            operationId: get_api_catalog_custom-apps
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: List visible custom apps
+            tags:
+                - Catalog
+        post:
+            description: Creates a caller-owned custom app record for the App Catalog.
+            operationId: post_api_catalog_custom-apps
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                description: custom app payload
+                required: true
+            responses:
+                "201":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: Created
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Conflict
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Create custom app
+            tags:
+                - Catalog
+    /api/catalog/custom-apps/{id}:
+        delete:
+            description: Deletes one caller-owned custom app record.
+            operationId: delete_api_catalog_custom-apps_id
+            parameters:
+                - description: custom app id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Forbidden
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Delete custom app
+            tags:
+                - Catalog
+        patch:
+            description: Updates one caller-owned custom app record.
+            operationId: patch_api_catalog_custom-apps_id
+            parameters:
+                - description: custom app id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                description: custom app payload
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Forbidden
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Conflict
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Update custom app
             tags:
                 - Catalog
     /api/catalog/me/apps:

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, CircleHelp, Ellipsis, Store, Wrench } from 'lucide-react'
-import { getIconUrl } from '@/lib/store-api'
+import { getIconUrl } from '@/lib/store-presenter'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'

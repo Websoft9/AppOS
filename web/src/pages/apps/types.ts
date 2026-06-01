@@ -50,6 +50,7 @@ export type AppExposure = {
 export type AppInstance = {
   id: string
   iac_path?: string
+  catalog_app_key?: string
   server_id: string
   name: string
   project_dir: string

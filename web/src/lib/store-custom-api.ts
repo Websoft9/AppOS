@@ -41,10 +41,43 @@ export interface CustomAppFormData {
 
 export const CUSTOM_APPS_KEY = ['store_custom_apps'] as const
 
+interface CustomAppListResponse {
+  items: CustomApp[]
+}
+
+async function fetchCustomApps(): Promise<CustomApp[]> {
+  const response = (await pb.send('/api/catalog/custom-apps', {
+    method: 'GET',
+  })) as CustomAppListResponse
+  return response.items
+}
+
+async function createCustomAppRecord(data: CustomAppFormData): Promise<CustomApp> {
+  const { extraFiles: _extraFiles, basedOnKey: _basedOnKey, ...body } = data
+  return pb.send('/api/catalog/custom-apps', {
+    method: 'POST',
+    body,
+  }) as Promise<CustomApp>
+}
+
+async function updateCustomAppRecord(id: string, data: Partial<CustomAppFormData>): Promise<CustomApp> {
+  const { extraFiles: _extraFiles, basedOnKey: _basedOnKey, ...body } = data
+  return pb.send(`/api/catalog/custom-apps/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body,
+  }) as Promise<CustomApp>
+}
+
+async function deleteCustomAppRecord(id: string): Promise<void> {
+  await pb.send(`/api/catalog/custom-apps/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+}
+
 export function useCustomApps() {
   return useQuery({
     queryKey: CUSTOM_APPS_KEY,
-    queryFn: () => pb.collection('store_custom_apps').getFullList<CustomApp>(),
+    queryFn: fetchCustomApps,
     staleTime: 60 * 1000,
   })
 }
@@ -86,12 +119,8 @@ export function useCreateCustomApp(
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (data: CustomAppFormData) => {
-      const { extraFiles, basedOnKey, ...pbData } = data
-      const app = await pb.collection('store_custom_apps').create<CustomApp>({
-        ...pbData,
-        category_keys: pbData.category_keys,
-        created_by: pb.authStore.record?.id ?? '',
-      })
+	      const { extraFiles, basedOnKey } = data
+      const app = await createCustomAppRecord(data)
       // Write files to templates/{key}/ via IAC (best-effort — non-blocking on failure)
       try {
         if (basedOnKey) {
@@ -99,7 +128,7 @@ export function useCreateCustomApp(
           await iacLibraryCopy(basedOnKey, app.key)
         }
         // Overlay user-modified compose & env (creates dir if library copy was skipped)
-        await iacEnsureCustomAppTemplate(app.key, pbData.compose_yaml, pbData.env_text)
+        await iacEnsureCustomAppTemplate(app.key, data.compose_yaml, data.env_text)
         if (extraFiles && extraFiles.length > 0) {
           const failed = await iacUploadExtraFiles(app.key, extraFiles)
           if (failed.length > 0) {
@@ -125,7 +154,7 @@ export function useUpdateCustomApp(
     mutationFn: async ({ id, data }: { id: string; data: Partial<CustomAppFormData> }) => {
       const { extraFiles, basedOnKey, ...pbData } = data
       void basedOnKey
-      const app = await pb.collection('store_custom_apps').update<CustomApp>(id, pbData)
+      const app = await updateCustomAppRecord(id, data)
       // Sync files to templates/apps/{key}/ via IAC (best-effort)
       try {
         await iacEnsureCustomAppTemplate(app.key, pbData.compose_yaml, pbData.env_text)
@@ -148,7 +177,7 @@ export function useUpdateCustomApp(
 export function useDeleteCustomApp(onError?: (msg: string) => void) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => pb.collection('store_custom_apps').delete(id),
+    mutationFn: deleteCustomAppRecord,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: CUSTOM_APPS_KEY }),
     onError: () => onError?.('Failed to delete custom app. Please try again.'),
   })

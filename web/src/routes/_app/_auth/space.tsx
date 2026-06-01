@@ -1446,7 +1446,7 @@ function FilesPage() {
         <p className="text-sm text-muted-foreground">Your files, folders, and shares.</p>
       </div>
 
-      <div className="space-y-4 border-t pt-4">
+      <div className="space-y-4 pt-4">
         {/* ── Unified toolbar ─────────────────────────── */}
         <div className="flex items-center gap-2 flex-wrap">
           {/* Trash breadcrumb OR normal folder breadcrumb */}

@@ -1,6 +1,6 @@
-# Story 5.2: Store API & Display — Media, Detail Page, Search
+# Story 5.2: Store Display — Media, Detail Page, Search
 
-**Epic**: 5 - App Store | **Priority**: P0 | **Status**: ✅ Done
+**Epic**: 5 - App Store | **Priority**: P0 | **Status**: ✅ Done (display slice); frontend static source retired
 
 ## User Story
 
@@ -10,12 +10,9 @@ As a user, I can view app icons, screenshots, and a detail page with full descri
 
 ### Catalog Data Loading
 
-- [x] `fetchStoreJson(locale, type)` fetches from local bundled file first (`/store/{type}_{locale}.json`)
-- [x] After returning local data, silently fetches CDN in background and updates TanStack Query cache on success
-- [x] CDN unreachable → silently ignored, local version remains active
-- [x] CDN base: `https://artifact.websoft9.com/release/websoft9/store`
-- [x] Local fallback files located at `dashboard/public/store/`
-- [x] **Manual sync**: "Sync Latest" button calls `syncLatestFromCdn(locale, queryClient)` — force-fetches CDN + calls `setQueryData` + `invalidateQueries` to trigger immediate re-render
+- [x] Store read surfaces consume backend `/api/catalog/*` endpoints instead of reading raw frontend JSON bundles.
+- [x] Official catalog seed files are backend-owned and materialized into the runtime catalog directory by the backend catalog source loader.
+- [x] Browser consumers do not fetch CDN catalog bundles directly.
 
 ### App Icons
 
@@ -60,7 +57,7 @@ As a user, I can view app icons, screenshots, and a detail page with full descri
 ## Dependencies
 
 - Story 5.1 completed (store layout and routing ready)
-- `dashboard/public/store/` contains bundled JSON files
+- Backend catalog read API and seed loader provide the official catalog source
 
 ## Dev Agent Record
 
@@ -68,7 +65,7 @@ As a user, I can view app icons, screenshots, and a detail page with full descri
 
 ### Completion Notes
 
-- `src/lib/store-api.ts`: `fetchStoreJson` local-first + silent CDN background update pattern; `getIconUrl`, `getDocUrl`, `getGithubUrl`, `getKeyColor` helpers; `getSearchSuggestions`, `getSearchHistory`, `addSearchHistory`, `clearSearchHistory` for localStorage-backed search history
+- Store display now reads through `src/lib/catalog-api.ts`; presenter-only helpers live in `src/lib/store-presenter.ts`.
 - `src/components/store/AppIcon.tsx`: `<img>` with `onError` fallback to pure-CSS text icon; background hashed from app key; no canvas
 - `src/components/store/SearchAutocomplete.tsx`: 300ms debounce hook; prefix→contains sorted suggestions; localStorage history (max 10); ↑↓/Enter/ESC keyboard nav; ARIA combobox/listbox roles
 - `src/components/store/ScreenshotCarousel.tsx`: tracks failed image URLs; hides entire section if **any** image fails; keyboard-accessible prev/next + dot indicators
@@ -76,21 +73,21 @@ As a user, I can view app icons, screenshots, and a detail page with full descri
 
 ### File List
 
-- `dashboard/src/lib/store-api.ts` [UPDATED — added `syncLatestFromCdn`, product URLs from JSON]
-- `dashboard/src/components/store/AppIcon.tsx` [UPDATED — added `referrerPolicy="no-referrer"`, accepts `logoUrl` prop]
-- `dashboard/src/components/store/SearchAutocomplete.tsx` [NEW]
-- `dashboard/src/components/store/ScreenshotCarousel.tsx` [UPDATED — `referrerPolicy="no-referrer"`, conditional title rendering]
-- `dashboard/src/components/store/AppDetailModal.tsx` [UPDATED — `sm:max-w-4xl`, `@tailwindcss/typography`]
-- `dashboard/src/components/store/AppCard.tsx` [UPDATED — shows `summary` instead of `overview`, `min-h-[2.5rem]` alignment]
-- `dashboard/src/components/store/StorePagination.tsx` [NEW]
-- `dashboard/src/routes/_app/_auth/store/index.tsx` [UPDATED — Sync Latest button, grid layout adjustments]
-- `dashboard/src/components/layout/Header.tsx` [UPDATED — added "App Store" link]
-- `dashboard/src/lib/i18n.ts` [UPDATED — default locale 'en' instead of browser detection]
-- `dashboard/src/lib/store-types.ts` [UPDATED — PAGE_SIZES [30,60,120]]
-- `dashboard/src/index.css` [UPDATED — `@plugin "@tailwindcss/typography"`]
-- `dashboard/src/locales/en/store.json` [UPDATED — added sync.* keys]
-- `dashboard/src/locales/zh/store.json` [UPDATED — added sync.* keys]
-- `build/nginx.conf` [UPDATED — removed `$uri/` from `try_files` to fix port-stripping redirect]
+- `web/src/lib/catalog-api.ts` [CURRENT read surface for official catalog]
+- `web/src/lib/store-presenter.ts` [CURRENT presenter helpers]
+- `web/src/components/store/AppIcon.tsx` [UPDATED — added `referrerPolicy="no-referrer"`, accepts `logoUrl` prop]
+- `web/src/components/store/SearchAutocomplete.tsx` [NEW]
+- `web/src/components/store/ScreenshotCarousel.tsx` [UPDATED — `referrerPolicy="no-referrer"`, conditional title rendering]
+- `web/src/components/store/AppDetailModal.tsx` [UPDATED — `sm:max-w-4xl`, `@tailwindcss/typography`]
+- `web/src/components/store/AppCard.tsx` [UPDATED — shows `summary` instead of `overview`, `min-h-[2.5rem]` alignment]
+- `web/src/components/store/StorePagination.tsx` [NEW]
+- `web/src/routes/_app/_auth/store/index.tsx` [UPDATED — backend catalog consumer, grid layout adjustments]
+- `web/src/components/layout/Header.tsx` [UPDATED — added "App Store" link]
+- `web/src/lib/i18n.ts` [UPDATED — default locale 'en' instead of browser detection]
+- `web/src/lib/store-types.ts` [UPDATED — PAGE_SIZES [30,60,120]]
+- `web/src/index.css` [UPDATED — `@plugin "@tailwindcss/typography"`]
+- `web/src/locales/en/store.json` [UPDATED — added store UI keys]
+- `web/src/locales/zh/store.json` [UPDATED — added store UI keys]
 
 ---
 
@@ -108,17 +105,6 @@ curl -sI -H "Referer: http://161.189.202.177:9091/store" "..." → 403 Forbidden
 
 **Solution**: Add `referrerPolicy="no-referrer"` to all `<img>` tags loading CDN resources.
 
-### 2. Nginx Port-Stripping 301 Redirect
-
-**Problem**: Refreshing `/store` causes redirect to `http://<host>/store/` (port stripped), breaking external access.
-
-**Root Cause**: `try_files $uri $uri/ /index.html` — nginx detects `public/store/` directory and issues 301 to add trailing slash. Internal nginx port 80 → `Location` header omits external port.
-
-**Solution**: Remove `$uri/` check from SPA `try_files`:
-```nginx
-try_files $uri /index.html;  # not $uri $uri/ /index.html
-```
-
 ### 3. Screenshot Section Visibility Logic
 
 Initial AC said "hide carousel if **any** screenshot fails" — revised to "hide if **all** fail" for better UX. Title rendering moved inside `<ScreenshotCarousel>` so it disappears together with the images when all fail.
@@ -129,6 +115,6 @@ Initial AC said "hide carousel if **any** screenshot fails" — revised to "hide
 - Screenshots: `product.screenshots[].value` (full URLs in JSON)
 - Summary: prefer `product.summary ?? product.overview` for card display
 
-### 5. Manual Sync Implementation
+### 5. Current Read Boundary
 
-`syncLatestFromCdn` must call both `setQueryData` (write cache) and `invalidateQueries` (trigger re-render). Without invalidation, components don't react to cache changes.
+Store display code should stay behind backend `/api/catalog` contracts. Official seed packaging, runtime extraction, and seed refresh workflows are backend concerns, not frontend fetch concerns.

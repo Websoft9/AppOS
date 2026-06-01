@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import {
   LayoutDashboard,
   Layers,
@@ -16,6 +17,7 @@ import {
   KeyRound,
   BookOpen,
   Puzzle,
+  BotMessageSquare,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -51,153 +53,243 @@ export interface NavGroup {
   items: NavItem[]
 }
 
-// ─── Default navigation groups ───────────────────────────
-
-const assetsNavItem: NavItem = {
-  id: 'assets',
-  label: 'Assets',
-  icon: <FileCode2 className="h-5 w-5" />,
-  href: '/ai-assets',
+type NavLabels = {
+  groups: {
+    workspace: string
+    platform: string
+  }
+  items: {
+    overview: string
+    applications: string
+    myApps: string
+    appStore: string
+    deploy: string
+    actions: string
+    terminal: string
+    aiChat: string
+    collaboration: string
+    groups: string
+    topics: string
+    feeds: string
+    assets: string
+    space: string
+    resources: string
+    extensions: string
+    system: string
+    status: string
+    platformRuntime: string
+    tunnels: string
+    audit: string
+    logs: string
+    platformCrons: string
+    sharedEnvs: string
+    orchestrationFiles: string
+    platformComponents: string
+    users: string
+    settings: string
+    credentials: string
+    secrets: string
+    certificates: string
+  }
+  mobileDescription: string
 }
 
-const workspaceGroup: NavGroup = {
-  id: 'workspace',
-  label: 'Workspace',
-  items: [
+const DEFAULT_NAV_LABELS: NavLabels = {
+  groups: {
+    workspace: 'Workspace',
+    platform: 'Platform',
+  },
+  items: {
+    overview: 'Overview',
+    applications: 'Applications',
+    myApps: 'My Apps',
+    appStore: 'App Store',
+    deploy: 'Deploy',
+    actions: 'Actions',
+    terminal: 'Terminal',
+    aiChat: 'AI Copilot',
+    collaboration: 'Collaboration',
+    groups: 'Groups',
+    topics: 'Topics',
+    feeds: 'Feeds',
+    assets: 'Assets',
+    space: 'Space',
+    resources: 'Resources',
+    extensions: 'Extensions',
+    system: 'System',
+    status: 'Status',
+    platformRuntime: 'Platform Runtime',
+    tunnels: 'Tunnels',
+    audit: 'Audit',
+    logs: 'Logs',
+    platformCrons: 'Platform Crons',
+    sharedEnvs: 'Shared Envs',
+    orchestrationFiles: 'Orchestration Files',
+    platformComponents: 'Platform Components',
+    users: 'Users',
+    settings: 'Settings',
+    credentials: 'Credentials',
+    secrets: 'Secrets',
+    certificates: 'Certificates',
+  },
+  mobileDescription: 'Navigate between workspace, application, and admin sections.',
+}
+
+// ─── Default navigation groups ───────────────────────────
+
+function buildWorkspaceGroup(labels: NavLabels): NavGroup {
+  return {
+    id: 'workspace',
+    label: labels.groups.workspace,
+    items: [
     {
       id: 'overview',
-      label: 'Overview',
+      label: labels.items.overview,
       icon: <LayoutDashboard className="h-5 w-5" />,
       href: '/overview',
     },
     {
       id: 'applications',
-      label: 'Applications',
+      label: labels.items.applications,
       icon: <Layers className="h-5 w-5" />,
       href: '/store',
       children: [
-        { id: 'installed', label: 'My Apps', href: '/apps' },
-        { id: 'store', label: 'App Store', href: '/store' },
-        { id: 'deploy', label: 'Deploy', href: '/deploy' },
-        { id: 'actions', label: 'Actions', href: '/actions' },
+        { id: 'installed', label: labels.items.myApps, href: '/apps' },
+        { id: 'store', label: labels.items.appStore, href: '/store' },
+        { id: 'deploy', label: labels.items.deploy, href: '/deploy' },
+        { id: 'actions', label: labels.items.actions, href: '/actions' },
       ],
     },
     {
       id: 'terminal',
-      label: 'Terminal',
+      label: labels.items.terminal,
       icon: <TerminalSquare className="h-5 w-5" />,
       href: '/terminal',
     },
     {
+      id: 'ai-chat',
+      label: labels.items.aiChat,
+      icon: <BotMessageSquare className="h-5 w-5" />,
+      href: '/ai-chat',
+    },
+    {
       id: 'collaboration',
-      label: 'Collaboration',
+      label: labels.items.collaboration,
       icon: <BookOpen className="h-5 w-5" />,
       href: '/groups',
       children: [
-        { id: 'groups', label: 'Groups', href: '/groups' },
-        { id: 'topics', label: 'Topics', href: '/topics' },
-        { id: 'feeds', label: 'Feeds', href: '/feeds' },
+        { id: 'groups', label: labels.items.groups, href: '/groups' },
+        { id: 'topics', label: labels.items.topics, href: '/topics' },
+        { id: 'feeds', label: labels.items.feeds, href: '/feeds' },
       ],
     },
-    assetsNavItem,
-    { id: 'space', label: 'Space', icon: <FolderOpen className="h-5 w-5" />, href: '/space' },
-  ],
-}
-
-const resourcesNavItem: NavItem = {
-  id: 'resources',
-  label: 'Resources',
-  icon: <LayoutGrid className="h-5 w-5" />,
-  href: '/resources',
-}
-
-const extensionsNavItem: NavItem = {
-  id: 'extensions',
-  label: 'Extensions',
-  icon: <Puzzle className="h-5 w-5" />,
-  href: '/extensions',
-}
-
-const systemNavItem: NavItem = {
-  id: 'system',
-  label: 'System',
-  icon: <Settings className="h-5 w-5" />,
-  href: '/status',
-  children: [
-    { id: 'status', label: 'Status', href: '/status' },
-    { id: 'platform-runtime', label: 'Platform Runtime', href: '/platform-runtime' },
-    { id: 'tunnels', label: 'Tunnels', href: '/tunnels' },
-    { id: 'audit', label: 'Audit', href: '/audit' },
-    { id: 'logs', label: 'Logs', href: '/logs' },
-    { id: 'system-tasks', label: 'Platform Crons', href: '/system-tasks' },
-    { id: 'shared-envs', label: 'Shared Envs', href: '/shared-envs' },
-    { id: 'iac', label: 'Orchestration Files', href: '/iac' },
-  ],
-}
-
-const systemNavItemBasic: NavItem = {
-  id: 'system',
-  label: 'System',
-  icon: <Settings className="h-5 w-5" />,
-  href: '/platform-components',
-  children: [
-    { id: 'platform-components', label: 'Platform Components', href: '/platform-components' },
-    { id: 'tunnels', label: 'Tunnels', href: '/tunnels' },
-    { id: 'audit', label: 'Audit', href: '/audit' },
-  ],
-}
-
-const usersNavItem: NavItem = {
-  id: 'users',
-  label: 'Users',
-  icon: <Users className="h-5 w-5" />,
-  href: '/users',
-}
-
-const settingsNavItem: NavItem = {
-  id: 'settings',
-  label: 'Settings',
-  icon: <Cog className="h-5 w-5" />,
-  href: '/settings',
-}
-
-const credentialsNavItem: NavItem = {
-  id: 'credentials',
-  label: 'Credentials',
-  icon: <KeyRound className="h-5 w-5" />,
-  href: '/secrets',
-  children: [
     {
-      id: 'credentials-secrets',
-      label: 'Secrets',
-      href: '/secrets',
+      id: 'assets',
+      label: labels.items.assets,
+      icon: <FileCode2 className="h-5 w-5" />,
+      href: '/ai-assets',
     },
-    {
-      id: 'credentials-certificates',
-      label: 'Certificates',
-      href: '/certificates',
-    },
+    { id: 'space', label: labels.items.space, icon: <FolderOpen className="h-5 w-5" />, href: '/space' },
   ],
+  }
 }
 
-export function buildNavGroups(isSuperuser: boolean): NavGroup[] {
-  return [
-    workspaceGroup,
-    {
-      id: 'admin',
-      label: 'Platform',
-      items: isSuperuser
-        ? [
-            systemNavItem,
-            resourcesNavItem,
-            extensionsNavItem,
-            credentialsNavItem,
-            usersNavItem,
-            settingsNavItem,
-          ]
-        : [systemNavItemBasic, resourcesNavItem, extensionsNavItem],
-    },
-  ]
+function buildPlatformGroup(isSuperuser: boolean, labels: NavLabels): NavGroup {
+  const resourcesNavItem: NavItem = {
+    id: 'resources',
+    label: labels.items.resources,
+    icon: <LayoutGrid className="h-5 w-5" />,
+    href: '/resources',
+  }
+
+  const extensionsNavItem: NavItem = {
+    id: 'extensions',
+    label: labels.items.extensions,
+    icon: <Puzzle className="h-5 w-5" />,
+    href: '/extensions',
+  }
+
+  const systemNavItem: NavItem = {
+    id: 'system',
+    label: labels.items.system,
+    icon: <Settings className="h-5 w-5" />,
+    href: '/status',
+    children: [
+      { id: 'status', label: labels.items.status, href: '/status' },
+      { id: 'platform-runtime', label: labels.items.platformRuntime, href: '/platform-runtime' },
+      { id: 'tunnels', label: labels.items.tunnels, href: '/tunnels' },
+      { id: 'audit', label: labels.items.audit, href: '/audit' },
+      { id: 'logs', label: labels.items.logs, href: '/logs' },
+      { id: 'system-tasks', label: labels.items.platformCrons, href: '/system-tasks' },
+      { id: 'shared-envs', label: labels.items.sharedEnvs, href: '/shared-envs' },
+      { id: 'iac', label: labels.items.orchestrationFiles, href: '/iac' },
+    ],
+  }
+
+  const systemNavItemBasic: NavItem = {
+    id: 'system',
+    label: labels.items.system,
+    icon: <Settings className="h-5 w-5" />,
+    href: '/platform-components',
+    children: [
+      { id: 'platform-components', label: labels.items.platformComponents, href: '/platform-components' },
+      { id: 'tunnels', label: labels.items.tunnels, href: '/tunnels' },
+      { id: 'audit', label: labels.items.audit, href: '/audit' },
+    ],
+  }
+
+  const usersNavItem: NavItem = {
+    id: 'users',
+    label: labels.items.users,
+    icon: <Users className="h-5 w-5" />,
+    href: '/users',
+  }
+
+  const settingsNavItem: NavItem = {
+    id: 'settings',
+    label: labels.items.settings,
+    icon: <Cog className="h-5 w-5" />,
+    href: '/settings',
+  }
+
+  const credentialsNavItem: NavItem = {
+    id: 'credentials',
+    label: labels.items.credentials,
+    icon: <KeyRound className="h-5 w-5" />,
+    href: '/secrets',
+    children: [
+      {
+        id: 'credentials-secrets',
+        label: labels.items.secrets,
+        href: '/secrets',
+      },
+      {
+        id: 'credentials-certificates',
+        label: labels.items.certificates,
+        href: '/certificates',
+      },
+    ],
+  }
+
+  return {
+    id: 'admin',
+    label: labels.groups.platform,
+    items: isSuperuser
+      ? [
+          systemNavItem,
+          resourcesNavItem,
+          extensionsNavItem,
+          credentialsNavItem,
+          usersNavItem,
+          settingsNavItem,
+        ]
+      : [systemNavItemBasic, resourcesNavItem, extensionsNavItem],
+  }
+}
+
+export function buildNavGroups(isSuperuser: boolean, labels?: NavLabels): NavGroup[] {
+  const resolvedLabels = labels ?? DEFAULT_NAV_LABELS
+  return [buildWorkspaceGroup(resolvedLabels), buildPlatformGroup(isSuperuser, resolvedLabels)]
 }
 
 interface SidebarProps {
@@ -395,8 +487,55 @@ function SidebarNav({
 export function Sidebar({ groups }: SidebarProps) {
   const { sidebarCollapsed, sidebarOpen, setSidebarOpen, toggleSidebar, isDesktop } = useLayout()
   const { user } = useAuth()
+  const { t } = useTranslation('navigation')
   const isSuperuser = user?.collectionName === '_superusers'
-  const resolvedGroups = useMemo(() => groups ?? buildNavGroups(isSuperuser), [groups, isSuperuser])
+  const labels = useMemo<NavLabels>(
+    () => ({
+      groups: {
+        workspace: t('groups.workspace'),
+        platform: t('groups.platform'),
+      },
+      items: {
+        overview: t('items.overview'),
+        applications: t('items.applications'),
+        myApps: t('items.myApps'),
+        appStore: t('items.appStore'),
+        deploy: t('items.deploy'),
+        actions: t('items.actions'),
+        terminal: t('items.terminal'),
+        aiChat: t('items.aiChat'),
+        collaboration: t('items.collaboration'),
+        groups: t('items.groups'),
+        topics: t('items.topics'),
+        feeds: t('items.feeds'),
+        assets: t('items.assets'),
+        space: t('items.space'),
+        resources: t('items.resources'),
+        extensions: t('items.extensions'),
+        system: t('items.system'),
+        status: t('items.status'),
+        platformRuntime: t('items.platformRuntime'),
+        tunnels: t('items.tunnels'),
+        audit: t('items.audit'),
+        logs: t('items.logs'),
+        platformCrons: t('items.platformCrons'),
+        sharedEnvs: t('items.sharedEnvs'),
+        orchestrationFiles: t('items.orchestrationFiles'),
+        platformComponents: t('items.platformComponents'),
+        users: t('items.users'),
+        settings: t('items.settings'),
+        credentials: t('items.credentials'),
+        secrets: t('items.secrets'),
+        certificates: t('items.certificates'),
+      },
+      mobileDescription: t('mobile.description'),
+    }),
+    [t]
+  )
+  const resolvedGroups = useMemo(
+    () => groups ?? buildNavGroups(isSuperuser, labels),
+    [groups, isSuperuser, labels]
+  )
 
   const handleBackgroundClick = () => {
     toggleSidebar()
@@ -411,9 +550,7 @@ export function Sidebar({ groups }: SidebarProps) {
             <SheetTitle>
               <Logo />
             </SheetTitle>
-            <SheetDescription>
-              Navigate between workspace, application, and admin sections.
-            </SheetDescription>
+            <SheetDescription>{labels.mobileDescription}</SheetDescription>
           </SheetHeader>
           <Separator />
           <div className="py-3">

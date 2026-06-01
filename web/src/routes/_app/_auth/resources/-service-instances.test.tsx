@@ -459,6 +459,7 @@ describe('ServiceInstancesPage', () => {
         description: '',
         template_id: 'single_value',
         scope: 'global',
+        visible_to: ['service_instance'],
         payload: { value: 's3cr3t' },
       })
     })

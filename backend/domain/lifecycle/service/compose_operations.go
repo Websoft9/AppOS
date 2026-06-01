@@ -140,6 +140,9 @@ func CreateOperationFromNormalizedInstallSpec(app core.App, auth *core.Record, n
 			appRecord.Set("key", fmt.Sprintf("%s-%d", normalizedSpec.ProjectName, time.Now().UnixNano()))
 			appRecord.Set("name", normalizedSpec.ComposeProjectName)
 			appRecord.Set("server_id", normalizedSpec.ServerID)
+			if templateKey := normalizedCatalogAppKey(normalizedSpec.Metadata); templateKey != "" {
+				appRecord.Set("template_key", templateKey)
+			}
 			appRecord.Set("lifecycle_state", string(model.AppStateInstalling))
 			appRecord.Set("desired_state", string(model.DesiredStateRunning))
 			appRecord.Set("health_summary", string(model.HealthUnknown))
@@ -148,6 +151,9 @@ func CreateOperationFromNormalizedInstallSpec(app core.App, auth *core.Record, n
 			if err := txApp.Save(appRecord); err != nil {
 				return err
 			}
+		}
+		if templateKey := normalizedCatalogAppKey(normalizedSpec.Metadata); templateKey != "" && strings.TrimSpace(appRecord.GetString("template_key")) == "" {
+			appRecord.Set("template_key", templateKey)
 		}
 
 		operationRecord = core.NewRecord(operationsCol)
@@ -203,4 +209,15 @@ func operationUserID(auth *core.Record) string {
 
 func escapeServiceFilterValue(value string) string {
 	return strings.ReplaceAll(value, "'", "\\'")
+}
+
+func normalizedCatalogAppKey(metadata map[string]any) string {
+	if len(metadata) == 0 {
+		return ""
+	}
+	prefillContext, ok := metadata["prefill_context"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprint(prefillContext["app_key"]))
 }

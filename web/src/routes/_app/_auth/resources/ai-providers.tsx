@@ -12,6 +12,7 @@ import {
 } from '@/components/resources/ResourcePage'
 import { buildApiKeyValue, SecretCredentialField } from '@/components/secrets/SecretCredentialField'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
+import { buildResourceSecretRelationApiPath } from '@/components/secrets/SecretVisibilityField'
 import { pb } from '@/lib/pb'
 
 type AIProviderRecord = {
@@ -107,8 +108,7 @@ function resolveSecretTemplateId(secretTemplate?: string) {
 function buildSecretRelationApiPath(secretTemplate?: string) {
   const explicit = resolveSecretTemplateId(secretTemplate)
   const templateIds = explicit ? [explicit] : Array.from(SECRET_TEMPLATE_IDS)
-  const filter = templateIds.map(id => `template_id='${id}'`).join('||')
-  return `/api/collections/secrets/records?filter=(status='active'%26%26(${filter}))&sort=name`
+  return buildResourceSecretRelationApiPath({ visibleTo: 'ai_provider', templateIds })
 }
 
 function isAdvancedProviderField(field: AIProviderTemplateField) {
@@ -238,6 +238,7 @@ export async function buildAIProviderPayload(
       description: `API key for ${providerName || productTitle(template)}`,
       template_id: AI_PROVIDER_CREDENTIAL_TEMPLATE_ID,
       scope: 'global',
+      visible_to: ['ai_provider'],
       payload: { value: manualCredentialValue },
     })
     body.credential = String(createdSecret.id ?? '')
@@ -821,6 +822,7 @@ export function AIProvidersPage() {
         allowedTemplateIds={[AI_PROVIDER_CREDENTIAL_TEMPLATE_ID]}
         templateLabels={SECRET_TEMPLATE_LABELS}
         defaultTemplateId={AI_PROVIDER_CREDENTIAL_TEMPLATE_ID}
+        defaultVisibleTo={['ai_provider']}
         onCreated={({ id, name, templateId }) => {
           const suffix = SECRET_TEMPLATE_LABELS[templateId]
           secretAddOption?.(id, suffix ? `${name} (${suffix})` : name)

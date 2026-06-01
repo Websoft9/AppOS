@@ -8,7 +8,7 @@ import {
   getSearchHistory,
   addSearchHistory,
   clearSearchHistory,
-} from '@/lib/store-api'
+} from '@/lib/store-presenter'
 import type { Product, PrimaryCategory } from '@/lib/store-types'
 
 interface SearchAutocompleteProps {
