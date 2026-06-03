@@ -10,6 +10,18 @@ import (
 	"strings"
 )
 
+type localStreamReadCloser struct {
+	reader io.ReadCloser
+}
+
+func (r *localStreamReadCloser) Read(p []byte) (int, error) {
+	return r.reader.Read(p)
+}
+
+func (r *localStreamReadCloser) Close() error {
+	return r.reader.Close()
+}
+
 // LocalExecutor runs commands via os/exec on the local host.
 type LocalExecutor struct {
 	// DockerHost is the DOCKER_HOST env value (e.g. "unix:///var/run/docker.sock").
@@ -74,7 +86,7 @@ func (e *LocalExecutor) Run(ctx context.Context, command string, args ...string)
 	return strings.TrimSpace(stdout.String()), nil
 }
 
-// RunStream executes a command and returns a streaming reader for stdout.
+// RunStream executes a command and returns a streaming reader for combined stdout/stderr.
 func (e *LocalExecutor) RunStream(ctx context.Context, command string, args ...string) (io.ReadCloser, error) {
 	cmd := e.buildCmd(ctx, command, args)
 	cmd.Env = e.commandEnv(cmd)
@@ -83,16 +95,24 @@ func (e *LocalExecutor) RunStream(ctx context.Context, command string, args ...s
 		cmd.Stdin = strings.NewReader(e.SudoPassword + "\n")
 	}
 
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, fmt.Errorf("stdout pipe: %w", err)
-	}
+	reader, writer := io.Pipe()
+	cmd.Stdout = writer
+	cmd.Stderr = writer
 
 	if err := cmd.Start(); err != nil {
+		_ = writer.Close()
 		return nil, fmt.Errorf("start: %w", err)
 	}
 
-	return stdout, nil
+	go func() {
+		if waitErr := cmd.Wait(); waitErr != nil {
+			_ = writer.CloseWithError(waitErr)
+			return
+		}
+		_ = writer.Close()
+	}()
+
+	return &localStreamReadCloser{reader: reader}, nil
 }
 
 // Ping checks if the local execution target is reachable by running "echo ok".

@@ -1,10 +1,12 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useEffect } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { CreateDeploymentPage } from './CreateDeploymentPage'
 
 const sendMock = vi.fn()
+const collectionCreateMock = vi.fn()
 const navigateMock = vi.fn()
 const iacUploadFileMock = vi.fn()
 const iacMkdirMock = vi.fn()
@@ -27,6 +29,14 @@ vi.mock('@/lib/store-user-api', () => ({
 vi.mock('@/lib/pb', () => ({
   pb: {
     send: (...args: unknown[]) => sendMock(...args),
+    collection: (name: string) => ({
+      create: (...args: unknown[]) => {
+        if (name !== 'secrets') {
+          throw new Error(`Unexpected collection create for ${name}`)
+        }
+        return collectionCreateMock(...args)
+      },
+    }),
     authStore: { token: '' },
   },
 }))
@@ -123,6 +133,26 @@ vi.mock('@/pages/deploy/OrchestrationSection', () => ({
   },
 }))
 
+function renderCreateDeploymentPage(
+  props: Partial<React.ComponentProps<typeof CreateDeploymentPage>> = {}
+) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  })
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <CreateDeploymentPage entryMode="compose" {...props} />
+      </TooltipProvider>
+    </QueryClientProvider>
+  )
+}
+
 describe('CreateDeploymentPage', () => {
   afterEach(() => {
     cleanup()
@@ -130,11 +160,13 @@ describe('CreateDeploymentPage', () => {
 
   beforeEach(() => {
     sendMock.mockReset()
+    collectionCreateMock.mockReset()
     navigateMock.mockReset()
     iacUploadFileMock.mockReset()
     iacMkdirMock.mockReset()
     iacUploadFileMock.mockResolvedValue(undefined)
     iacMkdirMock.mockResolvedValue(undefined)
+    collectionCreateMock.mockResolvedValue({ id: 'secret-1' })
     sendMock.mockImplementation(
       (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
         if (path === '/api/servers/docker-targets') {
@@ -201,17 +233,123 @@ describe('CreateDeploymentPage', () => {
             compose_project_name: options.body?.project_name || 'repo-app',
           })
         }
+        if (path.startsWith('/api/catalog/categories?')) {
+          return Promise.resolve({
+            items: [],
+            meta: {
+              locale: 'en',
+              sourceVersion: 'test',
+            },
+          })
+        }
+        if (path.startsWith('/api/catalog/apps?')) {
+          return Promise.resolve({
+            items: [
+              {
+                key: 'wordpress',
+                title: 'WordPress',
+                overview: '',
+                source: 'official',
+                visibility: 'public',
+                secondaryCategories: [],
+                badges: [],
+                template: { key: 'wordpress', source: 'official', available: true },
+                personalization: { isFavorite: false, hasNote: false },
+              },
+              {
+                key: 'odoo',
+                title: 'Odoo',
+                overview: '',
+                source: 'official',
+                visibility: 'public',
+                secondaryCategories: [],
+                badges: [],
+                template: { key: 'odoo', source: 'official', available: true },
+                personalization: { isFavorite: false, hasNote: false },
+              },
+            ],
+            page: {
+              limit: 200,
+              offset: 0,
+              total: 2,
+              hasMore: false,
+            },
+            meta: {
+              locale: 'en',
+              sourceVersion: 'test',
+            },
+          })
+        }
+        if (path === '/api/catalog/apps/odoo/template') {
+          return Promise.resolve({
+            templateKey: 'odoo',
+            manifest: { trademark: 'Odoo', category: 'Business' },
+            inputs: [
+              {
+                key: 'admin_email',
+                label: 'Admin Email',
+                type: 'string',
+                required: true,
+                visibility: 'basic',
+                storage_mode: 'plain',
+                default: '',
+              },
+            ],
+          })
+        }
+        if (path === '/api/catalog/apps/wordpress/template') {
+          return Promise.resolve({
+            templateKey: 'wordpress',
+            manifest: { trademark: 'WordPress', category: 'CMS' },
+            inputs: [
+              {
+                key: 'admin_email',
+                label: 'Admin Email',
+                type: 'string',
+                required: true,
+                visibility: 'basic',
+                storage_mode: 'plain',
+                default: '',
+              },
+              {
+                key: 'db_password',
+                label: 'Database Password',
+                type: 'string',
+                required: true,
+                visibility: 'basic',
+                storage_mode: 'secret_backed',
+                default: '',
+              },
+            ],
+          })
+        }
+        if (path === '/api/actions/install/template/check' && options?.method === 'POST') {
+          return Promise.resolve({
+            ok: true,
+            message: 'Preflight passed',
+            compose_project_name: options.body?.project_name || 'wordpress',
+            checks: {
+              app_name: { ok: true, message: 'application name is available' },
+            },
+            warnings: [],
+          })
+        }
+        if (path === '/api/actions/install/template' && options?.method === 'POST') {
+          return Promise.resolve({
+            id: 'act_template_1',
+            compose_project_name: options.body?.project_name || 'wordpress',
+          })
+        }
+        if (path === '/api/secrets/secret-1/payload' && options?.method === 'PUT') {
+          return Promise.resolve({ ok: true })
+        }
         return Promise.resolve({})
       }
     )
   })
 
   it('renders the full create page and submits a manual compose action', async () => {
-    render(
-      <TooltipProvider>
-        <CreateDeploymentPage entryMode="compose" />
-      </TooltipProvider>
-    )
+    renderCreateDeploymentPage({ entryMode: 'compose' })
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Create Deployment' })).toBeInTheDocument()
@@ -309,11 +447,7 @@ describe('CreateDeploymentPage', () => {
       }
     )
 
-    render(
-      <TooltipProvider>
-        <CreateDeploymentPage entryMode="compose" />
-      </TooltipProvider>
-    )
+    renderCreateDeploymentPage({ entryMode: 'compose' })
 
     await waitFor(() => {
       expect(screen.getByLabelText('App Name')).toBeInTheDocument()
@@ -348,11 +482,7 @@ describe('CreateDeploymentPage', () => {
   })
 
   it('runs a manual compose preflight check without creating an action', async () => {
-    render(
-      <TooltipProvider>
-        <CreateDeploymentPage entryMode="compose" />
-      </TooltipProvider>
-    )
+    renderCreateDeploymentPage({ entryMode: 'compose' })
 
     await waitFor(() => {
       expect(screen.getByLabelText('App Name')).toBeInTheDocument()
@@ -434,11 +564,7 @@ describe('CreateDeploymentPage', () => {
       }
     )
 
-    render(
-      <TooltipProvider>
-        <CreateDeploymentPage entryMode="compose" />
-      </TooltipProvider>
-    )
+    renderCreateDeploymentPage({ entryMode: 'compose' })
 
     await waitFor(() => {
       expect(screen.getByLabelText('App Name')).toBeInTheDocument()
@@ -530,11 +656,7 @@ describe('CreateDeploymentPage', () => {
       }
     )
 
-    render(
-      <TooltipProvider>
-        <CreateDeploymentPage entryMode="compose" />
-      </TooltipProvider>
-    )
+    renderCreateDeploymentPage({ entryMode: 'compose' })
 
     await waitFor(() => {
       expect(screen.getByLabelText('App Name')).toBeInTheDocument()
@@ -578,11 +700,7 @@ describe('CreateDeploymentPage', () => {
   })
 
   it('runs realtime name availability check when app name changes', async () => {
-    render(
-      <TooltipProvider>
-        <CreateDeploymentPage entryMode="compose" />
-      </TooltipProvider>
-    )
+    renderCreateDeploymentPage({ entryMode: 'compose' })
 
     await waitFor(() => {
       expect(screen.getByLabelText('App Name')).toBeInTheDocument()
@@ -606,11 +724,7 @@ describe('CreateDeploymentPage', () => {
   ] as const)(
     'submits manual deployment with %s candidate metadata',
     async (entryMode, candidateKind) => {
-      render(
-        <TooltipProvider>
-          <CreateDeploymentPage entryMode={entryMode} />
-        </TooltipProvider>
-      )
+      renderCreateDeploymentPage({ entryMode })
 
       await waitFor(() => {
         expect(screen.getByLabelText('App Name')).toBeInTheDocument()
@@ -657,11 +771,7 @@ describe('CreateDeploymentPage', () => {
   )
 
   it('submits non-empty runtime inputs for install-script create after source upload', async () => {
-    render(
-      <TooltipProvider>
-        <CreateDeploymentPage entryMode="install-script" />
-      </TooltipProvider>
-    )
+    renderCreateDeploymentPage({ entryMode: 'install-script' })
 
     await waitFor(() => {
       expect(screen.getByLabelText('App Name')).toBeInTheDocument()
@@ -787,11 +897,7 @@ describe('CreateDeploymentPage', () => {
   })
 
   it('requires a target service selection for multi-service install-script deployments', async () => {
-    render(
-      <TooltipProvider>
-        <CreateDeploymentPage entryMode="install-script" />
-      </TooltipProvider>
-    )
+    renderCreateDeploymentPage({ entryMode: 'install-script' })
 
     await waitFor(() => {
       expect(screen.getByLabelText('App Name')).toBeInTheDocument()
@@ -847,11 +953,7 @@ describe('CreateDeploymentPage', () => {
   })
 
   it('supports the git repository create flow on the full page', async () => {
-    render(
-      <TooltipProvider>
-        <CreateDeploymentPage entryMode="git-compose" />
-      </TooltipProvider>
-    )
+    renderCreateDeploymentPage({ entryMode: 'git-compose' })
 
     await waitFor(() => {
       expect(screen.getByText('Repository')).toBeInTheDocument()
@@ -887,6 +989,105 @@ describe('CreateDeploymentPage', () => {
     expect(navigateMock).toHaveBeenCalledWith({
       to: '/actions/$actionId',
       params: { actionId: 'act_git_1' },
+      search: { returnTo: 'list' },
+    })
+  })
+
+  it('pins template mode to the selected store app', async () => {
+    renderCreateDeploymentPage({
+      entryMode: 'template',
+      prefillMode: 'target',
+      prefillSource: 'library',
+      prefillAppKey: 'wordpress',
+      prefillAppName: 'WordPress',
+    })
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('wordpress')).toBeInTheDocument()
+      expect(screen.getByText(/Template loaded for WordPress\./)).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          'This deployment is pinned to the app you selected in App Store. Fill only the required basic inputs.'
+        )
+      ).toBeInTheDocument()
+    })
+
+    expect(screen.queryByLabelText('Search Template')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('App Template')).not.toBeInTheDocument()
+  })
+
+  it('stores secret-backed template values in secrets before check and create', async () => {
+    renderCreateDeploymentPage({
+      entryMode: 'template',
+      prefillAppKey: 'wordpress',
+      prefillAppName: 'WordPress',
+    })
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Database Password *')).toBeInTheDocument()
+      expect(screen.getByLabelText('Target Location')).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText('App Name'), { target: { value: 'wordpress-prod' } })
+    fireEvent.change(screen.getByLabelText('Target Location'), { target: { value: 'local' } })
+    fireEvent.change(screen.getByLabelText('Admin Email *'), {
+      target: { value: 'admin@example.com' },
+    })
+    fireEvent.change(screen.getByLabelText('Database Password *'), {
+      target: { value: 'sup3r-secret' },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Check' }))
+
+    await waitFor(() => {
+      expect(collectionCreateMock).toHaveBeenCalledWith({
+        name: 'app-wordpress-prod-db-password',
+        description: 'Generated for wordpress-prod deployment field Database Password',
+        template_id: 'single_value',
+        scope: 'global',
+        visible_to: ['application'],
+        payload: { value: 'sup3r-secret' },
+      })
+    })
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/actions/install/template/check', {
+        method: 'POST',
+        body: {
+          server_id: 'local',
+          project_name: 'wordpress-prod',
+          template_key: 'wordpress',
+          input_values: {
+            admin_email: 'admin@example.com',
+            db_password: 'secretRef:secret-1',
+          },
+          app_required_disk_gib: '',
+        },
+      })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create Deployment' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/actions/install/template', {
+        method: 'POST',
+        body: {
+          server_id: 'local',
+          project_name: 'wordpress-prod',
+          template_key: 'wordpress',
+          input_values: {
+            admin_email: 'admin@example.com',
+            db_password: 'secretRef:secret-1',
+          },
+          app_required_disk_gib: '',
+        },
+      })
+    })
+
+    expect(collectionCreateMock).toHaveBeenCalledTimes(1)
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/actions/$actionId',
+      params: { actionId: 'act_template_1' },
       search: { returnTo: 'list' },
     })
   })

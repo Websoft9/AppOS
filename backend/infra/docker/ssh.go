@@ -134,7 +134,7 @@ func (e *SSHExecutor) Run(ctx context.Context, command string, args ...string) (
 	return strings.TrimSpace(stdout.String()), nil
 }
 
-// RunStream executes a command and returns a streaming reader for stdout.
+// RunStream executes a command and returns a streaming reader for combined stdout/stderr.
 func (e *SSHExecutor) RunStream(ctx context.Context, command string, args ...string) (io.ReadCloser, error) {
 	client, err := e.dial()
 	if err != nil {
@@ -148,6 +148,7 @@ func (e *SSHExecutor) RunStream(ctx context.Context, command string, args ...str
 	}
 
 	cmd := buildShellCommand(command, args...)
+	cmd = "(" + cmd + ") 2>&1"
 	if envPrefix := shellEnvPrefix(e.cfg.Env); envPrefix != "" {
 		cmd = "env " + envPrefix + " " + cmd
 	}
@@ -231,6 +232,9 @@ type sshReadCloser struct {
 func (r *sshReadCloser) Close() error {
 	r.cancel() // stop context-watcher goroutine first
 	err := r.ReadCloser.Close()
+	if waitErr := r.session.Wait(); waitErr != nil && err == nil {
+		err = waitErr
+	}
 	_ = r.session.Close()
 	_ = r.client.Close()
 	return err

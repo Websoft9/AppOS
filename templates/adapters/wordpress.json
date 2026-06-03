@@ -1,0 +1,33 @@
+{
+  "templateKey": "wordpress",
+  "upstreamRef": "templates/upstream/wordpress/source.json",
+  "normalizedTemplateRef": "templates/apps/wordpress",
+  "adapterVersion": "v0",
+  "automaticNormalization": [
+    "service inventory",
+    "image and tag extraction",
+    "env and env-file references",
+    "port exposure extraction",
+    "volume and network extraction",
+    "basic service-role candidate mapping"
+  ],
+  "reviewRequired": [
+    "primary service identity",
+    "secret-backed value classification",
+    "publish semantics",
+    "backup-critical data paths"
+  ],
+  "currentDecisions": {
+    "primaryService": "wordpress",
+    "databaseService": "mysql",
+    "initService": "init",
+    "publishKind": "http",
+    "secretBackedInputs": [
+      "db_password"
+    ]
+  },
+  "notes": [
+    "This is sample adapter metadata for Epic 32 story work.",
+    "It describes adaptation intent before a full adapter engine exists."
+  ]
+}

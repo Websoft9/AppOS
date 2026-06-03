@@ -39,6 +39,509 @@ function isServerSoftwareCapabilitiesRequest(path: string) {
   return path === '/api/servers/server-1/software/capabilities'
 }
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => {
+      const messages: Record<string, string> = {
+        'hub.title': 'Resources',
+        'servers.page.title': 'Servers',
+        'servers.page.description': 'SSH deployment targets',
+        'servers.page.favoritesOnly': 'Favorites only',
+        'servers.page.addServer': 'Add Server',
+        'servers.page.searchPlaceholder': 'Search server',
+        'servers.page.detailDrawerTitle': 'Server Detail',
+        'servers.fields.connectionType': 'Connection Type',
+        'servers.fields.name': 'Name',
+        'servers.fields.host': 'Host',
+        'servers.fields.useLocalHost': 'Use local host',
+        'servers.fields.port': 'Port',
+        'servers.fields.user': 'User',
+        'servers.fields.credentialSecret': 'Credential (Secret)',
+        'servers.fields.description': 'Description',
+        'servers.placeholders.name': 'my-server',
+        'servers.placeholders.host': '192.168.1.1',
+        'servers.placeholders.user': 'root',
+        'servers.connection.directSsh': 'Direct SSH',
+        'servers.connection.reverseTunnel': 'Reverse Tunnel',
+        'servers.connection.tunnelShort': 'Tunnel',
+        'servers.connection.directDescription': 'AppOS reaches this server over SSH.',
+        'servers.connection.tunnelDescription': 'Server connects back from a private network.',
+        'servers.help.connectionTypeLabel': 'Connection type help',
+        'servers.help.connectionTypeBody': 'Choose how the managed server connects to AppOS.',
+        'servers.help.hostLabel': 'Host help',
+        'servers.help.hostBody': 'Enter the IP address or domain name of the server managed by AppOS.',
+        'servers.localHost.loading': 'Loading...',
+        'servers.localHost.label': 'Local host',
+        'servers.localHost.errors.loadDockerBridge': 'Failed to load docker0 address',
+        'servers.secret.newCredential': 'New credential',
+        'servers.secret.editSecret': 'Edit Secret',
+        'servers.secret.errors.load': 'Failed to load secret',
+        'servers.secret.errors.nameRequired': 'Name is required',
+        'servers.secret.errors.update': 'Failed to update secret',
+        'servers.columns.name': 'Name',
+        'servers.columns.mode': 'Mode',
+        'servers.columns.connection': 'Connection',
+        'servers.columns.monitor': 'Monitor',
+        'servers.columns.host': 'Host',
+        'servers.columns.user': 'User',
+        'servers.columns.secretType': 'Secret Type',
+        'servers.columns.lastActivity': 'Last Activity',
+        'servers.connectionStates.notConfigured': 'Not Configured',
+        'servers.connectionStates.awaitingConnection': 'Awaiting Connection',
+        'servers.connectionStates.online': 'Online',
+        'servers.connectionStates.paused': 'Paused',
+        'servers.connectionStates.needsAttention': 'Needs Attention',
+        'servers.connectionStates.configurationReady': 'Configuration is ready for verification.',
+        'servers.actions.overviewAlreadyOpen': 'Overview already open',
+        'servers.actions.openOverview': 'Open overview',
+        'servers.actions.openConnectionDetails': 'Open connection details',
+        'servers.actions.serverActions': 'Server actions',
+        'servers.actions.openTerminal': 'Open Terminal',
+        'servers.actions.testConnection': 'Test Connection',
+        'servers.actions.tunnelSetup': 'Tunnel Setup',
+        'servers.actions.duplicateServer': 'Duplicate Server',
+        'servers.detail.restoreWidth': 'Restore detail width',
+        'servers.detail.expandWidth': 'Expand detail width',
+        'servers.detail.unnamedServer': 'Unnamed Server',
+        'servers.detail.backToConnection': 'Back to Connection',
+        'servers.tabs.overview': 'Overview',
+        'servers.tabs.connection': 'Connection',
+        'servers.tabs.components': 'Components',
+        'servers.tabs.monitor': 'Monitor',
+        'servers.tabs.docker': 'Docker',
+        'servers.tabs.runtime': 'Runtime',
+        'servers.tabs.ports': 'Ports',
+        'servers.tabs.crontab': 'Crontab',
+        'servers.tabs.systemd': 'Systemd',
+        'servers.monitorTab.heading': 'Monitor',
+        'servers.monitorTab.description': 'Review current resource signals, trend history, and compact server conclusions.',
+        'servers.monitorTab.currentValuesRegion': 'Monitor current values and trend history',
+        'servers.monitorTab.errors.collectorStatusUnavailable': 'Unable to read monitor collector service status',
+        'servers.monitorTab.state.ok': 'OK',
+        'servers.monitorTab.state.attention': 'Action needed',
+        'servers.monitorTab.state.checking': 'Checking',
+        'servers.monitorTab.state.review': 'Review',
+        'servers.monitorTab.time.updatedUnknown': 'Updated —',
+        'servers.monitorTab.hints.checking': 'Checking monitoring',
+        'servers.monitorTab.hints.awaitingFirstSample': 'Monitoring active · waiting for first sample',
+        'servers.monitorTab.hints.notConnected': 'Monitoring not connected',
+        'servers.monitorTab.alert.notConnectedTitle': 'Monitoring is not connected on this server.',
+        'servers.monitorTab.alert.notConnectedBody': 'Install or repair the Monitor Agent addon from Components before relying on monitor data.',
+        'servers.monitorTab.actions.refreshStatus': 'Refresh monitor status',
+        'servers.monitorTab.actions.openComponents': 'Open Components',
+        'servers.monitorTab.actions.installMonitorAgent': 'Install monitor agent',
+        'servers.monitorTab.actions.fixMonitorAgent': 'Fix monitor agent',
+        'servers.monitorTab.actions.repairMonitorAgent': 'Repair monitor agent',
+        'servers.monitorTab.actions.repairMonitorAgentDescription': 'Reissues monitor write credentials, rewrites the callback address when needed, and restarts the AppOS monitor collector.',
+        'servers.monitorTab.actions.openComponentsDescription': 'Use Repair on the Monitor Agent addon to reissue credentials and refresh the callback address.',
+        'servers.monitorTab.conclusions.regionLabel': 'Monitor conclusions',
+        'servers.monitorTab.conclusions.title': 'Conclusions',
+        'servers.monitorTab.conclusions.subtitle': 'Compact server insights from usable monitor signals.',
+        'servers.monitorTab.conclusions.emptyTitle': 'No conclusions yet.',
+        'servers.monitorTab.conclusions.emptyBody': 'Monitoring data is required before AppOS can analyze this server.',
+        'servers.monitorTab.conclusions.dismissedTitle': 'All conclusions dismissed.',
+        'servers.monitorTab.conclusions.dismissedBody': 'Refresh monitor data to rebuild the conclusion list.',
+        'servers.monitorTab.conclusions.listLabel': 'Monitor conclusion list',
+        'servers.monitorTab.conclusions.deleteTitle': 'Delete conclusion',
+        'servers.monitorTab.conclusions.controlReachable.label': 'Control reachable',
+        'servers.monitorTab.conclusions.controlReachable.summaryOk': 'AppOS can reach this server.',
+        'servers.monitorTab.conclusions.controlReachable.summaryAttention': 'Server access needs attention.',
+        'servers.monitorTab.conclusions.controlReachable.nextOk': 'No action needed.',
+        'servers.monitorTab.conclusions.controlReachable.nextAttention': 'Open the Connection tab and fix access.',
+        'servers.monitorTab.conclusions.trendDataAvailable.label': 'Trend data available',
+        'servers.monitorTab.conclusions.trendDataAvailable.summaryChecking': 'Checking monitor data path.',
+        'servers.monitorTab.conclusions.trendDataAvailable.summaryReady': 'Use charts to confirm freshness.',
+        'servers.monitorTab.conclusions.trendDataAvailable.detailChecking': 'AppOS is checking whether the monitor collector can provide usable trend data.',
+        'servers.monitorTab.conclusions.trendDataAvailable.detailReady': 'Trend cards on the left are the source of truth for whether data is current and complete.',
+        'servers.monitorTab.conclusions.trendDataAvailable.nextStep': 'If charts stay empty or stale, open Components to verify the Monitor Agent addon.',
+        'servers.monitorTab.conclusions.resourcePressure.label': 'Resource pressure',
+        'servers.monitorTab.conclusions.resourcePressure.summary': 'Review current values and trends.',
+        'servers.monitorTab.conclusions.resourcePressure.detail': 'CPU, memory, disk, and network cards show the current pressure and recent direction.',
+        'servers.monitorTab.conclusions.resourcePressure.nextStep': 'Investigate only when values are high, rising, or missing unexpectedly.',
+        'servers.overview.sections.metadata': 'Server Metadata',
+        'servers.overview.sections.systemInformation': 'System Information',
+        'servers.overview.sections.cloudProvider': 'Cloud Provider',
+        'servers.overview.actions.refresh': 'Refresh overview data',
+        'servers.overview.actions.edit': 'Edit',
+        'servers.overview.fields.id': 'ID',
+        'servers.overview.fields.name': 'Name',
+        'servers.overview.fields.connectionType': 'Connection Type',
+        'servers.overview.fields.host': 'Host',
+        'servers.overview.fields.port': 'Port',
+        'servers.overview.fields.user': 'User',
+        'servers.overview.fields.access': 'Access',
+        'servers.overview.fields.tunnelState': 'Tunnel State',
+        'servers.overview.fields.credentialType': 'Credential type',
+        'servers.overview.fields.createdBy': 'Created by',
+        'servers.overview.fields.description': 'Description',
+        'servers.overview.fields.created': 'Created',
+        'servers.overview.fields.updated': 'Updated',
+        'servers.overview.fields.operatingSystem': 'Operating System',
+        'servers.overview.fields.kernel': 'Kernel',
+        'servers.overview.fields.architecture': 'Architecture',
+        'servers.overview.fields.cpuCores': 'CPU Cores',
+        'servers.overview.fields.memory': 'Memory',
+        'servers.overview.fields.factsObserved': 'Facts Observed',
+        'servers.overview.fields.provider': 'Provider',
+        'servers.overview.fields.region': 'Region',
+        'servers.overview.fields.zone': 'Zone',
+        'servers.overview.fields.source': 'Source',
+        'servers.overview.connection.direct': 'Direct',
+        'servers.overview.credentialTypes.password': 'Password',
+        'servers.overview.credentialTypes.sshKey': 'SSH key',
+        'servers.overview.cloudSources.cloudInit': 'Cloud-init',
+        'servers.overview.cloudSources.metadata': 'Metadata service',
+        'servers.overview.cloudSources.manual': 'Manual override',
+        'servers.overview.fallback.unavailable': 'Unavailable',
+        'servers.overview.empty.noFacts': 'No host facts have been collected for this server yet.',
+        'servers.connectionTab.state.connected': 'Connected',
+        'servers.connectionTab.state.connecting': 'Connecting',
+        'servers.connectionTab.state.needsAttention': 'Needs Attention',
+        'servers.connectionTab.reason.tunnelActive': 'Tunnel active',
+        'servers.connectionTab.reason.sshVerified': 'SSH verified',
+        'servers.connectionTab.reason.waitingFirstConnection': 'Waiting for first connection',
+        'servers.connectionTab.reason.readyToTest': 'Ready to test connection',
+        'servers.connectionTab.reason.tunnelSetupRequired': 'Tunnel setup required',
+        'servers.connectionTab.reason.completeSetup': 'Complete connection setup',
+        'servers.connectionTab.reason.connectionPaused': 'Connection paused',
+        'servers.connectionTab.reason.connectionLost': 'Connection lost',
+        'servers.connectionTab.reason.connectionUnavailable': 'Connection unavailable',
+        'servers.connectionTab.hero.tunnelLive': 'Tunnel connection is live',
+        'servers.connectionTab.hero.directReady': 'Direct SSH is ready',
+        'servers.connectionTab.hero.waitingFirstTunnelCallback': 'Waiting for the first tunnel callback',
+        'servers.connectionTab.hero.setupInProgress': 'Connection setup is in progress',
+        'servers.connectionTab.hero.tunnelNeedsAttention': 'Tunnel connection needs attention',
+        'servers.connectionTab.hero.connectionNeedsAttention': 'Connection needs attention',
+        'servers.connectionTab.subline.remoteAccessAvailable': 'Remote access is available now.',
+        'servers.connectionTab.subline.serverReachable': 'The server is reachable now.',
+        'servers.connectionTab.subline.restoreAccess': 'Take the next action to restore access.',
+        'servers.connectionTab.modeSummary.tunnelRelay': 'Tunnel via AppOS relay',
+        'servers.connectionTab.modeSummary.directSsh': 'Direct SSH',
+        'servers.connectionTab.sessions.none': 'None',
+        'servers.connectionTab.sessions.oneActive': '1 active session',
+        'servers.connectionTab.fields.connectionStatus': 'Connection Status',
+        'servers.connectionTab.fields.mode': 'Mode',
+        'servers.connectionTab.fields.interactiveSession': 'Interactive Session',
+        'servers.connectionTab.fields.lastActivity': 'Last Activity',
+        'servers.connectionTab.fields.recommendedAction': 'Recommended Action',
+        'servers.connectionTab.activity.serverRegistered': 'Server registered',
+        'servers.connectionTab.activity.connectionUpdated': 'Connection updated',
+        'servers.connectionTab.activity.tunnelSetupStarted': 'Tunnel setup started',
+        'servers.connectionTab.activity.connected': 'Connected',
+        'servers.connectionTab.activity.sshVerified': 'SSH verified',
+        'servers.connectionTab.activity.heartbeatReceived': 'Heartbeat received',
+        'servers.connectionTab.activity.lastHealthyCheck': 'Last healthy check',
+        'servers.connectionTab.activity.pauseUpdated': 'Pause updated',
+        'servers.connectionTab.activity.connectionFailed': 'Connection failed',
+        'servers.connectionTab.activity.settingsUpdated': 'Settings updated',
+        'servers.connectionTab.activityLog.title': 'Activity Log',
+        'servers.connectionTab.activityLog.empty': 'No recent activity is available yet.',
+        'servers.connectionTab.activityLog.mostRecent': 'Most recent event',
+        'servers.componentsTab.sections.prerequisites': 'Prerequisites',
+        'servers.componentsTab.sections.prerequisitesRegion': 'Prerequisites section',
+        'servers.componentsTab.sections.prerequisiteTargets': 'Prerequisite targets',
+        'servers.componentsTab.sections.addons': 'Addons',
+        'servers.componentsTab.sections.addonsRegion': 'Addons section',
+        'servers.componentsTab.sections.addonInventory': 'Addon inventory',
+        'servers.componentsTab.help.prerequisitesLabel': 'Prerequisites help',
+        'servers.componentsTab.help.prerequisitesBody': 'Core platform requirements that should be ready before AppOS manages workloads on this server.',
+        'servers.componentsTab.help.addonsLabel': 'Addons help',
+        'servers.componentsTab.help.addonsBody': 'Optional server-side components that AppOS can inspect, verify, install, or repair after the baseline is ready.',
+        'servers.componentsTab.actions.refresh': 'Refresh',
+        'servers.componentsTab.actions.refreshComponents': 'Refresh components',
+        'servers.componentsTab.columns.name': 'Name',
+        'servers.componentsTab.columns.version': 'Version',
+        'servers.componentsTab.columns.health': 'Health',
+        'servers.componentsTab.columns.actions': 'Actions',
+        'servers.componentsTab.actionLabels.default': 'Action',
+        'servers.componentsTab.actionLabels.verify': 'Check',
+        'servers.componentsTab.actionLabels.recheck': 'Recheck',
+        'servers.componentsTab.actionLabels.reinstall': 'Repair',
+        'servers.componentsTab.actionLabels.uninstall': 'Remove',
+        'servers.componentsTab.actionLabels.install': 'Install',
+        'servers.componentsTab.actionLabels.upgrade': 'Upgrade',
+        'servers.componentsTab.actionLabels.start': 'Start',
+        'servers.componentsTab.actionLabels.restart': 'Restart',
+        'servers.componentsTab.actionLabels.stop': 'Stop',
+        'servers.componentsTab.groups.recommended': 'Recommended',
+        'servers.componentsTab.groups.secondary': 'Secondary',
+        'servers.componentsTab.groups.dangerous': 'Dangerous',
+        'servers.componentsTab.guidance.stoppedWithStart': 'This addon is stopped. Use Start to bring it back online.',
+        'servers.componentsTab.guidance.stoppedWithoutStart': 'This addon is stopped. Bring the service back online, then run Check to verify health.',
+        'servers.componentsTab.installSources.managed': 'Managed',
+        'servers.componentsTab.installSources.foreignPackage': 'Foreign package',
+        'servers.componentsTab.installSources.manual': 'Manual',
+        'servers.componentsTab.installSources.unknown': 'Unknown',
+        'servers.componentsTab.status.running': 'Running',
+        'servers.componentsTab.status.stopped': 'Stopped',
+        'servers.componentsTab.status.installed': 'Installed',
+        'servers.componentsTab.status.notInstalled': 'Not Installed',
+        'servers.componentsTab.status.needsAttention': 'Needs Attention',
+        'servers.componentsTab.status.unknown': 'Unknown',
+        'servers.componentsTab.apposConnection.connected': 'Connected',
+        'servers.componentsTab.apposConnection.stale': 'Stale',
+        'servers.componentsTab.apposConnection.connecting': 'Connecting',
+        'servers.componentsTab.apposConnection.notConnected': 'Not Connected',
+        'servers.componentsTab.apposConnection.authFailed': 'Auth Failed',
+        'servers.componentsTab.apposConnection.misconfigured': 'Misconfigured',
+        'servers.componentsTab.apposConnection.unknown': 'Unknown',
+        'servers.componentsTab.prerequisiteStatus.needsAttention': 'Needs Attention',
+        'servers.componentsTab.prerequisiteStatus.verified': 'Verified',
+        'servers.componentsTab.prerequisiteStatus.detected': 'Detected',
+        'servers.componentsTab.prerequisiteStatus.notReady': 'Not Ready',
+        'servers.componentsTab.prerequisiteStatus.unknown': 'Unknown',
+        'servers.componentsTab.prerequisiteChecks.osSupport': 'OS Support',
+        'servers.componentsTab.prerequisiteChecks.privilegedAccess': 'Privileged Access',
+        'servers.componentsTab.prerequisiteChecks.networkAccess': 'Network Access',
+        'servers.componentsTab.prerequisiteChecks.dependencyReadiness': 'Dependency Readiness',
+        'servers.componentsTab.detailRows.serviceStatus': 'Service Status',
+        'servers.componentsTab.detailRows.guidance': 'Guidance',
+        'servers.componentsTab.detailRows.apposConnection': 'AppOS Connection',
+        'servers.componentsTab.detailRows.installed': 'Installed',
+        'servers.componentsTab.detailRows.latest': 'Latest',
+        'servers.componentsTab.detailRows.artifact': 'Artifact',
+        'servers.componentsTab.detailRows.installSource': 'Install Source',
+        'servers.componentsTab.detailRows.lastAction': 'Last Action',
+        'servers.componentsTab.detailRows.updated': 'Updated',
+        'servers.componentsTab.detailRows.issues': 'Issues',
+        'servers.componentsTab.detailRows.verification': 'Verification',
+        'servers.componentsTab.detailRows.healthReasons': 'Health Reasons',
+        'servers.componentsTab.inventory.installed': 'Installed',
+        'servers.componentsTab.inventory.latest': 'Latest',
+        'servers.componentsTab.inventory.service': 'Service',
+        'servers.componentsTab.inventory.appos': 'AppOS',
+        'servers.componentsTab.inventory.operation': 'Operation',
+        'servers.componentsTab.checklist.checkDockerEngineInstallation': 'Check Docker Engine installation',
+        'servers.componentsTab.checklist.checkDockerEngineVersion': 'Check Docker Engine version',
+        'servers.componentsTab.checklist.checkDockerComposeAvailability': 'Check Docker Compose availability',
+        'servers.componentsTab.checklist.checkDockerComposeVersion': 'Check Docker Compose version',
+        'servers.componentsTab.operationHistory.loading': 'Loading operation history...',
+        'servers.componentsTab.operationHistory.empty': 'No operation history yet.',
+        'servers.componentsTab.operationHistory.badges.current': 'Current',
+        'servers.componentsTab.operationHistory.errors.load': 'Failed to load operation history',
+        'servers.componentsTab.operationHistory.errors.delete': 'Failed to delete operation history record',
+        'servers.componentsTab.operationHistory.actions.refresh': 'Refresh operation history',
+        'servers.componentsTab.operationHistory.actions.deleteRecord': 'Delete history record',
+        'servers.componentsTab.operationHistory.actions.deleteBlocked': 'In-flight operations cannot be deleted',
+        'servers.componentsTab.panelTabs.checklist': 'Checklist',
+        'servers.componentsTab.panelTabs.details': 'Details',
+        'servers.componentsTab.panelTabs.liveLog': 'Live Log',
+        'servers.componentsTab.panelTabs.history': 'History',
+        'servers.componentsTab.panelTitles.operationHistory': 'Operation History',
+        'servers.componentsTab.panelTitles.verificationChecklist': 'Verification Checklist',
+        'servers.componentsTab.panelTitles.addonDetails': 'Addon Details',
+        'servers.componentsTab.badges.streaming': 'Streaming',
+        'servers.componentsTab.badges.inProgress': 'In progress',
+        'servers.componentsTab.errors.loadPrerequisiteComponents': 'Failed to load prerequisite components',
+        'servers.componentsTab.errors.loadAddonComponents': 'Failed to load addon components',
+        'servers.componentsTab.actionFeedback.waitingForFirstMetricsSample': 'Waiting for the first metrics sample from this server.',
+        'servers.componentsTab.actionFeedback.waitingForFirstMetricsSampleWithConnection': 'Waiting for the first metrics sample; AppOS Connection will show Connecting until trend data arrives.',
+        'servers.componentsTab.actionFeedback.now': 'Now',
+        'servers.componentsTab.phase.accepted': 'Accepted',
+        'servers.componentsTab.phase.preflight': 'Preflight check...',
+        'servers.componentsTab.phase.executing': 'Executing...',
+        'servers.componentsTab.phase.verifying': 'Verifying...',
+        'servers.componentsTab.phase.succeeded': 'Succeeded',
+        'servers.componentsTab.phase.failed': 'Failed',
+        'servers.componentsTab.phase.attentionRequired': 'Attention required',
+        'servers.componentsTab.phase.timeout': 'Timed out, status unknown',
+        'servers.componentsTab.phase.timedOut': 'Timed out',
+        'servers.componentsTab.dockerFocus.sources.compose': 'Compose',
+        'servers.componentsTab.dockerFocus.sources.containers': 'Containers',
+        'servers.componentsTab.dockerFocus.sources.images': 'Images',
+        'servers.componentsTab.dockerFocus.sources.volumes': 'Volumes',
+        'servers.componentsTab.dockerFocus.sources.networks': 'Networks',
+        'servers.componentsTab.dockerFocus.sources.overview': 'Overview',
+        'servers.componentsTab.logRegions.prerequisiteActionLogEntries': 'Prerequisite action log entries',
+        'servers.componentsTab.logRegions.addonActionLogEntries': 'Addon action log entries',
+        'servers.componentsTab.dialogs.confirmDanger.upgradeConsequence': 'upgrade or replace Docker components',
+        'servers.componentsTab.dialogs.confirmDanger.reinstallConsequence': 'reinstall or replace Docker components',
+        'servers.componentsTab.dialogs.confirmDanger.cancel': 'Cancel',
+        'servers.componentsTab.dialogs.confirmDanger.continue': 'Continue',
+        'servers.componentsTab.dialogs.monitorAddress.title': 'Choose monitor callback address',
+        'servers.componentsTab.dialogs.monitorAddress.description': 'The monitor agent will send metrics back to AppOS. The address detected from this browser session differs from the configured App URL. Choose the address that the target server can reach.',
+        'servers.componentsTab.dialogs.monitorAddress.close': 'Close monitor callback address dialog',
+        'servers.componentsTab.dialogs.monitorAddress.detectedAddress': 'Detected address',
+        'servers.componentsTab.dialogs.monitorAddress.appUrl': 'App URL',
+        'servers.componentsTab.dialogs.monitorAddress.useDetectedAddress': 'Use detected address',
+        'servers.componentsTab.dialogs.monitorAddress.useAppUrl': 'Use App URL',
+        'servers.componentsTab.dialogs.monitorAddress.errors.loadAppUrl': 'Failed to load App URL',
+        'servers.componentsTab.dialogs.monitorAddress.errors.detectCallback': 'Cannot detect the AppOS callback address from this browser session.',
+        'servers.componentsTab.alerts.operationAlreadyInProgress.title': 'Operation already in progress',
+        'servers.componentsTab.alerts.operationAlreadyInProgress.currentPhase': 'Current phase',
+        'servers.componentsTab.alerts.operationAlreadyInProgress.lastUpdated': 'Last updated',
+        'servers.componentsTab.alerts.operationAlreadyInProgress.openOperationHistory': 'Open operation history',
+        'servers.componentsTab.selectedAddon.title': 'Selected Addon',
+        'servers.componentsTab.selectedAddon.selectFromInventory': 'Select one addon from the inventory.',
+        'servers.componentsTab.selectedAddon.empty': 'Choose a component to inspect status, activity, readiness issues, and available actions.',
+        'servers.componentsTab.selectedAddon.inProgress.title': 'Operation in progress',
+        'servers.componentsTab.selectedAddon.inProgress.isStill': 'is still',
+        'servers.componentsTab.selectedAddon.inProgress.lastUpdated': 'Last updated',
+        'servers.componentsTab.prerequisiteCard.summary.checksPassed': 'Checks passed',
+        'servers.componentsTab.prerequisiteCard.summary.openDetails': 'Open details for verification and recovery actions',
+        'servers.componentsTab.prerequisiteCard.fields.status': 'Status',
+        'servers.componentsTab.prerequisiteCard.fields.version': 'Version',
+        'servers.componentsTab.prerequisiteCard.fields.dockerCompose': 'Docker Compose',
+        'servers.componentsTab.prerequisiteCard.fields.updated': 'Updated',
+        'servers.componentsTab.prerequisiteCard.fallback.unavailable': 'Unavailable',
+        'servers.componentsTab.prerequisiteCard.fallback.missing': 'Missing',
+        'servers.componentsTab.empty.loadingPrerequisites': 'Loading prerequisites...',
+        'servers.componentsTab.empty.noPrerequisites': 'No prerequisite components are defined for this server.',
+        'servers.componentsTab.empty.loadingAddons': 'Loading addons...',
+        'servers.componentsTab.empty.noAddons': 'No addon components found for this server.',
+        'servers.componentsTab.empty.waitingForOperationUpdates': 'Waiting for operation updates...',
+        'servers.componentsTab.empty.noLiveLogYet': 'No live log yet. Run an action to stream updates here.',
+        'servers.summary.viaTunnel': 'via AppOS tunnel',
+        'servers.sessions.oneActive': '1 active terminal session',
+        'servers.listSettings.title': 'List settings',
+        'servers.listSettings.rowsPerPage': 'Rows per page',
+        'servers.listSettings.columns': 'Columns',
+        'servers.validation.nameRequired': 'Name is required',
+        'servers.validation.userRequired': 'User is required',
+        'servers.validation.hostRequiredForDirect': 'Host is required for Direct SSH connections',
+        'servers.validation.portRequiredForDirect': 'Port is required for Direct SSH connections',
+      }
+
+      if (key === 'servers.page.totalItems') {
+        return `Total ${String(options?.count ?? '')} items`
+      }
+      if (key === 'servers.detail.titleWithName') {
+        return `Server Detail | ${String(options?.name ?? '')}`
+      }
+      if (key === 'servers.monitorTab.time.updatedAt') {
+        return `Updated ${String(options?.time ?? '')}`
+      }
+      if (key === 'servers.monitorTab.empty.noDataYet') {
+        return `No monitoring data available yet for ${String(options?.name ?? '')}. Current connectivity status is ${String(options?.status ?? '')}.`
+      }
+      if (key === 'servers.monitorTab.hints.active') {
+        return `Monitoring active${String(options?.subState ?? '')}`
+      }
+      if (key === 'servers.connectionTab.reason.lastHeartbeat') {
+        return `Last heartbeat ${String(options?.time ?? '')}`
+      }
+      if (key === 'servers.connectionTab.sessions.manyActive') {
+        return `${String(options?.count ?? '')} active sessions`
+      }
+      if (key === 'servers.monitorTab.conclusions.openItem') {
+        return `Open conclusion ${String(options?.label ?? '')}`
+      }
+      if (key === 'servers.monitorTab.conclusions.deleteItem') {
+        return `Delete conclusion ${String(options?.label ?? '')}`
+      }
+      if (key === 'servers.monitorTab.conclusions.controlReachable.detailOk') {
+        return `${String(options?.name ?? '')} is reachable through the current server connection.`
+      }
+      if (key === 'servers.monitorTab.conclusions.controlReachable.detailAttention') {
+        return `${String(options?.name ?? '')} may not be reachable. Repair the connection before relying on live operations.`
+      }
+      if (key === 'servers.actions.openMonitorFor') {
+        return `Open monitor for ${String(options?.name ?? '')}`
+      }
+      if (key === 'servers.monitor.tooltipWithReason') {
+        return `Observed monitor target status: ${String(options?.status ?? '')}. ${String(options?.reason ?? '')}`
+      }
+      if (key === 'servers.monitor.tooltipWithoutReason') {
+        return `Observed monitor target status: ${String(options?.status ?? '')}`
+      }
+      if (key === 'servers.monitor.tooltipSuffix') {
+        return `${String(options?.prefix ?? '')}. This reflects the latest monitoring evidence for the server target and may lag behind addon status.`
+      }
+      if (key === 'servers.sessions.manyActive') {
+        return `${String(options?.count ?? '')} active terminal sessions`
+      }
+      if (key === 'servers.listSettings.rowsPerPageOption') {
+        return `${String(options?.count ?? '')} / page`
+      }
+      if (key === 'servers.runtime.placeholder') {
+        return `Runtime details can later include active sessions, deployed workloads, and process information for ${String(options?.name ?? '')}.`
+      }
+      if (key === 'servers.componentsTab.installSource.summary') {
+        return `Install source: ${String(options?.label ?? '')}`
+      }
+      if (key === 'servers.componentsTab.installSource.summaryWithEvidence') {
+        return `Install source: ${String(options?.label ?? '')} (${String(options?.evidence ?? '')})`
+      }
+      if (key === 'servers.componentsTab.operationHistory.title') {
+        return `Operation History (${String(options?.count ?? '')})`
+      }
+      if (key === 'servers.componentsTab.operationHistory.actions.deleteRecordFor') {
+        return `Delete ${String(options?.action ?? '')} operation history record`
+      }
+      if (key === 'servers.componentsTab.actionFeedback.accepted') {
+        return `${String(options?.action ?? '')} accepted`
+      }
+      if (key === 'servers.componentsTab.actionFeedback.acceptedWithId') {
+        return `${String(options?.action ?? '')} accepted (${String(options?.operationId ?? '')})`
+      }
+      if (key === 'servers.componentsTab.actionFeedback.acceptedForComponent') {
+        return `${String(options?.action ?? '')} accepted for ${String(options?.component ?? '')}`
+      }
+      if (key === 'servers.componentsTab.actionFeedback.acceptedForComponentWithId') {
+        return `${String(options?.action ?? '')} accepted for ${String(options?.component ?? '')} (${String(options?.operationId ?? '')})`
+      }
+      if (key === 'servers.componentsTab.actionFeedback.logEntry') {
+        return `${String(options?.time ?? '')} · ${String(options?.action ?? '')}: ${String(options?.phase ?? '')}`
+      }
+      if (key === 'servers.componentsTab.dialogs.confirmDanger.title') {
+        return `Confirm ${String(options?.action ?? '')}`
+      }
+      if (key === 'servers.componentsTab.dialogs.confirmDanger.description') {
+        return `${String(options?.action ?? '')} may ${String(options?.consequence ?? '')} on this server. Continue only if you are ready to interrupt the current runtime.`
+      }
+      if (key === 'servers.componentsTab.alerts.operationAlreadyInProgress.description') {
+        return `${String(options?.name ?? '')} already has an active ${String(options?.action ?? '')} request.`
+      }
+      if (key === 'servers.componentsTab.phase.failedWithReason') {
+        return `Failed: ${String(options?.reason ?? '')}`
+      }
+      if (key === 'servers.componentsTab.phase.attentionRequiredWithReason') {
+        return `Attention required: ${String(options?.reason ?? '')}`
+      }
+      if (key === 'servers.componentsTab.phase.timeoutWithReason') {
+        return `Timed out, status unknown: ${String(options?.reason ?? '')}`
+      }
+      if (key === 'servers.componentsTab.dockerFocus.title') {
+        return `Opened from Docker > ${String(options?.source ?? '')}`
+      }
+      if (key === 'servers.componentsTab.dockerFocus.history.daemonUnavailable') {
+        return `Docker prerequisite recovery was opened from the Docker ${String(options?.source ?? '')} view. Review recent checks and repair history first, then verify the Docker daemon is running before retrying there.`
+      }
+      if (key === 'servers.componentsTab.dockerFocus.history.permissionDenied') {
+        return `Docker prerequisite recovery was opened from the Docker ${String(options?.source ?? '')} view. Review recent checks and repair history first, then fix Docker socket access or privilege setup before retrying there.`
+      }
+      if (key === 'servers.componentsTab.dockerFocus.history.default') {
+        return `Docker prerequisite recovery was opened from the Docker ${String(options?.source ?? '')} view. Review recent checks and repair history before retrying there.`
+      }
+      if (key === 'servers.componentsTab.dockerFocus.checks.composeMissing') {
+        return `Docker prerequisite checks were opened from the Docker ${String(options?.source ?? '')} view. Start by checking Docker Compose availability here, then return to that Docker screen and retry.`
+      }
+      if (key === 'servers.componentsTab.dockerFocus.checks.dockerMissing') {
+        return `Docker prerequisite checks were opened from the Docker ${String(options?.source ?? '')} view. Start by checking Docker Engine installation here, then return to that Docker screen and retry.`
+      }
+      if (key === 'servers.componentsTab.dockerFocus.checks.default') {
+        return `Docker prerequisite checks were opened from the Docker ${String(options?.source ?? '')} view. Fix the baseline requirement here, then return to that Docker screen and retry.`
+      }
+      if (key === 'servers.componentsTab.inventory.moreActionsFor') {
+        return `More actions for ${String(options?.name ?? '')}`
+      }
+      if (key === 'servers.componentsTab.checklist.checkItem') {
+        return `Check ${String(options?.label ?? '')}`
+      }
+      if (key === 'servers.componentsTab.panelTitles.actionLog') {
+        return `${String(options?.action ?? '')} Log`
+      }
+      if (key === 'servers.componentsTab.prerequisiteCard.detailsFor') {
+        return `${String(options?.name ?? '')} details`
+      }
+
+      return messages[key] ?? key
+    },
+    i18n: { changeLanguage: vi.fn() },
+  }),
+  initReactI18next: { type: '3rdParty', init: vi.fn() },
+}))
+
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (config: Record<string, unknown>) => ({
     ...config,

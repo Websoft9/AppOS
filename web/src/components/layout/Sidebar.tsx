@@ -590,22 +590,22 @@ export function Sidebar({ groups }: SidebarProps) {
       {/* Collapse toggle at bottom */}
       <Separator />
       <div className="p-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          className={cn('w-full', sidebarCollapsed ? 'justify-center' : 'justify-start')}
-          onClick={toggleSidebar}
-          aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {sidebarCollapsed ? (
-            <PanelLeft className="h-4 w-4" />
-          ) : (
-            <>
-              <PanelLeftClose className="h-4 w-4 mr-2" />
-              <span className="text-xs">Collapse</span>
-            </>
-          )}
-        </Button>
+        <Tooltip delayDuration={0}>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn('h-8 w-full px-3', sidebarCollapsed ? 'justify-center px-2' : 'justify-start')}
+              onClick={toggleSidebar}
+              aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {sidebarCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top" sideOffset={8}>
+            {sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          </TooltipContent>
+        </Tooltip>
       </div>
     </aside>
   )

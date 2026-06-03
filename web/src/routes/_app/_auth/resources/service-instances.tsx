@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { Check, Loader2, Pencil } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -18,6 +19,7 @@ import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { SecretCredentialField } from '@/components/secrets/SecretCredentialField'
 import { SecretForm, type SecretTemplate } from '@/components/secrets/SecretForm'
 import { buildResourceSecretRelationApiPath } from '@/components/secrets/SecretVisibilityField'
+import { getLocale } from '@/lib/i18n'
 import { pb } from '@/lib/pb'
 
 type InstanceRecord = {
@@ -66,30 +68,9 @@ type InstanceTemplate = {
   fields?: InstanceTemplateField[]
 }
 
-const DATABASE_COMMON_FIELD_IDS = new Set(['username', 'connect_timeout', 'ssl_enabled'])
+type Translate = (key: string, options?: Record<string, unknown>) => string
 
-const DATABASE_COMMON_FIELDS: InstanceTemplateField[] = [
-  {
-    id: 'username',
-    label: 'Username',
-    type: 'text',
-    required: true,
-    placeholder: 'appuser',
-  },
-  {
-    id: 'connect_timeout',
-    label: 'Connection Timeout',
-    type: 'number',
-    default: 10,
-    helpText: 'How many seconds to wait before the first connection attempt times out.',
-  },
-  {
-    id: 'ssl_enabled',
-    label: 'Use SSL',
-    type: 'boolean',
-    default: false,
-  },
-]
+const DATABASE_COMMON_FIELD_IDS = new Set(['username', 'connect_timeout', 'ssl_enabled'])
 
 const SECRET_TEMPLATE_LABELS: Record<string, string> = {
   single_value: 'Password / Single Value',
@@ -116,6 +97,55 @@ const KIND_LABELS: Record<string, string> = {
   ollama: 'Ollama',
 }
 
+const TEMPLATE_FIELD_OVERRIDE_KEYS: Record<string, string> = {
+  database: 'serviceInstances.templateFields.database',
+  region: 'serviceInstances.templateFields.region',
+  clusterIdentifier: 'serviceInstances.templateFields.clusterIdentifier',
+  clusterId: 'serviceInstances.templateFields.clusterId',
+}
+
+function buildDatabaseCommonFields(t: Translate): InstanceTemplateField[] {
+  return [
+    {
+      id: 'username',
+      label: t('serviceInstances.fields.username'),
+      type: 'text',
+      required: true,
+      placeholder: t('serviceInstances.placeholders.username'),
+    },
+    {
+      id: 'connect_timeout',
+      label: t('serviceInstances.fields.connectionTimeout'),
+      type: 'number',
+      default: 10,
+      helpText: t('serviceInstances.help.connectionTimeout'),
+    },
+    {
+      id: 'ssl_enabled',
+      label: t('serviceInstances.fields.useSsl'),
+      type: 'boolean',
+      default: false,
+    },
+  ]
+}
+
+function localizeTemplateFieldCopy(field: InstanceTemplateField, t: Translate): InstanceTemplateField {
+  const key = TEMPLATE_FIELD_OVERRIDE_KEYS[field.id]
+  if (!key) {
+    return field
+  }
+
+  const localizedLabel = t(key)
+  if (localizedLabel === key) {
+    return field
+  }
+
+  return {
+    ...field,
+    label: localizedLabel,
+  }
+}
+
 function normalizeTemplateFieldDefault(field: InstanceTemplateField) {
   if (field.default === undefined) {
     if (field.type === 'boolean') return false
@@ -133,50 +163,61 @@ function slugifyNamePart(value: string) {
     .replace(/^-+|-+$/g, '')
 }
 
-function kindLabel(kind: string) {
-  return KIND_LABELS[kind] ?? kind.charAt(0).toUpperCase() + kind.slice(1)
+function kindLabel(kind: string, t: Translate) {
+  const normalized = String(kind).trim().toLowerCase()
+  if (KIND_LABELS[normalized]) {
+    return t(`serviceInstances.kinds.${normalized}`)
+  }
+  return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : t('serviceInstances.kinds.unknown')
 }
 
-function isGenericTemplate(template: InstanceTemplate) {
+function isGenericTemplate(template: InstanceTemplate, t: Translate) {
   const normalizedTitle = template.title.trim().toLowerCase()
   return (
     template.id.startsWith('generic-') ||
     normalizedTitle.includes('generic') ||
-    normalizedTitle === `standard ${kindLabel(template.kind).toLowerCase()}`
+    normalizedTitle === `standard ${kindLabel(template.kind, t).toLowerCase()}`
   )
 }
 
-function productTitle(template: InstanceTemplate) {
-  return isGenericTemplate(template) ? kindLabel(template.kind) : template.title
+function productTitle(template: InstanceTemplate, t: Translate) {
+  return isGenericTemplate(template, t) ? kindLabel(template.kind, t) : template.title
 }
 
-function buildDefaultInstanceName(template: InstanceTemplate) {
+function buildDefaultInstanceName(template: InstanceTemplate, t: Translate) {
   const base =
-    slugifyNamePart(productTitle(template)) || slugifyNamePart(template.kind) || 'instance'
+    slugifyNamePart(productTitle(template, t)) || slugifyNamePart(template.kind) || 'instance'
   return `${base}-${Date.now().toString().slice(-4)}`
 }
 
-function buildDefaultCredentialSecretName(template: InstanceTemplate, instanceName: string) {
+function buildDefaultCredentialSecretName(template: InstanceTemplate, instanceName: string, t: Translate) {
   const base =
-    slugifyNamePart(instanceName) || slugifyNamePart(productTitle(template)) || 'instance'
+    slugifyNamePart(instanceName) || slugifyNamePart(productTitle(template, t)) || 'instance'
   return `${base}-password`
 }
 
-function categoryLabel(category?: string) {
-  return CATEGORY_LABELS[String(category ?? '')] ?? 'Other'
+function categoryLabel(category: string | undefined, t: Translate) {
+  const normalized = String(category ?? '').trim().toLowerCase()
+  if (CATEGORY_LABELS[normalized]) {
+    return t(`serviceInstances.categories.${normalized}`)
+  }
+  return t('serviceInstances.categories.other')
 }
 
-function productMeta(template: InstanceTemplate) {
-  return [categoryLabel(template.category), template.vendor].filter(Boolean).join(' · ')
+function productMeta(template: InstanceTemplate, t: Translate) {
+  return [categoryLabel(template.category, t), template.vendor].filter(Boolean).join(' · ')
 }
 
-function productDescription(template: InstanceTemplate) {
-  if (isGenericTemplate(template)) {
-    return 'Standard template'
+function productDescription(template: InstanceTemplate, t: Translate) {
+  if (isGenericTemplate(template, t)) {
+    return t('serviceInstances.product.standardTemplate')
   }
   return (
     template.description ||
-    `${template.vendor ? `${template.vendor} ` : ''}${categoryLabel(template.category).toLowerCase()} profile.`
+    t('serviceInstances.product.profileDescription', {
+      vendorPrefix: template.vendor ? `${template.vendor} ` : '',
+      category: categoryLabel(template.category, t).toLowerCase(),
+    })
   )
 }
 
@@ -251,17 +292,14 @@ function buildSecretRelationApiPath(secretTemplateIds: string[]) {
   })
 }
 
-function databaseCredentialLabel(template: InstanceTemplate | null | undefined) {
-  if (template?.kind === 'redis') return 'Password'
-  if (template?.kind === 'kafka') return 'Credential'
-  return isDatabaseConnectionKind(template) ? 'Password' : 'Credential'
-}
-
-function databaseCertificateHelpText(template: InstanceTemplate | null | undefined) {
+function databaseCertificateHelpText(
+  template: InstanceTemplate | null | undefined,
+  t: Translate
+) {
   if (template?.kind === 'postgres') {
-    return 'Choose a certificate only when your PostgreSQL connection requires mutual SSL.'
+    return t('serviceInstances.help.sslCertificatePostgres')
   }
-  return 'Choose a certificate only when your MySQL connection requires mutual SSL.'
+  return t('serviceInstances.help.sslCertificateMysql')
 }
 
 function formatDateTime(value: unknown) {
@@ -269,7 +307,8 @@ function formatDateTime(value: unknown) {
   if (!raw) return '—'
   const date = new Date(raw)
   if (Number.isNaN(date.getTime())) return raw
-  return new Intl.DateTimeFormat('en', {
+  const locale = getLocale()
+  return new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en', {
     year: 'numeric',
     month: 'short',
     day: '2-digit',
@@ -278,11 +317,16 @@ function formatDateTime(value: unknown) {
   }).format(date)
 }
 
-function formatMonitorStatusLabel(value: unknown) {
+function formatMonitorStatusLabel(value: unknown, t: Translate) {
   const raw = String(value ?? '')
     .trim()
     .toLowerCase()
-  if (!raw) return 'Unknown'
+  if (!raw) return t('serviceInstances.monitor.unknown')
+  const key = `serviceInstances.monitor.status.${raw}`
+  const localized = t(key)
+  if (localized !== key) {
+    return localized
+  }
   return raw
     .split('_')
     .map(part => part.charAt(0).toUpperCase() + part.slice(1))
@@ -310,7 +354,10 @@ function monitorStatusVariant(
   }
 }
 
-function mergeDatabaseTemplateFields(template: InstanceTemplate | null | undefined) {
+function mergeDatabaseTemplateFields(
+  template: InstanceTemplate | null | undefined,
+  t: Translate
+) {
   if (!template) {
     return [] as InstanceTemplateField[]
   }
@@ -322,7 +369,7 @@ function mergeDatabaseTemplateFields(template: InstanceTemplate | null | undefin
   const merged: InstanceTemplateField[] = []
   const existingById = new Map((template.fields ?? []).map(field => [field.id, field]))
 
-  for (const field of DATABASE_COMMON_FIELDS) {
+  for (const field of buildDatabaseCommonFields(t)) {
     if (omitted.has(field.id)) {
       continue
     }
@@ -351,66 +398,75 @@ function mergeDatabaseTemplateFields(template: InstanceTemplate | null | undefin
 
 function mapTemplateFieldToResourceField(
   field: InstanceTemplateField,
-  template: InstanceTemplate
+  template: InstanceTemplate,
+  t: Translate
 ): FieldDef {
+  const localizedField = localizeTemplateFieldCopy(field, t)
+
   if (isDatabaseConnectionKind(template) && (field.id === 'engine' || field.id === 'provider')) {
     return {
-      key: field.id,
-      label: field.label,
+      key: localizedField.id,
+      label: localizedField.label,
       type: 'text',
       hidden: true,
-      defaultValue: normalizeTemplateFieldDefault(field),
+      defaultValue: normalizeTemplateFieldDefault(localizedField),
     }
   }
 
   if (isDatabaseConnectionKind(template) && field.id === 'ssl_ca_certificate') {
     return {
-      key: field.id,
-      label: 'SSL Certificate',
+      key: localizedField.id,
+      label: t('serviceInstances.fields.sslCertificate'),
       type: 'relation',
       advanced: true,
       showWhen: { field: 'ssl_mode', values: ['mutual'] },
       relationApiPath: "/api/collections/certificates/records?filter=(status='active')&sort=name",
       relationLabelKey: 'name',
-      helpText: databaseCertificateHelpText(template),
+      helpText: databaseCertificateHelpText(template, t),
       relationShowNoneOption: false,
       relationShowSelectedIndicator: false,
       relationBorderlessMenu: true,
-      defaultValue: normalizeTemplateFieldDefault(field),
+      defaultValue: normalizeTemplateFieldDefault(localizedField),
     }
   }
 
   if (isDatabaseConnectionKind(template) && field.id === 'ssl_enabled') {
     return {
-      key: field.id,
-      label: field.label,
+      key: localizedField.id,
+      label: localizedField.label,
       type: 'boolean',
       hidden: true,
-      defaultValue: normalizeTemplateFieldDefault(field),
+      defaultValue: normalizeTemplateFieldDefault(localizedField),
     }
   }
 
   return {
-    key: field.id,
-    label: field.label,
-    type: field.type === 'boolean' ? 'boolean' : field.type === 'number' ? 'number' : 'text',
-    required: field.required,
-    placeholder: field.placeholder,
-    defaultValue: normalizeTemplateFieldDefault(field),
-    helpText: field.helpText,
-    advanced: isDatabaseConnectionKind(template) && ['connect_timeout'].includes(field.id),
+    key: localizedField.id,
+    label: localizedField.label,
+    type:
+      localizedField.type === 'boolean'
+        ? 'boolean'
+        : localizedField.type === 'number'
+          ? 'number'
+          : 'text',
+    required: localizedField.required,
+    placeholder: localizedField.placeholder,
+    defaultValue: normalizeTemplateFieldDefault(localizedField),
+    helpText: localizedField.helpText,
+    advanced: isDatabaseConnectionKind(template) && ['connect_timeout'].includes(localizedField.id),
   }
 }
 
 async function buildInstancePayload(
   payload: Record<string, unknown>,
-  templatesById: Map<string, InstanceTemplate>
+  templatesById: Map<string, InstanceTemplate>,
+  t: Translate
 ) {
   const body = { ...payload }
   const templateId = String(body.template_id ?? '')
   const template = templatesById.get(templateId)
   if (!template) {
-    throw new Error('Instance profile is required')
+    throw new Error(t('serviceInstances.errors.instanceProfileRequired'))
   }
 
   if (isSecretBackedConnectionKind(template)) {
@@ -418,13 +474,15 @@ async function buildInstancePayload(
     if (!useCredentialReference) {
       const passwordValue = String(body.password_value ?? '')
       if (!passwordValue.trim() && isDatabaseConnectionKind(template)) {
-        throw new Error('Password is required')
+        throw new Error(t('serviceInstances.errors.passwordRequired'))
       }
       if (passwordValue.trim()) {
         const instanceName = String(body.name ?? '').trim()
         const createdSecret = await pb.collection('secrets').create({
-          name: buildDefaultCredentialSecretName(template, instanceName),
-          description: `Password for ${instanceName || productTitle(template)}`,
+          name: buildDefaultCredentialSecretName(template, instanceName, t),
+          description: t('serviceInstances.secret.generatedDescription', {
+            name: instanceName || productTitle(template, t),
+          }),
           template_id: 'single_value',
           scope: 'global',
           visible_to: ['service_instance'],
@@ -437,7 +495,7 @@ async function buildInstancePayload(
     }
 
     if (isDatabaseConnectionKind(template) && !String(body.credential ?? '').trim()) {
-      throw new Error('Password Secret is required')
+      throw new Error(t('serviceInstances.errors.passwordSecretRequired'))
     }
   }
 
@@ -448,12 +506,12 @@ async function buildInstancePayload(
       body.ssl_ca_certificate = ''
     }
     if (sslMode === 'mutual' && !String(body.ssl_ca_certificate ?? '').trim()) {
-      throw new Error('SSL certificate is required for mutual SSL')
+      throw new Error(t('serviceInstances.errors.sslCertificateRequired'))
     }
   }
 
   const config: Record<string, unknown> = {}
-  for (const field of mergeDatabaseTemplateFields(template)) {
+  for (const field of mergeDatabaseTemplateFields(template, t)) {
     const value = body[field.id]
     if (value === undefined || value === '') {
       continue
@@ -480,7 +538,8 @@ async function buildInstancePayload(
 function mapInstanceRow(
   item: InstanceRecord,
   templatesById: Map<string, InstanceTemplate>,
-  monitorByTargetId: Map<string, MonitorLatestStatusRecord>
+  monitorByTargetId: Map<string, MonitorLatestStatusRecord>,
+  t: Translate
 ): Record<string, unknown> {
   const template = templatesById.get(String(item.template_id ?? ''))
   const monitor = monitorByTargetId.get(String(item.id ?? ''))
@@ -488,7 +547,7 @@ function mapInstanceRow(
   const flattenedConfig: Record<string, unknown> = {}
   const fallbackConfig = item.config ?? {}
 
-  for (const field of mergeDatabaseTemplateFields(template)) {
+  for (const field of mergeDatabaseTemplateFields(template, t)) {
     const value = item.config?.[field.id]
     if (value === undefined) {
       continue
@@ -511,7 +570,7 @@ function mapInstanceRow(
     updated: String(item.updated ?? ''),
     name: String(item.name ?? ''),
     kind: String(item.kind ?? ''),
-    kind_label: kindLabel(String(item.kind ?? '')),
+    kind_label: kindLabel(String(item.kind ?? ''), t),
     template_id: String(item.template_id ?? ''),
     profile: template?.title ?? String(item.template_id ?? ''),
     endpoint: String(item.endpoint ?? ''),
@@ -529,74 +588,77 @@ function mapInstanceRow(
   }
 }
 
-const columns: Column[] = [
-  { key: 'name', label: 'Name', searchable: true, sortable: true },
-  {
-    key: 'kind_label',
-    label: 'Kind',
-    sortable: true,
-    filterValue: row => String(row.kind_label ?? ''),
-    render: value => <Badge variant="outline">{String(value || '—')}</Badge>,
-  },
-  {
-    key: 'profile',
-    label: 'Profile',
-    searchable: true,
-    sortable: true,
-    filterValue: row => String(row.profile ?? ''),
-  },
-  {
-    key: 'host',
-    label: 'Host',
-    searchable: true,
-    sortable: true,
-    render: value => (
-      <span className="max-w-[220px] truncate block" title={String(value || '')}>
-        {String(value || '—')}
-      </span>
-    ),
-  },
-  {
-    key: 'monitor_status',
-    label: 'Monitor',
-    sortable: true,
-    sortValue: row => String(row.monitor_status ?? ''),
-    filterValue: row => String(row.monitor_status ?? ''),
-    render: (value, row) => {
-      const status = String(value ?? '').trim()
-      const reason = String(row.monitor_reason ?? '').trim()
-      if (!status) {
-        return <span className="text-sm text-muted-foreground">—</span>
-      }
-      return (
-        <Badge variant={monitorStatusVariant(status)} title={reason || undefined}>
-          {formatMonitorStatusLabel(status)}
-        </Badge>
-      )
+function buildColumns(t: Translate): Column[] {
+  return [
+    { key: 'name', label: t('serviceInstances.columns.name'), searchable: true, sortable: true },
+    {
+      key: 'kind_label',
+      label: t('serviceInstances.columns.kind'),
+      sortable: true,
+      filterValue: row => String(row.kind_label ?? ''),
+      render: value => <Badge variant="outline">{String(value || '—')}</Badge>,
     },
-  },
-  {
-    key: 'monitor_last_checked_at',
-    label: 'Last Checked',
-    sortable: true,
-    sortValue: row => String(row.monitor_last_checked_at ?? ''),
-    render: value => <span className="text-sm text-muted-foreground">{formatDateTime(value)}</span>,
-  },
-  {
-    key: 'created',
-    label: 'Created',
-    sortable: true,
-    render: value => <span className="text-sm text-muted-foreground">{formatDateTime(value)}</span>,
-  },
-  {
-    key: 'updated',
-    label: 'Updated',
-    sortable: true,
-    render: value => <span className="text-sm text-muted-foreground">{formatDateTime(value)}</span>,
-  },
-]
+    {
+      key: 'profile',
+      label: t('serviceInstances.columns.profile'),
+      searchable: true,
+      sortable: true,
+      filterValue: row => String(row.profile ?? ''),
+    },
+    {
+      key: 'host',
+      label: t('serviceInstances.columns.host'),
+      searchable: true,
+      sortable: true,
+      render: value => (
+        <span className="max-w-[220px] truncate block" title={String(value || '')}>
+          {String(value || '—')}
+        </span>
+      ),
+    },
+    {
+      key: 'monitor_status',
+      label: t('serviceInstances.columns.monitor'),
+      sortable: true,
+      sortValue: row => String(row.monitor_status ?? ''),
+      filterValue: row => String(row.monitor_status ?? ''),
+      render: (value, row) => {
+        const status = String(value ?? '').trim()
+        const reason = String(row.monitor_reason ?? '').trim()
+        if (!status) {
+          return <span className="text-sm text-muted-foreground">—</span>
+        }
+        return (
+          <Badge variant={monitorStatusVariant(status)} title={reason || undefined}>
+            {formatMonitorStatusLabel(status, t)}
+          </Badge>
+        )
+      },
+    },
+    {
+      key: 'monitor_last_checked_at',
+      label: t('serviceInstances.columns.lastChecked'),
+      sortable: true,
+      sortValue: row => String(row.monitor_last_checked_at ?? ''),
+      render: value => <span className="text-sm text-muted-foreground">{formatDateTime(value)}</span>,
+    },
+    {
+      key: 'created',
+      label: t('serviceInstances.columns.created'),
+      sortable: true,
+      render: value => <span className="text-sm text-muted-foreground">{formatDateTime(value)}</span>,
+    },
+    {
+      key: 'updated',
+      label: t('serviceInstances.columns.updated'),
+      sortable: true,
+      render: value => <span className="text-sm text-muted-foreground">{formatDateTime(value)}</span>,
+    },
+  ]
+}
 
 export function ServiceInstancesPage() {
+  const { t } = useTranslation('resources')
   const autoCreate = new URLSearchParams(window.location.search).get('create') === '1'
   const [instanceTemplates, setInstanceTemplates] = useState<InstanceTemplate[]>([])
   const [secretDialogOpen, setSecretDialogOpen] = useState(false)
@@ -636,23 +698,23 @@ export function ServiceInstancesPage() {
     () =>
       [...instanceTemplates]
         .sort((left, right) => {
-          const genericCompare = Number(isGenericTemplate(right)) - Number(isGenericTemplate(left))
+          const genericCompare = Number(isGenericTemplate(right, t)) - Number(isGenericTemplate(left, t))
           if (genericCompare !== 0) return genericCompare
-          return productTitle(left).localeCompare(productTitle(right))
+          return productTitle(left, t).localeCompare(productTitle(right, t))
         })
         .map(template => ({
           id: template.id,
-          title: productTitle(template),
-          meta: productMeta(template),
+          title: productTitle(template, t),
+          meta: productMeta(template, t),
           searchText: [
-            productDescription(template),
+            productDescription(template, t),
             template.title,
             template.vendor,
             template.kind,
-            categoryLabel(template.category),
+            categoryLabel(template.category, t),
           ].join(' '),
         })),
-    [instanceTemplates]
+    [instanceTemplates, t]
   )
 
   const listItems = useCallback(async () => {
@@ -677,9 +739,9 @@ export function ServiceInstancesPage() {
     )
 
     return Array.isArray(items)
-      ? items.map(item => mapInstanceRow(item, templatesById, monitorByTargetId))
+      ? items.map(item => mapInstanceRow(item, templatesById, monitorByTargetId, t))
       : []
-  }, [templatesById])
+  }, [t, templatesById])
 
   const openSecretDialog = useCallback(
     (callbacks: { addOption: (id: string, label: string) => void }) => {
@@ -695,9 +757,12 @@ export function ServiceInstancesPage() {
       .filter(template => SECRET_TEMPLATE_IDS.has(template.id))
       .map(template => ({
         ...template,
-        label: SECRET_TEMPLATE_LABELS[template.id] ?? template.label,
+        label:
+          template.id === 'single_value'
+            ? t('serviceInstances.secret.singleValueTemplate')
+            : SECRET_TEMPLATE_LABELS[template.id] ?? template.label,
       }))
-  }, [])
+  }, [t])
 
   const openSecretEditor = useCallback(
     async (secretId: string) => {
@@ -719,12 +784,14 @@ export function ServiceInstancesPage() {
         setSecretEditDescription(String(secret.description ?? ''))
         setSecretEditTemplateId(String(secret.template_id ?? ''))
       } catch (error) {
-        setSecretEditError(error instanceof Error ? error.message : 'Failed to load secret')
+        setSecretEditError(
+          error instanceof Error ? error.message : t('serviceInstances.secret.errors.load')
+        )
       } finally {
         setSecretEditLoading(false)
       }
     },
-    [loadAllowedSecretTemplates]
+    [loadAllowedSecretTemplates, t]
   )
 
   const closeSecretEditor = useCallback((open: boolean) => {
@@ -747,7 +814,7 @@ export function ServiceInstancesPage() {
       return
     }
     if (!secretEditName.trim()) {
-      setSecretEditError('Name is required')
+      setSecretEditError(t('serviceInstances.secret.errors.nameRequired'))
       return
     }
 
@@ -769,11 +836,13 @@ export function ServiceInstancesPage() {
 
       closeSecretEditor(false)
     } catch (error) {
-      setSecretEditError(error instanceof Error ? error.message : 'Failed to update secret')
+      setSecretEditError(
+        error instanceof Error ? error.message : t('serviceInstances.secret.errors.update')
+      )
     } finally {
       setSecretEditSaving(false)
     }
-  }, [closeSecretEditor, secretEditDescription, secretEditId, secretEditName, secretEditPayload])
+  }, [closeSecretEditor, secretEditDescription, secretEditId, secretEditName, secretEditPayload, t])
 
   const renderDatabaseCredentialField = useCallback(
     ({
@@ -835,7 +904,7 @@ export function ServiceInstancesPage() {
                 }
               }}
             />
-            <span>One-way SSL</span>
+            <span>{t('serviceInstances.ssl.oneWay')}</span>
           </label>
           <label className="inline-flex items-center gap-2 text-sm">
             <Checkbox
@@ -847,12 +916,12 @@ export function ServiceInstancesPage() {
                 }
               }}
             />
-            <span>Mutual SSL</span>
+            <span>{t('serviceInstances.ssl.mutual')}</span>
           </label>
         </div>
       )
     },
-    []
+    [t]
   )
 
   const buildBaseFields = useCallback(
@@ -860,54 +929,54 @@ export function ServiceInstancesPage() {
       [
         {
           key: 'kind',
-          label: 'Kind',
+          label: t('serviceInstances.fields.kind'),
           type: 'text',
           hidden: true,
           defaultValue: selectedTemplate?.kind ?? '',
         },
         {
           key: 'template_id',
-          label: 'Template',
+          label: t('serviceInstances.fields.template'),
           type: 'text',
           hidden: true,
           defaultValue: selectedTemplate?.id ?? '',
         },
         {
           key: 'selected_product',
-          label: 'Selected Product',
+          label: t('serviceInstances.fields.selectedProduct'),
           type: 'text',
           hidden: true,
           readOnly: true,
-          defaultValue: selectedTemplate ? productTitle(selectedTemplate) : '',
+          defaultValue: selectedTemplate ? productTitle(selectedTemplate, t) : '',
         },
         {
           key: 'selected_product_meta',
-          label: 'Selected Product Meta',
+          label: t('serviceInstances.fields.selectedProductMeta'),
           type: 'text',
           hidden: true,
           readOnly: true,
-          defaultValue: selectedTemplate ? productMeta(selectedTemplate) : '',
+          defaultValue: selectedTemplate ? productMeta(selectedTemplate, t) : '',
         },
         {
           key: 'selected_product_description',
-          label: 'Selected Product Description',
+          label: t('serviceInstances.fields.selectedProductDescription'),
           type: 'text',
           hidden: true,
           readOnly: true,
-          defaultValue: selectedTemplate ? productDescription(selectedTemplate) : '',
+          defaultValue: selectedTemplate ? productDescription(selectedTemplate, t) : '',
         },
         {
           key: 'name',
-          label: 'Name',
+          label: t('serviceInstances.fields.name'),
           type: 'text',
           required: true,
           hidden: true,
-          placeholder: 'db-prod',
-          defaultValue: selectedTemplate ? buildDefaultInstanceName(selectedTemplate) : '',
+          placeholder: t('serviceInstances.placeholders.name'),
+          defaultValue: selectedTemplate ? buildDefaultInstanceName(selectedTemplate, t) : '',
         },
         {
           key: 'title_name_editing',
-          label: 'Title Name Editing',
+          label: t('serviceInstances.fields.titleNameEditing'),
           type: 'boolean',
           hidden: true,
           readOnly: true,
@@ -915,24 +984,24 @@ export function ServiceInstancesPage() {
         },
         {
           key: 'endpoint',
-          label: 'Endpoint',
+          label: t('serviceInstances.fields.endpoint'),
           type: 'text',
           hidden: isDatabaseConnectionKind(selectedTemplate),
-          placeholder: 'db.example.com:3306 or https://service.example.com',
+          placeholder: t('serviceInstances.placeholders.endpoint'),
           defaultValue: selectedTemplate?.defaultEndpoint ?? '',
         },
         {
           key: 'host',
-          label: 'Host',
+          label: t('serviceInstances.fields.host'),
           type: 'text',
           hidden: !isDatabaseConnectionKind(selectedTemplate),
           required: isDatabaseConnectionKind(selectedTemplate),
-          placeholder: 'db.example.com',
+          placeholder: t('serviceInstances.placeholders.host'),
           defaultValue: splitEndpoint(selectedTemplate?.defaultEndpoint ?? '').host,
         },
         {
           key: 'port',
-          label: 'Port',
+          label: t('serviceInstances.fields.port'),
           type: 'number',
           hidden: !isDatabaseConnectionKind(selectedTemplate),
           required: isDatabaseConnectionKind(selectedTemplate),
@@ -943,7 +1012,7 @@ export function ServiceInstancesPage() {
         },
         {
           key: 'provider_account',
-          label: 'Platform Account',
+          label: t('serviceInstances.fields.platformAccount'),
           type: 'relation',
           advanced: isDatabaseConnectionKind(selectedTemplate),
           relationApiPath: '/api/provider-accounts',
@@ -954,7 +1023,14 @@ export function ServiceInstancesPage() {
         },
         {
           key: 'credential',
-          label: databaseCredentialLabel(selectedTemplate),
+          label:
+            selectedTemplate?.kind === 'redis'
+              ? t('serviceInstances.fields.password')
+              : selectedTemplate?.kind === 'kafka'
+                ? t('serviceInstances.fields.credential')
+                : isDatabaseConnectionKind(selectedTemplate)
+                  ? t('serviceInstances.fields.password')
+                  : t('serviceInstances.fields.credential'),
           type: 'relation',
           required: isDatabaseConnectionKind(selectedTemplate) && Boolean(selectedTemplate),
           relationApiPath: isSecretBackedConnectionKind(selectedTemplate)
@@ -970,21 +1046,21 @@ export function ServiceInstancesPage() {
         },
         {
           key: 'credential_use_secret',
-          label: 'Credential Uses Secret',
+          label: t('serviceInstances.fields.credentialUsesSecret'),
           type: 'boolean',
           hidden: true,
           defaultValue: false,
         },
         {
           key: 'password_value',
-          label: 'Password Value',
+          label: t('serviceInstances.fields.passwordValue'),
           type: 'text',
           hidden: true,
           defaultValue: '',
         },
         {
           key: 'ssl_mode',
-          label: 'Use SSL',
+          label: t('serviceInstances.fields.useSsl'),
           type: 'text',
           advanced: isDatabaseConnectionKind(selectedTemplate),
           hidden: !isDatabaseConnectionKind(selectedTemplate),
@@ -993,13 +1069,13 @@ export function ServiceInstancesPage() {
         },
         {
           key: 'description',
-          label: 'Description',
+          label: t('serviceInstances.fields.description'),
           type: 'textarea',
           advanced: isDatabaseConnectionKind(selectedTemplate),
         },
         {
           key: 'groups',
-          label: 'Groups',
+          label: t('serviceInstances.fields.groups'),
           type: 'relation',
           advanced: isDatabaseConnectionKind(selectedTemplate),
           multiSelect: true,
@@ -1009,7 +1085,7 @@ export function ServiceInstancesPage() {
           defaultValue: [],
         },
       ] satisfies FieldDef[],
-    [renderDatabaseCredentialField, renderSslModeField]
+    [renderDatabaseCredentialField, renderSslModeField, t]
   )
 
   const resolveInstanceFields = useCallback(
@@ -1017,8 +1093,8 @@ export function ServiceInstancesPage() {
       const selectedTemplateId = String(formData.template_id ?? '')
       const selectedTemplate = templatesById.get(selectedTemplateId)
       const baseFields = buildBaseFields(selectedTemplate ?? null)
-      const dynamicFields = mergeDatabaseTemplateFields(selectedTemplate).map(field =>
-        mapTemplateFieldToResourceField(field, selectedTemplate!)
+      const dynamicFields = mergeDatabaseTemplateFields(selectedTemplate, t).map(field =>
+        mapTemplateFieldToResourceField(field, selectedTemplate!, t)
       )
 
       if (isDatabaseConnectionKind(selectedTemplate)) {
@@ -1080,24 +1156,25 @@ export function ServiceInstancesPage() {
         ...baseFields.slice(7),
       ]
     },
-    [buildBaseFields, templatesById]
+    [buildBaseFields, t, templatesById]
   )
 
   const bootstrapFields = useMemo(() => buildBaseFields(null), [buildBaseFields])
+  const columns = useMemo(() => buildColumns(t), [t])
 
   return (
     <>
       <ResourcePage
         config={{
-          title: 'Service Instances',
+          title: t('resources.serviceInstances.title', { defaultValue: t('serviceInstances.page.title') }),
           description:
-            'MySQL, PostgreSQL, Redis, Kafka, S3 storage, and model services with profile-based templates.',
+            t('serviceInstances.page.description'),
           apiPath: '/api/instances',
           favoriteStorageKey: 'resource-page:favorites:service-instances',
-          favoritesFilterLabel: 'Favorites only',
-          createButtonLabel: 'Add Instance',
+          favoritesFilterLabel: t('serviceInstances.page.favoritesOnly'),
+          createButtonLabel: t('serviceInstances.page.addInstance'),
           createButtonShowIcon: false,
-          searchPlaceholder: 'Search any instances',
+          searchPlaceholder: t('serviceInstances.page.searchPlaceholder'),
           pageSize: 10,
           pageSizeOptions: [10, 20, 50],
           defaultSort: { key: 'name', dir: 'asc' },
@@ -1109,10 +1186,10 @@ export function ServiceInstancesPage() {
           columns,
           fields: bootstrapFields,
           createSelection: {
-            title: 'Choose a Product',
-            description: 'Choose a product, then enter connection details.',
-            searchPlaceholder: 'Search products like MySQL, Redis, Aurora, PostgreSQL...',
-            emptyMessage: 'No matching products found.',
+            title: t('serviceInstances.selection.title'),
+            description: t('serviceInstances.selection.description'),
+            searchPlaceholder: t('serviceInstances.selection.searchPlaceholder'),
+            emptyMessage: t('serviceInstances.selection.emptyMessage'),
             options: productOptions,
             onSelect: optionId => {
               const selectedTemplate = templatesById.get(optionId)
@@ -1121,10 +1198,10 @@ export function ServiceInstancesPage() {
               const defaults: Record<string, unknown> = {
                 kind: selectedTemplate.kind,
                 template_id: selectedTemplate.id,
-                name: buildDefaultInstanceName(selectedTemplate),
-                selected_product: productTitle(selectedTemplate),
-                selected_product_meta: productMeta(selectedTemplate),
-                selected_product_description: productDescription(selectedTemplate),
+                name: buildDefaultInstanceName(selectedTemplate, t),
+                selected_product: productTitle(selectedTemplate, t),
+                selected_product_meta: productMeta(selectedTemplate, t),
+                selected_product_description: productDescription(selectedTemplate, t),
                 endpoint: selectedTemplate.defaultEndpoint ?? '',
                 credential_use_secret: false,
                 password_value: '',
@@ -1140,7 +1217,7 @@ export function ServiceInstancesPage() {
                 )
               }
 
-              for (const field of mergeDatabaseTemplateFields(selectedTemplate)) {
+              for (const field of mergeDatabaseTemplateFields(selectedTemplate, t)) {
                 defaults[field.id] = normalizeTemplateFieldDefault(field)
               }
 
@@ -1163,7 +1240,7 @@ export function ServiceInstancesPage() {
                     <div className="flex min-w-[280px] flex-1 items-center gap-2">
                       <Input
                         value={instanceName}
-                        aria-label="Instance title"
+                        aria-label={t('serviceInstances.dialog.instanceTitle')}
                         onChange={event => updateField('name', event.target.value)}
                         onBlur={() => updateField('title_name_editing', false)}
                         onKeyDown={event => {
@@ -1179,7 +1256,7 @@ export function ServiceInstancesPage() {
                         type="button"
                         variant="outline"
                         size="icon"
-                        title="Apply title"
+                        title={t('serviceInstances.dialog.applyTitle')}
                         onMouseDown={event => event.preventDefault()}
                         onClick={() => updateField('title_name_editing', false)}
                       >
@@ -1189,13 +1266,13 @@ export function ServiceInstancesPage() {
                   ) : (
                     <>
                       <span className="max-w-full truncate text-xl font-semibold">
-                        {instanceName || 'New Service Instance'}
+                        {instanceName || t('serviceInstances.dialog.newInstance')}
                       </span>
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
-                        title="Edit title"
+                        title={t('serviceInstances.dialog.editTitle')}
                         onClick={() => updateField('title_name_editing', true)}
                       >
                         <Pencil className="h-4 w-4" />
@@ -1204,28 +1281,28 @@ export function ServiceInstancesPage() {
                   )}
                 </div>
               ),
-              description: `${editingItem ? 'Update' : 'Create'} ${productTitle(selectedTemplate)} ${categoryLabel(selectedTemplate.category)} Service Instance`,
+              description: `${editingItem ? t('serviceInstances.dialog.update') : t('serviceInstances.dialog.create')} ${productTitle(selectedTemplate, t)} ${categoryLabel(selectedTemplate.category, t)} ${t('serviceInstances.dialog.suffix')}`,
               hideSelectedProductSummary: true,
             }
           },
           resolveFields: resolveInstanceFields,
           resourceType: 'instance',
-          parentNav: { label: 'Resources', href: '/resources' },
+          parentNav: { label: t('hub.title'), href: '/resources' },
           autoCreate,
           enableGroupAssign: true,
           showRefreshButton: true,
           wrapTableInCard: false,
           listItems,
           createItem: async payload => {
-            const body = await buildInstancePayload(payload, templatesById)
+            const body = await buildInstancePayload(payload, templatesById, t)
             const created = await pb.send<InstanceRecord>('/api/instances', {
               method: 'POST',
               body,
             })
-            return mapInstanceRow(created, templatesById, new Map())
+            return mapInstanceRow(created, templatesById, new Map(), t)
           },
           updateItem: async (id, payload) => {
-            const body = await buildInstancePayload(payload, templatesById)
+            const body = await buildInstancePayload(payload, templatesById, t)
             await pb.send(`/api/instances/${id}`, { method: 'PUT', body })
           },
           deleteItem: async id => {
@@ -1237,10 +1314,13 @@ export function ServiceInstancesPage() {
       <SecretCreateDialog
         open={secretDialogOpen}
         onOpenChange={setSecretDialogOpen}
-        title="New Secret"
-        description="Create a reusable password secret and attach it to this service instance."
+        title={t('serviceInstances.secret.newTitle')}
+        description={t('serviceInstances.secret.newDescription')}
         allowedTemplateIds={Array.from(SECRET_TEMPLATE_IDS)}
-        templateLabels={SECRET_TEMPLATE_LABELS}
+        templateLabels={{
+          ...SECRET_TEMPLATE_LABELS,
+          single_value: t('serviceInstances.secret.singleValueTemplate'),
+        }}
         defaultTemplateId="single_value"
         defaultVisibleTo={['service_instance']}
         onCreated={({ id, label }) => {
@@ -1251,16 +1331,16 @@ export function ServiceInstancesPage() {
       <Dialog open={secretEditOpen} onOpenChange={closeSecretEditor}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Secret</DialogTitle>
+            <DialogTitle>{t('serviceInstances.secret.editTitle')}</DialogTitle>
             <DialogDescription>
-              Update the selected Secret without leaving service instance editing.
+              {t('serviceInstances.secret.editDescription')}
             </DialogDescription>
           </DialogHeader>
 
           {secretEditLoading ? (
             <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Loading secret...
+              {t('serviceInstances.secret.loading')}
             </div>
           ) : (
             <div className="space-y-4">
@@ -1269,7 +1349,7 @@ export function ServiceInstancesPage() {
                   htmlFor="instance-secret-edit-name"
                   className="text-sm font-medium text-foreground"
                 >
-                  Name <span className="text-destructive">*</span>
+                  {t('serviceInstances.fields.name')} <span className="text-destructive">*</span>
                 </label>
                 <input
                   id="instance-secret-edit-name"
@@ -1297,7 +1377,7 @@ export function ServiceInstancesPage() {
                   htmlFor="instance-secret-edit-description"
                   className="text-sm font-medium text-foreground"
                 >
-                  Description
+                  {t('serviceInstances.fields.description')}
                 </label>
                 <input
                   id="instance-secret-edit-description"
@@ -1316,7 +1396,7 @@ export function ServiceInstancesPage() {
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => closeSecretEditor(false)}>
-              Cancel
+              {t('serviceInstances.page.cancel')}
             </Button>
             <Button
               type="button"
@@ -1326,7 +1406,7 @@ export function ServiceInstancesPage() {
               disabled={secretEditLoading || secretEditSaving}
             >
               {secretEditSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Save Secret
+              {t('serviceInstances.secret.save')}
             </Button>
           </DialogFooter>
         </DialogContent>

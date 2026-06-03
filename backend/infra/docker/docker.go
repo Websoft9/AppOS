@@ -96,6 +96,11 @@ func (c *Client) ComposePull(ctx context.Context, projectDir string) (string, er
 	return c.exec.Run(ctx, "docker", "compose", "-f", c.composeFile(projectDir), "pull")
 }
 
+// ComposePullStream streams docker compose pull output as it is produced.
+func (c *Client) ComposePullStream(ctx context.Context, projectDir string) (io.ReadCloser, error) {
+	return c.exec.RunStream(ctx, "docker", "compose", "-f", c.composeFile(projectDir), "pull")
+}
+
 // ComposeLogs returns logs for the given compose project.
 func (c *Client) ComposeLogs(ctx context.Context, projectDir string, tail int) (string, error) {
 	return c.exec.Run(ctx, "docker", "compose", "-f", c.composeFile(projectDir), "logs", "--tail", fmt.Sprintf("%d", tail))

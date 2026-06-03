@@ -3,6 +3,170 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ServerCronPanel } from './ServerCronPanel'
 
+const { translateCronKey } = vi.hoisted(() => {
+  const translateCronKey = (key: string, options?: Record<string, unknown>) => {
+    const messages: Record<string, string> = {
+      'servers.cronTab.title': 'Crontab',
+      'servers.cronTab.description': 'Manage AppOS-owned crontab entries for this server.',
+      'servers.cronTab.loading': 'Loading cron entries...',
+      'servers.cronTab.status.yes': 'Yes',
+      'servers.cronTab.status.no': 'No',
+      'servers.cronTab.actions.refresh': 'Refresh crontab entries',
+      'servers.cronTab.actions.newEntry': 'New Entry',
+      'servers.cronTab.actions.edit': 'Edit',
+      'servers.cronTab.actions.test': 'Test',
+      'servers.cronTab.actions.takeEffective': 'Take Effective',
+      'servers.cronTab.actions.removeEffect': 'Remove Effect',
+      'servers.cronTab.actions.delete': 'Delete',
+      'servers.cronTab.empty.title': 'No managed crontab entries yet',
+      'servers.cronTab.empty.description': 'This list only shows AppOS-managed crontab entries for this server.',
+      'servers.cronTab.inventory.ariaLabel': 'Crontab inventory',
+      'servers.cronTab.search.placeholder': 'Search',
+      'servers.cronTab.pagination.previous': 'Previous page',
+      'servers.cronTab.pagination.next': 'Next page',
+      'servers.cronTab.sort.asc': 'ascending',
+      'servers.cronTab.sort.desc': 'descending',
+      'servers.cronTab.columns.name': 'Name',
+      'servers.cronTab.columns.schedule': 'Schedule',
+      'servers.cronTab.columns.path': 'Path',
+      'servers.cronTab.columns.takeEffective': 'Take Effective',
+      'servers.cronTab.columns.singleRunOnly': 'Single Run Only',
+      'servers.cronTab.columns.actions': 'Actions',
+      'servers.cronTab.filters.noResults': 'No crontab entries match the current filters.',
+      'servers.cronTab.selected.title': 'Selected Entry',
+      'servers.cronTab.selected.selectPrompt': 'Select one entry from the inventory.',
+      'servers.cronTab.selected.empty': 'Choose a crontab entry to inspect its schedule, path, and command details.',
+      'servers.cronTab.detailRows.name': 'Name:',
+      'servers.cronTab.detailRows.schedule': 'Schedule:',
+      'servers.cronTab.detailRows.path': 'Path:',
+      'servers.cronTab.detailRows.takeEffective': 'Take Effective:',
+      'servers.cronTab.detailRows.singleRunOnly': 'Single Run Only:',
+      'servers.cronTab.detailRows.command': 'Command',
+      'servers.cronTab.tabs.liveLog': 'Live log',
+      'servers.cronTab.tabs.logs': 'Logs',
+      'servers.cronTab.liveLog.empty': 'No operation log yet. Trigger Test, Edit, enable/disable, or delete actions to see live updates here.',
+      'servers.cronTab.logsPanel.empty': 'Entry historical logs are reserved here. Backend log API is not available yet.',
+      'servers.cronTab.hints.created': 'Cron entry created.',
+      'servers.cronTab.hints.updated': 'Cron entry updated.',
+      'servers.cronTab.hints.deleted': 'Cron entry deleted.',
+      'servers.cronTab.hints.effectApplied': 'Crontab entry is now effective.',
+      'servers.cronTab.hints.effectRemoved': 'Crontab entry removed from effect.',
+      'servers.cronTab.hints.tested': 'Crontab entry tested.',
+      'servers.cronTab.errors.load': 'Failed to load cron entries',
+      'servers.cronTab.errors.save': 'Failed to save cron entry',
+      'servers.cronTab.errors.update': 'Failed to update cron entry',
+      'servers.cronTab.errors.delete': 'Failed to delete cron entry',
+      'servers.cronTab.errors.test': 'Failed to test crontab entry',
+      'servers.cronTab.logs.savingChanges': 'Saving entry changes...',
+      'servers.cronTab.logs.entryCreated': 'Entry created successfully.',
+      'servers.cronTab.logs.entryUpdated': 'Entry updated successfully.',
+      'servers.cronTab.logs.removingEffect': 'Removing effect from entry...',
+      'servers.cronTab.logs.applyingEffect': 'Applying entry to crontab...',
+      'servers.cronTab.logs.entryEffective': 'Entry is now effective.',
+      'servers.cronTab.logs.entryEffectRemoved': 'Entry removed from effect.',
+      'servers.cronTab.logs.deleting': 'Deleting entry...',
+      'servers.cronTab.logs.entryDeleted': 'Entry deleted.',
+      'servers.cronTab.logs.runningTest': 'Running test for entry...',
+      'servers.cronTab.logs.tested': 'Crontab entry tested.',
+      'servers.cronTab.validation.nameRequired': 'Name is required',
+      'servers.cronTab.validation.scheduleInvalid': 'Schedule must be a valid five-field cron expression',
+      'servers.cronTab.validation.commandRequired': 'Command is required',
+      'servers.cronTab.dialogs.editor.createTitle': 'New Entry',
+      'servers.cronTab.dialogs.editor.editTitle': 'Edit Entry',
+      'servers.cronTab.dialogs.editor.description': 'Generate a five-field cron schedule with frequency-specific controls.',
+      'servers.cronTab.dialogs.editor.cancel': 'Cancel',
+      'servers.cronTab.dialogs.editor.save': 'Save',
+      'servers.cronTab.dialogs.delete.title': 'Delete Cron Entry',
+      'servers.cronTab.dialogs.delete.descriptionFallback': 'Confirm deletion.',
+      'servers.cronTab.dialogs.delete.cancel': 'Cancel',
+      'servers.cronTab.dialogs.delete.confirm': 'Delete',
+      'servers.cronTab.editor.sections.name': 'Name',
+      'servers.cronTab.editor.sections.command': 'Command',
+      'servers.cronTab.editor.sections.optional': 'Optional',
+      'servers.cronTab.editor.sections.frequencySet': 'Frequency Set',
+      'servers.cronTab.editor.sections.cronExpression': 'Cron Expression',
+      'servers.cronTab.editor.fields.name': 'Name',
+      'servers.cronTab.editor.fields.command': 'Command',
+      'servers.cronTab.editor.fields.takeEffective': 'Take Effective',
+      'servers.cronTab.editor.fields.singleRunOnly': 'Single Run Only',
+      'servers.cronTab.editor.fields.frequency': 'Frequency',
+      'servers.cronTab.editor.fields.every': 'Every',
+      'servers.cronTab.editor.fields.atTime': 'At time',
+      'servers.cronTab.editor.fields.hour': 'Hour',
+      'servers.cronTab.editor.fields.minute': 'Minute',
+      'servers.cronTab.editor.fields.daysOfWeek': 'Days of week',
+      'servers.cronTab.editor.fields.dayOfMonth': 'Day of month',
+      'servers.cronTab.editor.fields.customCronFields': 'Custom cron fields',
+      'servers.cronTab.editor.fields.dayOfMonthShort': 'Day (M)',
+      'servers.cronTab.editor.fields.month': 'Month',
+      'servers.cronTab.editor.fields.dayOfWeekShort': 'Day (W)',
+      'servers.cronTab.editor.fields.cronExpression': 'Your cron expression',
+      'servers.cronTab.editor.actions.copy': 'Copy',
+      'servers.cronTab.editor.actions.copied': 'Copied',
+      'servers.cronTab.editor.frequencyOptions.minute': 'Every minute',
+      'servers.cronTab.editor.frequencyOptions.hour': 'Every hour',
+      'servers.cronTab.editor.frequencyOptions.day': 'Every day',
+      'servers.cronTab.editor.frequencyOptions.week': 'Every week',
+      'servers.cronTab.editor.frequencyOptions.month': 'Every month',
+      'servers.cronTab.editor.frequencyOptions.custom': 'Custom',
+      'servers.cronTab.editor.units.minutes': 'minute(s)',
+      'servers.cronTab.editor.units.hours': 'hour(s)',
+      'servers.cronTab.weekdays.sun.short': 'Sun',
+      'servers.cronTab.weekdays.sun.label': 'Sunday',
+      'servers.cronTab.weekdays.mon.short': 'Mon',
+      'servers.cronTab.weekdays.mon.label': 'Monday',
+      'servers.cronTab.weekdays.tue.short': 'Tue',
+      'servers.cronTab.weekdays.tue.label': 'Tuesday',
+      'servers.cronTab.weekdays.wed.short': 'Wed',
+      'servers.cronTab.weekdays.wed.label': 'Wednesday',
+      'servers.cronTab.weekdays.thu.short': 'Thu',
+      'servers.cronTab.weekdays.thu.label': 'Thursday',
+      'servers.cronTab.weekdays.fri.short': 'Fri',
+      'servers.cronTab.weekdays.fri.label': 'Friday',
+      'servers.cronTab.weekdays.sat.short': 'Sat',
+      'servers.cronTab.weekdays.sat.label': 'Saturday',
+    }
+
+    if (key === 'servers.cronTab.inventory.summary') {
+      return `Total ${String(options?.count ?? '')} entries, ${String(options?.failed ?? '')} failed.`
+    }
+    if (key === 'servers.cronTab.columns.nameSorted') {
+      return `Name sorted ${String(options?.direction ?? '')}`
+    }
+    if (key === 'servers.cronTab.actions.actionsFor') {
+      return `Crontab actions for ${String(options?.name ?? '')}`
+    }
+    if (key === 'servers.cronTab.logs.saveFailed') {
+      return `Save failed: ${String(options?.message ?? '')}`
+    }
+    if (key === 'servers.cronTab.logs.toggleFailed') {
+      return `Toggle failed: ${String(options?.message ?? '')}`
+    }
+    if (key === 'servers.cronTab.logs.deleteFailed') {
+      return `Delete failed: ${String(options?.message ?? '')}`
+    }
+    if (key === 'servers.cronTab.logs.testOutput') {
+      return `Test output:\n${String(options?.output ?? '')}`
+    }
+    if (key === 'servers.cronTab.logs.testFailed') {
+      return `Test failed: ${String(options?.message ?? '')}`
+    }
+    if (key === 'servers.cronTab.dialogs.delete.descriptionWithName') {
+      return `Entry: ${String(options?.name ?? '')}. This permanently removes the managed cron row.`
+    }
+
+    return messages[key] ?? key
+  }
+
+  return { translateCronKey }
+})
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: translateCronKey,
+  }),
+}))
+
 const listServerCronJobsMock = vi.fn()
 const createServerCronJobMock = vi.fn()
 const updateServerCronJobMock = vi.fn()
@@ -46,7 +210,7 @@ describe('ServerCronPanel', () => {
     })
 
     expect(screen.getByRole('heading', { name: 'Crontab' })).toBeInTheDocument()
-    expect(screen.getByText('No managed crontab entries yet')).toBeInTheDocument()
+    expect(await screen.findByText('No managed crontab entries yet')).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'New Entry' })).toHaveLength(2)
   })
 

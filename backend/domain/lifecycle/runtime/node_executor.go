@@ -1,8 +1,10 @@
 package runtime
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -18,6 +20,7 @@ import (
 
 var sourceWorkspaceBasePath = "/appos/data"
 var sourceWorkspaceAllowedRoots = []string{"apps", "templates", "workflows"}
+var runtimePullIdleHeartbeatInterval = 20 * time.Second
 
 func SetSourceWorkspaceBasePathForTest(basePath string) func() {
 	previous := sourceWorkspaceBasePath
@@ -267,6 +270,87 @@ func ExecuteNode(
 			return result, err
 		}
 		return result, nil
+	case "runtime_pull":
+		client, err := ensureDockerClient(executor, dockerClient)
+		if err != nil {
+			return result, err
+		}
+		result.DockerClient = client
+		stream, err := client.ComposePullStream(ctx, operation.GetString("project_dir"))
+		if err != nil {
+			return result, err
+		}
+
+		lineCh := make(chan string)
+		errCh := make(chan error, 1)
+		go func() {
+			scanner := bufio.NewScanner(stream)
+			buf := make([]byte, 0, 64*1024)
+			scanner.Buffer(buf, 1024*1024)
+			scanner.Split(scanStreamLinesAndCarriageReturns)
+			for scanner.Scan() {
+				lineCh <- scanner.Text()
+			}
+			close(lineCh)
+			errCh <- scanner.Err()
+		}()
+
+		ticker := time.NewTicker(runtimePullIdleHeartbeatInterval)
+		defer ticker.Stop()
+		hasOutput := false
+		lastLoggedLine := ""
+		lastActivityAt := time.Now().UTC()
+		lastDiagnosticLine := ""
+		for {
+			select {
+			case rawLine, ok := <-lineCh:
+				if !ok {
+					lineCh = nil
+					continue
+				}
+				line := strings.TrimSpace(rawLine)
+				if line == "" {
+					continue
+				}
+				lastActivityAt = time.Now().UTC()
+				lastDiagnosticLine = line
+				if line == lastLoggedLine {
+					continue
+				}
+				hasOutput = true
+				lastLoggedLine = line
+				logf("docker runtime pull: " + line)
+			case <-ticker.C:
+				rawIdleFor := time.Since(lastActivityAt)
+				if rawIdleFor < runtimePullIdleHeartbeatInterval {
+					continue
+				}
+				idleFor := formatRuntimePullIdleDuration(rawIdleFor)
+				if lastDiagnosticLine != "" {
+					logf(fmt.Sprintf("docker runtime pull still waiting for new output after %s; last event: %s", idleFor, lastDiagnosticLine))
+				} else {
+					logf(fmt.Sprintf("docker runtime pull still waiting for first progress update after %s", idleFor))
+				}
+			case scanErr := <-errCh:
+				if scanErr != nil {
+					return result, scanErr
+				}
+				if err := stream.Close(); err != nil {
+					if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+						idleFor := formatRuntimePullIdleDuration(time.Since(lastActivityAt))
+						if lastDiagnosticLine != "" {
+							return result, fmt.Errorf("docker runtime pull interrupted after %s without new output; last event: %s: %w", idleFor, lastDiagnosticLine, err)
+						}
+						return result, fmt.Errorf("docker runtime pull interrupted before any progress output after %s: %w", idleFor, err)
+					}
+					return result, err
+				}
+				if !hasOutput {
+					logf("docker runtime pull completed with no incremental output")
+				}
+				return result, nil
+			}
+		}
 	case "runtime_stop":
 		client, err := ensureDockerClient(executor, dockerClient)
 		if err != nil {
@@ -343,6 +427,33 @@ func ExecuteNode(
 		logf("skipped unsupported node type: " + node.NodeType)
 		return result, nil
 	}
+}
+
+func scanStreamLinesAndCarriageReturns(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
+	}
+	for index, b := range data {
+		if b != '\n' && b != '\r' {
+			continue
+		}
+		advance = index + 1
+		if b == '\r' && advance < len(data) && data[advance] == '\n' {
+			advance++
+		}
+		return advance, data[:index], nil
+	}
+	if atEOF {
+		return len(data), data, nil
+	}
+	return 0, nil, nil
+}
+
+func formatRuntimePullIdleDuration(value time.Duration) time.Duration {
+	if value < time.Second {
+		return value.Round(10 * time.Millisecond)
+	}
+	return value.Round(time.Second)
 }
 
 func operationMetadataBool(operation *core.Record, key string) bool {

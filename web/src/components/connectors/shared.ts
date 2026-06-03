@@ -38,6 +38,8 @@ export type ConnectorTemplate = {
   fields?: ConnectorTemplateField[]
 }
 
+export type Translate = (key: string, options?: Record<string, unknown>) => string
+
 export const PROXY_AUTH_OPTIONS: SelectOption[] = [
   { label: 'No authentication', value: 'none' },
   { label: 'Username + Password', value: 'username_password' },
@@ -69,16 +71,67 @@ export const SECRET_TEMPLATE_LABELS: Record<string, string> = {
   single_value: 'Token / Single Value',
 }
 
+function translateOrFallback(
+  t: Translate | undefined,
+  key: string,
+  fallback: string,
+  options?: Record<string, unknown>
+) {
+  if (!t) {
+    return fallback
+  }
+  const value = t(key, options)
+  return value === key ? fallback : value
+}
+
+export function getConnectorKindLabel(
+  kind: string,
+  t?: Translate
+) {
+  const normalized = String(kind ?? '').trim().toLowerCase() as (typeof SUPPORTED_KINDS)[number]
+  const fallback = KIND_LABELS[normalized] ?? String(kind ?? 'Unknown')
+  return translateOrFallback(t, `connectors.kinds.${normalized}`, fallback)
+}
+
+export function getConnectorSecretTemplateLabel(templateId: string, t?: Translate) {
+  const normalized = String(templateId ?? '').trim()
+  const fallback = SECRET_TEMPLATE_LABELS[normalized] ?? normalized
+  return translateOrFallback(t, `connectors.secretTemplates.${normalized}`, fallback)
+}
+
+export function getConnectorAuthSchemeLabel(authScheme: string, t?: Translate) {
+  const normalized = String(authScheme ?? '').trim().toLowerCase()
+  const fallback = normalized || 'none'
+  return translateOrFallback(t, `connectors.authValues.${normalized || 'none'}`, fallback)
+}
+
+export function buildProxyAuthOptions(t?: Translate): SelectOption[] {
+  return [
+    {
+      label: translateOrFallback(t, 'connectors.auth.none', 'No authentication'),
+      value: 'none',
+    },
+    {
+      label: translateOrFallback(
+        t,
+        'connectors.auth.usernamePassword',
+        'Username + Password'
+      ),
+      value: 'username_password',
+    },
+  ]
+}
+
 export function buildDefaultConnectorName() {
   return `connector-${Date.now().toString().slice(-6)}`
 }
 
 const SECRET_TEMPLATE_IDS = new Set(Object.keys(SECRET_TEMPLATE_LABELS))
 
-export function formatSecretLabel(raw: Record<string, unknown>): string {
+export function formatSecretLabel(raw: Record<string, unknown>, t?: Translate): string {
   const name = String(raw.name ?? raw.id)
   const templateId = String(raw.template_id ?? '')
-  const suffix = SECRET_TEMPLATE_LABELS[templateId]
+  const suffix = getConnectorSecretTemplateLabel(templateId, t)
   return suffix ? `${name} (${suffix})` : name
 }
 
@@ -160,7 +213,8 @@ export function mapTemplateFieldToResourceField(
   template: ConnectorTemplate,
   field: ConnectorTemplateField,
   openSecretDialog: (callbacks: { addOption: (id: string, label: string) => void }) => void,
-  openSecretEditor: (secretId: string) => void
+  openSecretEditor: (secretId: string) => void,
+  t?: Translate
 ): FieldDef {
   if (template.kind === 'proxy') {
     if (field.id === 'auth_mode') {
@@ -169,7 +223,7 @@ export function mapTemplateFieldToResourceField(
         label: field.label,
         type: 'select',
         required: field.required,
-        options: PROXY_AUTH_OPTIONS,
+        options: buildProxyAuthOptions(t),
         defaultValue: normalizeTemplateFieldDefault(field),
         onValueChange: (value, update) => {
           if (String(value ?? '') !== 'username_password') {
@@ -200,13 +254,13 @@ export function mapTemplateFieldToResourceField(
       type: 'relation',
       required: field.required,
       relationApiPath: buildUserVisibleSecretRelationApiPath('connector', field.secretTemplate),
-      relationFormatLabel: formatSecretLabel,
+      relationFormatLabel: raw => formatSecretLabel(raw, t),
       relationCreateButton: {
-        label: 'New Secret',
+        label: translateOrFallback(t, 'connectors.secret.new', 'New Secret'),
         onClick: openSecretDialog,
       },
       relationEditButton: {
-        label: 'Edit Secret',
+        label: translateOrFallback(t, 'connectors.secret.edit', 'Edit Secret'),
         onClick: openSecretEditor,
       },
       showWhen:
@@ -236,13 +290,16 @@ export function mapTemplateFieldToResourceField(
 
 export async function buildConnectorPayload(
   payload: Record<string, unknown>,
-  templatesById: Map<string, ConnectorTemplate>
+  templatesById: Map<string, ConnectorTemplate>,
+  t?: Translate
 ) {
   const body = { ...payload }
   const templateId = String(body.template_id ?? '')
   const template = templatesById.get(templateId)
   if (!template) {
-    throw new Error('Connector profile is required')
+    throw new Error(
+      translateOrFallback(t, 'connectors.errors.profileRequired', 'Connector profile is required')
+    )
   }
 
   const credentialId = String(body.credential ?? '')
@@ -311,7 +368,8 @@ export async function buildConnectorPayload(
 
 export function mapConnectorRow(
   item: ConnectorRecord,
-  templatesById: Map<string, ConnectorTemplate>
+  templatesById: Map<string, ConnectorTemplate>,
+  t?: Translate
 ): Record<string, unknown> {
   const kind = String(item.kind ?? '') as (typeof SUPPORTED_KINDS)[number]
   const template = templatesById.get(String(item.template_id ?? ''))
@@ -338,7 +396,7 @@ export function mapConnectorRow(
     name: String(item.name ?? ''),
     is_default: Boolean(item.is_default),
     template_id: String(item.template_id ?? ''),
-    kind_label: KIND_LABELS[kind] ?? String(item.kind ?? 'Unknown'),
+    kind_label: getConnectorKindLabel(kind, t),
     profile: template?.title ?? humanizeTemplateId(String(item.template_id ?? '')),
     endpoint: String(item.endpoint ?? ''),
     auth_type: String(item.auth_scheme ?? 'none'),

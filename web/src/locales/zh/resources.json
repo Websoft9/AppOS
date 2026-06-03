@@ -75,6 +75,1226 @@
       }
     }
   },
+  "servers": {
+    "page": {
+      "title": "服务器",
+      "description": "SSH 部署目标",
+      "favoritesOnly": "仅收藏",
+      "addServer": "添加服务器",
+      "searchPlaceholder": "搜索服务器",
+      "totalItems": "共 {{count}} 项",
+      "detailDrawerTitle": "服务器详情"
+    },
+    "fields": {
+      "connectionType": "连接类型",
+      "name": "名称",
+      "host": "主机",
+      "useLocalHost": "使用本地主机",
+      "port": "端口",
+      "user": "用户",
+      "credentialSecret": "凭据（密钥）",
+      "description": "描述"
+    },
+    "placeholders": {
+      "name": "my-server",
+      "host": "192.168.1.1",
+      "user": "root"
+    },
+    "detail": {
+      "restoreWidth": "恢复详情宽度",
+      "expandWidth": "扩展详情宽度",
+      "titleWithName": "服务器详情 | {{name}}",
+      "unnamedServer": "未命名服务器",
+      "backToConnection": "返回连接"
+    },
+    "tabs": {
+      "overview": "概览",
+      "connection": "连接",
+      "components": "组件",
+      "monitor": "监控",
+      "docker": "Docker",
+      "runtime": "运行时",
+      "ports": "端口",
+      "crontab": "计划任务",
+      "systemd": "Systemd"
+    },
+    "connection": {
+      "directSsh": "直连 SSH",
+      "reverseTunnel": "反向隧道",
+      "tunnelShort": "隧道",
+      "directDescription": "AppOS 通过 SSH 访问这台服务器。",
+      "tunnelDescription": "服务器会从私有网络反向连回 AppOS。",
+      "configurationReady": "配置已就绪，可进行验证。"
+    },
+    "help": {
+      "connectionTypeLabel": "连接类型帮助",
+      "connectionTypeBody": "选择受管服务器连接到 AppOS 的方式。",
+      "hostLabel": "主机帮助",
+      "hostBody": "输入由 AppOS 管理的服务器 IP 地址或域名。"
+    },
+    "localHost": {
+      "loading": "加载中...",
+      "label": "本地主机",
+      "errors": {
+        "loadDockerBridge": "加载 docker0 地址失败"
+      }
+    },
+    "secret": {
+      "newCredential": "新建凭据",
+      "editSecret": "编辑密钥",
+      "errors": {
+        "load": "加载密钥失败",
+        "nameRequired": "名称不能为空",
+        "update": "更新密钥失败"
+      }
+    },
+    "columns": {
+      "name": "名称",
+      "mode": "模式",
+      "connection": "连接",
+      "monitor": "监控",
+      "host": "主机",
+      "user": "用户",
+      "secretType": "密钥类型",
+      "lastActivity": "最近活动"
+    },
+    "connectionStates": {
+      "notConfigured": "未配置",
+      "awaitingConnection": "等待连接",
+      "online": "在线",
+      "paused": "已暂停",
+      "needsAttention": "需要关注"
+    },
+    "actions": {
+      "overviewAlreadyOpen": "概览已打开",
+      "openOverview": "打开概览",
+      "openConnectionDetails": "打开连接详情",
+      "openMonitorFor": "打开 {{name}} 的监控",
+      "serverActions": "服务器操作",
+      "openTerminal": "打开终端",
+      "testConnection": "测试连接",
+      "tunnelSetup": "隧道设置",
+      "duplicateServer": "复制服务器"
+    },
+    "monitorTab": {
+      "heading": "监控",
+      "description": "查看当前资源信号、趋势历史和简明服务器结论。",
+      "currentValuesRegion": "监控当前值与趋势历史",
+      "errors": {
+        "collectorStatusUnavailable": "无法读取监控采集器服务状态"
+      },
+      "state": {
+        "ok": "正常",
+        "attention": "需要处理",
+        "checking": "检查中",
+        "review": "复查"
+      },
+      "time": {
+        "updatedUnknown": "最近更新 —",
+        "updatedAt": "最近更新 {{time}}"
+      },
+      "empty": {
+        "noDataYet": "{{name}} 暂无监控数据。当前连接状态为 {{status}}。"
+      },
+      "hints": {
+        "checking": "正在检查监控状态",
+        "awaitingFirstSample": "监控已激活 · 等待首个样本",
+        "active": "监控已激活{{subState}}",
+        "notConnected": "监控未连接"
+      },
+      "alert": {
+        "notConnectedTitle": "该服务器的监控尚未连接。",
+        "notConnectedBody": "在依赖监控数据之前，请先到组件页安装或修复 Monitor Agent 附加组件。"
+      },
+      "actions": {
+        "refreshStatus": "刷新监控状态",
+        "openComponents": "打开组件",
+        "installMonitorAgent": "安装监控代理",
+        "fixMonitorAgent": "修复监控代理",
+        "repairMonitorAgent": "重新修复监控代理",
+        "repairMonitorAgentDescription": "重新下发监控写入凭据、按需改写回调地址，并重启 AppOS 监控采集器。",
+        "openComponentsDescription": "使用组件页中的“修复”操作重新下发凭据并刷新回调地址。"
+      },
+      "conclusions": {
+        "regionLabel": "监控结论",
+        "title": "结论",
+        "subtitle": "基于可用监控信号生成的简明服务器洞察。",
+        "emptyTitle": "暂无结论。",
+        "emptyBody": "需要先有监控数据，AppOS 才能分析这台服务器。",
+        "dismissedTitle": "所有结论都已关闭。",
+        "dismissedBody": "刷新监控数据以重建结论列表。",
+        "listLabel": "监控结论列表",
+        "openItem": "打开结论 {{label}}",
+        "deleteItem": "删除结论 {{label}}",
+        "deleteTitle": "删除结论",
+        "controlReachable": {
+          "label": "控制面可达",
+          "summaryOk": "AppOS 可以访问这台服务器。",
+          "summaryAttention": "服务器访问需要关注。",
+          "detailOk": "AppOS 当前可通过现有服务器连接访问 {{name}}。",
+          "detailAttention": "{{name}} 可能暂时不可达。请先修复连接，再依赖实时操作。",
+          "nextOk": "无需操作。",
+          "nextAttention": "打开连接页并修复访问。"
+        },
+        "trendDataAvailable": {
+          "label": "趋势数据可用",
+          "summaryChecking": "正在检查监控数据链路。",
+          "summaryReady": "请用图表确认数据新鲜度。",
+          "detailChecking": "AppOS 正在检查监控采集器是否能提供可用的趋势数据。",
+          "detailReady": "左侧趋势卡片是判断数据是否新鲜、完整的可信来源。",
+          "nextStep": "如果图表持续为空或陈旧，请打开组件页检查 Monitor Agent 附加组件。"
+        },
+        "resourcePressure": {
+          "label": "资源压力",
+          "summary": "请结合当前值和趋势一起判断。",
+          "detail": "CPU、内存、磁盘和网络卡片会展示当前压力和最近变化方向。",
+          "nextStep": "仅当数值偏高、持续上升或意外缺失时再深入排查。"
+        }
+      }
+    },
+    "overview": {
+      "sections": {
+        "metadata": "服务器元数据",
+        "systemInformation": "系统信息",
+        "cloudProvider": "云提供方"
+      },
+      "actions": {
+        "refresh": "刷新概览数据",
+        "edit": "编辑"
+      },
+      "fields": {
+        "id": "ID",
+        "name": "名称",
+        "connectionType": "连接类型",
+        "host": "主机",
+        "port": "端口",
+        "user": "用户",
+        "access": "访问状态",
+        "tunnelState": "隧道状态",
+        "credentialType": "凭据类型",
+        "createdBy": "创建者",
+        "description": "描述",
+        "created": "创建时间",
+        "updated": "更新时间",
+        "operatingSystem": "操作系统",
+        "kernel": "内核",
+        "architecture": "架构",
+        "cpuCores": "CPU 核心数",
+        "memory": "内存",
+        "factsObserved": "采集时间",
+        "provider": "提供方",
+        "region": "区域",
+        "zone": "可用区",
+        "source": "来源"
+      },
+      "connection": {
+        "direct": "直连"
+      },
+      "credentialTypes": {
+        "password": "密码",
+        "sshKey": "SSH 密钥"
+      },
+      "cloudSources": {
+        "cloudInit": "Cloud-init",
+        "metadata": "元数据服务",
+        "manual": "手动覆盖"
+      },
+      "fallback": {
+        "unavailable": "不可用"
+      },
+      "empty": {
+        "noFacts": "这台服务器还没有采集到主机事实信息。"
+      }
+    },
+    "connectionTab": {
+      "state": {
+        "connected": "已连接",
+        "connecting": "连接中",
+        "needsAttention": "需要关注"
+      },
+      "reason": {
+        "tunnelActive": "隧道已激活",
+        "lastHeartbeat": "最近心跳 {{time}}",
+        "sshVerified": "SSH 已验证",
+        "waitingFirstConnection": "等待首次连接",
+        "readyToTest": "已准备好进行连接测试",
+        "tunnelSetupRequired": "需要完成隧道设置",
+        "completeSetup": "完成连接设置",
+        "connectionPaused": "连接已暂停",
+        "connectionLost": "连接已丢失",
+        "connectionUnavailable": "连接不可用"
+      },
+      "hero": {
+        "tunnelLive": "隧道连接正常",
+        "directReady": "直连 SSH 已就绪",
+        "waitingFirstTunnelCallback": "等待首次隧道回调",
+        "setupInProgress": "连接设置进行中",
+        "tunnelNeedsAttention": "隧道连接需要关注",
+        "connectionNeedsAttention": "连接需要关注"
+      },
+      "subline": {
+        "remoteAccessAvailable": "当前远程访问可用。",
+        "serverReachable": "当前可以访问这台服务器。",
+        "restoreAccess": "请执行下一步操作以恢复访问。"
+      },
+      "modeSummary": {
+        "tunnelRelay": "通过 AppOS 中继的隧道",
+        "directSsh": "直连 SSH"
+      },
+      "sessions": {
+        "none": "无",
+        "oneActive": "1 个活动会话",
+        "manyActive": "{{count}} 个活动会话"
+      },
+      "fields": {
+        "connectionStatus": "连接状态",
+        "mode": "模式",
+        "interactiveSession": "交互会话",
+        "lastActivity": "最近活动",
+        "recommendedAction": "推荐操作"
+      },
+      "activity": {
+        "serverRegistered": "服务器已登记",
+        "connectionUpdated": "连接已更新",
+        "tunnelSetupStarted": "隧道设置已开始",
+        "connected": "已连接",
+        "sshVerified": "SSH 已验证",
+        "heartbeatReceived": "已收到心跳",
+        "lastHealthyCheck": "最近健康检查",
+        "pauseUpdated": "暂停设置已更新",
+        "connectionFailed": "连接失败",
+        "settingsUpdated": "设置已更新"
+      },
+      "activityLog": {
+        "title": "活动日志",
+        "empty": "暂时还没有最近活动。",
+        "mostRecent": "最近事件"
+      }
+    },
+    "componentsTab": {
+      "sections": {
+        "prerequisites": "前置条件",
+        "prerequisitesRegion": "前置条件区域",
+        "prerequisiteTargets": "前置条件目标",
+        "addons": "附加组件",
+        "addonsRegion": "附加组件区域",
+        "addonInventory": "附加组件清单"
+      },
+      "help": {
+        "prerequisitesLabel": "前置条件帮助",
+        "prerequisitesBody": "在 AppOS 管理这台服务器上的工作负载之前，应先满足这些核心平台要求。",
+        "addonsLabel": "附加组件帮助",
+        "addonsBody": "基础能力就绪后，AppOS 可以检查、验证、安装或修复这些可选的服务器端组件。"
+      },
+      "actions": {
+        "refresh": "刷新",
+        "refreshComponents": "刷新组件"
+      },
+      "columns": {
+        "name": "名称",
+        "version": "版本",
+        "health": "健康状态",
+        "actions": "操作"
+      },
+      "actionLabels": {
+        "default": "操作",
+        "verify": "检查",
+        "recheck": "重新检查",
+        "reinstall": "修复",
+        "uninstall": "移除",
+        "install": "安装",
+        "upgrade": "升级",
+        "start": "启动",
+        "restart": "重启",
+        "stop": "停止"
+      },
+      "groups": {
+        "recommended": "推荐",
+        "secondary": "次要",
+        "dangerous": "危险"
+      },
+      "guidance": {
+        "stoppedWithStart": "这个附加组件已停止。请使用启动将其恢复上线。",
+        "stoppedWithoutStart": "这个附加组件已停止。请先恢复服务，再运行检查确认健康状态。"
+      },
+      "installSources": {
+        "managed": "受管",
+        "foreignPackage": "外部软件包",
+        "manual": "手动",
+        "unknown": "未知"
+      },
+      "installSource": {
+        "summary": "安装来源：{{label}}",
+        "summaryWithEvidence": "安装来源：{{label}}（{{evidence}}）"
+      },
+      "status": {
+        "running": "运行中",
+        "stopped": "已停止",
+        "installed": "已安装",
+        "notInstalled": "未安装",
+        "needsAttention": "需要关注",
+        "unknown": "未知"
+      },
+      "apposConnection": {
+        "connected": "已连接",
+        "stale": "陈旧",
+        "connecting": "连接中",
+        "notConnected": "未连接",
+        "authFailed": "鉴权失败",
+        "misconfigured": "配置错误",
+        "unknown": "未知"
+      },
+      "prerequisiteStatus": {
+        "needsAttention": "需要关注",
+        "verified": "已验证",
+        "detected": "已检测",
+        "notReady": "未就绪",
+        "unknown": "未知"
+      },
+      "prerequisiteChecks": {
+        "osSupport": "操作系统支持",
+        "privilegedAccess": "特权访问",
+        "networkAccess": "网络访问",
+        "dependencyReadiness": "依赖就绪度"
+      },
+      "detailRows": {
+        "serviceStatus": "服务状态",
+        "guidance": "指引",
+        "apposConnection": "AppOS 连接",
+        "installed": "已安装",
+        "latest": "最新版本",
+        "artifact": "制品",
+        "installSource": "安装来源",
+        "lastAction": "最近操作",
+        "updated": "更新时间",
+        "issues": "问题",
+        "verification": "验证",
+        "healthReasons": "健康原因"
+      },
+      "inventory": {
+        "installed": "已安装",
+        "latest": "最新版本",
+        "service": "服务",
+        "appos": "AppOS",
+        "operation": "操作",
+        "moreActionsFor": "{{name}} 的更多操作"
+      },
+      "checklist": {
+        "checkDockerEngineInstallation": "检查 Docker Engine 安装",
+        "checkDockerEngineVersion": "检查 Docker Engine 版本",
+        "checkDockerComposeAvailability": "检查 Docker Compose 可用性",
+        "checkDockerComposeVersion": "检查 Docker Compose 版本",
+        "checkItem": "检查 {{label}}"
+      },
+      "operationHistory": {
+        "title": "操作历史（{{count}}）",
+        "loading": "正在加载操作历史...",
+        "empty": "暂时还没有操作历史。",
+        "badges": {
+          "current": "当前"
+        },
+        "errors": {
+          "load": "加载操作历史失败",
+          "delete": "删除操作历史记录失败"
+        },
+        "actions": {
+          "refresh": "刷新操作历史",
+          "deleteRecord": "删除历史记录",
+          "deleteBlocked": "进行中的操作无法删除",
+          "deleteRecordFor": "删除 {{action}} 操作历史记录"
+        }
+      },
+      "panelTabs": {
+        "checklist": "检查清单",
+        "details": "详情",
+        "liveLog": "实时日志",
+        "history": "历史"
+      },
+      "panelTitles": {
+        "actionLog": "{{action}} 日志",
+        "operationHistory": "操作历史",
+        "verificationChecklist": "验证清单",
+        "addonDetails": "附加组件详情"
+      },
+      "badges": {
+        "streaming": "流式更新中",
+        "inProgress": "进行中"
+      },
+      "errors": {
+        "loadPrerequisiteComponents": "加载前置条件组件失败",
+        "loadAddonComponents": "加载附加组件失败"
+      },
+      "actionFeedback": {
+        "accepted": "{{action}} 已接受",
+        "acceptedWithId": "{{action}} 已接受（{{operationId}}）",
+        "acceptedForComponent": "已接受 {{component}} 的 {{action}}",
+        "acceptedForComponentWithId": "已接受 {{component}} 的 {{action}}（{{operationId}}）",
+        "waitingForFirstMetricsSample": "正在等待来自这台服务器的首个指标样本。",
+        "waitingForFirstMetricsSampleWithConnection": "正在等待首个指标样本；在趋势数据到达前，AppOS 连接会显示为“连接中”。",
+        "logEntry": "{{time}} · {{action}}：{{phase}}",
+        "now": "现在"
+      },
+      "phase": {
+        "accepted": "已接受",
+        "preflight": "预检查中...",
+        "executing": "执行中...",
+        "verifying": "验证中...",
+        "succeeded": "成功",
+        "failed": "失败",
+        "failedWithReason": "失败：{{reason}}",
+        "attentionRequired": "需要关注",
+        "attentionRequiredWithReason": "需要关注：{{reason}}",
+        "timeout": "已超时，状态未知",
+        "timeoutWithReason": "已超时，状态未知：{{reason}}",
+        "timedOut": "已超时"
+      },
+      "dockerFocus": {
+        "title": "从 Docker > {{source}} 打开",
+        "sources": {
+          "compose": "Compose",
+          "containers": "容器",
+          "images": "镜像",
+          "volumes": "卷",
+          "networks": "网络",
+          "overview": "概览"
+        },
+        "history": {
+          "daemonUnavailable": "Docker 前置条件恢复是从 Docker 的 {{source}} 视图打开的。请先查看最近的检查和修复历史，再确认 Docker daemon 正在运行，然后回到那里重试。",
+          "permissionDenied": "Docker 前置条件恢复是从 Docker 的 {{source}} 视图打开的。请先查看最近的检查和修复历史，再修复 Docker socket 访问或权限设置，然后回到那里重试。",
+          "default": "Docker 前置条件恢复是从 Docker 的 {{source}} 视图打开的。请先查看最近的检查和修复历史，然后回到那里重试。"
+        },
+        "checks": {
+          "composeMissing": "Docker 前置条件检查是从 Docker 的 {{source}} 视图打开的。请先在这里检查 Docker Compose 可用性，然后回到那个 Docker 页面重试。",
+          "dockerMissing": "Docker 前置条件检查是从 Docker 的 {{source}} 视图打开的。请先在这里检查 Docker Engine 安装，然后回到那个 Docker 页面重试。",
+          "default": "Docker 前置条件检查是从 Docker 的 {{source}} 视图打开的。请先在这里修复基础要求，然后回到那个 Docker 页面重试。"
+        }
+      },
+      "logRegions": {
+        "prerequisiteActionLogEntries": "前置条件操作日志条目",
+        "addonActionLogEntries": "附加组件操作日志条目"
+      },
+      "dialogs": {
+        "confirmDanger": {
+          "title": "确认 {{action}}",
+          "description": "{{action}} 可能会在这台服务器上{{consequence}}。仅当你已准备好中断当前运行时再继续。",
+          "upgradeConsequence": "升级或替换 Docker 组件",
+          "reinstallConsequence": "重新安装或替换 Docker 组件",
+          "cancel": "取消",
+          "continue": "继续"
+        },
+        "monitorAddress": {
+          "title": "选择监控回调地址",
+          "description": "监控代理会将指标回传到 AppOS。从当前浏览器会话检测到的地址与配置的 App URL 不一致。请选择目标服务器可访问的地址。",
+          "close": "关闭监控回调地址对话框",
+          "detectedAddress": "检测到的地址",
+          "appUrl": "App URL",
+          "useDetectedAddress": "使用检测到的地址",
+          "useAppUrl": "使用 App URL",
+          "errors": {
+            "loadAppUrl": "加载 App URL 失败",
+            "detectCallback": "无法从当前浏览器会话中检测到 AppOS 回调地址。"
+          }
+        }
+      },
+      "alerts": {
+        "operationAlreadyInProgress": {
+          "title": "操作已在进行中",
+          "description": "{{name}} 已有一个正在执行的 {{action}} 请求。",
+          "currentPhase": "当前阶段",
+          "lastUpdated": "最近更新",
+          "openOperationHistory": "打开操作历史"
+        }
+      },
+      "selectedAddon": {
+        "title": "已选附加组件",
+        "selectFromInventory": "请从清单中选择一个附加组件。",
+        "empty": "选择一个组件以检查状态、活动、就绪问题和可用操作。",
+        "inProgress": {
+          "title": "操作进行中",
+          "isStill": "仍处于",
+          "lastUpdated": "最近更新"
+        }
+      },
+      "prerequisiteCard": {
+        "summary": {
+          "checksPassed": "检查通过",
+          "openDetails": "展开详情以查看验证和恢复操作"
+        },
+        "fields": {
+          "status": "状态",
+          "version": "版本",
+          "dockerCompose": "Docker Compose",
+          "updated": "更新时间"
+        },
+        "fallback": {
+          "unavailable": "不可用",
+          "missing": "缺失"
+        },
+        "detailsFor": "{{name}} 详情"
+      },
+      "empty": {
+        "loadingPrerequisites": "正在加载前置条件...",
+        "noPrerequisites": "这台服务器未定义前置条件组件。",
+        "loadingAddons": "正在加载附加组件...",
+        "noAddons": "这台服务器未找到附加组件。",
+        "waitingForOperationUpdates": "正在等待操作更新...",
+        "noLiveLogYet": "暂时还没有实时日志。运行一个操作后会在这里显示更新。"
+      }
+    },
+    "cronTab": {
+      "title": "计划任务",
+      "description": "管理这台服务器上由 AppOS 托管的 crontab 条目。",
+      "loading": "正在加载计划任务条目...",
+      "status": {
+        "yes": "是",
+        "no": "否"
+      },
+      "actions": {
+        "refresh": "刷新计划任务条目",
+        "newEntry": "新建条目",
+        "edit": "编辑",
+        "test": "测试",
+        "takeEffective": "生效",
+        "removeEffect": "取消生效",
+        "delete": "删除",
+        "actionsFor": "{{name}} 的计划任务操作"
+      },
+      "empty": {
+        "title": "还没有受管计划任务条目",
+        "description": "这里仅显示这台服务器上由 AppOS 管理的计划任务条目。"
+      },
+      "inventory": {
+        "ariaLabel": "计划任务清单",
+        "summary": "共 {{count}} 个条目，{{failed}} 个失败。"
+      },
+      "search": {
+        "placeholder": "搜索"
+      },
+      "pagination": {
+        "previous": "上一页",
+        "next": "下一页"
+      },
+      "sort": {
+        "asc": "升序",
+        "desc": "降序"
+      },
+      "columns": {
+        "name": "名称",
+        "nameSorted": "名称按 {{direction}} 排序",
+        "schedule": "调度",
+        "path": "路径",
+        "takeEffective": "是否生效",
+        "singleRunOnly": "仅单次运行",
+        "actions": "操作"
+      },
+      "filters": {
+        "noResults": "没有计划任务条目符合当前筛选条件。"
+      },
+      "selected": {
+        "title": "已选条目",
+        "selectPrompt": "请从清单中选择一个条目。",
+        "empty": "选择一个计划任务条目以查看其调度、路径和命令详情。"
+      },
+      "detailRows": {
+        "name": "名称：",
+        "schedule": "调度：",
+        "path": "路径：",
+        "takeEffective": "是否生效：",
+        "singleRunOnly": "仅单次运行：",
+        "command": "命令"
+      },
+      "tabs": {
+        "liveLog": "实时日志",
+        "logs": "日志"
+      },
+      "liveLog": {
+        "empty": "还没有操作日志。触发测试、编辑、生效/取消生效或删除操作后，这里会显示实时更新。"
+      },
+      "logsPanel": {
+        "empty": "这里预留展示条目的历史日志，后端日志 API 目前尚不可用。"
+      },
+      "hints": {
+        "created": "计划任务条目已创建。",
+        "updated": "计划任务条目已更新。",
+        "deleted": "计划任务条目已删除。",
+        "effectApplied": "计划任务条目已生效。",
+        "effectRemoved": "计划任务条目已取消生效。",
+        "tested": "计划任务条目已测试。"
+      },
+      "errors": {
+        "load": "加载计划任务条目失败",
+        "save": "保存计划任务条目失败",
+        "update": "更新计划任务条目失败",
+        "delete": "删除计划任务条目失败",
+        "test": "测试计划任务条目失败"
+      },
+      "logs": {
+        "savingChanges": "正在保存条目变更...",
+        "entryCreated": "条目创建成功。",
+        "entryUpdated": "条目更新成功。",
+        "saveFailed": "保存失败：{{message}}",
+        "removingEffect": "正在取消条目生效...",
+        "applyingEffect": "正在将条目应用到 crontab...",
+        "entryEffective": "条目现已生效。",
+        "entryEffectRemoved": "条目已取消生效。",
+        "toggleFailed": "切换失败：{{message}}",
+        "deleting": "正在删除条目...",
+        "entryDeleted": "条目已删除。",
+        "deleteFailed": "删除失败：{{message}}",
+        "runningTest": "正在测试条目...",
+        "tested": "计划任务条目已测试。",
+        "testOutput": "测试输出：\n{{output}}",
+        "testFailed": "测试失败：{{message}}"
+      },
+      "validation": {
+        "nameRequired": "名称不能为空",
+        "scheduleInvalid": "调度必须是合法的五段 cron 表达式",
+        "commandRequired": "命令不能为空"
+      },
+      "dialogs": {
+        "editor": {
+          "createTitle": "新建条目",
+          "editTitle": "编辑条目",
+          "description": "通过按频率划分的控件生成五段 cron 调度表达式。",
+          "cancel": "取消",
+          "save": "保存"
+        },
+        "delete": {
+          "title": "删除计划任务条目",
+          "descriptionWithName": "条目：{{name}}。这会永久删除该受管 cron 行。",
+          "descriptionFallback": "请确认删除。",
+          "cancel": "取消",
+          "confirm": "删除"
+        }
+      },
+      "editor": {
+        "sections": {
+          "name": "名称",
+          "command": "命令",
+          "optional": "可选",
+          "frequencySet": "频率设置",
+          "cronExpression": "Cron 表达式"
+        },
+        "fields": {
+          "name": "名称",
+          "command": "命令",
+          "takeEffective": "是否生效",
+          "singleRunOnly": "仅单次运行",
+          "frequency": "频率",
+          "every": "每",
+          "atTime": "执行时间",
+          "hour": "小时",
+          "minute": "分钟",
+          "daysOfWeek": "星期",
+          "dayOfMonth": "每月日期",
+          "customCronFields": "自定义 cron 字段",
+          "dayOfMonthShort": "日（月）",
+          "month": "月",
+          "dayOfWeekShort": "日（周）",
+          "cronExpression": "你的 cron 表达式"
+        },
+        "actions": {
+          "copy": "复制",
+          "copied": "已复制"
+        },
+        "frequencyOptions": {
+          "minute": "每分钟",
+          "hour": "每小时",
+          "day": "每天",
+          "week": "每周",
+          "month": "每月",
+          "custom": "自定义"
+        },
+        "units": {
+          "minutes": "分钟",
+          "hours": "小时"
+        }
+      },
+      "weekdays": {
+        "sun": { "short": "周日", "label": "星期日" },
+        "mon": { "short": "周一", "label": "星期一" },
+        "tue": { "short": "周二", "label": "星期二" },
+        "wed": { "short": "周三", "label": "星期三" },
+        "thu": { "short": "周四", "label": "星期四" },
+        "fri": { "short": "周五", "label": "星期五" },
+        "sat": { "short": "周六", "label": "星期六" }
+      }
+    },
+    "servicesTab": {
+      "title": "Systemd",
+      "description": "在单个视图中检查服务状态、打开日志并处理 unit 文件。",
+      "loading": "正在加载服务...",
+      "loadingDetails": "正在加载详情...",
+      "inventory": {
+        "ariaLabel": "Systemd 清单",
+        "summary": "共 {{count}} 个服务，{{failed}} 个失败。",
+        "focusService": "AppOS 焦点服务"
+      },
+      "search": {
+        "placeholder": "搜索"
+      },
+      "filters": {
+        "status": "状态筛选"
+      },
+      "filterOptions": {
+        "all": "全部状态（{{count}}）",
+        "running": "运行中（{{count}}）",
+        "exited": "已退出（{{count}}）",
+        "failed": "失败（{{count}}）",
+        "inactive": "未激活（{{count}}）"
+      },
+      "pagination": {
+        "previous": "上一页",
+        "next": "下一页"
+      },
+      "sort": {
+        "asc": "升序",
+        "desc": "降序"
+      },
+      "columns": {
+        "name": "名称",
+        "nameSorted": "名称按 {{direction}} 排序",
+        "nameSortable": "名称可排序",
+        "status": "状态",
+        "summary": "摘要",
+        "summarySorted": "摘要按 {{direction}} 排序",
+        "summarySortable": "摘要可排序",
+        "actions": "操作"
+      },
+      "selected": {
+        "title": "已选服务",
+        "selectPrompt": "请从清单中选择一个服务。",
+        "empty": "选择一个服务以查看其状态、日志和 unit 详情。"
+      },
+      "detailRows": {
+        "name": "名称",
+        "description": "描述",
+        "status": "状态",
+        "path": "路径",
+        "pid": "PID",
+        "loadState": "加载状态",
+        "activeState": "活动状态",
+        "subState": "子状态",
+        "unitFileState": "Unit 文件状态",
+        "stateChange": "状态变更"
+      },
+      "status": {
+        "running": "运行中",
+        "exited": "已退出",
+        "dead": "已停止",
+        "failed": "失败",
+        "inactive": "未激活",
+        "unknown": "未知"
+      },
+      "tabs": {
+        "overview": "概览",
+        "logs": "日志"
+      },
+      "logs": {
+        "title": "日志",
+        "entries": "{{count}} 条记录",
+        "empty": "没有日志。"
+      },
+      "unit": {
+        "title": "Unit",
+        "empty": "没有 unit 内容。",
+        "placeholder": "[Unit]\nDescription=...",
+        "validatePassed": "校验通过。",
+        "applyCompleted": "应用完成。"
+      },
+      "actions": {
+        "refresh": "刷新 systemd 数据",
+        "serviceActionsFor": "{{name}} 的服务操作",
+        "openOverview": "打开概览",
+        "openLogs": "打开日志",
+        "openUnit": "打开 unit",
+        "editUnit": "编辑 unit",
+        "start": "启动",
+        "restart": "重启",
+        "stop": "停止",
+        "enable": "启用",
+        "disable": "禁用",
+        "copy": "复制",
+        "validate": "校验",
+        "apply": "应用",
+        "cancelEdit": "取消编辑"
+      },
+      "empty": {
+        "noMatches": "没有服务符合当前筛选条件。"
+      },
+      "hints": {
+        "logsCopied": "日志已复制。",
+        "actionApplied": "操作 {{action}} 已应用。下一步：检查状态或日志。"
+      },
+      "errors": {
+        "loadServices": "加载服务失败",
+        "operationFailed": "操作失败",
+        "copyLogs": "复制日志失败",
+        "validateUnit": "校验 unit 文件失败",
+        "applyUnit": "应用 unit 文件失败"
+      },
+      "confirm": {
+        "validateTitle": "要校验 unit 文件吗？",
+        "applyTitle": "要应用 unit 变更吗？",
+        "actionTitle": "确认服务操作？",
+        "validateDescription": "服务：{{service}}\n这将运行 systemd-analyze verify。",
+        "applyDescription": "服务：{{service}}\n这会保存当前编辑器内容，然后运行 daemon-reload 和 try-restart。",
+        "actionDescription": "服务：{{service}}\n操作：{{action}}",
+        "cancel": "取消",
+        "confirm": "确认"
+      }
+    },
+    "runtime": {
+      "placeholder": "这里后续可以展示 {{name}} 的活动会话、已部署工作负载和进程信息等运行时详情。"
+    },
+    "summary": {
+      "viaTunnel": "通过 AppOS 隧道"
+    },
+    "monitor": {
+      "tooltipWithReason": "观测到的监控目标状态：{{status}}。{{reason}}",
+      "tooltipWithoutReason": "观测到的监控目标状态：{{status}}",
+      "tooltipSuffix": "{{prefix}}。这反映的是服务器目标最近一次监控证据，可能会滞后于附加组件状态。"
+    },
+    "sessions": {
+      "oneActive": "1 个活动终端会话",
+      "manyActive": "{{count}} 个活动终端会话"
+    },
+    "listSettings": {
+      "title": "列表设置",
+      "rowsPerPage": "每页行数",
+      "rowsPerPageOption": "{{count}} / 页",
+      "columns": "列"
+    },
+    "validation": {
+      "nameRequired": "名称不能为空",
+      "userRequired": "用户不能为空",
+      "hostRequiredForDirect": "直连 SSH 连接必须填写主机",
+      "portRequiredForDirect": "直连 SSH 连接必须填写端口"
+    }
+  },
+  "serviceInstances": {
+    "page": {
+      "title": "服务实例",
+      "description": "MySQL、PostgreSQL、Redis、Kafka、S3 存储和模型服务等基于资料模板的实例。",
+      "favoritesOnly": "仅收藏",
+      "addInstance": "添加实例",
+      "searchPlaceholder": "搜索任意实例",
+      "cancel": "取消"
+    },
+    "selection": {
+      "title": "选择产品",
+      "description": "先选择一个产品，再填写连接详情。",
+      "searchPlaceholder": "搜索 MySQL、Redis、Aurora、PostgreSQL 等产品...",
+      "emptyMessage": "未找到匹配的产品。"
+    },
+    "fields": {
+      "kind": "类型",
+      "template": "模板",
+      "selectedProduct": "已选产品",
+      "selectedProductMeta": "已选产品元信息",
+      "selectedProductDescription": "已选产品描述",
+      "name": "名称",
+      "username": "用户名",
+      "connectionTimeout": "连接超时",
+      "titleNameEditing": "标题名称编辑",
+      "endpoint": "端点",
+      "host": "主机",
+      "port": "端口",
+      "platformAccount": "平台账号",
+      "password": "密码",
+      "credential": "凭据",
+      "credentialUsesSecret": "凭据使用密钥",
+      "passwordValue": "密码值",
+      "useSsl": "启用 SSL",
+      "sslCertificate": "SSL 证书",
+      "description": "描述",
+      "groups": "分组"
+    },
+    "placeholders": {
+      "name": "db-prod",
+      "username": "appuser",
+      "endpoint": "db.example.com:3306 或 https://service.example.com",
+      "host": "db.example.com"
+    },
+    "help": {
+      "connectionTimeout": "首次连接尝试超时前等待的秒数。",
+      "sslCertificatePostgres": "仅当 PostgreSQL 连接要求双向 SSL 时才需要选择证书。",
+      "sslCertificateMysql": "仅当 MySQL 连接要求双向 SSL 时才需要选择证书。"
+    },
+    "categories": {
+      "database": "数据库",
+      "cache": "缓存",
+      "message-queue": "消息队列",
+      "storage": "存储",
+      "artifact": "制品仓库",
+      "ai": "AI 服务",
+      "other": "其他"
+    },
+    "kinds": {
+      "mysql": "MySQL",
+      "postgres": "PostgreSQL",
+      "redis": "Redis",
+      "kafka": "Kafka",
+      "s3": "S3 存储",
+      "registry": "镜像仓库",
+      "ollama": "Ollama",
+      "unknown": "未知"
+    },
+    "product": {
+      "standardTemplate": "标准模板",
+      "profileDescription": "{{vendorPrefix}}{{category}}资料。"
+    },
+    "templateFields": {
+      "database": "数据库",
+      "region": "区域",
+      "clusterIdentifier": "集群标识符",
+      "clusterId": "集群 ID"
+    },
+    "columns": {
+      "name": "名称",
+      "kind": "类型",
+      "profile": "资料",
+      "host": "主机",
+      "monitor": "监控",
+      "lastChecked": "最近检查",
+      "created": "创建时间",
+      "updated": "更新时间"
+    },
+    "monitor": {
+      "unknown": "未知",
+      "status": {
+        "healthy": "健康",
+        "offline": "离线",
+        "unreachable": "不可达",
+        "credential_invalid": "凭据无效",
+        "degraded": "降级"
+      }
+    },
+    "ssl": {
+      "oneWay": "单向 SSL",
+      "mutual": "双向 SSL"
+    },
+    "dialog": {
+      "instanceTitle": "实例标题",
+      "applyTitle": "应用标题",
+      "newInstance": "新建服务实例",
+      "editTitle": "编辑标题",
+      "create": "创建",
+      "update": "更新",
+      "suffix": "服务实例"
+    },
+    "secret": {
+      "singleValueTemplate": "密码 / 单值",
+      "newTitle": "新建密钥",
+      "newDescription": "创建一个可复用密码密钥并将其附加到这个服务实例。",
+      "editTitle": "编辑密钥",
+      "editDescription": "无需离开服务实例编辑页即可更新已选密钥。",
+      "loading": "正在加载密钥...",
+      "save": "保存密钥",
+      "generatedDescription": "{{name}} 的密码",
+      "errors": {
+        "load": "加载密钥失败",
+        "nameRequired": "名称不能为空",
+        "update": "更新密钥失败"
+      }
+    },
+    "errors": {
+      "instanceProfileRequired": "实例资料不能为空",
+      "passwordRequired": "密码不能为空",
+      "passwordSecretRequired": "密码密钥不能为空",
+      "sslCertificateRequired": "双向 SSL 必须提供 SSL 证书"
+    }
+  },
+  "platformAccounts": {
+    "page": {
+      "title": "平台账号",
+      "description": "AWS、Azure、Google Cloud、GitHub、Cloudflare 等带有基于资料模板的平台身份。"
+    },
+    "selection": {
+      "title": "选择产品",
+      "description": "先选择一个产品，再填写账号详情。",
+      "searchPlaceholder": "搜索 AWS、GitHub、Azure、Cloudflare 等产品...",
+      "emptyMessage": "未找到匹配的产品。"
+    },
+    "fields": {
+      "platform": "平台",
+      "template": "模板",
+      "selectedProduct": "已选产品",
+      "selectedProductMeta": "已选产品元信息",
+      "selectedProductDescription": "已选产品描述",
+      "name": "名称",
+      "credential": "凭据",
+      "description": "描述",
+      "groups": "分组"
+    },
+    "placeholders": {
+      "name": "aws-prod"
+    },
+    "categories": {
+      "cloud": "云平台",
+      "developer-platform": "开发者平台",
+      "edge": "边缘平台",
+      "other": "其他"
+    },
+    "kinds": {
+      "aws": "AWS",
+      "aliyun": "阿里云",
+      "azure": "Azure",
+      "gcp": "Google Cloud",
+      "github": "GitHub",
+      "cloudflare": "Cloudflare",
+      "unknown": "未知"
+    },
+    "product": {
+      "standardTemplate": "标准模板",
+      "profileDescription": "{{vendorPrefix}}{{category}}资料。"
+    },
+    "columns": {
+      "name": "名称",
+      "platform": "平台",
+      "profile": "资料",
+      "identifier": "标识符"
+    }
+  },
+  "connectors": {
+    "page": {
+      "title": "连接器",
+      "description": "由分组连接器资料支撑的可复用 API、Webhook、MCP、代理、SMTP、镜像仓库和 DNS 连接器",
+      "addConnector": "添加连接器",
+      "searchPlaceholder": "搜索连接器",
+      "totalItems": "共 {{count}} 项"
+    },
+    "fields": {
+      "name": "名称",
+      "profile": "资料",
+      "description": "描述",
+      "advancedConfig": "高级配置（JSON）",
+      "groups": "分组"
+    },
+    "placeholders": {
+      "name": "my-connector",
+      "advancedConfig": "{\"headers\": {\"X-Custom\": \"value\"}}"
+    },
+    "columns": {
+      "name": "名称",
+      "default": "默认",
+      "kind": "类型",
+      "profile": "资料",
+      "url": "URL",
+      "auth": "认证"
+    },
+    "badges": {
+      "default": "默认"
+    },
+    "kinds": {
+      "rest_api": "REST API",
+      "webhook": "Webhook",
+      "mcp": "MCP",
+      "proxy": "代理",
+      "smtp": "SMTP",
+      "registry": "镜像仓库",
+      "dns": "DNS"
+    },
+    "auth": {
+      "none": "无认证",
+      "usernamePassword": "用户名 + 密码",
+      "noneValue": "none"
+    },
+    "authValues": {
+      "none": "none",
+      "basic": "basic",
+      "bearer": "bearer"
+    },
+    "secret": {
+      "new": "新建密钥",
+      "edit": "编辑密钥",
+      "newTitle": "新建密钥",
+      "newDescription": "创建一个可复用密钥并将其附加到这个连接器。"
+    },
+    "secretTemplates": {
+      "single_value": "令牌 / 单值"
+    },
+    "errors": {
+      "profileRequired": "连接器资料不能为空"
+    }
+  },
+  "aiProviders": {
+    "page": {
+      "title": "AI 提供方",
+      "description": "OpenAI、Anthropic、OpenRouter、Ollama 等托管或本地 AI 提供方定义。",
+      "emptyState": "未找到 AI 提供方",
+      "searchPlaceholder": "搜索任意 AI 提供方",
+      "addProvider": "添加 AI 提供方",
+      "refresh": "刷新"
+    },
+    "selection": {
+      "title": "选择产品",
+      "description": "先选择一个提供方产品，再填写连接详情。",
+      "searchPlaceholder": "搜索 OpenAI、Ollama、Anthropic、OpenRouter 等产品...",
+      "emptyMessage": "未找到匹配的产品。"
+    },
+    "columns": {
+      "name": "名称",
+      "profile": "资料",
+      "reachability": "可达性",
+      "endpoint": "端点",
+      "created": "创建时间",
+      "updated": "更新时间"
+    },
+    "status": {
+      "reachable": "可达",
+      "unreachable": "不可达",
+      "unknown": "未知"
+    },
+    "fields": {
+      "name": "名称",
+      "profile": "资料",
+      "description": "描述",
+      "selectedProduct": "已选产品",
+      "selectedProductMeta": "已选产品元信息",
+      "selectedProductDescription": "已选产品描述",
+      "titleNameEditing": "标题名称编辑",
+      "credentialUseSecret": "凭据使用密钥",
+      "apiKeyValue": "API Key 值",
+      "advancedConfig": "高级配置（JSON）",
+      "groups": "分组",
+      "apiKey": "API Key"
+    },
+    "placeholders": {
+      "name": "my-ai-provider",
+      "advancedConfig": "{\"temperature\": 0.2}"
+    },
+    "credential": {
+      "enterField": "输入 {{field}}",
+      "showField": "显示 {{field}}",
+      "hideField": "隐藏 {{field}}",
+      "generateTitle": "生成 API Key",
+      "generateDescription": "先选择 API Key 长度，再填入字段。",
+      "generateLengthLabel": "API Key 长度",
+      "generateConfirmLabel": "填入 API Key"
+    },
+    "dialog": {
+      "providerTitle": "AI 提供方标题",
+      "applyTitle": "应用标题",
+      "newProvider": "新建 AI 提供方",
+      "editTitle": "编辑标题",
+      "add": "添加",
+      "update": "更新",
+      "suffix": "AI 提供方"
+    },
+    "secret": {
+      "new": "新建密钥",
+      "edit": "编辑密钥",
+      "newTitle": "新建密钥",
+      "newDescription": "创建一个可复用密钥并将其附加到这个 AI 提供方。",
+      "singleValueTemplate": "令牌 / 单值",
+      "generatedDescription": "{{name}} 的 API Key"
+    },
+    "errors": {
+      "profileRequired": "AI 提供方资料不能为空",
+      "fieldRequired": "{{field}} 不能为空"
+    }
+  },
   "dialog": {
     "title": "添加资源",
     "sectionDescriptionAria": "{{title}} 说明"

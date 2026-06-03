@@ -1,0 +1,52 @@
+{
+  "templateKey": "odoo",
+  "requiredFiles": [
+    "manifest.json",
+    "inputs.schema.json",
+    "render.json",
+    "source.json",
+    "compose/base.yml",
+    "env/defaults.env"
+  ],
+  "manifest": {
+    "contractVersion": "0.1",
+    "key": "odoo",
+    "category": "erp",
+    "serviceRoles": {
+      "odoo": "primary",
+      "postgresql": "database"
+    }
+  },
+  "inputs": {
+    "fieldKeys": [
+      "app_id",
+      "version",
+      "http_port",
+      "site_url",
+      "db_password"
+    ],
+    "secretBacked": [
+      "db_password"
+    ],
+    "systemManaged": [
+      "app_id"
+    ]
+  },
+  "render": {
+    "exposureKind": "http",
+    "primaryService": "odoo",
+    "databaseService": "postgresql",
+    "secretRefs": [
+      "db_password"
+    ]
+  },
+  "source": {
+    "originKind": "official",
+    "templateRevision": "v0-initial",
+    "adapterVersion": "v0"
+  },
+  "adapter": {
+    "primaryService": "odoo",
+    "publishKind": "http"
+  }
+}

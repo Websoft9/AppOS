@@ -6,6 +6,8 @@ import {
   CheckCircle2,
   ChevronDown,
   CircleHelp,
+  Eye,
+  EyeOff,
   List,
   ShieldAlert,
   X,
@@ -16,6 +18,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { useCatalogAppTemplate, type CatalogTemplateField } from '@/lib/catalog-api'
 import { iacUploadFile, iacMkdir } from '@/lib/iac-api'
 import { pb } from '@/lib/pb'
 import type { CreateDeploymentEntryMode } from '@/pages/deploy/actions/action-types'
@@ -28,6 +31,7 @@ import type {
 import { OrchestrationSection } from '@/pages/deploy/OrchestrationSection'
 
 const SOURCE_LABELS: Record<string, string> = {
+  template: 'App Template',
   compose: 'Compose File',
   'git-compose': 'Git Repository',
   'docker-command': 'Docker Command',
@@ -49,6 +53,118 @@ type NameAvailabilityResult = {
   project_name?: string
   normalized_name?: string
   message?: string
+}
+
+type TemplateSecretState = {
+  id: string
+  rawValue: string
+}
+
+function isTemplateFieldBasic(field: CatalogTemplateField) {
+  return field.visibility !== 'system' && field.visibility !== 'advanced'
+}
+
+function isTemplateFieldAdvanced(field: CatalogTemplateField) {
+  return field.visibility === 'advanced'
+}
+
+function isTemplateFieldHidden(field: CatalogTemplateField) {
+  return field.visibility === 'system'
+}
+
+function isSecretBackedTemplateField(field: CatalogTemplateField) {
+  return field.storage_mode === 'secret_backed'
+}
+
+function isSecretRefValue(value: string) {
+  return value.trim().startsWith('secretRef:')
+}
+
+function buildRandomSecretValue(length = 24) {
+  const normalizedLength = Math.min(Math.max(length, 12), 64)
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*()-_=+'
+  const cryptoObject = globalThis.crypto
+  if (cryptoObject?.getRandomValues) {
+    const bytes = new Uint32Array(normalizedLength)
+    cryptoObject.getRandomValues(bytes)
+    return Array.from(bytes, value => alphabet[value % alphabet.length]).join('')
+  }
+  return Array.from(
+    { length: normalizedLength },
+    () => alphabet[Math.floor(Math.random() * alphabet.length)]
+  ).join('')
+}
+
+function slugifySecretPart(value: string) {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return normalized || 'app'
+}
+
+function buildTemplateSecretName(
+  templateKey: string,
+  projectName: string,
+  field: CatalogTemplateField
+) {
+  const appPart = slugifySecretPart(projectName || templateKey)
+  const fieldPart = slugifySecretPart(field.key)
+  return `app-${appPart}-${fieldPart}`
+}
+
+function buildTemplateSecretDescription(
+  templateLabel: string,
+  projectName: string,
+  field: CatalogTemplateField
+) {
+  const appLabel = projectName.trim() || templateLabel.trim() || 'application'
+  return `Generated for ${appLabel} deployment field ${field.label || field.key}`
+}
+
+function buildTemplateDefaults(fields: CatalogTemplateField[]): Record<string, string> {
+  const defaults: Record<string, string> = {}
+  for (const field of fields) {
+    const value = field.default
+    defaults[field.key] = value == null ? '' : String(value)
+  }
+  return defaults
+}
+
+function coerceTemplateInputValue(field: CatalogTemplateField, value: string): unknown {
+  if (field.type === 'port') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : value
+  }
+  return value
+}
+
+function buildTemplateInputPayload(
+  fields: CatalogTemplateField[],
+  values: Record<string, string>
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {}
+  for (const field of fields) {
+    if (isTemplateFieldHidden(field)) {
+      continue
+    }
+    const rawValue = values[field.key] ?? ''
+    if (!field.required && rawValue.trim() === '') {
+      continue
+    }
+    payload[field.key] = coerceTemplateInputValue(field, rawValue)
+  }
+  return payload
+}
+
+function hasMissingRequiredTemplateFields(
+  fields: CatalogTemplateField[],
+  values: Record<string, string>
+) {
+  return fields.some(
+    field => !isTemplateFieldHidden(field) && field.required && !(values[field.key] ?? '').trim()
+  )
 }
 
 function buildRuntimeInputsPayload(
@@ -197,7 +313,9 @@ export function CreateDeploymentPage({
     gitSubmitting,
     checkManualOperation,
     checkGitOperation,
+    checkTemplateOperation,
     submitManualOperation,
+    submitTemplateOperation,
     submitGitOperation,
   } = useActionsController({
     prefillMode,
@@ -210,11 +328,30 @@ export function CreateDeploymentPage({
     view: 'create',
   })
 
+  const [templateKey, setTemplateKey] = useState(prefillAppKey || '')
+  const [templateInputValues, setTemplateInputValues] = useState<Record<string, string>>({})
+  const [templateSecretState, setTemplateSecretState] = useState<Record<string, TemplateSecretState>>({})
+  const [templateSecretRevealState, setTemplateSecretRevealState] = useState<Record<string, boolean>>({})
   const isGit = createEntryMode === 'git-compose'
+  const isTemplate = createEntryMode === 'template'
+  const isPinnedTemplate = isTemplate && Boolean(prefillAppKey?.trim())
   const activeName = isGit ? gitProjectName : projectName
   const activeSubmitting = isGit ? gitSubmitting : submitting
   const activeChecking = isGit ? gitChecking : checking
+  const { data: templateDetail, isLoading: templateLoading } = useCatalogAppTemplate(
+    templateKey || null,
+    isTemplate && Boolean(templateKey)
+  )
   const [composeYamlError, setComposeYamlError] = useState<string | null>(null)
+
+  const templateFields = templateDetail?.inputs || []
+  const templateBasicFields = templateFields.filter(isTemplateFieldBasic)
+  const templateAdvancedFields = templateFields.filter(isTemplateFieldAdvanced)
+  const templateHiddenFields = templateFields.filter(isTemplateFieldHidden)
+  const templateInputPayload = useMemo(
+    () => buildTemplateInputPayload(templateFields, templateInputValues),
+    [templateFields, templateInputValues]
+  )
 
   // ── Src file state (shared with OrchestrationSection, uploaded on submit) ──
   const [srcFiles, setSrcFiles] = useState<File[]>([])
@@ -249,8 +386,178 @@ export function CreateDeploymentPage({
       ? 'Select which service should use the locally built application image.'
       : null
 
+  useEffect(() => {
+    if (!isTemplate) {
+      return
+    }
+    if (prefillAppKey?.trim()) {
+      setTemplateKey(prefillAppKey.trim())
+    }
+  }, [isTemplate, prefillAppKey])
+
+  useEffect(() => {
+    if (!isTemplate || !templateDetail) {
+      return
+    }
+    setTemplateInputValues(buildTemplateDefaults(templateDetail.inputs))
+    setTemplateSecretState({})
+    setTemplateSecretRevealState({})
+    if (!projectName.trim()) {
+      setProjectName(prefillAppKey || templateDetail.templateKey)
+    }
+  }, [isTemplate, prefillAppKey, projectName, setProjectName, templateDetail])
+
+  const setTemplateInputValue = useCallback((fieldKey: string, value: string) => {
+    setTemplateInputValues(current => ({
+      ...current,
+      [fieldKey]: value,
+    }))
+  }, [])
+
+  const persistSecretBackedTemplateInputs = useCallback(async () => {
+    const nextPayload = buildTemplateInputPayload(templateFields, templateInputValues)
+    const nextSecretState = { ...templateSecretState }
+    const templateLabel = prefillAppName || templateDetail?.manifest.trademark || templateKey
+
+    for (const field of templateFields) {
+      if (isTemplateFieldHidden(field) || !isSecretBackedTemplateField(field)) {
+        continue
+      }
+
+      const rawValue = String(templateInputValues[field.key] ?? '')
+      const trimmedValue = rawValue.trim()
+      if (!trimmedValue) {
+        delete nextSecretState[field.key]
+        continue
+      }
+
+      if (isSecretRefValue(trimmedValue)) {
+        nextPayload[field.key] = trimmedValue
+        delete nextSecretState[field.key]
+        continue
+      }
+
+      const cached = nextSecretState[field.key]
+      let secretId = cached?.id ?? ''
+
+      if (cached?.id && cached.rawValue !== trimmedValue) {
+        await pb.send(`/api/secrets/${cached.id}/payload`, {
+          method: 'PUT',
+          body: { payload: { value: trimmedValue } },
+        })
+      }
+
+      if (!secretId) {
+        const created = await pb.collection('secrets').create({
+          name: buildTemplateSecretName(templateKey, projectName, field),
+          description: buildTemplateSecretDescription(templateLabel, projectName, field),
+          template_id: 'single_value',
+          scope: 'global',
+          visible_to: ['application'],
+          payload: { value: trimmedValue },
+        })
+        secretId = String(created.id ?? '')
+      }
+
+      if (!secretId) {
+        throw new Error(`Failed to store secret for ${field.label || field.key}`)
+      }
+
+      nextSecretState[field.key] = { id: secretId, rawValue: trimmedValue }
+      nextPayload[field.key] = `secretRef:${secretId}`
+    }
+
+    setTemplateSecretState(nextSecretState)
+    return nextPayload
+  }, [prefillAppName, projectName, templateDetail?.manifest.trademark, templateFields, templateInputValues, templateKey, templateSecretState])
+
+  const renderTemplateFieldInput = useCallback(
+    (field: CatalogTemplateField, inputId: string) => {
+      if (field.type === 'select') {
+        return (
+          <select
+            id={inputId}
+            className="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
+            value={templateInputValues[field.key] ?? ''}
+            onChange={e => setTemplateInputValue(field.key, e.target.value)}
+          >
+            {(field.options || []).map(option => (
+              <option key={String(option)} value={String(option)}>
+                {String(option)}
+              </option>
+            ))}
+          </select>
+        )
+      }
+
+      if (isSecretBackedTemplateField(field)) {
+        const rawValue = templateInputValues[field.key] ?? ''
+        const savedSecret = templateSecretState[field.key]
+        const isExistingRef = isSecretRefValue(rawValue)
+        const isRevealed = Boolean(templateSecretRevealState[field.key])
+
+        return (
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Input
+                  id={inputId}
+                  type={isRevealed ? 'text' : 'password'}
+                  value={rawValue}
+                  onChange={e => setTemplateInputValue(field.key, e.target.value)}
+                  placeholder="Generate or enter a secret value"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                  title={isRevealed ? 'Hide secret value' : 'Show secret value'}
+                  onClick={() =>
+                    setTemplateSecretRevealState(current => ({
+                      ...current,
+                      [field.key]: !isRevealed,
+                    }))
+                  }
+                >
+                  {isRevealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setTemplateInputValue(field.key, buildRandomSecretValue())}
+              >
+                Generate
+              </Button>
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              {isExistingRef
+                ? 'Using an existing AppOS secret reference.'
+                : savedSecret && savedSecret.rawValue === rawValue.trim()
+                  ? `Stored in AppOS Secrets as ${savedSecret.id}. Changing the value updates the saved secret.`
+                  : 'Enter once or generate. AppOS stores it in Secrets and passes only a secret ref during check and create.'}
+            </div>
+          </div>
+        )
+      }
+
+      return (
+        <Input
+          id={inputId}
+          type={field.type === 'port' ? 'number' : 'text'}
+          value={templateInputValues[field.key] ?? ''}
+          onChange={e => setTemplateInputValue(field.key, e.target.value)}
+          placeholder={field.default == null ? '' : String(field.default)}
+        />
+      )
+    },
+    [setTemplateInputValue, templateInputValues, templateSecretRevealState, templateSecretState]
+  )
+
   const createDisabled = isGit
     ? !gitRepositoryUrl.trim() || !gitComposePath.trim() || !serverId || activeSubmitting
+    : isTemplate
+      ? !templateKey || !serverId || activeSubmitting || hasMissingRequiredTemplateFields(templateFields, templateInputValues)
     : !compose.trim() ||
       !serverId ||
       activeSubmitting ||
@@ -258,6 +565,8 @@ export function CreateDeploymentPage({
       Boolean(sourceBuildTargetServiceError)
   const checkDisabled = isGit
     ? !gitRepositoryUrl.trim() || !gitComposePath.trim() || !serverId || activeChecking
+    : isTemplate
+      ? !templateKey || !serverId || activeChecking || hasMissingRequiredTemplateFields(templateFields, templateInputValues)
     : !compose.trim() ||
       !serverId ||
       activeChecking ||
@@ -282,8 +591,13 @@ export function CreateDeploymentPage({
 
   // ── Submit with src uploads ──
   const handleSubmit = useCallback(async () => {
+    const normalizedTemplatePayload = isTemplate
+      ? await persistSecretBackedTemplateInputs()
+      : templateInputPayload
     const preflight = isGit
       ? await checkGitOperation({ silentNotice: true })
+      : isTemplate
+        ? await checkTemplateOperation(templateKey, normalizedTemplatePayload, { silentNotice: true })
       : await checkManualOperation({ silentNotice: true, runtimeInputs, sourceBuild })
 
     if (!preflight) {
@@ -299,7 +613,7 @@ export function CreateDeploymentPage({
     }
 
     const uploadedFileNames: string[] = []
-    if (srcFiles.length > 0 && projectName.trim()) {
+    if (!isTemplate && srcFiles.length > 0 && projectName.trim()) {
       setSrcUploading(true)
       try {
         const dir = `apps/${projectName.trim()}/src`
@@ -318,6 +632,8 @@ export function CreateDeploymentPage({
     }
     if (isGit) {
       await submitGitOperation()
+    } else if (isTemplate) {
+      await submitTemplateOperation(templateKey, normalizedTemplatePayload)
     } else {
       await submitManualOperation(
         buildRuntimeInputsPayload(
@@ -335,13 +651,19 @@ export function CreateDeploymentPage({
     createEntryMode,
     checkGitOperation,
     checkManualOperation,
+    checkTemplateOperation,
     isGit,
+    isTemplate,
     runtimeEnvInputs,
     setNotice,
     srcFiles,
     projectName,
     srcUploaded,
     sourceBuild,
+    submitTemplateOperation,
+    templateInputPayload,
+    templateKey,
+    persistSecretBackedTemplateInputs,
     runtimeInputs,
     submitGitOperation,
     submitManualOperation,
@@ -353,6 +675,8 @@ export function CreateDeploymentPage({
     switch (createEntryMode) {
       case 'git-compose':
         return { source: 'gitops', adapter: 'git-compose' }
+      case 'template':
+        return { source: 'manualops', adapter: 'template-render -> manual-compose' }
       case 'install-script':
         return { source: 'manualops', adapter: 'source-build' }
       default:
@@ -364,13 +688,26 @@ export function CreateDeploymentPage({
   const composeLineCount = compose.split('\n').length
   const validationItems = [
     { label: 'Target server', passed: serverId.length > 0 },
+    ...(isTemplate
+      ? [
+          { label: 'Template selected', passed: Boolean(templateKey) },
+          {
+            label: 'Required template inputs',
+            passed: !hasMissingRequiredTemplateFields(templateFields, templateInputValues),
+          },
+        ]
+      : []),
     {
       label: isGit ? 'Repository inputs' : 'Compose content',
       passed: isGit
         ? gitRepositoryUrl.trim().length > 0 && gitComposePath.trim().length > 0
+        : isTemplate
+          ? Boolean(templateKey)
         : compose.trim().length > 0,
     },
-    ...(!isGit && compose.trim() ? [{ label: 'YAML syntax', passed: !composeYamlError }] : []),
+    ...(!isGit && !isTemplate && compose.trim()
+      ? [{ label: 'YAML syntax', passed: !composeYamlError }]
+      : []),
     ...(createEntryMode === 'install-script' && sourceBuildTargetServiceRequired
       ? [{ label: 'Target service selected', passed: !!targetServiceName.trim() }]
       : []),
@@ -381,6 +718,8 @@ export function CreateDeploymentPage({
   useEffect(() => {
     setCheckResult(null)
   }, [
+    JSON.stringify(templateInputValues),
+    templateKey,
     compose,
     gitAuthHeaderName,
     gitAuthHeaderValue,
@@ -390,6 +729,7 @@ export function CreateDeploymentPage({
     isGit,
     projectName,
     gitProjectName,
+    isTemplate,
     serverId,
     appRequiredDiskGiB,
     setCheckResult,
@@ -545,7 +885,7 @@ export function CreateDeploymentPage({
                 Application identity and target server
               </div>
             </div>
-            <div className="grid gap-4 pt-4 md:grid-cols-3">
+            <div className={`grid gap-4 pt-4 ${isTemplate ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
               <div className="space-y-1.5">
                 <Label htmlFor="deploy-name" className="text-xs">
                   App Name{' '}
@@ -588,26 +928,78 @@ export function CreateDeploymentPage({
                   ))}
                 </select>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="required-disk" className="text-xs">
-                  Estimated App Disk (GiB){' '}
-                  <HelpTip text="Optional. If provided, preflight blocks creation when estimated requirement exceeds currently available disk space." />
-                </Label>
-                <Input
-                  id="required-disk"
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  value={appRequiredDiskGiB}
-                  onChange={e => setAppRequiredDiskGiB(e.target.value)}
-                  placeholder="Optional, e.g. 2"
-                />
-              </div>
+              {!isTemplate ? (
+                <div className="space-y-1.5">
+                  <Label htmlFor="required-disk" className="text-xs">
+                    Estimated App Disk (GiB){' '}
+                    <HelpTip text="Optional. If provided, preflight blocks creation when estimated requirement exceeds currently available disk space." />
+                  </Label>
+                  <Input
+                    id="required-disk"
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={appRequiredDiskGiB}
+                    onChange={e => setAppRequiredDiskGiB(e.target.value)}
+                    placeholder="Optional, e.g. 2"
+                  />
+                </div>
+              ) : null}
             </div>
           </section>
 
           {/* ── Section 2: Source inputs ── */}
-          {isGit ? (
+          {isTemplate ? (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Template</CardTitle>
+                <CardDescription>
+                  {isPinnedTemplate
+                    ? 'This deployment is pinned to the app you selected in App Store. Fill only the required basic inputs.'
+                    : 'Template deployment must start from App Store so the selected application stays consistent end to end.'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {!templateKey ? (
+                  <div className="rounded-lg border border-dashed bg-muted/20 p-3 text-xs text-muted-foreground">
+                    Open the target application from App Store and start deployment there. This flow no longer supports switching apps inside the template form.
+                  </div>
+                ) : templateLoading ? (
+                  <div className="text-xs text-muted-foreground">Loading template contract...</div>
+                ) : templateDetail ? (
+                  <>
+                    <div className="rounded-lg border bg-muted/20 p-3 text-xs">
+                      <div className="font-medium">{prefillAppName || templateDetail.manifest.trademark}</div>
+                      <div className="mt-1 text-muted-foreground">
+                        Template key: {templateDetail.templateKey}
+                        {templateDetail.manifest.category ? ` · ${templateDetail.manifest.category}` : ''}
+                      </div>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {templateBasicFields.map(field => (
+                        <div key={field.key} className="space-y-1.5">
+                          <Label htmlFor={`template-field-${field.key}`} className="text-xs">
+                            {field.label || field.key}
+                            {field.required ? ' *' : ''}
+                          </Label>
+                          {renderTemplateFieldInput(field, `template-field-${field.key}`)}
+                          <div className="text-[11px] text-muted-foreground">
+                            {field.storage_mode === 'secret_backed'
+                              ? 'Secret-backed input'
+                              : field.storage_mode === 'system_managed'
+                                ? 'Managed by the template runtime.'
+                                : 'Template input'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : templateKey ? (
+                  <div className="text-xs text-muted-foreground">Template details unavailable.</div>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : isGit ? (
             /* ── Git-compose inputs ── */
             <Card>
               <CardHeader className="pb-3">
@@ -764,20 +1156,76 @@ export function CreateDeploymentPage({
               </div>
             </summary>
             <div className="grid gap-3 px-4 pb-4 pl-10 md:grid-cols-2">
-              <div className="rounded-lg border bg-muted/10 p-3">
-                <div className="text-xs font-medium">
-                  Exposure Intent{' '}
-                  <HelpTip text="Domain, path, or port publication intent for reverse-proxy configuration." />
-                </div>
-                <div className="mt-1 text-xs text-muted-foreground">Coming soon</div>
-              </div>
-              <div className="rounded-lg border bg-muted/10 p-3">
-                <div className="text-xs font-medium">
-                  Secret-backed Inputs{' '}
-                  <HelpTip text="Sensitive values managed through the backend secret store, never exposed in plain text." />
-                </div>
-                <div className="mt-1 text-xs text-muted-foreground">Coming soon</div>
-              </div>
+              {isTemplate ? (
+                <>
+                  <div className="rounded-lg border bg-muted/10 p-3">
+                    <div className="text-xs font-medium">Advanced Template Inputs</div>
+                    <div className="mt-2 space-y-3">
+                      {templateAdvancedFields.length === 0 ? (
+                        <div className="text-xs text-muted-foreground">No advanced inputs for this template.</div>
+                      ) : (
+                        templateAdvancedFields.map(field => (
+                          <div key={field.key} className="space-y-1.5">
+                            <Label htmlFor={`template-advanced-${field.key}`} className="text-xs">
+                              {field.label || field.key}
+                              {field.required ? ' *' : ''}
+                            </Label>
+                            {renderTemplateFieldInput(field, `template-advanced-${field.key}`)}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border bg-muted/10 p-3">
+                    <div className="text-xs font-medium">Runtime Notes</div>
+                    <div className="mt-2 space-y-2 text-xs text-muted-foreground">
+                      <div>
+                        Exposure uses the template default:
+                        {' '}
+                        {templateDetail?.exposure?.kind ? String(templateDetail.exposure.kind) : 'template-defined'}
+                      </div>
+                      <div>
+                        Hidden system inputs:
+                        {' '}
+                        {templateHiddenFields.length > 0
+                          ? templateHiddenFields.map(field => field.key).join(', ')
+                          : 'none'}
+                      </div>
+                      <div className="space-y-1.5 pt-1">
+                        <Label htmlFor="required-disk-template" className="text-xs">
+                          Estimated App Disk (GiB)
+                        </Label>
+                        <Input
+                          id="required-disk-template"
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          value={appRequiredDiskGiB}
+                          onChange={e => setAppRequiredDiskGiB(e.target.value)}
+                          placeholder="Optional override"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="rounded-lg border bg-muted/10 p-3">
+                    <div className="text-xs font-medium">
+                      Exposure Intent{' '}
+                      <HelpTip text="Domain, path, or port publication intent for reverse-proxy configuration." />
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">Coming soon</div>
+                  </div>
+                  <div className="rounded-lg border bg-muted/10 p-3">
+                    <div className="text-xs font-medium">
+                      Secret-backed Inputs{' '}
+                      <HelpTip text="Sensitive values managed through the backend secret store, never exposed in plain text." />
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">Coming soon</div>
+                  </div>
+                </>
+              )}
             </div>
           </details>
         </div>
@@ -842,10 +1290,19 @@ export function CreateDeploymentPage({
                       </div>
                     ) : null}
                     {!isGit ? (
+                      isTemplate ? (
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Template</span>
+                          <span className="max-w-[200px] truncate">
+                            {templateDetail?.manifest.trademark || templateKey || '—'}
+                          </span>
+                        </div>
+                      ) : (
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground">Compose</span>
                         <span>{compose.trim() ? `${composeLineCount} lines` : '—'}</span>
                       </div>
+                      )
                     ) : null}
                     {createEntryMode === 'install-script' ? (
                       <div className="flex items-center justify-between">
@@ -867,10 +1324,34 @@ export function CreateDeploymentPage({
                   </div>
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Env variables</span>
-                      <span>{envCount > 0 ? `${envCount} defined` : 'None'}</span>
+                      <span className="text-muted-foreground">{isTemplate ? 'Template inputs' : 'Env variables'}</span>
+                      <span>
+                        {isTemplate
+                          ? `${Object.keys(templateInputPayload).length} set`
+                          : envCount > 0
+                            ? `${envCount} defined`
+                            : 'None'}
+                      </span>
                     </div>
-                    {envCount > 0 ? (
+                    {isTemplate ? (
+                      Object.keys(templateInputPayload).length > 0 ? (
+                        <div className="max-h-24 overflow-y-auto rounded-md bg-muted/30 px-2 py-1.5">
+                          {templateFields
+                            .filter(field => !isTemplateFieldHidden(field) && templateInputPayload[field.key] !== undefined)
+                            .map(field => (
+                              <div
+                                key={field.key}
+                                className="truncate font-mono text-xs text-muted-foreground"
+                              >
+                                {field.key}=
+                                {field.storage_mode === 'secret_backed'
+                                  ? 'secretRef:...'
+                                  : String(templateInputPayload[field.key])}
+                              </div>
+                            ))}
+                        </div>
+                      ) : null
+                    ) : envCount > 0 ? (
                       <div className="max-h-24 overflow-y-auto rounded-md bg-muted/30 px-2 py-1.5">
                         {envVars
                           .filter(e => e.key.trim())
@@ -884,21 +1365,23 @@ export function CreateDeploymentPage({
                           ))}
                       </div>
                     ) : null}
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Mount files</span>
-                      <span>
-                        {srcFiles.length + srcUploaded.length > 0
-                          ? `${srcFiles.length + srcUploaded.length} file(s)`
-                          : 'None'}
-                      </span>
-                    </div>
+                    {!isTemplate ? (
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Mount files</span>
+                        <span>
+                          {srcFiles.length + srcUploaded.length > 0
+                            ? `${srcFiles.length + srcUploaded.length} file(s)`
+                            : 'None'}
+                        </span>
+                      </div>
+                    ) : null}
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Estimated app disk</span>
                       <span>
                         {appRequiredDiskGiB.trim() ? `${appRequiredDiskGiB.trim()} GiB` : 'Not set'}
                       </span>
                     </div>
-                    {srcFiles.length > 0 || srcUploaded.length > 0 ? (
+                    {!isTemplate && (srcFiles.length > 0 || srcUploaded.length > 0) ? (
                       <div className="rounded-md bg-muted/30 px-2 py-1.5">
                         {[
                           ...srcUploaded.map(n => ({ name: n, done: true })),
@@ -1008,11 +1491,20 @@ export function CreateDeploymentPage({
                 <div className="flex flex-col gap-2 pt-1">
                   <Button
                     variant="outline"
-                    onClick={() =>
-                      void (isGit
-                        ? checkGitOperation()
-                        : checkManualOperation({ runtimeInputs, sourceBuild }))
-                    }
+                    onClick={() => {
+                      void (async () => {
+                        if (isGit) {
+                          await checkGitOperation()
+                          return
+                        }
+                        if (isTemplate) {
+                          const normalizedTemplatePayload = await persistSecretBackedTemplateInputs()
+                          await checkTemplateOperation(templateKey, normalizedTemplatePayload)
+                          return
+                        }
+                        await checkManualOperation({ runtimeInputs, sourceBuild })
+                      })()
+                    }}
                     disabled={checkDisabled}
                     className="h-10"
                   >

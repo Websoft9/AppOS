@@ -12,10 +12,14 @@ import (
 
 	"github.com/hibiken/asynq"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
+	"github.com/websoft9/appos/backend/domain/lifecycle/orchestration"
 	lifecycleruntime "github.com/websoft9/appos/backend/domain/lifecycle/runtime"
 	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
+	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	"github.com/websoft9/appos/backend/infra/docker"
+	"github.com/websoft9/appos/backend/infra/collections"
 )
 
 type fakeDockerExecutor struct {
@@ -62,13 +66,42 @@ func (*fakeDockerExecutor) RunStream(_ context.Context, _ string, _ ...string) (
 	return io.NopCloser(strings.NewReader("")), nil
 }
 
+type blockingFakeDockerExecutor struct{}
+
+func (*blockingFakeDockerExecutor) Run(_ context.Context, command string, args ...string) (string, error) {
+	joined := command + " " + strings.Join(args, " ")
+	switch {
+	case strings.Contains(joined, "compose") && strings.Contains(joined, " up "):
+		return "started", nil
+	case strings.Contains(joined, "compose") && strings.Contains(joined, " ps "):
+		return "container-id", nil
+	case strings.Contains(joined, "compose") && strings.Contains(joined, " down "):
+		return "stopped", nil
+	default:
+		return "", nil
+	}
+}
+
+func (*blockingFakeDockerExecutor) RunStream(ctx context.Context, _ string, _ ...string) (io.ReadCloser, error) {
+	reader, writer := io.Pipe()
+	go func() {
+		<-ctx.Done()
+		_ = writer.CloseWithError(ctx.Err())
+	}()
+	return reader, nil
+}
+
+func (*blockingFakeDockerExecutor) Ping(context.Context) error { return nil }
+
+func (*blockingFakeDockerExecutor) Host() string { return "test" }
+
 func (*fakeDockerExecutor) Ping(context.Context) error { return nil }
 
 func (*fakeDockerExecutor) Host() string { return "test" }
 
 type fakeOperationExecutor struct {
 	name   string
-	docker *fakeDockerExecutor
+	docker docker.Executor
 }
 
 func (f fakeOperationExecutor) PrepareWorkspace(projectDir string, compose string) error {
@@ -87,6 +120,107 @@ func (f fakeOperationExecutor) Name() string {
 		return "fake"
 	}
 	return f.name
+}
+
+type fixedLocalExecutor struct {
+	local *docker.LocalExecutor
+}
+
+func (f fixedLocalExecutor) PrepareWorkspace(projectDir string, compose string) error {
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(projectDir, "docker-compose.yml"), []byte(compose), 0o600)
+}
+
+func (f fixedLocalExecutor) DockerClient() (*docker.Client, error) {
+	return docker.New(f.local), nil
+}
+
+func (f fixedLocalExecutor) Name() string {
+	return "local"
+}
+
+func saveProxySettings(t *testing.T, app core.App, enabled bool, httpConnectorID string, httpsConnectorID string) error {
+	t.Helper()
+	return sysconfig.SetGroup(app, "proxy", "network", map[string]any{
+		"enabled":          enabled,
+		"httpConnectorId":  httpConnectorID,
+		"httpsConnectorId": httpsConnectorID,
+	})
+}
+
+func createHTTPConnectorFixtures(t *testing.T, app core.App, httpID string, httpsID string) error {
+	t.Helper()
+	col, err := app.FindCollectionByNameOrId(collections.Connectors)
+	if err != nil {
+		return err
+	}
+	create := func(id string, endpoint string) error {
+		rec := core.NewRecord(col)
+		rec.Set("name", id)
+		rec.Set("kind", connectors.KindRegistry)
+		rec.Set("template_id", "generic-proxy")
+		rec.Set("endpoint", endpoint)
+		rec.Set("auth_scheme", connectors.AuthSchemeNone)
+		rec.Set("config", map[string]any{"protocol": strings.Split(endpoint, "://")[0]})
+		if err := app.Save(rec); err != nil {
+			return err
+		}
+		if _, err := app.DB().NewQuery("UPDATE "+collections.Connectors+" SET id = {:targetId}, kind = {:kind} WHERE id = {:id}").Bind(map[string]any{
+			"targetId": id,
+			"kind":     connectors.KindProxy,
+			"id":       rec.Id,
+		}).Execute(); err != nil {
+			return err
+		}
+		_, err = app.DB().NewQuery("UPDATE "+collections.Connectors+" SET kind = {:kind} WHERE id = {:id}").Bind(map[string]any{
+			"kind": connectors.KindProxy,
+			"id":   id,
+		}).Execute()
+		return err
+	}
+	if err := create(httpID, "http://proxy.example.com:8080"); err != nil {
+		return err
+	}
+	return create(httpsID, "http://secure-proxy.example.com:8443")
+}
+
+func TestExecutorForAppliesWorkerDockerProxyEnv(t *testing.T) {
+	app := newWorkerTestApp(t)
+	if err := saveProxySettings(t, app, true, "http-proxy-id-001", "https-proxy-id-001"); err != nil {
+		t.Fatal(err)
+	}
+	if err := createHTTPConnectorFixtures(t, app, "http-proxy-id-001", "https-proxy-id-001"); err != nil {
+		t.Fatal(err)
+	}
+
+	oldFactory := operationExecutorFactory
+	defer func() { operationExecutorFactory = oldFactory }()
+	localExec := docker.NewLocalExecutor("")
+	operationExecutorFactory = func(app core.App, serverID string) lifecycleruntime.Executor {
+		return fixedLocalExecutor{local: localExec}
+	}
+
+	operation := core.NewRecord(core.NewBaseCollection("app_operations"))
+	operation.Set("server_id", "local")
+	execCtx := &lifecycleExecutionContext{ExecutionContext: &orchestration.ExecutionContext{Operation: operation}}
+
+	w := &Worker{app: app}
+	exec := w.executorFor(execCtx)
+	client, err := exec.DockerClient()
+	if err != nil {
+		t.Fatalf("docker client: %v", err)
+	}
+	if client == nil {
+		t.Fatal("expected docker client")
+	}
+	if localExec.Env["HTTP_PROXY"] != "http://proxy.example.com:8080" {
+		t.Fatalf("expected HTTP_PROXY from worker settings, got %q", localExec.Env["HTTP_PROXY"])
+	}
+	if localExec.Env["HTTPS_PROXY"] != "http://secure-proxy.example.com:8443" {
+		t.Fatalf("expected HTTPS_PROXY from worker settings, got %q", localExec.Env["HTTPS_PROXY"])
+	}
 }
 
 func TestHandleRunOperationCreatesReleaseAndProjection(t *testing.T) {
@@ -192,8 +326,8 @@ func TestHandleRunOperationCreatesReleaseAndProjection(t *testing.T) {
 	if got := pipeline.GetString("status"); got != "completed" {
 		t.Fatalf("expected completed pipeline status, got %q", got)
 	}
-	if got := pipeline.GetInt("completed_node_count"); got != 5 {
-		t.Fatalf("expected 5 completed nodes, got %d", got)
+	if got := pipeline.GetInt("completed_node_count"); got != 6 {
+		t.Fatalf("expected 6 completed nodes, got %d", got)
 	}
 }
 
@@ -650,8 +784,265 @@ func TestHandleRunOperationCompletesSourceBuildPipeline(t *testing.T) {
 	if got := pipeline.GetString("status"); got != "completed" {
 		t.Fatalf("expected completed pipeline status, got %q", got)
 	}
-	if got := pipeline.GetInt("completed_node_count"); got != 9 {
-		t.Fatalf("expected 9 completed source-build nodes, got %d", got)
+	if got := pipeline.GetInt("completed_node_count"); got != 10 {
+		t.Fatalf("expected 10 completed source-build nodes, got %d", got)
+	}
+}
+
+func TestHandleRunOperationTimeoutMarksOperationTimedOut(t *testing.T) {
+	app := newWorkerTestApp(t)
+
+	projectDir := filepath.Join(t.TempDir(), "timeout-app")
+	operation, err := lifecyclesvc.CreateOperationFromCompose(
+		app,
+		nil,
+		lifecyclesvc.ComposeOperationRequest{
+			ServerID:    "local",
+			ProjectName: "Timeout App",
+			Compose:     "services:\n  web:\n    image: nginx:alpine\n",
+			Source:      string(model.TriggerSourceManualOps),
+			Adapter:     string(model.AdapterManualCompose),
+			Metadata: map[string]any{
+				"operation_timeout_seconds": 1,
+			},
+		},
+		lifecyclesvc.ComposeOperationOptions{ProjectDir: projectDir},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	oldFactory := operationExecutorFactory
+	oldHealthCheck := operationHealthCheck
+	operationExecutorFactory = func(app core.App, serverID string) lifecycleruntime.Executor {
+		return fakeOperationExecutor{docker: &fakeDockerExecutor{}}
+	}
+	operationHealthCheck = func(ctx context.Context, client interface {
+		Exec(context.Context, ...string) (string, error)
+	}, projectDir string) error {
+		return nil
+	}
+	defer func() {
+		operationExecutorFactory = oldFactory
+		operationHealthCheck = oldHealthCheck
+	}()
+
+	operationExecutorFactory = func(app core.App, serverID string) lifecycleruntime.Executor {
+		return fakeOperationExecutor{docker: &blockingFakeDockerExecutor{}}
+	}
+
+	err = runTestOperation(app, operation.Id)
+	if err == nil || !strings.Contains(strings.ToLower(err.Error()), "deadline") {
+		t.Fatalf("expected deadline error, got %v", err)
+	}
+
+	operation, err = app.FindRecordById("app_operations", operation.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := operation.GetString("terminal_status"); got != "failed" {
+		t.Fatalf("expected failed terminal status, got %q", got)
+	}
+	if got := operation.GetString("failure_reason"); got != "timeout" {
+		t.Fatalf("expected timeout failure_reason, got %q", got)
+	}
+	if operation.GetDateTime("ended_at").IsZero() {
+		t.Fatal("expected ended_at to be set after timeout")
+	}
+	if !strings.Contains(operation.GetString("execution_log"), "operation timed out") {
+		t.Fatal("expected execution log to mention timeout")
+	}
+
+	pipeline, err := app.FindRecordById("pipeline_runs", operation.GetString("pipeline_run"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := pipeline.GetString("status"); got != "failed" {
+		t.Fatalf("expected failed pipeline status, got %q", got)
+	}
+}
+
+func TestRecoverOrphanedOperationsMarksOperationFailed(t *testing.T) {
+	app := newWorkerTestApp(t)
+
+	oldFactory := operationExecutorFactory
+	oldHealthCheck := operationHealthCheck
+	fakeDocker := &fakeDockerExecutor{}
+	operationExecutorFactory = func(app core.App, serverID string) lifecycleruntime.Executor {
+		return fakeOperationExecutor{docker: fakeDocker}
+	}
+	operationHealthCheck = func(ctx context.Context, client interface {
+		Exec(context.Context, ...string) (string, error)
+	}, projectDir string) error {
+		return nil
+	}
+	defer func() {
+		operationExecutorFactory = oldFactory
+		operationHealthCheck = oldHealthCheck
+	}()
+
+	projectDir := filepath.Join(t.TempDir(), "orphan-app")
+	operation, err := lifecyclesvc.CreateOperationFromCompose(
+		app,
+		nil,
+		lifecyclesvc.ComposeOperationRequest{
+			ServerID:    "local",
+			ProjectName: "Orphan App",
+			Compose:     "services:\n  web:\n    image: nginx:alpine\n",
+			Source:      string(model.TriggerSourceManualOps),
+			Adapter:     string(model.AdapterManualCompose),
+		},
+		lifecyclesvc.ComposeOperationOptions{ProjectDir: projectDir},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	operation.Set("phase", string(model.OperationPhaseExecuting))
+	operation.Set("started_at", time.Now().UTC())
+	if err := app.Save(operation); err != nil {
+		t.Fatal(err)
+	}
+	pipeline, err := app.FindRecordById("pipeline_runs", operation.GetString("pipeline_run"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pipeline.Set("status", "active")
+	pipeline.Set("current_phase", string(model.PipelinePhaseExecuting))
+	if err := app.Save(pipeline); err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := app.FindRecordsByFilter("pipeline_node_runs", "pipeline_run = {:pipeline}", "created", 20, 0, map[string]any{"pipeline": pipeline.Id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nodes) == 0 {
+		t.Fatal("expected pipeline node runs")
+	}
+	nodes[0].Set("status", "running")
+	if err := app.Save(nodes[0]); err != nil {
+		t.Fatal(err)
+	}
+
+	w := &Worker{app: app}
+	if err := w.recoverOrphanedOperations(); err != nil {
+		t.Fatal(err)
+	}
+
+	operation, err = app.FindRecordById("app_operations", operation.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := operation.GetString("terminal_status"); got != "failed" {
+		t.Fatalf("expected failed terminal_status, got %q", got)
+	}
+	if got := operation.GetString("error_message"); got != "operation orphaned after worker restart" {
+		t.Fatalf("expected orphaned error message, got %q", got)
+	}
+	if operation.GetDateTime("ended_at").IsZero() {
+		t.Fatal("expected ended_at to be set for orphaned operation")
+	}
+
+	pipeline, err = app.FindRecordById("pipeline_runs", pipeline.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := pipeline.GetString("status"); got != "failed" {
+		t.Fatalf("expected failed pipeline status, got %q", got)
+	}
+}
+
+func TestClaimQueuedOperationRepairsFailedPipelineBlocker(t *testing.T) {
+	app := newWorkerTestApp(t)
+
+	blocker, err := lifecyclesvc.CreateOperationFromCompose(
+		app,
+		nil,
+		lifecyclesvc.ComposeOperationRequest{
+			ServerID:    "local",
+			ProjectName: "Blocked App",
+			Compose:     "services:\n  web:\n    image: nginx:alpine\n",
+			Source:      string(model.TriggerSourceManualOps),
+			Adapter:     string(model.AdapterManualCompose),
+		},
+		lifecyclesvc.ComposeOperationOptions{ProjectDir: filepath.Join(t.TempDir(), "blocked-app")},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	blocker.Set("phase", string(model.OperationPhaseExecuting))
+	blocker.Set("started_at", time.Now().UTC())
+	if err := app.Save(blocker); err != nil {
+		t.Fatal(err)
+	}
+	blockerPipeline, err := app.FindRecordById("pipeline_runs", blocker.GetString("pipeline_run"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	blockerPipeline.Set("status", "failed")
+	blockerPipeline.Set("current_phase", string(model.PipelinePhaseExecuting))
+	blockerPipeline.Set("ended_at", time.Now().UTC())
+	if err := app.Save(blockerPipeline); err != nil {
+		t.Fatal(err)
+	}
+	blockerNodes, err := app.FindRecordsByFilter(
+		"pipeline_node_runs",
+		"pipeline_run = {:pipeline}",
+		"created",
+		20,
+		0,
+		map[string]any{"pipeline": blockerPipeline.Id},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(blockerNodes) == 0 {
+		t.Fatal("expected blocker pipeline node runs")
+	}
+	blockerNodes[0].Set("status", "failed")
+	blockerNodes[0].Set("error_message", "operation orphaned after worker restart")
+	blockerNodes[0].Set("ended_at", time.Now().UTC())
+	if err := app.Save(blockerNodes[0]); err != nil {
+		t.Fatal(err)
+	}
+
+	queued, err := lifecyclesvc.CreateOperationFromCompose(
+		app,
+		nil,
+		lifecyclesvc.ComposeOperationRequest{
+			ServerID:    "local",
+			ProjectName: "Queued App",
+			Compose:     "services:\n  web:\n    image: nginx:alpine\n",
+			Source:      string(model.TriggerSourceManualOps),
+			Adapter:     string(model.AdapterManualCompose),
+		},
+		lifecyclesvc.ComposeOperationOptions{ProjectDir: filepath.Join(t.TempDir(), "queued-app")},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := &Worker{app: app}
+	claimed, err := w.claimQueuedOperation(queued.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claimed == nil {
+		t.Fatal("expected queued operation to be claimable after repairing failed blocker")
+	}
+	if got := claimed.GetString("phase"); got != string(model.OperationPhaseValidating) {
+		t.Fatalf("expected claimed queued phase validating, got %q", got)
+	}
+
+	blocker, err = app.FindRecordById("app_operations", blocker.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := blocker.GetString("terminal_status"); got != "failed" {
+		t.Fatalf("expected repaired blocker terminal_status failed, got %q", got)
+	}
+	if got := blocker.GetString("error_message"); got != "operation orphaned after worker restart" {
+		t.Fatalf("expected repaired blocker to keep node error, got %q", got)
 	}
 }
 

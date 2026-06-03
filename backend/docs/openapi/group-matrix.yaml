@@ -94,6 +94,8 @@ groups:
       - POST /api/actions/install/name-availability
       - POST /api/actions/install/manual-compose
       - POST /api/actions/install/manual-compose/check
+      - POST /api/actions/install/template
+      - POST /api/actions/install/template/check
     nativeSurface: []
     sources:
       extRouteFiles:
@@ -244,6 +246,7 @@ groups:
       - GET /api/catalog/apps
       - GET /api/catalog/apps/{key}
       - GET /api/catalog/apps/{key}/deploy-source
+      - GET /api/catalog/apps/{key}/template
       - GET /api/catalog/me/apps
       - PUT /api/catalog/me/apps/{key}/favorite
       - PUT /api/catalog/me/apps/{key}/note

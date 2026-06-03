@@ -68,6 +68,11 @@ export type ActionsTabProps = {
   actionsLoading: boolean
   actionSearch: string
   setActionSearch: (value: string) => void
+  actionHistoryPage: number
+  actionHistoryTotalPages: number
+  actionHistoryTotalItems: number
+  goToPreviousActionHistoryPage: () => void
+  goToNextActionHistoryPage: () => void
   actionStatusFilter: string
   setActionStatusFilter: (value: string) => void
   actionTypeFilter: string

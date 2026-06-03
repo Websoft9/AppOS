@@ -28,6 +28,86 @@ vi.mock('@tanstack/react-router', () => ({
   ),
 }))
 
+vi.mock('react-i18next', () => ({
+  initReactI18next: {
+    type: '3rdParty',
+    init: () => {},
+  },
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => {
+      const labels: Record<string, string> = {
+        'hub.title': 'Resources',
+        'aiProviders.page.title': 'AI Providers',
+        'aiProviders.page.description': 'Hosted and local AI provider definitions such as OpenAI, Anthropic, OpenRouter, and Ollama endpoints.',
+        'aiProviders.page.emptyState': 'No AI Providers found',
+        'aiProviders.page.searchPlaceholder': 'Search any AI providers',
+        'aiProviders.page.addProvider': 'Add AI Provider',
+        'aiProviders.page.refresh': 'Refresh',
+        'aiProviders.selection.title': 'Choose a Product',
+        'aiProviders.selection.description': 'Choose a provider product, then enter connection details.',
+        'aiProviders.selection.searchPlaceholder': 'Search products like OpenAI, Ollama, Anthropic, OpenRouter...',
+        'aiProviders.selection.emptyMessage': 'No matching products found.',
+        'aiProviders.columns.name': 'Name',
+        'aiProviders.columns.profile': 'Profile',
+        'aiProviders.columns.reachability': 'Reachability',
+        'aiProviders.columns.endpoint': 'Endpoint',
+        'aiProviders.columns.created': 'Created',
+        'aiProviders.columns.updated': 'Updated',
+        'aiProviders.status.reachable': 'Reachable',
+        'aiProviders.status.unreachable': 'Unreachable',
+        'aiProviders.status.unknown': 'Unknown',
+        'aiProviders.fields.name': 'Name',
+        'aiProviders.fields.profile': 'Profile',
+        'aiProviders.fields.description': 'Description',
+        'aiProviders.fields.selectedProduct': 'Selected Product',
+        'aiProviders.fields.selectedProductMeta': 'Selected Product Meta',
+        'aiProviders.fields.selectedProductDescription': 'Selected Product Description',
+        'aiProviders.fields.titleNameEditing': 'Title Name Editing',
+        'aiProviders.fields.credentialUseSecret': 'Credential Use Secret',
+        'aiProviders.fields.apiKeyValue': 'API Key Value',
+        'aiProviders.fields.advancedConfig': 'Advanced Config (JSON)',
+        'aiProviders.fields.groups': 'Groups',
+        'aiProviders.fields.apiKey': 'API Key',
+        'aiProviders.placeholders.name': 'my-ai-provider',
+        'aiProviders.placeholders.advancedConfig': '{"temperature": 0.2}',
+        'aiProviders.credential.generateTitle': 'Generate API Key',
+        'aiProviders.credential.generateDescription': 'Choose the API key length before filling the field.',
+        'aiProviders.credential.generateLengthLabel': 'API Key Length',
+        'aiProviders.credential.generateConfirmLabel': 'Fill API Key',
+        'aiProviders.dialog.providerTitle': 'AI provider title',
+        'aiProviders.dialog.applyTitle': 'Apply title',
+        'aiProviders.dialog.newProvider': 'New AI Provider',
+        'aiProviders.dialog.editTitle': 'Edit title',
+        'aiProviders.dialog.add': 'Add',
+        'aiProviders.dialog.update': 'Update',
+        'aiProviders.dialog.suffix': 'AI Provider',
+        'aiProviders.secret.new': 'New Secret',
+        'aiProviders.secret.edit': 'Edit Secret',
+        'aiProviders.secret.newTitle': 'New Secret',
+        'aiProviders.secret.newDescription': 'Create a reusable secret and attach it to this AI Provider.',
+        'aiProviders.secret.singleValueTemplate': 'Token / Single Value',
+        'aiProviders.errors.profileRequired': 'AI Provider profile is required'
+      }
+      if (key === 'aiProviders.credential.enterField') {
+        return `Enter ${String(options?.field ?? '')}`
+      }
+      if (key === 'aiProviders.credential.showField') {
+        return `Show ${String(options?.field ?? '')}`
+      }
+      if (key === 'aiProviders.credential.hideField') {
+        return `Hide ${String(options?.field ?? '')}`
+      }
+      if (key === 'aiProviders.secret.generatedDescription') {
+        return `API key for ${String(options?.name ?? '')}`
+      }
+      if (key === 'aiProviders.errors.fieldRequired') {
+        return `${String(options?.field ?? '')} is required`
+      }
+      return labels[key] ?? key
+    },
+  }),
+}))
+
 vi.mock('@/lib/pb', () => ({
   pb: {
     send: (...args: unknown[]) => sendMock(...args),

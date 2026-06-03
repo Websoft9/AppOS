@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import {
   ArrowDown,
   ArrowUp,
+  ChevronLeft,
+  ChevronRight,
   ExternalLink,
   Filter,
   LayoutGrid,
@@ -64,6 +66,16 @@ type SortField = 'name' | 'created' | 'updated'
 type SortDir = 'asc' | 'desc'
 
 const PAGE_SIZE = 12
+const TEMPLATE_FILTER_ALL = '__all__'
+const TEMPLATE_FILTER_UNTEMPLATED = '__untemplated__'
+
+function normalizeTemplateKey(value?: string | null): string | null {
+  const trimmed = value?.trim()
+  if (!trimmed) return null
+  const lowered = trimmed.toLowerCase()
+  if (lowered === 'nil' || lowered === '<nil>' || lowered === 'null' || lowered === 'none') return null
+  return trimmed
+}
 
 function SortableHeader({
   label,
@@ -152,6 +164,70 @@ function FilterHeader({
   )
 }
 
+function formatCardSourceLabel(app: AppInstance): string {
+  const templateKey = normalizeTemplateKey(app.catalog_app_key)
+  if (templateKey) return templateKey
+
+  switch (app.source) {
+    case 'manualops':
+      return 'Manual deployment'
+    case 'docker':
+      return 'Docker runtime'
+    case 'catalog':
+      return 'Catalog app'
+    default:
+      return app.source
+        ? app.source
+            .split(/[^a-zA-Z0-9]+/)
+            .filter(Boolean)
+            .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(' ')
+        : 'App instance'
+  }
+}
+
+function appServerLabel(app: AppInstance): string {
+  return app.server_name?.trim() || app.server_id || 'Local'
+}
+
+function AppAvatar({
+  app,
+  sizeClass,
+  radiusClass,
+}: {
+  app: AppInstance
+  sizeClass: string
+  radiusClass: string
+}) {
+  const [imgError, setImgError] = useState(false)
+  const templateIconURL = app.template_icon_url?.trim()
+  const showTemplateIcon = Boolean(templateIconURL) && !imgError
+
+  return (
+    <div
+      className={cn(
+        'flex shrink-0 items-center justify-center overflow-hidden text-sm font-semibold shadow-sm',
+        sizeClass,
+        radiusClass,
+        showTemplateIcon ? 'bg-white ring-1 ring-border/60' : appIconClass(app.name)
+      )}
+    >
+      {showTemplateIcon ? (
+        <img
+          src={templateIconURL}
+          alt={`${app.name} template icon`}
+          className="h-full w-full object-contain"
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        appInitials(app.name)
+      )}
+    </div>
+  )
+}
+
 export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
   const navigate = useNavigate()
   const [apps, setApps] = useState<AppInstance[]>([])
@@ -161,10 +237,11 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
   const [success, setSuccess] = useState('')
   const [view, setView] = useState<'grid' | 'list'>('grid')
   const [search, setSearch] = useState('')
+  const [selectedTemplate, setSelectedTemplate] = useState<string>(TEMPLATE_FILTER_ALL)
+  const [selectedServer, setSelectedServer] = useState<string | null>(null)
   const [sortField, setSortField] = useState<SortField | null>('updated')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [excludeRuntime, setExcludeRuntime] = useState<Set<string>>(new Set())
-  const [excludeServer, setExcludeServer] = useState<Set<string>>(new Set())
   const [page, setPage] = useState(1)
   const [actionLoading, setActionLoading] = useState('')
   const [deployLoading, setDeployLoading] = useState('')
@@ -197,6 +274,14 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
       to: '/actions/$actionId' as never,
       params: { actionId } as never,
       search: { returnTo: 'list' } as never,
+    })
+  }
+
+  function navigateToAppDetail(appId: string) {
+    void navigate({
+      to: '/apps/$appId' as never,
+      params: { appId } as never,
+      search: { catalogAppKey: undefined } as never,
     })
   }
 
@@ -261,30 +346,54 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
     [apps]
   )
 
-  const filterOptions = useMemo(
-    () => ({
+  const filterOptions = useMemo(() => {
+    const templateCounts = apps.reduce<Record<string, number>>((counts, item) => {
+      const templateKey = normalizeTemplateKey(item.catalog_app_key)
+      if (!templateKey) return counts
+      counts[templateKey] = (counts[templateKey] ?? 0) + 1
+      return counts
+    }, {})
+
+    const noTemplateCount = apps.filter(item => !normalizeTemplateKey(item.catalog_app_key)).length
+    return {
       runtime: Array.from(new Set(apps.map(item => item.runtime_status).filter(Boolean)))
         .sort()
         .map(value => ({ value, label: value })),
-      server: Array.from(new Set(apps.map(item => item.server_id || 'local').filter(Boolean)))
-        .sort()
-        .map(value => ({ value, label: value })),
-    }),
-    [apps]
-  )
+      server: Array.from(
+        new Map(apps.map(item => [item.server_id || 'local', appServerLabel(item)])).entries()
+      )
+        .sort((left, right) => left[1].localeCompare(right[1]))
+        .map(([value, label]) => ({ value, label })),
+      template: Object.entries(templateCounts)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([value, count]) => ({ value, label: value, count })),
+      noTemplateCount,
+    }
+  }, [apps])
+
+  const routeTemplate = normalizeTemplateKey(catalogAppKey)
+  const effectiveTemplate = routeTemplate ?? selectedTemplate
 
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase()
     return apps.filter(item => {
+      const templateKey = normalizeTemplateKey(item.catalog_app_key)
       if (excludeRuntime.has(item.runtime_status)) return false
-      if (excludeServer.has(item.server_id || 'local')) return false
-      if (catalogAppKey && item.catalog_app_key !== catalogAppKey) return false
+      if (selectedServer && (item.server_id || 'local') !== selectedServer) return false
+      if (effectiveTemplate === TEMPLATE_FILTER_UNTEMPLATED && templateKey) return false
+      if (
+        effectiveTemplate !== TEMPLATE_FILTER_ALL &&
+        effectiveTemplate !== TEMPLATE_FILTER_UNTEMPLATED &&
+        templateKey !== effectiveTemplate
+      ) {
+        return false
+      }
       if (!query) return true
-      return [item.id, item.name, item.project_dir, item.server_id, item.catalog_app_key]
+      return [item.id, item.name, item.project_dir, item.server_id, templateKey]
         .filter(Boolean)
         .some(value => String(value).toLowerCase().includes(query))
     })
-  }, [apps, catalogAppKey, excludeRuntime, excludeServer, search])
+  }, [apps, effectiveTemplate, excludeRuntime, search, selectedServer])
 
   const sortedItems = useMemo(() => {
     if (!sortField) return filteredItems
@@ -300,10 +409,41 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
     () => sortedItems.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
     [page, sortedItems]
   )
+  const hasResults = pagedItems.length > 0
 
   useEffect(() => {
     setPage(1)
-  }, [excludeRuntime, excludeServer, search, sortDir, sortField, view])
+  }, [effectiveTemplate, excludeRuntime, search, selectedServer, sortDir, sortField, view])
+
+  function handleTemplateFilterChange(value: string) {
+    setSelectedTemplate(value || TEMPLATE_FILTER_ALL)
+    if (catalogAppKey) {
+      void navigate({ to: '/apps', search: { catalogAppKey: undefined } })
+    }
+  }
+
+  const activeRuntime = useMemo(() => {
+    const includedStatuses = filterOptions.runtime.filter(option => !excludeRuntime.has(option.value))
+    return includedStatuses.length === 1 ? includedStatuses[0]?.value ?? null : null
+  }, [excludeRuntime, filterOptions.runtime])
+
+  function handleRuntimeSummaryClick(runtime: string | null) {
+    if (!runtime) {
+      setExcludeRuntime(new Set())
+      return
+    }
+    if (activeRuntime === runtime) {
+      setExcludeRuntime(new Set())
+      return
+    }
+    setExcludeRuntime(
+      new Set(filterOptions.runtime.map(option => option.value).filter(value => value !== runtime))
+    )
+  }
+
+  function renderAppAvatar(app: AppInstance, sizeClass: string, radiusClass: string) {
+    return <AppAvatar app={app} sizeClass={sizeClass} radiusClass={radiusClass} />
+  }
 
   function handleSort(field: SortField) {
     if (sortField === field) {
@@ -338,6 +478,14 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
     navigateToActionDetail(app.last_operation)
   }
 
+  function renderEmptyState() {
+    return (
+      <div className="rounded-xl border p-8 text-center text-sm text-muted-foreground">
+        No apps found.
+      </div>
+    )
+  }
+
   function renderActionMenu(app: AppInstance) {
     const currentAction = actionLoading.startsWith(`${app.id}:`) ? actionLoading.split(':')[1] : ''
     const currentOperationAction = deployLoading.startsWith(`${app.id}:`)
@@ -353,12 +501,12 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-44">
           <DropdownMenuItem
-          onSelect={() =>
-            void navigate({
-              to: '/apps/$appId',
-              params: { appId: app.id },
-              search: { catalogAppKey: undefined },
-            })}
+            onSelect={() =>
+              void navigate({
+                to: '/apps/$appId',
+                params: { appId: app.id },
+                search: { catalogAppKey: undefined },
+              })}
           >
             <ExternalLink className="h-4 w-4" />
             Open detail
@@ -366,7 +514,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
           {app.last_operation ? (
             <DropdownMenuItem onSelect={() => openOperationStatus(app)}>
               <ExternalLink className="h-4 w-4" />
-              View execution status
+              Open latest action detail
             </DropdownMenuItem>
           ) : null}
           <DropdownMenuSeparator />
@@ -385,17 +533,11 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
             {currentOperationAction === 'upgrade' ? 'Upgrading...' : 'Upgrade'}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={() => void runAction(app, 'start')}
-            disabled={Boolean(actionLoading)}
-          >
+          <DropdownMenuItem onSelect={() => void runAction(app, 'start')} disabled={Boolean(actionLoading)}>
             <Play className="h-4 w-4" />
             {currentAction === 'start' ? 'Starting...' : 'Start'}
           </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={() => void runAction(app, 'stop')}
-            disabled={Boolean(actionLoading)}
-          >
+          <DropdownMenuItem onSelect={() => void runAction(app, 'stop')} disabled={Boolean(actionLoading)}>
             <Square className="h-4 w-4" />
             {currentAction === 'stop' ? 'Stopping...' : 'Stop'}
           </DropdownMenuItem>
@@ -420,28 +562,186 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
     )
   }
 
+  function renderAppsSurface() {
+  if (loading) {
+    return (
+      <div className="rounded-2xl bg-background/80 p-6 text-sm text-muted-foreground shadow-sm ring-1 ring-border/60">
+        Loading apps...
+      </div>
+    )
+  }
+
+  if (view === 'grid') {
+    if (!hasResults) {
+      return renderEmptyState()
+    }
+
+    return (
+      <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        {pagedItems.map(app => (
+          <Card
+            key={app.id}
+            className="overflow-hidden rounded-[24px] border-white/70 bg-white/88 shadow-[0_10px_30px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_18px_36px_rgba(15,23,42,0.10)]"
+          >
+            <CardContent
+              role="link"
+              tabIndex={0}
+              className="relative flex h-full min-h-[214px] cursor-pointer flex-col justify-between gap-4 p-4"
+              onClick={() => navigateToAppDetail(app.id)}
+              onKeyDown={event => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  navigateToAppDetail(app.id)
+                }
+              }}
+            >
+              <div className="absolute right-0 top-0 h-20 w-20 rounded-full bg-primary/5 blur-2xl" />
+              <div className="relative flex flex-col gap-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-3">
+                    {renderAppAvatar(app, 'h-11 w-11', 'rounded-2xl')}
+                    <div className="min-w-0">
+                      <div className="truncate text-[15px] font-semibold leading-5">{app.name}</div>
+                      <div className="truncate pt-0.5 text-[11px] text-muted-foreground">
+                        {formatCardSourceLabel(app)}
+                      </div>
+                    </div>
+                  </div>
+                  <Badge variant={runtimeVariant(app.runtime_status)}>{app.runtime_status}</Badge>
+                </div>
+
+                <div className="rounded-2xl bg-slate-50/85 px-3 py-3 ring-1 ring-slate-200/70">
+                  <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-xs text-muted-foreground">
+                    <span>Server</span>
+                    <span className="truncate text-right text-foreground">{appServerLabel(app)}</span>
+                    <span>Uptime</span>
+                    <span className="text-right text-foreground">{formatUptime(app)}</span>
+                    <span>Updated</span>
+                    <span className="truncate text-right text-foreground">{formatTime(app.updated)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="relative mt-auto flex items-end justify-between gap-3 border-t border-slate-200/80 pt-3">
+                {app.last_operation ? (
+                  <div className="min-w-0 flex-1 text-[11px] text-muted-foreground">
+                    <div className="truncate text-[10px] uppercase tracking-[0.12em] text-muted-foreground/80">
+                      Latest action
+                    </div>
+                    <div className="truncate font-mono text-[11px] text-muted-foreground">
+                      {app.last_operation}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-muted-foreground">No action recorded yet</div>
+                )}
+                <div className="flex items-center gap-1" onClick={event => event.stopPropagation()}>
+                  {renderActionMenu(app)}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div className="overflow-hidden rounded-2xl bg-background/88 shadow-sm ring-1 ring-border/60">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="pl-6">
+              <SortableHeader label="Name" field="name" current={sortField} dir={sortDir} onSort={handleSort} />
+            </TableHead>
+            <TableHead>
+              <FilterHeader
+                label="Runtime"
+                options={filterOptions.runtime}
+                excluded={excludeRuntime}
+                onChange={setExcludeRuntime}
+              />
+            </TableHead>
+            <TableHead>Server</TableHead>
+            <TableHead>Uptime</TableHead>
+            <TableHead>Latest Action</TableHead>
+            <TableHead>
+              <SortableHeader label="Updated" field="updated" current={sortField} dir={sortDir} onSort={handleSort} />
+            </TableHead>
+            <TableHead className="w-[72px]" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {pagedItems.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                No apps found.
+              </TableCell>
+            </TableRow>
+          ) : (
+            pagedItems.map(item => (
+              <TableRow key={item.id} className="h-14">
+                <TableCell className="pl-6">
+                  <div className="flex items-center gap-3">
+                    {renderAppAvatar(item, 'h-10 w-10', 'rounded-xl')}
+                    <div className="min-w-0">
+                      <div className="truncate font-medium">{item.name}</div>
+                      <div className="font-mono text-xs text-muted-foreground">{item.id}</div>
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={runtimeVariant(item.runtime_status)}>{item.runtime_status}</Badge>
+                </TableCell>
+                <TableCell>{appServerLabel(item)}</TableCell>
+                <TableCell>{formatUptime(item)}</TableCell>
+                <TableCell>
+                  {item.last_operation ? (
+                    <div className="space-y-0.5">
+                      <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                        Latest action detail
+                      </div>
+                      <button
+                        type="button"
+                        className="font-mono text-xs text-primary underline-offset-4 hover:underline"
+                        onClick={() => openOperationStatus(item)}
+                      >
+                        {item.last_operation}
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                </TableCell>
+                <TableCell>{formatTime(item.updated)}</TableCell>
+                <TableCell className="text-right">{renderActionMenu(item)}</TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
+    </div>
+  )
+  }
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <h1 className="text-2xl font-bold">My Apps</h1>
           <p className="text-sm text-muted-foreground">
-            Your app workspace stays focused on management summary. Lifecycle requests hand
-            execution tracking off to the canonical Actions detail surface.
+            Unified entry to manage your installed & shared apps.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant={view === 'grid' ? 'default' : 'outline'} onClick={() => setView('grid')}>
-            <LayoutGrid className="mr-2 h-4 w-4" />
-            Grid
-          </Button>
-          <Button variant={view === 'list' ? 'default' : 'outline'} onClick={() => setView('list')}>
-            <List className="mr-2 h-4 w-4" />
-            List
-          </Button>
-          <Button variant="outline" onClick={() => void fetchApps(true)} disabled={refreshing}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
+        <div className="flex items-center gap-2 self-end md:self-auto">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => void fetchApps(true)}
+            disabled={refreshing}
+            aria-label="Refresh apps"
+          >
+            <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
           </Button>
         </div>
       </div>
@@ -464,233 +764,180 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
               Showing installed instances for catalog app <span className="font-mono">{catalogAppKey}</span>.
             </span>
             <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void navigate({ to: '/apps', search: { catalogAppKey: undefined } })}
+              variant="outline"
+              size="sm"
+              onClick={() => void navigate({ to: '/apps', search: { catalogAppKey: undefined } })}
             >
               Clear filter
             </Button>
           </AlertDescription>
         </Alert>
       ) : null}
-      <Alert>
-        <AlertTitle>Execution Handoff</AlertTitle>
-        <AlertDescription>
-          <p>
-            Start, stop, restart, uninstall, redeploy, and upgrade all create or resume shared
-            lifecycle operations.
-          </p>
-          <p>
-            This page shows app summary. Timeline, node progress, and final execution detail live in
-            Actions.
-          </p>
-        </AlertDescription>
-      </Alert>
 
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={event => setSearch(event.target.value)}
-            placeholder="Search by id, name, path, or server"
-            className="pl-9"
-          />
-        </div>
-        <div className="text-sm text-muted-foreground">
-          Running {summary.running} · Stopped {summary.stopped} · Error {summary.error}
-        </div>
-        <div className="text-sm text-muted-foreground">Total {summary.total}</div>
-      </div>
-
-      {loading ? (
-        <div className="rounded-xl border p-6 text-sm text-muted-foreground">Loading apps...</div>
-      ) : view === 'grid' ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {pagedItems.map(app => (
-            <Card key={app.id} className="overflow-hidden">
-              <CardContent className="flex h-full flex-col gap-4 p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={cn(
-                        'flex h-12 w-12 items-center justify-center rounded-2xl text-sm font-semibold',
-                        appIconClass(app.name)
-                      )}
-                    >
-                      {appInitials(app.name)}
-                    </div>
-                    <div>
-                      <div className="font-medium">{app.name}</div>
-                      <div className="font-mono text-xs text-muted-foreground">{app.id}</div>
-                    </div>
-                  </div>
-                  <Badge variant={runtimeVariant(app.runtime_status)}>{app.runtime_status}</Badge>
-                </div>
-                <div className="grid gap-2 text-sm text-muted-foreground">
-                  <div>Uptime: {formatUptime(app)}</div>
-                  <div>Created: {formatTime(app.created)}</div>
-                  <div>Server: {app.server_id || 'local'}</div>
-                  <div>Last Operation: {app.last_operation || '-'}</div>
-                  <div className="truncate">{app.project_dir}</div>
-                </div>
-                <div className="mt-auto flex items-center justify-between gap-2 pt-2">
-                  <Badge variant="outline">{app.status}</Badge>
-                  <div className="flex items-center gap-1">
-                    <Button asChild variant="outline">
-                    <Link
-                    to="/apps/$appId"
-                    params={{ appId: app.id }}
-                    search={{ catalogAppKey: undefined }}
-                    >
-                        Open Detail
-                      </Link>
-                    </Button>
-                    {renderActionMenu(app)}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-xl border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>
-                  <SortableHeader
-                    label="Name"
-                    field="name"
-                    current={sortField}
-                    dir={sortDir}
-                    onSort={handleSort}
-                  />
-                </TableHead>
-                <TableHead>
-                  <FilterHeader
-                    label="Runtime"
-                    options={filterOptions.runtime}
-                    excluded={excludeRuntime}
-                    onChange={setExcludeRuntime}
-                  />
-                </TableHead>
-                <TableHead>
-                  <FilterHeader
-                    label="Server"
-                    options={filterOptions.server}
-                    excluded={excludeServer}
-                    onChange={setExcludeServer}
-                  />
-                </TableHead>
-                <TableHead>Uptime</TableHead>
-                <TableHead>Last Operation</TableHead>
-                <TableHead>
-                  <SortableHeader
-                    label="Created"
-                    field="created"
-                    current={sortField}
-                    dir={sortDir}
-                    onSort={handleSort}
-                  />
-                </TableHead>
-                <TableHead>
-                  <SortableHeader
-                    label="Updated"
-                    field="updated"
-                    current={sortField}
-                    dir={sortDir}
-                    onSort={handleSort}
-                  />
-                </TableHead>
-                <TableHead className="w-[96px]" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pagedItems.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
-                    No apps found.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                pagedItems.map(item => (
-                  <TableRow key={item.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={cn(
-                            'flex h-10 w-10 items-center justify-center rounded-xl text-sm font-semibold',
-                            appIconClass(item.name)
-                          )}
-                        >
-                          {appInitials(item.name)}
-                        </div>
-                        <div>
-                          <div className="font-medium">{item.name}</div>
-                          <div className="font-mono text-xs text-muted-foreground">{item.id}</div>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={runtimeVariant(item.runtime_status)}>
-                          {item.runtime_status}
-                        </Badge>
-                        <Badge variant="outline">{item.status}</Badge>
-                      </div>
-                    </TableCell>
-                    <TableCell>{item.server_id || 'local'}</TableCell>
-                    <TableCell>{formatUptime(item)}</TableCell>
-                    <TableCell>
-                      {item.last_operation ? (
-                        <button
-                          type="button"
-                          className="font-mono text-xs text-primary underline-offset-4 hover:underline"
-                          onClick={() => openOperationStatus(item)}
-                        >
-                          {item.last_operation}
-                        </button>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>{formatTime(item.created)}</TableCell>
-                    <TableCell>{formatTime(item.updated)}</TableCell>
-                    <TableCell className="text-right">{renderActionMenu(item)}</TableCell>
-                  </TableRow>
-                ))
+      <section className="overflow-hidden rounded-[28px] bg-gradient-to-b from-muted/35 via-background to-background px-4 py-3 md:px-5 md:py-4">
+        <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:gap-3">
+            <div className="inline-flex h-8.5 flex-wrap items-center rounded-xl bg-background/88 px-1 py-0.5 text-sm text-muted-foreground shadow-sm backdrop-blur-sm">
+              <button
+              type="button"
+              className={cn(
+                'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
+                !activeRuntime
+                  ? 'bg-muted/55 text-foreground'
+                  : 'hover:bg-muted/70'
               )}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+              onClick={() => handleRuntimeSummaryClick(null)}
+            >
+              <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                Total
+              </span>
+              <span className="font-semibold text-foreground underline-offset-2 hover:underline">
+                {summary.total}
+              </span>
+            </button>
+              <span className="mx-0.5 hidden h-4 w-px bg-border/55 md:block" aria-hidden="true" />
+              <button
+              type="button"
+              className={cn(
+                'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
+                activeRuntime === 'running'
+                  ? 'bg-muted/55 text-foreground'
+                  : 'hover:bg-muted/70'
+              )}
+              onClick={() => handleRuntimeSummaryClick('running')}
+            >
+              <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                Running
+              </span>
+              <span className="font-semibold text-foreground underline-offset-2 hover:underline">
+                {summary.running}
+              </span>
+            </button>
+              <span className="mx-0.5 hidden h-4 w-px bg-border/55 md:block" aria-hidden="true" />
+              <button
+              type="button"
+              className={cn(
+                'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
+                activeRuntime === 'stopped'
+                  ? 'bg-muted/55 text-foreground'
+                  : 'hover:bg-muted/70'
+              )}
+              onClick={() => handleRuntimeSummaryClick('stopped')}
+            >
+              <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                Stopped
+              </span>
+              <span className="font-semibold text-foreground underline-offset-2 hover:underline">
+                {summary.stopped}
+              </span>
+            </button>
+              <span className="mx-0.5 hidden h-4 w-px bg-border/55 md:block" aria-hidden="true" />
+              <button
+              type="button"
+              className={cn(
+                'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
+                activeRuntime === 'error'
+                  ? 'bg-muted/55 text-foreground'
+                  : 'hover:bg-muted/70'
+              )}
+              onClick={() => handleRuntimeSummaryClick('error')}
+            >
+              <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                Error
+              </span>
+              <span className="font-semibold text-foreground underline-offset-2 hover:underline">
+                {summary.error}
+              </span>
+            </button>
+            </div>
 
-      {totalPages > 1 ? (
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">
-            {sortedItems.length} total · Page {page} of {totalPages}
-          </span>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage(current => current - 1)}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => setPage(current => current + 1)}
-            >
-              Next
-            </Button>
+            <div className="relative min-w-0 w-full sm:w-[156px]">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={event => setSearch(event.target.value.slice(0, 15))}
+                placeholder="Search apps"
+                className="h-8.5 border-transparent bg-background/90 pl-9 shadow-sm ring-1 ring-border/55"
+                maxLength={15}
+                aria-label="Search apps"
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center xl:justify-end">
+            <label className="min-w-0 sm:w-[150px]">
+              <select
+                className="h-9 w-full rounded-full border-transparent bg-background/90 px-3 text-sm shadow-sm ring-1 ring-border/60 outline-none focus:ring-2 focus:ring-ring"
+                value={effectiveTemplate}
+                onChange={event => handleTemplateFilterChange(event.target.value)}
+                aria-label="Filter by app template"
+              >
+                <option value={TEMPLATE_FILTER_ALL}>By template</option>
+                <option value={TEMPLATE_FILTER_UNTEMPLATED}>
+                  No-template ({filterOptions.noTemplateCount})
+                </option>
+                {filterOptions.template.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label} ({option.count})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="min-w-0 sm:w-[150px]">
+              <select
+                className="h-9 w-full rounded-full border-transparent bg-background/90 px-3 text-sm shadow-sm ring-1 ring-border/60 outline-none focus:ring-2 focus:ring-ring"
+                value={selectedServer ?? ''}
+                onChange={event => setSelectedServer(event.target.value || null)}
+                aria-label="Filter by server"
+              >
+                <option value="">All servers</option>
+                {filterOptions.server.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="flex items-center justify-between gap-1.5 sm:justify-end">
+              <div className="inline-flex items-center gap-0.5 rounded-full bg-background/90 px-1 py-0.5 text-sm text-muted-foreground">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 rounded-full"
+                  disabled={page <= 1}
+                  onClick={() => setPage(current => current - 1)}
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="px-0.5 text-center font-mono text-xs text-foreground">
+                  {page}/{totalPages}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 rounded-full"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage(current => current + 1)}
+                  aria-label="Next page"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-7 w-7 rounded-full border-transparent bg-background/90 shadow-sm ring-1 ring-border/60"
+                onClick={() => setView(current => (current === 'grid' ? 'list' : 'grid'))}
+                aria-label={view === 'grid' ? 'Switch to list view' : 'Switch to grid view'}
+              >
+                {view === 'grid' ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
+              </Button>
+            </div>
           </div>
         </div>
-      ) : null}
+
+        <div className="mt-4 md:mt-5">{renderAppsSurface()}</div>
+      </section>
 
       <AlertDialog
         open={Boolean(pendingUninstall)}

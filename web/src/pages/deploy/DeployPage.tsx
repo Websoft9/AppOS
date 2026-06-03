@@ -138,7 +138,7 @@ export function DeployPage({
           'Paste or review docker-compose YAML. This is the recommended path for standard app stacks.',
         icon: <FileCode2 className="h-4 w-4" />,
         action: () => openManualDialog('compose'),
-        variant: 'default',
+        variant: 'outline',
       },
       {
         key: 'git-compose',

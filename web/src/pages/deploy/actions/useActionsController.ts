@@ -16,6 +16,7 @@ import { type AppConfigResponse } from '@/pages/apps/types'
 import { buildActionDetailSearch, isActiveStatus } from '@/pages/deploy/actions/action-utils'
 import type {
   ActiveFilterChip,
+  ActionListResponse,
   ActionRecord,
   ActionListSearch,
   CreateDeploymentEntryMode,
@@ -271,6 +272,8 @@ export function useActionsController({
   )
   const [storeDetailOpen, setStoreDetailOpen] = useState(false)
   const [operations, setOperations] = useState<ActionRecord[]>([])
+  const [serverTotalItems, setServerTotalItems] = useState(0)
+  const [serverTotalPages, setServerTotalPages] = useState(1)
   const [createEntryMode, setCreateEntryMode] = useState<CreateDeploymentEntryMode>(
     entryMode || 'compose'
   )
@@ -346,7 +349,7 @@ export function useActionsController({
   useEffect(() => {
     if (!entryMode) return
     setCreateEntryMode(entryMode)
-    if (entryMode !== 'git-compose') {
+    if (entryMode !== 'git-compose' && entryMode !== 'template') {
       setManualEntryMode(entryMode)
     }
   }, [entryMode])
@@ -386,8 +389,11 @@ export function useActionsController({
 
   useEffect(() => {
     void fetchServers()
-    void fetchOperations()
   }, [])
+
+  useEffect(() => {
+    void fetchOperations()
+  }, [appFilterId, excludeServer, excludeSource, excludeStatus, page, pageSize, search, sortDir, sortField, view])
 
   useEffect(() => {
     void fetchStoreShortcuts()
@@ -397,6 +403,11 @@ export function useActionsController({
     let cancelled = false
     async function loadPrefill() {
       if (prefillMode !== 'target' && prefillMode !== 'installed') return
+      if (entryMode === 'template') {
+        setPrefillReady(prefillAppName || prefillAppKey || '')
+        setPrefillLoading(false)
+        return
+      }
       setPrefillLoading(true)
       try {
         let loadedCompose: string | null = null
@@ -489,12 +500,12 @@ export function useActionsController({
 
   const summary = useMemo(
     () => ({
-      total: operations.length,
+      total: view === 'list' ? serverTotalItems : operations.length,
       active: operations.filter(item => isActiveStatus(item.status)).length,
       completed: operations.filter(item => item.status === 'success').length,
       failed: operations.filter(item => item.status === 'failed').length,
     }),
-    [operations]
+    [operations, serverTotalItems, view]
   )
 
   const latestOperations = useMemo(
@@ -571,6 +582,7 @@ export function useActionsController({
   )
 
   const filteredItems = useMemo(() => {
+    if (view === 'list') return operations
     const query = search.trim().toLowerCase()
     return operations.filter(item => {
       if (appFilterId && item.app_id !== appFilterId && item.pipeline?.app_id !== appFilterId)
@@ -592,21 +604,23 @@ export function useActionsController({
         .filter(Boolean)
         .some(value => String(value).toLowerCase().includes(query))
     })
-  }, [appFilterId, operations, excludeServer, excludeSource, excludeStatus, search])
+  }, [appFilterId, operations, excludeServer, excludeSource, excludeStatus, search, view])
 
   const sortedItems = useMemo(() => {
+    if (view === 'list') return filteredItems
     if (!sortField) return filteredItems
     const factor = sortDir === 'asc' ? 1 : -1
     return [...filteredItems].sort(
       (left, right) =>
         String(left[sortField] || '').localeCompare(String(right[sortField] || '')) * factor
     )
-  }, [filteredItems, sortDir, sortField])
+  }, [filteredItems, sortDir, sortField, view])
 
-  const totalPages = Math.max(1, Math.ceil(sortedItems.length / pageSize))
+  const totalPages =
+    view === 'list' ? Math.max(1, serverTotalPages) : Math.max(1, Math.ceil(sortedItems.length / pageSize))
   const pagedItems = useMemo(
-    () => sortedItems.slice((page - 1) * pageSize, page * pageSize),
-    [page, pageSize, sortedItems]
+    () => (view === 'list' ? sortedItems : sortedItems.slice((page - 1) * pageSize, page * pageSize)),
+    [page, pageSize, sortedItems, view]
   )
 
   useEffect(() => {
@@ -665,7 +679,7 @@ export function useActionsController({
       summary.active > 0 ? 3000 : 6000
     )
     return () => window.clearInterval(timer)
-  }, [summary.active])
+  }, [summary.active, appFilterId, excludeServer, excludeSource, excludeStatus, page, pageSize, search, sortDir, sortField, view])
 
   useEffect(() => {
     setSelectedIds(current => {
@@ -742,8 +756,43 @@ export function useActionsController({
 
   async function fetchOperations() {
     try {
-      const response = await pb.send<ActionRecord[]>('/api/actions', { method: 'GET' })
-      setOperations(Array.isArray(response) ? response : [])
+      if (view === 'list') {
+        const params = new URLSearchParams()
+        params.set('page', String(page))
+        params.set('perPage', String(pageSize))
+        if (appFilterId) params.set('appId', appFilterId)
+        if (search.trim()) params.set('q', search.trim())
+        if (sortField) params.set('sortField', sortField)
+        if (sortDir) params.set('sortDir', sortDir)
+        if (excludeStatus.size > 0) {
+          params.set('excludeStatus', Array.from(excludeStatus).sort().join(','))
+        }
+        if (excludeSource.size > 0) {
+          params.set('excludeSource', Array.from(excludeSource).sort().join(','))
+        }
+        if (excludeServer.size > 0) {
+          params.set('excludeServer', Array.from(excludeServer).sort().join(','))
+        }
+
+        const response = await pb.send<ActionListResponse>(`/api/actions?${params.toString()}`, {
+          method: 'GET',
+        })
+        setOperations(Array.isArray(response?.items) ? response.items : [])
+        if (Number.isFinite(response?.page) && response.page > 0 && response.page !== page) {
+          setPage(response.page)
+        }
+        setServerTotalItems(Number.isFinite(response?.totalItems) ? response.totalItems : 0)
+        setServerTotalPages(
+          Number.isFinite(response?.totalPages) && response.totalPages > 0
+            ? response.totalPages
+            : 1
+        )
+      } else {
+        const response = await pb.send<ActionRecord[]>('/api/actions', { method: 'GET' })
+        setOperations(Array.isArray(response) ? response : [])
+        setServerTotalItems(Array.isArray(response) ? response.length : 0)
+        setServerTotalPages(1)
+      }
     } catch (err) {
       showNotice('destructive', err instanceof Error ? err.message : 'Failed to load actions')
     } finally {
@@ -785,7 +834,7 @@ export function useActionsController({
     void navigate({
       to: '/deploy/create',
       search: {
-        entry: 'compose',
+        entry: 'template',
         prefillMode: 'target',
         prefillSource: 'library',
         prefillAppId: undefined,
@@ -798,7 +847,7 @@ export function useActionsController({
 
   function selectCreateEntryMode(mode: CreateDeploymentEntryMode) {
     setCreateEntryMode(mode)
-    if (mode === 'git-compose') return
+    if (mode === 'git-compose' || mode === 'template') return
     setManualEntryMode(mode)
   }
 
@@ -969,6 +1018,63 @@ export function useActionsController({
       showNotice('destructive', err instanceof Error ? err.message : 'Failed to create git action')
     } finally {
       setGitSubmitting(false)
+    }
+  }
+
+  async function submitTemplateOperation(templateKey: string, inputValues: Record<string, unknown>) {
+    setSubmitting(true)
+    setNotice(null)
+    try {
+      const created = await pb.send<ActionRecord>('/api/actions/install/template', {
+        method: 'POST',
+        body: {
+          server_id: serverId,
+          project_name: projectName,
+          template_key: templateKey,
+          input_values: inputValues,
+          app_required_disk_gib: appRequiredDiskGiB,
+        },
+      })
+      showNotice('default', `Action ${created.compose_project_name || created.id} created from template`)
+      await fetchOperations()
+      openOperationDetail(created.id)
+    } catch (err) {
+      showNotice('destructive', err instanceof Error ? err.message : 'Failed to create template action')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function checkTemplateOperation(
+    templateKey: string,
+    inputValues: Record<string, unknown>,
+    options?: { silentNotice?: boolean }
+  ): Promise<InstallPreflightResult | null> {
+    setChecking(true)
+    setNotice(null)
+    try {
+      const result = await pb.send<InstallPreflightResult>('/api/actions/install/template/check', {
+        method: 'POST',
+        body: {
+          server_id: serverId,
+          project_name: projectName,
+          template_key: templateKey,
+          input_values: inputValues,
+          app_required_disk_gib: appRequiredDiskGiB,
+        },
+      })
+      setCheckResult(result)
+      if (!options?.silentNotice) {
+        showNotice(result.ok ? 'default' : 'destructive', result.message)
+      }
+      return result
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to run template preflight check'
+      setCheckResult(null)
+      showNotice('destructive', message)
+      return null
+    } finally {
+      setChecking(false)
     }
   }
 
@@ -1255,8 +1361,10 @@ export function useActionsController({
     getServerHost,
     checkManualOperation,
     checkGitOperation,
+    checkTemplateOperation,
     submitManualOperation,
     submitGitOperation,
+    submitTemplateOperation,
     deleteOperations,
     fetchOperations,
   }

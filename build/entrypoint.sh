@@ -9,12 +9,13 @@ mkdir -p \
     /appos/data/pb/pb_migrations \
     /appos/data/redis \
     /appos/data/apps \
-    /appos/data/pi \
     /appos/data/victoriametrics \
     /appos/data/workflows \
     /appos/data/templates/apps \
     /appos/data/templates/workflows \
-    /appos/data/templates/custom
+  /appos/data/templates/custom \
+  /appos/data/templates/custom/apps \
+  /appos/data/templates/official/apps
 
 # Ensure proper permissions
 chmod -R 755 /appos/data

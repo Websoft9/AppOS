@@ -12,6 +12,7 @@ function DeployCreateRoutePage() {
   const entryMode =
     search.entry === 'compose' ||
     search.entry === 'git-compose' ||
+    search.entry === 'template' ||
     search.entry === 'docker-command' ||
     search.entry === 'install-script'
       ? search.entry
@@ -41,6 +42,7 @@ export const Route = createFileRoute('/_app/_auth/deploy/create')({
     entry:
       search.entry === 'compose' ||
       search.entry === 'git-compose' ||
+      search.entry === 'template' ||
       search.entry === 'docker-command' ||
       search.entry === 'install-script'
         ? search.entry

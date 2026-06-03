@@ -28,6 +28,61 @@ vi.mock('@tanstack/react-router', () => ({
   ),
 }))
 
+vi.mock('react-i18next', () => ({
+  initReactI18next: {
+    type: '3rdParty',
+    init: () => {},
+  },
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => {
+      const labels: Record<string, string> = {
+        'hub.title': 'Resources',
+        'connectors.page.title': 'Connectors',
+        'connectors.page.description': 'Reusable API, webhook, MCP, proxy, SMTP, registry, and DNS connectors backed by grouped connector profiles',
+        'connectors.page.addConnector': 'Add Connector',
+        'connectors.page.searchPlaceholder': 'Search connectors',
+        'connectors.fields.name': 'Name',
+        'connectors.fields.profile': 'Profile',
+        'connectors.fields.description': 'Description',
+        'connectors.fields.advancedConfig': 'Advanced Config (JSON)',
+        'connectors.fields.groups': 'Groups',
+        'connectors.placeholders.name': 'my-connector',
+        'connectors.placeholders.advancedConfig': '{"headers": {"X-Custom": "value"}}',
+        'connectors.columns.name': 'Name',
+        'connectors.columns.default': 'Default',
+        'connectors.columns.kind': 'Kind',
+        'connectors.columns.profile': 'Profile',
+        'connectors.columns.url': 'URL',
+        'connectors.columns.auth': 'Auth',
+        'connectors.badges.default': 'Default',
+        'connectors.kinds.rest_api': 'REST API',
+        'connectors.kinds.webhook': 'Webhook',
+        'connectors.kinds.mcp': 'MCP',
+        'connectors.kinds.proxy': 'Proxy',
+        'connectors.kinds.smtp': 'SMTP',
+        'connectors.kinds.registry': 'Registry',
+        'connectors.kinds.dns': 'DNS',
+        'connectors.auth.none': 'No authentication',
+        'connectors.auth.usernamePassword': 'Username + Password',
+        'connectors.auth.noneValue': 'none',
+        'connectors.authValues.none': 'none',
+        'connectors.authValues.basic': 'basic',
+        'connectors.authValues.bearer': 'bearer',
+        'connectors.secret.new': 'New Secret',
+        'connectors.secret.edit': 'Edit Secret',
+        'connectors.secret.newTitle': 'New Secret',
+        'connectors.secret.newDescription': 'Create a reusable secret and attach it to this connector.',
+        'connectors.secretTemplates.single_value': 'Token / Single Value',
+        'connectors.errors.profileRequired': 'Connector profile is required'
+      }
+      if (key === 'connectors.page.totalItems') {
+        return `Total ${String(options?.count ?? '')} items`
+      }
+      return labels[key] ?? key
+    },
+  }),
+}))
+
 vi.mock('@/lib/pb', () => ({
   pb: {
     send: (...args: unknown[]) => sendMock(...args),

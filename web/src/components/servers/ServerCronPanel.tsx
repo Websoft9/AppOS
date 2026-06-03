@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   ArrowDown,
   ArrowUp,
@@ -66,16 +67,6 @@ type CronBuilderState = {
   month: string
   dayOfWeek: string[]
 }
-
-const weekdayOptions = [
-  { value: '0', shortLabel: 'Sun', label: 'Sunday' },
-  { value: '1', shortLabel: 'Mon', label: 'Monday' },
-  { value: '2', shortLabel: 'Tue', label: 'Tuesday' },
-  { value: '3', shortLabel: 'Wed', label: 'Wednesday' },
-  { value: '4', shortLabel: 'Thu', label: 'Thursday' },
-  { value: '5', shortLabel: 'Fri', label: 'Friday' },
-  { value: '6', shortLabel: 'Sat', label: 'Saturday' },
-]
 
 const timeOptions = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, '0'))
 const minuteOptions = Array.from({ length: 60 }, (_, index) => String(index).padStart(2, '0'))
@@ -241,12 +232,15 @@ function panelSection(title: string, content: ReactNode, description?: string) {
   )
 }
 
-function validateCronPayload(payload: ServerCronJobWritePayload): string | null {
-  if (!payload.name.trim()) return 'Name is required'
+function validateCronPayload(
+  t: (key: string) => string,
+  payload: ServerCronJobWritePayload
+): string | null {
+  if (!payload.name.trim()) return t('servers.cronTab.validation.nameRequired')
   if (payload.schedule.trim().split(/\s+/).length !== 5) {
-    return 'Schedule must be a valid five-field cron expression'
+    return t('servers.cronTab.validation.scheduleInvalid')
   }
-  if (!payload.command.trim()) return 'Command is required'
+  if (!payload.command.trim()) return t('servers.cronTab.validation.commandRequired')
   return null
 }
 
@@ -260,8 +254,8 @@ function toPayload(state: EditorState): ServerCronJobWritePayload {
   }
 }
 
-function statusLabel(job: Pick<ServerCronJob, 'enabled'>) {
-  return job.enabled ? 'Yes' : 'No'
+function statusLabel(t: (key: string) => string, job: Pick<ServerCronJob, 'enabled'>) {
+  return job.enabled ? t('servers.cronTab.status.yes') : t('servers.cronTab.status.no')
 }
 
 function normalizeQuery(value: string) {
@@ -280,6 +274,7 @@ function formatOperationLog(message: string) {
 }
 
 export function ServerCronPanel({ serverId }: { serverId: string }) {
+  const { t } = useTranslation('resources')
   const requestSeqRef = useRef(0)
   const [jobs, setJobs] = useState<ServerCronJob[]>([])
   const [loading, setLoading] = useState(true)
@@ -299,6 +294,19 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
   const [selectedEntryId, setSelectedEntryId] = useState('')
   const [entryDetailTab, setEntryDetailTab] = useState<EntryDetailTab>('live-log')
   const [operationLogs, setOperationLogs] = useState<Record<string, string[]>>({})
+
+  const weekdayOptions = useMemo(
+    () => [
+      { value: '0', shortLabel: t('servers.cronTab.weekdays.sun.short'), label: t('servers.cronTab.weekdays.sun.label') },
+      { value: '1', shortLabel: t('servers.cronTab.weekdays.mon.short'), label: t('servers.cronTab.weekdays.mon.label') },
+      { value: '2', shortLabel: t('servers.cronTab.weekdays.tue.short'), label: t('servers.cronTab.weekdays.tue.label') },
+      { value: '3', shortLabel: t('servers.cronTab.weekdays.wed.short'), label: t('servers.cronTab.weekdays.wed.label') },
+      { value: '4', shortLabel: t('servers.cronTab.weekdays.thu.short'), label: t('servers.cronTab.weekdays.thu.label') },
+      { value: '5', shortLabel: t('servers.cronTab.weekdays.fri.short'), label: t('servers.cronTab.weekdays.fri.label') },
+      { value: '6', shortLabel: t('servers.cronTab.weekdays.sat.short'), label: t('servers.cronTab.weekdays.sat.label') },
+    ],
+    [t]
+  )
 
   const appendOperationLog = useCallback((entryId: string, message: string) => {
     if (!entryId) return
@@ -320,13 +328,13 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
       setJobs(Array.isArray(response.items) ? response.items : [])
     } catch (loadError) {
       if (requestSeqRef.current !== requestSeq || isRequestCancellation(loadError)) return
-      setError(getApiErrorMessage(loadError, 'Failed to load cron entries'))
+      setError(getApiErrorMessage(loadError, t('servers.cronTab.errors.load')))
     } finally {
       if (requestSeqRef.current === requestSeq) {
         setLoading(false)
       }
     }
-  }, [serverId])
+  }, [serverId, t])
 
   useEffect(() => {
     void loadJobs()
@@ -431,7 +439,7 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
 
   const handleSave = useCallback(async () => {
     const payload = toPayload(editorState)
-    const validationError = validateCronPayload(payload)
+    const validationError = validateCronPayload(t, payload)
     if (validationError) {
       setEditorError(validationError)
       return
@@ -441,7 +449,7 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
     setEditorError('')
     try {
       if (editorState.mode === 'edit' && editorState.entryId) {
-        appendOperationLog(editorState.entryId, 'Saving entry changes...')
+        appendOperationLog(editorState.entryId, t('servers.cronTab.logs.savingChanges'))
       }
       const saved =
         editorState.mode === 'edit' && editorState.entryId
@@ -455,9 +463,15 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
       setSelectedEntryId(saved.entryId)
       appendOperationLog(
         saved.entryId,
-        editorState.mode === 'edit' ? 'Entry updated successfully.' : 'Entry created successfully.'
+        editorState.mode === 'edit'
+          ? t('servers.cronTab.logs.entryUpdated')
+          : t('servers.cronTab.logs.entryCreated')
       )
-      setHint(editorState.mode === 'edit' ? 'Cron entry updated.' : 'Cron entry created.')
+      setHint(
+        editorState.mode === 'edit'
+          ? t('servers.cronTab.hints.updated')
+          : t('servers.cronTab.hints.created')
+      )
       setEditorOpen(false)
       setEditorState(emptyEditorState)
       setBuilderState(emptyBuilderState)
@@ -467,14 +481,16 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
       if (editorState.mode === 'edit' && editorState.entryId) {
         appendOperationLog(
           editorState.entryId,
-          `Save failed: ${getApiErrorMessage(saveError, 'Failed to save cron entry')}`
+          t('servers.cronTab.logs.saveFailed', {
+            message: getApiErrorMessage(saveError, t('servers.cronTab.errors.save')),
+          })
         )
       }
-      setEditorError(getApiErrorMessage(saveError, 'Failed to save cron entry'))
+      setEditorError(getApiErrorMessage(saveError, t('servers.cronTab.errors.save')))
     } finally {
       setSaving(false)
     }
-  }, [appendOperationLog, editorState, serverId])
+  }, [appendOperationLog, editorState, serverId, t])
 
   const handleToggle = useCallback(
     async (job: ServerCronJob) => {
@@ -483,7 +499,9 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
       try {
         appendOperationLog(
           job.entryId,
-          job.enabled ? 'Removing effect from entry...' : 'Applying entry to crontab...'
+          job.enabled
+            ? t('servers.cronTab.logs.removingEffect')
+            : t('servers.cronTab.logs.applyingEffect')
         )
         const nextJob = job.enabled
           ? await disableServerCronJob(serverId, job.entryId)
@@ -492,21 +510,27 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
         setJobs(current => current.map(item => (item.entryId === nextJob.entryId ? nextJob : item)))
         appendOperationLog(
           nextJob.entryId,
-          nextJob.enabled ? 'Entry is now effective.' : 'Entry removed from effect.'
+          nextJob.enabled
+            ? t('servers.cronTab.logs.entryEffective')
+            : t('servers.cronTab.logs.entryEffectRemoved')
         )
         setHint(
-          job.enabled ? 'Crontab entry removed from effect.' : 'Crontab entry is now effective.'
+          job.enabled
+            ? t('servers.cronTab.hints.effectRemoved')
+            : t('servers.cronTab.hints.effectApplied')
         )
       } catch (toggleError) {
         if (isRequestCancellation(toggleError)) return
         appendOperationLog(
           job.entryId,
-          `Toggle failed: ${getApiErrorMessage(toggleError, 'Failed to update cron entry')}`
+          t('servers.cronTab.logs.toggleFailed', {
+            message: getApiErrorMessage(toggleError, t('servers.cronTab.errors.update')),
+          })
         )
-        setError(getApiErrorMessage(toggleError, 'Failed to update cron entry'))
+        setError(getApiErrorMessage(toggleError, t('servers.cronTab.errors.update')))
       }
     },
-    [appendOperationLog, serverId]
+    [appendOperationLog, serverId, t]
   )
 
   const handleDelete = useCallback(async () => {
@@ -515,24 +539,26 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
     setError('')
     setHint('')
     try {
-      appendOperationLog(deleteTarget.entryId, 'Deleting entry...')
+      appendOperationLog(deleteTarget.entryId, t('servers.cronTab.logs.deleting'))
       await deleteServerCronJob(serverId, deleteTarget.entryId)
       setJobs(current => current.filter(item => item.entryId !== deleteTarget.entryId))
       setSelectedEntryId(current => (current === deleteTarget.entryId ? '' : current))
-      appendOperationLog(deleteTarget.entryId, 'Entry deleted.')
-      setHint('Cron entry deleted.')
+      appendOperationLog(deleteTarget.entryId, t('servers.cronTab.logs.entryDeleted'))
+      setHint(t('servers.cronTab.hints.deleted'))
       setDeleteTarget(null)
     } catch (deleteError) {
       if (isRequestCancellation(deleteError)) return
       appendOperationLog(
         deleteTarget.entryId,
-        `Delete failed: ${getApiErrorMessage(deleteError, 'Failed to delete cron entry')}`
+        t('servers.cronTab.logs.deleteFailed', {
+          message: getApiErrorMessage(deleteError, t('servers.cronTab.errors.delete')),
+        })
       )
-      setError(getApiErrorMessage(deleteError, 'Failed to delete cron entry'))
+      setError(getApiErrorMessage(deleteError, t('servers.cronTab.errors.delete')))
     } finally {
       setDeleteSubmitting(false)
     }
-  }, [appendOperationLog, deleteTarget, serverId])
+  }, [appendOperationLog, deleteTarget, serverId, t])
 
   const handleTest = useCallback(
     async (job: ServerCronJob) => {
@@ -540,23 +566,31 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
       setError('')
       try {
         setEntryDetailTab('live-log')
-        appendOperationLog(job.entryId, 'Running test for entry...')
+        appendOperationLog(job.entryId, t('servers.cronTab.logs.runningTest'))
         const result = await testServerCronJob(serverId, job.entryId)
         appendOperationLog(
           job.entryId,
-          result.output ? `Test output:\n${result.output}` : 'Crontab entry tested.'
+          result.output
+            ? t('servers.cronTab.logs.testOutput', { output: result.output })
+            : t('servers.cronTab.logs.tested')
         )
-        setHint(result.output ? `Test output:\n${result.output}` : 'Crontab entry tested.')
+        setHint(
+          result.output
+            ? t('servers.cronTab.logs.testOutput', { output: result.output })
+            : t('servers.cronTab.hints.tested')
+        )
       } catch (testError) {
         if (isRequestCancellation(testError)) return
         appendOperationLog(
           job.entryId,
-          `Test failed: ${getApiErrorMessage(testError, 'Failed to test crontab entry')}`
+          t('servers.cronTab.logs.testFailed', {
+            message: getApiErrorMessage(testError, t('servers.cronTab.errors.test')),
+          })
         )
-        setError(getApiErrorMessage(testError, 'Failed to test crontab entry'))
+        setError(getApiErrorMessage(testError, t('servers.cronTab.errors.test')))
       }
     },
-    [appendOperationLog, serverId]
+    [appendOperationLog, serverId, t]
   )
 
   useEffect(() => {
@@ -579,9 +613,9 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 border-b border-border/40 pb-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-foreground">Crontab</h3>
+          <h3 className="text-sm font-semibold text-foreground">{t('servers.cronTab.title')}</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Manage AppOS-owned crontab entries for this server.
+            {t('servers.cronTab.description')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -593,8 +627,8 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
               void loadJobs()
             }}
             disabled={loading}
-            aria-label="Refresh crontab entries"
-            title="Refresh crontab entries"
+            aria-label={t('servers.cronTab.actions.refresh')}
+            title={t('servers.cronTab.actions.refresh')}
           >
             {loading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -604,7 +638,7 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
           </Button>
           <Button size="sm" onClick={openCreate}>
             <Plus className="mr-2 h-4 w-4" />
-            New Entry
+            {t('servers.cronTab.actions.newEntry')}
           </Button>
         </div>
       </div>
@@ -623,31 +657,31 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
       {loading ? (
         <div className="flex items-center gap-2 rounded-lg border px-4 py-6 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Loading cron entries...
+          {t('servers.cronTab.loading')}
         </div>
       ) : sortedJobs.length === 0 ? (
         <div className="rounded-xl border border-dashed px-6 py-10 text-center">
-          <h4 className="text-base font-medium text-foreground">No managed crontab entries yet</h4>
+          <h4 className="text-base font-medium text-foreground">{t('servers.cronTab.empty.title')}</h4>
           <p className="mt-2 text-sm text-muted-foreground">
-            This list only shows AppOS-managed crontab entries for this server.
+            {t('servers.cronTab.empty.description')}
           </p>
           <Button className="mt-4" onClick={openCreate}>
-            New Entry
+            {t('servers.cronTab.actions.newEntry')}
           </Button>
         </div>
       ) : (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-          <section className="space-y-4 rounded-md border p-4" aria-label="Crontab inventory">
+          <section className="space-y-4 rounded-md border p-4" aria-label={t('servers.cronTab.inventory.ariaLabel')}>
             <div className="overflow-x-auto pb-1">
               <div className="flex min-w-max items-center gap-3 whitespace-nowrap">
                 <span className="text-sm text-muted-foreground">
-                  Total {filteredJobs.length} entries, 0 failed.
+                  {t('servers.cronTab.inventory.summary', { count: filteredJobs.length, failed: 0 })}
                 </span>
                 <div className="ml-auto flex items-center gap-2">
                   <input
                     value={query}
                     onChange={event => setQuery(event.target.value)}
-                    placeholder="Search"
+                    placeholder={t('servers.cronTab.search.placeholder')}
                     className="h-8 w-[clamp(8ch,18vw,18ch)] min-w-0 rounded-md border bg-background px-2 text-sm"
                   />
                   <div className="flex items-center gap-0.5 text-sm text-muted-foreground">
@@ -656,7 +690,7 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                       variant="ghost"
                       className="h-8 w-8"
                       disabled={currentPage <= 1}
-                      aria-label="Previous page"
+                      aria-label={t('servers.cronTab.pagination.previous')}
                       onClick={() => setPage(prev => Math.max(1, prev - 1))}
                     >
                       {'<'}
@@ -669,7 +703,7 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                       variant="ghost"
                       className="h-8 w-8"
                       disabled={currentPage >= totalPages}
-                      aria-label="Next page"
+                      aria-label={t('servers.cronTab.pagination.next')}
                       onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
                     >
                       {'>'}
@@ -689,17 +723,22 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                           type="button"
                           onClick={toggleNameSort}
                           className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
-                          aria-label={`Name sorted ${sortDirection === 'asc' ? 'ascending' : 'descending'}`}
+                          aria-label={t('servers.cronTab.columns.nameSorted', {
+                            direction:
+                              sortDirection === 'asc'
+                                ? t('servers.cronTab.sort.asc')
+                                : t('servers.cronTab.sort.desc'),
+                          })}
                         >
-                          <span>Name</span>
+                          <span>{t('servers.cronTab.columns.name')}</span>
                           {renderNameSortIcon()}
                         </button>
                       </th>
-                      <th className="align-middle px-3 py-2 font-medium">Schedule</th>
-                      <th className="align-middle px-3 py-2 font-medium">Path</th>
-                      <th className="align-middle px-3 py-2 font-medium">Take Effective</th>
-                      <th className="align-middle px-3 py-2 font-medium">Single Run Only</th>
-                      <th className="align-middle px-3 py-2 font-medium text-right">Actions</th>
+                      <th className="align-middle px-3 py-2 font-medium">{t('servers.cronTab.columns.schedule')}</th>
+                      <th className="align-middle px-3 py-2 font-medium">{t('servers.cronTab.columns.path')}</th>
+                      <th className="align-middle px-3 py-2 font-medium">{t('servers.cronTab.columns.takeEffective')}</th>
+                      <th className="align-middle px-3 py-2 font-medium">{t('servers.cronTab.columns.singleRunOnly')}</th>
+                      <th className="align-middle px-3 py-2 font-medium text-right">{t('servers.cronTab.columns.actions')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -723,9 +762,11 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                             {job.path}
                           </div>
                         </td>
-                        <td className="align-middle px-3 py-2">{statusLabel(job)}</td>
+                        <td className="align-middle px-3 py-2">{statusLabel(t, job)}</td>
                         <td className="align-middle px-3 py-2">
-                          {job.singleRunOnly ? 'Yes' : 'No'}
+                          {job.singleRunOnly
+                            ? t('servers.cronTab.status.yes')
+                            : t('servers.cronTab.status.no')}
                         </td>
                         <td
                           className="align-middle px-3 py-2 text-right"
@@ -736,31 +777,35 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                aria-label={`Crontab actions for ${job.name}`}
+                                aria-label={t('servers.cronTab.actions.actionsFor', {
+                                  name: job.name,
+                                })}
                               >
                                 <MoreVertical className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => openEdit(job)}>
-                                Edit
+                                {t('servers.cronTab.actions.edit')}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => {
                                   void handleTest(job)
                                 }}
                               >
-                                Test
+                                {t('servers.cronTab.actions.test')}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => {
                                   void handleToggle(job)
                                 }}
                               >
-                                {job.enabled ? 'Remove Effect' : 'Take Effective'}
+                                {job.enabled
+                                  ? t('servers.cronTab.actions.removeEffect')
+                                  : t('servers.cronTab.actions.takeEffective')}
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => setDeleteTarget(job)}>
-                                Delete
+                                {t('servers.cronTab.actions.delete')}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -773,7 +818,7 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
 
               {pagedJobs.length === 0 ? (
                 <div className="px-3 py-6 text-sm text-muted-foreground">
-                  No crontab entries match the current filters.
+                  {t('servers.cronTab.filters.noResults')}
                 </div>
               ) : null}
             </div>
@@ -786,10 +831,10 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h3 id="selected-crontab-heading" className="text-sm font-semibold">
-                  Selected Entry
+                  {t('servers.cronTab.selected.title')}
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  {selectedJob ? selectedJob.name : 'Select one entry from the inventory.'}
+                  {selectedJob ? selectedJob.name : t('servers.cronTab.selected.selectPrompt')}
                 </p>
               </div>
               {selectedJob ? (
@@ -801,7 +846,7 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                     onClick={() => openEdit(selectedJob)}
                     disabled={saving}
                   >
-                    Edit
+                    {t('servers.cronTab.actions.edit')}
                   </Button>
                   <Button
                     type="button"
@@ -811,7 +856,7 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                       void handleTest(selectedJob)
                     }}
                   >
-                    Test
+                    {t('servers.cronTab.actions.test')}
                   </Button>
                 </div>
               ) : null}
@@ -819,40 +864,42 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
 
             {!selectedJob ? (
               <div className="text-sm text-muted-foreground">
-                Choose a crontab entry to inspect its schedule, path, and command details.
+                {t('servers.cronTab.selected.empty')}
               </div>
             ) : (
               <div className="space-y-3 text-sm">
                 <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
-                  <span className="shrink-0 font-medium text-foreground">Name:</span>
+                  <span className="shrink-0 font-medium text-foreground">{t('servers.cronTab.detailRows.name')}</span>
                   <span className="break-words text-muted-foreground">{selectedJob.name}</span>
                 </div>
                 <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
-                  <span className="shrink-0 font-medium text-foreground">Schedule:</span>
+                  <span className="shrink-0 font-medium text-foreground">{t('servers.cronTab.detailRows.schedule')}</span>
                   <span className="break-words font-mono text-muted-foreground">
                     {selectedJob.schedule}
                   </span>
                 </div>
                 <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
-                  <span className="shrink-0 font-medium text-foreground">Path:</span>
+                  <span className="shrink-0 font-medium text-foreground">{t('servers.cronTab.detailRows.path')}</span>
                   <span className="break-all font-mono text-muted-foreground">
                     {selectedJob.path}
                   </span>
                 </div>
                 <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
-                  <span className="shrink-0 font-medium text-foreground">Take Effective:</span>
+                  <span className="shrink-0 font-medium text-foreground">{t('servers.cronTab.detailRows.takeEffective')}</span>
                   <span className="break-words text-muted-foreground">
-                    {statusLabel(selectedJob)}
+                    {statusLabel(t, selectedJob)}
                   </span>
                 </div>
                 <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
-                  <span className="shrink-0 font-medium text-foreground">Single Run Only:</span>
+                  <span className="shrink-0 font-medium text-foreground">{t('servers.cronTab.detailRows.singleRunOnly')}</span>
                   <span className="break-words text-muted-foreground">
-                    {selectedJob.singleRunOnly ? 'Yes' : 'No'}
+                    {selectedJob.singleRunOnly
+                      ? t('servers.cronTab.status.yes')
+                      : t('servers.cronTab.status.no')}
                   </span>
                 </div>
                 <div className="space-y-1">
-                  <div className="font-medium text-foreground">Command</div>
+                  <div className="font-medium text-foreground">{t('servers.cronTab.detailRows.command')}</div>
                   <pre className="overflow-auto whitespace-pre-wrap break-words rounded-md border bg-muted/10 px-3 py-2 font-mono text-[11px] leading-5 text-muted-foreground">
                     {selectedJob.command}
                   </pre>
@@ -868,18 +915,17 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                       className="h-auto w-full justify-start rounded-none border-b p-0"
                     >
                       <TabsTrigger value="live-log" className="flex-none rounded-none px-3 py-2">
-                        Live log
+                        {t('servers.cronTab.tabs.liveLog')}
                       </TabsTrigger>
                       <TabsTrigger value="logs" className="flex-none rounded-none px-3 py-2">
-                        Logs
+                        {t('servers.cronTab.tabs.logs')}
                       </TabsTrigger>
                     </TabsList>
                     <TabsContent value="live-log" className="mt-0">
                       <div className="space-y-2">
                         {selectedJobLogs.length === 0 ? (
                           <div className="rounded-md border border-dashed bg-muted/10 px-3 py-4 text-sm text-muted-foreground">
-                            No operation log yet. Trigger Test, Edit, enable/disable, or delete
-                            actions to see live updates here.
+                            {t('servers.cronTab.liveLog.empty')}
                           </div>
                         ) : (
                           <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-md border bg-muted/10 px-3 py-2 font-mono text-[11px] leading-5 text-muted-foreground">
@@ -890,8 +936,7 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                     </TabsContent>
                     <TabsContent value="logs" className="mt-0">
                       <div className="rounded-md border border-dashed bg-muted/10 px-3 py-4 text-sm text-muted-foreground">
-                        Entry historical logs are reserved here. Backend log API is not available
-                        yet.
+                        {t('servers.cronTab.logsPanel.empty')}
                       </div>
                     </TabsContent>
                   </Tabs>
@@ -914,18 +959,22 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
       >
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{editorState.mode === 'edit' ? 'Edit Entry' : 'New Entry'}</DialogTitle>
+            <DialogTitle>
+              {editorState.mode === 'edit'
+                ? t('servers.cronTab.dialogs.editor.editTitle')
+                : t('servers.cronTab.dialogs.editor.createTitle')}
+            </DialogTitle>
             <DialogDescription>
-              Generate a five-field cron schedule with frequency-specific controls.
+              {t('servers.cronTab.dialogs.editor.description')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-5">
             {panelSection(
-              'Name',
+              t('servers.cronTab.editor.sections.name'),
               <div className="space-y-4">
                 <div className="space-y-2">
                   <label htmlFor="cron-name" className="sr-only">
-                    Name
+                    {t('servers.cronTab.editor.fields.name')}
                   </label>
                   <input
                     id="cron-name"
@@ -934,17 +983,17 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                     onChange={event =>
                       setEditorState(current => ({ ...current, name: event.target.value }))
                     }
-                    placeholder="Name"
+                    placeholder={t('servers.cronTab.editor.fields.name')}
                   />
                 </div>
               </div>
             )}
 
             {panelSection(
-              'Command',
+              t('servers.cronTab.editor.sections.command'),
               <div className="space-y-2">
                 <label htmlFor="cron-command" className="sr-only">
-                  Command
+                  {t('servers.cronTab.editor.fields.command')}
                 </label>
                 <textarea
                   id="cron-command"
@@ -953,13 +1002,13 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                   onChange={event =>
                     setEditorState(current => ({ ...current, command: event.target.value }))
                   }
-                  placeholder="Command"
+                  placeholder={t('servers.cronTab.editor.fields.command')}
                 />
               </div>
             )}
 
             {panelSection(
-              'Optional',
+              t('servers.cronTab.editor.sections.optional'),
               <div className="flex flex-wrap items-center gap-6">
                 <label className="flex items-center gap-3 text-sm text-foreground">
                   <Checkbox
@@ -967,9 +1016,9 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                     onCheckedChange={checked =>
                       setEditorState(current => ({ ...current, enabled: checked === true }))
                     }
-                    aria-label="Take Effective"
+                    aria-label={t('servers.cronTab.editor.fields.takeEffective')}
                   />
-                  <span>Take Effective</span>
+                  <span>{t('servers.cronTab.editor.fields.takeEffective')}</span>
                 </label>
                 <label className="flex items-center gap-3 text-sm text-foreground">
                   <Checkbox
@@ -977,15 +1026,15 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                     onCheckedChange={checked =>
                       setEditorState(current => ({ ...current, singleRunOnly: checked === true }))
                     }
-                    aria-label="Single Run Only"
+                    aria-label={t('servers.cronTab.editor.fields.singleRunOnly')}
                   />
-                  <span>Single Run Only</span>
+                  <span>{t('servers.cronTab.editor.fields.singleRunOnly')}</span>
                 </label>
               </div>
             )}
 
             {panelSection(
-              'Frequency Set',
+              t('servers.cronTab.editor.sections.frequencySet'),
               <div className="space-y-4">
                 <div
                   className={
@@ -996,7 +1045,7 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                 >
                   <div className="space-y-2">
                     <label htmlFor="cron-frequency" className="text-sm font-medium text-foreground">
-                      Frequency
+                      {t('servers.cronTab.editor.fields.frequency')}
                     </label>
                     <select
                       id="cron-frequency"
@@ -1009,12 +1058,12 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                         }))
                       }
                     >
-                      <option value="minute">Every minute</option>
-                      <option value="hour">Every hour</option>
-                      <option value="day">Every day</option>
-                      <option value="week">Every week</option>
-                      <option value="month">Every month</option>
-                      <option value="custom">Custom</option>
+                      <option value="minute">{t('servers.cronTab.editor.frequencyOptions.minute')}</option>
+                      <option value="hour">{t('servers.cronTab.editor.frequencyOptions.hour')}</option>
+                      <option value="day">{t('servers.cronTab.editor.frequencyOptions.day')}</option>
+                      <option value="week">{t('servers.cronTab.editor.frequencyOptions.week')}</option>
+                      <option value="month">{t('servers.cronTab.editor.frequencyOptions.month')}</option>
+                      <option value="custom">{t('servers.cronTab.editor.frequencyOptions.custom')}</option>
                     </select>
                   </div>
 
@@ -1024,7 +1073,7 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                         htmlFor="cron-interval"
                         className="text-sm font-medium text-foreground"
                       >
-                        Every
+                        {t('servers.cronTab.editor.fields.every')}
                       </label>
                       <div className="flex items-center gap-3">
                         <input
@@ -1041,7 +1090,9 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                           }
                         />
                         <span className="text-sm text-muted-foreground">
-                          {builderState.mode === 'minute' ? 'minute(s)' : 'hour(s)'}
+                          {builderState.mode === 'minute'
+                            ? t('servers.cronTab.editor.units.minutes')
+                            : t('servers.cronTab.editor.units.hours')}
                         </span>
                       </div>
                     </div>
@@ -1051,10 +1102,10 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                   builderState.mode === 'week' ||
                   builderState.mode === 'month' ? (
                     <div className="space-y-2">
-                      <div className="text-sm font-medium leading-5 text-foreground">At time</div>
+                      <div className="text-sm font-medium leading-5 text-foreground">{t('servers.cronTab.editor.fields.atTime')}</div>
                       <div className="grid min-h-10 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
                         <select
-                          aria-label="Hour"
+                          aria-label={t('servers.cronTab.editor.fields.hour')}
                           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                           value={builderState.hour.padStart(2, '0')}
                           onChange={event =>
@@ -1072,7 +1123,7 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                         </select>
                         <span className="text-sm text-muted-foreground">:</span>
                         <select
-                          aria-label="Minute"
+                          aria-label={t('servers.cronTab.editor.fields.minute')}
                           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                           value={builderState.minute.padStart(2, '0')}
                           onChange={event =>
@@ -1095,7 +1146,7 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
 
                 {builderState.mode === 'week' ? (
                   <div className="space-y-3">
-                    <div className="text-sm font-medium text-foreground">Days of week</div>
+                    <div className="text-sm font-medium text-foreground">{t('servers.cronTab.editor.fields.daysOfWeek')}</div>
                     <div className="flex flex-wrap gap-2">
                       {weekdayOptions.map(option => {
                         const checked = builderState.dayOfWeek.includes(option.value)
@@ -1129,7 +1180,7 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                 {builderState.mode === 'month' ? (
                   <div className="space-y-2 md:max-w-xs">
                     <label htmlFor="cron-month-day" className="text-sm font-medium text-foreground">
-                      Day of month
+                      {t('servers.cronTab.editor.fields.dayOfMonth')}
                     </label>
                     <select
                       id="cron-month-day"
@@ -1150,14 +1201,14 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
 
                 {builderState.mode === 'custom' ? (
                   <div className="space-y-1">
-                    <div className="text-sm font-medium text-foreground">Custom cron fields</div>
+                    <div className="text-sm font-medium text-foreground">{t('servers.cronTab.editor.fields.customCronFields')}</div>
                     <div className="grid gap-3 md:grid-cols-5">
                       <div className="space-y-2">
                         <label
                           htmlFor="cron-custom-minute"
                           className="text-xs text-muted-foreground"
                         >
-                          Minute
+                          {t('servers.cronTab.editor.fields.minute')}
                         </label>
                         <input
                           id="cron-custom-minute"
@@ -1170,7 +1221,7 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                       </div>
                       <div className="space-y-2">
                         <label htmlFor="cron-custom-hour" className="text-xs text-muted-foreground">
-                          Hour
+                          {t('servers.cronTab.editor.fields.hour')}
                         </label>
                         <input
                           id="cron-custom-hour"
@@ -1183,7 +1234,7 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                       </div>
                       <div className="space-y-2">
                         <label htmlFor="cron-custom-dom" className="text-xs text-muted-foreground">
-                          Day (M)
+                          {t('servers.cronTab.editor.fields.dayOfMonthShort')}
                         </label>
                         <input
                           id="cron-custom-dom"
@@ -1202,7 +1253,7 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                           htmlFor="cron-custom-month"
                           className="text-xs text-muted-foreground"
                         >
-                          Month
+                          {t('servers.cronTab.editor.fields.month')}
                         </label>
                         <input
                           id="cron-custom-month"
@@ -1215,7 +1266,7 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                       </div>
                       <div className="space-y-2">
                         <label htmlFor="cron-custom-dow" className="text-xs text-muted-foreground">
-                          Day (W)
+                          {t('servers.cronTab.editor.fields.dayOfWeekShort')}
                         </label>
                         <input
                           id="cron-custom-dow"
@@ -1242,11 +1293,11 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
             )}
 
             {panelSection(
-              'Cron Expression',
+              t('servers.cronTab.editor.sections.cronExpression'),
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-3">
                   <label htmlFor="cron-schedule" className="text-sm font-medium text-foreground">
-                    Your cron expression
+                    {t('servers.cronTab.editor.fields.cronExpression')}
                   </label>
                   <Button
                     type="button"
@@ -1256,7 +1307,9 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                       void copySchedule()
                     }}
                   >
-                    {copyState === 'copied' ? 'Copied' : 'Copy'}
+                    {copyState === 'copied'
+                      ? t('servers.cronTab.editor.actions.copied')
+                      : t('servers.cronTab.editor.actions.copy')}
                   </Button>
                 </div>
                 <input
@@ -1272,7 +1325,7 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditorOpen(false)} disabled={saving}>
-              Cancel
+              {t('servers.cronTab.dialogs.editor.cancel')}
             </Button>
             <Button
               onClick={() => {
@@ -1281,7 +1334,7 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
               disabled={saving}
             >
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Save
+              {t('servers.cronTab.dialogs.editor.save')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1297,15 +1350,19 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Cron Entry</AlertDialogTitle>
+            <AlertDialogTitle>{t('servers.cronTab.dialogs.delete.title')}</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget
-                ? `Entry: ${deleteTarget.name}. This permanently removes the managed cron row.`
-                : 'Confirm deletion.'}
+                ? t('servers.cronTab.dialogs.delete.descriptionWithName', {
+                    name: deleteTarget.name,
+                  })
+                : t('servers.cronTab.dialogs.delete.descriptionFallback')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteSubmitting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteSubmitting}>
+              {t('servers.cronTab.dialogs.delete.cancel')}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={event => {
                 event.preventDefault()
@@ -1314,7 +1371,7 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
               disabled={deleteSubmitting}
             >
               {deleteSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Delete
+              {t('servers.cronTab.dialogs.delete.confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

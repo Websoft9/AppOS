@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import {
   PlugZap,
@@ -94,6 +95,7 @@ const TEMPLATE_ALIASES: Record<string, string> = {
 const ALLOWED_TEMPLATES = new Set(Object.keys(TEMPLATE_ALIASES))
 const SERVER_STATUS_REFRESH_BATCH_SIZE = 5
 type ServerDetailDrawerTier = 'lg' | 'full'
+type Translate = (key: string, options?: Record<string, unknown>) => string
 
 function buildDefaultCredentialSecretName() {
   return `server-credential-${Date.now().toString().slice(-6)}`
@@ -196,9 +198,9 @@ function formatSecretLabel(raw: Record<string, unknown>): string {
   return alias ? `${name}  (${alias})` : name
 }
 
-function hostSummary(item: Record<string, unknown>): string {
+function hostSummary(item: Record<string, unknown>, t: Translate): string {
   if (String(item.connect_type ?? '') === 'tunnel') {
-    return 'via AppOS tunnel'
+    return t('servers.summary.viaTunnel')
   }
   return String(item.host ?? '').trim() || '—'
 }
@@ -228,13 +230,13 @@ function monitorShortcutTone(status: string): string {
   return 'text-emerald-600 hover:text-emerald-700'
 }
 
-function monitorShortcutTitle(status: string, reason: string): string {
+function monitorShortcutTitle(status: string, reason: string, t: Translate): string {
   const normalizedStatus = status.trim()
   const normalizedReason = reason.trim()
   const prefix = normalizedReason
-    ? `Observed monitor target status: ${normalizedStatus}. ${normalizedReason}`
-    : `Observed monitor target status: ${normalizedStatus}`
-  return `${prefix}. This reflects the latest monitoring evidence for the server target and may lag behind addon status.`
+    ? t('servers.monitor.tooltipWithReason', { status: normalizedStatus, reason: normalizedReason })
+    : t('servers.monitor.tooltipWithoutReason', { status: normalizedStatus })
+  return t('servers.monitor.tooltipSuffix', { prefix })
 }
 
 function buildServerConnectionFacts(
@@ -297,123 +299,140 @@ function mapServerListItem(
   }
 }
 
-const fields: FieldDef[] = [
-  {
-    key: 'connect_type',
-    label: 'Connection Type',
-    type: 'select',
-    hideLabel: true,
-    options: [
-      { label: 'Direct SSH', value: 'direct' },
-      { label: 'Reverse Tunnel', value: 'tunnel' },
-    ],
-    defaultValue: 'direct',
-    render: ({ field, value, setValue, updateField }) => {
-      const options = field.options ?? []
-      const currentValue = String(value || field.defaultValue || 'direct')
-      const descriptions: Record<string, string> = {
-        direct: 'AppOS reaches this server over SSH.',
-        tunnel: 'Server connects back from a private network.',
-      }
+function buildServerBaseFields(t: Translate): FieldDef[] {
+  return [
+    {
+      key: 'connect_type',
+      label: t('servers.fields.connectionType'),
+      type: 'select',
+      hideLabel: true,
+      options: [
+        { label: t('servers.connection.directSsh'), value: 'direct' },
+        { label: t('servers.connection.reverseTunnel'), value: 'tunnel' },
+      ],
+      defaultValue: 'direct',
+      render: ({ field, value, setValue, updateField }) => {
+        const options = field.options ?? []
+        const currentValue = String(value || field.defaultValue || 'direct')
+        const descriptions: Record<string, string> = {
+          direct: t('servers.connection.directDescription'),
+          tunnel: t('servers.connection.tunnelDescription'),
+        }
 
-      return (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-foreground">Connection Type</label>
-            <HelpPopoverButton label="Connection type help">
-              Choose how the managed server connects to AppOS.
-            </HelpPopoverButton>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            {options.map(option => {
-              const selected = option.value === currentValue
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  className={cn(
-                    'cursor-pointer select-none rounded-2xl border px-4 py-4 text-left transition-colors',
-                    selected
-                      ? 'border-foreground bg-accent/40 shadow-sm'
-                      : 'border-border bg-background hover:bg-muted/50'
-                  )}
-                  onMouseDown={event => event.preventDefault()}
-                  onClick={event => {
-                    if (option.value !== 'direct') {
-                      updateField('use_local_host', false)
-                    }
-                    setValue(option.value)
-                    event.currentTarget.blur()
-                  }}
-                >
-                  <div className="flex items-center gap-3 text-sm font-medium text-foreground">
-                    <span
-                      className={cn(
-                        'flex h-4 w-4 items-center justify-center rounded-full border',
-                        selected ? 'border-foreground' : 'border-muted-foreground/50'
-                      )}
-                    >
+        return (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-foreground">
+                {t('servers.fields.connectionType')}
+              </label>
+              <HelpPopoverButton label={t('servers.help.connectionTypeLabel')}>
+                {t('servers.help.connectionTypeBody')}
+              </HelpPopoverButton>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {options.map(option => {
+                const selected = option.value === currentValue
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    className={cn(
+                      'cursor-pointer select-none rounded-2xl border px-4 py-4 text-left transition-colors',
+                      selected
+                        ? 'border-foreground bg-accent/40 shadow-sm'
+                        : 'border-border bg-background hover:bg-muted/50'
+                    )}
+                    onMouseDown={event => event.preventDefault()}
+                    onClick={event => {
+                      if (option.value !== 'direct') {
+                        updateField('use_local_host', false)
+                      }
+                      setValue(option.value)
+                      event.currentTarget.blur()
+                    }}
+                  >
+                    <div className="flex items-center gap-3 text-sm font-medium text-foreground">
                       <span
                         className={cn(
-                          'h-2 w-2 rounded-full bg-foreground transition-opacity',
-                          selected ? 'opacity-100' : 'opacity-0'
+                          'flex h-4 w-4 items-center justify-center rounded-full border',
+                          selected ? 'border-foreground' : 'border-muted-foreground/50'
                         )}
-                      />
-                    </span>
-                    {option.label}
-                  </div>
-                  <p className="mt-3 text-xs leading-5 text-muted-foreground md:whitespace-nowrap">
-                    {descriptions[option.value]}
-                  </p>
-                </button>
-              )
-            })}
+                      >
+                        <span
+                          className={cn(
+                            'h-2 w-2 rounded-full bg-foreground transition-opacity',
+                            selected ? 'opacity-100' : 'opacity-0'
+                          )}
+                        />
+                      </span>
+                      {option.label}
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-muted-foreground md:whitespace-nowrap">
+                      {descriptions[option.value]}
+                    </p>
+                  </button>
+                )
+              })}
+            </div>
           </div>
-        </div>
-      )
+        )
+      },
     },
-  },
-  { key: 'name', label: 'Name', type: 'text', required: true, placeholder: 'my-server' },
-  {
-    key: 'host',
-    label: 'Host',
-    type: 'text',
-    placeholder: '192.168.1.1',
-    showWhen: { field: 'connect_type', values: ['direct'] },
-  },
-  {
-    key: 'use_local_host',
-    label: 'Use local host',
-    type: 'boolean',
-    hidden: true,
-    defaultValue: false,
-  },
-  {
-    key: 'port',
-    label: 'Port',
-    type: 'number',
-    defaultValue: 22,
-    showWhen: { field: 'connect_type', values: ['direct'] },
-  },
-  { key: 'user', label: 'User', type: 'text', required: true, placeholder: 'root' },
-  {
-    key: 'credential',
-    label: 'Credential (Secret)',
-    type: 'relation',
-    relationApiPath:
-      buildResourceSecretRelationApiPath({
-        visibleTo: 'server',
-        templateIds: ['single_value', 'ssh_key'],
-      }),
-    relationLabelKey: 'name',
-    relationFormatLabel: formatSecretLabel,
-  },
-  { key: 'description', label: 'Description', type: 'textarea' },
-]
+    {
+      key: 'name',
+      label: t('servers.fields.name'),
+      type: 'text',
+      required: true,
+      placeholder: t('servers.placeholders.name'),
+    },
+    {
+      key: 'host',
+      label: t('servers.fields.host'),
+      type: 'text',
+      placeholder: t('servers.placeholders.host'),
+      showWhen: { field: 'connect_type', values: ['direct'] },
+    },
+    {
+      key: 'use_local_host',
+      label: t('servers.fields.useLocalHost'),
+      type: 'boolean',
+      hidden: true,
+      defaultValue: false,
+    },
+    {
+      key: 'port',
+      label: t('servers.fields.port'),
+      type: 'number',
+      defaultValue: 22,
+      showWhen: { field: 'connect_type', values: ['direct'] },
+    },
+    {
+      key: 'user',
+      label: t('servers.fields.user'),
+      type: 'text',
+      required: true,
+      placeholder: t('servers.placeholders.user'),
+    },
+    {
+      key: 'credential',
+      label: t('servers.fields.credentialSecret'),
+      type: 'relation',
+      relationApiPath:
+        buildResourceSecretRelationApiPath({
+          visibleTo: 'server',
+          templateIds: ['single_value', 'ssh_key'],
+        }),
+      relationLabelKey: 'name',
+      relationFormatLabel: formatSecretLabel,
+    },
+    { key: 'description', label: t('servers.fields.description'), type: 'textarea' },
+  ]
+}
 
 export function ServersPage() {
+  const { t } = useTranslation('resources')
   const {
     create,
     returnGroup,
@@ -512,13 +531,14 @@ export function ServersPage() {
       setDockerBridgeHost(address)
       return address
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load docker0 address'
+      const message =
+        error instanceof Error ? error.message : t('servers.localHost.errors.loadDockerBridge')
       setDockerBridgeError(message)
       return ''
     } finally {
       setDockerBridgeLoading(false)
     }
-  }, [])
+  }, [t])
 
   function sanitizeServerPayload(payload: Record<string, unknown>): Record<string, unknown> {
     const next = { ...payload }
@@ -595,12 +615,12 @@ export function ServersPage() {
         setSecretEditDescription(String(secret.description ?? ''))
         setSecretEditTemplateId(String(secret.template_id ?? ''))
       } catch (error) {
-        setSecretEditError(error instanceof Error ? error.message : 'Failed to load secret')
+        setSecretEditError(error instanceof Error ? error.message : t('servers.secret.errors.load'))
       } finally {
         setSecretEditLoading(false)
       }
     },
-    [loadAllowedSecretTemplates]
+    [loadAllowedSecretTemplates, t]
   )
 
   const closeSecretEditor = useCallback((open: boolean) => {
@@ -627,7 +647,7 @@ export function ServersPage() {
       return
     }
     if (!secretEditName.trim()) {
-      setSecretEditError('Name is required')
+      setSecretEditError(t('servers.secret.errors.nameRequired'))
       return
     }
 
@@ -649,25 +669,27 @@ export function ServersPage() {
 
       closeSecretEditor(false)
     } catch (error) {
-      setSecretEditError(error instanceof Error ? error.message : 'Failed to update secret')
+      setSecretEditError(
+        error instanceof Error ? error.message : t('servers.secret.errors.update')
+      )
     } finally {
       setSecretEditSaving(false)
     }
-  }, [closeSecretEditor, secretEditDescription, secretEditId, secretEditName, secretEditPayload])
+  }, [closeSecretEditor, secretEditDescription, secretEditId, secretEditName, secretEditPayload, t])
 
   // Build fields (credential's create button needs component-level handler)
   const serverFields = useMemo<FieldDef[]>(
     () =>
-      fields.map(f =>
+      buildServerBaseFields(t).map(f =>
         f.key === 'credential'
           ? {
               ...f,
               relationCreateButton: {
-                label: 'New credential',
+                label: t('servers.secret.newCredential'),
                 onClick: openSecretDialog,
               },
               relationEditButton: {
-                label: 'Edit Secret',
+                label: t('servers.secret.editSecret'),
                 onClick: openSecretEditor,
               },
             }
@@ -690,8 +712,8 @@ export function ServersPage() {
                             {f.label}
                             {hostRequired ? <span className="ml-1 text-destructive">*</span> : null}
                           </label>
-                          <HelpPopoverButton label="Host help">
-                            Enter the IP address or domain name of the server managed by AppOS.
+                          <HelpPopoverButton label={t('servers.help.hostLabel')}>
+                            {t('servers.help.hostBody')}
                           </HelpPopoverButton>
                         </div>
                         {isDirect ? (
@@ -715,7 +737,11 @@ export function ServersPage() {
                                 }
                               }}
                             />
-                            <span>{dockerBridgeLoading ? 'Loading...' : 'Local host'}</span>
+                            <span>
+                              {dockerBridgeLoading
+                                ? t('servers.localHost.loading')
+                                : t('servers.localHost.label')}
+                            </span>
                           </label>
                         ) : null}
                       </div>
@@ -746,6 +772,7 @@ export function ServersPage() {
       loadDockerBridgeHost,
       openSecretDialog,
       openSecretEditor,
+      t,
     ]
   )
   const checkServerStatus = useCallback(async (item: Record<string, unknown>) => {
@@ -1046,7 +1073,7 @@ export function ServersPage() {
     () => [
       {
         key: 'name',
-        label: 'Name',
+        label: t('servers.columns.name'),
         searchable: true,
         sortable: true,
         render: (value, row) => {
@@ -1063,7 +1090,7 @@ export function ServersPage() {
             >
               <span>{String(value || '—')}</span>
               <span className="sr-only">
-                {selected ? 'Overview already open' : 'Open overview'}
+                {selected ? t('servers.actions.overviewAlreadyOpen') : t('servers.actions.openOverview')}
               </span>
             </button>
           )
@@ -1071,22 +1098,26 @@ export function ServersPage() {
       },
       {
         key: 'connect_type',
-        label: 'Mode',
+        label: t('servers.columns.mode'),
         filterOptions: [
-          { label: 'Direct SSH', value: 'direct' },
-          { label: 'Reverse Tunnel', value: 'tunnel' },
+          { label: t('servers.connection.directSsh'), value: 'direct' },
+          { label: t('servers.connection.reverseTunnel'), value: 'tunnel' },
         ],
-        render: v => <Badge variant="outline">{v === 'tunnel' ? 'Tunnel' : 'Direct SSH'}</Badge>,
+        render: v => (
+          <Badge variant="outline">
+            {v === 'tunnel' ? t('servers.connection.tunnelShort') : t('servers.connection.directSsh')}
+          </Badge>
+        ),
       },
       {
         key: 'connection',
-        label: 'Connection',
+        label: t('servers.columns.connection'),
         filterOptions: [
-          { label: 'Not Configured', value: 'not_configured' },
-          { label: 'Awaiting Connection', value: 'awaiting_connection' },
-          { label: 'Online', value: 'online' },
-          { label: 'Paused', value: 'paused' },
-          { label: 'Needs Attention', value: 'needs_attention' },
+          { label: t('servers.connectionStates.notConfigured'), value: 'not_configured' },
+          { label: t('servers.connectionStates.awaitingConnection'), value: 'awaiting_connection' },
+          { label: t('servers.connectionStates.online'), value: 'online' },
+          { label: t('servers.connectionStates.paused'), value: 'paused' },
+          { label: t('servers.connectionStates.needsAttention'), value: 'needs_attention' },
         ],
         filterValue: row =>
           String(row.connection_state ?? '').trim() || getConnectionPresentation(row).state,
@@ -1097,10 +1128,10 @@ export function ServersPage() {
             ? {
                 state: String(row.connection_state ?? '').trim() || 'awaiting_connection',
                 stateLabel:
-                  String(row.connection_state_label ?? '').trim() || 'Awaiting Connection',
+                    String(row.connection_state_label ?? '').trim() || t('servers.connectionStates.awaitingConnection'),
                 reason:
                   String(row.connection_reason ?? '').trim() ||
-                  'Configuration is ready for verification.',
+                    t('servers.connection.configurationReady'),
               }
             : getConnectionPresentation(row)
           const state = presentation.state
@@ -1115,7 +1146,7 @@ export function ServersPage() {
             <button
               type="button"
               className="inline-flex text-left"
-              title="Open connection details"
+              title={t('servers.actions.openConnectionDetails')}
               onClick={event => {
                 event.stopPropagation()
                 handleOpenServer(row, 'connection')
@@ -1131,7 +1162,7 @@ export function ServersPage() {
       },
       {
         key: 'monitor_status',
-        label: 'Monitor',
+        label: t('servers.columns.monitor'),
         sortable: true,
         sortValue: row => String(row.monitor_last_checked_at ?? row.monitor_status ?? ''),
         render: (value, row) => {
@@ -1149,8 +1180,8 @@ export function ServersPage() {
                 'inline-flex items-center transition-colors',
                 monitorShortcutTone(status)
               )}
-              aria-label={`Open monitor for ${name}`}
-              title={monitorShortcutTitle(status, reason)}
+              aria-label={t('servers.actions.openMonitorFor', { name })}
+              title={monitorShortcutTitle(status, reason, t)}
               onClick={event => {
                 event.stopPropagation()
                 handleOpenServer(row, 'monitor')
@@ -1163,13 +1194,13 @@ export function ServersPage() {
       },
       {
         key: 'host_summary',
-        label: 'Host',
+        label: t('servers.columns.host'),
         searchable: true,
         render: (_value, row) => {
           const factsSummary = compactHostFactsSummary(row)
           return (
             <div className="space-y-1">
-              <div>{hostSummary(row)}</div>
+              <div>{hostSummary(row, t)}</div>
               {factsSummary ? (
                 <div className="text-xs text-muted-foreground">{factsSummary}</div>
               ) : null}
@@ -1179,14 +1210,14 @@ export function ServersPage() {
       },
       {
         key: 'user',
-        label: 'User',
+        label: t('servers.columns.user'),
         searchable: true,
         filterValue: row => String(row.user ?? '').trim() || null,
         render: value => <span>{String(value || '—')}</span>,
       },
       {
         key: 'secret_type_label',
-        label: 'Secret Type',
+        label: t('servers.columns.secretType'),
         searchable: true,
         filterValue: row => String(row.secret_type_label ?? '').trim() || null,
         render: value => {
@@ -1201,7 +1232,7 @@ export function ServersPage() {
       },
       {
         key: 'last_activity',
-        label: 'Last Activity',
+        label: t('servers.columns.lastActivity'),
         sortable: true,
         sortValue: row =>
           String(row.connection_last_activity_at ?? '').trim() ||
@@ -1216,7 +1247,7 @@ export function ServersPage() {
         },
       },
     ],
-    [getConnectionPresentation, handleOpenServer, pingResults, server]
+    [getConnectionPresentation, handleOpenServer, pingResults, server, t]
   )
 
   const columns = useMemo(
@@ -1266,47 +1297,52 @@ export function ServersPage() {
             }}
           >
             {activeTerminalSessionCount === 1
-              ? '1 active terminal session'
-              : `${activeTerminalSessionCount} active terminal sessions`}
+              ? t('servers.sessions.oneActive')
+              : t('servers.sessions.manyActive', { count: activeTerminalSessionCount })}
           </Button>
         ) : null}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" title="List settings" aria-label="List settings">
+            <Button
+              variant="ghost"
+              size="icon"
+              title={t('servers.listSettings.title')}
+              aria-label={t('servers.listSettings.title')}
+            >
               <SlidersHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>Rows per page</DropdownMenuLabel>
+            <DropdownMenuLabel>{t('servers.listSettings.rowsPerPage')}</DropdownMenuLabel>
             <DropdownMenuRadioGroup
               value={String(pageSize)}
               onValueChange={value => setPageSize(Number(value))}
             >
               {[10, 50, 100].map(option => (
                 <DropdownMenuRadioItem key={option} value={String(option)}>
-                  {option} / page
+                  {t('servers.listSettings.rowsPerPageOption', { count: option })}
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuLabel>Columns</DropdownMenuLabel>
+            <DropdownMenuLabel>{t('servers.listSettings.columns')}</DropdownMenuLabel>
             <DropdownMenuCheckboxItem
               checked={visibleOptionalColumns.has('host_summary')}
               onCheckedChange={checked => toggleOptionalColumn('host_summary', checked === true)}
             >
-              Host
+              {t('servers.columns.host')}
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
               checked={visibleOptionalColumns.has('monitor_status')}
               onCheckedChange={checked => toggleOptionalColumn('monitor_status', checked === true)}
             >
-              Monitor
+              {t('servers.columns.monitor')}
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
               checked={visibleOptionalColumns.has('user')}
               onCheckedChange={checked => toggleOptionalColumn('user', checked === true)}
             >
-              User
+              {t('servers.columns.user')}
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
               checked={visibleOptionalColumns.has('secret_type_label')}
@@ -1314,13 +1350,13 @@ export function ServersPage() {
                 toggleOptionalColumn('secret_type_label', checked === true)
               }
             >
-              Secret Type
+              {t('servers.columns.secretType')}
             </DropdownMenuCheckboxItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
     ),
-    [activeTerminalSessionCount, navigate, toggleOptionalColumn, visibleOptionalColumns]
+    [activeTerminalSessionCount, navigate, toggleOptionalColumn, visibleOptionalColumns, t]
   )
 
   const renderDetailPanel = useCallback(
@@ -1350,13 +1386,14 @@ export function ServersPage() {
       const isTunnelAction = item.connect_type === 'tunnel'
       const detailExpanded = serverDetailDrawerTier === 'full'
       const showingSetup = wizardServerId === id
+      const detailName = String(item.name || t('servers.detail.unnamedServer'))
       return (
         <div className="relative space-y-4">
           <button
             type="button"
             className="absolute -top-2 right-8 z-10 inline-flex items-center justify-center p-0 opacity-70 transition-opacity hover:opacity-100 focus:outline-none"
-            aria-label={detailExpanded ? 'Restore detail width' : 'Expand detail width'}
-            title={detailExpanded ? 'Restore detail width' : 'Expand detail width'}
+            aria-label={detailExpanded ? t('servers.detail.restoreWidth') : t('servers.detail.expandWidth')}
+            title={detailExpanded ? t('servers.detail.restoreWidth') : t('servers.detail.expandWidth')}
             onClick={() => setServerDetailDrawerTier(prev => (prev === 'full' ? 'lg' : 'full'))}
           >
             {detailExpanded ? <SquareMinus className="size-4" /> : <Square className="size-4" />}
@@ -1365,7 +1402,7 @@ export function ServersPage() {
           <div className="flex items-start justify-between gap-4 pr-16">
             <div className="min-w-0">
               <h2 className="text-xl font-semibold tracking-tight">
-                {`Server Detail | ${String(item.name || 'Unnamed Server')}`}
+                {t('servers.detail.titleWithName', { name: detailName })}
               </h2>
               <p className="mt-0.5 font-mono text-xs text-muted-foreground">{id}</p>
             </div>
@@ -1381,7 +1418,7 @@ export function ServersPage() {
                   onClick={() => setWizardServerId(null)}
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  Back to Connection
+                  {t('servers.detail.backToConnection')}
                 </Button>
               </div>
               <TunnelSetupWizard
@@ -1411,31 +1448,31 @@ export function ServersPage() {
                   className="h-auto w-full justify-start gap-7 rounded-none border-0 px-0 pb-0"
                 >
                   <TabsTrigger value="overview" className={detailTabTriggerClassName}>
-                    Overview
+                    {t('servers.tabs.overview')}
                   </TabsTrigger>
                   <TabsTrigger value="connection" className={detailTabTriggerClassName}>
-                    Connection
+                    {t('servers.tabs.connection')}
                   </TabsTrigger>
                   <TabsTrigger value="components" className={detailTabTriggerClassName}>
-                    Components
+                    {t('servers.tabs.components')}
                   </TabsTrigger>
                   <TabsTrigger value="monitor" className={detailTabTriggerClassName}>
-                    Monitor
+                    {t('servers.tabs.monitor')}
                   </TabsTrigger>
                   <TabsTrigger value="docker" className={detailTabTriggerClassName}>
-                    Docker
+                    {t('servers.tabs.docker')}
                   </TabsTrigger>
                   <TabsTrigger value="runtime" className={detailTabTriggerClassName}>
-                    Runtime
+                    {t('servers.tabs.runtime')}
                   </TabsTrigger>
                   <TabsTrigger value="ports" className={detailTabTriggerClassName}>
-                    Ports
+                    {t('servers.tabs.ports')}
                   </TabsTrigger>
                   <TabsTrigger value="cron" className={detailTabTriggerClassName}>
-                    Crontab
+                    {t('servers.tabs.crontab')}
                   </TabsTrigger>
                   <TabsTrigger value="systemd" className={detailTabTriggerClassName}>
-                    Systemd
+                    {t('servers.tabs.systemd')}
                   </TabsTrigger>
                 </TabsList>
                 <DropdownMenu>
@@ -1444,8 +1481,8 @@ export function ServersPage() {
                       variant="ghost"
                       size="icon"
                       className="mb-2 shrink-0"
-                      aria-label="Server actions"
-                      title="Server actions"
+                      aria-label={t('servers.actions.serverActions')}
+                      title={t('servers.actions.serverActions')}
                     >
                       <MoreVertical className="h-4 w-4" />
                     </Button>
@@ -1457,7 +1494,7 @@ export function ServersPage() {
                       }}
                     >
                       <SquareTerminal className="h-4 w-4" />
-                      Open Terminal
+                      {t('servers.actions.openTerminal')}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       disabled={checkingIds.has(id)}
@@ -1470,12 +1507,12 @@ export function ServersPage() {
                       ) : (
                         <PlugZap className="h-4 w-4" />
                       )}
-                      Test Connection
+                      {t('servers.actions.testConnection')}
                     </DropdownMenuItem>
                     {isTunnelAction && (
                       <DropdownMenuItem onClick={() => executePrimaryAction(item, 'tunnel_setup')}>
                         <Cable className="h-4 w-4" />
-                        Tunnel Setup
+                        {t('servers.actions.tunnelSetup')}
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuItem onClick={() => handlePowerRequest(item, 'restart')}>
@@ -1549,8 +1586,9 @@ export function ServersPage() {
 
               <TabsContent value="runtime" className="pt-4">
                 <div className="text-sm text-muted-foreground">
-                  Runtime details can later include active sessions, deployed workloads, and process
-                  information for {String(item.name || item.id)}.
+                  {t('servers.runtime.placeholder', {
+                    name: String(item.name || item.id || detailName),
+                  })}
                 </div>
               </TabsContent>
 
@@ -1617,6 +1655,7 @@ export function ServersPage() {
       navigate,
       serverDetailDrawerTier,
       tab,
+      t,
       wizardServerId,
     ]
   )
@@ -1718,12 +1757,12 @@ export function ServersPage() {
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => handleDuplicateServer(item)}>
             <Copy className="h-4 w-4" />
-            Duplicate Server
+            {t('servers.actions.duplicateServer')}
           </DropdownMenuItem>
         </>
       )
     },
-    [getConnectionPresentation, handleDuplicateServer, renderConnectionActionItem]
+    [getConnectionPresentation, handleDuplicateServer, renderConnectionActionItem, t]
   )
 
   const renderPrimaryAction = useCallback(
@@ -1765,14 +1804,14 @@ export function ServersPage() {
     <>
       <ResourcePage
         config={{
-          title: 'Servers',
-          description: 'SSH deployment targets',
+          title: t('servers.page.title'),
+          description: t('servers.page.description'),
           apiPath: '/api/collections/servers/records',
           favoriteStorageKey: 'resource-page:favorites:servers',
-          favoritesFilterLabel: 'Favorites only',
-          createButtonLabel: 'Add Server',
+          favoritesFilterLabel: t('servers.page.favoritesOnly'),
+          createButtonLabel: t('servers.page.addServer'),
           createButtonShowIcon: false,
-          searchPlaceholder: 'Search server',
+          searchPlaceholder: t('servers.page.searchPlaceholder'),
           searchContainerClassName: 'w-full sm:w-52',
           pageSize: 10,
           pageSizeValue: serverPageSize,
@@ -1787,12 +1826,12 @@ export function ServersPage() {
           paginationVariant: 'minimal',
           paginationSummary: false,
           headerTrailingControls: renderListSettings,
-          paginationTotalLabel: totalCount => `Total ${totalCount} items`,
+          paginationTotalLabel: totalCount => t('servers.page.totalItems', { count: totalCount }),
           dialogContentClassName: 'sm:max-w-4xl',
           resourceType: 'server',
           actionsAlign: 'left',
           actionsMenuAlign: 'start',
-          parentNav: { label: 'Resources', href: '/resources' },
+          parentNav: { label: t('hub.title'), href: '/resources' },
           listItems,
           createItem: async payload =>
             await pb.collection('servers').create({
@@ -1821,10 +1860,10 @@ export function ServersPage() {
             const host = String(formData.host ?? '').trim()
             const port = normalizePort(formData.port)
 
-            if (!name) return 'Name is required'
-            if (!user) return 'User is required'
-            if (!isTunnel && !host) return 'Host is required for Direct SSH connections'
-            if (!isTunnel && port === null) return 'Port is required for Direct SSH connections'
+            if (!name) return t('servers.validation.nameRequired')
+            if (!user) return t('servers.validation.userRequired')
+            if (!isTunnel && !host) return t('servers.validation.hostRequiredForDirect')
+            if (!isTunnel && port === null) return t('servers.validation.portRequiredForDirect')
             return null
           },
           resolveFields: ({ formData }) => {
@@ -1862,10 +1901,10 @@ export function ServersPage() {
           renderDetailPanel: item => renderDetailPanel(item),
           detailPresentation: 'drawer',
           detailDrawerTier: serverDetailDrawerTier,
-          detailDrawerTitle: 'Server Detail',
+          detailDrawerTitle: t('servers.page.detailDrawerTitle'),
           initialEditId: edit,
           dialogHeader: ({ editingItem, title, description }) => ({
-            title: editingItem ? title : 'Add Server',
+            title: editingItem ? title : t('servers.page.addServer'),
             description,
           }),
           onInitialEditHandled: () => {

@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"fmt"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -241,6 +242,153 @@ func TestOperationManualComposeCreateListDetail(t *testing.T) {
 	}
 	if pipelineDetail["status"] != "active" {
 		t.Fatalf("expected active pipeline status, got %v", pipelineDetail["status"])
+	}
+}
+
+func TestOperationListSupportsPaginatedResponses(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	compose := "services:\n  web:\n    image: nginx:alpine\n"
+	first := te.doOperations(t, http.MethodPost, "/api/actions/install/manual-compose", `{"project_name":"Alpha App","compose":`+jsonString(compose)+`}`, true)
+	if first.Code != http.StatusAccepted {
+		t.Fatalf("first create: expected 202, got %d: %s", first.Code, first.Body.String())
+	}
+	second := te.doOperations(t, http.MethodPost, "/api/actions/install/manual-compose", `{"project_name":"Beta App","compose":`+jsonString(compose)+`}`, true)
+	if second.Code != http.StatusAccepted {
+		t.Fatalf("second create: expected 202, got %d: %s", second.Code, second.Body.String())
+	}
+
+	rec := te.doOperations(t, http.MethodGet, "/api/actions?page=1&perPage=1&q=beta", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("paginated list: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	payload := parseJSON(t, rec)
+	if payload["page"] != float64(1) {
+		t.Fatalf("expected page 1, got %v", payload["page"])
+	}
+	if payload["perPage"] != float64(1) {
+		t.Fatalf("expected perPage 1, got %v", payload["perPage"])
+	}
+	if payload["totalItems"] != float64(1) {
+		t.Fatalf("expected totalItems 1, got %v", payload["totalItems"])
+	}
+	if payload["totalPages"] != float64(1) {
+		t.Fatalf("expected totalPages 1, got %v", payload["totalPages"])
+	}
+	items, ok := payload["items"].([]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected one paginated item, got %T len=%d", payload["items"], len(items))
+	}
+	item, ok := items[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected paginated item payload, got %T", items[0])
+	}
+	if item["compose_project_name"] != "beta-app" {
+		t.Fatalf("expected beta-app in paginated response, got %v", item["compose_project_name"])
+	}
+
+	legacyRec := te.doOperations(t, http.MethodGet, "/api/actions", "", true)
+	if legacyRec.Code != http.StatusOK {
+		t.Fatalf("legacy list: expected 200, got %d: %s", legacyRec.Code, legacyRec.Body.String())
+	}
+	legacy := parseJSONArray(t, legacyRec)
+	if len(legacy) != 2 {
+		t.Fatalf("expected legacy list array with 2 items, got %d", len(legacy))
+	}
+}
+
+func TestOperationListLegacyResponseIsNotCappedAtOneHundred(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	compose := "services:\n  web:\n    image: nginx:alpine\n"
+	for index := 0; index < 101; index++ {
+		projectName := fmt.Sprintf("Legacy Cap %03d", index)
+		rec := te.doOperations(
+			t,
+			http.MethodPost,
+			"/api/actions/install/manual-compose",
+			`{"project_name":"`+projectName+`","compose":`+jsonString(compose)+`}`,
+			true,
+		)
+		if rec.Code != http.StatusAccepted {
+			t.Fatalf("create %d: expected 202, got %d: %s", index, rec.Code, rec.Body.String())
+		}
+	}
+
+	legacyRec := te.doOperations(t, http.MethodGet, "/api/actions", "", true)
+	if legacyRec.Code != http.StatusOK {
+		t.Fatalf("legacy list: expected 200, got %d: %s", legacyRec.Code, legacyRec.Body.String())
+	}
+	legacy := parseJSONArray(t, legacyRec)
+	if len(legacy) != 101 {
+		t.Fatalf("expected legacy list array with 101 items, got %d", len(legacy))
+	}
+}
+
+func TestOperationTemplateCheckAndCreateWordPress(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+	ensureDockerSecretRuntime(t)
+	secret := createDockerRouteSecret(t, te, "super-secret")
+	payload := fmt.Sprintf(`{"project_name":"My Blog","template_key":"wordpress","input_values":{"db_password":"secretRef:%s"}}`, secret.Id)
+
+	checkRec := te.doOperations(t, http.MethodPost, "/api/actions/install/template/check", payload, true)
+	if checkRec.Code != http.StatusOK {
+		t.Fatalf("check: expected 200, got %d: %s", checkRec.Code, checkRec.Body.String())
+	}
+
+	createRec := te.doOperations(t, http.MethodPost, "/api/actions/install/template", payload, true)
+	if createRec.Code != http.StatusAccepted {
+		t.Fatalf("create: expected 202, got %d: %s", createRec.Code, createRec.Body.String())
+	}
+	created := parseJSON(t, createRec)
+	if created["source"] != string(model.TriggerSourceManualOps) {
+		t.Fatalf("expected manualops source, got %v", created["source"])
+	}
+	if created["adapter"] != "manual-compose" {
+		t.Fatalf("expected manual-compose adapter, got %v", created["adapter"])
+	}
+	opRecord, err := te.app.FindRecordById("app_operations", created["id"].(string))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opRecord.GetString("compose_project_name") != "my-blog" {
+		t.Fatalf("expected normalized compose project name, got %q", opRecord.GetString("compose_project_name"))
+	}
+	renderedCompose := opRecord.GetString("rendered_compose")
+	if !strings.Contains(renderedCompose, "image: wordpress:6.9") || strings.Contains(renderedCompose, "${") {
+		t.Fatalf("expected fully rendered wordpress compose, got %q", renderedCompose)
+	}
+	appRecord, err := te.app.FindRecordById("app_instances", opRecord.GetString("app"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if appRecord.GetString("template_key") != "wordpress" {
+		t.Fatalf("expected wordpress template_key, got %q", appRecord.GetString("template_key"))
+	}
+}
+
+func TestOperationTemplateCreateOdoo(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+	ensureDockerSecretRuntime(t)
+	secret := createDockerRouteSecret(t, te, "odoo-secret")
+	payload := fmt.Sprintf(`{"project_name":"ERP Demo","template_key":"odoo","input_values":{"version":"18.0","http_port":9010,"db_password":"secretRef:%s"}}`, secret.Id)
+
+	rec := te.doOperations(t, http.MethodPost, "/api/actions/install/template", payload, true)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d: %s", rec.Code, rec.Body.String())
+	}
+	created := parseJSON(t, rec)
+	opRecord, err := te.app.FindRecordById("app_operations", created["id"].(string))
+	if err != nil {
+		t.Fatal(err)
+	}
+	renderedCompose := opRecord.GetString("rendered_compose")
+	if !strings.Contains(renderedCompose, "image: odoo:18.0") || !strings.Contains(renderedCompose, "9010:8069") {
+		t.Fatalf("expected rendered odoo compose to honor overrides, got %q", renderedCompose)
 	}
 }
 

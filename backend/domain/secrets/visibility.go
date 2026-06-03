@@ -2,6 +2,7 @@ package secrets
 
 const (
 	VisibleToServer          = "server"
+	VisibleToApplication     = "application"
 	VisibleToServiceInstance = "service_instance"
 	VisibleToConnector       = "connector"
 	VisibleToProviderAccount = "provider_account"
@@ -10,6 +11,7 @@ const (
 
 var VisibleToValues = []string{
 	VisibleToServer,
+	VisibleToApplication,
 	VisibleToServiceInstance,
 	VisibleToConnector,
 	VisibleToProviderAccount,

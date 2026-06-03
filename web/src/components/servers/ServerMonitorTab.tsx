@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Activity, AlertTriangle, CheckCircle2, Loader2, RefreshCw, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -7,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { MonitorTargetPanel } from '@/components/monitor/MonitorTargetPanel'
 import { getSystemdStatus } from '@/lib/connect-api'
+import { getLocale } from '@/lib/i18n'
 import { pb } from '@/lib/pb'
 
 const MONITOR_COLLECTOR_SERVICE = 'appos-monitor.service'
@@ -30,6 +32,8 @@ type MonitorTargetStatusSummary = {
   reason: string
 }
 
+type Translate = (key: string, options?: Record<string, unknown>) => string
+
 function stateBadgeVariant(
   state: MonitorChainState
 ): 'default' | 'secondary' | 'outline' | 'destructive' {
@@ -39,11 +43,11 @@ function stateBadgeVariant(
   return 'outline'
 }
 
-function stateLabel(state: MonitorChainState): string {
-  if (state === 'ok') return 'OK'
-  if (state === 'attention') return 'Action needed'
-  if (state === 'checking') return 'Checking'
-  return 'Review'
+function stateLabel(state: MonitorChainState, t: Translate): string {
+  if (state === 'ok') return t('servers.monitorTab.state.ok')
+  if (state === 'attention') return t('servers.monitorTab.state.attention')
+  if (state === 'checking') return t('servers.monitorTab.state.checking')
+  return t('servers.monitorTab.state.review')
 }
 
 function conclusionIcon(state: MonitorChainState) {
@@ -54,14 +58,16 @@ function conclusionIcon(state: MonitorChainState) {
   return <Activity className="h-4 w-4 text-muted-foreground" />
 }
 
-function formatConclusionTime(value: string): string {
+function formatConclusionTime(value: string, t: Translate): string {
   const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return 'Updated —'
-  return `Updated ${parsed.toLocaleTimeString(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })}`
+  if (Number.isNaN(parsed.getTime())) return t('servers.monitorTab.time.updatedUnknown')
+  return t('servers.monitorTab.time.updatedAt', {
+    time: parsed.toLocaleTimeString(getLocale(), {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }),
+  })
 }
 
 function isServerConnected(connectionStatus: string): boolean {
@@ -134,7 +140,7 @@ function useMonitorTargetSummary(serverId: string) {
   return { summary, loading, refresh }
 }
 
-function useMonitorAgentStatus(serverId: string) {
+function useMonitorAgentStatus(serverId: string, t: Translate) {
   const [status, setStatus] = useState<Record<string, string> | null>(null)
   const [statusError, setStatusError] = useState('')
   const [loadingStatus, setLoadingStatus] = useState(true)
@@ -149,12 +155,14 @@ function useMonitorAgentStatus(serverId: string) {
     } catch (error) {
       setStatus(null)
       setStatusError(
-        error instanceof Error ? error.message : 'Unable to read monitor collector service status'
+        error instanceof Error
+          ? error.message
+          : t('servers.monitorTab.errors.collectorStatusUnavailable')
       )
     } finally {
       setLoadingStatus(false)
     }
-  }, [serverId])
+  }, [serverId, t])
 
   useEffect(() => {
     void refresh()
@@ -164,7 +172,10 @@ function useMonitorAgentStatus(serverId: string) {
   const subState = String(status?.SubState || '')
   const connected = activeState === 'active' && !statusError
   const action = inferMonitorAgentAction(status, statusError)
-  const actionLabel = action === 'install' ? 'Install monitor agent' : 'Fix monitor agent'
+  const actionLabel =
+    action === 'install'
+      ? t('servers.monitorTab.actions.installMonitorAgent')
+      : t('servers.monitorTab.actions.fixMonitorAgent')
 
   return {
     statusError,
@@ -188,6 +199,7 @@ export function ServerMonitorConclusions({
   monitoringConnected: boolean
   checkingMonitoring: boolean
 }) {
+  const { t } = useTranslation('resources')
   const serverConnected = isServerConnected(connectionStatus)
   const conclusions = useMemo<MonitorConclusion[]>(() => {
     if (!checkingMonitoring && !monitoringConnected) {
@@ -197,43 +209,45 @@ export function ServerMonitorConclusions({
     return [
       {
         id: 'control-reachability',
-        label: 'Control reachable',
+        label: t('servers.monitorTab.conclusions.controlReachable.label'),
         state: serverConnected ? 'ok' : 'attention',
         summary: serverConnected
-          ? 'AppOS can reach this server.'
-          : 'Server access needs attention.',
+          ? t('servers.monitorTab.conclusions.controlReachable.summaryOk')
+          : t('servers.monitorTab.conclusions.controlReachable.summaryAttention'),
         detail: serverConnected
-          ? `${serverName} is reachable through the current server connection.`
-          : `${serverName} may not be reachable. Repair the connection before relying on live operations.`,
-        nextStep: serverConnected ? 'No action needed.' : 'Open the Connection tab and fix access.',
+          ? t('servers.monitorTab.conclusions.controlReachable.detailOk', { name: serverName })
+          : t('servers.monitorTab.conclusions.controlReachable.detailAttention', {
+              name: serverName,
+            }),
+        nextStep: serverConnected
+          ? t('servers.monitorTab.conclusions.controlReachable.nextOk')
+          : t('servers.monitorTab.conclusions.controlReachable.nextAttention'),
         observedAt,
       },
       {
         id: 'metrics-freshness',
-        label: 'Trend data available',
+        label: t('servers.monitorTab.conclusions.trendDataAvailable.label'),
         state: checkingMonitoring ? 'checking' : 'info',
         summary: checkingMonitoring
-          ? 'Checking monitor data path.'
-          : 'Use charts to confirm freshness.',
+          ? t('servers.monitorTab.conclusions.trendDataAvailable.summaryChecking')
+          : t('servers.monitorTab.conclusions.trendDataAvailable.summaryReady'),
         detail: checkingMonitoring
-          ? 'AppOS is checking whether the monitor collector can provide usable trend data.'
-          : 'Trend cards on the left are the source of truth for whether data is current and complete.',
-        nextStep:
-          'If charts stay empty or stale, open Components to verify the Monitor Agent addon.',
+          ? t('servers.monitorTab.conclusions.trendDataAvailable.detailChecking')
+          : t('servers.monitorTab.conclusions.trendDataAvailable.detailReady'),
+        nextStep: t('servers.monitorTab.conclusions.trendDataAvailable.nextStep'),
         observedAt,
       },
       {
         id: 'resource-pressure',
-        label: 'Resource pressure',
+        label: t('servers.monitorTab.conclusions.resourcePressure.label'),
         state: 'info',
-        summary: 'Review current values and trends.',
-        detail:
-          'CPU, memory, disk, and network cards show the current pressure and recent direction.',
-        nextStep: 'Investigate only when values are high, rising, or missing unexpectedly.',
+        summary: t('servers.monitorTab.conclusions.resourcePressure.summary'),
+        detail: t('servers.monitorTab.conclusions.resourcePressure.detail'),
+        nextStep: t('servers.monitorTab.conclusions.resourcePressure.nextStep'),
         observedAt,
       },
     ]
-  }, [checkingMonitoring, monitoringConnected, serverConnected, serverName])
+  }, [checkingMonitoring, monitoringConnected, serverConnected, serverName, t])
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => new Set())
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const visibleConclusions = useMemo(
@@ -273,30 +287,38 @@ export function ServerMonitorConclusions({
   return (
     <section
       className="max-h-[calc(100vh-50px)] self-start overflow-auto space-y-4 rounded-md border p-4"
-      aria-label="Monitor conclusions"
+      aria-label={t('servers.monitorTab.conclusions.regionLabel')}
     >
       <div className="space-y-1">
-        <h3 className="text-sm font-semibold">Conclusions</h3>
+        <h3 className="text-sm font-semibold">{t('servers.monitorTab.conclusions.title')}</h3>
         <p className="text-xs text-muted-foreground">
-          Compact server insights from usable monitor signals.
+          {t('servers.monitorTab.conclusions.subtitle')}
         </p>
       </div>
 
       {conclusions.length === 0 ? (
         <div className="rounded-md border border-dashed px-3 py-6 text-sm text-muted-foreground">
-          <div className="font-medium text-foreground">No conclusions yet.</div>
+          <div className="font-medium text-foreground">
+            {t('servers.monitorTab.conclusions.emptyTitle')}
+          </div>
           <div className="mt-1">
-            Monitoring data is required before AppOS can analyze this server.
+            {t('servers.monitorTab.conclusions.emptyBody')}
           </div>
         </div>
       ) : visibleConclusions.length === 0 ? (
         <div className="rounded-md border border-dashed px-3 py-6 text-sm text-muted-foreground">
-          <div className="font-medium text-foreground">All conclusions dismissed.</div>
-          <div className="mt-1">Refresh monitor data to rebuild the conclusion list.</div>
+          <div className="font-medium text-foreground">
+            {t('servers.monitorTab.conclusions.dismissedTitle')}
+          </div>
+          <div className="mt-1">{t('servers.monitorTab.conclusions.dismissedBody')}</div>
         </div>
       ) : (
         <>
-          <div className="space-y-1" role="list" aria-label="Monitor conclusion list">
+          <div
+            className="space-y-1"
+            role="list"
+            aria-label={t('servers.monitorTab.conclusions.listLabel')}
+          >
             {visibleConclusions.map(item => {
               const active = selected?.id === item.id
               return (
@@ -311,7 +333,7 @@ export function ServerMonitorConclusions({
                     type="button"
                     onClick={() => setSelectedId(item.id)}
                     className="flex min-w-0 flex-1 items-start gap-3 text-left"
-                    aria-label={`Open conclusion ${item.label}`}
+                    aria-label={t('servers.monitorTab.conclusions.openItem', { label: item.label })}
                   >
                     <span className="mt-0.5 shrink-0">{conclusionIcon(item.state)}</span>
                     <span className="min-w-0 flex-1 space-y-0.5">
@@ -322,21 +344,21 @@ export function ServerMonitorConclusions({
                         {item.summary}
                       </span>
                       <span className="block truncate text-[11px] text-muted-foreground/80">
-                        {formatConclusionTime(item.observedAt)}
+                        {formatConclusionTime(item.observedAt, t)}
                       </span>
                     </span>
                   </button>
                   <div className="flex shrink-0 items-center gap-2 self-start pt-0.5">
                     <Badge variant={stateBadgeVariant(item.state)} className="shrink-0 text-[11px]">
-                      {stateLabel(item.state)}
+                      {stateLabel(item.state, t)}
                     </Badge>
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6 shrink-0"
-                      aria-label={`Delete conclusion ${item.label}`}
-                      title="Delete conclusion"
+                      aria-label={t('servers.monitorTab.conclusions.deleteItem', { label: item.label })}
+                      title={t('servers.monitorTab.conclusions.deleteTitle')}
                       onClick={() => dismissConclusion(item.id)}
                     >
                       <Trash2 className="h-3 w-3" />
@@ -358,7 +380,7 @@ export function ServerMonitorConclusions({
               </CardHeader>
               <CardContent className="space-y-2 text-sm text-muted-foreground">
                 <div className="text-xs text-muted-foreground/80">
-                  {formatConclusionTime(selected.observedAt)}
+                  {formatConclusionTime(selected.observedAt, t)}
                 </div>
                 <div>{selected.detail}</div>
                 <div className="font-medium text-foreground">{selected.nextStep}</div>
@@ -384,7 +406,8 @@ export function ServerMonitorTab({
   onOpenComponents?: () => void
   onMonitorAgentAction?: (action: 'install' | 'upgrade' | 'reinstall') => void
 }) {
-  const monitorAgent = useMonitorAgentStatus(serverId)
+  const { t } = useTranslation('resources')
+  const monitorAgent = useMonitorAgentStatus(serverId, t)
   const monitorTarget = useMonitorTargetSummary(serverId)
   const awaitingFirstSample =
     monitorTarget.summary?.monitoringState === 'awaiting_control_plane_pull' ||
@@ -393,17 +416,25 @@ export function ServerMonitorTab({
   const hasMonitorData = monitorTarget.summary?.hasData === true
   const monitorEmptyMessage = hasMonitorData
     ? undefined
-    : `No monitoring data available yet for ${serverName}. Current connectivity status is ${connectionStatus}.`
+    : t('servers.monitorTab.empty.noDataYet', {
+        name: serverName,
+        status: connectionStatus,
+      })
   const monitoringConnected = monitorAgent.connected || hasMonitorData || awaitingFirstSample
   const monitoringNeedsIntervention =
     !monitorAgent.loadingStatus && !monitorTarget.loading && !monitoringConnected
   const monitorHint = monitorAgent.loadingStatus
-    ? 'Checking monitoring'
+    ? t('servers.monitorTab.hints.checking')
     : awaitingFirstSample
-      ? 'Monitoring active · waiting for first sample'
+      ? t('servers.monitorTab.hints.awaitingFirstSample')
       : monitoringConnected
-        ? `Monitoring active${monitorAgent.connected && monitorAgent.subState ? ` · ${monitorAgent.subState}` : ''}`
-        : 'Monitoring not connected'
+        ? t('servers.monitorTab.hints.active', {
+            subState:
+              monitorAgent.connected && monitorAgent.subState
+                ? ` · ${monitorAgent.subState}`
+                : '',
+          })
+        : t('servers.monitorTab.hints.notConnected')
   const refreshMonitorStatus = useCallback(() => {
     void monitorAgent.refresh()
     void monitorTarget.refresh()
@@ -413,9 +444,9 @@ export function ServerMonitorTab({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
-          <h2 className="text-sm font-semibold">Monitor</h2>
+          <h2 className="text-sm font-semibold">{t('servers.monitorTab.heading')}</h2>
           <p className="text-sm text-muted-foreground">
-            Review current resource signals, trend history, and compact server conclusions.
+            {t('servers.monitorTab.description')}
           </p>
         </div>
         <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
@@ -429,8 +460,8 @@ export function ServerMonitorTab({
             className="shrink-0"
             onClick={refreshMonitorStatus}
             disabled={monitorAgent.loadingStatus || monitorTarget.loading}
-            aria-label="Refresh monitor status"
-            title="Refresh monitor status"
+            aria-label={t('servers.monitorTab.actions.refreshStatus')}
+            title={t('servers.monitorTab.actions.refreshStatus')}
           >
             {monitorAgent.loadingStatus || monitorTarget.loading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -446,10 +477,9 @@ export function ServerMonitorTab({
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="font-medium">Monitoring is not connected on this server.</div>
+              <div className="font-medium">{t('servers.monitorTab.alert.notConnectedTitle')}</div>
               <div className="mt-1 text-sm">
-                Install or repair the Monitor Agent addon from Components before relying on monitor
-                data.
+                {t('servers.monitorTab.alert.notConnectedBody')}
                 {monitorAgent.statusError ? ` ${monitorAgent.statusError}` : ''}
               </div>
             </div>
@@ -464,7 +494,7 @@ export function ServerMonitorTab({
               </Button>
             ) : onOpenComponents ? (
               <Button type="button" size="sm" onClick={onOpenComponents} className="shrink-0">
-                Open Components
+                {t('servers.monitorTab.actions.openComponents')}
               </Button>
             ) : null}
           </AlertDescription>
@@ -472,7 +502,10 @@ export function ServerMonitorTab({
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <section className="space-y-4" aria-label="Monitor current values and trend history">
+        <section
+          className="space-y-4"
+          aria-label={t('servers.monitorTab.currentValuesRegion')}
+        >
           <MonitorTargetPanel
             targetType="server"
             targetId={serverId}
@@ -481,16 +514,14 @@ export function ServerMonitorTab({
             metricsPipelineAction={
               onMonitorAgentAction
                 ? {
-                    label: 'Repair monitor agent',
-                    description:
-                      'Reissues monitor write credentials, rewrites the callback address when needed, and restarts the AppOS monitor collector.',
+                    label: t('servers.monitorTab.actions.repairMonitorAgent'),
+                    description: t('servers.monitorTab.actions.repairMonitorAgentDescription'),
                     onClick: () => onMonitorAgentAction('reinstall'),
                   }
                 : onOpenComponents
                   ? {
-                      label: 'Open Components',
-                      description:
-                        'Use Repair on the Monitor Agent addon to reissue credentials and refresh the callback address.',
+                      label: t('servers.monitorTab.actions.openComponents'),
+                      description: t('servers.monitorTab.actions.openComponentsDescription'),
                       onClick: onOpenComponents,
                     }
                   : undefined

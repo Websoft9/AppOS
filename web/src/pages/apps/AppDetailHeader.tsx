@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ArrowLeft, Loader2, RefreshCw } from 'lucide-react'
+import { Boxes, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { runtimeVariant } from '@/pages/apps/types'
@@ -12,6 +12,24 @@ type AppDetailHeaderProps = {
   refreshDisabled?: boolean
   onRefresh: () => void
   actionMenu: ReactNode
+  breadcrumb?: ReactNode
+}
+
+export function AppDetailBreadcrumb({ appName }: { appName: string }) {
+  return (
+    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
+      <Link
+        to="/apps"
+        search={{ catalogAppKey: undefined }}
+        className="inline-flex min-w-0 items-center gap-1.5 truncate transition-colors hover:text-foreground"
+      >
+        <Boxes className="h-4 w-4 shrink-0" />
+        <span className="truncate">My Apps</span>
+      </Link>
+      <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+      <span className="truncate font-medium text-foreground">{appName}</span>
+    </nav>
+  )
 }
 
 export function AppDetailHeader({
@@ -20,16 +38,12 @@ export function AppDetailHeader({
   refreshDisabled = false,
   onRefresh,
   actionMenu,
+  breadcrumb,
 }: AppDetailHeaderProps) {
   return (
-    <div className="space-y-3">
-      <Button variant="ghost" className="w-fit px-0 text-muted-foreground" asChild>
-      <Link to="/apps" search={{ catalogAppKey: undefined }}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to My Apps
-        </Link>
-      </Button>
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div className="space-y-4">
+      {breadcrumb ? breadcrumb : null}
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-bold">{app?.name || 'App Detail'}</h1>
@@ -42,14 +56,20 @@ export function AppDetailHeader({
           </div>
           <p className="text-sm text-muted-foreground">Application detail</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 md:self-start">
-          <Button variant="outline" onClick={onRefresh} disabled={refreshing || refreshDisabled}>
+        <div className="flex flex-wrap items-center justify-end gap-2 md:max-w-[60%]">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={onRefresh}
+            disabled={refreshing || refreshDisabled}
+            aria-label="Refresh app detail"
+            title="Refresh app detail"
+          >
             {refreshing ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <RefreshCw className="h-4 w-4" />
             )}
-            Refresh
           </Button>
           {actionMenu}
         </div>

@@ -25,6 +25,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { useOptionalLayout } from '@/contexts/LayoutContext'
 import {
   getServerConnectionPresentation,
   type ServerConnectionFacts,
@@ -40,7 +41,8 @@ import {
 import { Tabs } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import type { ActionRecord } from '@/pages/deploy/actions/action-types'
-import { AppDetailHeader } from '@/pages/apps/AppDetailHeader'
+import type { ActionListResponse } from '@/pages/deploy/actions/action-types'
+import { AppDetailBreadcrumb, AppDetailHeader } from '@/pages/apps/AppDetailHeader'
 import { AppDetailTabRail } from '@/pages/apps/AppDetailTabRail'
 import {
   AppDetailAccessTab,
@@ -56,7 +58,6 @@ import {
 import {
   type BackupProjection,
   type DockerVolume,
-  getActionLabel,
   hasAccessHints,
   isPocketBaseAutoCancelled,
   normalizeMatchValue,
@@ -143,6 +144,8 @@ function loadDisplayMetadata(appId: string): AppDisplayMetadata {
 
 export function AppDetailPage({ appId }: { appId: string }) {
   const navigate = useNavigate()
+  const layout = useOptionalLayout()
+  const setHeaderRightStartContent = layout?.setHeaderRightStartContent
   const [app, setApp] = useState<AppInstance | null>(null)
   const [releases, setReleases] = useState<AppRelease[]>([])
   const [exposures, setExposures] = useState<AppExposure[]>([])
@@ -163,6 +166,12 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const [deploying, setDeploying] = useState<'redeploy' | 'upgrade' | ''>('')
   const [actionLoading, setActionLoading] = useState('')
   const [pendingUninstall, setPendingUninstall] = useState(false)
+
+  useEffect(() => {
+    if (!setHeaderRightStartContent) return undefined
+    setHeaderRightStartContent(<AppDetailBreadcrumb appName={app?.name || 'App Detail'} />)
+    return () => setHeaderRightStartContent(null)
+  }, [app?.name, setHeaderRightStartContent])
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [envFileError, setEnvFileError] = useState('')
@@ -183,6 +192,9 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const [actionsLoading, setActionsLoading] = useState(false)
   const [actionsLoaded, setActionsLoaded] = useState(false)
   const [actionSearch, setActionSearch] = useState('')
+  const [actionHistoryPage, setActionHistoryPage] = useState(1)
+  const [actionHistoryTotalPages, setActionHistoryTotalPages] = useState(1)
+  const [actionHistoryTotalItems, setActionHistoryTotalItems] = useState(0)
   const [actionStatusFilter, setActionStatusFilter] = useState('all')
   const [actionTypeFilter, setActionTypeFilter] = useState('all')
   const [displayIconDraft, setDisplayIconDraft] = useState('')
@@ -321,8 +333,19 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const fetchActionHistory = useCallback(async () => {
     setActionsLoading(true)
     try {
-      const response = await pb.send<ActionRecord[]>('/api/actions', { method: 'GET' })
-      setActionHistory(Array.isArray(response) ? response : [])
+      const params = new URLSearchParams()
+      params.set('appId', appId)
+      params.set('page', String(actionHistoryPage))
+      params.set('perPage', '15')
+      if (actionSearch.trim()) params.set('q', actionSearch.trim())
+      const response = await pb.send<ActionListResponse>(`/api/actions?${params.toString()}`, {
+        method: 'GET',
+      })
+      setActionHistory(Array.isArray(response?.items) ? response.items : [])
+      setActionHistoryTotalItems(Number.isFinite(response?.totalItems) ? response.totalItems : 0)
+      setActionHistoryTotalPages(
+        Number.isFinite(response?.totalPages) && response.totalPages > 0 ? response.totalPages : 1
+      )
       setActionsLoaded(true)
       setError('')
     } catch (err) {
@@ -330,7 +353,7 @@ export function AppDetailPage({ appId }: { appId: string }) {
     } finally {
       setActionsLoading(false)
     }
-  }, [])
+  }, [actionHistoryPage, actionSearch, appId])
 
   const fetchRuntimeInventory = useCallback(async () => {
     setRuntimeLoading(true)
@@ -561,10 +584,17 @@ export function AppDetailPage({ appId }: { appId: string }) {
   }, [app?.server_id])
 
   useEffect(() => {
-    if (tab === 'actions' && !actionsLoaded) {
-      void fetchActionHistory()
-    }
-  }, [actionsLoaded, fetchActionHistory, tab])
+    if (tab !== 'actions') return
+    void fetchActionHistory()
+  }, [fetchActionHistory, tab])
+
+  useEffect(() => {
+    setActionHistoryPage(1)
+  }, [appId])
+
+  useEffect(() => {
+    setActionHistoryPage(1)
+  }, [actionSearch])
 
   useEffect(() => {
     if (tab === 'runtime' && !runtimeLoaded) {
@@ -913,10 +943,10 @@ export function AppDetailPage({ appId }: { appId: string }) {
     app?.access_username,
   ])
   const scopedActions = useMemo(() => {
-    return actionHistory
-      .filter(action => action.app_id === appId || action.pipeline?.app_id === appId)
-      .sort((left, right) => new Date(right.created).getTime() - new Date(left.created).getTime())
-  }, [actionHistory, appId])
+    return [...actionHistory].sort(
+      (left, right) => new Date(right.created).getTime() - new Date(left.created).getTime()
+    )
+  }, [actionHistory])
   const accessHintsPresent = hasAccessHints(app)
   const projectNameCandidates = useMemo(() => {
     const rawValues = [
@@ -950,7 +980,6 @@ export function AppDetailPage({ appId }: { appId: string }) {
     [scopedActions]
   )
   const filteredScopedActions = useMemo(() => {
-    const query = actionSearch.trim().toLowerCase()
     return scopedActions.filter(action => {
       const actionType = (
         action.pipeline?.selector?.operation_type ||
@@ -959,20 +988,9 @@ export function AppDetailPage({ appId }: { appId: string }) {
       ).toLowerCase()
       if (actionStatusFilter !== 'all' && action.status !== actionStatusFilter) return false
       if (actionTypeFilter !== 'all' && actionType !== actionTypeFilter) return false
-      if (!query) return true
-      return [
-        action.id,
-        getActionLabel(action),
-        action.status,
-        action.source,
-        action.compose_project_name,
-        action.server_label,
-        action.server_id,
-      ]
-        .filter(Boolean)
-        .some(value => String(value).toLowerCase().includes(query))
+      return true
     })
-  }, [actionSearch, actionStatusFilter, actionTypeFilter, scopedActions])
+  }, [actionStatusFilter, actionTypeFilter, scopedActions])
   const relatedRuntimeContainers = useMemo(() => {
     if (projectNameCandidates.length === 0) return []
     return runtimeContainers.filter(container => {
@@ -1020,6 +1038,7 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const latestScopedAction = scopedActions[0]
   const serverDisplayName =
     (typeof serverConnectionRecord?.name === 'string' && serverConnectionRecord.name.trim()) ||
+    app?.server_name?.trim() ||
     app?.server_id ||
     'local'
   const canOpenServerDetail = Boolean(app?.server_id && app.server_id !== 'local')
@@ -1067,10 +1086,17 @@ export function AppDetailPage({ appId }: { appId: string }) {
       to: '/actions' as never,
       search: {
         appId,
-        q: scopedActions[0]?.compose_project_name || app?.name || undefined,
       } as never,
     })
-  }, [app?.name, appId, navigate, scopedActions])
+  }, [appId, navigate])
+
+  const goToPreviousActionHistoryPage = useCallback(() => {
+    setActionHistoryPage(current => Math.max(1, current - 1))
+  }, [])
+
+  const goToNextActionHistoryPage = useCallback(() => {
+    setActionHistoryPage(current => Math.min(actionHistoryTotalPages, current + 1))
+  }, [actionHistoryTotalPages])
 
   const buildActionDetailHref = useCallback((actionId: string) => {
     return `/actions/${actionId}?returnTo=list`
@@ -1283,6 +1309,7 @@ export function AppDetailPage({ appId }: { appId: string }) {
         refreshDisabled={hasBusyAction}
         onRefresh={() => void refreshDetailView()}
         actionMenu={renderActionMenu()}
+        breadcrumb={!setHeaderRightStartContent ? <AppDetailBreadcrumb appName={app?.name || 'App Detail'} /> : null}
       />
 
       {error ? (
@@ -1362,6 +1389,11 @@ export function AppDetailPage({ appId }: { appId: string }) {
             actionsLoading={actionsLoading}
             actionSearch={actionSearch}
             setActionSearch={setActionSearch}
+            actionHistoryPage={actionHistoryPage}
+            actionHistoryTotalPages={actionHistoryTotalPages}
+            actionHistoryTotalItems={actionHistoryTotalItems}
+            goToPreviousActionHistoryPage={goToPreviousActionHistoryPage}
+            goToNextActionHistoryPage={goToNextActionHistoryPage}
             actionStatusFilter={actionStatusFilter}
             setActionStatusFilter={setActionStatusFilter}
             actionTypeFilter={actionTypeFilter}

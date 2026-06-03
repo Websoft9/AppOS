@@ -151,3 +151,16 @@ addons 的 netdata restart 报错
 数据初始化怎么做的？
 
 rss hub 网站
+
+顶部增加一个搜索入口，它搜索主要是搜索页面
+
+docker.1ms.run
+
+数据库的随机密码，不应该太复杂。否则部署应用时，很慢
+
+
+
+
+1. queued 的 Action 没有显示在 actions list 中
+2. queued 的应用，竟然也是 installed
+3. Uninstall 也在等待一个 install running 的

@@ -2,6 +2,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 
 export const RESOURCE_SECRET_VISIBLE_TO_VALUES = [
   'server',
+  'application',
   'service_instance',
   'connector',
   'provider_account',
@@ -16,6 +17,11 @@ export const RESOURCE_SECRET_VISIBLE_TO_OPTIONS: Array<{
   description: string
 }> = [
   { value: 'server', label: 'Servers', description: 'Visible in server credential dialogs.' },
+  {
+    value: 'application',
+    label: 'Applications',
+    description: 'Visible in application deployment and application credential dialogs.',
+  },
   {
     value: 'service_instance',
     label: 'Service Instances',

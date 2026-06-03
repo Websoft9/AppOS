@@ -130,22 +130,11 @@ COPY --from=docker-cli-provider /usr/local/libexec/docker/cli-plugins/docker-com
 RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
-RUN npm install -g @mariozechner/pi-coding-agent \
-    && npm cache clean --force \
-    && rm -rf /root/.npm
-
 # Copy build artifacts
 COPY --from=web-builder /build/dist /usr/share/nginx/html/web
 COPY --from=backend-builder /build/appos /usr/local/bin/appos
+COPY templates/apps /appos/data/templates/apps
 COPY --from=victoriametrics-bin /victoria-metrics-prod /usr/local/bin/victoria-metrics-prod
-
-# Download Store Library plugin at build time
-ARG WEBSOFT9_ARTIFACT="https://artifact.websoft9.com/release/websoft9"
-RUN set -eux; \
-    curl -fsSL --retry 3 -o /tmp/library.zip ${WEBSOFT9_ARTIFACT}/plugin/library/library-latest.zip; \
-    mkdir -p /appos; \
-    unzip -q /tmp/library.zip -d /appos; \
-    rm /tmp/library.zip
 
 # Create data directories
 RUN mkdir -p \
@@ -153,12 +142,13 @@ RUN mkdir -p \
     /appos/data/pb/pb_migrations \
     /appos/data/redis \
     /appos/data/apps \
-    /appos/data/pi \
     /appos/data/victoriametrics \
     /appos/data/workflows \
     /appos/data/templates/apps \
     /appos/data/templates/workflows \
     /appos/data/templates/custom \
+    /appos/data/templates/custom/apps \
+    /appos/data/templates/official/apps \
     /var/log/supervisor \
     /var/log/nginx \
     /usr/local/libexec/docker/cli-plugins \
@@ -174,13 +164,11 @@ COPY --chmod=755 build/entrypoint.sh /entrypoint.sh
 RUN set -eux; \
     test -x /usr/local/bin/appos || { echo "ERROR: appos binary not found"; exit 1; }; \
     test -x /usr/local/bin/victoria-metrics-prod || { echo "ERROR: victoria-metrics-prod binary not found"; exit 1; }; \
-    test -x /usr/local/bin/pi || { echo "ERROR: pi binary not found"; exit 1; }; \
     test -x /entrypoint.sh || { echo "ERROR: entrypoint.sh not executable"; exit 1; }; \
     supervisord --version | grep -Fx "${SUPERVISOR_VERSION}" || { echo "ERROR: supervisor version mismatch"; exit 1; }; \
     nginx -t || { echo "ERROR: nginx config invalid"; exit 1; }
 
-ENV PI_CODING_AGENT_DIR=/appos/data/pi \
-    TSDB_ADDR=http://127.0.0.1:8428 \
+ENV TSDB_ADDR=http://127.0.0.1:8428 \
     DISABLE_TELEMETRY=1 \
     DO_NOT_TRACK=1
 

@@ -1,7 +1,7 @@
 
 .PHONY: help install tidy build run test test-strict test-fast lint lint-strict lint-fast fmt fmt-strict fmt-fast check check-fast sec sec-strict sec-fast artifact-scan \
 	backend web backend-targeted backend-iac backend-software fast strict build-local latest dev \
-	image start stop restart logs stats delete rm kill-port redo sync-store \
+	image start stop restart logs stats delete rm kill-port redo sync-store tl \
 	openapi-gen openapi-merge openapi-check openapi-sync
 
 # ============================================================
@@ -14,6 +14,7 @@ COMPOSE_CMD := cd build && docker compose
 # Support positional args: make kill-port 9091
 ARG2 := $(word 2,$(MAKECMDGOALS))
 ARG3 := $(word 3,$(MAKECMDGOALS))
+ARG4 := $(word 4,$(MAKECMDGOALS))
 QUALITY_MODE := $(if $(filter fast,$(ARG2) $(ARG3)),fast,strict)
 QUALITY_SCOPE := $(firstword $(filter-out fast,$(ARG2) $(ARG3)))
 GITLEAKS_ARGS := $(if $(CI),--redact,--no-git --redact)
@@ -93,6 +94,13 @@ help:
 	@echo ""
 	@printf "\033[36mUtilities:\033[0m\n"
 	@echo "  make kill-port 9091       Kill process using port"
+	@echo "  make tl                   Show template tooling commands"
+	@echo "  make tl validate          Validate normalized templates"
+	@echo "  make tl validate wordpress Validate one normalized template sample"
+	@echo "  make tl ingress           Render sample template ingress payload (default: wordpress)"
+	@echo "  make tl ingress wordpress Render sample template ingress payload for one template"
+	@echo "  make tl ingress wordpress TL_VALUES=templates/tests/examples/wordpress.values.json"
+	@echo "  make tl verify            Run template validation and ingress rendering"
 	@echo "  make help                 Show this help"
 	@echo ""
 
@@ -257,11 +265,41 @@ run:
 	@echo "Hot reload: copying pre-built artifacts..."
 	@docker cp backend/appos $(CONTAINER):/usr/local/bin/appos
 	@docker cp web/dist/. $(CONTAINER):/usr/share/nginx/html/web/
+	@docker cp templates/apps/. $(CONTAINER):/appos/data/templates/apps/
 	@docker cp build/nginx.conf $(CONTAINER):/etc/nginx/nginx.conf
 	@docker exec $(CONTAINER) nginx -t
 	@docker exec $(CONTAINER) supervisorctl -c /etc/supervisor/supervisord.conf restart appos nginx
 	@echo "✓ Hot reload complete"
 	@echo "  → http://127.0.0.1:$(PORT_EFFECTIVE)/"
+
+tl:
+ifeq ($(ARG2),validate)
+	@echo "Running template validation..."
+	@cd $(CURDIR) && python3 templates/tests/validate_templates.py $(ARG3)
+	@echo "✓ Template validation completed"
+else ifeq ($(ARG2),ingress)
+	@echo "Rendering template ingress payload..."
+	@cd $(CURDIR) && python3 templates/tools/render_ingress_payload.py $(or $(ARG3),$(TL_TEMPLATE)) $(if $(TL_VALUES),--values $(TL_VALUES),)
+	@echo "✓ Template ingress payload rendered"
+else ifeq ($(ARG2),verify)
+	@echo "Running template verify flow..."
+	@$(MAKE) tl validate $(ARG3)
+	@$(MAKE) tl ingress $(or $(ARG3),wordpress)
+	@echo "✓ Template verify flow completed"
+else
+	@echo ""
+	@printf "\033[1mTemplate Tooling Commands\033[0m\n"
+	@echo "========================="
+	@echo ""
+	@echo "  make tl validate" 
+	@echo "  make tl validate wordpress"
+	@echo "  make tl ingress"
+	@echo "  make tl ingress wordpress"
+	@echo "  make tl ingress wordpress TL_VALUES=templates/tests/examples/wordpress.values.json"
+	@echo "  make tl verify"
+	@echo "  make tl verify wordpress"
+	@echo ""
+endif
 
 # ============================================================
 # Testing & Quality

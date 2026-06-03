@@ -696,6 +696,52 @@ paths:
       tags: [Actions]
       summary: Get actions
       operationId: get_api_actions
+      parameters:
+        - name: appId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: excludeServer
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: excludeSource
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: excludeStatus
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: perPage
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: sortDir
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: sortField
+          in: query
+          required: false
+          schema:
+            type: string
       security:
         - bearerAuth: []  # superuser required
       responses:
@@ -895,6 +941,58 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
+  /api/actions/install/template:
+    post:
+      tags: [Actions]
+      summary: Create or execute actions install template
+      operationId: post_api_actions_install_template
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/actions/install/template/check:
+    post:
+      tags: [Actions]
+      summary: Create or execute actions install template check
+      operationId: post_api_actions_install_template_check
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/actions/{id}:
     delete:
       tags: [Actions]
@@ -2797,6 +2895,32 @@ paths:
       tags: [Catalog]
       summary: Get catalog apps by key deploy source
       operationId: get_api_catalog_apps_key_deploy-source
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/catalog/apps/{key}/template:
+    get:
+      tags: [Catalog]
+      summary: Get catalog apps by key template
+      operationId: get_api_catalog_apps_key_template
       parameters:
         - name: key
           in: path

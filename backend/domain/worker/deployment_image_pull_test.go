@@ -1,0 +1,120 @@
+package worker
+
+import (
+	"context"
+	"errors"
+	"reflect"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/websoft9/appos/backend/domain/config/sysconfig"
+)
+
+type fakeDeploymentImageClient struct {
+	inspectErr map[string]error
+	pullErr    map[string]error
+	pulls      []string
+	tags       [][2]string
+	blockPull  bool
+}
+
+func (f *fakeDeploymentImageClient) ImageInspect(_ context.Context, id string) (string, error) {
+	if err, ok := f.inspectErr[id]; ok {
+		return "", err
+	}
+	return "[]", nil
+}
+
+func (f *fakeDeploymentImageClient) ImagePull(ctx context.Context, name string) (string, error) {
+	f.pulls = append(f.pulls, name)
+	if f.blockPull {
+		<-ctx.Done()
+		return "", ctx.Err()
+	}
+	if err, ok := f.pullErr[name]; ok {
+		return "", err
+	}
+	return "ok", nil
+}
+
+func (f *fakeDeploymentImageClient) ImageTag(_ context.Context, sourceRef string, targetRef string) (string, error) {
+	f.tags = append(f.tags, [2]string{sourceRef, targetRef})
+	return "ok", nil
+}
+
+func TestBuildMirroredImageReference(t *testing.T) {
+	tests := []struct {
+		name   string
+		image  string
+		mirror string
+		want   string
+		ok     bool
+	}{
+		{name: "docker hub implicit library", image: "nginx:alpine", mirror: "mirror.example.com", want: "mirror.example.com/library/nginx:alpine", ok: true},
+		{name: "docker hub namespaced", image: "bitnami/wordpress:6", mirror: "mirror.example.com", want: "mirror.example.com/bitnami/wordpress:6", ok: true},
+		{name: "explicit registry", image: "ghcr.io/org/app:1.0", mirror: "mirror.example.com", want: "mirror.example.com/ghcr.io/org/app:1.0", ok: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := buildMirroredImageReference(tc.image, tc.mirror)
+			if ok != tc.ok || got != tc.want {
+				t.Fatalf("buildMirroredImageReference(%q, %q) = (%q, %v), want (%q, %v)", tc.image, tc.mirror, got, ok, tc.want, tc.ok)
+			}
+		})
+	}
+}
+
+func TestPrepareDeploymentImagesFallsBackToMirrorAndTagsOriginal(t *testing.T) {
+	app := newWorkerTestApp(t)
+	if err := sysconfig.SetGroup(app, "docker", "mirror", map[string]any{
+		"mirrors":                 []any{"mirror.example.com"},
+		"allowInsecureRegistries": false,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	client := &fakeDeploymentImageClient{
+		inspectErr: map[string]error{"nginx:alpine": errors.New("missing")},
+		pullErr:    map[string]error{"nginx:alpine": errors.New("network unreachable")},
+	}
+
+	err := prepareDeploymentImages(context.Background(), app, client, "services:\n  web:\n    image: nginx:alpine\n", func(string) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(client.pulls, []string{"nginx:alpine", "mirror.example.com/library/nginx:alpine"}) {
+		t.Fatalf("unexpected pull order: %#v", client.pulls)
+	}
+	if !reflect.DeepEqual(client.tags, [][2]string{{"mirror.example.com/library/nginx:alpine", "nginx:alpine"}}) {
+		t.Fatalf("unexpected tag operations: %#v", client.tags)
+	}
+}
+
+func TestPrepareDeploymentImagesTimesOutPull(t *testing.T) {
+	oldTimeout := deploymentImagePullTimeout
+	deploymentImagePullTimeout = 10 * time.Millisecond
+	defer func() { deploymentImagePullTimeout = oldTimeout }()
+
+	app := newWorkerTestApp(t)
+	if err := sysconfig.SetGroup(app, "docker", "mirror", map[string]any{
+		"mirrors":                 []any{},
+		"allowInsecureRegistries": false,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	client := &fakeDeploymentImageClient{
+		inspectErr: map[string]error{"nginx:alpine": errors.New("missing")},
+		blockPull:  true,
+	}
+
+	err := prepareDeploymentImages(context.Background(), app, client, "services:\n  web:\n    image: nginx:alpine\n", func(string) {})
+	if err == nil {
+		t.Fatal("expected timeout error")
+	}
+	if got := err.Error(); !strings.Contains(got, "timed out pulling image nginx:alpine") {
+		t.Fatalf("expected timeout error, got %q", got)
+	}
+}

@@ -15,6 +15,7 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
+	appcatalog "github.com/websoft9/appos/backend/domain/catalog"
 	"github.com/websoft9/appos/backend/domain/audit"
 	"github.com/websoft9/appos/backend/domain/deploy"
 	"github.com/websoft9/appos/backend/domain/iac"
@@ -83,6 +84,8 @@ func handleAppInstanceList(e *core.RequestEvent) error {
 
 	runtimeByServer := map[string]map[string]string{}
 	runtimeErrByServer := map[string]string{}
+	catalogIconByKey := appCatalogIconIndex()
+	serverNameByID := map[string]string{"local": "Local"}
 	for _, record := range records {
 		serverID := normalizeAppServerID(record.GetString("server_id"))
 		if _, ok := runtimeByServer[serverID]; ok || runtimeErrByServer[serverID] != "" {
@@ -95,11 +98,18 @@ func handleAppInstanceList(e *core.RequestEvent) error {
 		}
 		runtimeByServer[serverID] = index
 	}
+	for _, record := range records {
+		serverID := normalizeAppServerID(record.GetString("server_id"))
+		if _, ok := serverNameByID[serverID]; ok {
+			continue
+		}
+		serverNameByID[serverID] = appServerName(e.App, serverID)
+	}
 
 	result := make([]map[string]any, 0, len(records))
 	for _, record := range records {
 		serverID := normalizeAppServerID(record.GetString("server_id"))
-		result = append(result, appInstanceResponse(e.App, record, runtimeByServer[serverID], runtimeErrByServer[serverID]))
+		result = append(result, appInstanceResponse(e.App, record, runtimeByServer[serverID], runtimeErrByServer[serverID], catalogIconByKey, serverNameByID[serverID]))
 	}
 
 	sort.SliceStable(result, func(i, j int) bool {
@@ -132,7 +142,7 @@ func handleAppInstanceDetail(e *core.RequestEvent) error {
 		runtimeReason = runtimeErr.Error()
 	}
 
-	return e.JSON(http.StatusOK, appInstanceResponse(e.App, record, runtimeIndex, runtimeReason))
+	return e.JSON(http.StatusOK, appInstanceResponse(e.App, record, runtimeIndex, runtimeReason, appCatalogIconIndex(), appServerName(e.App, serverID)))
 }
 
 // @Summary Get app logs
@@ -594,8 +604,9 @@ func findAppInstance(e *core.RequestEvent, id string) (*core.Record, error) {
 	return record, nil
 }
 
-func appInstanceResponse(app core.App, record *core.Record, runtimeIndex map[string]string, runtimeReason string) map[string]any {
+func appInstanceResponse(app core.App, record *core.Record, runtimeIndex map[string]string, runtimeReason string, catalogIconByKey map[string]string, serverName string) map[string]any {
 	name := record.GetString("name")
+	serverID := normalizeAppServerID(record.GetString("server_id"))
 	runtimeContext, _ := resolveAppRuntimeContext(app, record)
 	currentPipeline, _ := appCurrentPipelineResponse(app, record)
 	runtimeStatus := appRuntimeStatus(record)
@@ -612,7 +623,8 @@ func appInstanceResponse(app core.App, record *core.Record, runtimeIndex map[str
 	result := map[string]any{
 		"id":                      record.Id,
 		"iac_path":                appInstanceIACPath(record.Id, name),
-		"server_id":               normalizeAppServerID(record.GetString("server_id")),
+		"server_id":               serverID,
+		"server_name":             serverName,
 		"name":                    name,
 		"project_dir":             runtimeContext.ProjectDir,
 		"source":                  runtimeContext.Source,
@@ -633,12 +645,46 @@ func appInstanceResponse(app core.App, record *core.Record, runtimeIndex map[str
 	}
 	if catalogAppKey := appInstanceCatalogAppKey(app, record); catalogAppKey != "" {
 		result["catalog_app_key"] = catalogAppKey
+		if iconURL := strings.TrimSpace(catalogIconByKey[catalogAppKey]); iconURL != "" {
+			result["template_icon_url"] = iconURL
+		}
 	}
 	if strings.TrimSpace(runtimeReason) != "" && runtimeStatus == "unknown" {
 		result["runtime_reason"] = runtimeReason
 	}
 	if value := record.GetDateTime("installed_at"); !value.IsZero() {
 		result["installed_at"] = value.String()
+	}
+	return result
+}
+
+func appServerName(app core.App, serverID string) string {
+	if serverID == "" || serverID == "local" {
+		return "Local"
+	}
+	server, err := app.FindRecordById("servers", serverID)
+	if err != nil {
+		return serverID
+	}
+	if name := strings.TrimSpace(server.GetString("name")); name != "" {
+		return name
+	}
+	return serverID
+}
+
+func appCatalogIconIndex() map[string]string {
+	bundle, err := appcatalog.LoadBundle("en")
+	if err != nil || bundle == nil {
+		return map[string]string{}
+	}
+	result := make(map[string]string, len(bundle.Products))
+	for _, product := range bundle.Products {
+		key := strings.TrimSpace(product.Key)
+		iconURL := strings.TrimSpace(product.Logo.ImageURL)
+		if key == "" || iconURL == "" {
+			continue
+		}
+		result[key] = iconURL
 	}
 	return result
 }

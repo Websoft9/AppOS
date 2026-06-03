@@ -11,6 +11,7 @@ import (
 
 	"github.com/hibiken/asynq"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/types"
 	"github.com/websoft9/appos/backend/domain/audit"
 	"github.com/websoft9/appos/backend/domain/deploy"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
@@ -23,6 +24,7 @@ import (
 const (
 	TaskRunOperation           = "lifecycle:run_operation"
 	lifecycleSchedulerInterval = 2 * time.Second
+	defaultLifecycleOperationTimeout = 45 * time.Minute
 )
 
 type RunOperationPayload struct {
@@ -33,6 +35,30 @@ type lifecycleExecutionContext struct {
 	*orchestration.ExecutionContext
 	executor lifecycleruntime.Executor
 	docker   *docker.Client
+}
+
+type proxyAwareOperationExecutor struct {
+	base     lifecycleruntime.Executor
+	proxyEnv map[string]string
+}
+
+func (e proxyAwareOperationExecutor) PrepareWorkspace(projectDir string, compose string) error {
+	return e.base.PrepareWorkspace(projectDir, compose)
+}
+
+func (e proxyAwareOperationExecutor) DockerClient() (*docker.Client, error) {
+	client, err := e.base.DockerClient()
+	if err != nil {
+		return nil, err
+	}
+	if client != nil {
+		client.SetProxyEnv(e.proxyEnv)
+	}
+	return client, nil
+}
+
+func (e proxyAwareOperationExecutor) Name() string {
+	return e.base.Name()
 }
 
 var errOperationCancelled = errors.New("operation cancelled")
@@ -164,6 +190,11 @@ func (w *Worker) recoverOrphanedOperations() error {
 	}
 
 	for _, record := range records {
+		if repaired, err := reconcileTerminalPipelineOperation(w.app, record); err != nil {
+			return err
+		} else if repaired {
+			continue
+		}
 		if err := w.markOrphanedOperationFailed(record.Id); err != nil {
 			return err
 		}
@@ -173,43 +204,134 @@ func (w *Worker) recoverOrphanedOperations() error {
 }
 
 func (w *Worker) markOrphanedOperationFailed(operationID string) error {
-	ctx, err := w.loadLifecycleExecutionContext(operationID)
-	if err != nil {
-		return err
-	}
-
-	now := time.Now()
-	appendOperationLog(w.app, ctx.Operation, "worker startup detected orphaned operation")
-	for _, nodeRun := range ctx.NodeRuns {
-		if nodeRun.GetString("status") != "running" {
-			continue
-		}
-		nodeRun.Set("status", "failed")
-		nodeRun.Set("error_message", "operation orphaned after worker restart")
-		nodeRun.Set("ended_at", now)
-		if err := w.app.Save(nodeRun); err != nil {
+	return w.app.RunInTransaction(func(txApp core.App) error {
+		ctx, err := orchestration.LoadExecutionContext(txApp, operationID)
+		if err != nil {
 			return err
 		}
-		ctx.Pipeline.Set("failed_node_key", nodeRun.GetString("node_key"))
+
+		now := time.Now()
+		appendOperationLog(txApp, ctx.Operation, "worker startup detected orphaned operation")
+		for _, nodeRun := range ctx.NodeRuns {
+			if nodeRun.GetString("status") != "running" {
+				continue
+			}
+			nodeRun.Set("status", "failed")
+			nodeRun.Set("error_message", "operation orphaned after worker restart")
+			nodeRun.Set("ended_at", now)
+			if err := txApp.Save(nodeRun); err != nil {
+				return err
+			}
+			ctx.Pipeline.Set("failed_node_key", nodeRun.GetString("node_key"))
+		}
+
+		ctx.Pipeline.Set("status", "failed")
+		ctx.Pipeline.Set("ended_at", now)
+		if err := txApp.Save(ctx.Pipeline); err != nil {
+			return err
+		}
+
+		ctx.Operation.Set("terminal_status", "failed")
+		ctx.Operation.Set("failure_reason", "unknown")
+		ctx.Operation.Set("app_outcome", operationFailureOutcome(ctx.AppRecord))
+		ctx.Operation.Set("error_message", "operation orphaned after worker restart")
+		ctx.Operation.Set("ended_at", now)
+		if err := txApp.Save(ctx.Operation); err != nil {
+			return err
+		}
+
+		projection.ApplyOperationFailed(ctx.AppRecord, ctx.Operation)
+		return txApp.Save(ctx.AppRecord)
+	})
+}
+
+func reconcileTerminalPipelineOperation(app core.App, operation *core.Record) (bool, error) {
+	if operation == nil {
+		return false, nil
+	}
+	if strings.TrimSpace(operation.GetString("terminal_status")) != "" {
+		return false, nil
+	}
+	pipelineRunID := strings.TrimSpace(operation.GetString("pipeline_run"))
+	if pipelineRunID == "" {
+		return false, nil
 	}
 
-	ctx.Pipeline.Set("status", "failed")
-	ctx.Pipeline.Set("ended_at", now)
-	if err := w.app.Save(ctx.Pipeline); err != nil {
-		return err
+	pipelineRun, err := app.FindRecordById("pipeline_runs", pipelineRunID)
+	if err != nil {
+		return false, nil
 	}
 
-	ctx.Operation.Set("terminal_status", "failed")
-	ctx.Operation.Set("failure_reason", "unknown")
-	ctx.Operation.Set("app_outcome", operationFailureOutcome(ctx.AppRecord))
-	ctx.Operation.Set("error_message", "operation orphaned after worker restart")
-	ctx.Operation.Set("ended_at", now)
-	if err := w.app.Save(ctx.Operation); err != nil {
-		return err
+	status := strings.TrimSpace(pipelineRun.GetString("status"))
+	if status != "failed" && status != "cancelled" {
+		return false, nil
 	}
 
-	projection.ApplyOperationFailed(ctx.AppRecord, ctx.Operation)
-	return w.app.Save(ctx.AppRecord)
+	endedAt := pipelineRun.GetDateTime("ended_at")
+	if endedAt.IsZero() {
+		endedAt = types.NowDateTime()
+	}
+
+	message := "operation reconciled from terminal pipeline state"
+	if status == "failed" {
+		message = "operation failed after pipeline entered terminal failed state"
+	} else {
+		message = "operation cancelled after pipeline entered terminal cancelled state"
+	}
+
+	nodeRuns, err := app.FindRecordsByFilter(
+		"pipeline_node_runs",
+		"pipeline_run = {:pipeline}",
+		"-updated",
+		20,
+		0,
+		map[string]any{"pipeline": pipelineRunID},
+	)
+	if err == nil {
+		for _, nodeRun := range nodeRuns {
+			nodeMessage := strings.TrimSpace(nodeRun.GetString("error_message"))
+			if nodeMessage != "" {
+				message = nodeMessage
+				break
+			}
+		}
+	}
+
+	operation.Set("ended_at", endedAt)
+	operation.Set("error_message", message)
+	if status == "cancelled" {
+		operation.Set("terminal_status", "cancelled")
+		operation.Set("failure_reason", "")
+		appendOperationLog(app, operation, "operation reconciled from cancelled pipeline state")
+	} else {
+		operation.Set("terminal_status", "failed")
+		if strings.TrimSpace(operation.GetString("failure_reason")) == "" {
+			operation.Set("failure_reason", "unknown")
+		}
+		appendOperationLog(app, operation, "operation reconciled from failed pipeline state")
+	}
+	if err := app.Save(operation); err != nil {
+		return false, err
+	}
+
+	appID := strings.TrimSpace(operation.GetString("app"))
+	if appID == "" {
+		return true, nil
+	}
+	appRecord, err := app.FindRecordById("app_instances", appID)
+	if err != nil {
+		return true, nil
+	}
+	if status == "cancelled" {
+		projection.ApplyOperationCancelled(appRecord, operation)
+	} else {
+		projection.ApplyOperationFailed(appRecord, operation)
+	}
+	if err := app.Save(appRecord); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 func (w *Worker) handleRunOperation(ctx context.Context, t *asynq.Task) error {
@@ -239,8 +361,13 @@ func (w *Worker) handleRunOperation(ctx context.Context, t *asynq.Task) error {
 		return err
 	}
 	appendOperationLog(w.app, execCtx.Operation, "job accepted by lifecycle worker")
+	runCtx, cancelRunTimeout, runTimeout := applyLifecycleOperationTimeout(ctx, execCtx.Operation)
+	defer cancelRunTimeout()
+	if runTimeout > 0 {
+		appendOperationLog(w.app, execCtx.Operation, fmt.Sprintf("operation timeout set to %s", runTimeout))
+	}
 
-	runResult, err := orchestration.Run(ctx, w.app, execCtx.ExecutionContext, orchestration.RunHooks{
+	runResult, err := orchestration.Run(runCtx, w.app, execCtx.ExecutionContext, orchestration.RunHooks{
 		ReloadOperation: func(operationID string) (*core.Record, error) {
 			return w.app.FindRecordById("app_operations", operationID)
 		},
@@ -264,6 +391,9 @@ func (w *Worker) handleRunOperation(ctx context.Context, t *asynq.Task) error {
 		},
 	})
 	if err != nil {
+		if isLifecycleOperationTimeout(err) {
+			return w.finishOperationTimedOut(execCtx, runResult.NodeRun, runResult.Node, err)
+		}
 		return w.finishOperationFailed(execCtx, runResult.NodeRun, runResult.Node, err)
 	}
 	if runResult.Cancelled {
@@ -275,6 +405,84 @@ func (w *Worker) handleRunOperation(ctx context.Context, t *asynq.Task) error {
 	}
 
 	return w.finishOperationSucceeded(execCtx)
+}
+
+func applyLifecycleOperationTimeout(ctx context.Context, operation *core.Record) (context.Context, context.CancelFunc, time.Duration) {
+	timeout := lifecycleOperationTimeout(operation)
+	if timeout <= 0 {
+		return ctx, func() {}, 0
+	}
+	wrappedCtx, cancel := context.WithTimeout(ctx, timeout)
+	return wrappedCtx, cancel, timeout
+}
+
+func lifecycleOperationTimeout(operation *core.Record) time.Duration {
+	if operation == nil {
+		return defaultLifecycleOperationTimeout
+	}
+	if timeout, ok := operationMetadataDuration(operation, "operation_timeout_seconds", time.Second); ok {
+		return timeout
+	}
+	if timeout, ok := operationMetadataDuration(operation, "operation_timeout_minutes", time.Minute); ok {
+		return timeout
+	}
+	return defaultLifecycleOperationTimeout
+}
+
+func operationMetadataDuration(operation *core.Record, key string, unit time.Duration) (time.Duration, bool) {
+	if operation == nil || strings.TrimSpace(key) == "" {
+		return 0, false
+	}
+	raw := operation.Get("spec_json")
+	spec, ok := raw.(map[string]any)
+	if !ok {
+		encoded, err := json.Marshal(raw)
+		if err != nil {
+			return 0, false
+		}
+		if err := json.Unmarshal(encoded, &spec); err != nil {
+			return 0, false
+		}
+	}
+	metadata, ok := spec["metadata"].(map[string]any)
+	if !ok {
+		return 0, false
+	}
+	value, ok := metadata[key]
+	if !ok {
+		return 0, false
+	}
+	seconds, ok := numericDurationValue(value)
+	if !ok || seconds <= 0 {
+		return 0, false
+	}
+	return time.Duration(seconds) * unit, true
+}
+
+func numericDurationValue(value any) (int64, bool) {
+	switch typed := value.(type) {
+	case int:
+		return int64(typed), true
+	case int32:
+		return int64(typed), true
+	case int64:
+		return typed, true
+	case float64:
+		return int64(typed), true
+	case json.Number:
+		parsed, err := typed.Int64()
+		return parsed, err == nil
+	case string:
+		parsed, err := time.ParseDuration(strings.TrimSpace(typed))
+		if err == nil {
+			return int64(parsed / time.Second), true
+		}
+	}
+	return 0, false
+}
+
+func isLifecycleOperationTimeout(err error) bool {
+	return errors.Is(err, context.DeadlineExceeded)
 }
 
 func (w *Worker) claimQueuedOperation(operationID string) (*core.Record, error) {
@@ -307,7 +515,17 @@ func (w *Worker) claimQueuedOperation(operationID string) (*core.Record, error) 
 		if err != nil {
 			return err
 		}
-		if len(activeRecords) > 0 {
+		blockingActiveRecord := false
+		for _, activeRecord := range activeRecords {
+			if repaired, err := reconcileTerminalPipelineOperation(txApp, activeRecord); err != nil {
+				return err
+			} else if repaired {
+				continue
+			}
+			blockingActiveRecord = true
+			break
+		}
+		if blockingActiveRecord {
 			claimed = nil
 			return nil
 		}
@@ -618,6 +836,62 @@ func (w *Worker) finishOperationFailed(execCtx *lifecycleExecutionContext, nodeR
 	return runErr
 }
 
+func (w *Worker) finishOperationTimedOut(execCtx *lifecycleExecutionContext, nodeRun *core.Record, node model.NodeDefinition, runErr error) error {
+	now := time.Now()
+	message := strings.TrimSpace(runErr.Error())
+	if message == "" {
+		message = "operation timed out"
+	}
+
+	if nodeRun != nil {
+		nodeRun.Set("status", "failed")
+		nodeRun.Set("error_message", message)
+		nodeRun.Set("ended_at", now)
+		if err := w.app.Save(nodeRun); err != nil {
+			return err
+		}
+	}
+
+	execCtx.Pipeline.Set("status", "failed")
+	execCtx.Pipeline.Set("failed_node_key", node.Key)
+	execCtx.Pipeline.Set("ended_at", now)
+	if err := w.app.Save(execCtx.Pipeline); err != nil {
+		return err
+	}
+
+	execCtx.Operation.Set("terminal_status", "failed")
+	execCtx.Operation.Set("failure_reason", "timeout")
+	execCtx.Operation.Set("app_outcome", operationFailureOutcome(execCtx.AppRecord))
+	execCtx.Operation.Set("error_message", message)
+	execCtx.Operation.Set("ended_at", now)
+	if err := w.app.Save(execCtx.Operation); err != nil {
+		return err
+	}
+
+	projection.ApplyOperationFailed(execCtx.AppRecord, execCtx.Operation)
+	if err := w.app.Save(execCtx.AppRecord); err != nil {
+		return err
+	}
+
+	appendOperationLog(w.app, execCtx.Operation, "operation timed out: "+message)
+	userID, userEmail := w.operationActor(execCtx.Operation)
+	audit.Write(w.app, audit.Entry{
+		UserID:       userID,
+		UserEmail:    userEmail,
+		Action:       "operation.run",
+		ResourceType: "app_operation",
+		ResourceID:   execCtx.Operation.Id,
+		ResourceName: execCtx.Operation.GetString("compose_project_name"),
+		Status:       audit.StatusFailed,
+		Detail: map[string]any{
+			"errorMessage": message,
+			"failedNode":   node.Key,
+			"failureKind":  "timeout",
+		},
+	})
+	return runErr
+}
+
 func (w *Worker) finishOperationCancelled(execCtx *lifecycleExecutionContext, nodeRun *core.Record, message string) error {
 	now := time.Now()
 	if strings.TrimSpace(message) == "" {
@@ -739,7 +1013,10 @@ func (w *Worker) createReleaseBaseline(execCtx *lifecycleExecutionContext, now t
 
 func (w *Worker) executorFor(execCtx *lifecycleExecutionContext) lifecycleruntime.Executor {
 	if execCtx.executor == nil {
-		execCtx.executor = operationExecutorFactory(w.app, normalizeDeployServerID(execCtx.Operation.GetString("server_id")))
+		execCtx.executor = proxyAwareOperationExecutor{
+			base:     operationExecutorFactory(w.app, normalizeDeployServerID(execCtx.Operation.GetString("server_id"))),
+			proxyEnv: loadWorkerDockerProxyEnv(w.app),
+		}
 	}
 	return execCtx.executor
 }

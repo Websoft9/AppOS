@@ -83,6 +83,14 @@ export type ActionRecord = {
   steps?: ActionStep[]
 }
 
+export type ActionListResponse = {
+  items: ActionRecord[]
+  page: number
+  perPage: number
+  totalItems: number
+  totalPages: number
+}
+
 export type ActionLogsResponse = {
   id: string
   status: string
@@ -116,6 +124,7 @@ export type ManualEntryMode =
 export type CreateDeploymentEntryMode =
   | 'compose'
   | 'git-compose'
+  | 'template'
   | 'docker-command'
   | 'install-script'
 export type StoreShortcut = Pick<Product, 'key' | 'trademark' | 'logo'>

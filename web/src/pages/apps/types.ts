@@ -51,7 +51,9 @@ export type AppInstance = {
   id: string
   iac_path?: string
   catalog_app_key?: string
+  template_icon_url?: string
   server_id: string
+  server_name?: string
   name: string
   project_dir: string
   source: string

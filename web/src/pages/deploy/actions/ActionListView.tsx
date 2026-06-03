@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, Filter, Search, Trash2, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Filter, Search, Settings2, Trash2, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -6,6 +6,9 @@ import { Input } from '@/components/ui/input'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -224,16 +227,77 @@ export function ActionListView<TOperation extends ActionListItem>({
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={event => onSearchChange(event.target.value)}
-            placeholder="Search actions..."
-            className="w-full min-w-[220px] pl-9 lg:w-[280px]"
-          />
+        <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="text-sm text-muted-foreground">
+            Total: <span className="font-semibold text-foreground">{summary.total}</span>, Active (
+            <span className="font-semibold text-sky-600 dark:text-sky-400">{summary.active}</span>
+            ), Completed (
+            <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+              {summary.completed}
+            </span>
+            ), Failed (
+            <span className="font-semibold text-rose-600 dark:text-rose-400">{summary.failed}</span>
+            )
+          </div>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={event => onSearchChange(event.target.value)}
+              placeholder="Search actions..."
+              className="w-full min-w-[220px] pl-9 lg:w-[280px]"
+            />
+          </div>
         </div>
         <div className="flex items-center gap-2 self-start lg:self-auto">
+          <div className="inline-flex items-center gap-0.5 rounded-full border bg-background px-1 py-0.5 text-sm text-muted-foreground shadow-sm">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-full"
+              disabled={page <= 1}
+              onClick={onPreviousPage}
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="px-0.5 text-center font-mono text-xs text-foreground">&lt;{page}/{totalPages}&gt;</span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-full"
+              disabled={page >= totalPages}
+              onClick={onNextPage}
+              aria-label="Next page"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 rounded-full"
+                aria-label="List settings"
+              >
+                <Settings2 className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuLabel>Items per page</DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                value={String(pageSize)}
+                onValueChange={value => onPageSizeChange(Number(value))}
+              >
+                {pageSizeOptions.map(option => (
+                  <DropdownMenuRadioItem key={option} value={String(option)}>
+                    {option} / page
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {selectedCount > 0 ? (
             <Button
               variant="destructive"
@@ -405,38 +469,6 @@ export function ActionListView<TOperation extends ActionListItem>({
             )}
           </TableBody>
         </Table>
-      </div>
-
-      <div className="flex flex-col gap-3 text-sm lg:flex-row lg:items-center lg:justify-between">
-        <div className="text-muted-foreground">
-          Total: <span className="font-semibold text-foreground">{summary.total}</span>, Active (
-          <span className="font-semibold text-sky-600 dark:text-sky-400">{summary.active}</span>),
-          Completed (
-          <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-            {summary.completed}
-          </span>
-          ), Failed (
-          <span className="font-semibold text-rose-600 dark:text-rose-400">{summary.failed}</span>)
-        </div>
-        <div className="flex items-center gap-2 self-start lg:self-auto">
-          <select
-            className="border-input bg-background h-8 rounded-md border px-2 text-sm"
-            value={pageSize}
-            onChange={event => onPageSizeChange(Number(event.target.value))}
-          >
-            {pageSizeOptions.map(option => (
-              <option key={option} value={option}>
-                {option} / page
-              </option>
-            ))}
-          </select>
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={onPreviousPage}>
-            Previous
-          </Button>
-          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={onNextPage}>
-            Next
-          </Button>
-        </div>
       </div>
     </div>
   )

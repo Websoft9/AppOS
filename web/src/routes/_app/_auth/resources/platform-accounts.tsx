@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { ResourcePage, type Column, type FieldDef } from '@/components/resources/ResourcePage'
 import { pb } from '@/lib/pb'
@@ -35,6 +36,8 @@ type ProviderAccountTemplate = {
   fields?: ProviderAccountTemplateField[]
 }
 
+type Translate = (key: string, options?: Record<string, unknown>) => string
+
 const CATEGORY_LABELS: Record<string, string> = {
   cloud: 'Cloud Platforms',
   'developer-platform': 'Developer Platforms',
@@ -57,13 +60,19 @@ function normalizeTemplateFieldDefault(field: ProviderAccountTemplateField) {
   return field.default
 }
 
-function kindLabel(kind: string) {
-  return KIND_LABELS[kind] ?? kind.charAt(0).toUpperCase() + kind.slice(1)
+function kindLabel(kind: string, t: Translate) {
+  const normalized = String(kind).trim().toLowerCase()
+  if (KIND_LABELS[normalized]) {
+    return t(`platformAccounts.kinds.${normalized}`)
+  }
+  return normalized
+    ? normalized.charAt(0).toUpperCase() + normalized.slice(1)
+    : t('platformAccounts.kinds.unknown')
 }
 
-function isGenericTemplate(template: ProviderAccountTemplate) {
+function isGenericTemplate(template: ProviderAccountTemplate, t: Translate) {
   const normalizedTitle = template.title.trim().toLowerCase()
-  const genericTitle = `${kindLabel(template.kind).toLowerCase()} account`
+  const genericTitle = `${kindLabel(template.kind, t).toLowerCase()} account`
   return (
     template.id.startsWith('generic-') ||
     normalizedTitle.includes('generic') ||
@@ -71,25 +80,32 @@ function isGenericTemplate(template: ProviderAccountTemplate) {
   )
 }
 
-function productTitle(template: ProviderAccountTemplate) {
-  return isGenericTemplate(template) ? kindLabel(template.kind) : template.title
+function productTitle(template: ProviderAccountTemplate, t: Translate) {
+  return isGenericTemplate(template, t) ? kindLabel(template.kind, t) : template.title
 }
 
-function categoryLabel(category?: string) {
-  return CATEGORY_LABELS[String(category ?? '')] ?? 'Other'
+function categoryLabel(category: string | undefined, t: Translate) {
+  const normalized = String(category ?? '').trim().toLowerCase()
+  if (CATEGORY_LABELS[normalized]) {
+    return t(`platformAccounts.categories.${normalized}`)
+  }
+  return t('platformAccounts.categories.other')
 }
 
-function productMeta(template: ProviderAccountTemplate) {
-  return [categoryLabel(template.category), template.vendor].filter(Boolean).join(' · ')
+function productMeta(template: ProviderAccountTemplate, t: Translate) {
+  return [categoryLabel(template.category, t), template.vendor].filter(Boolean).join(' · ')
 }
 
-function productDescription(template: ProviderAccountTemplate) {
-  if (isGenericTemplate(template)) {
-    return 'Standard template'
+function productDescription(template: ProviderAccountTemplate, t: Translate) {
+  if (isGenericTemplate(template, t)) {
+    return t('platformAccounts.product.standardTemplate')
   }
   return (
     template.description ||
-    `${template.vendor ? `${template.vendor} ` : ''}${categoryLabel(template.category).toLowerCase()} profile.`
+    t('platformAccounts.product.profileDescription', {
+      vendorPrefix: template.vendor ? `${template.vendor} ` : '',
+      category: categoryLabel(template.category, t).toLowerCase(),
+    })
   )
 }
 
@@ -142,7 +158,8 @@ async function buildProviderAccountPayload(
 
 function mapProviderAccountRow(
   item: ProviderAccountRecord,
-  templatesById: Map<string, ProviderAccountTemplate>
+  templatesById: Map<string, ProviderAccountTemplate>,
+  t: Translate
 ): Record<string, unknown> {
   const template = templatesById.get(String(item.template_id ?? ''))
   const flattenedConfig: Record<string, unknown> = {}
@@ -162,7 +179,7 @@ function mapProviderAccountRow(
     id: item.id,
     name: String(item.name ?? ''),
     kind: String(item.kind ?? ''),
-    kind_label: kindLabel(String(item.kind ?? '')),
+    kind_label: kindLabel(String(item.kind ?? ''), t),
     template_id: String(item.template_id ?? ''),
     profile: template?.title ?? String(item.template_id ?? ''),
     identifier: String(item.identifier ?? ''),
@@ -172,18 +189,21 @@ function mapProviderAccountRow(
   }
 }
 
-const columns: Column[] = [
-  { key: 'name', label: 'Name' },
-  {
-    key: 'kind_label',
-    label: 'Platform',
-    render: value => <Badge variant="outline">{String(value || '—')}</Badge>,
-  },
-  { key: 'profile', label: 'Profile' },
-  { key: 'identifier', label: 'Identifier' },
-]
+function buildColumns(t: Translate): Column[] {
+  return [
+    { key: 'name', label: t('platformAccounts.columns.name') },
+    {
+      key: 'kind_label',
+      label: t('platformAccounts.columns.platform'),
+      render: value => <Badge variant="outline">{String(value || '—')}</Badge>,
+    },
+    { key: 'profile', label: t('platformAccounts.columns.profile') },
+    { key: 'identifier', label: t('platformAccounts.columns.identifier') },
+  ]
+}
 
 export function PlatformAccountsPage() {
+  const { t } = useTranslation('resources')
   const autoCreate = new URLSearchParams(window.location.search).get('create') === '1'
   const [providerAccountTemplates, setProviderAccountTemplates] = useState<
     ProviderAccountTemplate[]
@@ -212,54 +232,64 @@ export function PlatformAccountsPage() {
       [
         {
           key: 'kind',
-          label: 'Platform',
+          label: t('platformAccounts.fields.platform'),
           type: 'text',
           hidden: true,
           defaultValue: selectedTemplate?.kind ?? '',
         },
         {
           key: 'template_id',
-          label: 'Template',
+          label: t('platformAccounts.fields.template'),
           type: 'text',
           hidden: true,
           defaultValue: selectedTemplate?.id ?? '',
         },
         {
           key: 'selected_product',
-          label: 'Selected Product',
+          label: t('platformAccounts.fields.selectedProduct'),
           type: 'text',
           hidden: true,
           readOnly: true,
-          defaultValue: selectedTemplate ? productTitle(selectedTemplate) : '',
+          defaultValue: selectedTemplate ? productTitle(selectedTemplate, t) : '',
         },
         {
           key: 'selected_product_meta',
-          label: 'Selected Product Meta',
+          label: t('platformAccounts.fields.selectedProductMeta'),
           type: 'text',
           hidden: true,
           readOnly: true,
-          defaultValue: selectedTemplate ? productMeta(selectedTemplate) : '',
+          defaultValue: selectedTemplate ? productMeta(selectedTemplate, t) : '',
         },
         {
           key: 'selected_product_description',
-          label: 'Selected Product Description',
+          label: t('platformAccounts.fields.selectedProductDescription'),
           type: 'text',
           hidden: true,
           readOnly: true,
-          defaultValue: selectedTemplate ? productDescription(selectedTemplate) : '',
+          defaultValue: selectedTemplate ? productDescription(selectedTemplate, t) : '',
         },
-        { key: 'name', label: 'Name', type: 'text', required: true, placeholder: 'aws-prod' },
+        {
+          key: 'name',
+          label: t('platformAccounts.fields.name'),
+          type: 'text',
+          required: true,
+          placeholder: t('platformAccounts.placeholders.name'),
+        },
         {
           key: 'credential',
-          label: 'Credential',
+          label: t('platformAccounts.fields.credential'),
           type: 'relation',
           relationApiPath: '/api/collections/secrets/records?perPage=500&sort=name',
           relationLabelKey: 'name',
         },
-        { key: 'description', label: 'Description', type: 'textarea' },
+        {
+          key: 'description',
+          label: t('platformAccounts.fields.description'),
+          type: 'textarea',
+        },
         {
           key: 'groups',
-          label: 'Groups',
+          label: t('platformAccounts.fields.groups'),
           type: 'relation',
           multiSelect: true,
           relationAutoSelectDefault: true,
@@ -268,30 +298,30 @@ export function PlatformAccountsPage() {
           defaultValue: [],
         },
       ] satisfies FieldDef[],
-    []
+    [t]
   )
 
   const productOptions = useMemo(
     () =>
       [...providerAccountTemplates]
         .sort((left, right) => {
-          const genericCompare = Number(isGenericTemplate(right)) - Number(isGenericTemplate(left))
+          const genericCompare = Number(isGenericTemplate(right, t)) - Number(isGenericTemplate(left, t))
           if (genericCompare !== 0) return genericCompare
-          return productTitle(left).localeCompare(productTitle(right))
+          return productTitle(left, t).localeCompare(productTitle(right, t))
         })
         .map(template => ({
           id: template.id,
-          title: productTitle(template),
-          description: productDescription(template),
-          meta: productMeta(template),
+          title: productTitle(template, t),
+          description: productDescription(template, t),
+          meta: productMeta(template, t),
           searchText: [
             template.title,
             template.vendor,
             template.kind,
-            categoryLabel(template.category),
+            categoryLabel(template.category, t),
           ].join(' '),
         })),
-    [providerAccountTemplates]
+    [providerAccountTemplates, t]
   )
 
   const resolveProviderAccountFields = useCallback(
@@ -316,21 +346,22 @@ export function PlatformAccountsPage() {
   )
 
   const bootstrapFields = useMemo(() => buildBaseFields(null), [buildBaseFields])
+  const columns = useMemo(() => buildColumns(t), [t])
 
   return (
     <ResourcePage
       config={{
-        title: 'Platform Accounts',
+        title: t('platformAccounts.page.title'),
         description:
-          'AWS, Azure, Google Cloud, GitHub, Cloudflare, and similar platform identities with profile-based templates.',
+          t('platformAccounts.page.description'),
         apiPath: '/api/provider-accounts',
         columns,
         fields: bootstrapFields,
         createSelection: {
-          title: 'Choose a Product',
-          description: 'Choose a product, then enter account details.',
-          searchPlaceholder: 'Search products like AWS, GitHub, Azure, Cloudflare...',
-          emptyMessage: 'No matching products found.',
+          title: t('platformAccounts.selection.title'),
+          description: t('platformAccounts.selection.description'),
+          searchPlaceholder: t('platformAccounts.selection.searchPlaceholder'),
+          emptyMessage: t('platformAccounts.selection.emptyMessage'),
           options: productOptions,
           onSelect: optionId => {
             const selectedTemplate = templatesById.get(optionId)
@@ -339,9 +370,9 @@ export function PlatformAccountsPage() {
             const defaults: Record<string, unknown> = {
               kind: selectedTemplate.kind,
               template_id: selectedTemplate.id,
-              selected_product: productTitle(selectedTemplate),
-              selected_product_meta: productMeta(selectedTemplate),
-              selected_product_description: productDescription(selectedTemplate),
+              selected_product: productTitle(selectedTemplate, t),
+              selected_product_meta: productMeta(selectedTemplate, t),
+              selected_product_description: productDescription(selectedTemplate, t),
             }
 
             for (const field of selectedTemplate.fields ?? []) {
@@ -354,7 +385,7 @@ export function PlatformAccountsPage() {
         dialogContentClassName: 'sm:max-w-4xl',
         resolveFields: resolveProviderAccountFields,
         resourceType: 'provider_account',
-        parentNav: { label: 'Resources', href: '/resources' },
+        parentNav: { label: t('hub.title'), href: '/resources' },
         autoCreate,
         enableGroupAssign: true,
         listItems: async () => {
@@ -362,7 +393,7 @@ export function PlatformAccountsPage() {
             method: 'GET',
           })
           return Array.isArray(items)
-            ? items.map(item => mapProviderAccountRow(item, templatesById))
+            ? items.map(item => mapProviderAccountRow(item, templatesById, t))
             : []
         },
         createItem: async payload => {
@@ -371,7 +402,7 @@ export function PlatformAccountsPage() {
             method: 'POST',
             body,
           })
-          return mapProviderAccountRow(created, templatesById)
+          return mapProviderAccountRow(created, templatesById, t)
         },
         updateItem: async (id, payload) => {
           const body = await buildProviderAccountPayload(payload, templatesById)

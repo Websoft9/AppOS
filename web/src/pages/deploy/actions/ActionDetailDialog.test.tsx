@@ -205,4 +205,79 @@ describe('ActionDetailContent', () => {
     expect(screen.getByText('apps/source-build-demo:candidate')).toBeInTheDocument()
     expect(screen.getByText('web')).toBeInTheDocument()
   })
+
+  it('auto-expands the running stage and shows pull progress without a separate active panel', () => {
+    render(
+      <TooltipProvider>
+        <ActionDetailContent
+          operation={{
+            id: 'act_running_1',
+            server_id: 'srv_1',
+            server_label: 'Demo Server',
+            server_host: '10.0.0.8',
+            source: 'manualops',
+            status: 'running',
+            adapter: 'manual',
+            compose_project_name: 'ghost-prod',
+            project_dir: '/srv/ghost',
+            rendered_compose: '',
+            error_summary: '',
+            created: '2026-03-26T08:00:00Z',
+            updated: '2026-03-26T08:08:00Z',
+            started_at: '2026-03-26T08:01:00Z',
+            user_email: 'admin@example.com',
+            pipeline: {
+              id: 'pipe_running_1',
+              operation_id: 'act_running_1',
+              family: 'provision',
+              definition_key: 'provision.install.manual_compose',
+              status: 'active',
+              current_phase: 'executing',
+              selector: { operation_type: 'install', source: 'manualops', adapter: 'manual' },
+              steps: [],
+            },
+            pipeline_family: 'provision',
+            pipeline_definition_key: 'provision.install.manual_compose',
+            pipeline_selector: {
+              operation_type: 'install',
+              source: 'manualops',
+              adapter: 'manual',
+            },
+            lifecycle: [],
+            steps: [
+              {
+                key: 'pull_runtime_images',
+                label: 'Pull Runtime Images',
+                status: 'running',
+                started_at: '2026-03-26T08:06:00Z',
+                execution_log:
+                  '2026-03-26T08:06:00Z docker runtime pull: Image postgres:16 Pulling\n2026-03-26T08:06:03Z docker runtime pull: abcd1234ef56 Downloading 12.4MB\n2026-03-26T08:06:10Z docker runtime pull: abcd1234ef56 Pull complete 12.4MB',
+              },
+            ],
+          }}
+          loading={false}
+          streamStatus="live"
+          logText="2026-03-26T08:06:00Z step started: Pull Runtime Images\n2026-03-26T08:06:00Z docker runtime pull: Image postgres:16 Pulling"
+          logUpdatedAt="2026-03-26T08:08:00Z"
+          logTruncated={false}
+          logViewportRef={{ current: null }}
+          onLogScroll={vi.fn()}
+          autoScrollEnabled
+          onAutoScrollChange={vi.fn()}
+          getUserLabel={item => item.user_email || '-'}
+          getServerLabel={item => item.server_label || item.server_id}
+          getServerHost={item => item.server_host || '-'}
+          formatTime={value => value || '-'}
+          onRefresh={vi.fn()}
+        />
+      </TooltipProvider>
+    )
+
+    expect(screen.queryByText('Active Stage Log')).not.toBeInTheDocument()
+    expect(screen.getByText('Pull progress')).toBeInTheDocument()
+    expect(screen.getByText('1/1 layers complete')).toBeInTheDocument()
+    expect(screen.getByText('postgres:16: Pulling')).toBeInTheDocument()
+    expect(screen.getByText('Pull Runtime Images')).toBeInTheDocument()
+    expect(screen.getAllByText('Node execution log').length).toBeGreaterThan(0)
+  })
 })

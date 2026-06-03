@@ -173,6 +173,12 @@ func TestAppInstancesListAndDetail(t *testing.T) {
 	if items[0]["catalog_app_key"] != "demo-app-catalog" {
 		t.Fatalf("expected catalog_app_key demo-app-catalog, got %v", items[0]["catalog_app_key"])
 	}
+	if items[0]["server_name"] != "Local" {
+		t.Fatalf("expected server_name Local, got %v", items[0]["server_name"])
+	}
+	if items[0]["template_icon_url"] == "" {
+		t.Fatalf("expected template_icon_url demo-app-catalog, got %v", items[0]["template_icon_url"])
+	}
 	currentPipeline, ok := items[0]["current_pipeline"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected current_pipeline map in list, got %T", items[0]["current_pipeline"])
@@ -195,6 +201,12 @@ func TestAppInstancesListAndDetail(t *testing.T) {
 	}
 	if item["catalog_app_key"] != "demo-app-catalog" {
 		t.Fatalf("expected detail catalog_app_key demo-app-catalog, got %v", item["catalog_app_key"])
+	}
+	if item["server_name"] != "Local" {
+		t.Fatalf("expected detail server_name Local, got %v", item["server_name"])
+	}
+	if item["template_icon_url"] == "" {
+		t.Fatalf("expected detail template_icon_url demo-app-catalog, got %v", item["template_icon_url"])
 	}
 	currentPipeline, ok = item["current_pipeline"].(map[string]any)
 	if !ok {

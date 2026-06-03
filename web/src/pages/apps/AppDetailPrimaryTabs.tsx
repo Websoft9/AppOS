@@ -569,6 +569,11 @@ export function AppDetailActionsTab({
   actionsLoading,
   actionSearch,
   setActionSearch,
+  actionHistoryPage,
+  actionHistoryTotalPages,
+  actionHistoryTotalItems,
+  goToPreviousActionHistoryPage,
+  goToNextActionHistoryPage,
   actionStatusFilter,
   setActionStatusFilter,
   actionTypeFilter,
@@ -672,6 +677,32 @@ export function AppDetailActionsTab({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              {actionHistoryTotalItems > 0
+                ? `Showing page ${actionHistoryPage} of ${actionHistoryTotalPages} · ${actionHistoryTotalItems} total action records`
+                : 'No action records loaded yet.'}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={goToPreviousActionHistoryPage}
+                disabled={actionsLoading || actionHistoryPage <= 1}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={goToNextActionHistoryPage}
+                disabled={actionsLoading || actionHistoryPage >= actionHistoryTotalPages}
+              >
+                Next
+              </Button>
+            </div>
           </div>
 
           {actionsLoading && scopedActions.length === 0 ? (

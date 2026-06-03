@@ -1,5 +1,6 @@
-import { useMemo, useState, type RefObject } from 'react'
+import { useEffect, useMemo, useState, type RefObject } from 'react'
 import { AlertTriangle, ChevronDown, ChevronRight, CircleX, Copy, RefreshCw, X } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -40,6 +41,28 @@ type ActionDetailDialogProps = {
 type ActionDetailContentProps = Omit<ActionDetailDialogProps, 'open' | 'onOpenChange'>
 
 type LogPanelMode = 'error' | 'all' | null
+
+type PullLayerState = {
+  id: string
+  status: string
+  detail: string
+  updatedAt?: string
+}
+
+type PullImageState = {
+  name: string
+  status: string
+  updatedAt?: string
+}
+
+type PullProgressSnapshot = {
+  images: PullImageState[]
+  layers: PullLayerState[]
+  activeLayerCount: number
+  completedLayerCount: number
+  totalLayerCount: number
+  recentEvents: string[]
+}
 
 function stageMarker(status: string) {
   if (status === 'success') {
@@ -120,6 +143,88 @@ function OverviewField({
       <div className="text-sm text-foreground">{value}</div>
     </div>
   )
+}
+
+function stageKeyToAutoExpand(stageItems: ActionRecord['steps'] | undefined): string | null {
+  if (!stageItems || stageItems.length === 0) return null
+  const running = stageItems.find(step => step.status === 'running')
+  if (running) return running.key
+  const failed = stageItems.find(step => step.status === 'failed')
+  if (failed) return failed.key
+  for (let index = stageItems.length - 1; index >= 0; index -= 1) {
+    if (stageItems[index].status !== 'pending') return stageItems[index].key
+  }
+  return stageItems[0].key
+}
+
+function parsePullProgressSnapshot(logText: string): PullProgressSnapshot | null {
+  if (!/docker runtime pull:/i.test(logText)) return null
+
+  const imageMap = new Map<string, PullImageState>()
+  const layerMap = new Map<string, PullLayerState>()
+  const recentEvents: string[] = []
+
+  for (const rawLine of logText.split('\n')) {
+    const line = rawLine.replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\s+/, '').trim()
+    const match = line.match(/^docker runtime pull:\s+(.*)$/i)
+    if (!match) continue
+    const body = match[1].trim()
+    if (!body) continue
+
+    recentEvents.push(body)
+    if (recentEvents.length > 8) recentEvents.shift()
+
+    const imageMatch = body.match(/^Image\s+(.+?)\s+(Pulling|Pulled|Already exists|Waiting|Skipped|Error.*)$/i)
+    if (imageMatch) {
+      imageMap.set(imageMatch[1], {
+        name: imageMatch[1],
+        status: imageMatch[2],
+      })
+      continue
+    }
+
+    const layerMatch = body.match(/^([a-f0-9]{8,})\s+(.+)$/i)
+    if (!layerMatch) continue
+
+    const layerId = layerMatch[1]
+    const remainder = layerMatch[2].trim()
+    let status = remainder
+    let detail = ''
+    const detailMatch = remainder.match(/^(Pulling fs layer|Downloading|Download complete|Pull complete|Extracting|Waiting|Verifying Checksum|Already exists)(?:\s+(.*))?$/i)
+    if (detailMatch) {
+      status = detailMatch[1]
+      detail = detailMatch[2]?.trim() || ''
+    }
+
+    layerMap.set(layerId, {
+      id: layerId,
+      status,
+      detail,
+    })
+  }
+
+  if (imageMap.size === 0 && layerMap.size === 0) return null
+
+  const layers = Array.from(layerMap.values())
+  const completedLayerCount = layers.filter(layer => /pull complete|already exists/i.test(layer.status)).length
+  const activeLayerCount = layers.filter(
+    layer => !/pull complete|already exists/i.test(layer.status)
+  ).length
+
+  return {
+    images: Array.from(imageMap.values()),
+    layers,
+    activeLayerCount,
+    completedLayerCount,
+    totalLayerCount: layers.length,
+    recentEvents: recentEvents.slice().reverse(),
+  }
+}
+
+function pullStatusTone(status: string): 'default' | 'secondary' | 'outline' {
+  if (/pull complete|already exists|pulled/i.test(status)) return 'secondary'
+  if (/downloading|extracting|pulling|verifying|waiting/i.test(status)) return 'default'
+  return 'outline'
 }
 
 export function ActionDetailContent({
@@ -231,6 +336,12 @@ export function ActionDetailContent({
   const activePanelTitle = logPanelMode === 'error' ? 'Error Log' : 'All Logs'
   const activePanelEmpty =
     logPanelMode === 'error' ? 'No error lines matched the current log.' : 'No execution log yet.'
+
+  useEffect(() => {
+    const nextKey = stageKeyToAutoExpand(stageItems)
+    if (!nextKey) return
+    setExpandedStageKey(current => (current === nextKey ? current : nextKey))
+  }, [stageItems])
 
   async function copyLogs() {
     try {
@@ -431,6 +542,13 @@ export function ActionDetailContent({
                           stageFallbackLogs.get(step.key)?.join('\n') ||
                           timeWindowLogs.get(step.key)?.join('\n') ||
                           ''
+                        const pullProgress = parsePullProgressSnapshot(stageLog)
+                        const progressPercent =
+                          pullProgress && pullProgress.totalLayerCount > 0
+                            ? Math.round(
+                                (pullProgress.completedLayerCount / pullProgress.totalLayerCount) * 100
+                              )
+                            : 0
 
                         return (
                           <div key={`${step.key}-detail`} className="flex gap-3">
@@ -507,6 +625,70 @@ export function ActionDetailContent({
                                     <span>Node execution log</span>
                                     {step.execution_log_truncated ? <span>truncated</span> : null}
                                   </div>
+                                  {pullProgress ? (
+                                    <div className="rounded-xl border bg-muted/30 p-3">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <span className="text-xs font-medium text-foreground">
+                                          Pull progress
+                                        </span>
+                                        <Badge variant="outline">
+                                          {pullProgress.completedLayerCount}/{pullProgress.totalLayerCount} layers complete
+                                        </Badge>
+                                        <Badge variant="outline">
+                                          {pullProgress.activeLayerCount} active
+                                        </Badge>
+                                      </div>
+                                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+                                        <div
+                                          className="h-full rounded-full bg-sky-500 transition-all"
+                                          style={{ width: `${progressPercent}%` }}
+                                        />
+                                      </div>
+                                      {pullProgress.images.length > 0 ? (
+                                        <div className="mt-3 flex flex-wrap gap-2">
+                                          {pullProgress.images.map(image => (
+                                            <Badge
+                                              key={image.name}
+                                              variant={pullStatusTone(image.status)}
+                                            >
+                                              {image.name}: {image.status}
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                      ) : null}
+                                      {pullProgress.layers.length > 0 ? (
+                                        <div className="mt-3 space-y-2">
+                                          {pullProgress.layers.slice(-6).reverse().map(layer => (
+                                            <div
+                                              key={layer.id}
+                                              className="flex items-center justify-between gap-3 rounded-lg border bg-background/70 px-3 py-2"
+                                            >
+                                              <div className="min-w-0">
+                                                <div className="font-mono text-xs text-foreground">
+                                                  {layer.id}
+                                                </div>
+                                                <div className="text-xs text-muted-foreground">
+                                                  {layer.detail || 'waiting for next progress update'}
+                                                </div>
+                                              </div>
+                                              <Badge variant={pullStatusTone(layer.status)}>
+                                                {layer.status}
+                                              </Badge>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : null}
+                                      {pullProgress.recentEvents.length > 0 ? (
+                                        <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                                          {pullProgress.recentEvents.slice(0, 4).map(event => (
+                                            <div key={event} className="truncate">
+                                              {event}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
                                   <div className="max-h-[280px] overflow-auto rounded-xl bg-black px-3 py-2 font-mono text-[11px] leading-5 text-slate-100">
                                     <pre
                                       className={cn(

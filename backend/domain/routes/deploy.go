@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/websoft9/appos/backend/domain/apptemplates"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
@@ -32,8 +33,10 @@ func registerOperationRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	o.POST("/install/name-availability", handleOperationInstallNameAvailability)
 	o.POST("/install/git-compose", handleOperationInstallGitCompose)
 	o.POST("/install/manual-compose", handleOperationInstallManualCompose)
+	o.POST("/install/template", handleOperationInstallTemplate)
 	o.POST("/install/git-compose/check", handleOperationInstallGitComposeCheck)
 	o.POST("/install/manual-compose/check", handleOperationInstallManualComposeCheck)
+	o.POST("/install/template/check", handleOperationInstallTemplateCheck)
 
 	stream := g.Group("/actions")
 	stream.Bind(wsTokenAuth())
@@ -94,7 +97,54 @@ func handleOperationList(e *core.RequestEvent) error {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "app_operations collection not found"})
 	}
 
-	records, err := e.App.FindRecordsByFilter(col, "", "-created", 100, 0)
+	query := e.Request.URL.Query()
+	pageRaw := strings.TrimSpace(query.Get("page"))
+	perPageRaw := strings.TrimSpace(query.Get("perPage"))
+	if pageRaw != "" || perPageRaw != "" {
+		page := parsePositiveQueryInt(pageRaw, 1)
+		perPage := parsePositiveQueryInt(perPageRaw, 15)
+		if perPage > 500 {
+			perPage = 500
+		}
+
+		records, totalItems, err := listOperationRecords(e.App, col, operationListQueryOptions{
+			AppID:         strings.TrimSpace(query.Get("appId")),
+			Query:         strings.TrimSpace(query.Get("q")),
+			SortField:     strings.TrimSpace(query.Get("sortField")),
+			SortDir:       strings.TrimSpace(query.Get("sortDir")),
+			ExcludeStatus: splitOperationListCSV(query.Get("excludeStatus")),
+			ExcludeSource: splitOperationListCSV(query.Get("excludeSource")),
+			ExcludeServer: splitOperationListCSV(query.Get("excludeServer")),
+			Page:          page,
+			PerPage:       perPage,
+		})
+		if err != nil {
+			return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "failed to list operations"})
+		}
+
+		items := make([]map[string]any, 0, len(records))
+		for _, record := range records {
+			response, responseErr := operationRecordResponse(e.App, record)
+			if responseErr != nil {
+				return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "failed to build operation response"})
+			}
+			items = append(items, response)
+		}
+
+		totalPages := max(1, (totalItems+perPage-1)/perPage)
+		if page > totalPages {
+			page = totalPages
+		}
+		return e.JSON(http.StatusOK, map[string]any{
+			"items":      items,
+			"page":       page,
+			"perPage":    perPage,
+			"totalItems": totalItems,
+			"totalPages": totalPages,
+		})
+	}
+
+	records, err := e.App.FindRecordsByFilter(col, "", "-created", 0, 0)
 	if err != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "failed to list operations"})
 	}
@@ -573,6 +623,137 @@ func handleOperationInstallManualComposeCheck(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, result)
 }
 
+func handleOperationInstallTemplate(e *core.RequestEvent) error {
+	body, err := readBody(e)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "invalid request body"})
+	}
+	rendered, ingressOptions, err := renderTemplateInstall(e, body)
+	if err != nil {
+		if isOperationCreateBadRequest(err) || strings.Contains(strings.ToLower(err.Error()), "template ") {
+			return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
+		}
+		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": err.Error()})
+	}
+	result, err := createOperationFromCompose(
+		e,
+		bodyString(body, "server_id"),
+		rendered.ProjectName,
+		rendered.Compose,
+		deploy.SourceManualOps,
+		deploy.AdapterManualCompose,
+		map[string]any{
+			"template_key": rendered.TemplateKey,
+			"project_name": rendered.ProjectName,
+		},
+		operationCreateOptions{
+			OperationType:      ingressOptions.OperationType,
+			ProjectDir:         ingressOptions.ProjectDir,
+			ComposeProjectName: firstNonEmptyString(ingressOptions.ComposeProjectName, rendered.ProjectName),
+			ExposureIntent:     ingressOptions.ExposureIntent,
+			Metadata:           ingressOptions.Metadata,
+			RuntimeInputs:      ingressOptions.RuntimeInputs,
+			SourceBuild:        ingressOptions.SourceBuild,
+		},
+	)
+	if err != nil {
+		if isOperationCreateConflict(err) {
+			return e.JSON(http.StatusConflict, map[string]any{"code": 409, "message": err.Error()})
+		}
+		if isOperationCreateBadRequest(err) {
+			return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
+		}
+		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": err.Error()})
+	}
+	return e.JSON(http.StatusAccepted, result)
+}
+
+func handleOperationInstallTemplateCheck(e *core.RequestEvent) error {
+	body, err := readBody(e)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "invalid request body"})
+	}
+	rendered, ingressOptions, err := renderTemplateInstall(e, body)
+	if err != nil {
+		if isOperationCreateBadRequest(err) || strings.Contains(strings.ToLower(err.Error()), "template ") {
+			return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
+		}
+		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": err.Error()})
+	}
+	result, err := lifecyclesvc.CheckInstallFromCompose(
+		e.App,
+		lifecyclesvc.InstallPreflightRequest{InstallResolutionRequest: lifecyclesvc.BuildInstallResolutionRequest(
+			bodyString(body, "server_id"),
+			rendered.ProjectName,
+			rendered.Compose,
+			deploy.SourceManualOps,
+			deploy.AdapterManualCompose,
+			ingressOptions,
+		)},
+		newRouteInstallPreflightProbe(e),
+	)
+	if err != nil {
+		if isOperationCreateBadRequest(err) {
+			return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
+		}
+		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": err.Error()})
+	}
+	return e.JSON(http.StatusOK, result)
+}
+
+func renderTemplateInstall(e *core.RequestEvent, body map[string]any) (*apptemplates.RenderedTemplate, lifecyclesvc.InstallIngressOptions, error) {
+	serverID := bodyString(body, "server_id")
+	if serverID == "" {
+		serverID = "local"
+		body["server_id"] = serverID
+	}
+	templateKey := bodyString(body, "template_key")
+	service := apptemplates.NewService()
+	rendered, err := service.Render(e.App, apptemplates.RenderRequest{
+		TemplateKey: templateKey,
+		ProjectName: bodyString(body, "project_name"),
+		Values:      bodyMap(body, "input_values"),
+		UserID:      authRecordID(e.Auth),
+	})
+	if err != nil {
+		return nil, lifecyclesvc.InstallIngressOptions{}, err
+	}
+	metadata := copyAnyMap(rendered.Metadata)
+	ingressOptions := buildInstallIngressOptionsFromBody(e.Auth, body, metadata)
+	ingressOptions.ExposureIntent = lifecyclesvc.ParseExposureIntentMap(rendered.ExposureIntent)
+	if strings.TrimSpace(ingressOptions.ComposeProjectName) == "" {
+		ingressOptions.ComposeProjectName = rendered.ProjectName
+	}
+	return rendered, ingressOptions, nil
+}
+
+func authRecordID(record *core.Record) string {
+	if record == nil {
+		return ""
+	}
+	return strings.TrimSpace(record.Id)
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func copyAnyMap(source map[string]any) map[string]any {
+	if len(source) == 0 {
+		return nil
+	}
+	result := make(map[string]any, len(source))
+	for key, value := range source {
+		result[key] = value
+	}
+	return result
+}
+
 func buildInstallIngressOptionsFromBody(auth *core.Record, body map[string]any, baseMetadata map[string]any) lifecyclesvc.InstallIngressOptions {
 	userID := ""
 	if auth != nil {
@@ -747,6 +928,136 @@ func operationDisplayStatus(record *core.Record) string {
 	default:
 		return deploy.StatusQueued
 	}
+}
+
+type operationListQueryOptions struct {
+	AppID         string
+	Query         string
+	SortField     string
+	SortDir       string
+	ExcludeStatus []string
+	ExcludeSource []string
+	ExcludeServer []string
+	Page          int
+	PerPage       int
+}
+
+func listOperationRecords(app core.App, col *core.Collection, options operationListQueryOptions) ([]*core.Record, int, error) {
+	records, err := app.FindRecordsByFilter(col, "", operationListSortExpr(options.SortField, options.SortDir), 0, 0)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	filtered := make([]*core.Record, 0, len(records))
+	query := strings.ToLower(strings.TrimSpace(options.Query))
+	excludedStatus := sliceToSet(options.ExcludeStatus)
+	excludedSource := sliceToSet(options.ExcludeSource)
+	excludedServer := sliceToSet(options.ExcludeServer)
+	for _, record := range records {
+		if options.AppID != "" && strings.TrimSpace(record.GetString("app")) != options.AppID {
+			continue
+		}
+
+		status := operationDisplayStatus(record)
+		if _, blocked := excludedStatus[status]; blocked {
+			continue
+		}
+		source := strings.TrimSpace(record.GetString("trigger_source"))
+		if _, blocked := excludedSource[source]; blocked {
+			continue
+		}
+		serverID := normalizeOperationServerID(record.GetString("server_id"))
+		if _, blocked := excludedServer[serverID]; blocked {
+			continue
+		}
+		if query != "" && !operationRecordMatchesQuery(record, status, query) {
+			continue
+		}
+
+		filtered = append(filtered, record)
+	}
+
+	totalItems := len(filtered)
+	perPage := options.PerPage
+	if perPage <= 0 {
+		perPage = 15
+	}
+	page := options.Page
+	if page <= 0 {
+		page = 1
+	}
+	if totalItems == 0 {
+		return []*core.Record{}, 0, nil
+	}
+	totalPages := max(1, (totalItems+perPage-1)/perPage)
+	if page > totalPages {
+		page = totalPages
+	}
+	offset := (page - 1) * perPage
+	end := min(offset+perPage, totalItems)
+	return filtered[offset:end], totalItems, nil
+}
+
+func operationListSortExpr(field string, dir string) string {
+	prefix := "-"
+	if strings.EqualFold(strings.TrimSpace(dir), "asc") {
+		prefix = ""
+	}
+	switch strings.TrimSpace(field) {
+	case "compose_project_name", "created", "started_at", "finished_at":
+		return prefix + strings.TrimSpace(field)
+	default:
+		return "-created"
+	}
+}
+
+func operationRecordMatchesQuery(record *core.Record, status string, query string) bool {
+	values := []string{
+		record.Id,
+		record.GetString("compose_project_name"),
+		record.GetString("trigger_source"),
+		normalizeOperationServerID(record.GetString("server_id")),
+		status,
+	}
+	for _, value := range values {
+		if strings.Contains(strings.ToLower(strings.TrimSpace(value)), query) {
+			return true
+		}
+	}
+	return false
+}
+
+func splitOperationListCSV(raw string) []string {
+	parts := strings.Split(raw, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
+		}
+		values = append(values, trimmed)
+	}
+	return values
+}
+
+func sliceToSet(values []string) map[string]struct{} {
+	result := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		result[trimmed] = struct{}{}
+	}
+	return result
+}
+
+func normalizeOperationServerID(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "local"
+	}
+	return trimmed
 }
 
 func operationRecordResponse(app core.App, record *core.Record) (map[string]any, error) {

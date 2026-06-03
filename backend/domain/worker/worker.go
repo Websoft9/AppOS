@@ -320,6 +320,16 @@ func (w *Worker) handleDeployApp(_ context.Context, t *asynq.Task) error {
 		appendDeploymentLog(w.app, record, "failed to create docker client: "+err.Error())
 		return markDeploymentFailed(w.app, record, p, "failed to connect target docker host")
 	}
+	client.SetProxyEnv(loadWorkerDockerProxyEnv(w.app))
+	if err := prepareDeploymentImages(context.Background(), w.app, client, spec.RenderedCompose, func(line string) {
+		appendDeploymentLog(w.app, record, line)
+	}); err != nil {
+		appendDeploymentLog(w.app, record, "docker image preparation failed: "+err.Error())
+		if isDeploymentTimeoutError(err) || strings.Contains(strings.ToLower(err.Error()), "timed out pulling image") {
+			return markDeploymentTimedOut(w.app, record, p, "deployment image preparation timed out")
+		}
+		return markDeploymentFailed(w.app, record, p, err.Error())
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 

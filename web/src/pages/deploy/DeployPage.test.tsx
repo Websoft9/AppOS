@@ -6,6 +6,16 @@ import { DeployPage } from './DeployPage'
 const sendMock = vi.fn()
 const navigateMock = vi.fn()
 
+function paginatedActionsResponse(items: Array<Record<string, unknown>>) {
+  return {
+    items,
+    page: 1,
+    perPage: 15,
+    totalItems: items.length,
+    totalPages: 1,
+  }
+}
+
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
@@ -59,59 +69,65 @@ describe('DeployPage homepage', () => {
   beforeEach(() => {
     sendMock.mockReset()
     navigateMock.mockReset()
+
+    const actionItems = [
+      {
+        id: 'dep_1',
+        server_id: 'local',
+        server_label: 'Local Server',
+        server_host: '127.0.0.1',
+        source: 'manualops',
+        status: 'success',
+        adapter: 'manual',
+        compose_project_name: 'wordpress-prod',
+        project_dir: '/srv/wordpress',
+        rendered_compose: '',
+        error_summary: '',
+        created: '2026-03-21T08:00:00Z',
+        updated: '2026-03-21T08:10:00Z',
+        started_at: '2026-03-21T08:01:00Z',
+        finished_at: '2026-03-21T08:10:00Z',
+        user_email: 'admin@example.com',
+        pipeline: {
+          started_at: '2026-03-21T08:01:00Z',
+          finished_at: '2026-03-21T08:10:00Z',
+        },
+      },
+      {
+        id: 'dep_2',
+        server_id: 'local',
+        server_label: 'Local Server',
+        server_host: '127.0.0.1',
+        source: 'gitops',
+        status: 'failed',
+        adapter: 'git',
+        compose_project_name: 'mysql-prod',
+        project_dir: '/srv/mysql',
+        rendered_compose: '',
+        error_summary: '',
+        created: '2026-03-21T07:00:00Z',
+        updated: '2026-03-21T07:15:00Z',
+        started_at: '2026-03-21T07:02:00Z',
+        finished_at: '2026-03-21T07:15:00Z',
+        user_email: 'ops@example.com',
+        pipeline: {
+          started_at: '2026-03-21T07:02:00Z',
+          finished_at: '2026-03-21T07:15:00Z',
+        },
+      },
+    ]
+
     sendMock.mockImplementation((path: string, options?: { method?: string }) => {
       if (path === '/api/servers/docker-targets') {
         return Promise.resolve([
           { id: 'local', label: 'local', host: '127.0.0.1', status: 'online' },
         ])
       }
+      if (path.startsWith('/api/actions?')) {
+        return Promise.resolve(paginatedActionsResponse(actionItems))
+      }
       if (path === '/api/actions') {
-        return Promise.resolve([
-          {
-            id: 'dep_1',
-            server_id: 'local',
-            server_label: 'Local Server',
-            server_host: '127.0.0.1',
-            source: 'manualops',
-            status: 'success',
-            adapter: 'manual',
-            compose_project_name: 'wordpress-prod',
-            project_dir: '/srv/wordpress',
-            rendered_compose: '',
-            error_summary: '',
-            created: '2026-03-21T08:00:00Z',
-            updated: '2026-03-21T08:10:00Z',
-            started_at: '2026-03-21T08:01:00Z',
-            finished_at: '2026-03-21T08:10:00Z',
-            user_email: 'admin@example.com',
-            pipeline: {
-              started_at: '2026-03-21T08:01:00Z',
-              finished_at: '2026-03-21T08:10:00Z',
-            },
-          },
-          {
-            id: 'dep_2',
-            server_id: 'local',
-            server_label: 'Local Server',
-            server_host: '127.0.0.1',
-            source: 'gitops',
-            status: 'failed',
-            adapter: 'git',
-            compose_project_name: 'mysql-prod',
-            project_dir: '/srv/mysql',
-            rendered_compose: '',
-            error_summary: '',
-            created: '2026-03-21T07:00:00Z',
-            updated: '2026-03-21T07:15:00Z',
-            started_at: '2026-03-21T07:02:00Z',
-            finished_at: '2026-03-21T07:15:00Z',
-            user_email: 'ops@example.com',
-            pipeline: {
-              started_at: '2026-03-21T07:02:00Z',
-              finished_at: '2026-03-21T07:15:00Z',
-            },
-          },
-        ])
+        return Promise.resolve(actionItems)
       }
       if (
         (path === '/api/actions/dep_1' || path === '/api/actions/dep_2') &&
@@ -134,7 +150,7 @@ describe('DeployPage homepage', () => {
       expect(screen.getByText('Deploy Application')).toBeInTheDocument()
       expect(screen.getByText('Install from Store')).toBeInTheDocument()
       expect(screen.getByText('Custom Deployment')).toBeInTheDocument()
-      expect(screen.getByText('Latest Actions')).toBeInTheDocument()
+      expect(screen.getByText('Latest Actions Summary')).toBeInTheDocument()
       expect(screen.getByText('Need more templates?')).toBeInTheDocument()
     })
 
@@ -142,6 +158,7 @@ describe('DeployPage homepage', () => {
     expect(screen.getByText('Git Repository')).toBeInTheDocument()
     expect(screen.getByText('Docker Command')).toBeInTheDocument()
     expect(screen.getByText('Source Packages')).toBeInTheDocument()
+    expect(screen.queryByText('App Template')).not.toBeInTheDocument()
     expect(screen.getByText('admin@example.com')).toBeInTheDocument()
     expect(screen.getAllByText('Local Server').length).toBeGreaterThan(0)
 
@@ -260,5 +277,25 @@ describe('DeployPage homepage', () => {
       expect(sendMock).toHaveBeenCalledWith('/api/actions/dep_1', { method: 'DELETE' })
       expect(sendMock).toHaveBeenCalledWith('/api/actions/dep_2', { method: 'DELETE' })
     })
+  })
+
+  it('keeps summary, compact pagination, and page-size settings in the list header', async () => {
+    render(
+      <TooltipProvider>
+        <DeployPage view="list" />
+      </TooltipProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText(/Total:/)).toBeInTheDocument()
+    })
+
+    expect(screen.getByText(/Active \(/)).toBeInTheDocument()
+    expect(screen.getByText(/Completed \(/)).toBeInTheDocument()
+    expect(screen.getByText(/Failed \(/)).toBeInTheDocument()
+    expect(screen.getByText('<1/1>')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'List settings' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Previous' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Next' })).not.toBeInTheDocument()
   })
 })

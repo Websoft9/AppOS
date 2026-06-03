@@ -20,6 +20,125 @@ vi.mock('@tanstack/react-router', () => ({
   ),
 }))
 
+vi.mock('react-i18next', () => ({
+  initReactI18next: {
+    type: '3rdParty',
+    init: () => {},
+  },
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => {
+      const labels: Record<string, string> = {
+        'hub.title': 'Resources',
+        'resources.serviceInstances.title': 'Service Instances',
+        'serviceInstances.page.title': 'Service Instances',
+        'serviceInstances.page.description': 'MySQL, PostgreSQL, Redis, Kafka, S3 storage, and model services with profile-based templates.',
+        'serviceInstances.page.favoritesOnly': 'Favorites only',
+        'serviceInstances.page.addInstance': 'Add Instance',
+        'serviceInstances.page.searchPlaceholder': 'Search any instances',
+        'serviceInstances.page.cancel': 'Cancel',
+        'serviceInstances.selection.title': 'Choose a Product',
+        'serviceInstances.selection.description': 'Choose a product, then enter connection details.',
+        'serviceInstances.selection.searchPlaceholder': 'Search products like MySQL, Redis, Aurora, PostgreSQL...',
+        'serviceInstances.selection.emptyMessage': 'No matching products found.',
+        'serviceInstances.fields.kind': 'Kind',
+        'serviceInstances.fields.template': 'Template',
+        'serviceInstances.fields.selectedProduct': 'Selected Product',
+        'serviceInstances.fields.selectedProductMeta': 'Selected Product Meta',
+        'serviceInstances.fields.selectedProductDescription': 'Selected Product Description',
+        'serviceInstances.fields.name': 'Name',
+        'serviceInstances.fields.username': 'Username',
+        'serviceInstances.fields.connectionTimeout': 'Connection Timeout',
+        'serviceInstances.fields.titleNameEditing': 'Title Name Editing',
+        'serviceInstances.fields.endpoint': 'Endpoint',
+        'serviceInstances.fields.host': 'Host',
+        'serviceInstances.fields.port': 'Port',
+        'serviceInstances.fields.platformAccount': 'Platform Account',
+        'serviceInstances.fields.password': 'Password',
+        'serviceInstances.fields.credential': 'Credential',
+        'serviceInstances.fields.credentialUsesSecret': 'Credential Uses Secret',
+        'serviceInstances.fields.passwordValue': 'Password Value',
+        'serviceInstances.fields.useSsl': 'Use SSL',
+        'serviceInstances.fields.sslCertificate': 'SSL Certificate',
+        'serviceInstances.fields.description': 'Description',
+        'serviceInstances.fields.groups': 'Groups',
+        'serviceInstances.placeholders.name': 'db-prod',
+        'serviceInstances.placeholders.username': 'appuser',
+        'serviceInstances.placeholders.endpoint': 'db.example.com:3306 or https://service.example.com',
+        'serviceInstances.placeholders.host': 'db.example.com',
+        'serviceInstances.help.connectionTimeout': 'How many seconds to wait before the first connection attempt times out.',
+        'serviceInstances.help.sslCertificatePostgres': 'Choose a certificate only when your PostgreSQL connection requires mutual SSL.',
+        'serviceInstances.help.sslCertificateMysql': 'Choose a certificate only when your MySQL connection requires mutual SSL.',
+        'serviceInstances.categories.database': 'Databases',
+        'serviceInstances.categories.cache': 'Caches',
+        'serviceInstances.categories.message-queue': 'Messaging',
+        'serviceInstances.categories.storage': 'Storage',
+        'serviceInstances.categories.artifact': 'Registries',
+        'serviceInstances.categories.ai': 'AI Services',
+        'serviceInstances.categories.other': 'Other',
+        'serviceInstances.kinds.mysql': 'MySQL',
+        'serviceInstances.kinds.postgres': 'PostgreSQL',
+        'serviceInstances.kinds.redis': 'Redis',
+        'serviceInstances.kinds.kafka': 'Kafka',
+        'serviceInstances.kinds.s3': 'S3 Storage',
+        'serviceInstances.kinds.registry': 'Registry',
+        'serviceInstances.kinds.ollama': 'Ollama',
+        'serviceInstances.kinds.unknown': 'Unknown',
+        'serviceInstances.product.standardTemplate': 'Standard template',
+        'serviceInstances.product.profileDescription': '{{vendorPrefix}}{{category}} profile.',
+        'serviceInstances.templateFields.database': 'Database',
+        'serviceInstances.templateFields.region': 'Region',
+        'serviceInstances.templateFields.clusterIdentifier': 'Cluster Identifier',
+        'serviceInstances.templateFields.clusterId': 'Cluster ID',
+        'serviceInstances.columns.name': 'Name',
+        'serviceInstances.columns.kind': 'Kind',
+        'serviceInstances.columns.profile': 'Profile',
+        'serviceInstances.columns.host': 'Host',
+        'serviceInstances.columns.monitor': 'Monitor',
+        'serviceInstances.columns.lastChecked': 'Last Checked',
+        'serviceInstances.columns.created': 'Created',
+        'serviceInstances.columns.updated': 'Updated',
+        'serviceInstances.monitor.unknown': 'Unknown',
+        'serviceInstances.monitor.status.healthy': 'Healthy',
+        'serviceInstances.monitor.status.offline': 'Offline',
+        'serviceInstances.monitor.status.unreachable': 'Unreachable',
+        'serviceInstances.monitor.status.credential_invalid': 'Credential Invalid',
+        'serviceInstances.monitor.status.degraded': 'Degraded',
+        'serviceInstances.ssl.oneWay': 'One-way SSL',
+        'serviceInstances.ssl.mutual': 'Mutual SSL',
+        'serviceInstances.dialog.instanceTitle': 'Instance title',
+        'serviceInstances.dialog.applyTitle': 'Apply title',
+        'serviceInstances.dialog.newInstance': 'New Service Instance',
+        'serviceInstances.dialog.editTitle': 'Edit title',
+        'serviceInstances.dialog.create': 'Create',
+        'serviceInstances.dialog.update': 'Update',
+        'serviceInstances.dialog.suffix': 'Service Instance',
+        'serviceInstances.secret.singleValueTemplate': 'Password / Single Value',
+        'serviceInstances.secret.newTitle': 'New Secret',
+        'serviceInstances.secret.newDescription': 'Create a reusable password secret and attach it to this service instance.',
+        'serviceInstances.secret.editTitle': 'Edit Secret',
+        'serviceInstances.secret.editDescription': 'Update the selected Secret without leaving service instance editing.',
+        'serviceInstances.secret.loading': 'Loading secret...',
+        'serviceInstances.secret.save': 'Save Secret',
+        'serviceInstances.secret.generatedDescription': 'Password for {{name}}',
+        'serviceInstances.secret.errors.load': 'Failed to load secret',
+        'serviceInstances.secret.errors.nameRequired': 'Name is required',
+        'serviceInstances.secret.errors.update': 'Failed to update secret',
+        'serviceInstances.errors.instanceProfileRequired': 'Instance profile is required',
+        'serviceInstances.errors.passwordRequired': 'Password is required',
+        'serviceInstances.errors.passwordSecretRequired': 'Password Secret is required',
+        'serviceInstances.errors.sslCertificateRequired': 'SSL certificate is required for mutual SSL'
+      }
+      if (key === 'serviceInstances.product.profileDescription') {
+        return `${String(options?.vendorPrefix ?? '')}${String(options?.category ?? '')} profile.`
+      }
+      if (key === 'serviceInstances.secret.generatedDescription') {
+        return `Password for ${String(options?.name ?? '')}`
+      }
+      return labels[key] ?? key
+    },
+  }),
+}))
+
 vi.mock('@/lib/pb', () => ({
   pb: {
     send: (...args: unknown[]) => sendMock(...args),
@@ -111,7 +230,7 @@ describe('ServiceInstancesPage', () => {
               fields: [
                 {
                   id: 'database',
-                  label: 'Database',
+                  label: 'Backend Database Label',
                   type: 'text',
                   required: true,
                   default: 'MySQL',
@@ -125,8 +244,12 @@ describe('ServiceInstancesPage', () => {
               kind: 'mysql',
               title: 'Amazon Aurora MySQL',
               fields: [
-                { id: 'region', label: 'Region', type: 'text' },
-                { id: 'clusterIdentifier', label: 'Cluster Identifier', type: 'text' },
+                { id: 'region', label: 'Backend Region Label', type: 'text' },
+                {
+                  id: 'clusterIdentifier',
+                  label: 'Backend Cluster Identifier Label',
+                  type: 'text',
+                },
               ],
             },
             {
@@ -138,7 +261,7 @@ describe('ServiceInstancesPage', () => {
               fields: [
                 {
                   id: 'database',
-                  label: 'Database',
+                  label: 'Backend Postgres Database Label',
                   type: 'text',
                   required: true,
                   default: 'postgres',
@@ -152,7 +275,14 @@ describe('ServiceInstancesPage', () => {
               kind: 'redis',
               title: 'Generic Redis',
               defaultEndpoint: 'redis.internal:6379',
-              fields: [{ id: 'database', label: 'Database Index', type: 'number', default: 0 }],
+              fields: [
+                {
+                  id: 'database',
+                  label: 'Backend Database Index Label',
+                  type: 'number',
+                  default: 0,
+                },
+              ],
             },
             {
               id: 'generic-kafka',
@@ -160,7 +290,7 @@ describe('ServiceInstancesPage', () => {
               kind: 'kafka',
               title: 'Generic Kafka',
               defaultEndpoint: 'kafka.internal:9092',
-              fields: [{ id: 'clusterId', label: 'Cluster ID', type: 'text' }],
+              fields: [{ id: 'clusterId', label: 'Backend Cluster ID Label', type: 'text' }],
             },
           ])
         }

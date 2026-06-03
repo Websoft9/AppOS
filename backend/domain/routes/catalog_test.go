@@ -59,6 +59,7 @@ func TestCatalogReadRoutesRequireAuth(t *testing.T) {
 		{method: http.MethodGet, url: "/api/catalog/apps"},
 		{method: http.MethodGet, url: "/api/catalog/apps/wordpress"},
 		{method: http.MethodGet, url: "/api/catalog/apps/wordpress/deploy-source"},
+		{method: http.MethodGet, url: "/api/catalog/apps/wordpress/template"},
 		{method: http.MethodGet, url: "/api/catalog/me/apps"},
 		{method: http.MethodPut, url: "/api/catalog/me/apps/wordpress/favorite", body: `{"isFavorite":true}`},
 		{method: http.MethodPut, url: "/api/catalog/me/apps/wordpress/note", body: `{"note":"hi"}`},
@@ -107,6 +108,7 @@ func TestCatalogReadRoutesReturnPayloadsWhenAuthenticated(t *testing.T) {
 		{url: "/api/catalog/apps", status: http.StatusOK},
 		{url: "/api/catalog/apps/wordpress", status: http.StatusOK},
 		{url: "/api/catalog/apps/wordpress/deploy-source", status: http.StatusOK},
+		{url: "/api/catalog/apps/wordpress/template", status: http.StatusOK},
 		{url: "/api/catalog/me/apps", status: http.StatusOK},
 	}
 
@@ -424,6 +426,28 @@ func TestCatalogDeploySourceReturnsOfficialPrefill(t *testing.T) {
 	install, ok := payload["install"].(map[string]any)
 	if !ok || install["prefillSource"] != "library" {
 		t.Fatalf("expected library prefill source, got %v", payload["install"])
+	}
+}
+
+func TestCatalogAppTemplateReturnsTemplateContract(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doCatalog(t, http.MethodGet, "/api/catalog/apps/wordpress/template?locale=en", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	payload := parseJSON(t, rec)
+	if payload["templateKey"] != "wordpress" {
+		t.Fatalf("expected wordpress templateKey, got %v", payload["templateKey"])
+	}
+	manifest, ok := payload["manifest"].(map[string]any)
+	if !ok || manifest["trademark"] != "WordPress" {
+		t.Fatalf("expected manifest trademark, got %v", payload["manifest"])
+	}
+	inputs, ok := payload["inputs"].([]any)
+	if !ok || len(inputs) == 0 {
+		t.Fatalf("expected non-empty inputs, got %T %v", payload["inputs"], payload["inputs"])
 	}
 }
 

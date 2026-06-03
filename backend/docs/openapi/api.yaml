@@ -846,6 +846,52 @@ paths:
     /api/actions:
         get:
             operationId: get_api_actions
+            parameters:
+                - in: query
+                  name: appId
+                  required: false
+                  schema:
+                    type: string
+                - in: query
+                  name: excludeServer
+                  required: false
+                  schema:
+                    type: string
+                - in: query
+                  name: excludeSource
+                  required: false
+                  schema:
+                    type: string
+                - in: query
+                  name: excludeStatus
+                  required: false
+                  schema:
+                    type: string
+                - in: query
+                  name: page
+                  required: false
+                  schema:
+                    type: string
+                - in: query
+                  name: perPage
+                  required: false
+                  schema:
+                    type: string
+                - in: query
+                  name: q
+                  required: false
+                  schema:
+                    type: string
+                - in: query
+                  name: sortDir
+                  required: false
+                  schema:
+                    type: string
+                - in: query
+                  name: sortField
+                  required: false
+                  schema:
+                    type: string
             responses:
                 "200":
                     content:
@@ -1191,6 +1237,60 @@ paths:
             security:
                 - bearerAuth: []
             summary: Check install name availability
+            tags:
+                - Actions
+    /api/actions/install/template:
+        post:
+            operationId: post_api_actions_install_template
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Create or execute actions install template
+            tags:
+                - Actions
+    /api/actions/install/template/check:
+        post:
+            operationId: post_api_actions_install_template_check
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Create or execute actions install template check
             tags:
                 - Actions
     /api/ai-providers:
@@ -3096,6 +3196,33 @@ paths:
             security:
                 - bearerAuth: []
             summary: Get catalog apps by key deploy source
+            tags:
+                - Catalog
+    /api/catalog/apps/{key}/template:
+        get:
+            operationId: get_api_catalog_apps_key_template
+            parameters:
+                - in: path
+                  name: key
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get catalog apps by key template
             tags:
                 - Catalog
     /api/catalog/categories:

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   ArrowDown,
   ArrowUp,
@@ -158,6 +159,28 @@ function getStatusLabel(service: Pick<SystemdService, 'active_state' | 'sub_stat
   return activeState || subState || 'unknown'
 }
 
+function getStatusText(
+  t: (key: string) => string,
+  status: string
+) {
+  switch (status) {
+    case 'running':
+      return t('servers.servicesTab.status.running')
+    case 'exited':
+      return t('servers.servicesTab.status.exited')
+    case 'dead':
+      return t('servers.servicesTab.status.dead')
+    case 'failed':
+      return t('servers.servicesTab.status.failed')
+    case 'inactive':
+      return t('servers.servicesTab.status.inactive')
+    case 'unknown':
+      return t('servers.servicesTab.status.unknown')
+    default:
+      return status
+  }
+}
+
 function getSummary(service: SystemdService) {
   return String(
     service.description || `${service.load_state || 'unknown'} / ${service.sub_state || 'unknown'}`
@@ -224,32 +247,35 @@ function compareServices(
 function buildDetailRows(
   selectedService: SystemdServiceWithBoot,
   statusDetails: Record<string, string>,
-  unitPath: string
+  unitPath: string,
+  t: (key: string) => string
 ): DetailRow[] {
   const rows: DetailRow[] = [
-    { label: 'Name', value: getDisplayName(selectedService.name) || '—' },
+    { label: t('servers.servicesTab.detailRows.name'), value: getDisplayName(selectedService.name) || '—' },
     {
-      label: 'Description',
+      label: t('servers.servicesTab.detailRows.description'),
       value: statusDetails.Description || selectedService.description || '—',
     },
     {
-      label: 'Status',
-      value:
+      label: t('servers.servicesTab.detailRows.status'),
+      value: getStatusText(
+        t,
         getStatusLabel({
           active_state: statusDetails.ActiveState || selectedService.active_state,
           sub_state: statusDetails.SubState || selectedService.sub_state,
-        }) || '—',
+        }) || 'unknown'
+      ),
     },
-    { label: 'Path', value: unitPath || '—' },
-    { label: 'PID', value: statusDetails.MainPID || '—' },
-    { label: 'Load State', value: statusDetails.LoadState || selectedService.load_state || '—' },
+    { label: t('servers.servicesTab.detailRows.path'), value: unitPath || '—' },
+    { label: t('servers.servicesTab.detailRows.pid'), value: statusDetails.MainPID || '—' },
+    { label: t('servers.servicesTab.detailRows.loadState'), value: statusDetails.LoadState || selectedService.load_state || '—' },
     {
-      label: 'Active State',
+      label: t('servers.servicesTab.detailRows.activeState'),
       value: statusDetails.ActiveState || selectedService.active_state || '—',
     },
-    { label: 'Sub State', value: statusDetails.SubState || selectedService.sub_state || '—' },
-    { label: 'Unit File State', value: statusDetails.UnitFileState || '—' },
-    { label: 'State Change', value: statusDetails.StateChangeTimestamp || '—' },
+    { label: t('servers.servicesTab.detailRows.subState'), value: statusDetails.SubState || selectedService.sub_state || '—' },
+    { label: t('servers.servicesTab.detailRows.unitFileState'), value: statusDetails.UnitFileState || '—' },
+    { label: t('servers.servicesTab.detailRows.stateChange'), value: statusDetails.StateChangeTimestamp || '—' },
   ]
 
   for (const [key, value] of Object.entries(statusDetails)) {
@@ -265,6 +291,7 @@ function isRowKeyboardActivation(event: { key: string }) {
 }
 
 export function ServerServicesPanel({ serverId }: { serverId: string }) {
+  const { t } = useTranslation('resources')
   const requestSeqRef = useRef(0)
   const [supportedCatalog, setSupportedCatalog] = useState<SupportedServerSoftwareEntry[]>([])
   const [services, setServices] = useState<SystemdServiceWithBoot[]>([])
@@ -302,13 +329,13 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
       setServices(response)
     } catch (loadError) {
       if (requestSeqRef.current !== requestSeq || isRequestCancellation(loadError)) return
-      setError(getApiErrorMessage(loadError, 'Failed to load services'))
+      setError(getApiErrorMessage(loadError, t('servers.servicesTab.errors.loadServices')))
     } finally {
       if (requestSeqRef.current === requestSeq) {
         setInventoryLoading(false)
       }
     }
-  }, [serverId])
+  }, [serverId, t])
 
   useEffect(() => {
     void loadInventory()
@@ -438,14 +465,14 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
         setEditMode(nextTab === 'unit' && editUnit)
       } catch (loadError) {
         if (requestSeqRef.current !== requestSeq || isRequestCancellation(loadError)) return
-        setError(getApiErrorMessage(loadError, 'Operation failed'))
+        setError(getApiErrorMessage(loadError, t('servers.servicesTab.errors.operationFailed')))
       } finally {
         if (requestSeqRef.current === requestSeq) {
           setActionLoading(false)
         }
       }
     },
-    [serverId]
+    [serverId, t]
   )
 
   useEffect(() => {
@@ -489,11 +516,11 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
     if (!text) return
     try {
       await navigator.clipboard.writeText(text)
-      setHint('Logs copied.')
+      setHint(t('servers.servicesTab.hints.logsCopied'))
     } catch {
-      setError('Failed to copy logs')
+      setError(t('servers.servicesTab.errors.copyLogs'))
     }
-  }, [logs])
+  }, [logs, t])
 
   const runControlActionForService = useCallback(
     async (serviceName: string, action: SystemdControlAction) => {
@@ -503,16 +530,20 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
       setHint('')
       try {
         await controlSystemdService(serverId, serviceName, action)
-        setHint(`Action ${action} applied. Next: check status or logs.`)
+        setHint(t('servers.servicesTab.hints.actionApplied', { action }))
         const inventoryResponse = await listSystemdServices(serverId, '')
         setServices(inventoryResponse)
         await loadServiceContext(serviceName, 'overview')
       } catch (actionError) {
-        setError(actionError instanceof Error ? actionError.message : 'Operation failed')
+        setError(
+          actionError instanceof Error
+            ? actionError.message
+            : t('servers.servicesTab.errors.operationFailed')
+        )
         setActionLoading(false)
       }
     },
-    [loadServiceContext, serverId]
+    [loadServiceContext, serverId, t]
   )
 
   const validateUnit = useCallback(async () => {
@@ -525,15 +556,19 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
       const verifyResponse = await verifySystemdUnit(serverId, selected)
       setUnitResult(
         [saveResponse.output, verifyResponse.verify_output].filter(Boolean).join('\n\n') ||
-          'Validate passed.'
+          t('servers.servicesTab.unit.validatePassed')
       )
       setDetailTab('unit')
     } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : 'Failed to validate unit file')
+      setError(
+        actionError instanceof Error
+          ? actionError.message
+          : t('servers.servicesTab.errors.validateUnit')
+      )
     } finally {
       setActionLoading(false)
     }
-  }, [selected, serverId, unitContent])
+  }, [selected, serverId, t, unitContent])
 
   const applyUnit = useCallback(async () => {
     if (!selected) return
@@ -548,15 +583,19 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
       setUnitResult(
         [saveResponse.output, applyResponse.reload_output, applyResponse.apply_output]
           .filter(Boolean)
-          .join('\n\n') || 'Apply completed.'
+          .join('\n\n') || t('servers.servicesTab.unit.applyCompleted')
       )
       setEditMode(false)
       await loadServiceContext(selected, 'overview')
     } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : 'Failed to apply unit file')
+      setError(
+        actionError instanceof Error
+          ? actionError.message
+          : t('servers.servicesTab.errors.applyUnit')
+      )
       setActionLoading(false)
     }
-  }, [loadServiceContext, selected, serverId, unitContent])
+  }, [loadServiceContext, selected, serverId, t, unitContent])
 
   const requestConfirm = useCallback(
     (serviceName: string, action: SystemdControlAction | 'verify-unit' | 'apply-unit') => {
@@ -585,8 +624,8 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
 
   const detailRows = useMemo(() => {
     if (!selectedService) return []
-    return buildDetailRows(selectedService, statusDetails, unitPath)
-  }, [selectedService, statusDetails, unitPath])
+    return buildDetailRows(selectedService, statusDetails, unitPath, t)
+  }, [selectedService, statusDetails, t, unitPath])
 
   const renderSortIcon = useCallback(
     (column: SortKey) => {
@@ -607,9 +646,9 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
       <div className="space-y-1">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">
-            <h2 className="text-sm font-semibold">Systemd</h2>
+            <h2 className="text-sm font-semibold">{t('servers.servicesTab.title')}</h2>
             <p className="text-sm text-muted-foreground">
-              Inspect service status, open logs, and work with unit files from a single view.
+              {t('servers.servicesTab.description')}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -619,8 +658,8 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
               className="shrink-0"
               onClick={() => void refreshPanel()}
               disabled={inventoryLoading || actionLoading}
-              aria-label="Refresh systemd data"
-              title="Refresh systemd data"
+              aria-label={t('servers.servicesTab.actions.refresh')}
+              title={t('servers.servicesTab.actions.refresh')}
             >
               {inventoryLoading || actionLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -633,32 +672,34 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <section className="space-y-4 rounded-md border p-4" aria-label="Systemd inventory">
+        <section className="space-y-4 rounded-md border p-4" aria-label={t('servers.servicesTab.inventory.ariaLabel')}>
           <div className="overflow-x-auto pb-1">
             <div className="flex min-w-max items-center gap-3 whitespace-nowrap">
               <span className="text-sm text-muted-foreground">
-                Total {visibleServices.length} services,{' '}
-                {visibleServices.filter(service => getStatusLabel(service) === 'failed').length}{' '}
-                failed.
+                {t('servers.servicesTab.inventory.summary', {
+                  count: visibleServices.length,
+                  failed: visibleServices.filter(service => getStatusLabel(service) === 'failed')
+                    .length,
+                })}
               </span>
               <div className="ml-auto flex items-center gap-2">
                 <input
                   value={query}
                   onChange={event => setQuery(event.target.value)}
-                  placeholder="Search"
+                  placeholder={t('servers.servicesTab.search.placeholder')}
                   className="h-8 w-[clamp(6ch,15vw,15ch)] min-w-0 rounded-md border bg-background px-2 text-sm"
                 />
                 <select
-                  aria-label="Status filter"
+                  aria-label={t('servers.servicesTab.filters.status')}
                   value={statusFilter}
                   onChange={event => setStatusFilter(event.target.value as StatusFilter)}
                   className="h-8 w-36 shrink-0 rounded-md border bg-background px-2 text-sm"
                 >
-                  <option value="all">All status ({statusOptionCounts.all})</option>
-                  <option value="running">Running ({statusOptionCounts.running})</option>
-                  <option value="exited">Exited ({statusOptionCounts.exited})</option>
-                  <option value="failed">Failed ({statusOptionCounts.failed})</option>
-                  <option value="inactive">Inactive ({statusOptionCounts.inactive})</option>
+                  <option value="all">{t('servers.servicesTab.filterOptions.all', { count: statusOptionCounts.all })}</option>
+                  <option value="running">{t('servers.servicesTab.filterOptions.running', { count: statusOptionCounts.running })}</option>
+                  <option value="exited">{t('servers.servicesTab.filterOptions.exited', { count: statusOptionCounts.exited })}</option>
+                  <option value="failed">{t('servers.servicesTab.filterOptions.failed', { count: statusOptionCounts.failed })}</option>
+                  <option value="inactive">{t('servers.servicesTab.filterOptions.inactive', { count: statusOptionCounts.inactive })}</option>
                 </select>
                 <div className="flex items-center gap-0.5 text-sm text-muted-foreground">
                   <Button
@@ -666,7 +707,7 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                     variant="ghost"
                     className="h-8 w-8"
                     disabled={currentPage <= 1}
-                    aria-label="Previous page"
+                    aria-label={t('servers.servicesTab.pagination.previous')}
                     onClick={() => setPage(prev => Math.max(1, prev - 1))}
                   >
                     {'<'}
@@ -679,7 +720,7 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                     variant="ghost"
                     className="h-8 w-8"
                     disabled={currentPage >= totalPages}
-                    aria-label="Next page"
+                    aria-label={t('servers.servicesTab.pagination.next')}
                     onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
                   >
                     {'>'}
@@ -695,22 +736,40 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                 type="button"
                 onClick={() => changeSort('name')}
                 className="inline-flex items-center gap-1 py-1 text-left transition-colors hover:text-foreground"
-                aria-label={`Name ${sortKey === 'name' ? `sorted ${sortDirection === 'asc' ? 'ascending' : 'descending'}` : 'sortable'}`}
+                aria-label={
+                  sortKey === 'name'
+                    ? t('servers.servicesTab.columns.nameSorted', {
+                        direction:
+                          sortDirection === 'asc'
+                            ? t('servers.servicesTab.sort.asc')
+                            : t('servers.servicesTab.sort.desc'),
+                      })
+                    : t('servers.servicesTab.columns.nameSortable')
+                }
               >
-                <span>Name</span>
+                <span>{t('servers.servicesTab.columns.name')}</span>
                 {renderSortIcon('name')}
               </button>
-              <span className="py-1 text-left">Status</span>
+              <span className="py-1 text-left">{t('servers.servicesTab.columns.status')}</span>
               <button
                 type="button"
                 onClick={() => changeSort('summary')}
                 className="inline-flex items-center gap-1 py-1 text-left transition-colors hover:text-foreground"
-                aria-label={`Summary ${sortKey === 'summary' ? `sorted ${sortDirection === 'asc' ? 'ascending' : 'descending'}` : 'sortable'}`}
+                aria-label={
+                  sortKey === 'summary'
+                    ? t('servers.servicesTab.columns.summarySorted', {
+                        direction:
+                          sortDirection === 'asc'
+                            ? t('servers.servicesTab.sort.asc')
+                            : t('servers.servicesTab.sort.desc'),
+                      })
+                    : t('servers.servicesTab.columns.summarySortable')
+                }
               >
-                <span>Summary</span>
+                <span>{t('servers.servicesTab.columns.summary')}</span>
                 {renderSortIcon('summary')}
               </button>
-              <span className="py-1 text-left">Actions</span>
+              <span className="py-1 text-left">{t('servers.servicesTab.columns.actions')}</span>
             </div>
 
             {error ? <div className="px-3 py-2 text-sm text-destructive">{error}</div> : null}
@@ -718,11 +777,11 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
             {inventoryLoading ? (
               <div className="inline-flex items-center gap-2 px-3 py-6 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Loading services...
+                {t('servers.servicesTab.loading')}
               </div>
             ) : pagedServices.length === 0 ? (
               <div className="px-3 py-6 text-sm text-muted-foreground">
-                No services match the current filters.
+                {t('servers.servicesTab.empty.noMatches')}
               </div>
             ) : (
               <div className="divide-y divide-border/60">
@@ -751,7 +810,7 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                           {focusService ? (
                             <Star
                               className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400"
-                              aria-label="AppOS focus service"
+                              aria-label={t('servers.servicesTab.inventory.focusService')}
                             />
                           ) : null}
                           <span className="block truncate font-medium leading-5">
@@ -759,7 +818,9 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                           </span>
                         </span>
                       </div>
-                      <span className="truncate py-1 text-left">{getStatusLabel(service)}</span>
+                      <span className="truncate py-1 text-left">
+                        {getStatusText(t, getStatusLabel(service))}
+                      </span>
                       <span className="truncate py-1 text-left text-muted-foreground">
                         {getSummary(service)}
                       </span>
@@ -770,7 +831,9 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                             variant="ghost"
                             className="h-8 w-8 justify-self-start"
                             disabled={actionLoading}
-                            aria-label={`Service actions for ${serviceDisplayName}`}
+                            aria-label={t('servers.servicesTab.actions.serviceActionsFor', {
+                              name: serviceDisplayName,
+                            })}
                             onClick={event => event.stopPropagation()}
                             onPointerDown={event => event.stopPropagation()}
                             onKeyDown={event => event.stopPropagation()}
@@ -788,46 +851,46 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                             onClick={() => void loadServiceContext(service.name, 'overview')}
                           >
                             <Eye className="mr-2 h-4 w-4" />
-                            Open overview
+                            {t('servers.servicesTab.actions.openOverview')}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => void loadServiceContext(service.name, 'logs')}
                           >
                             <ScrollText className="mr-2 h-4 w-4" />
-                            Open logs
+                            {t('servers.servicesTab.actions.openLogs')}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => void loadServiceContext(service.name, 'unit')}
                           >
                             <FileText className="mr-2 h-4 w-4" />
-                            Open unit
+                            {t('servers.servicesTab.actions.openUnit')}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => void loadServiceContext(service.name, 'unit', true)}
                           >
                             <PenLine className="mr-2 h-4 w-4" />
-                            Edit unit
+                            {t('servers.servicesTab.actions.editUnit')}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={() => requestConfirm(service.name, 'start')}>
                             <Play className="mr-2 h-4 w-4" />
-                            Start
+                            {t('servers.servicesTab.actions.start')}
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => requestConfirm(service.name, 'restart')}>
                             <RotateCw className="mr-2 h-4 w-4" />
-                            Restart
+                            {t('servers.servicesTab.actions.restart')}
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => requestConfirm(service.name, 'stop')}>
                             <Square className="mr-2 h-4 w-4" />
-                            Stop
+                            {t('servers.servicesTab.actions.stop')}
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => requestConfirm(service.name, 'enable')}>
                             <Power className="mr-2 h-4 w-4" />
-                            Enable
+                            {t('servers.servicesTab.actions.enable')}
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => requestConfirm(service.name, 'disable')}>
                             <PowerOff className="mr-2 h-4 w-4" />
-                            Disable
+                            {t('servers.servicesTab.actions.disable')}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -846,12 +909,12 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h3 id="selected-service-heading" className="text-sm font-semibold">
-                Selected Service
+                {t('servers.servicesTab.selected.title')}
               </h3>
               <p className="text-xs text-muted-foreground">
                 {selectedService
                   ? getDisplayName(selectedService.name)
-                  : 'Select one service from the inventory.'}
+                  : t('servers.servicesTab.selected.selectPrompt')}
               </p>
             </div>
             {selectedService ? (
@@ -863,7 +926,7 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                   onClick={() => void loadServiceContext(selectedService.name, 'overview')}
                   disabled={actionLoading}
                 >
-                  Overview
+                  {t('servers.servicesTab.tabs.overview')}
                 </Button>
                 <Button
                   type="button"
@@ -872,7 +935,7 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                   onClick={() => void loadServiceContext(selectedService.name, 'logs')}
                   disabled={actionLoading}
                 >
-                  Logs
+                  {t('servers.servicesTab.tabs.logs')}
                 </Button>
               </div>
             ) : null}
@@ -881,11 +944,11 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
           {actionLoading ? (
             <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Loading details...
+              {t('servers.servicesTab.loadingDetails')}
             </div>
           ) : !selectedService ? (
             <div className="text-sm text-muted-foreground">
-              Choose a service to inspect its status, logs, and unit details.
+              {t('servers.servicesTab.selected.empty')}
             </div>
           ) : (
             <>
@@ -903,9 +966,11 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
               {detailTab === 'logs' ? (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span className="font-medium text-foreground">Logs</span>
+                    <span className="font-medium text-foreground">
+                      {t('servers.servicesTab.logs.title')}
+                    </span>
                     <div className="flex items-center gap-2">
-                      <span>{logs.length} entries</span>
+                      <span>{t('servers.servicesTab.logs.entries', { count: logs.length })}</span>
                       <Button
                         type="button"
                         size="sm"
@@ -915,12 +980,12 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                         disabled={logs.length === 0}
                       >
                         <Clipboard className="mr-1 h-3.5 w-3.5" />
-                        Copy
+                        {t('servers.servicesTab.actions.copy')}
                       </Button>
                     </div>
                   </div>
                   <pre className="max-h-[28rem] overflow-auto whitespace-pre-wrap break-words rounded-md border bg-muted/20 px-3 py-2 font-mono text-[11px] leading-5">
-                    {logs.length ? logs.join('\n') : 'No logs.'}
+                    {logs.length ? logs.join('\n') : t('servers.servicesTab.logs.empty')}
                   </pre>
                 </div>
               ) : null}
@@ -929,7 +994,7 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                 <div className="space-y-3">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="space-y-1.5">
-                      <div className="text-sm font-medium text-foreground">Unit</div>
+                      <div className="text-sm font-medium text-foreground">{t('servers.servicesTab.unit.title')}</div>
                       <div className="mt-1 break-all text-xs text-muted-foreground">
                         {unitPath || '-'}
                       </div>
@@ -941,13 +1006,13 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                         className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-primary transition-colors hover:text-primary/80"
                       >
                         <SquarePen className="h-3.5 w-3.5" />
-                        Edit unit
+                        {t('servers.servicesTab.actions.editUnit')}
                       </button>
                     ) : null}
                   </div>
                   {!editMode ? (
                     <pre className="max-h-[28rem] overflow-auto whitespace-pre-wrap break-words rounded-md border bg-muted/10 px-3 py-2 font-mono text-[11px] leading-5">
-                      {unitContent || 'No unit content.'}
+                      {unitContent || t('servers.servicesTab.unit.empty')}
                     </pre>
                   ) : (
                     <div className="space-y-3">
@@ -955,7 +1020,7 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                         value={unitContent}
                         onChange={event => setUnitContent(event.target.value)}
                         className="min-h-[28rem] w-full overflow-auto rounded-md border bg-background p-3 font-mono text-[11px] leading-5"
-                        placeholder="[Unit]\nDescription=..."
+                        placeholder={t('servers.servicesTab.unit.placeholder')}
                       />
                       <div className="flex flex-wrap gap-2">
                         <Button
@@ -965,7 +1030,7 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                           onClick={() => requestConfirm(selectedService.name, 'verify-unit')}
                         >
                           <Check className="mr-2 h-4 w-4" />
-                          Validate
+                          {t('servers.servicesTab.actions.validate')}
                         </Button>
                         <Button
                           type="button"
@@ -973,7 +1038,7 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                           onClick={() => requestConfirm(selectedService.name, 'apply-unit')}
                         >
                           <Check className="mr-2 h-4 w-4" />
-                          Apply
+                          {t('servers.servicesTab.actions.apply')}
                         </Button>
                         <Button
                           type="button"
@@ -982,7 +1047,7 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                           onClick={() => setEditMode(false)}
                         >
                           <X className="mr-2 h-4 w-4" />
-                          Cancel edit
+                          {t('servers.servicesTab.actions.cancelEdit')}
                         </Button>
                       </div>
                     </div>
@@ -1006,27 +1071,34 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
           <AlertDialogHeader>
             <AlertDialogTitle>
               {confirmAction === 'verify-unit'
-                ? 'Validate unit file?'
+                ? t('servers.servicesTab.confirm.validateTitle')
                 : confirmAction === 'apply-unit'
-                  ? 'Apply unit changes?'
-                  : 'Confirm service action?'}
+                  ? t('servers.servicesTab.confirm.applyTitle')
+                  : t('servers.servicesTab.confirm.actionTitle')}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmAction === 'verify-unit'
-                ? `Service: ${confirmService || '-'}\nThis will run systemd-analyze verify.`
+                ? t('servers.servicesTab.confirm.validateDescription', {
+                    service: confirmService || '-',
+                  })
                 : confirmAction === 'apply-unit'
-                  ? `Service: ${confirmService || '-'}\nThis will save current editor content, then run daemon-reload and try-restart.`
-                  : `Service: ${confirmService || '-'}\nAction: ${confirmAction || '-'}`}
+                  ? t('servers.servicesTab.confirm.applyDescription', {
+                      service: confirmService || '-',
+                    })
+                  : t('servers.servicesTab.confirm.actionDescription', {
+                      service: confirmService || '-',
+                      action: confirmAction || '-',
+                    })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('servers.servicesTab.confirm.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 void executeConfirm()
               }}
             >
-              Confirm
+              {t('servers.servicesTab.confirm.confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

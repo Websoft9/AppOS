@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
@@ -48,6 +49,73 @@ func (buildExecutor) Name() string                          { return "local" }
 func (buildExecutor) PrepareWorkspace(string, string) error { return nil }
 func (buildExecutor) DockerClient() (*docker.Client, error) {
 	return docker.New(buildDockerExecutor{}), nil
+}
+
+type runtimeDockerExecutor struct{}
+
+func (runtimeDockerExecutor) Run(_ context.Context, command string, args ...string) (string, error) {
+	joined := command + " " + strings.Join(args, " ")
+	switch {
+	case strings.Contains(joined, "docker compose -f /tmp/demo-app/docker-compose.yml up -d"):
+		return "runtime started", nil
+	default:
+		return "", nil
+	}
+}
+
+func (runtimeDockerExecutor) RunStream(_ context.Context, command string, args ...string) (io.ReadCloser, error) {
+	joined := command + " " + strings.Join(args, " ")
+	if strings.Contains(joined, "docker compose -f /tmp/demo-app/docker-compose.yml pull") {
+		return io.NopCloser(strings.NewReader("Pulling postgres:16\rDownloading layer sha256:123\rDownloading layer sha256:123\rPull complete\n")), nil
+	}
+	return io.NopCloser(strings.NewReader("")), nil
+}
+
+func (runtimeDockerExecutor) Ping(context.Context) error { return nil }
+func (runtimeDockerExecutor) Host() string               { return "local" }
+
+type runtimeExecutor struct{}
+
+func (runtimeExecutor) Name() string                          { return "local" }
+func (runtimeExecutor) PrepareWorkspace(string, string) error { return nil }
+func (runtimeExecutor) DockerClient() (*docker.Client, error) {
+	return docker.New(runtimeDockerExecutor{}), nil
+}
+
+type runtimeHeartbeatDockerExecutor struct{}
+
+func (runtimeHeartbeatDockerExecutor) Run(_ context.Context, command string, args ...string) (string, error) {
+	joined := command + " " + strings.Join(args, " ")
+	if strings.Contains(joined, "docker compose -f /tmp/demo-app/docker-compose.yml up -d") {
+		return "runtime started", nil
+	}
+	return "", nil
+}
+
+func (runtimeHeartbeatDockerExecutor) RunStream(_ context.Context, command string, args ...string) (io.ReadCloser, error) {
+	joined := command + " " + strings.Join(args, " ")
+	if !strings.Contains(joined, "docker compose -f /tmp/demo-app/docker-compose.yml pull") {
+		return io.NopCloser(strings.NewReader("")), nil
+	}
+	reader, writer := io.Pipe()
+	go func() {
+		_, _ = writer.Write([]byte("Pulling postgres:16\n"))
+		time.Sleep(35 * time.Millisecond)
+		_, _ = writer.Write([]byte("Pull complete\n"))
+		_ = writer.Close()
+	}()
+	return reader, nil
+}
+
+func (runtimeHeartbeatDockerExecutor) Ping(context.Context) error { return nil }
+func (runtimeHeartbeatDockerExecutor) Host() string               { return "local" }
+
+type runtimeHeartbeatExecutor struct{}
+
+func (runtimeHeartbeatExecutor) Name() string                          { return "local" }
+func (runtimeHeartbeatExecutor) PrepareWorkspace(string, string) error { return nil }
+func (runtimeHeartbeatExecutor) DockerClient() (*docker.Client, error) {
+	return docker.New(runtimeHeartbeatDockerExecutor{}), nil
 }
 
 type publishDockerExecutor struct{}
@@ -319,6 +387,77 @@ func TestExecuteNodeRejectsUnimplementedSourceBuildNodeTypes(t *testing.T) {
 				t.Fatalf("expected not implemented error for %s, got %v", nodeType, err)
 			}
 		})
+	}
+}
+
+func TestExecuteNodePullsRuntimeImages(t *testing.T) {
+	operation := core.NewRecord(core.NewBaseCollection("app_operations"))
+	operation.Set("project_dir", "/tmp/demo-app")
+
+	var lines []string
+	result, err := ExecuteNode(
+		context.Background(),
+		operation,
+		model.NodeDefinition{NodeType: "runtime_pull"},
+		runtimeExecutor{},
+		nil,
+		NodeExecutionHooks{Logf: func(line string) { lines = append(lines, line) }},
+	)
+	if err != nil {
+		t.Fatalf("expected runtime_pull to succeed, got %v", err)
+	}
+	if result.DockerClient == nil {
+		t.Fatal("expected runtime_pull to retain docker client")
+	}
+	if len(lines) != 3 {
+		t.Fatalf("expected 3 runtime pull log lines, got %v", lines)
+	}
+	if !strings.Contains(lines[0], "docker runtime pull: Pulling postgres:16") {
+		t.Fatalf("expected first runtime pull log line, got %v", lines[0])
+	}
+	if !strings.Contains(lines[1], "docker runtime pull: Downloading layer sha256:123") {
+		t.Fatalf("expected incremental layer download line, got %v", lines[1])
+	}
+	if !strings.Contains(lines[2], "docker runtime pull: Pull complete") {
+		t.Fatalf("expected runtime pull log output, got %v", lines)
+	}
+	if result.OperationChanged {
+		t.Fatal("expected runtime_pull not to mutate operation state")
+	}
+}
+
+func TestExecuteNodePullsRuntimeImagesEmitsIdleHeartbeat(t *testing.T) {
+	previous := runtimePullIdleHeartbeatInterval
+	runtimePullIdleHeartbeatInterval = 10 * time.Millisecond
+	defer func() { runtimePullIdleHeartbeatInterval = previous }()
+
+	operation := core.NewRecord(core.NewBaseCollection("app_operations"))
+	operation.Set("project_dir", "/tmp/demo-app")
+
+	var lines []string
+	_, err := ExecuteNode(
+		context.Background(),
+		operation,
+		model.NodeDefinition{NodeType: "runtime_pull"},
+		runtimeHeartbeatExecutor{},
+		nil,
+		NodeExecutionHooks{Logf: func(line string) { lines = append(lines, line) }},
+	)
+	if err != nil {
+		t.Fatalf("expected runtime_pull heartbeat path to succeed, got %v", err)
+	}
+	if len(lines) < 3 {
+		t.Fatalf("expected pull log lines plus heartbeat, got %v", lines)
+	}
+	foundHeartbeat := false
+	for _, line := range lines {
+		if strings.Contains(line, "docker runtime pull still waiting for new output after") {
+			foundHeartbeat = true
+			break
+		}
+	}
+	if !foundHeartbeat {
+		t.Fatalf("expected idle heartbeat diagnostic line, got %v", lines)
 	}
 }
 

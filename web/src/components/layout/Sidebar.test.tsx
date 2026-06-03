@@ -5,6 +5,7 @@ import * as SidebarModule from './Sidebar'
 let pathname = '/apps'
 let isDesktop = true
 let sidebarOpen = false
+let sidebarCollapsed = false
 const assignMock = vi.fn()
 const setSidebarOpenMock = vi.fn()
 const toggleSidebarMock = vi.fn()
@@ -79,9 +80,19 @@ vi.mock('react-i18next', () => ({
   }),
 }))
 
+vi.mock('@/components/ui/tooltip', () => ({
+  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  TooltipTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  TooltipContent: ({ children, side }: { children: React.ReactNode; side?: string }) => (
+    <div data-testid="tooltip-content" data-side={side}>
+      {children}
+    </div>
+  ),
+}))
+
 vi.mock('@/contexts/LayoutContext', () => ({
   useLayout: () => ({
-    sidebarCollapsed: false,
+    sidebarCollapsed,
     sidebarOpen,
     setSidebarOpen: setSidebarOpenMock,
     toggleSidebar: toggleSidebarMock,
@@ -99,6 +110,7 @@ afterEach(() => {
   cleanup()
   isDesktop = true
   sidebarOpen = false
+  sidebarCollapsed = false
   setSidebarOpenMock.mockReset()
   toggleSidebarMock.mockReset()
 })
@@ -352,5 +364,25 @@ describe('Sidebar', () => {
     fireEvent.doubleClick(screen.getByRole('link', { name: 'Overview' }))
 
     expect(toggleSidebarMock).not.toHaveBeenCalled()
+  })
+
+  it('renders the sidebar footer toggle as an icon-only button without visible Collapse text', () => {
+    pathname = '/overview'
+
+    render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
+
+    expect(screen.getByRole('button', { name: 'Collapse sidebar' })).toHaveClass('justify-start')
+    expect(screen.getByTestId('tooltip-content')).toHaveAttribute('data-side', 'top')
+    expect(screen.queryByText('Collapse')).not.toBeInTheDocument()
+  })
+
+  it('keeps the collapsed footer toggle icon-only with the expand label', () => {
+    pathname = '/overview'
+    sidebarCollapsed = true
+
+    render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
+
+    expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeInTheDocument()
+    expect(screen.queryByText('Collapse')).not.toBeInTheDocument()
   })
 })

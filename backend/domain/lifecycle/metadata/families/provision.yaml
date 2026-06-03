@@ -45,13 +45,20 @@ definitions:
         retryable: true
         depends_on:
           - prepare_workspace
+      - key: pull_runtime_images
+        node_type: runtime_pull
+        display_name: Pull Runtime Images
+        phase: executing
+        retryable: true
+        depends_on:
+          - render_runtime_config
       - key: start_runtime
         node_type: runtime_start
         display_name: Start Runtime
         phase: executing
         retryable: true
         depends_on:
-          - render_runtime_config
+          - pull_runtime_images
       - key: verify_runtime_health
         node_type: health_check
         display_name: Verify Runtime Health
@@ -94,13 +101,20 @@ definitions:
         retryable: true
         depends_on:
           - prepare_workspace
+      - key: pull_runtime_images
+        node_type: runtime_pull
+        display_name: Pull Runtime Images
+        phase: executing
+        retryable: true
+        depends_on:
+          - render_runtime_config
       - key: start_runtime
         node_type: runtime_start
         display_name: Start Runtime
         phase: executing
         retryable: true
         depends_on:
-          - render_runtime_config
+          - pull_runtime_images
       - key: verify_runtime_health
         node_type: health_check
         display_name: Verify Runtime Health
@@ -174,13 +188,20 @@ definitions:
         retryable: true
         depends_on:
           - create_candidate_release
+      - key: pull_release_runtime_images
+        node_type: runtime_pull
+        display_name: Pull Release Runtime Images
+        phase: executing
+        retryable: true
+        depends_on:
+          - render_runtime_config
       - key: activate_release_runtime
         node_type: runtime_start
         display_name: Activate Release Runtime
         phase: executing
         retryable: true
         depends_on:
-          - render_runtime_config
+          - pull_release_runtime_images
       - key: verify_runtime_health
         node_type: health_check
         display_name: Verify Runtime Health

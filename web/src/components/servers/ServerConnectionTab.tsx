@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -27,53 +28,76 @@ type ServerConnectionTabProps = {
   onOpenTab: (item: Record<string, unknown>, tab?: ServerDetailTab) => void
 }
 
-function compactStateLabel(state: ServerConnectionPresentationSpec['state']): string {
-  if (state === 'online') return 'Connected'
-  if (state === 'awaiting_connection' || state === 'not_configured') return 'Connecting'
-  return 'Needs Attention'
+type Translate = (key: string, options?: Record<string, unknown>) => string
+
+function compactStateLabel(state: ServerConnectionPresentationSpec['state'], t: Translate): string {
+  if (state === 'online') return t('servers.connectionTab.state.connected')
+  if (state === 'awaiting_connection' || state === 'not_configured') {
+    return t('servers.connectionTab.state.connecting')
+  }
+  return t('servers.connectionTab.state.needsAttention')
 }
 
 function compactReason(
   presentation: ServerConnectionPresentationSpec,
   isTunnel: boolean,
-  tunnel: Record<string, unknown> | null
+  tunnel: Record<string, unknown> | null,
+  t: Translate
 ): string {
   const reason = presentation.reason.trim()
 
   if (presentation.state === 'online' && isTunnel) {
     const lastSeen = formatTimestamp(tunnel?.last_seen)
-    return lastSeen === '—' ? 'Tunnel active' : `Last heartbeat ${lastSeen}`
+    return lastSeen === '—'
+      ? t('servers.connectionTab.reason.tunnelActive')
+      : t('servers.connectionTab.reason.lastHeartbeat', { time: lastSeen })
   }
 
-  if (reason === 'Tunnel session is active.') return 'Tunnel active'
-  if (reason === 'SSH access is reachable.') return 'SSH verified'
-  if (reason === 'Waiting for the first tunnel callback.') return 'Waiting for first connection'
-  if (reason === 'Configuration is ready for verification.') return 'Ready to test connection'
-  if (reason === 'Tunnel setup has not started.') return 'Tunnel setup required'
-  if (reason === 'Complete SSH details before verification.') return 'Complete connection setup'
-  if (reason === 'Reconnect is intentionally paused.') return 'Connection paused'
-  if (reason === 'AppOS cannot reach this server.') return 'Connection lost'
-  if (reason === 'Tunnel session is offline.') return 'Connection lost'
-  if (reason === 'Tunnel session is unavailable.') return 'Connection unavailable'
+  if (reason === 'Tunnel session is active.') return t('servers.connectionTab.reason.tunnelActive')
+  if (reason === 'SSH access is reachable.') return t('servers.connectionTab.reason.sshVerified')
+  if (reason === 'Waiting for the first tunnel callback.') {
+    return t('servers.connectionTab.reason.waitingFirstConnection')
+  }
+  if (reason === 'Configuration is ready for verification.') {
+    return t('servers.connectionTab.reason.readyToTest')
+  }
+  if (reason === 'Tunnel setup has not started.') {
+    return t('servers.connectionTab.reason.tunnelSetupRequired')
+  }
+  if (reason === 'Complete SSH details before verification.') {
+    return t('servers.connectionTab.reason.completeSetup')
+  }
+  if (reason === 'Reconnect is intentionally paused.') {
+    return t('servers.connectionTab.reason.connectionPaused')
+  }
+  if (reason === 'AppOS cannot reach this server.') return t('servers.connectionTab.reason.connectionLost')
+  if (reason === 'Tunnel session is offline.') return t('servers.connectionTab.reason.connectionLost')
+  if (reason === 'Tunnel session is unavailable.') {
+    return t('servers.connectionTab.reason.connectionUnavailable')
+  }
 
   return reason
 }
 
-function compactActivityLabel(label: string, isTunnel: boolean): string {
+function compactActivityLabel(label: string, isTunnel: boolean, t: Translate): string {
   const normalized = label.trim().toLowerCase()
 
-  if (normalized === 'server created') return 'Server registered'
-  if (normalized === 'credential attached') return 'Connection updated'
-  if (normalized === 'setup started') return 'Tunnel setup started'
+  if (normalized === 'server created') return t('servers.connectionTab.activity.serverRegistered')
+  if (normalized === 'credential attached') return t('servers.connectionTab.activity.connectionUpdated')
+  if (normalized === 'setup started') return t('servers.connectionTab.activity.tunnelSetupStarted')
   if (normalized === 'verification or callback observed') {
-    return isTunnel ? 'Connected' : 'SSH verified'
+    return isTunnel
+      ? t('servers.connectionTab.activity.connected')
+      : t('servers.connectionTab.activity.sshVerified')
   }
   if (normalized === 'last healthy seen') {
-    return isTunnel ? 'Heartbeat received' : 'Last healthy check'
+    return isTunnel
+      ? t('servers.connectionTab.activity.heartbeatReceived')
+      : t('servers.connectionTab.activity.lastHealthyCheck')
   }
-  if (normalized === 'pause window updated') return 'Pause updated'
-  if (normalized === 'last failure observed') return 'Connection failed'
-  if (normalized === 'record updated') return 'Settings updated'
+  if (normalized === 'pause window updated') return t('servers.connectionTab.activity.pauseUpdated')
+  if (normalized === 'last failure observed') return t('servers.connectionTab.activity.connectionFailed')
+  if (normalized === 'record updated') return t('servers.connectionTab.activity.settingsUpdated')
 
   return label
 }
@@ -104,37 +128,52 @@ function badgeTone(
   return 'secondary'
 }
 
-function heroTitle(presentation: ServerConnectionPresentationSpec, isTunnel: boolean): string {
+function heroTitle(
+  presentation: ServerConnectionPresentationSpec,
+  isTunnel: boolean,
+  t: Translate
+): string {
   if (presentation.state === 'online') {
-    return isTunnel ? 'Tunnel connection is live' : 'Direct SSH is ready'
+    return isTunnel ? t('servers.connectionTab.hero.tunnelLive') : t('servers.connectionTab.hero.directReady')
   }
   if (presentation.state === 'awaiting_connection' || presentation.state === 'not_configured') {
-    return isTunnel ? 'Waiting for the first tunnel callback' : 'Connection setup is in progress'
+    return isTunnel
+      ? t('servers.connectionTab.hero.waitingFirstTunnelCallback')
+      : t('servers.connectionTab.hero.setupInProgress')
   }
-  return isTunnel ? 'Tunnel connection needs attention' : 'Connection needs attention'
+  return isTunnel
+    ? t('servers.connectionTab.hero.tunnelNeedsAttention')
+    : t('servers.connectionTab.hero.connectionNeedsAttention')
 }
 
 function subline(
   presentation: ServerConnectionPresentationSpec,
   isTunnel: boolean,
-  summary: string
+  summary: string,
+  t: Translate
 ): string {
   if (presentation.state === 'online') {
-    return isTunnel ? 'Remote access is available now.' : 'The server is reachable now.'
+    return isTunnel
+      ? t('servers.connectionTab.subline.remoteAccessAvailable')
+      : t('servers.connectionTab.subline.serverReachable')
   }
   if (presentation.state === 'awaiting_connection' || presentation.state === 'not_configured') {
     return summary
   }
-  return 'Take the next action to restore access.'
+  return t('servers.connectionTab.subline.restoreAccess')
 }
 
-function modeSummary(modeLabel: ServerConnectionPresentationSpec['modeLabel']): string {
-  return modeLabel === 'Tunnel' ? 'Tunnel via AppOS relay' : 'Direct SSH'
+function modeSummary(modeLabel: ServerConnectionPresentationSpec['modeLabel'], t: Translate): string {
+  return modeLabel === 'Tunnel'
+    ? t('servers.connectionTab.modeSummary.tunnelRelay')
+    : t('servers.connectionTab.modeSummary.directSsh')
 }
 
-function formatSessionLabel(count: number): string {
-  if (count <= 0) return 'None'
-  return count === 1 ? '1 active session' : `${count} active sessions`
+function formatSessionLabel(count: number, t: Translate): string {
+  if (count <= 0) return t('servers.connectionTab.sessions.none')
+  return count === 1
+    ? t('servers.connectionTab.sessions.oneActive')
+    : t('servers.connectionTab.sessions.manyActive', { count })
 }
 
 export function ServerConnectionTab({
@@ -144,12 +183,13 @@ export function ServerConnectionTab({
   tunnel,
   onExecutePrimaryAction,
 }: ServerConnectionTabProps) {
+  const { t } = useTranslation('resources')
   const serverId = String(item.id ?? '')
-  const statusLabel = compactStateLabel(presentation.state)
-  const summary = compactReason(presentation, isTunnel, tunnel)
+  const statusLabel = compactStateLabel(presentation.state, t)
+  const summary = compactReason(presentation, isTunnel, tunnel, t)
   const recentActivity = [...presentation.timeline].reverse().slice(0, 4)
-  const title = heroTitle(presentation, isTunnel)
-  const helper = subline(presentation, isTunnel, summary)
+  const title = heroTitle(presentation, isTunnel, t)
+  const helper = subline(presentation, isTunnel, summary, t)
   const [sessionCount, setSessionCount] = useState(0)
 
   useEffect(() => {
@@ -201,29 +241,29 @@ export function ServerConnectionTab({
             <div className="space-y-2 rounded-lg border border-border/60 bg-background/90 p-3">
               <div className="grid grid-cols-[124px_minmax(0,1fr)] gap-3 text-sm">
                 <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                  Connection Status
+                  {t('servers.connectionTab.fields.connectionStatus')}
                 </div>
                 <div className="font-medium text-foreground">{summary}</div>
               </div>
               <div className="grid grid-cols-[124px_minmax(0,1fr)] gap-3 text-sm">
                 <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                  Mode
+                  {t('servers.connectionTab.fields.mode')}
                 </div>
                 <div className="font-medium text-foreground">
-                  {modeSummary(presentation.modeLabel)}
+                  {modeSummary(presentation.modeLabel, t)}
                 </div>
               </div>
               <div className="grid grid-cols-[124px_minmax(0,1fr)] gap-3 text-sm">
                 <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                  Interactive Session
+                  {t('servers.connectionTab.fields.interactiveSession')}
                 </div>
                 <div className="font-medium text-foreground">
-                  {formatSessionLabel(sessionCount)}
+                  {formatSessionLabel(sessionCount, t)}
                 </div>
               </div>
               <div className="grid grid-cols-[124px_minmax(0,1fr)] gap-3 text-sm">
                 <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                  Last Activity
+                  {t('servers.connectionTab.fields.lastActivity')}
                 </div>
                 <div className="font-mono text-foreground">{presentation.lastActivityLabel}</div>
               </div>
@@ -231,7 +271,7 @@ export function ServerConnectionTab({
 
             <div className="space-y-2">
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                Recommended Action
+                {t('servers.connectionTab.fields.recommendedAction')}
               </div>
               <div className="text-sm text-muted-foreground">{helper}</div>
               <Button
@@ -247,12 +287,14 @@ export function ServerConnectionTab({
 
       <section className="space-y-3 rounded-xl border border-border/60 bg-background/90 p-4 sm:p-5">
         <div className="border-b border-border/50 pb-3">
-          <h3 className="text-sm font-semibold text-foreground">Activity Log</h3>
+          <h3 className="text-sm font-semibold text-foreground">
+            {t('servers.connectionTab.activityLog.title')}
+          </h3>
         </div>
         <div>
           {recentActivity.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border/60 bg-muted/10 px-4 py-6 text-sm text-muted-foreground">
-              No recent activity is available yet.
+              {t('servers.connectionTab.activityLog.empty')}
             </div>
           ) : (
             <div className="rounded-lg border border-border/60 bg-background/95">
@@ -264,11 +306,11 @@ export function ServerConnectionTab({
                   >
                     <div className="min-w-0 space-y-0.5">
                       <div className="truncate font-medium text-foreground">
-                        {compactActivityLabel(event.label, isTunnel)}
+                        {compactActivityLabel(event.label, isTunnel, t)}
                       </div>
                       {index === 0 ? (
                         <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                          Most recent event
+                          {t('servers.connectionTab.activityLog.mostRecent')}
                         </div>
                       ) : null}
                     </div>

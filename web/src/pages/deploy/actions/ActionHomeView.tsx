@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import type { CreateDeploymentEntryMode } from './action-types'
 
 type StoreShortcut = {
   key: string
@@ -33,15 +34,8 @@ type LatestOperationItem = {
   updated: string
 }
 
-type ManualEntryMode =
-  | 'compose'
-  | 'docker-command'
-  | 'install-script'
-  | 'store-prefill'
-  | 'installed-prefill'
-
 type CustomEntry = {
-  key: ManualEntryMode | 'git-compose'
+  key: CreateDeploymentEntryMode
   title: string
   description: string
   icon: React.ReactNode
@@ -319,10 +313,15 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-base">Latest Actions</CardTitle>
+          <div className="space-y-1">
+            <CardTitle className="text-base">Latest Actions Summary</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Showing the 5 most recently updated action records. Open the full Actions page for complete history.
+            </p>
+          </div>
           <Button variant="outline" size="sm" asChild>
             <Link to="/actions" params={{} as never} search={{} as never}>
-              View action history
+              Open full action history
             </Link>
           </Button>
         </CardHeader>

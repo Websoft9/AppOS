@@ -10,8 +10,11 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
+	"github.com/websoft9/appos/backend/domain/apptemplates"
 	appcatalog "github.com/websoft9/appos/backend/domain/catalog"
 )
+
+const maxCatalogAppsLimit = 200
 
 // registerCatalogRoutes registers canonical App Catalog read routes under /api/catalog.
 func registerCatalogRoutes(g *router.RouterGroup[*core.RequestEvent]) {
@@ -35,6 +38,7 @@ func registerCatalogRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	apps.GET("", handleCatalogAppsList)
 	apps.GET("/{key}", handleCatalogAppDetail)
 	apps.GET("/{key}/deploy-source", handleCatalogAppDeploySource)
+	apps.GET("/{key}/template", handleCatalogAppTemplate)
 
 	me := catalog.Group("/me")
 	meApps := me.Group("/apps")
@@ -102,6 +106,21 @@ func handleCatalogAppDeploySource(e *core.RequestEvent) error {
 			return e.NotFoundError("catalog app not found", nil)
 		}
 		return apis.NewApiError(http.StatusInternalServerError, "failed to load deploy source", err)
+	}
+	return e.JSON(http.StatusOK, response)
+}
+
+func handleCatalogAppTemplate(e *core.RequestEvent) error {
+	key := strings.TrimSpace(e.Request.PathValue("key"))
+	if key == "" {
+		return e.BadRequestError("missing app key", nil)
+	}
+	response, err := apptemplates.NewService().Describe(key)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return e.NotFoundError("catalog app template not found", nil)
+		}
+		return apis.NewApiError(http.StatusInternalServerError, "failed to load catalog app template", err)
 	}
 	return e.JSON(http.StatusOK, response)
 }
@@ -443,8 +462,8 @@ func catalogQuery(e *core.RequestEvent) (appcatalog.Query, error) {
 		if err != nil || parsed <= 0 {
 			return appcatalog.Query{}, fmt.Errorf("invalid limit; must be a positive integer")
 		}
-		if parsed > 200 {
-			parsed = 200
+		if parsed > maxCatalogAppsLimit {
+			parsed = maxCatalogAppsLimit
 		}
 		limit = parsed
 	}

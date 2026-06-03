@@ -5,8 +5,9 @@ import { getLocale } from '@/lib/i18n'
 import { pb } from '@/lib/pb'
 import { getApiErrorMessage } from '@/lib/api-error'
 import {
-  toLegacyProducts,
+  toLegacyProduct,
   toLegacyPrimaryCategories,
+  useCatalogAllApps,
   useCatalogAppDetail,
   useCatalogApps,
   useCatalogCategories,
@@ -49,6 +50,30 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
+function matchesStoreSearch(
+  product: ProductWithCategories,
+  query: string,
+  primaryCategories: Array<{ key: string; title: string }>
+): boolean {
+  const normalizedQuery = query.trim().toLowerCase()
+  if (!normalizedQuery) return true
+
+  const primaryTitle = primaryCategories.find(category => category.key === product.primaryCategoryKey)?.title
+  const secondaryTitles = product.catalogCollection.items.map(item => item.title)
+  const haystacks = [
+    product.key,
+    product.trademark,
+    product.summary,
+    product.overview,
+    primaryTitle,
+    ...secondaryTitles,
+  ]
+
+  return haystacks
+    .filter((value): value is string => Boolean(value))
+    .some(value => value.toLowerCase().includes(normalizedQuery))
+}
+
 // ─── Route definition ──────────────────────────────────────────────────────────
 
 export const Route = createFileRoute('/_app/_auth/store/')({
@@ -57,7 +82,7 @@ export const Route = createFileRoute('/_app/_auth/store/')({
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-function StorePage() {
+export function StorePage() {
   const navigate = useNavigate()
   const { t } = useTranslation('store')
   const locale = getLocale()
@@ -85,6 +110,7 @@ function StorePage() {
 
   // ─── Favorites filter ─────────────────────────────────────────────────────────
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
+  const searchActive = search.trim().length > 0
 
   // ─── Official apps collapse ───────────────────────────────────────────────────
   const [officialCollapsed, setOfficialCollapsed] = useState(false)
@@ -143,7 +169,7 @@ function StorePage() {
     isLoading: officialAppsLoading,
     isError: officialAppsError,
     refetch: refetchOfficialApps,
-  } = useCatalogApps(catalogAppsQuery)
+  } = useCatalogApps(catalogAppsQuery, !searchActive)
 
   const officialCatalogSeedQuery = useMemo(
     () => ({
@@ -157,11 +183,19 @@ function StorePage() {
 
   const {
     data: officialCatalogSeed,
+    isLoading: officialCatalogSeedLoading,
+    isError: officialCatalogSeedError,
     refetch: refetchOfficialCatalogSeed,
-  } = useCatalogApps(officialCatalogSeedQuery)
+  } = useCatalogAllApps(officialCatalogSeedQuery, searchActive)
 
-  const isLoading = catalogLoading || officialAppsLoading
-  const isError = catalogError || officialAppsError
+  const isLoading =
+    catalogLoading ||
+    (!searchActive && officialAppsLoading) ||
+    (searchActive && officialCatalogSeedLoading)
+  const isError =
+    catalogError ||
+    (!searchActive && officialAppsError) ||
+    (searchActive && officialCatalogSeedError)
 
   const selectedAppKey = selectedApp?.key ?? null
   const {
@@ -207,16 +241,9 @@ function StorePage() {
     return counts
   }, [categoryTree])
 
-  const officialCatalogSeedProducts = useMemo(
-    () =>
-      toLegacyProducts(
-        officialCatalogSeed ?? {
-          items: [],
-          page: { limit: 0, offset: 0, total: 0, hasMore: false },
-          meta: { locale, sourceVersion: '' },
-        }
-      ),
-    [officialCatalogSeed, locale]
+  const officialCatalogSeedProducts = useMemo<ProductWithCategories[]>(
+    () => (officialCatalogSeed?.items ?? []).map(item => toLegacyProduct(item)),
+    [officialCatalogSeed]
   )
 
   const fallbackScreenshots = useMemo(
@@ -253,7 +280,35 @@ function StorePage() {
     [officialAppsPage]
   )
 
-  const officialTotal = officialAppsPage?.page.total ?? 0
+  const favoriteKeys = useMemo(
+    () => new Set(userApps.filter(item => item.is_favorite).map(item => item.app_key)),
+    [userApps]
+  )
+
+  const searchedOfficialProducts = useMemo<ProductWithCategories[]>(() => {
+    if (!searchActive) return paginatedProducts
+
+    return officialCatalogSeedProducts.filter(product => {
+      if (showFavoritesOnly && !favoriteKeys.has(product.key)) return false
+      return matchesStoreSearch(product, search, primaryCategories)
+    })
+  }, [
+    favoriteKeys,
+    officialCatalogSeedProducts,
+    paginatedProducts,
+    primaryCategories,
+    search,
+    searchActive,
+    showFavoritesOnly,
+  ])
+
+  const visibleOfficialProducts = useMemo<ProductWithCategories[]>(() => {
+    if (!searchActive) return paginatedProducts
+    const start = (page - 1) * pageSize
+    return searchedOfficialProducts.slice(start, start + pageSize)
+  }, [page, pageSize, paginatedProducts, searchActive, searchedOfficialProducts])
+
+  const officialTotal = searchActive ? searchedOfficialProducts.length : (officialAppsPage?.page.total ?? 0)
   const totalPages = Math.max(1, Math.ceil(officialTotal / pageSize))
   const favoriteCount = useMemo(
     () => userApps.filter(item => item.is_favorite).length,
@@ -316,7 +371,11 @@ function StorePage() {
   }
 
   const handleRefresh = async () => {
-    await Promise.all([refetchCatalog(), refetchOfficialApps(), refetchOfficialCatalogSeed()])
+    await Promise.all([
+      refetchCatalog(),
+      !searchActive ? refetchOfficialApps() : Promise.resolve(),
+      searchActive ? refetchOfficialCatalogSeed() : Promise.resolve(),
+    ])
   }
 
   const openDetail = (product: ProductWithCategories) => {
@@ -395,8 +454,12 @@ function StorePage() {
           variant="outline"
           onClick={() => {
             refetchCatalog()
-            refetchOfficialApps()
-            refetchOfficialCatalogSeed()
+            if (!searchActive) {
+              refetchOfficialApps()
+            }
+            if (searchActive) {
+              refetchOfficialCatalogSeed()
+            }
           }}
         >
           {t('error.retry')}
@@ -593,7 +656,7 @@ function StorePage() {
       </div>
 
       {/* App grid: custom apps group + official apps group */}
-      {visibleCustomApps.length === 0 && paginatedProducts.length === 0 ? (
+          {visibleCustomApps.length === 0 && visibleOfficialProducts.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 gap-2 text-muted-foreground">
           <p>{showFavoritesOnly ? t('favorites.noFavorites') : t('search.noResults')}</p>
           {showFavoritesOnly && (
@@ -635,7 +698,7 @@ function StorePage() {
           )}
 
           {/* Official Apps group */}
-          {paginatedProducts.length > 0 && (
+          {visibleOfficialProducts.length > 0 && (
             <div className="space-y-3">
               {visibleCustomApps.length > 0 && (
                 <button
@@ -659,7 +722,7 @@ function StorePage() {
                   role="list"
                   aria-label={t('title')}
                 >
-                  {paginatedProducts.map(product => (
+                  {visibleOfficialProducts.map(product => (
                     <div key={product.key} role="listitem">
                       <AppCard
                         product={product}
@@ -698,8 +761,9 @@ function StorePage() {
 
                 const install = selectedDeploySource?.install
                 void navigate({
-                  to: '/deploy',
+                  to: '/deploy/create',
                   search: {
+                    entry: 'template',
                     prefillMode: install?.prefillMode ?? 'target',
                     prefillSource:
                       install?.prefillSource ?? (selectedAppIsCustom ? 'template' : 'library'),

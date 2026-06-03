@@ -7,6 +7,16 @@ const navigateMock = vi.fn()
 const iacReadMock = vi.fn()
 const iacSaveFileMock = vi.fn()
 
+function paginatedActionsResponse(items: Array<Record<string, unknown>>) {
+  return {
+    items,
+    page: 1,
+    perPage: 15,
+    totalItems: items.length,
+    totalPages: 1,
+  }
+}
+
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
@@ -180,8 +190,8 @@ describe('AppDetailPage', () => {
             ],
           })
         }
-        if (path === '/api/actions' && options?.method === 'GET') {
-          return Promise.resolve([
+        if (path.startsWith('/api/actions?') && options?.method === 'GET') {
+          return Promise.resolve(paginatedActionsResponse([
             {
               id: 'op-last',
               app_id: 'app-1',
@@ -213,21 +223,7 @@ describe('AppDetailPage', () => {
                 adapter: 'docker',
               },
             },
-            {
-              id: 'op-other',
-              app_id: 'app-2',
-              server_id: 'local',
-              source: 'manualops',
-              status: 'success',
-              adapter: 'docker',
-              compose_project_name: 'other-app',
-              project_dir: '/tmp/other-app',
-              rendered_compose: '',
-              error_summary: '',
-              created: '2026-03-30T11:09:00Z',
-              updated: '2026-03-30T11:10:00Z',
-            },
-          ])
+          ]))
         }
         if (path === '/api/instances' && options?.method === 'GET') {
           return Promise.resolve([
@@ -356,6 +352,16 @@ describe('AppDetailPage', () => {
     )
   })
 
+  it('renders breadcrumb navigation and icon-only refresh control in the header', async () => {
+    render(<AppDetailPage appId="app-1" />)
+
+    expect(await screen.findByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /My Apps/i })).toBeInTheDocument()
+    expect(screen.queryByText('Back to My Apps')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Refresh app detail' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument()
+  })
+
   it('navigates to action detail after start creates an operation', async () => {
     appDetailResponse = {
       ...appDetailResponse,
@@ -421,8 +427,8 @@ describe('AppDetailPage', () => {
         if (path === '/api/apps/app-1/exposures' && options?.method === 'GET') {
           return Promise.resolve([])
         }
-        if (path === '/api/actions' && options?.method === 'GET') {
-          return Promise.resolve([])
+        if (path.startsWith('/api/actions?') && options?.method === 'GET') {
+          return Promise.resolve(paginatedActionsResponse([]))
         }
         if (path === '/api/instances' && options?.method === 'GET') {
           return Promise.resolve([])
@@ -473,6 +479,7 @@ describe('AppDetailPage', () => {
     appDetailResponse = {
       ...appDetailResponse,
       server_id: 'server-1',
+      server_name: 'API Server Name',
     }
 
     sendMock.mockImplementation(
@@ -522,8 +529,8 @@ describe('AppDetailPage', () => {
             ],
           })
         }
-        if (path === '/api/actions' && options?.method === 'GET') {
-          return Promise.resolve([])
+        if (path.startsWith('/api/actions?') && options?.method === 'GET') {
+          return Promise.resolve(paginatedActionsResponse([]))
         }
         if (path === '/api/instances' && options?.method === 'GET') {
           return Promise.resolve([])
@@ -568,6 +575,65 @@ describe('AppDetailPage', () => {
     expect(screen.getByRole('button', { name: 'Open server detail' })).toBeInTheDocument()
   })
 
+  it('prefers server_name from app detail before falling back to server id', async () => {
+    appDetailResponse = {
+      ...appDetailResponse,
+      server_id: 'server-1',
+      server_name: 'API Server Name',
+    }
+
+    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, string> }) => {
+      if (path === '/api/apps/app-1' && options?.method === 'GET') {
+        return Promise.resolve(appDetailResponse)
+      }
+      if (path === '/api/apps/app-1/releases' && options?.method === 'GET') {
+        return Promise.resolve([])
+      }
+      if (path === '/api/apps/app-1/exposures' && options?.method === 'GET') {
+        return Promise.resolve([])
+      }
+      if (path === '/api/servers/connection' && options?.method === 'GET') {
+        return Promise.resolve({ items: [] })
+      }
+      if (path.startsWith('/api/actions?') && options?.method === 'GET') {
+        return Promise.resolve(paginatedActionsResponse([]))
+      }
+      if (path === '/api/instances' && options?.method === 'GET') return Promise.resolve([])
+      if (path === '/api/servers/server-1/docker/containers' && options?.method === 'GET') {
+        return Promise.resolve({ output: '' })
+      }
+      if (path === '/api/servers/server-1/docker/volumes' && options?.method === 'GET') {
+        return Promise.resolve({ output: '' })
+      }
+      if (path === '/api/servers/server-1/docker/containers/stats' && options?.method === 'GET') {
+        return Promise.resolve({ output: '' })
+      }
+      if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
+        return Promise.resolve({
+          id: 'app-1',
+          name: 'Demo App',
+          server_id: 'server-1',
+          project_dir: '/tmp/demo-app',
+          runtime_status: 'running',
+          output: '',
+        })
+      }
+      if (path === '/api/ext/backup/list' && options?.method === 'GET') {
+        return Promise.resolve({ message: 'not implemented' })
+      }
+      return Promise.resolve({})
+    })
+
+    render(<AppDetailPage appId="app-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
+    })
+
+    expect(screen.getByText('API Server Name')).toBeInTheDocument()
+    expect(screen.queryByText(/^server-1$/i)).not.toBeInTheDocument()
+  })
+
   it('opens a release detail dialog from the lineage section', async () => {
     sendMock.mockImplementation(
       (path: string, options?: { method?: string; body?: Record<string, string> }) => {
@@ -594,7 +660,9 @@ describe('AppDetailPage', () => {
         }
         if (path === '/api/apps/app-1/exposures' && options?.method === 'GET')
           return Promise.resolve([])
-        if (path === '/api/actions' && options?.method === 'GET') return Promise.resolve([])
+        if (path.startsWith('/api/actions?') && options?.method === 'GET') {
+          return Promise.resolve(paginatedActionsResponse([]))
+        }
         if (path === '/api/instances' && options?.method === 'GET') return Promise.resolve([])
         if (path === '/api/servers/local/docker/containers' && options?.method === 'GET')
           return Promise.resolve({ output: '' })
@@ -663,7 +731,9 @@ describe('AppDetailPage', () => {
         }
         if (path === '/api/apps/app-1/exposures' && options?.method === 'GET')
           return Promise.resolve([])
-        if (path === '/api/actions' && options?.method === 'GET') return Promise.resolve([])
+        if (path.startsWith('/api/actions?') && options?.method === 'GET') {
+          return Promise.resolve(paginatedActionsResponse([]))
+        }
         if (path === '/api/instances' && options?.method === 'GET') return Promise.resolve([])
         if (path === '/api/servers/local/docker/containers' && options?.method === 'GET')
           return Promise.resolve({ output: '' })
@@ -738,7 +808,9 @@ describe('AppDetailPage', () => {
         }
         if (path === '/api/apps/app-1/exposures' && options?.method === 'GET')
           return Promise.resolve([])
-        if (path === '/api/actions' && options?.method === 'GET') return Promise.resolve([])
+        if (path.startsWith('/api/actions?') && options?.method === 'GET') {
+          return Promise.resolve(paginatedActionsResponse([]))
+        }
         if (path === '/api/instances' && options?.method === 'GET') return Promise.resolve([])
         if (path === '/api/servers/local/docker/containers' && options?.method === 'GET')
           return Promise.resolve({ output: '' })
@@ -820,7 +892,9 @@ describe('AppDetailPage', () => {
     fireEvent.click(actionsTab)
 
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith('/api/actions', { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith('/api/actions?appId=app-1&page=1&perPage=15', {
+        method: 'GET',
+      })
       expect(screen.getByText('Restart')).toBeInTheDocument()
       expect(screen.queryByText('other-app')).not.toBeInTheDocument()
     })
@@ -919,7 +993,6 @@ describe('AppDetailPage', () => {
         to: '/actions',
         search: {
           appId: 'app-1',
-          q: 'demo-app',
         },
       })
     })
@@ -989,7 +1062,9 @@ describe('AppDetailPage', () => {
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/apps/app-1/logs', { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith('/api/actions', { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith('/api/actions?appId=app-1&page=1&perPage=15', {
+        method: 'GET',
+      })
       expect(sendMock).toHaveBeenCalledWith('/api/servers/local/docker/containers', {
         method: 'GET',
       })

@@ -3,6 +3,137 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ServerServicesPanel } from './ServerServicesPanel'
 
+const { translateServicesKey } = vi.hoisted(() => {
+  const translateServicesKey = (key: string, options?: Record<string, unknown>) => {
+    const messages: Record<string, string> = {
+      'servers.servicesTab.title': 'Systemd',
+      'servers.servicesTab.description': 'Inspect service status, open logs, and work with unit files from a single view.',
+      'servers.servicesTab.loading': 'Loading services...',
+      'servers.servicesTab.loadingDetails': 'Loading details...',
+      'servers.servicesTab.inventory.ariaLabel': 'Systemd inventory',
+      'servers.servicesTab.inventory.focusService': 'AppOS focus service',
+      'servers.servicesTab.search.placeholder': 'Search',
+      'servers.servicesTab.filters.status': 'Status filter',
+      'servers.servicesTab.pagination.previous': 'Previous page',
+      'servers.servicesTab.pagination.next': 'Next page',
+      'servers.servicesTab.sort.asc': 'ascending',
+      'servers.servicesTab.sort.desc': 'descending',
+      'servers.servicesTab.columns.name': 'Name',
+      'servers.servicesTab.columns.nameSortable': 'Name sortable',
+      'servers.servicesTab.columns.status': 'Status',
+      'servers.servicesTab.columns.summary': 'Summary',
+      'servers.servicesTab.columns.summarySortable': 'Summary sortable',
+      'servers.servicesTab.columns.actions': 'Actions',
+      'servers.servicesTab.selected.title': 'Selected Service',
+      'servers.servicesTab.selected.selectPrompt': 'Select one service from the inventory.',
+      'servers.servicesTab.selected.empty': 'Choose a service to inspect its status, logs, and unit details.',
+      'servers.servicesTab.detailRows.name': 'Name',
+      'servers.servicesTab.detailRows.description': 'Description',
+      'servers.servicesTab.detailRows.status': 'Status',
+      'servers.servicesTab.detailRows.path': 'Path',
+      'servers.servicesTab.detailRows.pid': 'PID',
+      'servers.servicesTab.detailRows.loadState': 'Load State',
+      'servers.servicesTab.detailRows.activeState': 'Active State',
+      'servers.servicesTab.detailRows.subState': 'Sub State',
+      'servers.servicesTab.detailRows.unitFileState': 'Unit File State',
+      'servers.servicesTab.detailRows.stateChange': 'State Change',
+      'servers.servicesTab.status.running': 'running',
+      'servers.servicesTab.status.exited': 'exited',
+      'servers.servicesTab.status.dead': 'dead',
+      'servers.servicesTab.status.failed': 'failed',
+      'servers.servicesTab.status.inactive': 'inactive',
+      'servers.servicesTab.status.unknown': 'unknown',
+      'servers.servicesTab.tabs.overview': 'Overview',
+      'servers.servicesTab.tabs.logs': 'Logs',
+      'servers.servicesTab.logs.title': 'Logs',
+      'servers.servicesTab.unit.title': 'Unit',
+      'servers.servicesTab.unit.empty': 'No unit content.',
+      'servers.servicesTab.unit.placeholder': '[Unit]\nDescription=...',
+      'servers.servicesTab.unit.validatePassed': 'Validate passed.',
+      'servers.servicesTab.unit.applyCompleted': 'Apply completed.',
+      'servers.servicesTab.actions.refresh': 'Refresh systemd data',
+      'servers.servicesTab.actions.openOverview': 'Open overview',
+      'servers.servicesTab.actions.openLogs': 'Open logs',
+      'servers.servicesTab.actions.openUnit': 'Open unit',
+      'servers.servicesTab.actions.editUnit': 'Edit unit',
+      'servers.servicesTab.actions.start': 'Start',
+      'servers.servicesTab.actions.restart': 'Restart',
+      'servers.servicesTab.actions.stop': 'Stop',
+      'servers.servicesTab.actions.enable': 'Enable',
+      'servers.servicesTab.actions.disable': 'Disable',
+      'servers.servicesTab.actions.copy': 'Copy',
+      'servers.servicesTab.actions.validate': 'Validate',
+      'servers.servicesTab.actions.apply': 'Apply',
+      'servers.servicesTab.actions.cancelEdit': 'Cancel edit',
+      'servers.servicesTab.empty.noMatches': 'No services match the current filters.',
+      'servers.servicesTab.hints.logsCopied': 'Logs copied.',
+      'servers.servicesTab.errors.loadServices': 'Failed to load services',
+      'servers.servicesTab.errors.operationFailed': 'Operation failed',
+      'servers.servicesTab.errors.copyLogs': 'Failed to copy logs',
+      'servers.servicesTab.errors.validateUnit': 'Failed to validate unit file',
+      'servers.servicesTab.errors.applyUnit': 'Failed to apply unit file',
+      'servers.servicesTab.confirm.validateTitle': 'Validate unit file?',
+      'servers.servicesTab.confirm.applyTitle': 'Apply unit changes?',
+      'servers.servicesTab.confirm.actionTitle': 'Confirm service action?',
+      'servers.servicesTab.confirm.cancel': 'Cancel',
+      'servers.servicesTab.confirm.confirm': 'Confirm',
+    }
+
+    if (key === 'servers.servicesTab.inventory.summary') {
+      return `Total ${String(options?.count ?? '')} services, ${String(options?.failed ?? '')} failed.`
+    }
+    if (key === 'servers.servicesTab.filterOptions.all') {
+      return `All status (${String(options?.count ?? '')})`
+    }
+    if (key === 'servers.servicesTab.filterOptions.running') {
+      return `Running (${String(options?.count ?? '')})`
+    }
+    if (key === 'servers.servicesTab.filterOptions.exited') {
+      return `Exited (${String(options?.count ?? '')})`
+    }
+    if (key === 'servers.servicesTab.filterOptions.failed') {
+      return `Failed (${String(options?.count ?? '')})`
+    }
+    if (key === 'servers.servicesTab.filterOptions.inactive') {
+      return `Inactive (${String(options?.count ?? '')})`
+    }
+    if (key === 'servers.servicesTab.columns.nameSorted') {
+      return `Name sorted ${String(options?.direction ?? '')}`
+    }
+    if (key === 'servers.servicesTab.columns.summarySorted') {
+      return `Summary sorted ${String(options?.direction ?? '')}`
+    }
+    if (key === 'servers.servicesTab.logs.entries') {
+      return `${String(options?.count ?? '')} entries`
+    }
+    if (key === 'servers.servicesTab.actions.serviceActionsFor') {
+      return `Service actions for ${String(options?.name ?? '')}`
+    }
+    if (key === 'servers.servicesTab.hints.actionApplied') {
+      return `Action ${String(options?.action ?? '')} applied. Next: check status or logs.`
+    }
+    if (key === 'servers.servicesTab.confirm.validateDescription') {
+      return `Service: ${String(options?.service ?? '')}\nThis will run systemd-analyze verify.`
+    }
+    if (key === 'servers.servicesTab.confirm.applyDescription') {
+      return `Service: ${String(options?.service ?? '')}\nThis will save current editor content, then run daemon-reload and try-restart.`
+    }
+    if (key === 'servers.servicesTab.confirm.actionDescription') {
+      return `Service: ${String(options?.service ?? '')}\nAction: ${String(options?.action ?? '')}`
+    }
+
+    return messages[key] ?? key
+  }
+
+  return { translateServicesKey }
+})
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: translateServicesKey,
+  }),
+}))
+
 const listSystemdServicesMock = vi.fn()
 const getSystemdStatusMock = vi.fn()
 const getSystemdLogsMock = vi.fn()

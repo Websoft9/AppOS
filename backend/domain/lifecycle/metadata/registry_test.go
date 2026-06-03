@@ -96,8 +96,8 @@ func TestDefinitionForSelectorChoosesSourceBuildInstall(t *testing.T) {
 	if definition.Key != "provision.install.source_build" {
 		t.Fatalf("expected source build install definition, got %s", definition.Key)
 	}
-	if len(definition.Nodes) != 9 {
-		t.Fatalf("expected 9 source build nodes, got %d", len(definition.Nodes))
+	if len(definition.Nodes) != 10 {
+		t.Fatalf("expected 10 source build nodes, got %d", len(definition.Nodes))
 	}
 	if definition.Nodes[0].Key != "validate_source_build_request" {
 		t.Fatalf("expected first source build node validate_source_build_request, got %s", definition.Nodes[0].Key)
@@ -113,6 +113,12 @@ func TestDefinitionForSelectorChoosesSourceBuildInstall(t *testing.T) {
 	}
 	if len(definition.Nodes[5].WritesProjection) != 1 || definition.Nodes[5].WritesProjection[0] != string(model.ProjectionTargetReleaseSnapshot) {
 		t.Fatalf("expected create_candidate_release to write ReleaseSnapshot, got %v", definition.Nodes[5].WritesProjection)
+	}
+	if definition.Nodes[7].Key != "pull_release_runtime_images" || definition.Nodes[7].NodeType != "runtime_pull" {
+		t.Fatalf("expected pull_release_runtime_images runtime_pull node, got %+v", definition.Nodes[7])
+	}
+	if len(definition.Nodes[8].DependsOn) != 1 || definition.Nodes[8].DependsOn[0] != "pull_release_runtime_images" {
+		t.Fatalf("expected activate_release_runtime to depend on pull_release_runtime_images, got %v", definition.Nodes[8].DependsOn)
 	}
 }
 
@@ -141,6 +147,12 @@ func TestDefinitionForOperationExposesNodeMetadata(t *testing.T) {
 	}
 	if len(definition.Nodes[1].WritesProjection) != 1 || definition.Nodes[1].WritesProjection[0] != string(model.ProjectionTargetReleaseSnapshot) {
 		t.Fatalf("expected create_candidate_release to write ReleaseSnapshot projection, got %v", definition.Nodes[1].WritesProjection)
+	}
+	if definition.Nodes[4].Key != "pull_runtime_images" || definition.Nodes[4].NodeType != "runtime_pull" {
+		t.Fatalf("expected upgrade to expose runtime_pull before runtime_start, got %+v", definition.Nodes[4])
+	}
+	if definition.Nodes[5].Key != "start_runtime" || len(definition.Nodes[5].DependsOn) != 1 || definition.Nodes[5].DependsOn[0] != "pull_runtime_images" {
+		t.Fatalf("expected start_runtime to depend on pull_runtime_images, got %+v", definition.Nodes[5])
 	}
 }
 

@@ -97,7 +97,7 @@ export function AppDetailRuntimeTab({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span>Server {app.server_id || 'local'}</span>
+            <span>Server {app.server_name?.trim() || app.server_id || 'local'}</span>
             <span>Project directory {app.project_dir}</span>
             {projectNameCandidates.length > 0 ? (
               <span>Matched by {projectNameCandidates.join(', ')}</span>
