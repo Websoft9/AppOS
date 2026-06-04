@@ -184,10 +184,52 @@ describe('SettingsPage shared settings paths', () => {
               source: 'custom',
               fields: [
                 {
-                  id: 'minFreeDiskBytes',
-                  label: 'Min Free Disk Bytes',
+					id: 'minFreeDiskGiB',
+					label: 'Minimum Free Disk (GiB)',
+					type: 'number',
+					helpText: 'Block deployment when the target keeps less free disk than this buffer.',
+                },
+              ],
+            },
+            {
+              id: 'deploy-runtime',
+              title: 'Deploy Runtime',
+              section: 'workspace',
+              source: 'custom',
+              fields: [
+                {
+                  id: 'imagePullTimeoutSeconds',
+                  label: 'Image Pull Timeout Seconds',
                   type: 'integer',
-                  helpText: 'Block installation when available disk falls below this threshold.',
+                },
+                {
+                  id: 'composeUpTimeoutSeconds',
+                  label: 'Compose Up Timeout Seconds',
+                  type: 'integer',
+                },
+                {
+                  id: 'healthCheckTimeoutSeconds',
+                  label: 'Health Check Timeout Seconds',
+                  type: 'integer',
+                },
+                {
+                  id: 'runtimePullIdleHeartbeatSeconds',
+                  label: 'Runtime Pull Idle Heartbeat Seconds',
+                  type: 'integer',
+                },
+              ],
+            },
+            {
+              id: 'deploy-git-defaults',
+              title: 'Deploy Git Defaults',
+              section: 'workspace',
+              source: 'custom',
+              fields: [
+                { id: 'defaultRef', label: 'Default Ref', type: 'string' },
+                {
+                  id: 'defaultComposePath',
+                  label: 'Default Compose Path',
+                  type: 'string',
                 },
               ],
             },
@@ -427,7 +469,20 @@ describe('SettingsPage shared settings paths', () => {
             },
             { id: 'connect-terminal', value: {} },
             { id: 'connect-sftp', value: { maxUploadFiles: 10 } },
-            { id: 'deploy-preflight', value: { minFreeDiskBytes: 536870912 } },
+            { id: 'deploy-preflight', value: { minFreeDiskGiB: 1 } },
+            {
+              id: 'deploy-runtime',
+              value: {
+                imagePullTimeoutSeconds: 180,
+                composeUpTimeoutSeconds: 600,
+                healthCheckTimeoutSeconds: 120,
+                runtimePullIdleHeartbeatSeconds: 20,
+              },
+            },
+            {
+              id: 'deploy-git-defaults',
+              value: { defaultRef: 'main', defaultComposePath: 'docker-compose.yml' },
+            },
             { id: 'iac-files', value: { maxSizeMB: 10, maxZipSizeMB: 50 } },
             { id: 'tunnel-port-range', value: {} },
             { id: 'secrets-policy', value: {} },
@@ -583,15 +638,105 @@ describe('SettingsPage shared settings paths', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('shows Deploy Preflight under Workspace', async () => {
+  it('shows one Deploy entry under Workspace and renders all deploy sections', async () => {
     const { container } = render(<SettingsPage />)
 
     await waitFor(() => {
       const nav = container.querySelector('nav') as HTMLElement | null
       expect(nav).toBeTruthy()
       const navQueries = within(nav as HTMLElement)
-      expect(navQueries.getByText('Deploy Preflight')).toBeInTheDocument()
+      expect(navQueries.getByText('Deploy')).toBeInTheDocument()
+      expect(navQueries.queryByText('Deploy Preflight')).not.toBeInTheDocument()
       expect(sendMock).toHaveBeenCalledWith(SETTINGS_ENTRIES_API_PATH, { method: 'GET' })
+    })
+
+    const nav = container.querySelector('nav') as HTMLElement | null
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+    within(nav).getByRole('button', { name: 'Deploy' }).click()
+
+    await waitFor(() => {
+      expect(screen.getByText('Deploy Preflight')).toBeInTheDocument()
+      expect(screen.getByText('Deploy Runtime')).toBeInTheDocument()
+      expect(screen.getByText('Deploy Git Defaults')).toBeInTheDocument()
+  		expect(screen.getByLabelText('Minimum Free Disk (GiB)')).toBeInTheDocument()
+      expect(screen.getByLabelText('Image Pull Timeout Seconds')).toBeInTheDocument()
+      expect(screen.getByLabelText('Default Ref')).toBeInTheDocument()
+    })
+  })
+
+  it('saves deploy runtime and git defaults through backend settings entries', async () => {
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      expect(within(nav as HTMLElement).getByRole('button', { name: 'Deploy' })).toBeInTheDocument()
+    })
+
+    const nav = container.querySelector('nav') as HTMLElement | null
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+
+    within(nav).getByRole('button', { name: 'Deploy' }).click()
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Minimum Free Disk (GiB)')).toBeInTheDocument()
+      expect(screen.getByLabelText('Image Pull Timeout Seconds')).toBeInTheDocument()
+      expect(screen.getByLabelText('Default Ref')).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText('Minimum Free Disk (GiB)'), {
+      target: { value: '1.5' },
+    })
+    const preflightInput = screen.getByLabelText('Minimum Free Disk (GiB)')
+    const preflightCard = preflightInput.closest('[data-slot="card"]') as HTMLElement | null
+    if (!preflightCard) {
+      throw new Error('expected deploy preflight card to be rendered')
+    }
+    fireEvent.click(within(preflightCard).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(settingsEntryPath('deploy-preflight'), {
+        method: 'PATCH',
+        body: expect.objectContaining({ minFreeDiskGiB: 1.5 }),
+      })
+    })
+
+    fireEvent.change(screen.getByLabelText('Image Pull Timeout Seconds'), {
+      target: { value: '240' },
+    })
+    const runtimeInput = screen.getByLabelText('Image Pull Timeout Seconds')
+    const runtimeCard = runtimeInput.closest('[data-slot="card"]') as HTMLElement | null
+    if (!runtimeCard) {
+      throw new Error('expected deploy runtime card to be rendered')
+    }
+    fireEvent.click(within(runtimeCard).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(settingsEntryPath('deploy-runtime'), {
+        method: 'PATCH',
+        body: expect.objectContaining({ imagePullTimeoutSeconds: 240 }),
+      })
+    })
+
+    fireEvent.change(screen.getByLabelText('Default Ref'), {
+      target: { value: 'release' },
+    })
+    const gitDefaultsInput = screen.getByLabelText('Default Ref')
+    const gitDefaultsCard = gitDefaultsInput.closest('[data-slot="card"]') as HTMLElement | null
+    if (!gitDefaultsCard) {
+      throw new Error('expected deploy git defaults card to be rendered')
+    }
+    fireEvent.click(within(gitDefaultsCard).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(settingsEntryPath('deploy-git-defaults'), {
+        method: 'PATCH',
+        body: expect.objectContaining({ defaultRef: 'release' }),
+      })
     })
   })
 
@@ -1162,7 +1307,7 @@ describe('SettingsPage shared settings paths', () => {
         'AI',
         'Space',
         'Terminal',
-        'Deploy Preflight',
+        'Deploy',
         'IaC Files',
         'Topics',
         'Feeds',

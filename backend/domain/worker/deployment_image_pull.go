@@ -15,6 +15,36 @@ import (
 
 var deploymentImagePullTimeout = 3 * time.Minute
 
+type deployRuntimePolicy struct {
+	ImagePullTimeout         time.Duration
+	ComposeUpTimeout         time.Duration
+	HealthCheckTimeout       time.Duration
+	RuntimePullHeartbeat     time.Duration
+}
+
+func loadDeployRuntimePolicy(app core.App) deployRuntimePolicy {
+	group, _ := sysconfig.GetGroup(app, "deploy", "runtime", settingsschema.DefaultGroup("deploy", "runtime"))
+	policy := deployRuntimePolicy{
+		ImagePullTimeout:     time.Duration(sysconfig.Int(group, "imagePullTimeoutSeconds", int((3 * time.Minute) / time.Second))) * time.Second,
+		ComposeUpTimeout:     time.Duration(sysconfig.Int(group, "composeUpTimeoutSeconds", int((10 * time.Minute) / time.Second))) * time.Second,
+		HealthCheckTimeout:   time.Duration(sysconfig.Int(group, "healthCheckTimeoutSeconds", int((2 * time.Minute) / time.Second))) * time.Second,
+		RuntimePullHeartbeat: time.Duration(sysconfig.Int(group, "runtimePullIdleHeartbeatSeconds", int((20 * time.Second) / time.Second))) * time.Second,
+	}
+	if policy.ImagePullTimeout < time.Second {
+		policy.ImagePullTimeout = time.Second
+	}
+	if policy.ComposeUpTimeout < time.Second {
+		policy.ComposeUpTimeout = time.Second
+	}
+	if policy.HealthCheckTimeout < time.Second {
+		policy.HealthCheckTimeout = time.Second
+	}
+	if policy.RuntimePullHeartbeat < time.Second {
+		policy.RuntimePullHeartbeat = time.Second
+	}
+	return policy
+}
+
 type deploymentImageClient interface {
 	ImageInspect(ctx context.Context, id string) (string, error)
 	ImagePull(ctx context.Context, name string) (string, error)
@@ -37,12 +67,20 @@ func prepareDeploymentImages(
 	}
 
 	mirrors := loadDeploymentDockerMirrors(app)
+	pullTimeout := resolveDeploymentImagePullTimeout(app)
 	for _, image := range images {
-		if err := ensureDeploymentImageReady(ctx, client, image, mirrors, logf); err != nil {
+		if err := ensureDeploymentImageReady(ctx, client, image, mirrors, pullTimeout, logf); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func resolveDeploymentImagePullTimeout(app core.App) time.Duration {
+	if app == nil {
+		return deploymentImagePullTimeout
+	}
+	return loadDeployRuntimePolicy(app).ImagePullTimeout
 }
 
 func ensureDeploymentImageReady(
@@ -50,6 +88,7 @@ func ensureDeploymentImageReady(
 	client deploymentImageClient,
 	image string,
 	mirrors []string,
+	pullTimeout time.Duration,
 	logf func(string),
 ) error {
 	if _, err := client.ImageInspect(ctx, image); err == nil {
@@ -58,7 +97,7 @@ func ensureDeploymentImageReady(
 	}
 
 	logf("docker image pull started: " + image)
-	if _, err := pullDeploymentImageWithTimeout(ctx, client, image); err == nil {
+	if _, err := pullDeploymentImageWithTimeout(ctx, client, image, pullTimeout); err == nil {
 		logf("docker image pull succeeded: " + image)
 		return nil
 	} else {
@@ -79,7 +118,7 @@ func ensureDeploymentImageReady(
 			continue
 		}
 		logf(fmt.Sprintf("docker image mirror pull started: %s via %s", image, mirrorRef))
-		if _, err := pullDeploymentImageWithTimeout(ctx, client, mirrorRef); err != nil {
+		if _, err := pullDeploymentImageWithTimeout(ctx, client, mirrorRef, pullTimeout); err != nil {
 			mirrorErrors = append(mirrorErrors, fmt.Sprintf("%s: %v", mirrorRef, err))
 			logf(fmt.Sprintf("docker image mirror pull failed: %s", err.Error()))
 			continue
@@ -99,14 +138,17 @@ func ensureDeploymentImageReady(
 	return fmt.Errorf("image pull failed for %s; mirror attempts failed: %s", image, strings.Join(mirrorErrors, "; "))
 }
 
-func pullDeploymentImageWithTimeout(ctx context.Context, client deploymentImageClient, image string) (string, error) {
-	pullCtx, cancel := context.WithTimeout(ctx, deploymentImagePullTimeout)
+func pullDeploymentImageWithTimeout(ctx context.Context, client deploymentImageClient, image string, timeout time.Duration) (string, error) {
+	if timeout <= 0 {
+		timeout = deploymentImagePullTimeout
+	}
+	pullCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	output, err := client.ImagePull(pullCtx, image)
 	if err != nil {
 		if errorsIsTimeout(err) || pullCtx.Err() == context.DeadlineExceeded {
-			return "", fmt.Errorf("timed out pulling image %s after %s", image, deploymentImagePullTimeout)
+			return "", fmt.Errorf("timed out pulling image %s after %s", image, timeout)
 		}
 		return "", err
 	}

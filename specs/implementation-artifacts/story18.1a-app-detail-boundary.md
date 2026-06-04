@@ -1,4 +1,4 @@
-# Story 18.1a: App Detail Boundary Classification
+# Story 18.1a: App Detail Boundary
 
 Status: review
 

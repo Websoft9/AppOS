@@ -1,4 +1,4 @@
-# Story 8.3: Instance Backend Foundation
+# Story 8.3: Instance Foundation
 
 **Epic**: Epic 8 - Resources
 **Priority**: P1
@@ -136,7 +136,7 @@ Naming rules:
 - backend/infra/migrations/migrations_test.go
 - backend/infra/persistence/instance_repository.go
 - backend/infra/persistence/instance_repository_test.go
-- specs/implementation-artifacts/story8.3-instance-backend-foundation.md
+- specs/implementation-artifacts/story8.3-instance-foundation.md
 
 ### Completion Notes
 

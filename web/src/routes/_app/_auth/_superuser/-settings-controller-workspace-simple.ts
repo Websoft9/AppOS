@@ -11,7 +11,9 @@ import {
 import {
   DEFAULT_CONNECT_SFTP,
   DEFAULT_CONNECT_TERMINAL,
+  DEFAULT_DEPLOY_GIT_DEFAULTS,
   DEFAULT_DEPLOY_PREFLIGHT,
+  DEFAULT_DEPLOY_RUNTIME,
   DEFAULT_IAC_FILES,
   DEFAULT_SPACE_QUOTA,
   DEFAULT_TOPIC_COMMENT_POLICY,
@@ -21,7 +23,9 @@ import {
   EMPTY_PROXY,
   type ConnectSftpGroup,
   type ConnectTerminalGroup,
+  type DeployGitDefaultsGroup,
   type DeployPreflightGroup,
+  type DeployRuntimeGroup,
   type IacFilesGroup,
   type ProxyNetwork,
   type SpaceQuota,
@@ -87,6 +91,20 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
   const [deployPreflightSaving, setDeployPreflightSaving] = useState(false)
   const [deployPreflightErrors, setDeployPreflightErrors] = useState<
     Partial<Record<keyof DeployPreflightGroup, string>>
+  >({})
+
+  const [deployRuntimeForm, setDeployRuntimeForm] =
+    useState<DeployRuntimeGroup>(DEFAULT_DEPLOY_RUNTIME)
+  const [deployRuntimeSaving, setDeployRuntimeSaving] = useState(false)
+  const [deployRuntimeErrors, setDeployRuntimeErrors] = useState<
+    Partial<Record<keyof DeployRuntimeGroup, string>>
+  >({})
+
+  const [deployGitDefaultsForm, setDeployGitDefaultsForm] =
+    useState<DeployGitDefaultsGroup>(DEFAULT_DEPLOY_GIT_DEFAULTS)
+  const [deployGitDefaultsSaving, setDeployGitDefaultsSaving] = useState(false)
+  const [deployGitDefaultsErrors, setDeployGitDefaultsErrors] = useState<
+    Partial<Record<keyof DeployGitDefaultsGroup, string>>
   >({})
 
   const [iacFilesForm, setIacFilesForm] = useState<IacFilesGroup>(DEFAULT_IAC_FILES)
@@ -210,12 +228,55 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     })
 
     const preflight = (entryMap.get('deploy-preflight') as Partial<DeployPreflightGroup>) ?? {}
-    const minFreeDiskBytes = Number(preflight.minFreeDiskBytes)
+    const minFreeDiskGiB = Number(preflight.minFreeDiskGiB)
+    const legacyMinFreeDiskBytes = Number(
+      (preflight as { minFreeDiskBytes?: number }).minFreeDiskBytes
+    )
     setDeployPreflightForm({
-      minFreeDiskBytes:
-        Number.isFinite(minFreeDiskBytes) && minFreeDiskBytes >= 0
-          ? Math.floor(minFreeDiskBytes)
-          : DEFAULT_DEPLOY_PREFLIGHT.minFreeDiskBytes,
+      minFreeDiskGiB:
+        Number.isFinite(minFreeDiskGiB) && minFreeDiskGiB >= 0.5
+          ? minFreeDiskGiB
+          : Number.isFinite(legacyMinFreeDiskBytes) && legacyMinFreeDiskBytes >= 0
+            ? Math.max(0.5, legacyMinFreeDiskBytes / (1024 * 1024 * 1024))
+            : DEFAULT_DEPLOY_PREFLIGHT.minFreeDiskGiB,
+    })
+
+    const runtime = (entryMap.get('deploy-runtime') as Partial<DeployRuntimeGroup>) ?? {}
+    const imagePullTimeoutSeconds = Number(runtime.imagePullTimeoutSeconds)
+    const composeUpTimeoutSeconds = Number(runtime.composeUpTimeoutSeconds)
+    const healthCheckTimeoutSeconds = Number(runtime.healthCheckTimeoutSeconds)
+    const runtimePullIdleHeartbeatSeconds = Number(runtime.runtimePullIdleHeartbeatSeconds)
+    setDeployRuntimeForm({
+      imagePullTimeoutSeconds:
+        Number.isFinite(imagePullTimeoutSeconds) && imagePullTimeoutSeconds >= 1
+          ? Math.floor(imagePullTimeoutSeconds)
+          : DEFAULT_DEPLOY_RUNTIME.imagePullTimeoutSeconds,
+      composeUpTimeoutSeconds:
+        Number.isFinite(composeUpTimeoutSeconds) && composeUpTimeoutSeconds >= 1
+          ? Math.floor(composeUpTimeoutSeconds)
+          : DEFAULT_DEPLOY_RUNTIME.composeUpTimeoutSeconds,
+      healthCheckTimeoutSeconds:
+        Number.isFinite(healthCheckTimeoutSeconds) && healthCheckTimeoutSeconds >= 1
+          ? Math.floor(healthCheckTimeoutSeconds)
+          : DEFAULT_DEPLOY_RUNTIME.healthCheckTimeoutSeconds,
+      runtimePullIdleHeartbeatSeconds:
+        Number.isFinite(runtimePullIdleHeartbeatSeconds) && runtimePullIdleHeartbeatSeconds >= 1
+          ? Math.floor(runtimePullIdleHeartbeatSeconds)
+          : DEFAULT_DEPLOY_RUNTIME.runtimePullIdleHeartbeatSeconds,
+    })
+
+    const gitDefaults =
+      (entryMap.get('deploy-git-defaults') as Partial<DeployGitDefaultsGroup>) ?? {}
+    setDeployGitDefaultsForm({
+      defaultRef:
+        typeof gitDefaults.defaultRef === 'string' && gitDefaults.defaultRef.trim().length > 0
+          ? gitDefaults.defaultRef
+          : DEFAULT_DEPLOY_GIT_DEFAULTS.defaultRef,
+      defaultComposePath:
+        typeof gitDefaults.defaultComposePath === 'string' &&
+        gitDefaults.defaultComposePath.trim().length > 0
+          ? gitDefaults.defaultComposePath
+          : DEFAULT_DEPLOY_GIT_DEFAULTS.defaultComposePath,
     })
 
     const iacFiles = (entryMap.get('iac-files') as Partial<IacFilesGroup>) ?? {}
@@ -650,10 +711,10 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
   const validateDeployPreflight = (): boolean => {
     const errors: Partial<Record<keyof DeployPreflightGroup, string>> = {}
     if (
-      !Number.isInteger(deployPreflightForm.minFreeDiskBytes) ||
-      deployPreflightForm.minFreeDiskBytes < 0
+      !Number.isFinite(deployPreflightForm.minFreeDiskGiB) ||
+      deployPreflightForm.minFreeDiskGiB < 0.5
     ) {
-      errors.minFreeDiskBytes = 'Must be an integer ≥ 0 bytes'
+      errors.minFreeDiskGiB = 'Must be at least 0.5 GiB'
     }
     setDeployPreflightErrors(errors)
     return Object.keys(errors).length === 0
@@ -667,16 +728,14 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
       const res = (await pb.send(settingsEntryPath('deploy-preflight'), {
         method: 'PATCH',
         body: {
-          minFreeDiskBytes: deployPreflightForm.minFreeDiskBytes,
+			minFreeDiskGiB: deployPreflightForm.minFreeDiskGiB,
         },
       })) as { value?: Partial<DeployPreflightGroup> }
       const preflight = res.value ?? deployPreflightForm
       setDeployPreflightForm({
-        minFreeDiskBytes: Number(
-          preflight.minFreeDiskBytes ?? deployPreflightForm.minFreeDiskBytes
-        ),
+			minFreeDiskGiB: Number(preflight.minFreeDiskGiB ?? deployPreflightForm.minFreeDiskGiB),
       })
-      showToast('Deploy preflight settings saved')
+      showToast('Deploy checks saved')
     } catch (err) {
       if (err instanceof ClientResponseError && (err.status === 400 || err.status === 422)) {
         const root = err.response as Record<string, unknown>
@@ -685,7 +744,7 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
             ? (root.errors as Record<string, unknown>)
             : root
         const nextErrors = {
-          minFreeDiskBytes: extractFieldError(bag.minFreeDiskBytes) ?? undefined,
+			minFreeDiskGiB: extractFieldError(bag.minFreeDiskGiB) ?? undefined,
         }
         if (Object.values(nextErrors).some(Boolean)) {
           setDeployPreflightErrors(nextErrors)
@@ -696,6 +755,138 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
       showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
     } finally {
       setDeployPreflightSaving(false)
+    }
+  }
+
+  const validateDeployRuntime = (): boolean => {
+    const errors: Partial<Record<keyof DeployRuntimeGroup, string>> = {}
+    const integerFields: Array<keyof DeployRuntimeGroup> = [
+      'imagePullTimeoutSeconds',
+      'composeUpTimeoutSeconds',
+      'healthCheckTimeoutSeconds',
+      'runtimePullIdleHeartbeatSeconds',
+    ]
+    for (const field of integerFields) {
+      if (!Number.isInteger(deployRuntimeForm[field]) || deployRuntimeForm[field] < 1) {
+        errors[field] = 'Must be an integer ≥ 1 second'
+      }
+    }
+    setDeployRuntimeErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const saveDeployRuntime = async () => {
+    if (!validateDeployRuntime()) return
+    setDeployRuntimeSaving(true)
+    setDeployRuntimeErrors({})
+    try {
+      const res = (await pb.send(settingsEntryPath('deploy-runtime'), {
+        method: 'PATCH',
+        body: { ...deployRuntimeForm },
+      })) as { value?: Partial<DeployRuntimeGroup> }
+      const runtime = res.value ?? deployRuntimeForm
+      setDeployRuntimeForm({
+        imagePullTimeoutSeconds: Number(
+          runtime.imagePullTimeoutSeconds ?? deployRuntimeForm.imagePullTimeoutSeconds
+        ),
+        composeUpTimeoutSeconds: Number(
+          runtime.composeUpTimeoutSeconds ?? deployRuntimeForm.composeUpTimeoutSeconds
+        ),
+        healthCheckTimeoutSeconds: Number(
+          runtime.healthCheckTimeoutSeconds ?? deployRuntimeForm.healthCheckTimeoutSeconds
+        ),
+        runtimePullIdleHeartbeatSeconds: Number(
+          runtime.runtimePullIdleHeartbeatSeconds ??
+            deployRuntimeForm.runtimePullIdleHeartbeatSeconds
+        ),
+      })
+      showToast('Deploy runtime settings saved')
+    } catch (err) {
+      if (err instanceof ClientResponseError && (err.status === 400 || err.status === 422)) {
+        const root = err.response as Record<string, unknown>
+        const bag =
+          root.errors && typeof root.errors === 'object'
+            ? (root.errors as Record<string, unknown>)
+            : root
+        const nextErrors = {
+          imagePullTimeoutSeconds:
+            extractFieldError(bag.imagePullTimeoutSeconds) ?? undefined,
+          composeUpTimeoutSeconds:
+            extractFieldError(bag.composeUpTimeoutSeconds) ?? undefined,
+          healthCheckTimeoutSeconds:
+            extractFieldError(bag.healthCheckTimeoutSeconds) ?? undefined,
+          runtimePullIdleHeartbeatSeconds:
+            extractFieldError(bag.runtimePullIdleHeartbeatSeconds) ?? undefined,
+        }
+        if (Object.values(nextErrors).some(Boolean)) {
+          setDeployRuntimeErrors(nextErrors)
+          showToast('Please fix validation errors and try again.', false)
+          return
+        }
+      }
+      showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
+    } finally {
+      setDeployRuntimeSaving(false)
+    }
+  }
+
+  const validateDeployGitDefaults = (): boolean => {
+    const errors: Partial<Record<keyof DeployGitDefaultsGroup, string>> = {}
+    if (deployGitDefaultsForm.defaultRef.trim().length === 0) {
+      errors.defaultRef = 'Must not be empty'
+    }
+    if (deployGitDefaultsForm.defaultComposePath.trim().length === 0) {
+      errors.defaultComposePath = 'Must not be empty'
+    }
+    setDeployGitDefaultsErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const saveDeployGitDefaults = async () => {
+    if (!validateDeployGitDefaults()) return
+    setDeployGitDefaultsSaving(true)
+    setDeployGitDefaultsErrors({})
+    try {
+      const payload: DeployGitDefaultsGroup = {
+        defaultRef: deployGitDefaultsForm.defaultRef.trim(),
+        defaultComposePath: deployGitDefaultsForm.defaultComposePath.trim(),
+      }
+      const res = (await pb.send(settingsEntryPath('deploy-git-defaults'), {
+        method: 'PATCH',
+        body: payload,
+      })) as { value?: Partial<DeployGitDefaultsGroup> }
+      const gitDefaults = res.value ?? payload
+      setDeployGitDefaultsForm({
+        defaultRef:
+          typeof gitDefaults.defaultRef === 'string'
+            ? gitDefaults.defaultRef
+            : payload.defaultRef,
+        defaultComposePath:
+          typeof gitDefaults.defaultComposePath === 'string'
+            ? gitDefaults.defaultComposePath
+            : payload.defaultComposePath,
+      })
+      showToast('Deploy Git defaults saved')
+    } catch (err) {
+      if (err instanceof ClientResponseError && (err.status === 400 || err.status === 422)) {
+        const root = err.response as Record<string, unknown>
+        const bag =
+          root.errors && typeof root.errors === 'object'
+            ? (root.errors as Record<string, unknown>)
+            : root
+        const nextErrors = {
+          defaultRef: extractFieldError(bag.defaultRef) ?? undefined,
+          defaultComposePath: extractFieldError(bag.defaultComposePath) ?? undefined,
+        }
+        if (Object.values(nextErrors).some(Boolean)) {
+          setDeployGitDefaultsErrors(nextErrors)
+          showToast('Please fix validation errors and try again.', false)
+          return
+        }
+      }
+      showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
+    } finally {
+      setDeployGitDefaultsSaving(false)
     }
   }
 
@@ -905,6 +1096,16 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     deployPreflightErrors,
     setDeployPreflightForm,
     saveDeployPreflight,
+    deployRuntimeForm,
+    deployRuntimeSaving,
+    deployRuntimeErrors,
+    setDeployRuntimeForm,
+    saveDeployRuntime,
+    deployGitDefaultsForm,
+    deployGitDefaultsSaving,
+    deployGitDefaultsErrors,
+    setDeployGitDefaultsForm,
+    saveDeployGitDefaults,
     iacFilesForm,
     iacFilesSaving,
     iacFilesErrors,

@@ -226,7 +226,7 @@
       "connectionType": "Connection Type",
       "name": "Name",
       "host": "Host",
-      "useLocalHost": "Use local host",
+      "useLocalHost": "The same host with AppOS",
       "port": "Port",
       "user": "User",
       "credentialSecret": "Credential (Secret)",
@@ -251,10 +251,9 @@
       "hostBody": "Enter the IP address or domain name of the server managed by AppOS."
     },
     "localHost": {
-      "loading": "Loading...",
-      "label": "Local host",
+      "label": "The same host with AppOS",
       "errors": {
-        "loadDockerBridge": "Failed to load docker0 address"
+        "loadCurrentHostname": "Failed to resolve the current AppOS hostname"
       }
     },
     "secret": {
@@ -513,7 +512,7 @@
         "prerequisites": "Prerequisites",
         "prerequisitesRegion": "Prerequisites section",
         "prerequisiteTargets": "Prerequisite targets",
-        "addons": "Addons",
+        "addons": "Optional Addons",
         "addonsRegion": "Addons section",
         "addonInventory": "Addon inventory"
       },

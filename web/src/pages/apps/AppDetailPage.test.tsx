@@ -47,13 +47,28 @@ vi.mock('@/pages/apps/AppDetailActionHistoryTable', () => ({
   AppDetailActionHistoryTable: ({
     actions,
     buildActionDetailHref,
+    onRequestCancel,
+    onRequestForceFail,
   }: {
     actions: Array<{
       id: string
       compose_project_name?: string
+      status?: string
       pipeline_selector?: { operation_type?: string }
     }>
     buildActionDetailHref: (actionId: string) => string
+    onRequestCancel?: (action: {
+      id: string
+      compose_project_name?: string
+      status?: string
+      pipeline_selector?: { operation_type?: string }
+    }) => void
+    onRequestForceFail?: (action: {
+      id: string
+      compose_project_name?: string
+      status?: string
+      pipeline_selector?: { operation_type?: string }
+    }) => void
   }) => (
     <section aria-label="Action History Table">
       {actions.map(action => (
@@ -66,6 +81,16 @@ vi.mock('@/pages/apps/AppDetailActionHistoryTable', () => ({
           </span>
           <a href={buildActionDetailHref(action.id)}>Open Detail</a>
           <span>{action.compose_project_name || '-'}</span>
+          {onRequestCancel && action.status === 'queued' ? (
+            <button type="button" onClick={() => onRequestCancel(action)}>
+              Cancel {action.compose_project_name || action.id}
+            </button>
+          ) : null}
+          {onRequestForceFail && action.status === 'running' ? (
+            <button type="button" onClick={() => onRequestForceFail(action)}>
+              Force Fail {action.compose_project_name || action.id}
+            </button>
+          ) : null}
         </div>
       ))}
     </section>
@@ -223,7 +248,72 @@ describe('AppDetailPage', () => {
                 adapter: 'docker',
               },
             },
+            {
+              id: 'op-queued',
+              app_id: 'app-1',
+              server_id: 'local',
+              source: 'manualops',
+              status: 'queued',
+              adapter: 'docker',
+              compose_project_name: 'demo-app-queued',
+              project_dir: '/tmp/demo-app',
+              rendered_compose: '',
+              error_summary: '',
+              created: '2026-03-30T10:11:00Z',
+              updated: '2026-03-30T10:11:00Z',
+              pipeline: {
+                id: 'pipe-queued',
+                operation_id: 'op-queued',
+                app_id: 'app-1',
+                server_id: 'local',
+                family: 'provision',
+                status: 'pending',
+                current_phase: 'queued',
+                selector: { operation_type: 'install', source: 'manualops', adapter: 'docker' },
+              },
+              pipeline_selector: {
+                operation_type: 'install',
+                source: 'manualops',
+                adapter: 'docker',
+              },
+            },
+            {
+              id: 'op-running',
+              app_id: 'app-1',
+              server_id: 'local',
+              source: 'manualops',
+              status: 'running',
+              adapter: 'docker',
+              compose_project_name: 'demo-app-running',
+              project_dir: '/tmp/demo-app',
+              rendered_compose: '',
+              error_summary: '',
+              created: '2026-03-30T10:12:00Z',
+              updated: '2026-03-30T10:13:00Z',
+              started_at: '2026-03-30T10:12:00Z',
+              pipeline: {
+                id: 'pipe-running',
+                operation_id: 'op-running',
+                app_id: 'app-1',
+                server_id: 'local',
+                family: 'change',
+                status: 'active',
+                current_phase: 'executing',
+                selector: { operation_type: 'upgrade', source: 'manualops', adapter: 'docker' },
+              },
+              pipeline_selector: {
+                operation_type: 'upgrade',
+                source: 'manualops',
+                adapter: 'docker',
+              },
+            },
           ]))
+        }
+        if (path === '/api/actions/op-queued/cancel' && options?.method === 'POST') {
+          return Promise.resolve({})
+        }
+        if (path === '/api/actions/op-running/force-fail' && options?.method === 'POST') {
+          return Promise.resolve({})
         }
         if (path === '/api/instances' && options?.method === 'GET') {
           return Promise.resolve([
@@ -896,7 +986,69 @@ describe('AppDetailPage', () => {
         method: 'GET',
       })
       expect(screen.getByText('Restart')).toBeInTheDocument()
+      expect(screen.getByText('Install')).toBeInTheDocument()
+      expect(screen.getByText('Upgrade')).toBeInTheDocument()
       expect(screen.queryByText('other-app')).not.toBeInTheDocument()
+    })
+  })
+
+  it('cancels a queued action from the Actions tab and refreshes app detail', async () => {
+    render(<AppDetailPage appId="app-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
+    })
+
+    const actionsTab = screen.getByRole('tab', { name: 'Actions' })
+    fireEvent.mouseDown(actionsTab)
+    fireEvent.click(actionsTab)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Cancel demo-app-queued' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel demo-app-queued' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Cancel Action')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/actions/op-queued/cancel', { method: 'POST' })
+      expect(sendMock).toHaveBeenCalledWith('/api/apps/app-1', { method: 'GET' })
+    })
+  })
+
+  it('force-fails a running action from the Actions tab and refreshes app detail', async () => {
+    render(<AppDetailPage appId="app-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
+    })
+
+    const actionsTab = screen.getByRole('tab', { name: 'Actions' })
+    fireEvent.mouseDown(actionsTab)
+    fireEvent.click(actionsTab)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Force Fail demo-app-running' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Force Fail demo-app-running' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Force Fail Action')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Force Fail' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/actions/op-running/force-fail', {
+        method: 'POST',
+      })
+      expect(sendMock).toHaveBeenCalledWith('/api/apps/app-1', { method: 'GET' })
     })
   })
 
@@ -1085,7 +1237,7 @@ describe('AppDetailPage', () => {
     expect(observabilityPanel).toHaveTextContent('app log line 1')
     expect(observabilityPanel).toHaveTextContent('1 / 1')
     expect(observabilityPanel).toHaveTextContent('CPU 12.5%')
-    expect(observabilityPanel).toHaveTextContent('Restart')
+    expect(observabilityPanel).toHaveTextContent('Upgrade')
     expect(observabilityPanel).toHaveTextContent('Monitor Status')
     expect(observabilityPanel).toHaveTextContent('Trend History')
 

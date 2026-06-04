@@ -192,7 +192,33 @@ var entryCatalog = []EntrySchema{
 		Module:  "deploy",
 		Key:     "preflight",
 		Fields: []FieldSchema{
-			{ID: "minFreeDiskBytes", Label: "Min Free Disk Bytes", Type: "integer", HelpText: "Block installation when available disk falls below this threshold."},
+			{ID: "minFreeDiskGiB", Label: "Minimum Free Disk (GiB)", Type: "number", HelpText: "Free disk floor before deploy."},
+		},
+	},
+	{
+		ID:      "deploy-runtime",
+		Title:   "Deploy Runtime",
+		Section: SectionWorkspace,
+		Source:  SourceCustom,
+		Module:  "deploy",
+		Key:     "runtime",
+		Fields: []FieldSchema{
+			{ID: "imagePullTimeoutSeconds", Label: "Image Pull Timeout Seconds", Type: "integer", HelpText: "Wait time for one image pull."},
+			{ID: "composeUpTimeoutSeconds", Label: "Compose Up Timeout Seconds", Type: "integer", HelpText: "Wait time for docker compose up."},
+			{ID: "healthCheckTimeoutSeconds", Label: "Health Check Timeout Seconds", Type: "integer", HelpText: "Wait time for health checks."},
+			{ID: "runtimePullIdleHeartbeatSeconds", Label: "Runtime Pull Idle Heartbeat Seconds", Type: "integer", HelpText: "Idle time before pull heartbeat logs."},
+		},
+	},
+	{
+		ID:      "deploy-git-defaults",
+		Title:   "Deploy Git Defaults",
+		Section: SectionWorkspace,
+		Source:  SourceCustom,
+		Module:  "deploy",
+		Key:     "git-defaults",
+		Fields: []FieldSchema{
+			{ID: "defaultRef", Label: "Default Ref", Type: "string", HelpText: "Fallback Git ref."},
+			{ID: "defaultComposePath", Label: "Default Compose Path", Type: "string", HelpText: "Fallback compose path."},
 		},
 	},
 	{
@@ -412,7 +438,17 @@ var customSettingDefaults = map[string]map[string]any{
 		"defaultAccessMode":     "use_only",
 		"clipboardClearSeconds": 0,
 	},
-	"deploy/preflight": {"minFreeDiskBytes": 512 * 1024 * 1024},
+	"deploy/preflight": {"minFreeDiskGiB": 1.0},
+	"deploy/runtime": {
+		"imagePullTimeoutSeconds":         180,
+		"composeUpTimeoutSeconds":         600,
+		"healthCheckTimeoutSeconds":       120,
+		"runtimePullIdleHeartbeatSeconds": 20,
+	},
+	"deploy/git-defaults": {
+		"defaultRef":         "main",
+		"defaultComposePath": "docker-compose.yml",
+	},
 	"topic/share": {
 		"shareMaxMinutes":     60,
 		"shareDefaultMinutes": 30,

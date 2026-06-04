@@ -405,6 +405,31 @@ describe('StorePage deploy handoff', () => {
     expect(useCatalogAllAppsMock).toHaveBeenLastCalledWith(expect.any(Object), true)
   })
 
+  it('keeps the page shell mounted while search results are loading', async () => {
+    useCatalogAllAppsMock.mockImplementation((_query: unknown, enabled = true) => ({
+      data: enabled
+        ? undefined
+        : {
+            items: [wordpressSummary, nocodbSummary, odooSummary, erpnextSummary],
+            page: { limit: 1000, offset: 0, total: 4, hasMore: false },
+            meta: { locale: 'en', sourceVersion: 'test' },
+          },
+      isLoading: enabled,
+      isError: false,
+      refetch: refetchOfficialSeedMock,
+    }))
+
+    render(<StorePage />)
+
+    fireEvent.change(screen.getByLabelText('search'), { target: { value: 'wordpress' } })
+
+    await waitFor(() => {
+      expect(screen.getByText('title')).toBeInTheDocument()
+      expect(screen.getByLabelText('search')).toHaveValue('wordpress')
+      expect(screen.getByText('loading')).toBeInTheDocument()
+    })
+  })
+
   it('shows the error state when the full-seed query fails during search', async () => {
     catalogAllAppsError = true
 

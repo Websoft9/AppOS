@@ -94,10 +94,6 @@ func TestPrepareDeploymentImagesFallsBackToMirrorAndTagsOriginal(t *testing.T) {
 }
 
 func TestPrepareDeploymentImagesTimesOutPull(t *testing.T) {
-	oldTimeout := deploymentImagePullTimeout
-	deploymentImagePullTimeout = 10 * time.Millisecond
-	defer func() { deploymentImagePullTimeout = oldTimeout }()
-
 	app := newWorkerTestApp(t)
 	if err := sysconfig.SetGroup(app, "docker", "mirror", map[string]any{
 		"mirrors":                 []any{},
@@ -110,7 +106,10 @@ func TestPrepareDeploymentImagesTimesOutPull(t *testing.T) {
 		blockPull:  true,
 	}
 
-	err := prepareDeploymentImages(context.Background(), app, client, "services:\n  web:\n    image: nginx:alpine\n", func(string) {})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	err := prepareDeploymentImages(ctx, app, client, "services:\n  web:\n    image: nginx:alpine\n", func(string) {})
 	if err == nil {
 		t.Fatal("expected timeout error")
 	}

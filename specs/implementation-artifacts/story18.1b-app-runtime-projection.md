@@ -1,11 +1,11 @@
-# Story 18.1b: AppInstance Runtime Context Stabilization
+# Story 18.1b: App Runtime Projection
 
 Status: proposed
 
 ## Story
 
 As an operator,
-I want `AppInstance` detail and list surfaces to read stable app-scoped runtime and source context without depending primarily on `last_operation`,
+I want `AppInstance` detail and list surfaces to read stable app-scoped runtime, source, and desired-state context without depending primarily on `last_operation`,
 so that the management projection remains coherent even when the latest execution record is absent, stale, or unrelated to the current management question.
 
 ## Acceptance Criteria
@@ -15,18 +15,23 @@ so that the management projection remains coherent even when the latest executio
 3. The new or revised app-scoped read behavior preserves the Epic 18 boundary: it can summarize runtime-supporting context but does not absorb execution internals into `AppInstance` state.
 4. Installed-side list and detail pages continue to render required app context without depending on implicit execution-history reconstruction.
 5. The story does not redesign runtime observability, container diagnostics, or Epic 17 operation detail semantics.
+6. The backend management projection exposes `desired_state` clearly enough that Installed-side views can distinguish intent from current lifecycle state.
+7. `desired_state` is not treated as a duplicate of execution status or pipeline phase.
 
 ## Delivered Now
 
 - [x] The boundary problem is documented in the Epic 17/18 App Instance assessment.
 - [x] `AppInstance` is already the management-facing object for Installed-side views.
+- [x] `desired_state` already exists in the lifecycle model and projection structure.
 - [ ] App-scoped runtime/source context is fully stabilized away from `last_operation`-first reconstruction.
+- [ ] Backend and frontend management surfaces fully expose and interpret `desired_state`.
 
 ## Still Deferred
 
 - [ ] Richer runtime diagnostics and observability redesign.
 - [ ] Deeper source-resolution normalization beyond the fields needed for Installed-side management.
 - [ ] Full runtime query-model redesign across all app-related surfaces.
+- [ ] More advanced intent-policy modeling beyond `desired_state` versus current lifecycle state.
 
 ## Current Baseline (2026-04-01)
 
@@ -43,6 +48,7 @@ This works as an interim bridge, but it is weaker than the intended domain bound
 - This is a read-model hardening story, not a new execution-contract story.
 - The goal is not to move runtime ownership into `AppInstance`; the goal is to make the management projection self-sufficient enough for Installed-side surfaces.
 - Prefer app-scoped fields or app-scoped projection derivation over execution-history backtracking when the information is needed for stable management UX.
+- This story absorbs the earlier `desired_state` projection cleanup into the same response-hardening slice.
 
 ## Implementation Breakdown
 
@@ -71,14 +77,45 @@ This works as an interim bridge, but it is weaker than the intended domain bound
 
 ## Technical Direction
 
-Use `story18.1b-runtime-context-technical-direction.md` as the implementation-facing convergence note for this story.
+The implementation direction for this story is now part of this story itself.
 
-That document fixes the currently ambiguous part of this story by making four decisions explicit:
+Key decisions:
 
 1. the stable runtime anchor should be projected onto `app_instances`
 2. `last_operation` should remain linkage, not the primary read source
 3. `/api/apps` should stay backward-compatible while response shaping is hardened
-4. `desired_state` exposure should be piggybacked into the same response cleanup slice where practical
+4. `desired_state` should be exposed in the same response cleanup slice where practical
+
+### Stable projection fields
+
+The management projection should be able to return these fields without traversing `last_operation` first:
+
+1. `project_dir`
+2. `compose_project_name`
+3. app-scoped source lineage summary for management use
+4. `desired_state`
+
+Recommended storage naming keeps API compatibility while clarifying projection meaning internally.
+
+### Response hardening rule
+
+Refactor route behavior from operation-first reconstruction into projection-first shaping:
+
+1. read stable projection fields from `app_instances`
+2. fall back to `last_operation` only when projected fields are absent
+3. return partial context when possible instead of treating missing `last_operation` as the defining failure
+
+### Write-path rule
+
+Stable runtime-context fields should be refreshed when lifecycle operations establish or change the app runtime anchor, especially install, upgrade, redeploy, and later config apply/rollback after convergence.
+
+### Frontend rule
+
+Keep the first slice minimal:
+
+1. continue consuming `project_dir` and `source` as before
+2. add `desired_state` to Installed-side types and views where it improves operator reasoning
+3. avoid turning this story into a runtime-observability redesign
 
 ## Minimal Acceptance Test Checklist
 
@@ -86,10 +123,12 @@ That document fixes the currently ambiguous part of this story by making four de
 - [ ] `/api/apps/{id}` does not require `last_operation` to expose operator-facing context that should belong to the app management projection.
 - [ ] `last_operation` remains present as lifecycle linkage where available.
 - [ ] Installed-side UI still renders app summary without regression.
+- [ ] `/api/apps` list and detail payloads expose `desired_state` where expected.
+- [ ] Installed-side TypeScript types include `desired_state`.
+- [ ] UI does not confuse `desired_state` with current execution phase.
 
 ## References
 
 - [Source: specs/implementation-artifacts/epic17-18-app-instance-subdomain-assessment.md]
-- [Source: specs/implementation-artifacts/story18.1a-app-detail-boundary-classification.md]
-- [Source: specs/implementation-artifacts/story18.1b-runtime-context-technical-direction.md]
+- [Source: specs/implementation-artifacts/story18.1a-app-detail-boundary.md]
 - [Source: specs/adr/app-lifecycle-domain-model.md]

@@ -13,7 +13,9 @@ import { SaveButton, Toggle, selectClass } from './shared'
 import type {
   ConnectSftpGroup,
   ConnectTerminalGroup,
+  DeployGitDefaultsGroup,
   DeployPreflightGroup,
+  DeployRuntimeGroup,
   IacFilesGroup,
   ProxyNetwork,
   SecretPolicyErrors,
@@ -767,24 +769,123 @@ export function DeployPreflightSection({
   setForm: React.Dispatch<React.SetStateAction<DeployPreflightGroup>>
   save: () => void
 }) {
+  const minFreeDiskField = entry.fields.find(field => field.id === 'minFreeDiskGiB')
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>{entry.title}</CardTitle>
-        <CardDescription>Disk-capacity guardrails used during install preflight</CardDescription>
+        <CardDescription>Reserve free disk before deploy starts.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="max-w-sm space-y-1">
+          <Label htmlFor="deployMinFreeDiskGiB">
+            {minFreeDiskField?.label ?? 'Minimum Free Disk (GiB)'}
+          </Label>
+          <Input
+            id="deployMinFreeDiskGiB"
+            type="number"
+            min={0.5}
+            step={0.1}
+            value={form.minFreeDiskGiB}
+            onChange={event =>
+              setForm(current => ({
+                ...current,
+                minFreeDiskGiB: Number(event.target.value),
+              }))
+            }
+          />
+          <p className="text-xs text-muted-foreground">
+            {minFreeDiskField?.helpText ?? 'Floor 0.5 GiB. Default 1 GiB.'}
+          </p>
+          {errors.minFreeDiskGiB && (
+            <p className="text-xs text-destructive">{errors.minFreeDiskGiB}</p>
+          )}
+        </div>
+        <SaveButton onClick={save} saving={saving} />
+      </CardContent>
+    </Card>
+  )
+}
+
+export function DeployRuntimeSection({
+  entry,
+  form,
+  errors,
+  saving,
+  setForm,
+  save,
+}: {
+  entry: SettingsSchemaEntry
+  form: DeployRuntimeGroup
+  errors: Partial<Record<keyof DeployRuntimeGroup, string>>
+  saving: boolean
+  setForm: React.Dispatch<React.SetStateAction<DeployRuntimeGroup>>
+  save: () => void
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{entry.title}</CardTitle>
+        <CardDescription>Set pull, startup, and health-check waits.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-2">
           {renderSchemaNumberFields({
             entry,
             form,
             errors,
             setForm,
             fieldOptions: {
-              minFreeDiskBytes: {
-                inputId: 'deployMinFreeDiskBytes',
-                min: 0,
-                helpText: 'Default is 536870912 bytes (0.5 GiB).',
+              imagePullTimeoutSeconds: { inputId: 'imagePullTimeoutSeconds', min: 1 },
+              composeUpTimeoutSeconds: { inputId: 'composeUpTimeoutSeconds', min: 1 },
+              healthCheckTimeoutSeconds: { inputId: 'healthCheckTimeoutSeconds', min: 1 },
+              runtimePullIdleHeartbeatSeconds: {
+                inputId: 'runtimePullIdleHeartbeatSeconds',
+                min: 1,
+              },
+            },
+          })}
+        </div>
+        <SaveButton onClick={save} saving={saving} />
+      </CardContent>
+    </Card>
+  )
+}
+
+export function DeployGitDefaultsSection({
+  entry,
+  form,
+  errors,
+  saving,
+  setForm,
+  save,
+}: {
+  entry: SettingsSchemaEntry
+  form: DeployGitDefaultsGroup
+  errors: Partial<Record<keyof DeployGitDefaultsGroup, string>>
+  saving: boolean
+  setForm: React.Dispatch<React.SetStateAction<DeployGitDefaultsGroup>>
+  save: () => void
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{entry.title}</CardTitle>
+        <CardDescription>Set the default ref and compose path.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-2">
+          {renderSchemaTextFields({
+            entry,
+            form,
+            errors,
+            setForm,
+            fieldOptions: {
+              defaultRef: { inputId: 'defaultRef', placeholder: 'main' },
+              defaultComposePath: {
+                inputId: 'defaultComposePath',
+                placeholder: 'docker-compose.yml',
               },
             },
           })}

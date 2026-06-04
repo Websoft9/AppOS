@@ -83,6 +83,13 @@ export type ActionRecord = {
   steps?: ActionStep[]
 }
 
+export type ActionControlKind = 'cancel' | 'force-fail'
+
+export type PendingActionControl = {
+  kind: ActionControlKind
+  action: ActionRecord
+}
+
 export type ActionListResponse = {
   items: ActionRecord[]
   page: number

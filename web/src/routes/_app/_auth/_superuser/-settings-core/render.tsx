@@ -1,5 +1,7 @@
 import {
+  DeployGitDefaultsSection,
   DeployPreflightSection,
+  DeployRuntimeSection,
   IacFilesSection,
   ProxySection,
   SecretsSection,
@@ -24,7 +26,7 @@ import {
   AI_SECTION_IDS,
   BASIC_SECTION_IDS,
   BRANDING_SECTION_IDS,
-  DEPLOY_PREFLIGHT_SECTION_IDS,
+  DEPLOY_SECTION_IDS,
   DOCKER_SECTION_IDS,
   IAC_FILES_SECTION_IDS,
   LOGS_SECTION_IDS,
@@ -179,24 +181,44 @@ function renderSMTPSection(
   )
 }
 
-function renderDeployPreflightSection(
+function renderDeploySection(
   controller: SettingsPageController,
   _options?: RegisteredSectionRenderOptions
 ) {
-  const entry = findSchemaEntry(controller, 'deploy-preflight')
-  if (!entry) {
+  const preflightEntry = findSchemaEntry(controller, 'deploy-preflight')
+  const runtimeEntry = findSchemaEntry(controller, 'deploy-runtime')
+  const gitDefaultsEntry = findSchemaEntry(controller, 'deploy-git-defaults')
+  if (!preflightEntry || !runtimeEntry || !gitDefaultsEntry) {
     return null
   }
 
   return (
-    <DeployPreflightSection
-      entry={entry}
-      form={controller.deployPreflightForm}
-      errors={controller.deployPreflightErrors}
-      saving={controller.deployPreflightSaving}
-      setForm={controller.setDeployPreflightForm}
-      save={controller.saveDeployPreflight}
-    />
+    <div className="space-y-4">
+      <DeployPreflightSection
+        entry={preflightEntry}
+        form={controller.deployPreflightForm}
+        errors={controller.deployPreflightErrors}
+        saving={controller.deployPreflightSaving}
+        setForm={controller.setDeployPreflightForm}
+        save={controller.saveDeployPreflight}
+      />
+      <DeployRuntimeSection
+        entry={runtimeEntry}
+        form={controller.deployRuntimeForm}
+        errors={controller.deployRuntimeErrors}
+        saving={controller.deployRuntimeSaving}
+        setForm={controller.setDeployRuntimeForm}
+        save={controller.saveDeployRuntime}
+      />
+      <DeployGitDefaultsSection
+        entry={gitDefaultsEntry}
+        form={controller.deployGitDefaultsForm}
+        errors={controller.deployGitDefaultsErrors}
+        saving={controller.deployGitDefaultsSaving}
+        setForm={controller.setDeployGitDefaultsForm}
+        save={controller.saveDeployGitDefaults}
+      />
+    </div>
   )
 }
 
@@ -432,8 +454,8 @@ const registeredSectionRenderers: RegisteredSectionRenderer[] = [
   createRegisteredRenderer({ sectionIds: [...AI_SECTION_IDS], render: renderAISection }),
   createRegisteredRenderer({ sectionIds: [...SMTP_SECTION_IDS], render: renderSMTPSection }),
   createRegisteredRenderer({
-    sectionIds: [...DEPLOY_PREFLIGHT_SECTION_IDS],
-    render: renderDeployPreflightSection,
+    sectionIds: [...DEPLOY_SECTION_IDS],
+    render: renderDeploySection,
   }),
   createRegisteredRenderer({
     sectionIds: [...IAC_FILES_SECTION_IDS],

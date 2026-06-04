@@ -586,6 +586,8 @@ export function AppDetailActionsTab({
   openAllActionsForApp,
   openOperationStatus,
   buildActionDetailHref,
+  onRequestCancelAction,
+  onRequestForceFailAction,
 }: ActionsTabProps) {
   return (
     <TabsContent value="actions" className="space-y-2.5">
@@ -713,6 +715,8 @@ export function AppDetailActionsTab({
             <AppDetailActionHistoryTable
               actions={filteredScopedActions}
               buildActionDetailHref={buildActionDetailHref}
+              onRequestCancel={onRequestCancelAction}
+              onRequestForceFail={onRequestForceFailAction}
             />
           ) : scopedActions.length > 0 ? (
             <div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">

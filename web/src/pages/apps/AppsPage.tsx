@@ -209,7 +209,7 @@ function AppAvatar({
         'flex shrink-0 items-center justify-center overflow-hidden text-sm font-semibold shadow-sm',
         sizeClass,
         radiusClass,
-        showTemplateIcon ? 'bg-white ring-1 ring-border/60' : appIconClass(app.name)
+        showTemplateIcon ? 'bg-background ring-1 ring-border/60 dark:bg-muted/40' : appIconClass(app.name)
       )}
     >
       {showTemplateIcon ? (
@@ -581,7 +581,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
         {pagedItems.map(app => (
           <Card
             key={app.id}
-            className="overflow-hidden rounded-[24px] border-white/70 bg-white/88 shadow-[0_10px_30px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_18px_36px_rgba(15,23,42,0.10)]"
+            className="overflow-hidden rounded-[24px] border-border/70 bg-card/95 shadow-[0_10px_30px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_18px_36px_rgba(15,23,42,0.10)] dark:bg-card/92 dark:shadow-[0_16px_34px_rgba(2,6,23,0.42)]"
           >
             <CardContent
               role="link"
@@ -595,7 +595,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                 }
               }}
             >
-              <div className="absolute right-0 top-0 h-20 w-20 rounded-full bg-primary/5 blur-2xl" />
+              <div className="absolute right-0 top-0 h-20 w-20 rounded-full bg-primary/10 blur-2xl dark:bg-primary/15" />
               <div className="relative flex flex-col gap-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-3">
@@ -610,7 +610,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                   <Badge variant={runtimeVariant(app.runtime_status)}>{app.runtime_status}</Badge>
                 </div>
 
-                <div className="rounded-2xl bg-slate-50/85 px-3 py-3 ring-1 ring-slate-200/70">
+                <div className="rounded-2xl bg-muted/55 px-3 py-3 ring-1 ring-border/70 dark:bg-muted/35 dark:ring-border/60">
                   <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-xs text-muted-foreground">
                     <span>Server</span>
                     <span className="truncate text-right text-foreground">{appServerLabel(app)}</span>
@@ -622,7 +622,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                 </div>
               </div>
 
-              <div className="relative mt-auto flex items-end justify-between gap-3 border-t border-slate-200/80 pt-3">
+              <div className="relative mt-auto flex items-end justify-between gap-3 border-t border-border/75 pt-3">
                 {app.last_operation ? (
                   <div className="min-w-0 flex-1 text-[11px] text-muted-foreground">
                     <div className="truncate text-[10px] uppercase tracking-[0.12em] text-muted-foreground/80">

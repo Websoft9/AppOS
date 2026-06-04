@@ -1,4 +1,4 @@
-# Story 18.3a: Config Apply and Rollback Lifecycle Convergence
+# Story 18.3a: Config Action Convergence
 
 Status: proposed
 
@@ -82,6 +82,6 @@ This is the clearest remaining mutation-path boundary leak because:
 ## References
 
 - [Source: specs/implementation-artifacts/epic17-18-app-instance-subdomain-assessment.md]
-- [Source: specs/implementation-artifacts/story18.2a-local-action-convergence.md]
-- [Source: specs/implementation-artifacts/story18.4a-app-detail-action-handoff.md]
+- [Source: specs/implementation-artifacts/story18.2a-lifecycle-action-convergence.md]
+- [Source: specs/implementation-artifacts/story18.4a-app-action-handoff.md]
 - [Source: specs/implementation-artifacts/epic17-app-execution.md]

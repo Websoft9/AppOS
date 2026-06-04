@@ -2,13 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import * as jsYaml from 'js-yaml'
 import {
-  ArrowLeft,
   CheckCircle2,
+  ChevronRight,
   ChevronDown,
   CircleHelp,
   Eye,
   EyeOff,
   List,
+  Loader2,
+  Rocket,
   ShieldAlert,
   X,
 } from 'lucide-react'
@@ -18,9 +20,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  getDockerDependencyIssue,
+  type DockerDependencyIssueCode,
+} from '@/components/docker/DockerDependencyAlert'
+import { useOptionalLayout } from '@/contexts/LayoutContext'
 import { useCatalogAppTemplate, type CatalogTemplateField } from '@/lib/catalog-api'
 import { iacUploadFile, iacMkdir } from '@/lib/iac-api'
 import { pb } from '@/lib/pb'
+import {
+  getLocalSoftwareComponent,
+  getSoftwareComponent,
+  type SoftwareComponentDetail,
+} from '@/lib/software-api'
 import type { CreateDeploymentEntryMode } from '@/pages/deploy/actions/action-types'
 import { useActionsController } from '@/pages/deploy/actions/useActionsController'
 import type {
@@ -121,6 +133,71 @@ function buildTemplateSecretDescription(
 ) {
   const appLabel = projectName.trim() || templateLabel.trim() || 'application'
   return `Generated for ${appLabel} deployment field ${field.label || field.key}`
+}
+
+function asObject(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>
+  }
+  return null
+}
+
+function issueFocusPanel(code?: DockerDependencyIssueCode): 'checklist' | 'history' {
+  if (code === 'docker_daemon_unavailable' || code === 'docker_permission_denied') {
+    return 'history'
+  }
+  return 'checklist'
+}
+
+function dockerFixHref(serverId: string, issueCode?: DockerDependencyIssueCode) {
+  if (serverId === 'local') {
+    return '/platform-components'
+  }
+
+  const params = new URLSearchParams({
+    server: serverId,
+    tab: 'components',
+    focusComponent: 'docker',
+    focusPanel: issueFocusPanel(issueCode),
+    focusSource: 'compose',
+  })
+  if (issueCode) {
+    params.set('focusIssue', issueCode)
+  }
+  return `/resources/servers?${params.toString()}`
+}
+
+function readDockerReadiness(component: SoftwareComponentDetail) {
+  const verificationDetails = asObject(component.verification?.details)
+  const engineVersion = String(
+    verificationDetails?.engine_version ?? component.detected_version ?? ''
+  ).trim()
+  const composeAvailable = verificationDetails?.compose_available === true
+  const composeVersion = String(verificationDetails?.compose_version ?? '').trim()
+  const readinessIssues = component.preflight?.issues ?? []
+  const blockingIssue = readinessIssues.find(issue => !issue.startsWith('network_required:')) ?? ''
+  const verificationReason = String(component.verification?.reason ?? '').trim()
+  const issueCode = getDockerDependencyIssue(verificationReason)?.code
+  const blockingMessage =
+    blockingIssue ||
+    (component.installed_state === 'installed' && !composeAvailable
+      ? 'Docker Compose plugin is not available on this target.'
+      : '') ||
+    verificationReason
+  const ready =
+    component.installed_state === 'installed' &&
+    component.verification_state === 'healthy' &&
+    component.preflight?.ok !== false &&
+    composeAvailable
+
+  return {
+    ready,
+    engineVersion,
+    composeAvailable,
+    composeVersion,
+    blockingMessage,
+    issueCode,
+  }
 }
 
 function buildTemplateDefaults(fields: CatalogTemplateField[]): Record<string, string> {
@@ -266,6 +343,34 @@ function HelpTip({ text }: { text: string }) {
   )
 }
 
+function DeployCreateBreadcrumb() {
+  return (
+    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
+      <Link
+        to="/deploy"
+        search={{} as never}
+        className="inline-flex min-w-0 items-center gap-1.5 truncate transition-colors hover:text-foreground"
+      >
+        <Rocket className="h-4 w-4 shrink-0" />
+        <span className="truncate">Deploy</span>
+      </Link>
+      <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+      <span className="truncate font-medium text-foreground">Create</span>
+    </nav>
+  )
+}
+
+function extractTemplateRequirementDiskGiB(requirements?: Record<string, unknown>): string {
+  if (!requirements) return ''
+  const raw = requirements.diskGb ?? requirements.storageGb
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) return String(raw)
+  if (typeof raw === 'string') {
+    const parsed = Number(raw)
+    if (Number.isFinite(parsed) && parsed > 0) return String(parsed)
+  }
+  return ''
+}
+
 export function CreateDeploymentPage({
   prefillMode,
   prefillSource,
@@ -275,6 +380,8 @@ export function CreateDeploymentPage({
   prefillServerId,
   entryMode,
 }: CreateDeploymentPageProps) {
+  const layout = useOptionalLayout()
+  const setHeaderRightStartContent = layout?.setHeaderRightStartContent
   const {
     servers,
     notice,
@@ -343,11 +450,18 @@ export function CreateDeploymentPage({
     isTemplate && Boolean(templateKey)
   )
   const [composeYamlError, setComposeYamlError] = useState<string | null>(null)
+  const [dockerReadiness, setDockerReadiness] = useState<SoftwareComponentDetail | null>(null)
+  const [dockerReadinessLoading, setDockerReadinessLoading] = useState(false)
+  const [dockerReadinessError, setDockerReadinessError] = useState('')
 
   const templateFields = templateDetail?.inputs || []
   const templateBasicFields = templateFields.filter(isTemplateFieldBasic)
   const templateAdvancedFields = templateFields.filter(isTemplateFieldAdvanced)
   const templateHiddenFields = templateFields.filter(isTemplateFieldHidden)
+  const templateRequirementDiskGiB = useMemo(
+    () => extractTemplateRequirementDiskGiB(templateDetail?.manifest.requirements),
+    [templateDetail?.manifest.requirements]
+  )
   const templateInputPayload = useMemo(
     () => buildTemplateInputPayload(templateFields, templateInputValues),
     [templateFields, templateInputValues]
@@ -387,6 +501,49 @@ export function CreateDeploymentPage({
       : null
 
   useEffect(() => {
+    if (!serverId) {
+      setDockerReadiness(null)
+      setDockerReadinessError('')
+      setDockerReadinessLoading(false)
+      return
+    }
+
+    let cancelled = false
+    setDockerReadiness(null)
+    setDockerReadinessError('')
+    setDockerReadinessLoading(true)
+
+    const load = async () => {
+      try {
+        const component =
+          serverId === 'local'
+            ? await getLocalSoftwareComponent('docker')
+            : await getSoftwareComponent(serverId, 'docker')
+        if (!cancelled) {
+          setDockerReadiness(component)
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setDockerReadiness(null)
+          setDockerReadinessError(
+            error instanceof Error ? error.message : 'Failed to check Docker readiness'
+          )
+        }
+      } finally {
+        if (!cancelled) {
+          setDockerReadinessLoading(false)
+        }
+      }
+    }
+
+    void load()
+
+    return () => {
+      cancelled = true
+    }
+  }, [serverId])
+
+  useEffect(() => {
     if (!isTemplate) {
       return
     }
@@ -394,6 +551,12 @@ export function CreateDeploymentPage({
       setTemplateKey(prefillAppKey.trim())
     }
   }, [isTemplate, prefillAppKey])
+
+  useEffect(() => {
+    if (!setHeaderRightStartContent) return undefined
+    setHeaderRightStartContent(<DeployCreateBreadcrumb />)
+    return () => setHeaderRightStartContent(null)
+  }, [setHeaderRightStartContent])
 
   useEffect(() => {
     if (!isTemplate || !templateDetail) {
@@ -405,7 +568,13 @@ export function CreateDeploymentPage({
     if (!projectName.trim()) {
       setProjectName(prefillAppKey || templateDetail.templateKey)
     }
-  }, [isTemplate, prefillAppKey, projectName, setProjectName, templateDetail])
+    if (!appRequiredDiskGiB.trim()) {
+      const nextDisk = extractTemplateRequirementDiskGiB(templateDetail.manifest.requirements)
+      if (nextDisk) {
+        setAppRequiredDiskGiB(nextDisk)
+      }
+    }
+  }, [appRequiredDiskGiB, isTemplate, prefillAppKey, projectName, setAppRequiredDiskGiB, setProjectName, templateDetail])
 
   const setTemplateInputValue = useCallback((fieldKey: string, value: string) => {
     setTemplateInputValues(current => ({
@@ -532,10 +701,10 @@ export function CreateDeploymentPage({
             </div>
             <div className="text-[11px] text-muted-foreground">
               {isExistingRef
-                ? 'Using an existing AppOS secret reference.'
+                ? 'Using an existing secret reference.'
                 : savedSecret && savedSecret.rawValue === rawValue.trim()
-                  ? `Stored in AppOS Secrets as ${savedSecret.id}. Changing the value updates the saved secret.`
-                  : 'Enter once or generate. AppOS stores it in Secrets and passes only a secret ref during check and create.'}
+                  ? 'Stored in Secrets. Change to update.'
+                  : 'Stored as Secret. Only ref sent.'}
             </div>
           </div>
         )
@@ -555,19 +724,21 @@ export function CreateDeploymentPage({
   )
 
   const createDisabled = isGit
-    ? !gitRepositoryUrl.trim() || !gitComposePath.trim() || !serverId || activeSubmitting
+    ? !activeName.trim() || !gitRepositoryUrl.trim() || !gitComposePath.trim() || !serverId || activeSubmitting
     : isTemplate
-      ? !templateKey || !serverId || activeSubmitting || hasMissingRequiredTemplateFields(templateFields, templateInputValues)
-    : !compose.trim() ||
+      ? !activeName.trim() || !templateKey || !serverId || activeSubmitting || hasMissingRequiredTemplateFields(templateFields, templateInputValues)
+    : !activeName.trim() ||
+      !compose.trim() ||
       !serverId ||
       activeSubmitting ||
       Boolean(composeYamlError) ||
       Boolean(sourceBuildTargetServiceError)
   const checkDisabled = isGit
-    ? !gitRepositoryUrl.trim() || !gitComposePath.trim() || !serverId || activeChecking
+    ? !activeName.trim() || !gitRepositoryUrl.trim() || !gitComposePath.trim() || !serverId || activeChecking
     : isTemplate
-      ? !templateKey || !serverId || activeChecking || hasMissingRequiredTemplateFields(templateFields, templateInputValues)
-    : !compose.trim() ||
+      ? !activeName.trim() || !templateKey || !serverId || activeChecking || hasMissingRequiredTemplateFields(templateFields, templateInputValues)
+    : !activeName.trim() ||
+      !compose.trim() ||
       !serverId ||
       activeChecking ||
       Boolean(composeYamlError) ||
@@ -670,6 +841,55 @@ export function CreateDeploymentPage({
   ])
 
   const activeServer = servers.find(s => s.id === serverId)
+  const dockerReadinessState = useMemo(() => {
+    if (!serverId) return null
+    if (dockerReadinessLoading) {
+      return {
+        tone: 'loading' as const,
+        label: 'Checking',
+        title: 'Checking Docker readiness',
+        description: 'Reviewing Docker and Compose prerequisites for this target.',
+      }
+    }
+    if (dockerReadinessError) {
+      return {
+        tone: 'error' as const,
+        label: 'Need Fix',
+        title: 'Docker readiness check is unavailable',
+        description: dockerReadinessError,
+      }
+    }
+    if (!dockerReadiness || dockerReadiness.component_key !== 'docker') {
+      return null
+    }
+
+    const summary = readDockerReadiness(dockerReadiness)
+    if (summary.ready) {
+      return {
+        tone: 'ready' as const,
+        label: 'Ready',
+        title: 'Docker prerequisites are ready',
+        description:
+          [
+            summary.engineVersion ? `Engine ${summary.engineVersion}` : '',
+            summary.composeVersion ? `Compose ${summary.composeVersion}` : '',
+          ]
+            .filter(Boolean)
+            .join(' · ') || 'Docker Engine and Compose are available on this target.',
+      }
+    }
+
+    return {
+      tone: 'attention' as const,
+      label: 'Need Fix',
+      title: 'Docker prerequisites need attention',
+      description:
+        summary.blockingMessage || 'Open prerequisites to repair Docker before deploying.',
+      href: dockerFixHref(serverId, summary.issueCode),
+      actionLabel:
+        serverId === 'local' ? 'Open Platform Components' : 'Open Components > Prerequisites',
+    }
+  }, [dockerReadiness, dockerReadinessError, dockerReadinessLoading, serverId])
 
   const resolutionPreview = useMemo(() => {
     switch (createEntryMode) {
@@ -687,6 +907,7 @@ export function CreateDeploymentPage({
   const envCount = envVars.filter(e => e.key.trim()).length
   const composeLineCount = compose.split('\n').length
   const validationItems = [
+    { label: 'App name', passed: activeName.trim().length > 0 },
     { label: 'Target server', passed: serverId.length > 0 },
     ...(isTemplate
       ? [
@@ -822,6 +1043,8 @@ export function CreateDeploymentPage({
 
   return (
     <div className="flex flex-col gap-4">
+      {!setHeaderRightStartContent ? <DeployCreateBreadcrumb /> : null}
+
       {/* ── Header ── */}
       <div className="flex items-center justify-between">
         <div>
@@ -831,12 +1054,6 @@ export function CreateDeploymentPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/deploy" search={{} as never}>
-              <ArrowLeft className="mr-1 h-4 w-4" />
-              Back
-            </Link>
-          </Button>
           <Button variant="ghost" size="sm" asChild>
             <Link to="/actions" params={{} as never} search={{} as never}>
               <List className="mr-1 h-4 w-4" />
@@ -874,22 +1091,25 @@ export function CreateDeploymentPage({
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
         {/* ──── Left: Form workspace ──── */}
         <div className="space-y-5">
-          {/* ── Section 1: Info ── */}
+          {/* ── Section 1: Basic ── */}
           <section className="rounded-lg border bg-card px-4 py-3">
             <div className="min-w-0">
               <div className="flex items-center gap-1">
-                <span className="text-base font-semibold">Info</span>
-                <HelpTip text="Identify the deployment target. The app name becomes the compose project name and data directory. Leave empty to auto-generate." />
+                <span className="text-base font-semibold">Basic</span>
+                <HelpTip text="Set the deployment name and choose the target server." />
               </div>
               <div className="text-xs text-muted-foreground">
                 Application identity and target server
               </div>
             </div>
-            <div className={`grid gap-4 pt-4 ${isTemplate ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
+            <div
+              className={`grid gap-4 pt-4 ${isTemplate ? 'md:grid-cols-2 xl:grid-cols-3' : 'md:grid-cols-3'}`}
+            >
               <div className="space-y-1.5">
                 <Label htmlFor="deploy-name" className="text-xs">
                   App Name{' '}
-                  <HelpTip text="Must be unique across the server. Used as compose_project_name and the root of the app data path. Leave empty to auto-generate." />
+                  <span aria-hidden="true" className="text-destructive">*</span>
+                  <HelpTip text="Must be unique across the server. Used as compose project name and the app data directory root." />
                 </Label>
                 <Input
                   id="deploy-name"
@@ -897,7 +1117,8 @@ export function CreateDeploymentPage({
                   onChange={e =>
                     isGit ? setGitProjectName(e.target.value) : setProjectName(e.target.value)
                   }
-                  placeholder={isGit ? 'Auto-generated from repo name' : 'Auto-generated if empty'}
+                  placeholder={isGit ? 'Required, e.g. repo-app' : 'Required, e.g. wordpress-prod'}
+                  required
                 />
                 {nameHint ? (
                   <div
@@ -910,41 +1131,86 @@ export function CreateDeploymentPage({
               <div className="space-y-1.5">
                 <Label htmlFor="deploy-server" className="text-xs">
                   Target Location{' '}
+                  <span aria-hidden="true" className="text-destructive">*</span>
                   <HelpTip text="The target server where containers will be created and managed." />
                 </Label>
-                <select
-                  id="deploy-server"
-                  className="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
-                  value={serverId}
-                  onChange={e => setServerId(e.target.value)}
-                >
-                  <option value="" disabled>
-                    Select a server…
-                  </option>
-                  {servers.map(s => (
-                    <option key={s.id} value={s.id}>
-                      {s.label} ({s.host})
+                <div className="flex items-center gap-2">
+                  <select
+                    id="deploy-server"
+                    className="border-input bg-background h-9 min-w-0 flex-1 rounded-md border px-3 text-sm"
+                    value={serverId}
+                    onChange={e => setServerId(e.target.value)}
+                    required
+                  >
+                    <option value="" disabled>
+                      Select a server…
                     </option>
-                  ))}
-                </select>
-              </div>
-              {!isTemplate ? (
-                <div className="space-y-1.5">
-                  <Label htmlFor="required-disk" className="text-xs">
-                    Estimated App Disk (GiB){' '}
-                    <HelpTip text="Optional. If provided, preflight blocks creation when estimated requirement exceeds currently available disk space." />
-                  </Label>
-                  <Input
-                    id="required-disk"
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    value={appRequiredDiskGiB}
-                    onChange={e => setAppRequiredDiskGiB(e.target.value)}
-                    placeholder="Optional, e.g. 2"
-                  />
+                    {servers.map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.label} ({s.host})
+                      </option>
+                    ))}
+                  </select>
+                  {dockerReadinessState ? (
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          {'href' in dockerReadinessState && dockerReadinessState.href ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-9 shrink-0 gap-1.5 px-3"
+                              asChild
+                            >
+                              <a href={dockerReadinessState.href}>
+                                <ShieldAlert className="h-3.5 w-3.5 text-amber-600" />
+                                {dockerReadinessState.label}
+                              </a>
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-9 shrink-0 gap-1.5 px-3"
+                              disabled
+                              aria-label={dockerReadinessState.title}
+                            >
+                              {dockerReadinessState.tone === 'ready' ? (
+                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                              ) : (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              )}
+                              {dockerReadinessState.label}
+                            </Button>
+                          )}
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs text-xs">
+                          <div className="space-y-1">
+                            <div className="font-medium">{dockerReadinessState.title}</div>
+                            <div>{dockerReadinessState.description}</div>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ) : null}
                 </div>
-              ) : null}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="required-disk" className="text-xs">
+                  Estimated App Disk (GiB){' '}
+                  <HelpTip text="Optional for manual inputs. Template mode prefills this from the app metadata and still allows an override before preflight." />
+                </Label>
+                <Input
+                  id="required-disk"
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={appRequiredDiskGiB}
+                  onChange={e => setAppRequiredDiskGiB(e.target.value)}
+                  placeholder={isTemplate && templateRequirementDiskGiB ? `Default ${templateRequirementDiskGiB}` : 'Optional, e.g. 2'}
+                />
+              </div>
             </div>
           </section>
 
@@ -1191,19 +1457,9 @@ export function CreateDeploymentPage({
                           ? templateHiddenFields.map(field => field.key).join(', ')
                           : 'none'}
                       </div>
-                      <div className="space-y-1.5 pt-1">
-                        <Label htmlFor="required-disk-template" className="text-xs">
-                          Estimated App Disk (GiB)
-                        </Label>
-                        <Input
-                          id="required-disk-template"
-                          type="number"
-                          min="0"
-                          step="0.1"
-                          value={appRequiredDiskGiB}
-                          onChange={e => setAppRequiredDiskGiB(e.target.value)}
-                          placeholder="Optional override"
-                        />
+                      <div>
+                        Estimated app disk default:{' '}
+                        {templateRequirementDiskGiB ? `${templateRequirementDiskGiB} GiB` : 'not declared'}
                       </div>
                     </div>
                   </div>

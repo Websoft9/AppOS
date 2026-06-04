@@ -450,11 +450,11 @@ New resource types → new collection + migration + route group. No changes to e
 
 Define canonical route names, resource family language, and classification rules for `instance`, `connector`, and `provider_account`.
 
-### [Story 8.2: LLM Ownership Extraction](story8.2-llm-ownership-extraction.md)
+### [Story 8.2: AI Provider Foundation](story8.2-ai-provider-foundation.md)
 
-Finish extraction of LLM provider ownership from `settings` and place it under the `connectors` resource family. Self-hosted model services remain future `instance` work and are not part of this migration story.
+Move AI provider ownership out of `settings` and establish `ai_providers` as a first-class canonical resource family.
 
-### Story 8.3: Instance Backend Foundation
+### Story 8.3: Instance Foundation
 
 Introduce `instances` collection, domain model, CRUD API, and minimal validation for registration-only instance objects.
 
@@ -462,25 +462,21 @@ Introduce `instances` collection, domain model, CRUD API, and minimal validation
 
 Update dashboard resource navigation to expose `Service Instances`, `AI Providers`, `Connectors`, and `Platform Accounts` using the canonical product labels.
 
-### [Story 8.5: Endpoints to Connectors Refactor](story8.5-endpoints-to-connectors-refactor.md)
+### [Story 8.5: Connector Foundation](story8.5-connector-foundation.md)
 
-Refactor `endpoints` into `connectors`, preserving existing generic target use cases while tightening connector semantics.
+Refactor `endpoints` into `connectors` and establish the canonical connector domain while preserving existing generic target use cases.
 
 ### Story 8.6: Settings Reference Migration
 
 Replace settings-owned business resources with resource references where appropriate.
 
-### [Story 8.7: Connector Domain Foundation](story8.7-connector-domain-foundation.md)
-
-Introduce the minimal reusable connector domain model so current LLM resources and future endpoint migrations share one canonical backend shape.
-
-### [Story 8.8: Provider Account Backend Foundation](story8.8-provider-account-backend-foundation.md)
+### [Story 8.8: Provider Account Foundation](story8.8-provider-account-foundation.md)
 
 Introduce the minimal clean-slate `provider_accounts` backend domain so AppOS can model platform identity scopes without depending on legacy `cloud_accounts`.
 
-### [Story 8.9: Resource Hub Information Architecture Alignment](story8.9-resource-hub-information-architecture-alignment.md)
+### [Story 8.9: Resource Hub](story8.9-resource-hub.md)
 
-Define the unified resource-entry information architecture so `Servers` remain part of the canonical resource center while being positioned as host infrastructure rather than just another dependency card.
+Define the Resource Hub information architecture, canonical homepage structure, `Add Resource` chooser, and baseline usability/accessibility rules.
 
 ## Phase 2 Target Route Direction
 
@@ -520,7 +516,7 @@ Phase 2 does not require all target routes to exist immediately, but new stories
 ### Navigation structure
 Resources is a single sidebar entry (no sub-items). Clicking it opens the **Resource Hub** at `/resources` — a card grid showing all 8 resource types with live counts. Each card is fully clickable and navigates to the resource list page (`/resources/servers`, etc.). No action buttons on the Hub; `[+ Create]` lives only on the list page.
 
-This describes the delivered legacy hub baseline. Phase 2 taxonomy-aware IA changes should follow [story8.9-resource-hub-information-architecture-alignment.md](story8.9-resource-hub-information-architecture-alignment.md), which may replace the flat card grouping and raw type-picker create affordance with a canonical-family and intent-led entry model.
+This describes the delivered legacy hub baseline. Phase 2 taxonomy-aware IA changes should follow [story8.9-resource-hub.md](story8.9-resource-hub.md), which may replace the flat card grouping and raw type-picker create affordance with a canonical-family and intent-led entry model.
 
 ```
 Sidebar: Resources  →  /resources (Hub: 8 cards with counts)

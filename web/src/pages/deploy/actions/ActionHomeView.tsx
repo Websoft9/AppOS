@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, CircleHelp, Ellipsis, Store, Wrench } from 'lucide-react'
+import { ArrowRight, CircleHelp, Ellipsis, Shuffle, Store, Wrench } from 'lucide-react'
 import { getIconUrl } from '@/lib/store-presenter'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { actionStatusLabel } from './action-utils'
 import type { CreateDeploymentEntryMode } from './action-types'
 
 type StoreShortcut = {
@@ -66,6 +67,7 @@ type ActionHomeViewProps<TOperation extends LatestOperationItem> = {
 }
 
 const STORE_GRID_SLOTS = 16
+const STORE_SHORTCUTS_PER_BATCH = STORE_GRID_SLOTS - 1
 
 function TitleHelp({ text }: { text: string }) {
   return (
@@ -179,6 +181,21 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
   onOpenOperation,
   renderActionMenu,
 }: ActionHomeViewProps<TOperation>) {
+  const [shortcutBatch, setShortcutBatch] = useState(0)
+  const shortcutBatchCount = Math.max(1, Math.ceil(storeShortcuts.length / STORE_SHORTCUTS_PER_BATCH))
+  const visibleStoreShortcuts = useMemo(
+    () =>
+      storeShortcuts.slice(
+        shortcutBatch * STORE_SHORTCUTS_PER_BATCH,
+        shortcutBatch * STORE_SHORTCUTS_PER_BATCH + STORE_SHORTCUTS_PER_BATCH
+      ),
+    [shortcutBatch, storeShortcuts]
+  )
+
+  useEffect(() => {
+    setShortcutBatch(current => Math.min(current, shortcutBatchCount - 1))
+  }, [shortcutBatchCount])
+
   return (
     <div className="space-y-6">
       {prefillLoading ? (
@@ -203,10 +220,33 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="border-sky-200 bg-linear-to-br from-sky-50 via-white to-cyan-50/70 dark:border-sky-900/60 dark:from-slate-950 dark:via-slate-900 dark:to-sky-950/40">
           <CardHeader className="space-y-3">
-            <div className="flex items-center gap-2 text-lg font-semibold text-slate-950 dark:text-slate-50">
-              <Store className="h-4 w-4 text-sky-600 dark:text-sky-300" />
-              <span>Install from Store</span>
-              <TitleHelp text="Use a Store application shortcut for a fast deploy handoff, or open App Store to browse more applications." />
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2 text-lg font-semibold text-slate-950 dark:text-slate-50">
+                <Store className="h-4 w-4 text-sky-600 dark:text-sky-300" />
+                <span>Install from Store</span>
+                <TitleHelp text="Use a Store application shortcut for a fast deploy handoff, or open App Store to browse more applications." />
+              </div>
+              {shortcutBatchCount > 1 ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0 rounded-full text-sky-700 hover:text-sky-800 dark:text-sky-300 dark:hover:text-sky-200"
+                      aria-label="Show another set"
+                      onClick={() =>
+                        setShortcutBatch(current => (current + 1) % shortcutBatchCount)
+                      }
+                    >
+                      <Shuffle className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" sideOffset={6}>
+                    Show another set
+                  </TooltipContent>
+                </Tooltip>
+              ) : null}
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -218,7 +258,7 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
                       className="h-[76px] rounded-xl bg-white/30 dark:bg-white/5"
                     />
                   ))
-                : storeShortcuts.map(app => (
+                : visibleStoreShortcuts.map(app => (
                     <AppLauncherIcon key={app.key} app={app} onOpen={onOpenStoreShortcut} />
                   ))}
               {storeShortcuts.length > 0 ? <MoreAppsTile /> : null}
@@ -372,7 +412,9 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
                         <div className="text-xs text-muted-foreground">{getServerHost(item)}</div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={statusVariant(item.status)}>{item.status}</Badge>
+                        <Badge variant={statusVariant(item.status)}>
+                          {actionStatusLabel(item.status)}
+                        </Badge>
                       </TableCell>
                       <TableCell>{formatTime(item.updated)}</TableCell>
                       <TableCell className="text-right">{renderActionMenu(item)}</TableCell>

@@ -1,4 +1,4 @@
-# Story 18.2a: Local Action Convergence
+# Story 18.2a: Lifecycle Action Convergence
 
 Status: review
 

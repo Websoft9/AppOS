@@ -81,7 +81,6 @@ import { cn } from '@/lib/utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   checkServerStatus as pingServerStatus,
-  getLocalDockerBridgeAddress,
   listTerminalSessions,
   serverPower,
 } from '@/lib/connect-api'
@@ -103,6 +102,13 @@ function buildDefaultCredentialSecretName() {
 
 function buildDefaultServerName() {
   return `server-${Date.now().toString().slice(-6)}`
+}
+
+function resolveCurrentBrowserHostname(): string {
+  if (typeof window === 'undefined') {
+    return ''
+  }
+  return window.location.hostname.trim()
 }
 
 function buildDuplicateServerDraft(item: Record<string, unknown>): Record<string, unknown> {
@@ -495,9 +501,7 @@ export function ServersPage() {
   const [activeTerminalSessionCount, setActiveTerminalSessionCount] = useState(0)
 
   const [secretDialogOpen, setSecretDialogOpen] = useState(false)
-  const [dockerBridgeHost, setDockerBridgeHost] = useState('')
-  const [dockerBridgeLoading, setDockerBridgeLoading] = useState(false)
-  const [dockerBridgeError, setDockerBridgeError] = useState('')
+  const [localHostError, setLocalHostError] = useState('')
   const [secretAddOption, setSecretAddOption] = useState<
     ((id: string, label: string) => void) | null
   >(null)
@@ -523,27 +527,18 @@ export function ServersPage() {
       }))
   }, [])
 
-  const loadDockerBridgeHost = useCallback(async () => {
-    setDockerBridgeLoading(true)
-    setDockerBridgeError('')
-    try {
-      const address = await getLocalDockerBridgeAddress()
-      setDockerBridgeHost(address)
-      return address
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : t('servers.localHost.errors.loadDockerBridge')
-      setDockerBridgeError(message)
-      return ''
-    } finally {
-      setDockerBridgeLoading(false)
-    }
-  }, [t])
-
   function sanitizeServerPayload(payload: Record<string, unknown>): Record<string, unknown> {
     const next = { ...payload }
+    const isDirect = String(next.connect_type ?? 'direct') === 'direct'
+    const isLocal = isDirect && Boolean(next.use_local_host ?? next.is_local)
+    const browserHostname = resolveCurrentBrowserHostname()
+
+    next.is_local = isLocal
+    if (isLocal && browserHostname) {
+      next.host = browserHostname
+    }
     delete next.use_local_host
-    if (String(next.connect_type ?? 'direct') === 'tunnel') {
+    if (!isDirect) {
       delete next.host
       delete next.port
     }
@@ -698,11 +693,13 @@ export function ServersPage() {
                 ...f,
                 hideLabel: true,
                 render: ({ inputId, value, formData, setValue, updateField }) => {
+                  const browserHostname = resolveCurrentBrowserHostname()
                   const isDirect = String(formData.connect_type ?? 'direct') === 'direct'
-                  const useLocalHost = Boolean(formData.use_local_host)
+                  const useLocalHost = Boolean(formData.use_local_host ?? formData.is_local)
                   const hostRequired = !String(formData.connect_type ?? 'direct').startsWith(
                     'tunnel'
                   )
+                  const displayValue = useLocalHost && browserHostname ? browserHostname : String(value ?? '')
 
                   return (
                     <div className="space-y-1.5">
@@ -722,26 +719,22 @@ export function ServersPage() {
                               type="checkbox"
                               className="h-4 w-4 rounded border-input"
                               checked={useLocalHost}
-                              onChange={async event => {
+                              onChange={event => {
                                 const checked = event.target.checked
+                                setLocalHostError('')
                                 updateField('use_local_host', checked)
                                 if (!checked) {
-                                  setDockerBridgeError('')
                                   return
                                 }
-                                const address = dockerBridgeHost || (await loadDockerBridgeHost())
-                                if (address) {
-                                  setValue(address)
-                                } else {
+                                if (!browserHostname) {
+                                  setLocalHostError(t('servers.localHost.errors.loadCurrentHostname'))
                                   updateField('use_local_host', false)
+                                  return
                                 }
+                                setValue(browserHostname)
                               }}
                             />
-                            <span>
-                              {dockerBridgeLoading
-                                ? t('servers.localHost.loading')
-                                : t('servers.localHost.label')}
-                            </span>
+                            <span>{t('servers.localHost.label')}</span>
                           </label>
                         ) : null}
                       </div>
@@ -749,15 +742,19 @@ export function ServersPage() {
                       <input
                         id={inputId}
                         type="text"
-                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                        value={String(value ?? '')}
+                        className={cn(
+                          'w-full rounded-md border border-input px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring',
+                          useLocalHost ? 'bg-muted text-muted-foreground' : 'bg-background'
+                        )}
+                        value={displayValue}
                         onChange={event => setValue(event.target.value)}
                         placeholder={f.placeholder}
                         required={hostRequired}
+                        readOnly={useLocalHost}
                       />
 
-                      {isDirect && dockerBridgeError ? (
-                        <p className="text-xs text-destructive">{dockerBridgeError}</p>
+                      {isDirect && localHostError ? (
+                        <p className="text-xs text-destructive">{localHostError}</p>
                       ) : null}
                     </div>
                   )
@@ -766,10 +763,7 @@ export function ServersPage() {
             : f
       ),
     [
-      dockerBridgeError,
-      dockerBridgeHost,
-      dockerBridgeLoading,
-      loadDockerBridgeHost,
+      localHostError,
       openSecretDialog,
       openSecretEditor,
       t,

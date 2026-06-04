@@ -89,7 +89,7 @@
       "connectionType": "连接类型",
       "name": "名称",
       "host": "主机",
-      "useLocalHost": "使用本地主机",
+      "useLocalHost": "与 AppOS 相同的主机",
       "port": "端口",
       "user": "用户",
       "credentialSecret": "凭据（密钥）",
@@ -133,10 +133,9 @@
       "hostBody": "输入由 AppOS 管理的服务器 IP 地址或域名。"
     },
     "localHost": {
-      "loading": "加载中...",
-      "label": "本地主机",
+      "label": "与 AppOS 相同的主机",
       "errors": {
-        "loadDockerBridge": "加载 docker0 地址失败"
+        "loadCurrentHostname": "解析当前 AppOS 主机名失败"
       }
     },
     "secret": {
@@ -376,7 +375,7 @@
         "prerequisites": "前置条件",
         "prerequisitesRegion": "前置条件区域",
         "prerequisiteTargets": "前置条件目标",
-        "addons": "附加组件",
+        "addons": "可选附加组件",
         "addonsRegion": "附加组件区域",
         "addonInventory": "附加组件清单"
       },

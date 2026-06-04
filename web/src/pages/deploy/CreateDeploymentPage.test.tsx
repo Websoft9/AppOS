@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { settingsEntryPath } from '@/lib/settings-api'
 import { CreateDeploymentPage } from './CreateDeploymentPage'
 
 const sendMock = vi.fn()
@@ -153,6 +154,14 @@ function renderCreateDeploymentPage(
   )
 }
 
+function getAppNameField() {
+  return screen.getByLabelText(/^App Name/)
+}
+
+function getTargetLocationField() {
+  return screen.getByLabelText(/^Target Location/)
+}
+
 describe('CreateDeploymentPage', () => {
   afterEach(() => {
     cleanup()
@@ -174,8 +183,42 @@ describe('CreateDeploymentPage', () => {
             { id: 'local', label: 'local', host: '127.0.0.1', status: 'online' },
           ])
         }
+        if (path === '/api/software/local/docker') {
+          return Promise.resolve({
+            component_key: 'docker',
+            label: 'Docker',
+            target_type: 'local',
+            template_kind: 'docker',
+            installed_state: 'installed',
+            detected_version: '27.0.1',
+            verification_state: 'healthy',
+            available_actions: ['verify'],
+            preflight: {
+              ok: true,
+              os_supported: true,
+              privilege_ok: true,
+              network_ok: true,
+              dependency_ready: true,
+            },
+            verification: {
+              state: 'healthy',
+              checked_at: '2026-01-01T00:00:00Z',
+              details: {
+                engine_version: '27.0.1',
+                compose_available: true,
+                compose_version: 'v2.29.1',
+              },
+            },
+          })
+        }
         if (path === '/api/actions') {
           return Promise.resolve([])
+        }
+        if (path === settingsEntryPath('deploy-git-defaults') && options?.method === 'GET') {
+          return Promise.resolve({
+            id: 'deploy-git-defaults',
+            value: { defaultRef: 'main', defaultComposePath: 'docker-compose.yml' },
+          })
         }
         if (path === '/api/actions/install/manual-compose' && options?.method === 'POST') {
           return Promise.resolve({
@@ -283,7 +326,7 @@ describe('CreateDeploymentPage', () => {
         if (path === '/api/catalog/apps/odoo/template') {
           return Promise.resolve({
             templateKey: 'odoo',
-            manifest: { trademark: 'Odoo', category: 'Business' },
+            manifest: { trademark: 'Odoo', category: 'Business', requirements: { diskGb: 1 } },
             inputs: [
               {
                 key: 'admin_email',
@@ -300,7 +343,7 @@ describe('CreateDeploymentPage', () => {
         if (path === '/api/catalog/apps/wordpress/template') {
           return Promise.resolve({
             templateKey: 'wordpress',
-            manifest: { trademark: 'WordPress', category: 'CMS' },
+            manifest: { trademark: 'WordPress', category: 'CMS', requirements: { diskGb: 1 } },
             inputs: [
               {
                 key: 'admin_email',
@@ -353,16 +396,23 @@ describe('CreateDeploymentPage', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Create Deployment' })).toBeInTheDocument()
-      expect(screen.getByLabelText('App Name')).toBeInTheDocument()
+      expect(getAppNameField()).toBeInTheDocument()
     })
+
+    expect(screen.getByText('Basic')).toBeInTheDocument()
+    expect(getAppNameField()).toBeRequired()
+    expect(getTargetLocationField()).toBeRequired()
+
+    expect(screen.getByRole('link', { name: /Deploy/i })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^Back$/i })).not.toBeInTheDocument()
 
     expect(
       screen.queryByText('Leave blank to auto-generate the normalized app name.')
     ).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Cancel' })).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('App Name'), { target: { value: 'wordpress-prod' } })
-    fireEvent.change(screen.getByLabelText('Target Location'), { target: { value: 'local' } })
+    fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
+    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
 
     const composeTextarea = screen.getByPlaceholderText(/services:/i)
     fireEvent.change(composeTextarea, {
@@ -450,11 +500,11 @@ describe('CreateDeploymentPage', () => {
     renderCreateDeploymentPage({ entryMode: 'compose' })
 
     await waitFor(() => {
-      expect(screen.getByLabelText('App Name')).toBeInTheDocument()
+      expect(getAppNameField()).toBeInTheDocument()
     })
 
-    fireEvent.change(screen.getByLabelText('App Name'), { target: { value: 'wordpress-prod' } })
-    fireEvent.change(screen.getByLabelText('Target Location'), { target: { value: 'local' } })
+    fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
+    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
     fireEvent.change(screen.getByPlaceholderText(/services:/i), {
       target: { value: 'services:\n  web:\n    image: nginx:alpine\n' },
     })
@@ -485,11 +535,11 @@ describe('CreateDeploymentPage', () => {
     renderCreateDeploymentPage({ entryMode: 'compose' })
 
     await waitFor(() => {
-      expect(screen.getByLabelText('App Name')).toBeInTheDocument()
+      expect(getAppNameField()).toBeInTheDocument()
     })
 
-    fireEvent.change(screen.getByLabelText('App Name'), { target: { value: 'wordpress-prod' } })
-    fireEvent.change(screen.getByLabelText('Target Location'), { target: { value: 'local' } })
+    fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
+    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
     fireEvent.change(screen.getByPlaceholderText(/services:/i), {
       target: { value: 'services:\n  web:\n    image: nginx:alpine\n' },
     })
@@ -567,11 +617,11 @@ describe('CreateDeploymentPage', () => {
     renderCreateDeploymentPage({ entryMode: 'compose' })
 
     await waitFor(() => {
-      expect(screen.getByLabelText('App Name')).toBeInTheDocument()
+      expect(getAppNameField()).toBeInTheDocument()
     })
 
-    fireEvent.change(screen.getByLabelText('App Name'), { target: { value: 'wordpress-prod' } })
-    fireEvent.change(screen.getByLabelText('Target Location'), { target: { value: 'local' } })
+    fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
+    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
     fireEvent.change(screen.getByPlaceholderText(/services:/i), {
       target: { value: 'services:\n  web:\n    image: nginx:alpine\n' },
     })
@@ -659,11 +709,11 @@ describe('CreateDeploymentPage', () => {
     renderCreateDeploymentPage({ entryMode: 'compose' })
 
     await waitFor(() => {
-      expect(screen.getByLabelText('App Name')).toBeInTheDocument()
+      expect(getAppNameField()).toBeInTheDocument()
     })
 
-    fireEvent.change(screen.getByLabelText('App Name'), { target: { value: 'wordpress-prod' } })
-    fireEvent.change(screen.getByLabelText('Target Location'), { target: { value: 'local' } })
+    fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
+    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
     fireEvent.change(screen.getByLabelText('Estimated App Disk (GiB)'), { target: { value: '2' } })
     fireEvent.change(screen.getByPlaceholderText(/services:/i), {
       target: { value: 'services:\n  web:\n    image: nginx:alpine\n' },
@@ -703,10 +753,10 @@ describe('CreateDeploymentPage', () => {
     renderCreateDeploymentPage({ entryMode: 'compose' })
 
     await waitFor(() => {
-      expect(screen.getByLabelText('App Name')).toBeInTheDocument()
+      expect(getAppNameField()).toBeInTheDocument()
     })
 
-    fireEvent.change(screen.getByLabelText('App Name'), { target: { value: 'wordpress-prod' } })
+    fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/actions/install/name-availability', {
@@ -727,11 +777,11 @@ describe('CreateDeploymentPage', () => {
       renderCreateDeploymentPage({ entryMode })
 
       await waitFor(() => {
-        expect(screen.getByLabelText('App Name')).toBeInTheDocument()
+        expect(getAppNameField()).toBeInTheDocument()
       })
 
-      fireEvent.change(screen.getByLabelText('App Name'), { target: { value: 'wordpress-prod' } })
-      fireEvent.change(screen.getByLabelText('Target Location'), { target: { value: 'local' } })
+      fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
+      fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
       fireEvent.change(screen.getByPlaceholderText(/services:/i), {
         target: { value: 'services:\n  web:\n    image: nginx:alpine\n' },
       })
@@ -774,11 +824,11 @@ describe('CreateDeploymentPage', () => {
     renderCreateDeploymentPage({ entryMode: 'install-script' })
 
     await waitFor(() => {
-      expect(screen.getByLabelText('App Name')).toBeInTheDocument()
+      expect(getAppNameField()).toBeInTheDocument()
     })
 
-    fireEvent.change(screen.getByLabelText('App Name'), { target: { value: 'wordpress-prod' } })
-    fireEvent.change(screen.getByLabelText('Target Location'), { target: { value: 'local' } })
+    fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
+    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
     fireEvent.change(screen.getByPlaceholderText(/services:/i), {
       target: { value: 'services:\n  web:\n    image: nginx:alpine\n' },
     })
@@ -900,11 +950,11 @@ describe('CreateDeploymentPage', () => {
     renderCreateDeploymentPage({ entryMode: 'install-script' })
 
     await waitFor(() => {
-      expect(screen.getByLabelText('App Name')).toBeInTheDocument()
+      expect(getAppNameField()).toBeInTheDocument()
     })
 
-    fireEvent.change(screen.getByLabelText('App Name'), { target: { value: 'wordpress-prod' } })
-    fireEvent.change(screen.getByLabelText('Target Location'), { target: { value: 'local' } })
+    fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
+    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
     fireEvent.change(screen.getByPlaceholderText(/services:/i), {
       target: {
         value: 'services:\n  web:\n    image: nginx:alpine\n  worker:\n    image: busybox\n',
@@ -960,8 +1010,8 @@ describe('CreateDeploymentPage', () => {
       expect(screen.getByLabelText('Repository URL')).toBeInTheDocument()
     })
 
-    fireEvent.change(screen.getByLabelText('App Name'), { target: { value: 'git-wordpress' } })
-    fireEvent.change(screen.getByLabelText('Target Location'), { target: { value: 'local' } })
+    fireEvent.change(getAppNameField(), { target: { value: 'git-wordpress' } })
+    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
     fireEvent.change(screen.getByLabelText('Repository URL'), {
       target: { value: 'https://github.com/org/repo' },
     })
@@ -993,6 +1043,49 @@ describe('CreateDeploymentPage', () => {
     })
   })
 
+  it('uses deploy settings defaults in the git compose create request', async () => {
+    const fallback = sendMock.getMockImplementation()
+    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+      if (path === settingsEntryPath('deploy-git-defaults') && options?.method === 'GET') {
+        return Promise.resolve({
+          id: 'deploy-git-defaults',
+          value: { defaultRef: 'release', defaultComposePath: 'deploy/custom-compose.yml' },
+        })
+      }
+      return fallback?.(path, options)
+    })
+
+    renderCreateDeploymentPage({ entryMode: 'git-compose' })
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Ref')).toHaveValue('release')
+      expect(screen.getByLabelText('Compose Path')).toHaveValue('deploy/custom-compose.yml')
+    })
+
+    fireEvent.change(getAppNameField(), { target: { value: 'git-wordpress' } })
+    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
+    fireEvent.change(screen.getByLabelText('Repository URL'), {
+      target: { value: 'https://github.com/org/repo' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Create Deployment' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/actions/install/git-compose', {
+        method: 'POST',
+        body: {
+          server_id: 'local',
+          project_name: 'git-wordpress',
+          repository_url: 'https://github.com/org/repo',
+          ref: 'release',
+          compose_path: 'deploy/custom-compose.yml',
+          auth_header_name: '',
+          auth_header_value: '',
+          app_required_disk_gib: '',
+        },
+      })
+    })
+  })
+
   it('pins template mode to the selected store app', async () => {
     renderCreateDeploymentPage({
       entryMode: 'template',
@@ -1014,6 +1107,7 @@ describe('CreateDeploymentPage', () => {
 
     expect(screen.queryByLabelText('Search Template')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('App Template')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Estimated App Disk (GiB)')).toHaveValue(1)
   })
 
   it('stores secret-backed template values in secrets before check and create', async () => {
@@ -1025,11 +1119,13 @@ describe('CreateDeploymentPage', () => {
 
     await waitFor(() => {
       expect(screen.getByLabelText('Database Password *')).toBeInTheDocument()
-      expect(screen.getByLabelText('Target Location')).toBeInTheDocument()
+      expect(getTargetLocationField()).toBeInTheDocument()
     })
 
-    fireEvent.change(screen.getByLabelText('App Name'), { target: { value: 'wordpress-prod' } })
-    fireEvent.change(screen.getByLabelText('Target Location'), { target: { value: 'local' } })
+    expect(screen.getByText('Stored as Secret. Only ref sent.')).toBeInTheDocument()
+
+    fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
+    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
     fireEvent.change(screen.getByLabelText('Admin Email *'), {
       target: { value: 'admin@example.com' },
     })
@@ -1061,7 +1157,7 @@ describe('CreateDeploymentPage', () => {
             admin_email: 'admin@example.com',
             db_password: 'secretRef:secret-1',
           },
-          app_required_disk_gib: '',
+          app_required_disk_gib: '1',
         },
       })
     })
@@ -1079,7 +1175,7 @@ describe('CreateDeploymentPage', () => {
             admin_email: 'admin@example.com',
             db_password: 'secretRef:secret-1',
           },
-          app_required_disk_gib: '',
+          app_required_disk_gib: '1',
         },
       })
     })
@@ -1090,5 +1186,70 @@ describe('CreateDeploymentPage', () => {
       params: { actionId: 'act_template_1' },
       search: { returnTo: 'list' },
     })
+  })
+
+  it('checks docker readiness after choosing a target and links to prerequisites when Docker is not ready', async () => {
+    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+      if (path === '/api/servers/docker-targets') {
+        return Promise.resolve([{ id: 'srv-1', label: 'edge-1', host: '10.0.0.8', status: 'online' }])
+      }
+      if (path === '/api/servers/srv-1/software/docker') {
+        return Promise.resolve({
+          component_key: 'docker',
+          label: 'Docker',
+          target_type: 'server',
+          template_kind: 'docker',
+          installed_state: 'installed',
+          detected_version: '27.0.1',
+          verification_state: 'degraded',
+          available_actions: ['upgrade'],
+          preflight: {
+            ok: true,
+            os_supported: true,
+            privilege_ok: true,
+            network_ok: true,
+            dependency_ready: true,
+          },
+          verification: {
+            state: 'degraded',
+            checked_at: '2026-01-01T00:00:00Z',
+            reason: 'docker compose: command not found',
+            details: {
+              engine_version: '27.0.1',
+              compose_available: false,
+              compose_version: '',
+            },
+          },
+        })
+      }
+      if (path === '/api/actions') {
+        return Promise.resolve([])
+      }
+      if (path === settingsEntryPath('deploy-git-defaults') && options?.method === 'GET') {
+        return Promise.resolve({
+          id: 'deploy-git-defaults',
+          value: { defaultRef: 'main', defaultComposePath: 'docker-compose.yml' },
+        })
+      }
+      return Promise.resolve({})
+    })
+
+    renderCreateDeploymentPage({ entryMode: 'compose' })
+
+    await waitFor(() => {
+      expect(getTargetLocationField()).toBeInTheDocument()
+    })
+
+    fireEvent.change(getTargetLocationField(), { target: { value: 'srv-1' } })
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Need Fix' })).toBeInTheDocument()
+    })
+
+    const fixLink = screen.getByRole('link', { name: 'Need Fix' })
+    expect(fixLink).toHaveAttribute(
+      'href',
+      '/resources/servers?server=srv-1&tab=components&focusComponent=docker&focusPanel=checklist&focusSource=compose&focusIssue=compose_missing'
+    )
   })
 })

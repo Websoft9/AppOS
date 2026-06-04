@@ -965,9 +965,11 @@ paths:
                 - Actions
     /api/actions/{id}/cancel:
         post:
+            description: Immediately terminalizes one queued lifecycle action as cancelled before execution starts. Authenticated users only.
             operationId: post_api_actions_id_cancel
             parameters:
-                - in: path
+                - description: action id
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -983,7 +985,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: OK
                 "401":
                     content:
@@ -991,9 +994,73 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Conflict
             security:
                 - bearerAuth: []
-            summary: Create or execute actions by id cancel
+            summary: Cancel queued action
+            tags:
+                - Actions
+    /api/actions/{id}/force-fail:
+        post:
+            description: Immediately terminalizes one executing lifecycle action as failed and releases its active slot without guaranteeing rollback. Authenticated users only.
+            operationId: post_api_actions_id_force-fail
+            parameters:
+                - description: action id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Conflict
+            security:
+                - bearerAuth: []
+            summary: Force fail running action
             tags:
                 - Actions
     /api/actions/{id}/logs:

@@ -53,7 +53,7 @@ vi.mock('react-i18next', () => ({
         'servers.fields.connectionType': 'Connection Type',
         'servers.fields.name': 'Name',
         'servers.fields.host': 'Host',
-        'servers.fields.useLocalHost': 'Use local host',
+        'servers.fields.useLocalHost': 'The same host with AppOS',
         'servers.fields.port': 'Port',
         'servers.fields.user': 'User',
         'servers.fields.credentialSecret': 'Credential (Secret)',
@@ -70,9 +70,8 @@ vi.mock('react-i18next', () => ({
         'servers.help.connectionTypeBody': 'Choose how the managed server connects to AppOS.',
         'servers.help.hostLabel': 'Host help',
         'servers.help.hostBody': 'Enter the IP address or domain name of the server managed by AppOS.',
-        'servers.localHost.loading': 'Loading...',
-        'servers.localHost.label': 'Local host',
-        'servers.localHost.errors.loadDockerBridge': 'Failed to load docker0 address',
+        'servers.localHost.label': 'The same host with AppOS',
+        'servers.localHost.errors.loadCurrentHostname': 'Failed to resolve the current AppOS hostname',
         'servers.secret.newCredential': 'New credential',
         'servers.secret.editSecret': 'Edit Secret',
         'servers.secret.errors.load': 'Failed to load secret',
@@ -697,6 +696,7 @@ describe('ServersPage layout', () => {
     searchState = {}
     vi.stubGlobal('open', windowOpenMock)
     window.open = windowOpenMock as typeof window.open
+    window.history.replaceState({}, '', '/resources/servers')
     pingServerStatusMock.mockResolvedValue({ status: 'online' })
     sendMock.mockImplementation((path: string) => {
       if (path === '/api/servers/connection') {
@@ -777,9 +777,6 @@ describe('ServersPage layout', () => {
       if (path === '/api/collections/groups/records?perPage=500&sort=name') {
         return Promise.resolve({ items: [] })
       }
-      if (path === '/api/servers/local/docker-bridge') {
-        return Promise.resolve({ interface: 'docker0', address: '172.17.0.1' })
-      }
       if (path === '/api/secrets/templates') {
         return Promise.resolve([
           {
@@ -803,7 +800,6 @@ describe('ServersPage layout', () => {
       template_id: 'single_value',
     })
     updateSecretMock.mockResolvedValue({})
-    getLocalDockerBridgeAddressMock.mockResolvedValue('172.17.0.1')
     getSystemdStatusMock.mockResolvedValue({
       server_id: 'server-1',
       service: 'netdata',
@@ -1937,15 +1933,41 @@ describe('ServersPage layout', () => {
     })
   })
 
-  it('fills the host with the current docker0 address when Local host is checked', async () => {
+  it('fills and locks the host with the current browser hostname and persists is_local', async () => {
     render(<ServersPage />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Add Server' }))
 
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Local host' }))
+    const createDialog = await screen.findByRole('dialog')
+    fireEvent.change(within(createDialog).getByLabelText(/^Name\*/), {
+      target: { value: 'local-edge' },
+    })
+    fireEvent.change(within(createDialog).getByLabelText(/^User\*/), {
+      target: { value: 'root' },
+    })
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'The same host with AppOS' }))
+
+    const hostInput = screen.getByLabelText(/^Host\*/) as HTMLInputElement
 
     await waitFor(() => {
-      expect((screen.getByLabelText(/^Host\*/) as HTMLInputElement).value).toBe('172.17.0.1')
+      expect(hostInput.value).toBe(window.location.hostname)
+    })
+
+    expect(hostInput).toHaveAttribute('readonly')
+
+    fireEvent.click(within(createDialog).getByRole('button', { name: 'Create' }))
+
+    await waitFor(() => {
+      expect(createServerMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'local-edge',
+          user: 'root',
+          host: window.location.hostname,
+          is_local: true,
+          created_by: 'user-1',
+        })
+      )
     })
   })
 })

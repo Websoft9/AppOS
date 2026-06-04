@@ -18,7 +18,12 @@ export const DOCKER_SECTION_IDS = ['docker-mirror', 'docker-registries'] as cons
 export const PROXY_SECTION_IDS = ['proxy-network'] as const
 export const AI_SECTION_IDS = ['ai'] as const
 export const SMTP_SECTION_IDS = ['smtp'] as const
-export const DEPLOY_PREFLIGHT_SECTION_IDS = ['deploy-preflight'] as const
+export const DEPLOY_SECTION_IDS = [
+  'deploy',
+  'deploy-preflight',
+  'deploy-runtime',
+  'deploy-git-defaults',
+] as const
 export const IAC_FILES_SECTION_IDS = ['iac-files'] as const
 export const TUNNEL_SECTION_IDS = ['tunnel-port-range'] as const
 export const BASIC_SECTION_IDS = ['basic'] as const

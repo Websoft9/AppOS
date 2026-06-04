@@ -30,6 +30,7 @@ func init() {
 		})
 		col.Fields.Add(&core.TextField{Name: "user", Required: true})
 		col.Fields.Add(&core.TextField{Name: "connect_type"})
+		col.Fields.Add(&core.BoolField{Name: "is_local"})
 		col.Fields.Add(&core.RelationField{Name: "credential", CollectionId: secrets.Id, MaxSelect: 1})
 		col.Fields.Add(&core.TextField{Name: "shell"})
 

@@ -136,6 +136,41 @@ func parseIntWithDefault(raw any, defaultValue int) (int, error) {
 	}
 }
 
+func parseFloatWithDefault(raw any, defaultValue float64) (float64, error) {
+	if raw == nil {
+		return defaultValue, nil
+	}
+
+	switch value := raw.(type) {
+	case float64:
+		return value, nil
+	case float32:
+		return float64(value), nil
+	case int:
+		return float64(value), nil
+	case int64:
+		return float64(value), nil
+	case json.Number:
+		parsed, err := value.Float64()
+		if err != nil {
+			return 0, fmt.Errorf("must be a number")
+		}
+		return parsed, nil
+	case string:
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			return defaultValue, nil
+		}
+		parsed, err := strconv.ParseFloat(trimmed, 64)
+		if err != nil {
+			return 0, fmt.Errorf("must be a number")
+		}
+		return parsed, nil
+	default:
+		return 0, fmt.Errorf("must be a number")
+	}
+}
+
 func parseBoolWithDefault(raw any, defaultValue bool) (bool, error) {
 	if raw == nil {
 		return defaultValue, nil
@@ -227,15 +262,78 @@ func validateTunnelPortRange(v map[string]any) map[string]string {
 func validateDeployPreflight(v map[string]any) map[string]string {
 	errors := map[string]string{}
 
-	minFreeDiskBytes, err := parseIntWithDefault(v["minFreeDiskBytes"], 512*1024*1024)
+	minFreeDiskGiB, err := parseFloatWithDefault(v["minFreeDiskGiB"], 1)
 	if err != nil {
-		errors["minFreeDiskBytes"] = "must be an integer"
-	} else if minFreeDiskBytes < 0 {
-		errors["minFreeDiskBytes"] = "must be >= 0"
-	} else if minFreeDiskBytes > 1_099_511_627_776 {
-		errors["minFreeDiskBytes"] = "must be <= 1099511627776"
+		errors["minFreeDiskGiB"] = "must be a number"
+	} else if minFreeDiskGiB < 0.5 {
+		errors["minFreeDiskGiB"] = "must be >= 0.5"
+	} else if minFreeDiskGiB > 1024 {
+		errors["minFreeDiskGiB"] = "must be <= 1024"
 	} else {
-		v["minFreeDiskBytes"] = minFreeDiskBytes
+		v["minFreeDiskGiB"] = minFreeDiskGiB
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
+}
+
+func validateDeployRuntime(v map[string]any) map[string]string {
+	errors := map[string]string{}
+
+	fields := []struct {
+		key          string
+		defaultValue int
+	}{
+		{key: "imagePullTimeoutSeconds", defaultValue: 180},
+		{key: "composeUpTimeoutSeconds", defaultValue: 600},
+		{key: "healthCheckTimeoutSeconds", defaultValue: 120},
+		{key: "runtimePullIdleHeartbeatSeconds", defaultValue: 20},
+	}
+
+	for _, field := range fields {
+		value, err := parseIntWithDefault(v[field.key], field.defaultValue)
+		if err != nil {
+			errors[field.key] = "must be an integer"
+			continue
+		}
+		if value < 1 {
+			errors[field.key] = "must be >= 1"
+			continue
+		}
+		v[field.key] = value
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
+}
+
+func validateDeployGitDefaults(v map[string]any) map[string]string {
+	errors := map[string]string{}
+
+	for key, defaultValue := range map[string]string{
+		"defaultRef":         "main",
+		"defaultComposePath": "docker-compose.yml",
+	} {
+		raw, ok := v[key]
+		if !ok || raw == nil {
+			v[key] = defaultValue
+			continue
+		}
+		text, ok := raw.(string)
+		if !ok {
+			errors[key] = "must be a string"
+			continue
+		}
+		text = strings.TrimSpace(text)
+		if text == "" {
+			errors[key] = "must not be empty"
+			continue
+		}
+		v[key] = text
 	}
 
 	if len(errors) == 0 {

@@ -12,7 +12,9 @@ import (
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	"github.com/websoft9/appos/backend/domain/config/sharedenv"
+	"github.com/websoft9/appos/backend/domain/deploy"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
 )
@@ -43,6 +45,39 @@ func (te *testEnv) doOperations(t *testing.T, method, url, body string, authenti
 	req.Header.Set("Content-Type", "application/json")
 	if authenticated {
 		req.Header.Set("Authorization", te.token)
+	}
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	return rec
+}
+
+func (te *testEnv) doOperationsWithToken(t *testing.T, method, url, body, token string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	r, err := apis.NewRouter(te.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	g := r.Group("/api")
+	g.Bind(apis.RequireAuth())
+	registerOperationRoutes(g)
+
+	mux, err := r.BuildMux()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var bodyReader io.Reader
+	if body != "" {
+		bodyReader = strings.NewReader(body)
+	}
+
+	req := httptest.NewRequest(method, url, bodyReader)
+	req.Header.Set("Content-Type", "application/json")
+	if strings.TrimSpace(token) != "" {
+		req.Header.Set("Authorization", token)
 	}
 
 	rec := httptest.NewRecorder()
@@ -324,6 +359,160 @@ func TestOperationListLegacyResponseIsNotCappedAtOneHundred(t *testing.T) {
 	legacy := parseJSONArray(t, legacyRec)
 	if len(legacy) != 101 {
 		t.Fatalf("expected legacy list array with 101 items, got %d", len(legacy))
+	}
+}
+
+func TestOperationQueuedCancelImmediatelyTerminalizesForAuthenticatedUser(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	compose := "services:\n  web:\n    image: nginx:alpine\n"
+	createRec := te.doOperations(t, http.MethodPost, "/api/actions/install/manual-compose", `{"project_name":"Cancel Demo","compose":`+jsonString(compose)+`}`, true)
+	if createRec.Code != http.StatusAccepted {
+		t.Fatalf("create: expected 202, got %d: %s", createRec.Code, createRec.Body.String())
+	}
+	created := parseJSON(t, createRec)
+	operationID := created["id"].(string)
+	pipelineID := created["pipeline"].(map[string]any)["id"].(string)
+
+	userToken := createRegularUserToken(t, te)
+	cancelRec := te.doOperationsWithToken(t, http.MethodPost, "/api/actions/"+operationID+"/cancel", "", userToken)
+	if cancelRec.Code != http.StatusOK {
+		t.Fatalf("cancel: expected 200, got %d: %s", cancelRec.Code, cancelRec.Body.String())
+	}
+	body := parseJSON(t, cancelRec)
+	if body["status"] != deploy.StatusCancelled {
+		t.Fatalf("expected cancelled status, got %v", body["status"])
+	}
+
+	opRecord, err := te.app.FindRecordById("app_operations", operationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opRecord.GetString("terminal_status") != "cancelled" {
+		t.Fatalf("expected terminal_status cancelled, got %q", opRecord.GetString("terminal_status"))
+	}
+	if opRecord.GetString("error_message") != "operation cancelled before execution started" {
+		t.Fatalf("expected cancel error message, got %q", opRecord.GetString("error_message"))
+	}
+
+	pipelineRecord, err := te.app.FindRecordById("pipeline_runs", pipelineID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pipelineRecord.GetString("status") != "cancelled" {
+		t.Fatalf("expected cancelled pipeline, got %q", pipelineRecord.GetString("status"))
+	}
+
+	nodeRunsCol, err := te.app.FindCollectionByNameOrId("pipeline_node_runs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodeRuns, err := te.app.FindRecordsByFilter(nodeRunsCol, "pipeline_run = '"+pipelineID+"'", "created", 50, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, nodeRun := range nodeRuns {
+		if nodeRun.GetString("status") != "cancelled" {
+			t.Fatalf("expected all node runs cancelled, got %s=%q", nodeRun.GetString("node_key"), nodeRun.GetString("status"))
+		}
+	}
+}
+
+func TestOperationExecutingForceFailImmediatelyTerminalizesForAuthenticatedUser(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	compose := "services:\n  web:\n    image: nginx:alpine\n"
+	createRec := te.doOperations(t, http.MethodPost, "/api/actions/install/manual-compose", `{"project_name":"Force Fail Demo","compose":`+jsonString(compose)+`}`, true)
+	if createRec.Code != http.StatusAccepted {
+		t.Fatalf("create: expected 202, got %d: %s", createRec.Code, createRec.Body.String())
+	}
+	created := parseJSON(t, createRec)
+	operationID := created["id"].(string)
+	pipelineID := created["pipeline"].(map[string]any)["id"].(string)
+
+	opRecord, err := te.app.FindRecordById("app_operations", operationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opRecord.Set("phase", string(model.OperationPhaseExecuting))
+	if err := te.app.Save(opRecord); err != nil {
+		t.Fatal(err)
+	}
+
+	pipelineRecord, err := te.app.FindRecordById("pipeline_runs", pipelineID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pipelineRecord.Set("status", "active")
+	pipelineRecord.Set("current_phase", string(model.PipelinePhaseExecuting))
+	if err := te.app.Save(pipelineRecord); err != nil {
+		t.Fatal(err)
+	}
+
+	nodeRunsCol, err := te.app.FindCollectionByNameOrId("pipeline_node_runs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodeRuns, err := te.app.FindRecordsByFilter(nodeRunsCol, "pipeline_run = '"+pipelineID+"'", "created", 50, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nodeRuns) < 2 {
+		t.Fatalf("expected seeded node runs, got %d", len(nodeRuns))
+	}
+	nodeRuns[0].Set("status", "running")
+	if err := te.app.Save(nodeRuns[0]); err != nil {
+		t.Fatal(err)
+	}
+
+	userToken := createRegularUserToken(t, te)
+	forceFailRec := te.doOperationsWithToken(t, http.MethodPost, "/api/actions/"+operationID+"/force-fail", "", userToken)
+	if forceFailRec.Code != http.StatusOK {
+		t.Fatalf("force-fail: expected 200, got %d: %s", forceFailRec.Code, forceFailRec.Body.String())
+	}
+	body := parseJSON(t, forceFailRec)
+	if body["status"] != deploy.StatusFailed {
+		t.Fatalf("expected failed status, got %v", body["status"])
+	}
+
+	opRecord, err = te.app.FindRecordById("app_operations", operationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opRecord.GetString("terminal_status") != "failed" {
+		t.Fatalf("expected terminal_status failed, got %q", opRecord.GetString("terminal_status"))
+	}
+	if opRecord.GetString("failure_reason") != "execution_error" {
+		t.Fatalf("expected execution_error reason, got %q", opRecord.GetString("failure_reason"))
+	}
+	if opRecord.GetString("error_message") != "operation force-failed by operator" {
+		t.Fatalf("expected force-fail error message, got %q", opRecord.GetString("error_message"))
+	}
+
+	pipelineRecord, err = te.app.FindRecordById("pipeline_runs", pipelineID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pipelineRecord.GetString("status") != "failed" {
+		t.Fatalf("expected failed pipeline, got %q", pipelineRecord.GetString("status"))
+	}
+	if pipelineRecord.GetString("failed_node_key") != nodeRuns[0].GetString("node_key") {
+		t.Fatalf("expected failed_node_key %q, got %q", nodeRuns[0].GetString("node_key"), pipelineRecord.GetString("failed_node_key"))
+	}
+
+	nodeRuns, err = te.app.FindRecordsByFilter(nodeRunsCol, "pipeline_run = '"+pipelineID+"'", "created", 50, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if nodeRuns[0].GetString("status") != "failed" {
+		t.Fatalf("expected running node to fail, got %q", nodeRuns[0].GetString("status"))
+	}
+	for _, nodeRun := range nodeRuns[1:] {
+		if nodeRun.GetString("status") != "cancelled" {
+			t.Fatalf("expected pending node run cancelled, got %s=%q", nodeRun.GetString("node_key"), nodeRun.GetString("status"))
+		}
 	}
 }
 
@@ -951,6 +1140,35 @@ func TestOperationManualComposeRejectsInvalidSourceBuildInputs(t *testing.T) {
 	createBody := parseJSON(t, createRec)
 	if checkBody["message"] != createBody["message"] {
 		t.Fatalf("expected matching source_build validation message, got check=%v create=%v", checkBody["message"], createBody["message"])
+	}
+}
+
+func TestOperationGitComposeCheckUsesConfiguredDefaults(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	if err := sysconfig.SetGroup(te.app, "deploy", "git-defaults", map[string]any{
+		"defaultRef":         "release",
+		"defaultComposePath": "deploy/custom-compose.yml",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	requestedPath := ""
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestedPath = r.URL.Path
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte("services:\n  web:\n    image: nginx:alpine\n"))
+	}))
+	defer server.Close()
+
+	payload := `{"repository_url":` + jsonString(server.URL+`/owner/repo`) + `,"project_name":"Git Defaults Demo"}`
+	rec := te.doOperations(t, http.MethodPost, "/api/actions/install/git-compose/check", payload, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("git compose check: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if requestedPath != "/owner/repo/raw/branch/release/deploy/custom-compose.yml" {
+		t.Fatalf("expected configured git defaults path, got %q", requestedPath)
 	}
 }
 

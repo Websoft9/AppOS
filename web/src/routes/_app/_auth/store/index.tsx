@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { getLocale } from '@/lib/i18n'
@@ -110,7 +110,8 @@ export function StorePage() {
 
   // ─── Favorites filter ─────────────────────────────────────────────────────────
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
-  const searchActive = search.trim().length > 0
+  const deferredSearch = useDeferredValue(search)
+  const searchActive = deferredSearch.trim().length > 0
 
   // ─── Official apps collapse ───────────────────────────────────────────────────
   const [officialCollapsed, setOfficialCollapsed] = useState(false)
@@ -156,12 +157,12 @@ export function StorePage() {
       source: 'official' as const,
       primaryCategory,
       secondaryCategory,
-      q: search,
+      q: deferredSearch,
       favorite: showFavoritesOnly ? true : undefined,
       limit: pageSize,
       offset: (page - 1) * pageSize,
     }),
-    [locale, primaryCategory, secondaryCategory, search, showFavoritesOnly, pageSize, page]
+    [deferredSearch, locale, primaryCategory, secondaryCategory, showFavoritesOnly, pageSize, page]
   )
 
   const {
@@ -187,15 +188,6 @@ export function StorePage() {
     isError: officialCatalogSeedError,
     refetch: refetchOfficialCatalogSeed,
   } = useCatalogAllApps(officialCatalogSeedQuery, searchActive)
-
-  const isLoading =
-    catalogLoading ||
-    (!searchActive && officialAppsLoading) ||
-    (searchActive && officialCatalogSeedLoading)
-  const isError =
-    catalogError ||
-    (!searchActive && officialAppsError) ||
-    (searchActive && officialCatalogSeedError)
 
   const selectedAppKey = selectedApp?.key ?? null
   const {
@@ -290,14 +282,14 @@ export function StorePage() {
 
     return officialCatalogSeedProducts.filter(product => {
       if (showFavoritesOnly && !favoriteKeys.has(product.key)) return false
-      return matchesStoreSearch(product, search, primaryCategories)
+      return matchesStoreSearch(product, deferredSearch, primaryCategories)
     })
   }, [
+    deferredSearch,
     favoriteKeys,
     officialCatalogSeedProducts,
     paginatedProducts,
     primaryCategories,
-    search,
     searchActive,
     showFavoritesOnly,
   ])
@@ -346,6 +338,13 @@ export function StorePage() {
     () => officialTotal + visibleCustomApps.length,
     [officialTotal, visibleCustomApps.length]
   )
+  const pageLoading = catalogLoading && !categoryTree
+  const pageError = catalogError && !categoryTree
+  const listLoading = (!searchActive && officialAppsLoading) || (searchActive && officialCatalogSeedLoading)
+  const listError = (!searchActive && officialAppsError) || (searchActive && officialCatalogSeedError)
+  const showListSkeleton =
+    (!searchActive && officialAppsLoading && !officialAppsPage) ||
+    (searchActive && officialCatalogSeedLoading && !officialCatalogSeed)
 
   useEffect(() => {
     if (page > totalPages) {
@@ -437,7 +436,7 @@ export function StorePage() {
 
   // ─── Render ───────────────────────────────────────────────────────────────────
 
-  if (isLoading) {
+  if (pageLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4" role="status">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -446,7 +445,7 @@ export function StorePage() {
     )
   }
 
-  if (isError) {
+  if (pageError) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4">
         <p className="text-destructive font-medium">{t('error.title')}</p>
@@ -656,88 +655,117 @@ export function StorePage() {
       </div>
 
       {/* App grid: custom apps group + official apps group */}
-          {visibleCustomApps.length === 0 && visibleOfficialProducts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 gap-2 text-muted-foreground">
-          <p>{showFavoritesOnly ? t('favorites.noFavorites') : t('search.noResults')}</p>
-          {showFavoritesOnly && (
+      <section className="space-y-4" aria-busy={listLoading} aria-live="polite">
+        {listLoading && !showListSkeleton ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>{t('loading')}</span>
+          </div>
+        ) : null}
+
+        {listError ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-4">
+            <p className="text-destructive font-medium">{t('error.title')}</p>
             <Button
-              variant="ghost"
-              size="sm"
+              variant="outline"
               onClick={() => {
-                setShowFavoritesOnly(false)
-                setPage(1)
+                if (!searchActive) {
+                  refetchOfficialApps()
+                }
+                if (searchActive) {
+                  refetchOfficialCatalogSeed()
+                }
               }}
             >
-              {t('favorites.clearFilter')}
+              {t('error.retry')}
             </Button>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {/* Custom Apps group */}
-          {visibleCustomApps.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                {t('customApp.groupLabel')}
-              </h3>
-              <div
-                className="grid gap-x-4 gap-y-6 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6"
-                role="list"
+          </div>
+        ) : showListSkeleton ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-4" role="status">
+            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            <p className="text-muted-foreground">{t('loading')}</p>
+          </div>
+        ) : visibleCustomApps.length === 0 && visibleOfficialProducts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-2 text-muted-foreground">
+            <p>{showFavoritesOnly ? t('favorites.noFavorites') : t('search.noResults')}</p>
+            {showFavoritesOnly && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowFavoritesOnly(false)
+                  setPage(1)
+                }}
               >
-                {visibleCustomApps.map(app => (
-                  <div key={app.id} role="listitem">
-                    <CustomAppCard
-                      app={app}
-                      currentUserId={currentUserId}
-                      onOpenDetail={openCustomDetail}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Official Apps group */}
-          {visibleOfficialProducts.length > 0 && (
-            <div className="space-y-3">
-              {visibleCustomApps.length > 0 && (
-                <button
-                  type="button"
-                  className="flex items-center gap-1.5 group"
-                  onClick={() => setOfficialCollapsed(c => !c)}
-                >
-                  {officialCollapsed ? (
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  )}
-                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide group-hover:text-foreground transition-colors">
-                    {t('customApp.officialGroupLabel')}
-                  </h3>
-                </button>
-              )}
-              {!officialCollapsed && (
+                {t('favorites.clearFilter')}
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {visibleCustomApps.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                  {t('customApp.groupLabel')}
+                </h3>
                 <div
                   className="grid gap-x-4 gap-y-6 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6"
                   role="list"
-                  aria-label={t('title')}
                 >
-                  {visibleOfficialProducts.map(product => (
-                    <div key={product.key} role="listitem">
-                      <AppCard
-                        product={product}
-                        primaryCategories={primaryCategories}
-                        onSelectApp={openDetail}
-                        userApps={userApps}
+                  {visibleCustomApps.map(app => (
+                    <div key={app.id} role="listitem">
+                      <CustomAppCard
+                        app={app}
+                        currentUserId={currentUserId}
+                        onOpenDetail={openCustomDetail}
                       />
                     </div>
                   ))}
                 </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+              </div>
+            )}
+
+            {visibleOfficialProducts.length > 0 && (
+              <div className="space-y-3">
+                {visibleCustomApps.length > 0 && (
+                  <button
+                    type="button"
+                    className="flex items-center gap-1.5 group"
+                    onClick={() => setOfficialCollapsed(c => !c)}
+                  >
+                    {officialCollapsed ? (
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    )}
+                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide group-hover:text-foreground transition-colors">
+                      {t('customApp.officialGroupLabel')}
+                    </h3>
+                  </button>
+                )}
+                {!officialCollapsed && (
+                  <div
+                    className="grid gap-x-4 gap-y-6 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6"
+                    role="list"
+                    aria-label={t('title')}
+                  >
+                    {visibleOfficialProducts.map(product => (
+                      <div key={product.key} role="listitem">
+                        <AppCard
+                          product={product}
+                          primaryCategories={primaryCategories}
+                          onSelectApp={openDetail}
+                          userApps={userApps}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </section>
 
       {/* App Detail Modal */}
       <AppDetailModal

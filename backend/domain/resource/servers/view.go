@@ -43,6 +43,7 @@ type ServerViewItem struct {
 	CreatedBy       string         `json:"created_by"`
 	CreatedByName   string         `json:"created_by_name"`
 	ConnectType     string         `json:"connect_type"`
+	IsLocal         bool           `json:"is_local"`
 	Credential      string         `json:"credential"`
 	CredentialType  string         `json:"credential_type"`
 	Description     string         `json:"description"`
@@ -70,6 +71,7 @@ func BuildServerViewItem(record *core.Record, credentialType string, createdByNa
 		CreatedBy:       record.GetString("created_by"),
 		CreatedByName:   createdByName,
 		ConnectType:     string(managed.ConnectType),
+		IsLocal:         managed.IsLocal,
 		Credential:      managed.CredentialID,
 		CredentialType:  credentialType,
 		Description:     managed.Description,

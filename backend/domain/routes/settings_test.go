@@ -165,6 +165,9 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 	var foundTunnel bool
 	var foundSecrets bool
 	var foundProxy bool
+	var foundDeployPreflight bool
+	var foundDeployRuntime bool
+	var foundDeployGitDefaults bool
 	var foundMonitorScheduling bool
 	var foundMonitorPolicy bool
 	var foundMonitorPlatformSelfObservation bool
@@ -176,12 +179,18 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 		id, _ := item["id"].(string)
 		value, _ := item["value"].(map[string]any)
 		switch id {
+		case "deploy-preflight":
+			foundDeployPreflight = value != nil && value["minFreeDiskGiB"] == 1.0
 		case "iac-files":
 			foundIacFiles = value != nil && int(value["maxSizeMB"].(float64)) == 10 && int(value["maxZipSizeMB"].(float64)) == 50
 		case "tunnel-port-range":
 			foundTunnel = value != nil && int(value["start"].(float64)) == 40000 && int(value["end"].(float64)) == 49999
 		case "proxy-network":
 			foundProxy = value != nil && value["enabled"] == false && value["httpConnectorId"] == "" && value["httpsConnectorId"] == ""
+		case "deploy-runtime":
+			foundDeployRuntime = value != nil && int(value["imagePullTimeoutSeconds"].(float64)) == 180 && int(value["composeUpTimeoutSeconds"].(float64)) == 600 && int(value["healthCheckTimeoutSeconds"].(float64)) == 120 && int(value["runtimePullIdleHeartbeatSeconds"].(float64)) == 20
+		case "deploy-git-defaults":
+			foundDeployGitDefaults = value != nil && value["defaultRef"] == "main" && value["defaultComposePath"] == "docker-compose.yml"
 		case "secrets-policy":
 			foundSecrets = value != nil && value["defaultAccessMode"] == string(secrets.AccessModeUseOnly)
 		case "monitor-scheduling":
@@ -209,6 +218,15 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 	}
 	if !foundProxy {
 		t.Fatal("expected proxy-network fallback value")
+	}
+	if !foundDeployPreflight {
+		t.Fatal("expected deploy-preflight fallback value")
+	}
+	if !foundDeployRuntime {
+		t.Fatal("expected deploy-runtime fallback value")
+	}
+	if !foundDeployGitDefaults {
+		t.Fatal("expected deploy-git-defaults fallback value")
 	}
 	if !foundSecrets {
 		t.Fatal("expected secrets-policy fallback value")
@@ -274,6 +292,33 @@ func TestSettingsEntryPatchValidation(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "httpConnectorId") {
 		t.Fatalf("expected proxy-network validation error, got %s", rec.Body.String())
+	}
+
+	badDeployRuntime := `{"imagePullTimeoutSeconds":0,"composeUpTimeoutSeconds":"slow","healthCheckTimeoutSeconds":-1,"runtimePullIdleHeartbeatSeconds":0}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/deploy-runtime", badDeployRuntime, true)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 for invalid deploy-runtime, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "imagePullTimeoutSeconds") || !strings.Contains(rec.Body.String(), "composeUpTimeoutSeconds") {
+		t.Fatalf("expected deploy-runtime validation error, got %s", rec.Body.String())
+	}
+
+	badDeployGitDefaults := `{"defaultRef":"   ","defaultComposePath":123}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/deploy-git-defaults", badDeployGitDefaults, true)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 for invalid deploy-git-defaults, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "defaultRef") || !strings.Contains(rec.Body.String(), "defaultComposePath") {
+		t.Fatalf("expected deploy-git-defaults validation error, got %s", rec.Body.String())
+	}
+
+	badDeployPreflight := `{"minFreeDiskGiB":0.2}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/deploy-preflight", badDeployPreflight, true)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 for invalid deploy-preflight, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "minFreeDiskGiB") {
+		t.Fatalf("expected deploy-preflight validation error, got %s", rec.Body.String())
 	}
 
 	badMonitorPolicy := `{"metricsFreshnessLookbackSeconds":120,"metricsStaleSeconds":90,"metricsMissingSeconds":90}`
@@ -401,6 +446,19 @@ func TestSettingsEntryPatchPersistsUnifiedValues(t *testing.T) {
 		t.Fatalf("expected extensionBlacklist .exe,.bin, got %q", got)
 	}
 
+	deployPreflightBody := `{"minFreeDiskGiB":1.5}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/deploy-preflight", deployPreflightBody, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for deploy-preflight patch, got %d: %s", rec.Code, rec.Body.String())
+	}
+	storedDeployPreflight, err := sysconfig.GetGroup(te.app, "deploy", "preflight", nil)
+	if err != nil {
+		t.Fatalf("expected stored deploy-preflight, got error: %v", err)
+	}
+	if got, ok := storedDeployPreflight["minFreeDiskGiB"].(float64); !ok || got != 1.5 {
+		t.Fatalf("expected minFreeDiskGiB 1.5, got %#v", storedDeployPreflight["minFreeDiskGiB"])
+	}
+
 	proxyConnector := createDockerRouteConnector(t, te, connectors.SaveInput{
 		Name:       "Proxy",
 		Kind:       connectors.KindProxy,
@@ -422,6 +480,35 @@ func TestSettingsEntryPatchPersistsUnifiedValues(t *testing.T) {
 	}
 	if got := sysconfig.String(storedProxy, "httpConnectorId", ""); got != proxyConnector.Id {
 		t.Fatalf("expected httpConnectorId %q, got %q", proxyConnector.Id, got)
+	}
+
+	deployRuntimeBody := `{"imagePullTimeoutSeconds":90,"composeUpTimeoutSeconds":480,"healthCheckTimeoutSeconds":75,"runtimePullIdleHeartbeatSeconds":15}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/deploy-runtime", deployRuntimeBody, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for deploy-runtime patch, got %d: %s", rec.Code, rec.Body.String())
+	}
+	storedDeployRuntime, err := sysconfig.GetGroup(te.app, "deploy", "runtime", nil)
+	if err != nil {
+		t.Fatalf("expected stored deploy-runtime, got error: %v", err)
+	}
+	if got := sysconfig.Int(storedDeployRuntime, "composeUpTimeoutSeconds", 0); got != 480 {
+		t.Fatalf("expected composeUpTimeoutSeconds 480, got %d", got)
+	}
+
+	deployGitDefaultsBody := `{"defaultRef":"release","defaultComposePath":"deploy/custom-compose.yml"}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/deploy-git-defaults", deployGitDefaultsBody, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for deploy-git-defaults patch, got %d: %s", rec.Code, rec.Body.String())
+	}
+	storedDeployGitDefaults, err := sysconfig.GetGroup(te.app, "deploy", "git-defaults", nil)
+	if err != nil {
+		t.Fatalf("expected stored deploy-git-defaults, got error: %v", err)
+	}
+	if got := sysconfig.String(storedDeployGitDefaults, "defaultRef", ""); got != "release" {
+		t.Fatalf("expected defaultRef release, got %q", got)
+	}
+	if got := sysconfig.String(storedDeployGitDefaults, "defaultComposePath", ""); got != "deploy/custom-compose.yml" {
+		t.Fatalf("expected defaultComposePath deploy/custom-compose.yml, got %q", got)
 	}
 
 	monitorSchedulingBody := `{"reachabilityIntervalMinutes":2,"metricsFreshnessIntervalMinutes":3,"controlReachabilityIntervalMinutes":4,"runtimeSnapshotIntervalMinutes":5,"credentialSweepIntervalMinutes":6,"appHealthIntervalMinutes":7,"factsPullIntervalMinutes":8}`

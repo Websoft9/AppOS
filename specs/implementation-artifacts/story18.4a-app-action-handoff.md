@@ -1,12 +1,12 @@
-# Story 18.4a: App Detail Action Handoff
+# Story 18.4a: App Action Handoff
 
-Status: review
+Status: in-progress
 
 ## Story
 
 As an operator,
-I want `App Detail` to hand lifecycle actions and execution-status inspection off to the shared Epic 17 execution surfaces,
-so that installed-app management remains app-centric without rebuilding execution semantics inside the detail page.
+I want Installed-side pages to hand lifecycle actions and action-history inspection off to explicit Epic 17-backed execution surfaces,
+so that app management remains app-centric without rebuilding execution semantics or query shaping inside the detail page.
 
 ## Acceptance Criteria
 
@@ -16,18 +16,23 @@ so that installed-app management remains app-centric without rebuilding executio
 4. `App Detail` may show current execution summary or last action summary, but execution detail, timeline, logs, and audit remain owned by Epic 17 surfaces.
 5. The handoff pattern is consistent for both existing shared-operation actions (`redeploy`, `upgrade`) and future converged actions (`start`, `stop`, `restart`, `uninstall`).
 6. The story does not move execution detail UI into `App Detail`; it standardizes linking, summary, and operator guidance.
+7. Installed-side pages can request app-related action history through an explicit app-scoped contract instead of loading broad action inventory and filtering locally.
+8. The returned app-scoped action data remains execution projection, not `AppInstance` aggregate state.
 
 ## Delivered Now
 
 - [x] Current App Detail handoff behavior is documented.
 - [x] A target handoff pattern is defined for management-side lifecycle actions.
 - [x] Follow-on Epic 18 implementation can converge action buttons and status links without re-deciding ownership boundaries.
+- [x] Installed-side pages already hand off to shared action detail.
+- [ ] App-scoped action-history consumption is expressed as a clean query contract.
 
 ## Still Deferred
 
 - [ ] Full UI polish for pending/running/completed execution states in Installed views.
 - [x] Unified handoff behavior for all lifecycle actions in the current Installed-side slice.
 - [ ] Rich cross-linking to timeline, logs, and audit from secondary surfaces.
+- [ ] Richer app-scoped action analytics or advanced filtering UI.
 
 ## Implemented in This Slice
 
@@ -50,6 +55,7 @@ The remaining gaps are now narrower:
 1. `start`, `stop`, `restart`, and `uninstall` have been converged to shared operation-driven handoff.
 2. `App Detail` still mixes app summary, execution summary, runtime information, config editing, and logs in one page, so ownership boundaries still require continued discipline.
 3. Pending/running/completed state polish across Installed views is still lighter than the full target interaction model.
+4. `App Detail` still fetches broad action inventory in places where an app-scoped query contract would be cleaner.
 
 ## Current UI Evidence
 
@@ -71,6 +77,18 @@ The remaining gaps are now narrower:
 - `App Detail` should summarize execution enough to support decision-making, but deeper execution interpretation belongs to shared action detail, timeline, log, and audit surfaces.
 - This story depends conceptually on `18.1a` because handoff only makes sense after app-owned fields and projection fields are distinguished.
 - This story should also align with `18.2a`, because once local actions converge, their primary success path should also use the shared handoff pattern.
+- This story now also owns the thin app-scoped action-history query cleanup that was previously split out as `18.4b`.
+
+### App-scoped action history contract
+
+Installed-side pages should not fetch broad `/api/actions` inventory and filter it locally just to show one app's recent actions.
+
+Implementation rule:
+
+1. add an app-scoped action-history endpoint or query mode under the existing ownership boundary
+2. return only the summary fields needed by Installed-side pages
+3. preserve navigation to shared `/actions/$actionId` detail
+4. keep action detail, timeline, logs, and audit on shared Epic 17 surfaces
 
 ### Target Handoff Rule
 
@@ -94,8 +112,8 @@ The remaining gaps are now narrower:
 
 - [Source: specs/implementation-artifacts/epic18-app-management.md#Requirements]
 - [Source: specs/implementation-artifacts/epic18-app-management.md#Acceptance Criteria]
-- [Source: specs/implementation-artifacts/story18.1a-app-detail-boundary-classification.md]
-- [Source: specs/implementation-artifacts/story18.2a-local-action-convergence.md]
+- [Source: specs/implementation-artifacts/story18.1a-app-detail-boundary.md]
+- [Source: specs/implementation-artifacts/story18.2a-lifecycle-action-convergence.md]
 - [Source: specs/implementation-artifacts/epic17-app-execution.md#Story 17.5 Action History and Execution Timeline Surface]
 - [Source: specs/adr/appos-ddd-architecture.md#L129]
 

@@ -1,5 +1,10 @@
 import { pb } from '@/lib/pb'
-import type { ActionDetailSearch, ActionListSearch } from '@/pages/deploy/actions/action-types'
+import type {
+  ActionControlKind,
+  ActionDetailSearch,
+  ActionListSearch,
+  ActionRecord,
+} from '@/pages/deploy/actions/action-types'
 
 export function statusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
   switch (status) {
@@ -22,10 +27,53 @@ export function statusVariant(status: string): 'default' | 'secondary' | 'destru
   }
 }
 
+export function actionStatusLabel(status: string): string {
+  switch (status) {
+    case 'success':
+      return 'Success'
+    case 'failed':
+      return 'Failed'
+    case 'running':
+      return 'Executing'
+    case 'queued':
+      return 'Queued'
+    case 'validating':
+      return 'Validating'
+    case 'preparing':
+      return 'Preparing'
+    case 'verifying':
+      return 'Verifying'
+    case 'rolling_back':
+      return 'Rolling back'
+    case 'rolled_back':
+      return 'Rolled back'
+    case 'timeout':
+      return 'Timed out'
+    case 'cancelled':
+      return 'Cancelled'
+    case 'manual_intervention_required':
+      return 'Attention required'
+    default:
+      return status || 'Pending'
+  }
+}
+
 export function isActiveStatus(status: string): boolean {
   return ['queued', 'validating', 'preparing', 'running', 'verifying', 'rolling_back'].includes(
     status
   )
+}
+
+export function canCancelAction(action: Pick<ActionRecord, 'status'>): boolean {
+  return action.status === 'queued'
+}
+
+export function canForceFailAction(action: Pick<ActionRecord, 'status'>): boolean {
+  return action.status === 'running'
+}
+
+export function actionControlLabel(kind: ActionControlKind): string {
+  return kind === 'cancel' ? 'Cancel' : 'Force Fail'
 }
 
 export function formatTime(value?: string): string {

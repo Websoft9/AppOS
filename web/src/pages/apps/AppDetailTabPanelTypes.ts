@@ -85,6 +85,8 @@ export type ActionsTabProps = {
   openAllActionsForApp: () => void
   openOperationStatus: () => void
   buildActionDetailHref: (actionId: string) => string
+  onRequestCancelAction: (action: ActionRecord) => void
+  onRequestForceFailAction: (action: ActionRecord) => void
 }
 
 export type RuntimeTabProps = {

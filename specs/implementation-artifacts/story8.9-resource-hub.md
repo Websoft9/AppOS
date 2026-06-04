@@ -1,8 +1,8 @@
-# Story 8.9: Resource Hub Information Architecture Alignment
+# Story 8.9: Resource Hub
 
 **Epic**: Epic 8 - Resources
 **Priority**: P1
-**Status**: proposed
+**Status**: ready-for-dev
 **Depends on**: Story 8.1, Story 8.4, Story 8.8
 
 ## User Story
@@ -16,6 +16,8 @@ so that I can quickly understand the difference between deployment targets, app 
 Define the information architecture and UX contract for the Resource Hub so the canonical five-family taxonomy becomes understandable in product experience, not only in backend naming.
 
 This story makes `Servers` a first-class part of the unified resource center while explicitly distinguishing them from dependency-oriented resource families.
+
+This story also covers the canonical homepage structure, `Add Resource` chooser behavior, and the usability/accessibility baseline for the Resource Hub.
 
 ## Why Now
 
@@ -34,6 +36,9 @@ That would create two recurring UX failures:
 - define product-facing grouping and explanatory copy for host infrastructure vs dependency infrastructure
 - define relationship expectations for resource detail views so the four families feel connected rather than merely co-located
 - define migration guidance from legacy `Databases` and `Cloud Accounts` hub labels toward canonical labels
+- define the canonical homepage card structure and full-card navigation behavior
+- define the `Add Resource` chooser interaction and direct create-entry handoff
+- define responsive, keyboard, focus, and accessibility baseline rules for the hub
 
 ## Out of Scope
 
@@ -248,6 +253,50 @@ The create entry should support three implementation states:
 
 During migration, the first-step chooser may still route to legacy pages such as `Databases` or `Cloud Accounts`, but the user-facing framing must already use the canonical intent and label system.
 
+## Homepage Structure Contract
+
+The `/resources` page should present:
+
+1. title `Resources`
+2. one-sentence explanation of shared platform resources
+3. `Resource Groups` as a secondary action
+4. `Add Resource` as a primary action
+5. visible grouped canonical cards in this order: `Runtime Infrastructure`, then `External Integrations`
+
+Each canonical family card should contain:
+
+1. icon
+2. product label
+3. live count when available
+4. one-line explanation
+5. full-card click target to the family list page
+
+Cards should preserve keyboard reachability and visible focus treatment, not just hover affordances.
+
+## Add Resource Chooser Contract
+
+`Add Resource` should open a lightweight chooser panel instead of navigating away immediately.
+
+Rules:
+
+1. show all five canonical families together, without forcing a prior group-level decision
+2. keep helper text in user-task language
+3. allow inline example expansion without making examples the primary action
+4. route directly to the chosen family create flow with canonical wording
+5. support predictable keyboard navigation, escape-to-close behavior, and focus return to the trigger
+
+## Usability Baseline
+
+The Resource Hub must remain orientation-first across desktop, tablet, mobile, and keyboard-only use.
+
+Rules:
+
+1. supporting metadata, loading, or empty states stay visually secondary to the grouped navigation structure
+2. preserve canonical ordering and section logic at every breakpoint
+3. on mobile, collapse to a single-column flow without reordering or relabeling canonical families
+4. all primary actions and canonical cards remain keyboard reachable with focus-visible treatment stronger than hover-only styling
+5. semantic headings and non-color-dependent entry cues must remain intact
+
 ## Migration Copy Guidance
 
 The taxonomy migration should feel like clarification, not renaming for its own sake.
@@ -412,7 +461,7 @@ The UI does not need to implement all relationship widgets in this story, but fu
 - dashboard/src/routeTree.gen.ts
 - backend/domain/routes/resources.go
 - backend/domain/routes/resources_test.go
-- specs/implementation-artifacts/story8.9-resource-hub-information-architecture-alignment.md
+- specs/implementation-artifacts/story8.9-resource-hub.md
 
 ### Completion Notes
 

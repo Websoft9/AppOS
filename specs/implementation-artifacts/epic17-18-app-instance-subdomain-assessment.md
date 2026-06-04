@@ -211,6 +211,6 @@ The project is in a good state if the team treats the remaining work as boundary
 - `specs/adr/appos-ddd-architecture.md`
 - `specs/implementation-artifacts/epic17-app-execution.md`
 - `specs/implementation-artifacts/epic18-app-management.md`
-- `specs/implementation-artifacts/story18.1a-app-detail-boundary-classification.md`
-- `specs/implementation-artifacts/story18.2a-local-action-convergence.md`
-- `specs/implementation-artifacts/story18.4a-app-detail-action-handoff.md`
+- `specs/implementation-artifacts/story18.1a-app-detail-boundary.md`
+- `specs/implementation-artifacts/story18.2a-lifecycle-action-convergence.md`
+- `specs/implementation-artifacts/story18.4a-app-action-handoff.md`

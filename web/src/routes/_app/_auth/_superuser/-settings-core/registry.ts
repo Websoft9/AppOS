@@ -8,6 +8,7 @@ import {
 import { type SettingsPageController } from '../-settings-controller'
 import {
   AI_SECTION_IDS,
+  DEPLOY_SECTION_IDS,
   DOCKER_SECTION_IDS,
   PROXY_SECTION_IDS,
   SPACE_SECTION_IDS,
@@ -72,6 +73,16 @@ export const settingsNavigationAliases: SettingsNavigationAlias[] = [
       title: 'Terminal',
       description:
         'Control terminal and SFTP session limits without leaving the shared settings surface.',
+    },
+  },
+  {
+    id: 'deploy',
+    title: 'Deploy',
+    matchesEntryId: entryId => matchesSectionIds(entryId, DEPLOY_SECTION_IDS),
+    matchesActiveSection: activeSection => matchesSectionIds(activeSection, DEPLOY_SECTION_IDS),
+    help: {
+      title: 'Deploy',
+      description: 'Set deploy checks, wait times, and Git defaults.',
     },
   },
   {

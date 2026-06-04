@@ -52,6 +52,17 @@ All list and index pages use the same header pattern:
 - Title: `text-2xl font-bold tracking-tight`
 - Description: `text-muted-foreground mt-1`
 
+### Section Title and Container{#section-title-container}
+
+Use section titles and containers by information weight, not by component habit.
+
+- Default: put the section title outside the container. Use this for most page sections.
+- Use a container without a heavy header when the content is a summary, key-value group, or short list.
+- Put the title inside the container only when the area is a self-contained tool surface: table, editor, log view, alert block, or interactive panel.
+- Use no container for very light content: short summaries, helper text, status lines, and simple metadata.
+- Do not give every section the same visual weight. One page should usually mix light sections and a small number of heavy surfaces.
+- If a screen starts to look like a stack of equal cards, reduce borders before reducing information.
+
 ### Empty State{#empty-state}
 
 When a list page has no records, do not render the table header. Show a dedicated empty state with a clear create action.

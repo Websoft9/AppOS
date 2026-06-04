@@ -321,6 +321,7 @@ func (w *Worker) handleDeployApp(_ context.Context, t *asynq.Task) error {
 		return markDeploymentFailed(w.app, record, p, "failed to connect target docker host")
 	}
 	client.SetProxyEnv(loadWorkerDockerProxyEnv(w.app))
+	runtimePolicy := loadDeployRuntimePolicy(w.app)
 	if err := prepareDeploymentImages(context.Background(), w.app, client, spec.RenderedCompose, func(line string) {
 		appendDeploymentLog(w.app, record, line)
 	}); err != nil {
@@ -330,7 +331,7 @@ func (w *Worker) handleDeployApp(_ context.Context, t *asynq.Task) error {
 		}
 		return markDeploymentFailed(w.app, record, p, err.Error())
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), runtimePolicy.ComposeUpTimeout)
 	defer cancel()
 
 	output, err := client.ComposeUp(ctx, projectDir)
@@ -353,7 +354,7 @@ func (w *Worker) handleDeployApp(_ context.Context, t *asynq.Task) error {
 		return err
 	}
 	appendDeploymentLog(w.app, record, "health check started")
-	healthCtx, healthCancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	healthCtx, healthCancel := context.WithTimeout(context.Background(), runtimePolicy.HealthCheckTimeout)
 	defer healthCancel()
 	if err := lifecycleruntime.RunDeploymentHealthCheck(healthCtx, client, projectDir); err != nil {
 		appendDeploymentLog(w.app, record, "health check failed: "+err.Error())

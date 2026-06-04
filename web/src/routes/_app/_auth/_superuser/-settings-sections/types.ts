@@ -54,7 +54,19 @@ export interface TunnelPortRange {
 }
 
 export interface DeployPreflightGroup {
-  minFreeDiskBytes: number
+  minFreeDiskGiB: number
+}
+
+export interface DeployRuntimeGroup {
+  imagePullTimeoutSeconds: number
+  composeUpTimeoutSeconds: number
+  healthCheckTimeoutSeconds: number
+  runtimePullIdleHeartbeatSeconds: number
+}
+
+export interface DeployGitDefaultsGroup {
+  defaultRef: string
+  defaultComposePath: string
 }
 
 export interface IacFilesGroup {
@@ -112,7 +124,19 @@ export const DEFAULT_TUNNEL_PORT_RANGE: TunnelPortRange = {
 }
 
 export const DEFAULT_DEPLOY_PREFLIGHT: DeployPreflightGroup = {
-  minFreeDiskBytes: 512 * 1024 * 1024,
+  minFreeDiskGiB: 1,
+}
+
+export const DEFAULT_DEPLOY_RUNTIME: DeployRuntimeGroup = {
+  imagePullTimeoutSeconds: 180,
+  composeUpTimeoutSeconds: 600,
+  healthCheckTimeoutSeconds: 120,
+  runtimePullIdleHeartbeatSeconds: 20,
+}
+
+export const DEFAULT_DEPLOY_GIT_DEFAULTS: DeployGitDefaultsGroup = {
+  defaultRef: 'main',
+  defaultComposePath: 'docker-compose.yml',
 }
 
 export const DEFAULT_IAC_FILES: IacFilesGroup = {

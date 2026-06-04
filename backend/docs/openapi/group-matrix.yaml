@@ -87,6 +87,7 @@ groups:
       - GET /api/actions/{id}
       - DELETE /api/actions/{id}
       - POST /api/actions/{id}/cancel
+      - POST /api/actions/{id}/force-fail
       - GET /api/actions/{id}/logs
       - GET /api/actions/{id}/stream
       - POST /api/actions/install/git-compose

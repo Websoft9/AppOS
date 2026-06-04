@@ -1,4 +1,4 @@
-# Story 17.5: Action History and Execution Timeline Surface
+# Story 17.5: Action History Timeline
 
 Status: review
 

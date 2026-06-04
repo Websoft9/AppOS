@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/config/sysconfig"
+	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 	"github.com/websoft9/appos/backend/domain/deploy"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	"github.com/websoft9/appos/backend/infra/docker"
@@ -21,6 +23,39 @@ import (
 var sourceWorkspaceBasePath = "/appos/data"
 var sourceWorkspaceAllowedRoots = []string{"apps", "templates", "workflows"}
 var runtimePullIdleHeartbeatInterval = 20 * time.Second
+
+func runtimeExecutorApp(executor Executor) core.App {
+	switch typed := executor.(type) {
+	case localExecutor:
+		return typed.app
+	case *localExecutor:
+		return typed.app
+	case sshExecutor:
+		return typed.app
+	case *sshExecutor:
+		return typed.app
+	default:
+		return nil
+	}
+}
+
+func loadRuntimePullIdleHeartbeatInterval(app core.App) time.Duration {
+	group, _ := sysconfig.GetGroup(app, "deploy", "runtime", settingsschema.DefaultGroup("deploy", "runtime"))
+	seconds := sysconfig.Int(group, "runtimePullIdleHeartbeatSeconds", int((20 * time.Second) / time.Second))
+	if seconds < 1 {
+		seconds = 1
+	}
+	return time.Duration(seconds) * time.Second
+}
+
+func loadRuntimeHealthCheckTimeout(app core.App) time.Duration {
+	group, _ := sysconfig.GetGroup(app, "deploy", "runtime", settingsschema.DefaultGroup("deploy", "runtime"))
+	seconds := sysconfig.Int(group, "healthCheckTimeoutSeconds", int((2 * time.Minute) / time.Second))
+	if seconds < 1 {
+		seconds = 1
+	}
+	return time.Duration(seconds) * time.Second
+}
 
 func SetSourceWorkspaceBasePathForTest(basePath string) func() {
 	previous := sourceWorkspaceBasePath
@@ -295,7 +330,11 @@ func ExecuteNode(
 			errCh <- scanner.Err()
 		}()
 
-		ticker := time.NewTicker(runtimePullIdleHeartbeatInterval)
+		heartbeatInterval := runtimePullIdleHeartbeatInterval
+		if app := runtimeExecutorApp(executor); app != nil {
+			heartbeatInterval = loadRuntimePullIdleHeartbeatInterval(app)
+		}
+		ticker := time.NewTicker(heartbeatInterval)
 		defer ticker.Stop()
 		hasOutput := false
 		lastLoggedLine := ""
@@ -322,7 +361,7 @@ func ExecuteNode(
 				logf("docker runtime pull: " + line)
 			case <-ticker.C:
 				rawIdleFor := time.Since(lastActivityAt)
-				if rawIdleFor < runtimePullIdleHeartbeatInterval {
+				if rawIdleFor < heartbeatInterval {
 					continue
 				}
 				idleFor := formatRuntimePullIdleDuration(rawIdleFor)
@@ -416,7 +455,11 @@ func ExecuteNode(
 			return result, err
 		}
 		result.DockerClient = client
-		healthCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+		healthTimeout := 2 * time.Minute
+		if app := runtimeExecutorApp(executor); app != nil {
+			healthTimeout = loadRuntimeHealthCheckTimeout(app)
+		}
+		healthCtx, cancel := context.WithTimeout(ctx, healthTimeout)
 		defer cancel()
 		if err := healthCheck(healthCtx, client, operation.GetString("project_dir")); err != nil {
 			return result, err

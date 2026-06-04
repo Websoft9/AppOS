@@ -15,7 +15,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { parseActionSourceBuildAttribution } from '@/pages/apps/app-detail-utils'
-import { formatDurationCompact } from '@/pages/deploy/actions/action-utils'
+import { actionStatusLabel, formatDurationCompact } from '@/pages/deploy/actions/action-utils'
 import type { ActionRecord } from '@/pages/deploy/actions/action-types'
 
 type ActionDetailDialogProps = {
@@ -82,21 +82,21 @@ function stageMarker(status: string) {
 function statusHeadline(status: string): { label: string; tone: string } {
   switch (status) {
     case 'success':
-      return { label: 'Success', tone: 'text-emerald-700 dark:text-emerald-300' }
+      return { label: actionStatusLabel(status), tone: 'text-emerald-700 dark:text-emerald-300' }
     case 'failed':
     case 'timeout':
     case 'cancelled':
     case 'manual_intervention_required':
     case 'rolled_back':
-      return { label: 'Failed', tone: 'text-rose-700 dark:text-rose-300' }
+      return { label: actionStatusLabel(status), tone: 'text-rose-700 dark:text-rose-300' }
     case 'running':
     case 'preparing':
     case 'validating':
     case 'verifying':
     case 'rolling_back':
-      return { label: 'Running', tone: 'text-sky-700 dark:text-sky-300' }
+      return { label: actionStatusLabel(status), tone: 'text-sky-700 dark:text-sky-300' }
     default:
-      return { label: status || 'Pending', tone: 'text-foreground' }
+      return { label: actionStatusLabel(status), tone: 'text-foreground' }
   }
 }
 

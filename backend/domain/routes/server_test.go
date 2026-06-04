@@ -278,6 +278,7 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 
 	direct := createServerRecord(t, te, "direct-a", "10.0.0.1", 22, "root", "password")
 	direct.Set("connect_type", "direct")
+	direct.Set("is_local", true)
 	direct.Set("credential", secret.Id)
 	direct.Set("created_by", owner.Id)
 	direct.Set("facts_json", map[string]any{
@@ -341,6 +342,7 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 			Created         string         `json:"created"`
 			Updated         string         `json:"updated"`
 			CreatedByName   string         `json:"created_by_name"`
+			IsLocal         bool           `json:"is_local"`
 			CredentialType  string         `json:"credential_type"`
 			CloudProvider   string         `json:"cloud_provider_name"`
 			CloudRegion     string         `json:"cloud_region"`
@@ -377,6 +379,7 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 		Created          string
 		Updated          string
 		CreatedByName    string
+		IsLocal          bool
 		CredentialType   string
 		ConnectionState  string
 		ConnectionReason string
@@ -394,6 +397,7 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 			Created          string
 			Updated          string
 			CreatedByName    string
+			IsLocal          bool
 			CredentialType   string
 			ConnectionState  string
 			ConnectionReason string
@@ -409,6 +413,7 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 			Created:          item.Created,
 			Updated:          item.Updated,
 			CreatedByName:    item.CreatedByName,
+			IsLocal:          item.IsLocal,
 			CredentialType:   item.CredentialType,
 			ConnectionState:  item.Connection.StateCode,
 			ConnectionReason: item.Connection.ReasonCode,
@@ -436,6 +441,9 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 	}
 	if got := byName["direct-a"]; got.CreatedByName != "admin@test.com" {
 		t.Fatalf("expected direct created_by_name admin@test.com, got %#v", got)
+	}
+	if got := byName["direct-a"]; !got.IsLocal {
+		t.Fatalf("expected direct is_local true, got %#v", got)
 	}
 	if got := byName["direct-a"]; got.Created == "" || got.Updated == "" {
 		t.Fatalf("expected direct created and updated timestamps, got %#v", got)
@@ -477,6 +485,9 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 	}
 	if got := byName["tunnel-b"]; got.CredentialType != "Password" {
 		t.Fatalf("expected tunnel credential type Password, got %#v", got)
+	}
+	if got := byName["tunnel-b"]; got.IsLocal {
+		t.Fatalf("expected tunnel is_local false by default, got %#v", got)
 	}
 }
 

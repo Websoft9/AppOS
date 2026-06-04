@@ -77,13 +77,9 @@ Define installed app list and summary cards centered on `AppInstance` projection
 
 Classify `App Detail` data into `AppInstance` aggregate state, lifecycle-related projections, and external runtime or observability data so the management surface stops behaving like one giant app aggregate.
 
-### Story 18.1b AppInstance Runtime Context Stabilization
+### Story 18.1b App Runtime Projection
 
-Harden the app-management read model so stable runtime and source context do not depend primarily on `last_operation` reconstruction.
-
-### Story 18.1c Desired State Projection Completion
-
-Complete `desired_state` exposure in backend and frontend management projections so operators can distinguish intent from current lifecycle state.
+Harden the app-management read model so stable runtime, source, and desired-state context do not depend primarily on `last_operation` reconstruction.
 
 ### Story 18.2 Lifecycle Actions
 
@@ -101,8 +97,7 @@ Implement config edit/apply surfaces with validation, preview, and operation-res
 
 Provide Installed-side action entry points and execution status tracking by integrating Epic 17 action workflows and execution views.
 
-- **18.4a App Detail Action Handoff:** standardize how `App Detail` links to shared operation detail, exposes current execution context, and hands lifecycle actions off to Epic 17 without owning execution semantics locally.
-- **18.4b App-scoped Action History Query Contract:** provide an explicit app-scoped action-history query surface so Installed-side pages stop rebuilding execution filtering in the client.
+- **18.4a App Action Handoff:** standardize how Installed-side pages link to shared operation detail, expose current execution context, and consume app-scoped action history without owning execution semantics locally.
 
 ### Story 18.5 Proxy and Domain Binding
 
@@ -122,28 +117,24 @@ Implement data management, backup, and restore user flows that delegate executio
 |-------|--------|
 | 18.1 Installed App Inventory | in-progress |
 | 18.1a App Detail Boundary Classification | review |
-| 18.1b AppInstance Runtime Context Stabilization | proposed |
-| 18.1c Desired State Projection Completion | proposed |
+| 18.1b App Runtime Projection | proposed |
 | 18.2 Lifecycle Actions | in-progress |
 | 18.2a Local Action Convergence | review |
 | 18.3 Configuration Management | in-progress |
 | 18.3a Config Apply and Rollback Lifecycle Convergence | proposed |
 | 18.4 Action Handoff and Status | in-progress |
-| 18.4a App Detail Action Handoff | review |
-| 18.4b App-scoped Action History Query Contract | proposed |
+| 18.4a App Action Handoff | in-progress |
 | 18.5 Proxy and Domain Binding | backlog |
 | 18.6 Audit and Action Records | backlog |
 | 18.7 Data Management and Backup | backlog |
 
 ## Story Artifacts
 
-- `story18.1a-app-detail-boundary-classification.md`
-- `story18.1b-app-instance-runtime-context-stabilization.md`
-- `story18.1c-desired-state-projection-completion.md`
-- `story18.2a-local-action-convergence.md`
-- `story18.3a-config-apply-rollback-lifecycle-convergence.md`
-- `story18.4a-app-detail-action-handoff.md`
-- `story18.4b-app-scoped-action-history-query-contract.md`
+- `story18.1a-app-detail-boundary.md`
+- `story18.1b-app-runtime-projection.md`
+- `story18.2a-lifecycle-action-convergence.md`
+- `story18.3a-config-action-convergence.md`
+- `story18.4a-app-action-handoff.md`
 - `iteration1-epic18-lifecycle-convergence-slice.md`
 - `iteration3-epic18-app-instance-boundary-hardening-slice.md`
 
@@ -151,9 +142,8 @@ Implement data management, backup, and restore user flows that delegate executio
 
 For the next App Instance boundary-hardening pass, use:
 
-- `18.1b AppInstance Runtime Context Stabilization`
-- `18.4b App-scoped Action History Query Contract`
+- `18.1b App Runtime Projection`
+- `18.4a App Action Handoff`
 - `18.3a Config Apply and Rollback Lifecycle Convergence`
-- `18.1c Desired State Projection Completion`
 
 Execution order and dependency notes are captured in `iteration3-epic18-app-instance-boundary-hardening-slice.md`.

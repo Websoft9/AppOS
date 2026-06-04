@@ -33,7 +33,9 @@ type Executor interface {
 	Name() string
 }
 
-type localExecutor struct{}
+type localExecutor struct {
+	app core.App
+}
 
 func (e localExecutor) PrepareWorkspace(projectDir string, compose string) error {
 	if err := os.MkdirAll(projectDir, 0o755); err != nil {
@@ -134,7 +136,7 @@ func executorName(serverID string) string {
 
 func NewDeploymentExecutor(app core.App, serverID string) Executor {
 	if executorName(serverID) == "local" {
-		return localExecutor{}
+		return localExecutor{app: app}
 	}
 	return newSSHExecutor(app, serverID)
 }

@@ -990,14 +990,16 @@ function OperationHistory({
   )
 }
 
-function AddonDetailRows({
-  component,
-  entry,
-}: {
+function addonDetailRows(
+  t: ResourcesT,
+  {
+    component,
+    entry,
+  }: {
   component: SoftwareComponentSummary
   entry?: SupportedServerSoftwareEntry
-}) {
-  const { t } = useTranslation('resources')
+}
+) {
   const installSource = installSourceSummary(t, component)
   const lastOp = component.last_operation
   const lastActionAt = formatTimestamp(component.last_action?.at || lastOp?.updated_at)
@@ -1179,7 +1181,7 @@ function AddonInventoryRow({
       tabIndex={0}
       onClick={handleSelect}
       onKeyDown={handleKeyDown}
-      className={`grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2 text-left text-sm ${selected ? 'bg-accent/40' : 'hover:bg-accent/20'}`}
+      className={`grid w-full grid-cols-[minmax(0,1.35fr)_minmax(11rem,12rem)_minmax(13rem,1.1fr)_minmax(7.5rem,auto)] items-center gap-3 px-3 py-2 text-left text-sm ${selected ? 'bg-accent/40' : 'hover:bg-accent/20'}`}
       aria-label={displayComponentLabel(component)}
     >
       <div className="min-w-0 space-y-1">
@@ -1206,7 +1208,7 @@ function AddonInventoryRow({
         </TooltipProvider>
         {artifact ? <div className="text-[11px] text-muted-foreground">{artifact}</div> : null}
       </div>
-      <div className="min-w-0 space-y-0.5">
+      <div className="min-w-0 justify-self-start space-y-0.5 text-left">
         <div className="break-all text-muted-foreground/70">
           {t('servers.componentsTab.inventory.installed')}: {detected || '—'}
         </div>
@@ -1216,7 +1218,7 @@ function AddonInventoryRow({
           {t('servers.componentsTab.inventory.latest')}: {packaged || detected || '—'}
         </div>
       </div>
-      <div className="min-w-0 space-y-0.5 text-muted-foreground/80">
+      <div className="min-w-0 justify-self-start space-y-0.5 text-left text-muted-foreground/80">
         <div className="whitespace-normal break-words">
           {t('servers.componentsTab.inventory.service')}: {statusLabel(t, component)}
         </div>
@@ -1232,7 +1234,7 @@ function AddonInventoryRow({
         ) : null}
       </div>
       <div
-        className="flex items-center justify-start gap-1"
+        className="flex justify-self-start items-center justify-start gap-1 text-left"
         onClick={stopRowSelection}
         onKeyDown={stopRowSelection}
         onPointerDown={stopRowSelection}
@@ -1311,14 +1313,21 @@ function readPrerequisiteContext(t: ResourcesT, component: SoftwareComponentSumm
   }
 }
 
+function prerequisiteNeedsDetailHydration(component: SoftwareComponentSummary): boolean {
+  if (component.component_key !== 'docker') return false
+  const dockerVerificationDetails = readVerificationDetails(component)
+  if (!dockerVerificationDetails) return true
+  return !('compose_available' in dockerVerificationDetails) || !('compose_version' in dockerVerificationDetails)
+}
+
 function PrerequisiteChecklist({ component }: { component: SoftwareComponentSummary }) {
   const { t } = useTranslation('resources')
   const context = readPrerequisiteContext(t, component)
   return (
     <div className="space-y-2">
-      {context.checklistItems.map(item => (
+      {context.checklistItems.map((item, index) => (
         <div
-          key={`${component.component_key}:${item.label}`}
+          key={`${component.component_key}:${index}:${item.label}`}
           className="flex items-center gap-2 text-sm"
         >
           {item.ready ? (
@@ -1338,11 +1347,13 @@ function PrerequisiteActions({
   onAction,
   actionLoading,
   actionsLocked,
+  showInstallSource = true,
 }: {
   component: SoftwareComponentSummary
   onAction: (componentKey: string, action: SoftwareActionType) => Promise<void>
   actionLoading: string | null
   actionsLocked: boolean
+  showInstallSource?: boolean
 }) {
   const { t } = useTranslation('resources')
   const installSource = installSourceSummary(t, component)
@@ -1350,7 +1361,7 @@ function PrerequisiteActions({
 
   return (
     <>
-      {installSource ? (
+      {showInstallSource && installSource ? (
         <div className={`text-xs ${installSourceTone(component)}`}>{installSource}</div>
       ) : null}
       <div className="flex flex-wrap gap-2">
@@ -1420,31 +1431,59 @@ function PrerequisiteCard({
     component.verification_state === 'healthy'
       ? t('servers.componentsTab.prerequisiteCard.summary.checksPassed')
       : t('servers.componentsTab.prerequisiteCard.summary.openDetails')
+  const installSource = installSourceSummary(t, component)
 
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
-      <div className="rounded-lg border border-border/60 bg-card">
+      <div className="relative rounded-lg border border-border/60 bg-card">
+        <div className="flex items-start gap-3 px-4 py-3">
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 pr-8 text-left"
+              aria-label={t('servers.componentsTab.prerequisiteCard.detailsFor', {
+                name: displayComponentLabel(component),
+              })}
+            >
+              <div className="min-w-0 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="text-sm font-medium text-foreground">
+                    {displayComponentLabel(component)}
+                  </div>
+                  <Badge variant={statusTone(component)} className="text-xs">
+                    {prerequisiteStatusLabel(t, component)}
+                  </Badge>
+                </div>
+                <div className="text-xs text-muted-foreground">{headerSummary}</div>
+              </div>
+            </button>
+          </CollapsibleTrigger>
+
+          <div
+            className="flex shrink-0 items-start gap-2"
+            onClick={event => event.stopPropagation()}
+            onPointerDown={event => event.stopPropagation()}
+            onKeyDown={event => event.stopPropagation()}
+          >
+            <PrerequisiteActions
+              component={component}
+              onAction={onAction}
+              actionLoading={actionLoading}
+              actionsLocked={actionsLocked}
+              showInstallSource={false}
+            />
+          </div>
+        </div>
+
         <CollapsibleTrigger asChild>
           <button
             type="button"
-            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
-            aria-label={t('servers.componentsTab.prerequisiteCard.detailsFor', {
-              name: displayComponentLabel(component),
-            })}
+            aria-hidden="true"
+            tabIndex={-1}
+            className="absolute bottom-2 right-3 inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground"
           >
-            <div className="min-w-0 space-y-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="text-sm font-medium text-foreground">
-                  {displayComponentLabel(component)}
-                </div>
-                <Badge variant={statusTone(component)} className="text-xs">
-                  {prerequisiteStatusLabel(t, component)}
-                </Badge>
-              </div>
-              <div className="text-xs text-muted-foreground">{headerSummary}</div>
-            </div>
             <ChevronDown
-              className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`}
+              className={`h-4 w-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
             />
           </button>
         </CollapsibleTrigger>
@@ -1459,6 +1498,9 @@ function PrerequisiteCard({
             ) : null}
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
               <div className="space-y-2">
+                {installSource ? (
+                  <div className={`text-xs ${installSourceTone(component)}`}>{installSource}</div>
+                ) : null}
                 <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
                   <span className="shrink-0 font-medium text-foreground">
                     {t('servers.componentsTab.prerequisiteCard.fields.status')}:
@@ -1493,14 +1535,7 @@ function PrerequisiteCard({
                 </div>
               </div>
 
-              <div className="lg:min-w-[12rem] lg:justify-self-end">
-                <PrerequisiteActions
-                  component={component}
-                  onAction={onAction}
-                  actionLoading={actionLoading}
-                  actionsLocked={actionsLocked}
-                />
-              </div>
+              <div className="lg:min-w-[12rem] lg:justify-self-end" />
             </div>
 
             <div className="space-y-2">
@@ -1889,71 +1924,58 @@ export function ServerComponentsPanel({
     setPrerequisiteError('')
     setAddonError('')
 
-    let prerequisiteAddonBlocker: string | null = null
+    try {
+      const items = await listSoftwareComponents(serverId)
+      const prerequisites = items.filter(isPrerequisiteComponent)
+      const addons = items.filter(component => !isPrerequisiteComponent(component))
 
-    const loadPrerequisites = async () => {
-      try {
-        const items = await Promise.all(
-          Array.from(PREREQUISITE_COMPONENT_KEYS).map(componentKey =>
-            getSoftwareComponent(serverId, componentKey)
-          )
-        )
-        setPrerequisiteComponents(items)
-        return items
-      } catch (err) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : t('servers.componentsTab.errors.loadPrerequisiteComponents')
-        setPrerequisiteComponents([])
-        setPrerequisiteError(message)
-        return message
-      } finally {
-        setPrerequisitesLoading(false)
-      }
-    }
+      setPrerequisiteComponents(prerequisites)
+      setPrerequisitesLoading(false)
 
-    const loadAddons = async () => {
-      try {
-        const items = await listSoftwareComponents(serverId)
-        if (prerequisiteAddonBlocker) {
-          setAddonComponents([])
-          return
-        }
-        setAddonComponents(items.filter(component => !isPrerequisiteComponent(component)))
-      } catch (err) {
-        setAddonComponents([])
-        setAddonError(
-          err instanceof Error ? err.message : t('servers.componentsTab.errors.loadAddonComponents')
-        )
-      } finally {
-        setAddonsLoading(false)
-      }
-    }
-
-    const addonsPromise = loadAddons()
-    const prerequisiteLoadResult = await loadPrerequisites()
-    if (typeof prerequisiteLoadResult === 'string') {
-      prerequisiteAddonBlocker = prerequisiteLoadResult
-      setAddonComponents([])
-      setAddonError(prerequisiteLoadResult)
-      await addonsPromise
-      return
-    }
-
-    const prerequisiteBlocker = (prerequisiteLoadResult ?? [])
+      const prerequisiteBlocker = prerequisites
       .map(component => addonInventoryBlockingError(component))
       .find((message): message is string => !!message)
-    if (prerequisiteBlocker) {
-      prerequisiteAddonBlocker = prerequisiteBlocker
+      if (prerequisiteBlocker) {
+        setAddonComponents([])
+        setAddonError(prerequisiteBlocker)
+      } else {
+        setAddonComponents(addons)
+      }
+      setAddonsLoading(false)
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : t('servers.componentsTab.errors.loadPrerequisiteComponents')
+      setPrerequisiteComponents([])
       setAddonComponents([])
-      setAddonError(prerequisiteBlocker)
-      await addonsPromise
-      return
+      setPrerequisiteError(message)
+      setAddonError(message)
+      setPrerequisitesLoading(false)
+      setAddonsLoading(false)
     }
-
-    await addonsPromise
   }, [serverId, t])
+
+  const hydratePrerequisiteComponent = useCallback(
+    async (componentKey: string) => {
+      const currentComponent = prerequisiteComponents.find(
+        component => component.component_key === componentKey
+      )
+      if (!currentComponent || !prerequisiteNeedsDetailHydration(currentComponent)) return
+
+      try {
+        const latestComponent = await getSoftwareComponent(serverId, componentKey)
+        setPrerequisiteComponents(current =>
+          current.map(component =>
+            component.component_key === componentKey ? latestComponent : component
+          )
+        )
+      } catch {
+        // Keep the summary visible if detail hydration fails.
+      }
+    },
+    [prerequisiteComponents, serverId]
+  )
 
   const schedulePostActionRefresh = useCallback(
     (componentKey: string) => {
@@ -2575,10 +2597,15 @@ export function ServerComponentsPanel({
                     component={component}
                     open={prerequisiteOpen[component.component_key] ?? false}
                     onOpenChange={open =>
-                      setPrerequisiteOpen(current => ({
-                        ...current,
-                        [component.component_key]: open,
-                      }))
+                      {
+                        setPrerequisiteOpen(current => ({
+                          ...current,
+                          [component.component_key]: open,
+                        }))
+                        if (open) {
+                          void hydratePrerequisiteComponent(component.component_key)
+                        }
+                      }
                     }
                     onAction={handleAction}
                     actionLoading={actionLoading}
@@ -2608,7 +2635,7 @@ export function ServerComponentsPanel({
 
       <section className="space-y-3" aria-label={t('servers.componentsTab.sections.addonsRegion')}>
         <div className="flex items-center gap-1.5">
-          <h4 className="text-sm font-semibold text-foreground">
+          <h4 aria-label="Addons" className="text-sm font-semibold text-foreground">
             {t('servers.componentsTab.sections.addons')}
           </h4>
           <SectionHelp label={t('servers.componentsTab.help.addonsLabel')}>
@@ -2621,11 +2648,17 @@ export function ServerComponentsPanel({
             className="space-y-4 rounded-md border p-4"
             aria-label={t('servers.componentsTab.sections.addonInventory')}
           >
-            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 px-3 py-2 text-sm font-medium text-muted-foreground">
-              <span>{t('servers.componentsTab.columns.name')}</span>
-              <span>{t('servers.componentsTab.columns.version')}</span>
-              <span>{t('servers.componentsTab.columns.health')}</span>
-              <span>{t('servers.componentsTab.columns.actions')}</span>
+            <div className="grid grid-cols-[minmax(0,1.35fr)_minmax(11rem,12rem)_minmax(13rem,1.1fr)_minmax(7.5rem,auto)] gap-3 px-3 py-2 text-left text-sm font-medium text-muted-foreground">
+              <span className="text-left">{t('servers.componentsTab.columns.name')}</span>
+              <span className="justify-self-start text-left">
+                {t('servers.componentsTab.columns.version')}
+              </span>
+              <span className="justify-self-start text-left">
+                {t('servers.componentsTab.columns.health')}
+              </span>
+              <span className="justify-self-start text-left">
+                {t('servers.componentsTab.columns.actions')}
+              </span>
             </div>
 
             {addonError ? <p className="px-3 py-2 text-sm text-destructive">{addonError}</p> : null}
@@ -2825,7 +2858,7 @@ export function ServerComponentsPanel({
                       />
                     ) : (
                       <div className="space-y-2">
-                        {AddonDetailRows({
+                        {addonDetailRows(t, {
                           component: selectedAddon,
                           entry: supportedCatalogByKey.get(selectedAddon.component_key),
                         }).map(item => (

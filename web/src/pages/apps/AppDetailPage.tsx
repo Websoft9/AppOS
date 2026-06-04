@@ -41,7 +41,8 @@ import {
 import { Tabs } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import type { ActionRecord } from '@/pages/deploy/actions/action-types'
-import type { ActionListResponse } from '@/pages/deploy/actions/action-types'
+import type { ActionListResponse, PendingActionControl } from '@/pages/deploy/actions/action-types'
+import { ActionControlDialog } from '@/pages/deploy/actions/ActionControlDialog'
 import { AppDetailBreadcrumb, AppDetailHeader } from '@/pages/apps/AppDetailHeader'
 import { AppDetailTabRail } from '@/pages/apps/AppDetailTabRail'
 import {
@@ -195,6 +196,10 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const [actionHistoryPage, setActionHistoryPage] = useState(1)
   const [actionHistoryTotalPages, setActionHistoryTotalPages] = useState(1)
   const [actionHistoryTotalItems, setActionHistoryTotalItems] = useState(0)
+  const [pendingActionControl, setPendingActionControl] = useState<PendingActionControl | null>(
+    null
+  )
+  const [actionControlSubmitting, setActionControlSubmitting] = useState(false)
   const [actionStatusFilter, setActionStatusFilter] = useState('all')
   const [actionTypeFilter, setActionTypeFilter] = useState('all')
   const [displayIconDraft, setDisplayIconDraft] = useState('')
@@ -1098,6 +1103,42 @@ export function AppDetailPage({ appId }: { appId: string }) {
     setActionHistoryPage(current => Math.min(actionHistoryTotalPages, current + 1))
   }, [actionHistoryTotalPages])
 
+  const requestCancelAction = useCallback((action: ActionRecord) => {
+    setPendingActionControl({ kind: 'cancel', action })
+  }, [])
+
+  const requestForceFailAction = useCallback((action: ActionRecord) => {
+    setPendingActionControl({ kind: 'force-fail', action })
+  }, [])
+
+  const submitActionControl = useCallback(
+    async (pending: PendingActionControl) => {
+      const endpoint = pending.kind === 'cancel' ? 'cancel' : 'force-fail'
+      const successMessage =
+        pending.kind === 'cancel'
+          ? `Action ${pending.action.compose_project_name || pending.action.id} cancelled`
+          : `Action ${pending.action.compose_project_name || pending.action.id} force-failed`
+      setActionControlSubmitting(true)
+      try {
+        await pb.send(`/api/actions/${pending.action.id}/${endpoint}`, { method: 'POST' })
+        setSuccess(successMessage)
+        setError('')
+        setPendingActionControl(null)
+        await Promise.all([fetchActionHistory(), fetchDetail()])
+      } catch (err) {
+        setError(
+          getApiErrorMessage(
+            err,
+            pending.kind === 'cancel' ? 'Failed to cancel action' : 'Failed to force-fail action'
+          )
+        )
+      } finally {
+        setActionControlSubmitting(false)
+      }
+    },
+    [fetchActionHistory, fetchDetail]
+  )
+
   const buildActionDetailHref = useCallback((actionId: string) => {
     return `/actions/${actionId}?returnTo=list`
   }, [])
@@ -1406,6 +1447,8 @@ export function AppDetailPage({ appId }: { appId: string }) {
             openAllActionsForApp={openAllActionsForApp}
             openOperationStatus={openOperationStatus}
             buildActionDetailHref={buildActionDetailHref}
+            onRequestCancelAction={requestCancelAction}
+            onRequestForceFailAction={requestForceFailAction}
           />
           <AppDetailRuntimeTab
             app={app}
@@ -1477,6 +1520,16 @@ export function AppDetailPage({ appId }: { appId: string }) {
           <AppDetailSettingsTab app={app} />
         </Tabs>
       ) : null}
+      <ActionControlDialog
+        pending={pendingActionControl}
+        busy={actionControlSubmitting}
+        onOpenChange={open => {
+          if (!open) setPendingActionControl(null)
+        }}
+        onConfirm={pending => {
+          void submitActionControl(pending)
+        }}
+      />
 
       <AlertDialog open={pendingUninstall} onOpenChange={setPendingUninstall}>
         <AlertDialogContent>

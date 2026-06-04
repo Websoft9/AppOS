@@ -10,14 +10,22 @@ import {
   type CatalogCategoryTreeResponse,
 } from '@/lib/catalog-api'
 import { dockerTargetsPath } from '@/lib/docker-api'
+import { settingsEntryPath } from '@/lib/settings-api'
 import { type PrimaryCategory, type ProductWithCategories } from '@/lib/store-types'
 import { useUserApps } from '@/lib/store-user-api'
 import { type AppConfigResponse } from '@/pages/apps/types'
-import { buildActionDetailSearch, isActiveStatus } from '@/pages/deploy/actions/action-utils'
+import {
+  actionStatusLabel,
+  buildActionDetailSearch,
+  canCancelAction,
+  canForceFailAction,
+  isActiveStatus,
+} from '@/pages/deploy/actions/action-utils'
 import type {
   ActiveFilterChip,
   ActionListResponse,
   ActionRecord,
+  PendingActionControl,
   ActionListSearch,
   CreateDeploymentEntryMode,
   ManualEntryMode,
@@ -27,8 +35,6 @@ import type {
   SortField,
   StoreShortcut,
 } from '@/pages/deploy/actions/action-types'
-
-const STORE_SHORTCUT_COUNT = 15
 
 type UseActionsControllerArgs = {
   prefillMode?: string
@@ -107,6 +113,11 @@ export type SourceBuildPayload = {
   }
 }
 
+type DeployGitDefaultsValue = {
+  defaultRef?: unknown
+  defaultComposePath?: unknown
+}
+
 type ManualCandidateMetadata = {
   candidate_kind: 'manual-compose' | ManualEntryMode
   prefill_context?: {
@@ -119,7 +130,7 @@ type ManualCandidateMetadata = {
   }
 }
 
-const DEFAULT_SORT_FIELD: SortField = 'started_at'
+const DEFAULT_SORT_FIELD: SortField = 'created'
 const DEFAULT_SORT_DIR: SortDir = 'desc'
 const DEFAULT_PAGE = 1
 const DEFAULT_PAGE_SIZE: 15 | 30 | 60 | 90 = 15
@@ -320,6 +331,10 @@ export function useActionsController({
   const [prefillLoading, setPrefillLoading] = useState(false)
   const [prefillReady, setPrefillReady] = useState('')
   const [pendingDelete, setPendingDelete] = useState<ActionRecord[]>([])
+  const [pendingActionControl, setPendingActionControl] = useState<PendingActionControl | null>(
+    null
+  )
+  const [actionControlSubmitting, setActionControlSubmitting] = useState(false)
   const appFilterId = listSearch?.appId?.trim() || undefined
 
   const manualCandidateMetadata = useMemo(
@@ -353,6 +368,39 @@ export function useActionsController({
       setManualEntryMode(entryMode)
     }
   }, [entryMode])
+
+  useEffect(() => {
+  let cancelled = false
+
+  void pb
+    .send<{ value?: DeployGitDefaultsValue }>(settingsEntryPath('deploy-git-defaults'), {
+      method: 'GET',
+    })
+    .then(response => {
+      if (cancelled) {
+        return
+      }
+      const nextRef =
+        typeof response?.value?.defaultRef === 'string' && response.value.defaultRef.trim().length > 0
+          ? response.value.defaultRef.trim()
+          : 'main'
+      const nextComposePath =
+        typeof response?.value?.defaultComposePath === 'string' &&
+        response.value.defaultComposePath.trim().length > 0
+          ? response.value.defaultComposePath.trim()
+          : 'docker-compose.yml'
+
+      setGitRef(current => (current.trim() === '' || current === 'main' ? nextRef : current))
+      setGitComposePath(current =>
+        current.trim() === '' || current === 'docker-compose.yml' ? nextComposePath : current
+      )
+    })
+    .catch(() => undefined)
+
+  return () => {
+    cancelled = true
+  }
+  }, [])
 
   useEffect(() => {
     if (view === 'create') return
@@ -567,7 +615,7 @@ export function useActionsController({
     () => ({
       status: Array.from(new Set(operations.map(item => item.status)))
         .sort()
-        .map(value => ({ value, label: value })),
+        .map(value => ({ value, label: actionStatusLabel(value) })),
       source: Array.from(new Set(operations.map(item => item.source)))
         .sort()
         .map(value => ({ value, label: value })),
@@ -741,7 +789,7 @@ export function useActionsController({
       setStoreProducts(detailedProducts)
       setStorePrimaryCategories(categories)
       setStoreShortcuts(
-        detailedProducts.slice(0, STORE_SHORTCUT_COUNT).map(item => ({
+        detailedProducts.map(item => ({
           key: item.key,
           trademark: item.trademark,
           logo: item.logo,
@@ -1138,6 +1186,35 @@ export function useActionsController({
     }
   }
 
+  function openActionControl(action: ActionRecord, kind: PendingActionControl['kind']) {
+    setPendingActionControl({ action, kind })
+  }
+
+  async function submitActionControl(pending: PendingActionControl) {
+    const endpoint = pending.kind === 'cancel' ? 'cancel' : 'force-fail'
+    const successLabel = pending.kind === 'cancel' ? 'cancelled' : 'force-failed'
+    setActionControlSubmitting(true)
+    setNotice(null)
+    try {
+      await pb.send(`/api/actions/${pending.action.id}/${endpoint}`, { method: 'POST' })
+      await fetchOperations()
+      showNotice(
+        'default',
+        `Action ${pending.action.compose_project_name || pending.action.id} ${successLabel}`
+      )
+      setPendingActionControl(null)
+    } catch (err) {
+      showNotice(
+        'destructive',
+        err instanceof Error
+          ? err.message
+          : `Failed to ${pending.kind === 'cancel' ? 'cancel' : 'force-fail'} action`
+      )
+    } finally {
+      setActionControlSubmitting(false)
+    }
+  }
+
   const selectedOperations = useMemo(
     () => operations.filter(item => selectedIds.has(item.id)),
     [operations, selectedIds]
@@ -1339,6 +1416,9 @@ export function useActionsController({
     gitSubmitting,
     pendingDelete,
     setPendingDelete,
+    pendingActionControl,
+    setPendingActionControl,
+    actionControlSubmitting,
     handleSort,
     toggleOperationSelection,
     togglePageSelection: (checked: boolean) =>
@@ -1366,6 +1446,10 @@ export function useActionsController({
     submitGitOperation,
     submitTemplateOperation,
     deleteOperations,
+    openActionControl,
+    submitActionControl,
+    canCancelAction,
+    canForceFailAction,
     fetchOperations,
   }
 }

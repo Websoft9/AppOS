@@ -34,6 +34,7 @@ type ManagedServer struct {
 	Port           int
 	User           string
 	ConnectType    ConnectionMode
+	IsLocal        bool
 	CredentialID   string
 	Shell          string
 	TunnelForwards string
@@ -83,6 +84,7 @@ func ManagedServerFromRecord(record *core.Record) *ManagedServer {
 		Port:           port,
 		User:           record.GetString("user"),
 		ConnectType:    ct,
+		IsLocal:        record.GetBool("is_local"),
 		CredentialID:   record.GetString("credential"),
 		Shell:          record.GetString("shell"),
 		TunnelForwards: record.GetString("tunnel_forwards"),

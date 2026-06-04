@@ -1,4 +1,4 @@
-# Story 17.4a: Store Compose Prefill
+# Story 17.4a: Store Prefill
 
 Status: review
 

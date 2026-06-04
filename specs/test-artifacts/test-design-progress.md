@@ -7,7 +7,7 @@ inputDocuments:
   - specs/planning-artifacts/architecture.md
   - specs/implementation-artifacts/epic17-app-execution.md
   - specs/implementation-artifacts/iteration2-epic17-install-resolution-convergence-slice.md
-  - specs/implementation-artifacts/story17.4e-a-resolver-boundary-consolidation.md
+  - specs/implementation-artifacts/story17.4e-install-input-resolution.md
   - backend/domain/routes/deploy_test.go
   - backend/domain/lifecycle/service/install_preflight_test.go
 ---

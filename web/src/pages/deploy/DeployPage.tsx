@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react'
 import { getLocale } from '@/lib/i18n'
+import { ActionControlDialog } from '@/pages/deploy/actions/ActionControlDialog'
 import { DeleteActionDialog } from '@/pages/deploy/actions/DeleteActionDialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -93,6 +94,9 @@ export function DeployPage({
     prefillReady,
     pendingDelete,
     setPendingDelete,
+    pendingActionControl,
+    setPendingActionControl,
+    actionControlSubmitting,
     handleSort,
     toggleOperationSelection,
     togglePageSelection,
@@ -110,6 +114,10 @@ export function DeployPage({
     getServerLabel,
     getServerHost,
     deleteOperations,
+    openActionControl,
+    submitActionControl,
+    canCancelAction,
+    canForceFailAction,
     fetchOperations,
   } = useActionsController({
     prefillMode,
@@ -184,6 +192,17 @@ export function DeployPage({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => openOperationDetail(item.id)}>View</DropdownMenuItem>
+          {canCancelAction(item) ? (
+            <DropdownMenuItem onClick={() => openActionControl(item, 'cancel')}>Cancel</DropdownMenuItem>
+          ) : null}
+          {canForceFailAction(item) ? (
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={() => openActionControl(item, 'force-fail')}
+            >
+              Force Fail
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem
             variant="destructive"
             disabled={isActiveStatus(item.status)}
@@ -360,6 +379,17 @@ export function DeployPage({
         }}
         onConfirm={operations => {
           void deleteOperations(operations.map(item => item.id))
+        }}
+      />
+
+      <ActionControlDialog
+        pending={pendingActionControl}
+        busy={actionControlSubmitting}
+        onOpenChange={open => {
+          if (!open) setPendingActionControl(null)
+        }}
+        onConfirm={pending => {
+          void submitActionControl(pending)
         }}
       />
 

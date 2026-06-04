@@ -309,6 +309,10 @@ func validateCustomSettingsEntry(e *core.RequestEvent, module, key string, value
 		return validateTunnelPortRange(value)
 	case "deploy/preflight":
 		return validateDeployPreflight(value)
+	case "deploy/runtime":
+		return validateDeployRuntime(value)
+	case "deploy/git-defaults":
+		return validateDeployGitDefaults(value)
 	case "files/limits":
 		return validateIacFiles(value)
 	case "secrets/policy":

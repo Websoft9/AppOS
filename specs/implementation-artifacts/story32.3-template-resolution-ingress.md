@@ -124,6 +124,4 @@ Workers must not need raw template form state.
 - `specs/implementation-artifacts/story32.1-template-contract.md`
 - `specs/implementation-artifacts/story32.2-upstream-compose-adapter.md`
 - `specs/implementation-artifacts/story17.4e-install-input-resolution.md`
-- `specs/implementation-artifacts/story17.4e-c-runtime-input-resolution.md`
-- `specs/implementation-artifacts/story17.4e-d-secret-and-exposure-intent-normalization.md`
-- `specs/implementation-artifacts/story17.4e-e-resolution-preview-api.md`
+- `specs/implementation-artifacts/story17.4e-install-input-resolution.md`

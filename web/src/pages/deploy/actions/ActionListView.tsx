@@ -1,9 +1,21 @@
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Filter, Search, Settings2, Trash2, X } from 'lucide-react'
+import { useState } from 'react'
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  Search,
+  Settings2,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import {
+  DropdownMenuCheckboxItem,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuLabel,
@@ -20,7 +32,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
-import { actionDurationLabel } from '@/pages/deploy/actions/action-utils'
+import { actionDurationLabel, actionStatusLabel } from '@/pages/deploy/actions/action-utils'
 import type { ActiveFilterChip } from '@/pages/deploy/actions/action-types'
 
 type SortField = 'compose_project_name' | 'created' | 'started_at' | 'finished_at'
@@ -32,6 +44,7 @@ type ActionListItem = {
   source: string
   status: string
   server_id: string
+  created?: string
   started_at?: string
   finished_at?: string
   pipeline?: {
@@ -224,6 +237,8 @@ export function ActionListView<TOperation extends ActionListItem>({
   onOpenOperation,
   renderActionMenu,
 }: ActionListViewProps<TOperation>) {
+  const [showCreatedColumn, setShowCreatedColumn] = useState(false)
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -250,7 +265,7 @@ export function ActionListView<TOperation extends ActionListItem>({
           </div>
         </div>
         <div className="flex items-center gap-2 self-start lg:self-auto">
-          <div className="inline-flex items-center gap-0.5 rounded-full border bg-background px-1 py-0.5 text-sm text-muted-foreground shadow-sm">
+          <div className="inline-flex items-center gap-0.5 px-1 py-0.5 text-sm text-muted-foreground">
             <Button
               variant="ghost"
               size="icon"
@@ -261,7 +276,9 @@ export function ActionListView<TOperation extends ActionListItem>({
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="px-0.5 text-center font-mono text-xs text-foreground">&lt;{page}/{totalPages}&gt;</span>
+            <span className="px-0.5 text-center font-mono text-xs text-foreground">
+              {page}/{totalPages}
+            </span>
             <Button
               variant="ghost"
               size="icon"
@@ -276,7 +293,7 @@ export function ActionListView<TOperation extends ActionListItem>({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="icon"
                 className="h-8 w-8 rounded-full"
                 aria-label="List settings"
@@ -285,6 +302,13 @@ export function ActionListView<TOperation extends ActionListItem>({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuLabel>Columns</DropdownMenuLabel>
+              <DropdownMenuCheckboxItem
+                checked={showCreatedColumn}
+                onCheckedChange={checked => setShowCreatedColumn(Boolean(checked))}
+              >
+                Created
+              </DropdownMenuCheckboxItem>
               <DropdownMenuLabel>Items per page</DropdownMenuLabel>
               <DropdownMenuRadioGroup
                 value={String(pageSize)}
@@ -311,7 +335,7 @@ export function ActionListView<TOperation extends ActionListItem>({
           ) : null}
           {selectedActiveCount > 0 ? (
             <span className="text-xs text-muted-foreground">
-              Running actions cannot be deleted.
+              Executing actions cannot be deleted.
             </span>
           ) : null}
         </div>
@@ -389,6 +413,17 @@ export function ActionListView<TOperation extends ActionListItem>({
                 />
               </TableHead>
               <TableHead>Total duration</TableHead>
+              {showCreatedColumn ? (
+                <TableHead>
+                  <SortableHeader
+                    label="Created"
+                    field="created"
+                    current={sortField}
+                    dir={sortDir}
+                    onSort={onSort}
+                  />
+                </TableHead>
+              ) : null}
               <TableHead>
                 <SortableHeader
                   label="Started"
@@ -414,13 +449,19 @@ export function ActionListView<TOperation extends ActionListItem>({
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">
+                <TableCell
+                  colSpan={showCreatedColumn ? 11 : 10}
+                  className="py-8 text-center text-muted-foreground"
+                >
                   Loading actions...
                 </TableCell>
               </TableRow>
             ) : pagedItems.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">
+                <TableCell
+                  colSpan={showCreatedColumn ? 11 : 10}
+                  className="py-8 text-center text-muted-foreground"
+                >
                   No action records found.
                 </TableCell>
               </TableRow>
@@ -453,13 +494,16 @@ export function ActionListView<TOperation extends ActionListItem>({
                   </TableCell>
                   <TableCell>{item.source}</TableCell>
                   <TableCell>
-                    <Badge variant={statusVariant(item.status)}>{item.status}</Badge>
+                    <Badge variant={statusVariant(item.status)}>
+                      {actionStatusLabel(item.status)}
+                    </Badge>
                   </TableCell>
                   <TableCell>
                     <div className="font-medium">{getServerLabel(item)}</div>
                     <div className="text-xs text-muted-foreground">{item.server_id || 'local'}</div>
                   </TableCell>
                   <TableCell>{actionDurationLabel(item)}</TableCell>
+                  {showCreatedColumn ? <TableCell>{formatTime(item.created)}</TableCell> : null}
                   <TableCell>{formatTime(item.started_at)}</TableCell>
                   <TableCell>{formatTime(item.finished_at)}</TableCell>
                   <TableCell>{getUserLabel(item)}</TableCell>

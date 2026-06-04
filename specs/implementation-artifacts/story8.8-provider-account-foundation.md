@@ -1,4 +1,4 @@
-# Story 8.8: Provider Account Backend Foundation
+# Story 8.8: Provider Account Foundation
 
 **Epic**: Epic 8 - Resources
 **Priority**: P1
@@ -120,7 +120,7 @@ It is not:
 - backend/infra/migrations/migrations_test.go
 - backend/infra/persistence/provider_account_repository.go
 - backend/infra/persistence/provider_account_repository_test.go
-- specs/implementation-artifacts/story8.8-provider-account-backend-foundation.md
+- specs/implementation-artifacts/story8.8-provider-account-foundation.md
 
 ### Completion Notes
 

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,7 +16,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const defaultMinFreeDiskBytes int64 = 512 * 1024 * 1024
+const (
+	bytesPerGiB               int64   = 1024 * 1024 * 1024
+	defaultMinFreeDiskGiB     float64 = 1
+	minimumAllowedFreeDiskGiB float64 = 0.5
+	maximumAllowedFreeDiskGiB float64 = 1024
+)
 
 type InstallPreflightRequest struct {
 	InstallResolutionRequest
@@ -267,11 +273,56 @@ func buildInstallResourceChecks(ctx context.Context, app core.App, probe Install
 func loadDeployMinFreeDiskBytes(app core.App) int64 {
 	fallback := settingsschema.DefaultGroup("deploy", "preflight")
 	group, _ := sysconfig.GetGroup(app, "deploy", "preflight", fallback)
-	configured := sysconfig.Int(group, "minFreeDiskBytes", int(defaultMinFreeDiskBytes))
-	if configured < 0 {
-		return 0
+
+	if configuredGiB, ok := parseConfiguredDiskGiB(group["minFreeDiskGiB"]); ok {
+		return diskGiBToBytes(clampDeployMinFreeDiskGiB(configuredGiB))
 	}
-	return int64(configured)
+
+	if legacyBytes := sysconfig.Int(group, "minFreeDiskBytes", -1); legacyBytes >= 0 {
+		legacyGiB := float64(legacyBytes) / float64(bytesPerGiB)
+		return diskGiBToBytes(clampDeployMinFreeDiskGiB(legacyGiB))
+	}
+
+	return diskGiBToBytes(defaultMinFreeDiskGiB)
+}
+
+func parseConfiguredDiskGiB(raw any) (float64, bool) {
+	switch value := raw.(type) {
+	case float64:
+		return value, true
+	case float32:
+		return float64(value), true
+	case int:
+		return float64(value), true
+	case int64:
+		return float64(value), true
+	case string:
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			return 0, false
+		}
+		parsed, err := strconv.ParseFloat(trimmed, 64)
+		if err != nil {
+			return 0, false
+		}
+		return parsed, true
+	default:
+		return 0, false
+	}
+}
+
+func clampDeployMinFreeDiskGiB(value float64) float64 {
+	if value < minimumAllowedFreeDiskGiB {
+		return minimumAllowedFreeDiskGiB
+	}
+	if value > maximumAllowedFreeDiskGiB {
+		return maximumAllowedFreeDiskGiB
+	}
+	return value
+}
+
+func diskGiBToBytes(value float64) int64 {
+	return int64(math.Round(value * float64(bytesPerGiB)))
 }
 
 func parseAppRequiredDiskBytes(metadata map[string]any) int64 {
