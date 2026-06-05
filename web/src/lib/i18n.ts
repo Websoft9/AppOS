@@ -1,58 +1,96 @@
-import i18n from 'i18next'
+import { createInstance } from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
-// Import translation resources directly (bundled)
-import storeEn from '../locales/en/store.json'
-import storeZh from '../locales/zh/store.json'
-import commonEn from '../locales/en/common.json'
-import commonZh from '../locales/zh/common.json'
-import aiChatEn from '../locales/en/aiChat.json'
-import aiChatZh from '../locales/zh/aiChat.json'
-import resourcesEn from '../locales/en/resources.json'
-import resourcesZh from '../locales/zh/resources.json'
-import navigationEn from '../locales/en/navigation.json'
-import navigationZh from '../locales/zh/navigation.json'
+type Locale = 'en' | 'zh'
+type Namespace = 'common' | 'store' | 'aiChat' | 'resources' | 'navigation'
 
-const resources = {
+type ResourceModule = {
+  default: Record<string, unknown>
+}
+
+type LocaleResources = Record<Namespace, Record<string, unknown>>
+
+const NAMESPACES: Namespace[] = ['common', 'store', 'aiChat', 'resources', 'navigation']
+
+const i18n = createInstance()
+
+const localeLoaders: Record<Locale, Record<Namespace, () => Promise<ResourceModule>>> = {
   en: {
-    store: storeEn,
-    common: commonEn,
-    aiChat: aiChatEn,
-    resources: resourcesEn,
-    navigation: navigationEn,
+    common: () => import('../locales/en/common.json'),
+    store: () => import('../locales/en/store.json'),
+    aiChat: () => import('../locales/en/aiChat.json'),
+    resources: () => import('../locales/en/resources.json'),
+    navigation: () => import('../locales/en/navigation.json'),
   },
   zh: {
-    store: storeZh,
-    common: commonZh,
-    aiChat: aiChatZh,
-    resources: resourcesZh,
-    navigation: navigationZh,
+    common: () => import('../locales/zh/common.json'),
+    store: () => import('../locales/zh/store.json'),
+    aiChat: () => import('../locales/zh/aiChat.json'),
+    resources: () => import('../locales/zh/resources.json'),
+    navigation: () => import('../locales/zh/navigation.json'),
   },
 }
 
-// App Store defaults to English; respect explicit user selection
-const savedLang = localStorage.getItem('ws9-locale')
-const defaultLang = savedLang ?? 'en'
+const resourceStore: Partial<Record<Locale, LocaleResources>> = {}
+const loadedLocales = new Set<Locale>()
 
-i18n.use(initReactI18next).init({
-  resources,
-  lng: defaultLang,
-  fallbackLng: 'en',
-  ns: ['common', 'store', 'aiChat', 'resources', 'navigation'],
-  defaultNS: 'common',
-  interpolation: {
-    escapeValue: false,
-  },
-})
+function buildInitOptions(lang: Locale) {
+  return {
+    resources: resourceStore,
+    lng: lang,
+    fallbackLng: 'en' as const,
+    ns: NAMESPACES,
+    defaultNS: 'common' as const,
+    interpolation: {
+      escapeValue: false,
+    },
+  }
+}
+
+function readSavedLocale(): Locale {
+  const savedLang = globalThis.localStorage?.getItem('ws9-locale')
+  return savedLang === 'zh' ? 'zh' : 'en'
+}
+
+async function ensureLocaleResources(lang: Locale) {
+  if (loadedLocales.has(lang)) return
+
+  const entries = await Promise.all(
+    NAMESPACES.map(async namespace => {
+      const module = await localeLoaders[lang][namespace]()
+      return [namespace, module.default] as const
+    })
+  )
+
+  resourceStore[lang] = Object.fromEntries(entries) as LocaleResources
+
+  loadedLocales.add(lang)
+}
+
+async function initializeI18n() {
+  const defaultLang = readSavedLocale()
+  const fallbackLang: Locale = 'en'
+
+  await Promise.all([
+    ensureLocaleResources(defaultLang),
+    defaultLang === fallbackLang ? Promise.resolve() : ensureLocaleResources(fallbackLang),
+  ])
+
+  await i18n.use(initReactI18next).init(buildInitOptions(defaultLang))
+}
+
+export const i18nReady = initializeI18n()
+await i18nReady
 
 export default i18n
 
-export function setLocale(lang: 'en' | 'zh') {
+export async function setLocale(lang: Locale) {
   localStorage.setItem('ws9-locale', lang)
-  i18n.changeLanguage(lang)
+  await ensureLocaleResources(lang)
+  await i18n.init(buildInitOptions(lang))
 }
 
-export function getLocale(): 'en' | 'zh' {
+export function getLocale(): Locale {
   const lang = i18n.language
   return lang.startsWith('zh') ? 'zh' : 'en'
 }

@@ -14,6 +14,7 @@ import (
 )
 
 var deploymentImagePullTimeout = 3 * time.Minute
+var deploymentMirrorRetryCount = 2
 
 type deployRuntimePolicy struct {
 	ImagePullTimeout         time.Duration
@@ -117,19 +118,29 @@ func ensureDeploymentImageReady(
 		if !ok || mirrorRef == image {
 			continue
 		}
-		logf(fmt.Sprintf("docker image mirror pull started: %s via %s", image, mirrorRef))
-		if _, err := pullDeploymentImageWithTimeout(ctx, client, mirrorRef, pullTimeout); err != nil {
-			mirrorErrors = append(mirrorErrors, fmt.Sprintf("%s: %v", mirrorRef, err))
-			logf(fmt.Sprintf("docker image mirror pull failed: %s", err.Error()))
-			continue
+		lastAttemptError := error(nil)
+		for attempt := 1; attempt <= deploymentMirrorRetryCount+1; attempt++ {
+			if attempt == 1 {
+				logf(fmt.Sprintf("docker image mirror pull started: %s via %s", image, mirrorRef))
+			} else {
+				logf(fmt.Sprintf("docker image mirror pull retry %d/%d started: %s via %s", attempt-1, deploymentMirrorRetryCount, image, mirrorRef))
+			}
+			if _, err := pullDeploymentImageWithTimeout(ctx, client, mirrorRef, pullTimeout); err != nil {
+				lastAttemptError = err
+				logf(fmt.Sprintf("docker image mirror pull failed: %s", err.Error()))
+				continue
+			}
+			if _, err := client.ImageTag(ctx, mirrorRef, image); err != nil {
+				lastAttemptError = fmt.Errorf("tag %s -> %s: %v", mirrorRef, image, err)
+				logf(fmt.Sprintf("docker image mirror tag failed: %s", err.Error()))
+				continue
+			}
+			logf(fmt.Sprintf("docker image mirror pull succeeded: %s via %s", image, mirrorRef))
+			return nil
 		}
-		if _, err := client.ImageTag(ctx, mirrorRef, image); err != nil {
-			mirrorErrors = append(mirrorErrors, fmt.Sprintf("tag %s -> %s: %v", mirrorRef, image, err))
-			logf(fmt.Sprintf("docker image mirror tag failed: %s", err.Error()))
-			continue
+		if lastAttemptError != nil {
+			mirrorErrors = append(mirrorErrors, fmt.Sprintf("%s: %v", mirrorRef, lastAttemptError))
 		}
-		logf(fmt.Sprintf("docker image mirror pull succeeded: %s via %s", image, mirrorRef))
-		return nil
 	}
 
 	if len(mirrorErrors) == 0 {

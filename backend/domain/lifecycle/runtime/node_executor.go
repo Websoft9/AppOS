@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -18,13 +19,22 @@ import (
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	"github.com/websoft9/appos/backend/infra/docker"
 	"github.com/websoft9/appos/backend/infra/fileutil"
+	"gopkg.in/yaml.v3"
 )
 
 var sourceWorkspaceBasePath = "/appos/data"
 var sourceWorkspaceAllowedRoots = []string{"apps", "templates", "workflows"}
 var runtimePullIdleHeartbeatInterval = 20 * time.Second
+var runtimeImagePullTimeout = 3 * time.Minute
+var runtimeMirrorRetryCount = 2
 
 func runtimeExecutorApp(executor Executor) core.App {
+	type appAwareExecutor interface {
+		App() core.App
+	}
+	if typed, ok := executor.(appAwareExecutor); ok {
+		return typed.App()
+	}
 	switch typed := executor.(type) {
 	case localExecutor:
 		return typed.app
@@ -51,6 +61,18 @@ func loadRuntimePullIdleHeartbeatInterval(app core.App) time.Duration {
 func loadRuntimeHealthCheckTimeout(app core.App) time.Duration {
 	group, _ := sysconfig.GetGroup(app, "deploy", "runtime", settingsschema.DefaultGroup("deploy", "runtime"))
 	seconds := sysconfig.Int(group, "healthCheckTimeoutSeconds", int((2 * time.Minute) / time.Second))
+	if seconds < 1 {
+		seconds = 1
+	}
+	return time.Duration(seconds) * time.Second
+}
+
+func loadRuntimeImagePullTimeout(app core.App) time.Duration {
+	if app == nil {
+		return runtimeImagePullTimeout
+	}
+	group, _ := sysconfig.GetGroup(app, "deploy", "runtime", settingsschema.DefaultGroup("deploy", "runtime"))
+	seconds := sysconfig.Int(group, "imagePullTimeoutSeconds", int(runtimeImagePullTimeout/time.Second))
 	if seconds < 1 {
 		seconds = 1
 	}
@@ -311,85 +333,20 @@ func ExecuteNode(
 			return result, err
 		}
 		result.DockerClient = client
-		stream, err := client.ComposePullStream(ctx, operation.GetString("project_dir"))
-		if err != nil {
+		app := runtimeExecutorApp(executor)
+		composePullErr := streamRuntimeComposePull(ctx, client, operation.GetString("project_dir"), app, logf)
+		if composePullErr == nil {
+			return result, nil
+		}
+		mirrors := loadRuntimeDockerMirrors(app)
+		if len(mirrors) == 0 {
+			return result, composePullErr
+		}
+		logf("docker runtime upstream pull failed, switching to configured mirrors")
+		if err := pullRuntimeImagesWithMirrors(ctx, app, client, operation.GetString("rendered_compose"), mirrors, logf); err != nil {
 			return result, err
 		}
-
-		lineCh := make(chan string)
-		errCh := make(chan error, 1)
-		go func() {
-			scanner := bufio.NewScanner(stream)
-			buf := make([]byte, 0, 64*1024)
-			scanner.Buffer(buf, 1024*1024)
-			scanner.Split(scanStreamLinesAndCarriageReturns)
-			for scanner.Scan() {
-				lineCh <- scanner.Text()
-			}
-			close(lineCh)
-			errCh <- scanner.Err()
-		}()
-
-		heartbeatInterval := runtimePullIdleHeartbeatInterval
-		if app := runtimeExecutorApp(executor); app != nil {
-			heartbeatInterval = loadRuntimePullIdleHeartbeatInterval(app)
-		}
-		ticker := time.NewTicker(heartbeatInterval)
-		defer ticker.Stop()
-		hasOutput := false
-		lastLoggedLine := ""
-		lastActivityAt := time.Now().UTC()
-		lastDiagnosticLine := ""
-		for {
-			select {
-			case rawLine, ok := <-lineCh:
-				if !ok {
-					lineCh = nil
-					continue
-				}
-				line := strings.TrimSpace(rawLine)
-				if line == "" {
-					continue
-				}
-				lastActivityAt = time.Now().UTC()
-				lastDiagnosticLine = line
-				if line == lastLoggedLine {
-					continue
-				}
-				hasOutput = true
-				lastLoggedLine = line
-				logf("docker runtime pull: " + line)
-			case <-ticker.C:
-				rawIdleFor := time.Since(lastActivityAt)
-				if rawIdleFor < heartbeatInterval {
-					continue
-				}
-				idleFor := formatRuntimePullIdleDuration(rawIdleFor)
-				if lastDiagnosticLine != "" {
-					logf(fmt.Sprintf("docker runtime pull still waiting for new output after %s; last event: %s", idleFor, lastDiagnosticLine))
-				} else {
-					logf(fmt.Sprintf("docker runtime pull still waiting for first progress update after %s", idleFor))
-				}
-			case scanErr := <-errCh:
-				if scanErr != nil {
-					return result, scanErr
-				}
-				if err := stream.Close(); err != nil {
-					if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-						idleFor := formatRuntimePullIdleDuration(time.Since(lastActivityAt))
-						if lastDiagnosticLine != "" {
-							return result, fmt.Errorf("docker runtime pull interrupted after %s without new output; last event: %s: %w", idleFor, lastDiagnosticLine, err)
-						}
-						return result, fmt.Errorf("docker runtime pull interrupted before any progress output after %s: %w", idleFor, err)
-					}
-					return result, err
-				}
-				if !hasOutput {
-					logf("docker runtime pull completed with no incremental output")
-				}
-				return result, nil
-			}
-		}
+		return result, nil
 	case "runtime_stop":
 		client, err := ensureDockerClient(executor, dockerClient)
 		if err != nil {
@@ -766,6 +723,305 @@ func ensureDockerClient(executor Executor, current *docker.Client) (*docker.Clie
 		return current, nil
 	}
 	return executor.DockerClient()
+}
+
+func streamRuntimeComposePull(ctx context.Context, client *docker.Client, projectDir string, app core.App, logf func(string)) error {
+	stream, err := client.ComposePullStream(ctx, projectDir)
+	if err != nil {
+		return err
+	}
+
+	lineCh := make(chan string)
+	errCh := make(chan error, 1)
+	go func() {
+		scanner := bufio.NewScanner(stream)
+		buf := make([]byte, 0, 64*1024)
+		scanner.Buffer(buf, 1024*1024)
+		scanner.Split(scanStreamLinesAndCarriageReturns)
+		for scanner.Scan() {
+			lineCh <- scanner.Text()
+		}
+		close(lineCh)
+		errCh <- scanner.Err()
+	}()
+
+	heartbeatInterval := runtimePullIdleHeartbeatInterval
+	if app != nil {
+		heartbeatInterval = loadRuntimePullIdleHeartbeatInterval(app)
+	}
+	ticker := time.NewTicker(heartbeatInterval)
+	defer ticker.Stop()
+	hasOutput := false
+	lastLoggedLine := ""
+	lastActivityAt := time.Now().UTC()
+	lastDiagnosticLine := ""
+	for {
+		select {
+		case rawLine, ok := <-lineCh:
+			if !ok {
+				lineCh = nil
+				continue
+			}
+			line := strings.TrimSpace(rawLine)
+			if line == "" {
+				continue
+			}
+			lastActivityAt = time.Now().UTC()
+			lastDiagnosticLine = line
+			if line == lastLoggedLine {
+				continue
+			}
+			hasOutput = true
+			lastLoggedLine = line
+			logf("docker runtime pull: " + line)
+		case <-ticker.C:
+			rawIdleFor := time.Since(lastActivityAt)
+			if rawIdleFor < heartbeatInterval {
+				continue
+			}
+			idleFor := formatRuntimePullIdleDuration(rawIdleFor)
+			if lastDiagnosticLine != "" {
+				logf(fmt.Sprintf("docker runtime pull still waiting for new output after %s; last event: %s", idleFor, lastDiagnosticLine))
+			} else {
+				logf(fmt.Sprintf("docker runtime pull still waiting for first progress update after %s", idleFor))
+			}
+		case scanErr := <-errCh:
+			if scanErr != nil {
+				return scanErr
+			}
+			if err := stream.Close(); err != nil {
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+					idleFor := formatRuntimePullIdleDuration(time.Since(lastActivityAt))
+					if lastDiagnosticLine != "" {
+						return fmt.Errorf("docker runtime pull interrupted after %s without new output; last event: %s: %w", idleFor, lastDiagnosticLine, err)
+					}
+					return fmt.Errorf("docker runtime pull interrupted before any progress output after %s: %w", idleFor, err)
+				}
+				return err
+			}
+			if !hasOutput {
+				logf("docker runtime pull completed with no incremental output")
+			}
+			return nil
+		}
+	}
+}
+
+func pullRuntimeImagesWithMirrors(
+	ctx context.Context,
+	app core.App,
+	client *docker.Client,
+	rawCompose string,
+	mirrors []string,
+	logf func(string),
+) error {
+	images, err := extractRuntimeComposeImageReferences(rawCompose)
+	if err != nil {
+		return err
+	}
+	if len(images) == 0 {
+		logf("docker runtime pull completed with no image references")
+		return nil
+	}
+
+	pullTimeout := loadRuntimeImagePullTimeout(app)
+	for _, image := range images {
+		if _, err := client.ImageInspect(ctx, image); err == nil {
+			logf("docker runtime image already available locally: " + image)
+			continue
+		}
+
+		if err := pullRuntimeImageWithMirrors(ctx, client, image, mirrors, pullTimeout, logf); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func pullRuntimeImageWithMirrors(
+	ctx context.Context,
+	client *docker.Client,
+	image string,
+	mirrors []string,
+	pullTimeout time.Duration,
+	logf func(string),
+) error {
+	var mirrorErrors []string
+	for _, mirror := range mirrors {
+		mirrorRef, ok := buildRuntimeMirroredImageReference(image, mirror)
+		if !ok || mirrorRef == image {
+			continue
+		}
+		lastAttemptError := error(nil)
+		for attempt := 1; attempt <= runtimeMirrorRetryCount+1; attempt++ {
+			if attempt == 1 {
+				logf(fmt.Sprintf("docker runtime mirror pull started: %s via %s", image, mirrorRef))
+			} else {
+				logf(fmt.Sprintf("docker runtime mirror pull retry %d/%d started: %s via %s", attempt-1, runtimeMirrorRetryCount, image, mirrorRef))
+			}
+			output, err := pullRuntimeImageWithTimeout(ctx, client, mirrorRef, pullTimeout)
+			if err != nil {
+				lastAttemptError = err
+				logf(fmt.Sprintf("docker runtime mirror pull failed: %s", err.Error()))
+				continue
+			}
+			logRuntimePullOutput(logf, output)
+			if _, err := client.ImageTag(ctx, mirrorRef, image); err != nil {
+				lastAttemptError = fmt.Errorf("tag %s -> %s: %v", mirrorRef, image, err)
+				logf(fmt.Sprintf("docker runtime mirror tag failed: %s", err.Error()))
+				continue
+			}
+			logf(fmt.Sprintf("docker runtime mirror pull succeeded: %s via %s", image, mirrorRef))
+			return nil
+		}
+		if lastAttemptError != nil {
+			mirrorErrors = append(mirrorErrors, fmt.Sprintf("%s: %v", mirrorRef, lastAttemptError))
+		}
+	}
+	if len(mirrorErrors) == 0 {
+		return fmt.Errorf("image pull failed for %s", image)
+	}
+	return fmt.Errorf("image pull failed for %s; mirror attempts failed: %s", image, strings.Join(mirrorErrors, "; "))
+}
+
+func pullRuntimeImageWithTimeout(ctx context.Context, client *docker.Client, image string, timeout time.Duration) (string, error) {
+	if timeout <= 0 {
+		timeout = runtimeImagePullTimeout
+	}
+	pullCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	output, err := client.ImagePull(pullCtx, image)
+	if err != nil {
+		if runtimePullTimedOut(err) || pullCtx.Err() == context.DeadlineExceeded {
+			return "", fmt.Errorf("timed out pulling image %s after %s", image, timeout)
+		}
+		return "", err
+	}
+	return output, nil
+}
+
+func runtimePullTimedOut(err error) bool {
+	return err == context.DeadlineExceeded || err == context.Canceled || strings.Contains(strings.ToLower(err.Error()), "deadline exceeded")
+}
+
+func logRuntimePullOutput(logf func(string), output string) {
+	for _, rawLine := range strings.Split(output, "\n") {
+		line := strings.TrimSpace(rawLine)
+		if line == "" {
+			continue
+		}
+		logf("docker runtime pull: " + line)
+	}
+}
+
+func extractRuntimeComposeImageReferences(raw string) ([]string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+
+	var doc map[string]any
+	if err := yaml.Unmarshal([]byte(raw), &doc); err != nil {
+		return nil, fmt.Errorf("parse compose for runtime image pull: %w", err)
+	}
+
+	rawServices, ok := doc["services"]
+	if !ok {
+		return nil, nil
+	}
+	services, ok := rawServices.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("parse compose for runtime image pull: services must be a map")
+	}
+
+	imageSet := make(map[string]struct{})
+	for _, rawService := range services {
+		service, ok := rawService.(map[string]any)
+		if !ok {
+			continue
+		}
+		image := strings.TrimSpace(fmt.Sprint(service["image"]))
+		if image == "" || image == "<nil>" {
+			continue
+		}
+		imageSet[image] = struct{}{}
+	}
+
+	images := make([]string, 0, len(imageSet))
+	for image := range imageSet {
+		images = append(images, image)
+	}
+	sort.Strings(images)
+	return images, nil
+}
+
+func loadRuntimeDockerMirrors(app core.App) []string {
+	if app == nil {
+		return nil
+	}
+	group, _ := sysconfig.GetGroup(app, "docker", "mirror", settingsschema.DefaultGroup("docker", "mirror"))
+	rawMirrors, _ := group["mirrors"].([]any)
+	if len(rawMirrors) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(rawMirrors))
+	mirrors := make([]string, 0, len(rawMirrors))
+	for _, rawMirror := range rawMirrors {
+		mirror := strings.TrimSpace(fmt.Sprint(rawMirror))
+		mirror = strings.TrimPrefix(strings.TrimPrefix(mirror, "https://"), "http://")
+		mirror = strings.TrimSuffix(mirror, "/")
+		if mirror == "" {
+			continue
+		}
+		if _, ok := seen[mirror]; ok {
+			continue
+		}
+		seen[mirror] = struct{}{}
+		mirrors = append(mirrors, mirror)
+	}
+	return mirrors
+}
+
+func buildRuntimeMirroredImageReference(image string, mirror string) (string, bool) {
+	trimmedImage := strings.TrimSpace(image)
+	trimmedMirror := strings.TrimSpace(mirror)
+	if trimmedImage == "" || trimmedMirror == "" {
+		return "", false
+	}
+
+	namePart := trimmedImage
+	suffix := ""
+	if index := strings.Index(trimmedImage, "@"); index >= 0 {
+		namePart = trimmedImage[:index]
+		suffix = trimmedImage[index:]
+	} else if index := strings.LastIndex(trimmedImage, ":"); index > strings.LastIndex(trimmedImage, "/") {
+		namePart = trimmedImage[:index]
+		suffix = trimmedImage[index:]
+	}
+
+	segments := strings.Split(namePart, "/")
+	if len(segments) == 0 {
+		return "", false
+	}
+
+	registry := ""
+	repository := namePart
+	first := segments[0]
+	if strings.Contains(first, ".") || strings.Contains(first, ":") || first == "localhost" {
+		registry = first
+		repository = strings.Join(segments[1:], "/")
+	}
+	if repository == "" {
+		return "", false
+	}
+	if registry == "" && !strings.Contains(repository, "/") {
+		repository = "library/" + repository
+	}
+
+	if registry != "" {
+		return trimmedMirror + "/" + registry + "/" + repository + suffix, true
+	}
+	return trimmedMirror + "/" + repository + suffix, true
 }
 
 func RunDeploymentHealthCheck(ctx context.Context, client interface {

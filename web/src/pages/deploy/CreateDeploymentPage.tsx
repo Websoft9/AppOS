@@ -1,31 +1,23 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { CheckCircle2, ChevronDown, Eye, EyeOff, List, Loader2, ShieldAlert, X } from 'lucide-react'
+import { CircleHelp } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
-import * as jsYaml from 'js-yaml'
-import {
-  CheckCircle2,
-  ChevronRight,
-  ChevronDown,
-  CircleHelp,
-  Eye,
-  EyeOff,
-  List,
-  Loader2,
-  Rocket,
-  ShieldAlert,
-  X,
-} from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import {
-  getDockerDependencyIssue,
-  type DockerDependencyIssueCode,
-} from '@/components/docker/DockerDependencyAlert'
 import { useOptionalLayout } from '@/contexts/LayoutContext'
-import { useCatalogAppTemplate, type CatalogTemplateField } from '@/lib/catalog-api'
+import { useCatalogAppDetail, useCatalogAppTemplate, type CatalogTemplateField } from '@/lib/catalog-api'
+import { getLocale } from '@/lib/i18n'
 import { iacUploadFile, iacMkdir } from '@/lib/iac-api'
 import { pb } from '@/lib/pb'
 import {
@@ -36,19 +28,40 @@ import {
 import type { CreateDeploymentEntryMode } from '@/pages/deploy/actions/action-types'
 import { useActionsController } from '@/pages/deploy/actions/useActionsController'
 import type {
+  ExposureIntentPayload,
   RuntimeEnvInputPayload,
   RuntimeInputsPayload,
   SourceBuildPayload,
 } from '@/pages/deploy/actions/useActionsController'
+import { CreateDeploymentExposureSection } from '@/pages/deploy/CreateDeploymentExposureSection'
 import { OrchestrationSection } from '@/pages/deploy/OrchestrationSection'
-
-const SOURCE_LABELS: Record<string, string> = {
-  template: 'App Template',
-  compose: 'Compose File',
-  'git-compose': 'Git Repository',
-  'docker-command': 'Docker Command',
-  'install-script': 'Source Packages',
-}
+import { CreateDeploymentReviewPanel } from '@/pages/deploy/CreateDeploymentReviewPanel'
+import {
+  HelpTip,
+  DeployCreateBreadcrumb,
+  buildRandomSecretValue,
+  buildRuntimeInputsPayload,
+  buildSourceBuildPayload,
+  buildTemplateDefaultAppName,
+  buildTemplateDefaults,
+  buildTemplateInputPayload,
+  buildTemplateSecretDescription,
+  buildTemplateSecretName,
+  buildTemplateServiceItems,
+  dockerFixHref,
+  extractComposeServiceNames,
+  extractTemplateRequirementDiskGiB,
+  hasMissingRequiredTemplateFields,
+  isDatabasePasswordTemplateField,
+  isSecretBackedTemplateField,
+  isSecretRefValue,
+  isTemplateFieldAdvanced,
+  isTemplateFieldBasic,
+  isTemplateFieldHidden,
+  isTemplateHttpPortField,
+  readDockerReadiness,
+  recommendExposurePort,
+} from '@/pages/deploy/createDeploymentPage.helpers'
 
 type CreateDeploymentPageProps = {
   prefillMode?: string
@@ -72,305 +85,6 @@ type TemplateSecretState = {
   rawValue: string
 }
 
-function isTemplateFieldBasic(field: CatalogTemplateField) {
-  return field.visibility !== 'system' && field.visibility !== 'advanced'
-}
-
-function isTemplateFieldAdvanced(field: CatalogTemplateField) {
-  return field.visibility === 'advanced'
-}
-
-function isTemplateFieldHidden(field: CatalogTemplateField) {
-  return field.visibility === 'system'
-}
-
-function isSecretBackedTemplateField(field: CatalogTemplateField) {
-  return field.storage_mode === 'secret_backed'
-}
-
-function isSecretRefValue(value: string) {
-  return value.trim().startsWith('secretRef:')
-}
-
-function buildRandomSecretValue(length = 24) {
-  const normalizedLength = Math.min(Math.max(length, 12), 64)
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*()-_=+'
-  const cryptoObject = globalThis.crypto
-  if (cryptoObject?.getRandomValues) {
-    const bytes = new Uint32Array(normalizedLength)
-    cryptoObject.getRandomValues(bytes)
-    return Array.from(bytes, value => alphabet[value % alphabet.length]).join('')
-  }
-  return Array.from(
-    { length: normalizedLength },
-    () => alphabet[Math.floor(Math.random() * alphabet.length)]
-  ).join('')
-}
-
-function slugifySecretPart(value: string) {
-  const normalized = value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-  return normalized || 'app'
-}
-
-function buildTemplateSecretName(
-  templateKey: string,
-  projectName: string,
-  field: CatalogTemplateField
-) {
-  const appPart = slugifySecretPart(projectName || templateKey)
-  const fieldPart = slugifySecretPart(field.key)
-  return `app-${appPart}-${fieldPart}`
-}
-
-function buildTemplateSecretDescription(
-  templateLabel: string,
-  projectName: string,
-  field: CatalogTemplateField
-) {
-  const appLabel = projectName.trim() || templateLabel.trim() || 'application'
-  return `Generated for ${appLabel} deployment field ${field.label || field.key}`
-}
-
-function asObject(value: unknown): Record<string, unknown> | null {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    return value as Record<string, unknown>
-  }
-  return null
-}
-
-function issueFocusPanel(code?: DockerDependencyIssueCode): 'checklist' | 'history' {
-  if (code === 'docker_daemon_unavailable' || code === 'docker_permission_denied') {
-    return 'history'
-  }
-  return 'checklist'
-}
-
-function dockerFixHref(serverId: string, issueCode?: DockerDependencyIssueCode) {
-  if (serverId === 'local') {
-    return '/platform-components'
-  }
-
-  const params = new URLSearchParams({
-    server: serverId,
-    tab: 'components',
-    focusComponent: 'docker',
-    focusPanel: issueFocusPanel(issueCode),
-    focusSource: 'compose',
-  })
-  if (issueCode) {
-    params.set('focusIssue', issueCode)
-  }
-  return `/resources/servers?${params.toString()}`
-}
-
-function readDockerReadiness(component: SoftwareComponentDetail) {
-  const verificationDetails = asObject(component.verification?.details)
-  const engineVersion = String(
-    verificationDetails?.engine_version ?? component.detected_version ?? ''
-  ).trim()
-  const composeAvailable = verificationDetails?.compose_available === true
-  const composeVersion = String(verificationDetails?.compose_version ?? '').trim()
-  const readinessIssues = component.preflight?.issues ?? []
-  const blockingIssue = readinessIssues.find(issue => !issue.startsWith('network_required:')) ?? ''
-  const verificationReason = String(component.verification?.reason ?? '').trim()
-  const issueCode = getDockerDependencyIssue(verificationReason)?.code
-  const blockingMessage =
-    blockingIssue ||
-    (component.installed_state === 'installed' && !composeAvailable
-      ? 'Docker Compose plugin is not available on this target.'
-      : '') ||
-    verificationReason
-  const ready =
-    component.installed_state === 'installed' &&
-    component.verification_state === 'healthy' &&
-    component.preflight?.ok !== false &&
-    composeAvailable
-
-  return {
-    ready,
-    engineVersion,
-    composeAvailable,
-    composeVersion,
-    blockingMessage,
-    issueCode,
-  }
-}
-
-function buildTemplateDefaults(fields: CatalogTemplateField[]): Record<string, string> {
-  const defaults: Record<string, string> = {}
-  for (const field of fields) {
-    const value = field.default
-    defaults[field.key] = value == null ? '' : String(value)
-  }
-  return defaults
-}
-
-function coerceTemplateInputValue(field: CatalogTemplateField, value: string): unknown {
-  if (field.type === 'port') {
-    const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : value
-  }
-  return value
-}
-
-function buildTemplateInputPayload(
-  fields: CatalogTemplateField[],
-  values: Record<string, string>
-): Record<string, unknown> {
-  const payload: Record<string, unknown> = {}
-  for (const field of fields) {
-    if (isTemplateFieldHidden(field)) {
-      continue
-    }
-    const rawValue = values[field.key] ?? ''
-    if (!field.required && rawValue.trim() === '') {
-      continue
-    }
-    payload[field.key] = coerceTemplateInputValue(field, rawValue)
-  }
-  return payload
-}
-
-function hasMissingRequiredTemplateFields(
-  fields: CatalogTemplateField[],
-  values: Record<string, string>
-) {
-  return fields.some(
-    field => !isTemplateFieldHidden(field) && field.required && !(values[field.key] ?? '').trim()
-  )
-}
-
-function buildRuntimeInputsPayload(
-  createEntryMode: CreateDeploymentEntryMode,
-  isGit: boolean,
-  runtimeEnvInputs: RuntimeEnvInputPayload[],
-  srcFiles: File[],
-  srcUploaded: string[],
-  uploadedFileNames: string[] = []
-): RuntimeInputsPayload | undefined {
-  if (isGit) return undefined
-
-  const uploadedNameSet = new Set(uploadedFileNames)
-  const files = [
-    ...srcUploaded.map(name => ({
-      name,
-      kind:
-        createEntryMode === 'install-script'
-          ? ('source-package' as const)
-          : ('mount-file' as const),
-      source_path: `./src/${name}`,
-      mount_path: createEntryMode === 'install-script' ? undefined : `./src/${name}`,
-      uploaded: true,
-    })),
-    ...srcFiles.map(file => ({
-      name: file.name,
-      kind:
-        createEntryMode === 'install-script'
-          ? ('source-package' as const)
-          : ('mount-file' as const),
-      source_path: `./src/${file.name}`,
-      mount_path: createEntryMode === 'install-script' ? undefined : `./src/${file.name}`,
-      uploaded: uploadedNameSet.has(file.name),
-    })),
-  ]
-
-  if (runtimeEnvInputs.length === 0 && files.length === 0) return undefined
-
-  return {
-    ...(runtimeEnvInputs.length > 0 ? { env: runtimeEnvInputs } : {}),
-    ...(files.length > 0 ? { files } : {}),
-  }
-}
-
-function buildSourceBuildPayload(
-  createEntryMode: CreateDeploymentEntryMode,
-  projectName: string,
-  targetServiceName?: string
-): SourceBuildPayload | undefined {
-  if (createEntryMode !== 'install-script') return undefined
-
-  const trimmedName = projectName.trim()
-  if (!trimmedName) return undefined
-
-  return {
-    source_kind: 'uploaded-package',
-    source_ref: `apps/${trimmedName}/src`,
-    workspace_ref: `apps/${trimmedName}/src`,
-    builder_strategy: 'buildpacks',
-    ...(targetServiceName?.trim()
-      ? { deploy_inputs: { service_name: targetServiceName.trim() } }
-      : {}),
-    artifact_publication: {
-      mode: 'local',
-      image_name: `apps/${trimmedName}`,
-    },
-  }
-}
-
-function extractComposeServiceNames(compose: string): string[] {
-  const trimmed = compose.trim()
-  if (!trimmed) return []
-
-  try {
-    const doc = jsYaml.load(trimmed)
-    if (!doc || typeof doc !== 'object') return []
-    const services = (doc as { services?: unknown }).services
-    if (!services || typeof services !== 'object' || Array.isArray(services)) return []
-    return Object.keys(services as Record<string, unknown>)
-      .map(name => name.trim())
-      .filter(Boolean)
-  } catch {
-    return []
-  }
-}
-
-function HelpTip({ text }: { text: string }) {
-  return (
-    <TooltipProvider delayDuration={200}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <CircleHelp className="ml-1 inline h-3.5 w-3.5 cursor-help text-muted-foreground/60 hover:text-muted-foreground" />
-        </TooltipTrigger>
-        <TooltipContent side="top" className="max-w-xs text-xs">
-          {text}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  )
-}
-
-function DeployCreateBreadcrumb() {
-  return (
-    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
-      <Link
-        to="/deploy"
-        search={{} as never}
-        className="inline-flex min-w-0 items-center gap-1.5 truncate transition-colors hover:text-foreground"
-      >
-        <Rocket className="h-4 w-4 shrink-0" />
-        <span className="truncate">Deploy</span>
-      </Link>
-      <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-      <span className="truncate font-medium text-foreground">Create</span>
-    </nav>
-  )
-}
-
-function extractTemplateRequirementDiskGiB(requirements?: Record<string, unknown>): string {
-  if (!requirements) return ''
-  const raw = requirements.diskGb ?? requirements.storageGb
-  if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) return String(raw)
-  if (typeof raw === 'string') {
-    const parsed = Number(raw)
-    if (Number.isFinite(parsed) && parsed > 0) return String(parsed)
-  }
-  return ''
-}
-
 export function CreateDeploymentPage({
   prefillMode,
   prefillSource,
@@ -380,14 +94,13 @@ export function CreateDeploymentPage({
   prefillServerId,
   entryMode,
 }: CreateDeploymentPageProps) {
+  const locale = getLocale()
   const layout = useOptionalLayout()
   const setHeaderRightStartContent = layout?.setHeaderRightStartContent
   const {
     servers,
     notice,
     setNotice,
-    prefillLoading,
-    prefillReady,
     createEntryMode,
     serverId,
     setServerId,
@@ -449,15 +162,72 @@ export function CreateDeploymentPage({
     templateKey || null,
     isTemplate && Boolean(templateKey)
   )
+  const { data: templateAppDetail } = useCatalogAppDetail(
+    locale,
+    templateKey || null,
+    isTemplate && Boolean(templateKey)
+  )
   const [composeYamlError, setComposeYamlError] = useState<string | null>(null)
   const [dockerReadiness, setDockerReadiness] = useState<SoftwareComponentDetail | null>(null)
   const [dockerReadinessLoading, setDockerReadinessLoading] = useState(false)
   const [dockerReadinessError, setDockerReadinessError] = useState('')
 
   const templateFields = templateDetail?.inputs || []
-  const templateBasicFields = templateFields.filter(isTemplateFieldBasic)
-  const templateAdvancedFields = templateFields.filter(isTemplateFieldAdvanced)
-  const templateHiddenFields = templateFields.filter(isTemplateFieldHidden)
+  const templateBasicFields = useMemo(
+    () =>
+      templateFields
+        .filter(
+          field =>
+            isTemplateFieldBasic(field) &&
+            !isTemplateHttpPortField(field) &&
+            !isDatabasePasswordTemplateField(field)
+        )
+        .sort((left, right) => {
+          const leftIsVersion =
+            left.key.trim().toLowerCase() === 'version' ||
+            String(left.label || '').trim().toLowerCase() === 'version'
+          const rightIsVersion =
+            right.key.trim().toLowerCase() === 'version' ||
+            String(right.label || '').trim().toLowerCase() === 'version'
+          if (leftIsVersion === rightIsVersion) return 0
+          return leftIsVersion ? -1 : 1
+        }),
+    [templateFields]
+  )
+  const templateAdvancedFields = templateFields.filter(
+    field =>
+      (isTemplateFieldAdvanced(field) || isDatabasePasswordTemplateField(field)) &&
+      !isTemplateHttpPortField(field)
+  )
+  const templateHiddenFields = templateFields.filter(
+    field => isTemplateFieldHidden(field) && !isTemplateHttpPortField(field)
+  )
+  const templateServiceItems = useMemo(() => buildTemplateServiceItems(templateDetail), [templateDetail])
+  const templatePrimaryService = templateServiceItems.find(item => item.isPrimary) || null
+  const templateDatabaseService =
+    templateServiceItems.find(item => item.role.toLowerCase() === 'database') || null
+  const hasTemplateDatabaseSource = templateFields.some(field => isDatabasePasswordTemplateField(field))
+  const templateDisplayName =
+    prefillAppName ||
+    templateAppDetail?.title ||
+    templateDetail?.manifest.trademark ||
+    templateDetail?.manifest.name ||
+    templateDetail?.templateKey ||
+    ''
+  const templateDisplayInitial = templateDisplayName.trim().charAt(0).toUpperCase() || 'T'
+  const templateVersionField = useMemo(
+    () =>
+      templateBasicFields.find(
+        field =>
+          field.key.trim().toLowerCase() === 'version' ||
+          String(field.label || '').trim().toLowerCase() === 'version'
+      ) || null,
+    [templateBasicFields]
+  )
+  const templateRemainingBasicFields = useMemo(
+    () => templateBasicFields.filter(field => field.key !== templateVersionField?.key),
+    [templateBasicFields, templateVersionField]
+  )
   const templateRequirementDiskGiB = useMemo(
     () => extractTemplateRequirementDiskGiB(templateDetail?.manifest.requirements),
     [templateDetail?.manifest.requirements]
@@ -473,6 +243,13 @@ export function CreateDeploymentPage({
   const [srcUploaded, setSrcUploaded] = useState<string[]>([])
   const [runtimeEnvInputs, setRuntimeEnvInputs] = useState<RuntimeEnvInputPayload[]>([])
   const [targetServiceName, setTargetServiceName] = useState('')
+  const [helpOpen, setHelpOpen] = useState(false)
+  const [preflightVisible, setPreflightVisible] = useState(false)
+  const [portExposureEnabled, setPortExposureEnabled] = useState(false)
+  const [domainExposureEnabled, setDomainExposureEnabled] = useState(false)
+  const [servicePortMappings, setServicePortMappings] = useState<
+    Record<string, { enabled: boolean; port: string }>
+  >({})
 
   const composeServiceNames = useMemo(() => {
     if (createEntryMode !== 'install-script' || composeYamlError) return []
@@ -499,6 +276,76 @@ export function CreateDeploymentPage({
     sourceBuildTargetServiceRequired && !targetServiceName.trim()
       ? 'Select which service should use the locally built application image.'
       : null
+  const recommendedExposurePort = useMemo(
+    () => recommendExposurePort(`${serverId}:${activeName}`),
+    [activeName, serverId]
+  )
+  const exposureServiceItems = useMemo(
+    () =>
+      isTemplate && templateServiceItems.length > 0
+        ? templateServiceItems
+        : [{ name: 'primary', role: 'primary', isPrimary: true }],
+    [isTemplate, templateServiceItems]
+  )
+  const exposurePrimaryService =
+    exposureServiceItems.find(item => item.isPrimary) || exposureServiceItems[0] || null
+
+  useEffect(() => {
+    setServicePortMappings(current => {
+      const next: Record<string, { enabled: boolean; port: string }> = {}
+      for (const service of exposureServiceItems) {
+        const previous = current[service.name]
+        next[service.name] = {
+          enabled: previous?.enabled ?? service.isPrimary,
+          port: previous?.port ?? (service.isPrimary ? recommendedExposurePort : ''),
+        }
+      }
+      return next
+    })
+  }, [exposureServiceItems, recommendedExposurePort])
+
+  const primaryPortMapping = exposurePrimaryService
+    ? servicePortMappings[exposurePrimaryService.name] || {
+        enabled: exposurePrimaryService.isPrimary,
+        port: recommendedExposurePort,
+      }
+    : null
+  const mappedServiceNames = exposureServiceItems
+    .filter(item => servicePortMappings[item.name]?.enabled ?? item.isPrimary)
+    .map(item => item.name)
+  const parsedExposurePort = useMemo(() => {
+    if (!portExposureEnabled || !primaryPortMapping?.enabled) return null
+    const trimmed = primaryPortMapping.port.trim()
+    if (!trimmed) return null
+    const parsed = Number(trimmed)
+    if (!Number.isInteger(parsed) || parsed <= 0 || parsed > 65535) return null
+    return parsed
+  }, [portExposureEnabled, primaryPortMapping])
+  const exposureSelectionError =
+    !portExposureEnabled && !domainExposureEnabled
+      ? 'Select at least one exposure option.'
+      : portExposureEnabled && mappedServiceNames.length === 0
+        ? 'Enable at least one service row when Server Port Access is selected.'
+      : null
+  const exposurePortError =
+    portExposureEnabled && primaryPortMapping?.enabled && parsedExposurePort == null
+      ? 'Enter a valid server port between 1 and 65535.'
+      : null
+  const extraServiceMappingMessage =
+    portExposureEnabled &&
+    exposureServiceItems.some(
+      item => !item.isPrimary && (servicePortMappings[item.name]?.enabled ?? false)
+    )
+      ? 'Additional service server-port mappings are listed for planning, but only the primary service mapping is submitted in this release.'
+      : null
+  const exposureDomainMessage =
+    'Domain access currently applies only to the primary service and remains pending for backend submission.'
+  const exposureIntent = useMemo<ExposureIntentPayload | undefined>(() => {
+    if (portExposureEnabled && parsedExposurePort) {
+      return { exposure_type: 'port', is_primary: true, target_port: parsedExposurePort }
+    }
+    return undefined
+  }, [portExposureEnabled, parsedExposurePort])
 
   useEffect(() => {
     if (!serverId) {
@@ -565,8 +412,12 @@ export function CreateDeploymentPage({
     setTemplateInputValues(buildTemplateDefaults(templateDetail.inputs))
     setTemplateSecretState({})
     setTemplateSecretRevealState({})
+    const nextSuggestedName = buildTemplateDefaultAppName(
+      prefillAppName || templateDetail.manifest.trademark || templateDetail.manifest.name || templateDetail.templateKey,
+      templateDetail.templateKey
+    )
     if (!projectName.trim()) {
-      setProjectName(prefillAppKey || templateDetail.templateKey)
+      setProjectName(nextSuggestedName)
     }
     if (!appRequiredDiskGiB.trim()) {
       const nextDisk = extractTemplateRequirementDiskGiB(templateDetail.manifest.requirements)
@@ -574,7 +425,15 @@ export function CreateDeploymentPage({
         setAppRequiredDiskGiB(nextDisk)
       }
     }
-  }, [appRequiredDiskGiB, isTemplate, prefillAppKey, projectName, setAppRequiredDiskGiB, setProjectName, templateDetail])
+  }, [
+    appRequiredDiskGiB,
+    isTemplate,
+    prefillAppName,
+    projectName,
+    setAppRequiredDiskGiB,
+    setProjectName,
+    templateDetail,
+  ])
 
   const setTemplateInputValue = useCallback((fieldKey: string, value: string) => {
     setTemplateInputValues(current => ({
@@ -726,17 +585,33 @@ export function CreateDeploymentPage({
   const createDisabled = isGit
     ? !activeName.trim() || !gitRepositoryUrl.trim() || !gitComposePath.trim() || !serverId || activeSubmitting
     : isTemplate
-      ? !activeName.trim() || !templateKey || !serverId || activeSubmitting || hasMissingRequiredTemplateFields(templateFields, templateInputValues)
+      ? !activeName.trim() ||
+        !templateKey ||
+        !serverId ||
+        activeSubmitting ||
+        hasMissingRequiredTemplateFields(templateFields, templateInputValues) ||
+        Boolean(exposureSelectionError) ||
+        Boolean(extraServiceMappingMessage) ||
+        (domainExposureEnabled && !portExposureEnabled) ||
+        Boolean(exposurePortError)
     : !activeName.trim() ||
       !compose.trim() ||
       !serverId ||
       activeSubmitting ||
       Boolean(composeYamlError) ||
-      Boolean(sourceBuildTargetServiceError)
+      Boolean(sourceBuildTargetServiceError) ||
+      Boolean(exposureSelectionError) ||
+      Boolean(extraServiceMappingMessage) ||
+      (domainExposureEnabled && !portExposureEnabled) ||
+      Boolean(exposurePortError)
   const checkDisabled = isGit
     ? !activeName.trim() || !gitRepositoryUrl.trim() || !gitComposePath.trim() || !serverId || activeChecking
     : isTemplate
-      ? !activeName.trim() || !templateKey || !serverId || activeChecking || hasMissingRequiredTemplateFields(templateFields, templateInputValues)
+      ? !activeName.trim() ||
+        !templateKey ||
+        !serverId ||
+        activeChecking ||
+        hasMissingRequiredTemplateFields(templateFields, templateInputValues)
     : !activeName.trim() ||
       !compose.trim() ||
       !serverId ||
@@ -762,14 +637,23 @@ export function CreateDeploymentPage({
 
   // ── Submit with src uploads ──
   const handleSubmit = useCallback(async () => {
+    setPreflightVisible(true)
     const normalizedTemplatePayload = isTemplate
       ? await persistSecretBackedTemplateInputs()
       : templateInputPayload
     const preflight = isGit
-      ? await checkGitOperation({ silentNotice: true })
+      ? await checkGitOperation({ silentNotice: true, exposureIntent })
       : isTemplate
-        ? await checkTemplateOperation(templateKey, normalizedTemplatePayload, { silentNotice: true })
-      : await checkManualOperation({ silentNotice: true, runtimeInputs, sourceBuild })
+        ? await checkTemplateOperation(templateKey, normalizedTemplatePayload, {
+            silentNotice: true,
+            exposureIntent,
+          })
+      : await checkManualOperation({
+          silentNotice: true,
+          runtimeInputs,
+          sourceBuild,
+          exposureIntent,
+        })
 
     if (!preflight) {
       return
@@ -802,9 +686,9 @@ export function CreateDeploymentPage({
       }
     }
     if (isGit) {
-      await submitGitOperation()
+      await submitGitOperation(exposureIntent)
     } else if (isTemplate) {
-      await submitTemplateOperation(templateKey, normalizedTemplatePayload)
+      await submitTemplateOperation(templateKey, normalizedTemplatePayload, exposureIntent)
     } else {
       await submitManualOperation(
         buildRuntimeInputsPayload(
@@ -815,7 +699,8 @@ export function CreateDeploymentPage({
           srcUploaded,
           uploadedFileNames
         ),
-        sourceBuild
+        sourceBuild,
+        exposureIntent
       )
     }
   }, [
@@ -823,6 +708,7 @@ export function CreateDeploymentPage({
     checkGitOperation,
     checkManualOperation,
     checkTemplateOperation,
+    exposureIntent,
     isGit,
     isTemplate,
     runtimeEnvInputs,
@@ -838,9 +724,38 @@ export function CreateDeploymentPage({
     runtimeInputs,
     submitGitOperation,
     submitManualOperation,
+    setPreflightVisible,
   ])
 
-  const activeServer = servers.find(s => s.id === serverId)
+  const handleCheck = useCallback(() => {
+    setPreflightVisible(true)
+    void (async () => {
+      if (isGit) {
+        await checkGitOperation({ exposureIntent })
+        return
+      }
+      if (isTemplate) {
+        const normalizedTemplatePayload = await persistSecretBackedTemplateInputs()
+        await checkTemplateOperation(templateKey, normalizedTemplatePayload, {
+          exposureIntent,
+        })
+        return
+      }
+      await checkManualOperation({ runtimeInputs, sourceBuild, exposureIntent })
+    })()
+  }, [
+    checkGitOperation,
+    checkManualOperation,
+    checkTemplateOperation,
+    exposureIntent,
+    isGit,
+    isTemplate,
+    persistSecretBackedTemplateInputs,
+    runtimeInputs,
+    sourceBuild,
+    setPreflightVisible,
+    templateKey,
+  ])
   const dockerReadinessState = useMemo(() => {
     if (!serverId) return null
     if (dockerReadinessLoading) {
@@ -891,51 +806,6 @@ export function CreateDeploymentPage({
     }
   }, [dockerReadiness, dockerReadinessError, dockerReadinessLoading, serverId])
 
-  const resolutionPreview = useMemo(() => {
-    switch (createEntryMode) {
-      case 'git-compose':
-        return { source: 'gitops', adapter: 'git-compose' }
-      case 'template':
-        return { source: 'manualops', adapter: 'template-render -> manual-compose' }
-      case 'install-script':
-        return { source: 'manualops', adapter: 'source-build' }
-      default:
-        return { source: 'manualops', adapter: 'manual-compose' }
-    }
-  }, [createEntryMode])
-
-  const envCount = envVars.filter(e => e.key.trim()).length
-  const composeLineCount = compose.split('\n').length
-  const validationItems = [
-    { label: 'App name', passed: activeName.trim().length > 0 },
-    { label: 'Target server', passed: serverId.length > 0 },
-    ...(isTemplate
-      ? [
-          { label: 'Template selected', passed: Boolean(templateKey) },
-          {
-            label: 'Required template inputs',
-            passed: !hasMissingRequiredTemplateFields(templateFields, templateInputValues),
-          },
-        ]
-      : []),
-    {
-      label: isGit ? 'Repository inputs' : 'Compose content',
-      passed: isGit
-        ? gitRepositoryUrl.trim().length > 0 && gitComposePath.trim().length > 0
-        : isTemplate
-          ? Boolean(templateKey)
-        : compose.trim().length > 0,
-    },
-    ...(!isGit && !isTemplate && compose.trim()
-      ? [{ label: 'YAML syntax', passed: !composeYamlError }]
-      : []),
-    ...(createEntryMode === 'install-script' && sourceBuildTargetServiceRequired
-      ? [{ label: 'Target service selected', passed: !!targetServiceName.trim() }]
-      : []),
-  ]
-
-  const srcRelativePath = './src/'
-
   useEffect(() => {
     setCheckResult(null)
   }, [
@@ -951,6 +821,9 @@ export function CreateDeploymentPage({
     projectName,
     gitProjectName,
     isTemplate,
+    portExposureEnabled,
+    domainExposureEnabled,
+    JSON.stringify(servicePortMappings),
     serverId,
     appRequiredDiskGiB,
     setCheckResult,
@@ -959,16 +832,16 @@ export function CreateDeploymentPage({
   const preflightSummary = checkResult?.checks?.ports
   const diskSummary = checkResult?.checks?.disk_space
   const portItems = preflightSummary?.items || []
-  const [nameChecking, setNameChecking] = useState(false)
+  const nameRequestSequenceRef = useRef(0)
+  const [nameTouched, setNameTouched] = useState(false)
   const [nameResult, setNameResult] = useState<NameAvailabilityResult | null>(null)
+  const [nameCheckedValue, setNameCheckedValue] = useState('')
 
   const nameHint = useMemo(() => {
-    if (!activeName.trim()) return null
-    if (nameChecking) return 'Checking name availability...'
+    if (!nameTouched || !activeName.trim()) return null
     if (nameResult?.ok === false) return nameResult.message || 'Application name is unavailable'
-    if (!nameResult) return 'Name availability check is temporarily unavailable'
     return null
-  }, [activeName, nameChecking, nameResult])
+  }, [activeName, nameResult, nameTouched])
 
   const reviewMessages = useMemo(() => {
     const messages: string[] = []
@@ -1006,40 +879,41 @@ export function CreateDeploymentPage({
   useEffect(() => {
     if (!activeName.trim()) {
       setNameResult(null)
-      setNameChecking(false)
+      setNameCheckedValue('')
       return
     }
-
-    let cancelled = false
-    const timer = window.setTimeout(() => {
-      setNameChecking(true)
-      void pb
-        .send<NameAvailabilityResult>('/api/actions/install/name-availability', {
-          method: 'POST',
-          body: { project_name: activeName },
-        })
-        .then(result => {
-          if (!cancelled) {
-            setNameResult(result)
-          }
-        })
-        .catch(() => {
-          if (!cancelled) {
-            setNameResult(null)
-          }
-        })
-        .finally(() => {
-          if (!cancelled) {
-            setNameChecking(false)
-          }
-        })
-    }, 300)
-
-    return () => {
-      cancelled = true
-      window.clearTimeout(timer)
+    if (nameCheckedValue && nameCheckedValue !== activeName.trim()) {
+      setNameResult(null)
     }
-  }, [activeName])
+  }, [activeName, nameCheckedValue])
+
+  const checkNameAvailability = useCallback((name: string) => {
+    const trimmedName = name.trim()
+    if (!trimmedName) {
+      setNameResult(null)
+      setNameCheckedValue('')
+      return Promise.resolve()
+    }
+
+    const requestId = nameRequestSequenceRef.current + 1
+    nameRequestSequenceRef.current = requestId
+
+    return pb
+      .send<NameAvailabilityResult>('/api/actions/install/name-availability', {
+        method: 'POST',
+        body: { project_name: trimmedName },
+      })
+      .then(result => {
+        if (nameRequestSequenceRef.current !== requestId) return
+        setNameResult(result)
+        setNameCheckedValue(trimmedName)
+      })
+      .catch(() => {
+        if (nameRequestSequenceRef.current !== requestId) return
+        setNameResult(null)
+        setNameCheckedValue(trimmedName)
+      })
+  }, [])
 
   return (
     <div className="flex flex-col gap-4">
@@ -1054,6 +928,16 @@ export function CreateDeploymentPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-9 w-9 px-0"
+            aria-label="Open deployment help"
+            onClick={() => setHelpOpen(true)}
+          >
+            <CircleHelp className="h-4 w-4" />
+          </Button>
           <Button variant="ghost" size="sm" asChild>
             <Link to="/actions" params={{} as never} search={{} as never}>
               <List className="mr-1 h-4 w-4" />
@@ -1064,26 +948,12 @@ export function CreateDeploymentPage({
       </div>
 
       {/* ── Alerts ── */}
-      {notice ? (
-        <Alert variant={notice.variant} className="flex items-center justify-between py-2">
+      {notice?.variant === 'destructive' ? (
+        <Alert variant={notice.variant} className="flex max-w-2xl items-center justify-between py-2">
           <AlertDescription>{notice.message}</AlertDescription>
           <Button variant="ghost" size="sm" onClick={() => setNotice(null)}>
             <X className="h-3 w-3" />
           </Button>
-        </Alert>
-      ) : null}
-      {prefillLoading ? (
-        <Alert>
-          <AlertDescription>
-            Loading template for {prefillAppName || prefillAppKey || prefillAppId}...
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      {prefillReady ? (
-        <Alert>
-          <AlertDescription>
-            Template loaded for {prefillReady}. Review inputs below.
-          </AlertDescription>
         </Alert>
       ) : null}
 
@@ -1102,9 +972,7 @@ export function CreateDeploymentPage({
                 Application identity and target server
               </div>
             </div>
-            <div
-              className={`grid gap-4 pt-4 ${isTemplate ? 'md:grid-cols-2 xl:grid-cols-3' : 'md:grid-cols-3'}`}
-            >
+            <div className="grid gap-4 pt-4 md:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="deploy-name" className="text-xs">
                   App Name{' '}
@@ -1114,16 +982,22 @@ export function CreateDeploymentPage({
                 <Input
                   id="deploy-name"
                   value={activeName}
-                  onChange={e =>
-                    isGit ? setGitProjectName(e.target.value) : setProjectName(e.target.value)
-                  }
+                  onChange={e => {
+                    if (isGit) {
+                      setGitProjectName(e.target.value)
+                    } else {
+                      setProjectName(e.target.value)
+                    }
+                  }}
+                  onBlur={() => {
+                    setNameTouched(true)
+                    void checkNameAvailability(activeName)
+                  }}
                   placeholder={isGit ? 'Required, e.g. repo-app' : 'Required, e.g. wordpress-prod'}
                   required
                 />
                 {nameHint ? (
-                  <div
-                    className={`text-[11px] ${nameResult?.ok ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}
-                  >
+                  <div className="text-[11px] text-amber-700 dark:text-amber-400">
                     {nameHint}
                   </div>
                 ) : null}
@@ -1196,36 +1070,43 @@ export function CreateDeploymentPage({
                   ) : null}
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="required-disk" className="text-xs">
-                  Estimated App Disk (GiB){' '}
-                  <HelpTip text="Optional for manual inputs. Template mode prefills this from the app metadata and still allows an override before preflight." />
-                </Label>
-                <Input
-                  id="required-disk"
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  value={appRequiredDiskGiB}
-                  onChange={e => setAppRequiredDiskGiB(e.target.value)}
-                  placeholder={isTemplate && templateRequirementDiskGiB ? `Default ${templateRequirementDiskGiB}` : 'Optional, e.g. 2'}
-                />
-              </div>
             </div>
           </section>
 
           {/* ── Section 2: Source inputs ── */}
           {isTemplate ? (
             <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Template</CardTitle>
-                <CardDescription>
-                  {isPinnedTemplate
-                    ? 'This deployment is pinned to the app you selected in App Store. Fill only the required basic inputs.'
-                    : 'Template deployment must start from App Store so the selected application stays consistent end to end.'}
-                </CardDescription>
+              <CardHeader className="pb-2.5">
+                <div className="flex items-start justify-between gap-4">
+                  <CardTitle className="flex min-w-0 items-center gap-1 pt-0.5 text-sm leading-5">
+                    Template Selection
+                    <HelpTip
+                      text={
+                        isPinnedTemplate
+                          ? 'This deployment is pinned to the app you selected in App Store. Fill only the required basic inputs.'
+                          : 'Template deployment must start from App Store so the selected application stays consistent end to end.'
+                      }
+                    />
+                  </CardTitle>
+                  {templateKey && templateDisplayName ? (
+                    <div className="flex shrink-0 items-center gap-2 pt-0.5 text-sm font-medium leading-5 text-foreground">
+                      {templateAppDetail?.iconUrl ? (
+                        <img
+                          src={templateAppDetail.iconUrl}
+                          alt={`${templateDisplayName} logo`}
+                          className="h-5 w-5 shrink-0 rounded-sm bg-muted object-cover ring-1 ring-border/60"
+                        />
+                      ) : (
+                        <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm bg-muted text-[10px] font-semibold text-foreground ring-1 ring-border/60">
+                          {templateDisplayInitial}
+                        </div>
+                      )}
+                      <div className="truncate leading-5">{templateDisplayName}</div>
+                    </div>
+                  ) : null}
+                </div>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
                 {!templateKey ? (
                   <div className="rounded-lg border border-dashed bg-muted/20 p-3 text-xs text-muted-foreground">
                     Open the target application from App Store and start deployment there. This flow no longer supports switching apps inside the template form.
@@ -1234,28 +1115,60 @@ export function CreateDeploymentPage({
                   <div className="text-xs text-muted-foreground">Loading template contract...</div>
                 ) : templateDetail ? (
                   <>
-                    <div className="rounded-lg border bg-muted/20 p-3 text-xs">
-                      <div className="font-medium">{prefillAppName || templateDetail.manifest.trademark}</div>
-                      <div className="mt-1 text-muted-foreground">
-                        Template key: {templateDetail.templateKey}
-                        {templateDetail.manifest.category ? ` · ${templateDetail.manifest.category}` : ''}
-                      </div>
-                    </div>
                     <div className="grid gap-3 md:grid-cols-2">
-                      {templateBasicFields.map(field => (
+                      {templateVersionField ? (
+                        <div className="space-y-1.5">
+                          <Label htmlFor={`template-field-${templateVersionField.key}`} className="text-xs">
+                            {templateVersionField.label || templateVersionField.key}
+                            {templateVersionField.required ? ' *' : ''}
+                          </Label>
+                          {renderTemplateFieldInput(
+                            templateVersionField,
+                            `template-field-${templateVersionField.key}`
+                          )}
+                        </div>
+                      ) : null}
+                      {hasTemplateDatabaseSource ? (
+                        <div className="space-y-1.5">
+                          <Label htmlFor="template-db-source" className="text-xs">
+                            Database Source
+                          </Label>
+                          <select
+                            id="template-db-source"
+                            className="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
+                            value="companion"
+                            onChange={() => undefined}
+                          >
+                            <option value="companion">
+                              {templateDatabaseService
+                                ? `Template DB (${templateDatabaseService.name})`
+                                : 'Template DB'}
+                            </option>
+                            <option value="service-instance" disabled>
+                              Service Instance DB (coming soon)
+                            </option>
+                          </select>
+                        </div>
+                      ) : null}
+                      {templateRemainingBasicFields.map(field => (
                         <div key={field.key} className="space-y-1.5">
                           <Label htmlFor={`template-field-${field.key}`} className="text-xs">
                             {field.label || field.key}
                             {field.required ? ' *' : ''}
                           </Label>
                           {renderTemplateFieldInput(field, `template-field-${field.key}`)}
-                          <div className="text-[11px] text-muted-foreground">
-                            {field.storage_mode === 'secret_backed'
-                              ? 'Secret-backed input'
-                              : field.storage_mode === 'system_managed'
-                                ? 'Managed by the template runtime.'
-                                : 'Template input'}
-                          </div>
+                          {field.key.trim().toLowerCase() === 'version' ||
+                          String(field.label || '').trim().toLowerCase() === 'version'
+                            ? null
+                            : (
+                                <div className="text-[11px] text-muted-foreground">
+                                  {field.storage_mode === 'secret_backed'
+                                    ? 'Secret-backed input'
+                                    : field.storage_mode === 'system_managed'
+                                      ? 'Managed by the template runtime.'
+                                      : 'Template input'}
+                                </div>
+                              )}
                         </div>
                       ))}
                     </div>
@@ -1407,23 +1320,64 @@ export function CreateDeploymentPage({
             </>
           )}
 
+          <CreateDeploymentExposureSection
+            isTemplate={isTemplate}
+            templateServiceItems={templateServiceItems}
+            portExposureEnabled={portExposureEnabled}
+            setPortExposureEnabled={setPortExposureEnabled}
+            domainExposureEnabled={domainExposureEnabled}
+            setDomainExposureEnabled={setDomainExposureEnabled}
+            servicePortMappings={servicePortMappings}
+            setServicePortMappings={setServicePortMappings}
+            primaryServiceName={exposurePrimaryService?.name || 'primary'}
+            recommendedExposurePort={recommendedExposurePort}
+            exposurePortError={exposurePortError}
+            exposureSelectionError={exposureSelectionError}
+            exposureDomainMessage={exposureDomainMessage}
+            extraServiceMappingMessage={extraServiceMappingMessage}
+          />
+
           {/* ── Section 3: Advanced Options ── */}
           <details className="group rounded-lg border bg-card">
-            <summary className="flex cursor-pointer list-none items-start gap-2 px-4 py-3 [&::-webkit-details-marker]:hidden">
-              <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-0 [&:not([open]_&)]:rotate-[-90deg]" />
+            <summary className="flex cursor-pointer list-none items-start justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
               <div className="min-w-0">
                 <div className="flex items-center gap-1">
                   <span className="text-base font-semibold">Advanced Options</span>
                   <HelpTip text="Additional deployment parameters resolved and normalized by the backend before execution." />
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Exposure, secret-backed inputs, and more
+                  Password overrides, runtime notes, and deferred controls
                 </div>
               </div>
+              <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-0 [&:not([open]_&)]:rotate-[-90deg]" />
             </summary>
-            <div className="grid gap-3 px-4 pb-4 pl-10 md:grid-cols-2">
+            <div className="grid gap-3 px-4 pb-4 md:grid-cols-2">
               {isTemplate ? (
                 <>
+                  <div className="rounded-lg border bg-muted/10 p-3">
+                    <Label htmlFor="required-disk" className="text-xs font-medium">
+                      Estimated App Disk (GiB){' '}
+                      <HelpTip text="Optional for manual inputs. Template mode prefills this from the app metadata and still allows an override before preflight." />
+                    </Label>
+                    <div className="mt-2 space-y-1.5">
+                      <Input
+                        id="required-disk"
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={appRequiredDiskGiB}
+                        onChange={e => setAppRequiredDiskGiB(e.target.value)}
+                        placeholder={
+                          isTemplate && templateRequirementDiskGiB
+                            ? `Default ${templateRequirementDiskGiB}`
+                            : 'Optional, e.g. 2'
+                        }
+                      />
+                      <div className="text-[11px] text-muted-foreground">
+                        Override the template default only when preflight should reserve a different disk estimate.
+                      </div>
+                    </div>
+                  </div>
                   <div className="rounded-lg border bg-muted/10 p-3">
                     <div className="text-xs font-medium">Advanced Template Inputs</div>
                     <div className="mt-2 space-y-3">
@@ -1433,10 +1387,17 @@ export function CreateDeploymentPage({
                         templateAdvancedFields.map(field => (
                           <div key={field.key} className="space-y-1.5">
                             <Label htmlFor={`template-advanced-${field.key}`} className="text-xs">
-                              {field.label || field.key}
+                              {isDatabasePasswordTemplateField(field)
+                                ? 'Database Password'
+                                : field.label || field.key}
                               {field.required ? ' *' : ''}
                             </Label>
                             {renderTemplateFieldInput(field, `template-advanced-${field.key}`)}
+                            {isDatabasePasswordTemplateField(field) ? (
+                              <div className="text-[11px] text-muted-foreground">
+                                Auto-generated by default. Change it only when you need a fixed database credential.
+                              </div>
+                            ) : null}
                           </div>
                         ))
                       )}
@@ -1446,9 +1407,9 @@ export function CreateDeploymentPage({
                     <div className="text-xs font-medium">Runtime Notes</div>
                     <div className="mt-2 space-y-2 text-xs text-muted-foreground">
                       <div>
-                        Exposure uses the template default:
+                        Primary template service:
                         {' '}
-                        {templateDetail?.exposure?.kind ? String(templateDetail.exposure.kind) : 'template-defined'}
+                        {templatePrimaryService?.name || 'template-defined'}
                       </div>
                       <div>
                         Hidden system inputs:
@@ -1466,6 +1427,23 @@ export function CreateDeploymentPage({
                 </>
               ) : (
                 <>
+                  <div className="rounded-lg border bg-muted/10 p-3">
+                    <Label htmlFor="required-disk" className="text-xs font-medium">
+                      Estimated App Disk (GiB){' '}
+                      <HelpTip text="Optional estimate used by preflight when checking whether the selected target has enough free space." />
+                    </Label>
+                    <div className="mt-2 space-y-1.5">
+                      <Input
+                        id="required-disk"
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={appRequiredDiskGiB}
+                        onChange={e => setAppRequiredDiskGiB(e.target.value)}
+                        placeholder="Optional, e.g. 2"
+                      />
+                    </div>
+                  </div>
                   <div className="rounded-lg border bg-muted/10 p-3">
                     <div className="text-xs font-medium">
                       Exposure Intent{' '}
@@ -1487,298 +1465,59 @@ export function CreateDeploymentPage({
         </div>
 
         {/* ──── Right: Review panel ──── */}
-        <div>
-          <div className="space-y-4 xl:sticky xl:top-6">
-            <Card className="border-slate-200 dark:border-slate-800">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Review</CardTitle>
-                <CardDescription>
-                  Verify the deployment summary before submitting. The backend performs final
-                  validation and normalization.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4 text-sm">
-                {/* ── Identity ── */}
-                <div className="space-y-2">
-                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Identity
-                  </div>
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Source</span>
-                      <span>{SOURCE_LABELS[createEntryMode] || createEntryMode}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">App Name</span>
-                      <span className="max-w-[200px] truncate">
-                        {activeName || 'Auto-generated'}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Server</span>
-                      <span className="max-w-[200px] truncate">
-                        {activeServer ? `${activeServer.label} (${activeServer.host})` : '—'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <hr className="border-dashed" />
-
-                {/* ── Resolution ── */}
-                <div className="space-y-2">
-                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Resolution
-                  </div>
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Lifecycle source</span>
-                      <span>{resolutionPreview.source}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Adapter</span>
-                      <span>{resolutionPreview.adapter}</span>
-                    </div>
-                    {isGit && gitRepositoryUrl.trim() ? (
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Repository</span>
-                        <span className="max-w-[200px] truncate">{gitRepositoryUrl}</span>
-                      </div>
-                    ) : null}
-                    {!isGit ? (
-                      isTemplate ? (
-                        <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">Template</span>
-                          <span className="max-w-[200px] truncate">
-                            {templateDetail?.manifest.trademark || templateKey || '—'}
-                          </span>
-                        </div>
-                      ) : (
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Compose</span>
-                        <span>{compose.trim() ? `${composeLineCount} lines` : '—'}</span>
-                      </div>
-                      )
-                    ) : null}
-                    {createEntryMode === 'install-script' ? (
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Build target service</span>
-                        <span className="max-w-[200px] truncate">
-                          {targetServiceName || 'Auto / not selected'}
-                        </span>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-
-                <hr className="border-dashed" />
-
-                {/* ── Inputs ── */}
-                <div className="space-y-2">
-                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Inputs
-                  </div>
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">{isTemplate ? 'Template inputs' : 'Env variables'}</span>
-                      <span>
-                        {isTemplate
-                          ? `${Object.keys(templateInputPayload).length} set`
-                          : envCount > 0
-                            ? `${envCount} defined`
-                            : 'None'}
-                      </span>
-                    </div>
-                    {isTemplate ? (
-                      Object.keys(templateInputPayload).length > 0 ? (
-                        <div className="max-h-24 overflow-y-auto rounded-md bg-muted/30 px-2 py-1.5">
-                          {templateFields
-                            .filter(field => !isTemplateFieldHidden(field) && templateInputPayload[field.key] !== undefined)
-                            .map(field => (
-                              <div
-                                key={field.key}
-                                className="truncate font-mono text-xs text-muted-foreground"
-                              >
-                                {field.key}=
-                                {field.storage_mode === 'secret_backed'
-                                  ? 'secretRef:...'
-                                  : String(templateInputPayload[field.key])}
-                              </div>
-                            ))}
-                        </div>
-                      ) : null
-                    ) : envCount > 0 ? (
-                      <div className="max-h-24 overflow-y-auto rounded-md bg-muted/30 px-2 py-1.5">
-                        {envVars
-                          .filter(e => e.key.trim())
-                          .map((e, i) => (
-                            <div
-                              key={i}
-                              className="truncate font-mono text-xs text-muted-foreground"
-                            >
-                              {e.key}={e.value.length > 20 ? `${e.value.slice(0, 20)}…` : e.value}
-                            </div>
-                          ))}
-                      </div>
-                    ) : null}
-                    {!isTemplate ? (
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Mount files</span>
-                        <span>
-                          {srcFiles.length + srcUploaded.length > 0
-                            ? `${srcFiles.length + srcUploaded.length} file(s)`
-                            : 'None'}
-                        </span>
-                      </div>
-                    ) : null}
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Estimated app disk</span>
-                      <span>
-                        {appRequiredDiskGiB.trim() ? `${appRequiredDiskGiB.trim()} GiB` : 'Not set'}
-                      </span>
-                    </div>
-                    {!isTemplate && (srcFiles.length > 0 || srcUploaded.length > 0) ? (
-                      <div className="rounded-md bg-muted/30 px-2 py-1.5">
-                        {[
-                          ...srcUploaded.map(n => ({ name: n, done: true })),
-                          ...srcFiles.map(f => ({ name: f.name, done: false })),
-                        ].map((f, i) => (
-                          <div key={i} className="truncate font-mono text-xs text-muted-foreground">
-                            {f.done ? <span className="text-emerald-600">✓ </span> : null}
-                            {srcRelativePath}
-                            {f.name}
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-
-                <hr className="border-dashed" />
-
-                {/* ── Validation ── */}
-                <div className="rounded-lg border bg-slate-50/80 p-3 dark:bg-slate-900/60">
-                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Pre-flight checks
-                  </div>
-                  <div className="mt-2 space-y-1.5">
-                    {validationItems.map(item => (
-                      <div key={item.label} className="flex items-center gap-2 text-xs">
-                        <CheckCircle2
-                          className={
-                            item.passed
-                              ? 'h-3.5 w-3.5 text-emerald-600'
-                              : 'h-3.5 w-3.5 text-slate-400'
-                          }
-                        />
-                        <span>{item.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                  {checkResult ? (
-                    <div className="mt-3 space-y-2 rounded-md border bg-background/80 p-2.5 text-xs">
-                      <div className="flex items-start gap-2">
-                        {checkResult.ok ? (
-                          <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 text-emerald-600" />
-                        ) : (
-                          <ShieldAlert className="mt-0.5 h-3.5 w-3.5 text-amber-600" />
-                        )}
-                        <div className="min-w-0">
-                          <div className="font-medium">{checkResult.message}</div>
-                          {checkResult.compose_project_name ? (
-                            <div className="text-xs text-muted-foreground">
-                              Resolved app name: {checkResult.compose_project_name}
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-                      {reviewMessages.length > 0 ? (
-                        <div className="space-y-2">
-                          <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                            Warnings
-                          </div>
-                          <div className="space-y-1.5">
-                            {reviewMessages.map(message => (
-                              <div
-                                key={message}
-                                className="rounded-md border border-amber-200/70 bg-amber-50/60 px-2.5 py-2 text-xs leading-5 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200"
-                              >
-                                {message}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
-                      {portItems.length > 0 ? (
-                        <div className="space-y-1 rounded-md bg-muted/30 p-2">
-                          {portItems.map(item => (
-                            <div
-                              key={`${item.protocol}-${item.port}`}
-                              className="flex items-center justify-between gap-3 text-xs"
-                            >
-                              <span className="font-mono">
-                                {item.port}/{item.protocol}
-                              </span>
-                              <span
-                                className={
-                                  item.conflict
-                                    ? 'text-amber-700 dark:text-amber-400'
-                                    : 'text-emerald-700 dark:text-emerald-400'
-                                }
-                              >
-                                {item.conflict
-                                  ? `${item.occupied ? 'occupied' : 'reserved'}${item.occupied && item.reserved ? ' and reserved' : ''}`
-                                  : 'available'}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <div className="mt-2 text-[10px] text-muted-foreground">
-                      Final validation is performed server-side. Use Check to preview compose
-                      validity, duplicate names, and host-port conflicts before creating the action.
-                    </div>
-                  )}
-                </div>
-
-                {/* ── Actions ── */}
-                <div className="flex flex-col gap-2 pt-1">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      void (async () => {
-                        if (isGit) {
-                          await checkGitOperation()
-                          return
-                        }
-                        if (isTemplate) {
-                          const normalizedTemplatePayload = await persistSecretBackedTemplateInputs()
-                          await checkTemplateOperation(templateKey, normalizedTemplatePayload)
-                          return
-                        }
-                        await checkManualOperation({ runtimeInputs, sourceBuild })
-                      })()
-                    }}
-                    disabled={checkDisabled}
-                    className="h-10"
-                  >
-                    {activeChecking ? 'Checking...' : 'Check'}
-                  </Button>
-                  <Button
-                    onClick={() => void handleSubmit()}
-                    disabled={createDisabled || srcUploading}
-                    className="h-10"
-                  >
-                    {activeSubmitting || srcUploading ? 'Creating...' : 'Create Deployment'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+        <CreateDeploymentReviewPanel
+          preflightVisible={preflightVisible}
+          checkResult={checkResult}
+          reviewMessages={reviewMessages}
+          portItems={portItems}
+          activeChecking={activeChecking}
+          activeSubmitting={activeSubmitting}
+          srcUploading={srcUploading}
+          checkDisabled={checkDisabled}
+          createDisabled={createDisabled}
+          onCheck={handleCheck}
+          onSubmit={() => void handleSubmit()}
+        />
       </div>
+
+      <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create Deployment Help</DialogTitle>
+            <DialogDescription>
+              Short answers for the most common questions during deployment creation.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <details className="group rounded-md border bg-muted/20">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
+                <span>FAQ</span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="space-y-3 border-t px-3 py-3 text-xs text-muted-foreground">
+                <div>
+                  <div className="font-medium text-foreground">Why run Check first?</div>
+                  <div className="mt-1">
+                    Check runs backend pre-flight validation and can surface blocking issues before an action is created.
+                  </div>
+                </div>
+                <div>
+                  <div className="font-medium text-foreground">Does Create Deployment run validation again?</div>
+                  <div className="mt-1">
+                    Yes. The server performs final validation and normalization again when the deployment action is created.
+                  </div>
+                </div>
+                <div>
+                  <div className="font-medium text-foreground">What should I do if Check reports warnings?</div>
+                  <div className="mt-1">
+                    Review the warnings, decide whether they are acceptable for this target, and then continue with Create Deployment only if the result is acceptable.
+                  </div>
+                </div>
+              </div>
+            </details>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

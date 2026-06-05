@@ -113,6 +113,16 @@ export type SourceBuildPayload = {
   }
 }
 
+export type ExposureIntentPayload = {
+  exposure_type: 'internal_only' | 'port' | 'domain'
+  is_primary?: boolean
+  target_port?: number
+  domain?: string
+  path?: string
+  certificate_id?: string
+  notes?: string
+}
+
 type DeployGitDefaultsValue = {
   defaultRef?: unknown
   defaultComposePath?: unknown
@@ -968,7 +978,8 @@ export function useActionsController({
 
   async function submitManualOperation(
     runtimeInputs?: RuntimeInputsPayload,
-    sourceBuild?: SourceBuildPayload
+    sourceBuild?: SourceBuildPayload,
+    exposureIntent?: ExposureIntentPayload
   ) {
     setSubmitting(true)
     setNotice(null)
@@ -982,6 +993,7 @@ export function useActionsController({
           env: Object.fromEntries(
             envVars.filter(e => e.key.trim()).map(e => [e.key.trim(), e.value])
           ),
+          exposure: exposureIntent,
           metadata: manualCandidateMetadata,
           runtime_inputs: runtimeInputs,
           source_build: sourceBuild,
@@ -1002,6 +1014,7 @@ export function useActionsController({
     silentNotice?: boolean
     runtimeInputs?: RuntimeInputsPayload
     sourceBuild?: SourceBuildPayload
+    exposureIntent?: ExposureIntentPayload
   }): Promise<InstallPreflightResult | null> {
     setChecking(true)
     setNotice(null)
@@ -1017,6 +1030,7 @@ export function useActionsController({
             env: Object.fromEntries(
               envVars.filter(e => e.key.trim()).map(e => [e.key.trim(), e.value])
             ),
+            exposure: options?.exposureIntent,
             metadata: manualCandidateMetadata,
             runtime_inputs: options?.runtimeInputs,
             source_build: options?.sourceBuild,
@@ -1039,7 +1053,7 @@ export function useActionsController({
     }
   }
 
-  async function submitGitOperation() {
+  async function submitGitOperation(exposureIntent?: ExposureIntentPayload) {
     setGitSubmitting(true)
     setNotice(null)
     try {
@@ -1053,6 +1067,7 @@ export function useActionsController({
           compose_path: gitComposePath,
           auth_header_name: gitAuthHeaderValue.trim() ? gitAuthHeaderName : '',
           auth_header_value: gitAuthHeaderValue,
+          exposure: exposureIntent,
           app_required_disk_gib: appRequiredDiskGiB,
         },
       })
@@ -1069,7 +1084,11 @@ export function useActionsController({
     }
   }
 
-  async function submitTemplateOperation(templateKey: string, inputValues: Record<string, unknown>) {
+  async function submitTemplateOperation(
+    templateKey: string,
+    inputValues: Record<string, unknown>,
+    exposureIntent?: ExposureIntentPayload
+  ) {
     setSubmitting(true)
     setNotice(null)
     try {
@@ -1080,6 +1099,7 @@ export function useActionsController({
           project_name: projectName,
           template_key: templateKey,
           input_values: inputValues,
+          exposure: exposureIntent,
           app_required_disk_gib: appRequiredDiskGiB,
         },
       })
@@ -1096,7 +1116,7 @@ export function useActionsController({
   async function checkTemplateOperation(
     templateKey: string,
     inputValues: Record<string, unknown>,
-    options?: { silentNotice?: boolean }
+    options?: { silentNotice?: boolean; exposureIntent?: ExposureIntentPayload }
   ): Promise<InstallPreflightResult | null> {
     setChecking(true)
     setNotice(null)
@@ -1108,6 +1128,7 @@ export function useActionsController({
           project_name: projectName,
           template_key: templateKey,
           input_values: inputValues,
+          exposure: options?.exposureIntent,
           app_required_disk_gib: appRequiredDiskGiB,
         },
       })
@@ -1128,6 +1149,7 @@ export function useActionsController({
 
   async function checkGitOperation(options?: {
     silentNotice?: boolean
+    exposureIntent?: ExposureIntentPayload
   }): Promise<InstallPreflightResult | null> {
     setGitChecking(true)
     setNotice(null)
@@ -1144,6 +1166,7 @@ export function useActionsController({
             compose_path: gitComposePath,
             auth_header_name: gitAuthHeaderValue.trim() ? gitAuthHeaderName : '',
             auth_header_value: gitAuthHeaderValue,
+            exposure: options?.exposureIntent,
             app_required_disk_gib: appRequiredDiskGiB,
           },
         }

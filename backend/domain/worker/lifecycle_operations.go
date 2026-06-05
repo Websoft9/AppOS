@@ -38,6 +38,7 @@ type lifecycleExecutionContext struct {
 }
 
 type proxyAwareOperationExecutor struct {
+	app      core.App
 	base     lifecycleruntime.Executor
 	proxyEnv map[string]string
 }
@@ -60,6 +61,10 @@ func (e proxyAwareOperationExecutor) DockerClient() (*docker.Client, error) {
 func (e proxyAwareOperationExecutor) Name() string {
 	return e.base.Name()
 }
+
+func (e proxyAwareOperationExecutor) App() core.App {
+	return e.app
+	}
 
 var errOperationCancelled = errors.New("operation cancelled")
 
@@ -1014,6 +1019,7 @@ func (w *Worker) createReleaseBaseline(execCtx *lifecycleExecutionContext, now t
 func (w *Worker) executorFor(execCtx *lifecycleExecutionContext) lifecycleruntime.Executor {
 	if execCtx.executor == nil {
 		execCtx.executor = proxyAwareOperationExecutor{
+			app:      w.app,
 			base:     operationExecutorFactory(w.app, normalizeDeployServerID(execCtx.Operation.GetString("server_id"))),
 			proxyEnv: loadWorkerDockerProxyEnv(w.app),
 		}

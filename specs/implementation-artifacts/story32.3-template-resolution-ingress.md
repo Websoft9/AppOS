@@ -81,6 +81,17 @@ Template ingress must preserve these semantics explicitly:
 - exposure and publish-related choices must remain explicit normalized intent, not vanish into generic env blobs
 - the normalized install payload must distinguish runtime env, secret references, and exposure-related intent clearly enough for later preview and execution work
 
+## Canonical Root URL Handling
+
+If a template declares one `canonical_root_url`, ingress must preserve that meaning as explicit normalized intent rather than flattening it into a generic env map.
+
+Ingress rules:
+
+- preserve the template-declared change policy such as `rebuild_ok`, `install_only`, or `migration_required`
+- preserve the management boundary such as `template_env`, `bootstrap_seed`, or `app_internal`
+- when the management boundary is `app_internal`, treat domain binding and app-effective canonical URL as related but distinct facts
+- when the change policy is `migration_required`, later domain changes must surface remediation state rather than pretend redeploy alone will reconcile the app
+
 ## Preview and Create Rules
 
 Template-driven install should support two aligned backend behaviors:
@@ -104,6 +115,7 @@ By the end of ingress resolution, the control plane should own one instance decl
 - rendered file outputs or file metadata
 - secret-reference metadata
 - normalized exposure intent
+- canonical root URL semantics when declared by the template, including change policy and management boundary
 
 Workers must not need raw template form state.
 
@@ -116,6 +128,7 @@ Workers must not need raw template form state.
 5. Preview/check and create flows are required to share the same resolution boundary.
 6. Instance-level redeploy and modify behavior can use the persisted instance declaration as the control-plane source of truth.
 7. Epic 17 receives declaration-driven install payloads and rendered artifacts only, not raw template form data.
+8. Template-declared `canonical_root_url` meaning survives ingress as explicit instance semantics, including `migration_required` and `app_internal` cases.
 
 
 ## References

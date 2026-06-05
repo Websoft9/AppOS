@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -10,8 +11,11 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tests"
+	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	"github.com/websoft9/appos/backend/infra/docker"
+	_ "github.com/websoft9/appos/backend/infra/migrations"
 )
 
 type noopExecutor struct{}
@@ -117,6 +121,63 @@ func (runtimeHeartbeatExecutor) PrepareWorkspace(string, string) error { return 
 func (runtimeHeartbeatExecutor) DockerClient() (*docker.Client, error) {
 	return docker.New(runtimeHeartbeatDockerExecutor{}), nil
 }
+
+type mirrorAwareRuntimeDockerExecutor struct {
+	commands []string
+	pullErrSeq map[string][]error
+}
+
+func (e *mirrorAwareRuntimeDockerExecutor) Run(_ context.Context, command string, args ...string) (string, error) {
+	joined := strings.TrimSpace(command + " " + strings.Join(args, " "))
+	e.commands = append(e.commands, joined)
+	switch {
+	case strings.Contains(joined, "docker image inspect nginx:alpine"):
+		return "", errors.New("missing")
+	case strings.Contains(joined, "docker pull "):
+		for imageRef, seq := range e.pullErrSeq {
+			if strings.Contains(joined, "docker pull "+imageRef) {
+				if len(seq) == 0 {
+					return "Pulling nginx:alpine\nPull complete\n", nil
+				}
+				err := seq[0]
+				e.pullErrSeq[imageRef] = seq[1:]
+				if err != nil {
+					return "", err
+				}
+				return "Pulling nginx:alpine\nPull complete\n", nil
+			}
+		}
+		return "Pulling nginx:alpine\nPull complete\n", nil
+	case strings.Contains(joined, "docker image tag mirror.example.com/library/nginx:alpine nginx:alpine"):
+		return "tagged", nil
+	case strings.Contains(joined, "docker image tag mirror-b.example.com/library/nginx:alpine nginx:alpine"):
+		return "tagged", nil
+	default:
+		return "", nil
+	}
+}
+
+func (e *mirrorAwareRuntimeDockerExecutor) RunStream(_ context.Context, command string, args ...string) (io.ReadCloser, error) {
+	joined := strings.TrimSpace(command + " " + strings.Join(args, " "))
+	e.commands = append(e.commands, joined)
+	if strings.Contains(joined, "docker compose -f /tmp/demo-app/docker-compose.yml pull") {
+		return nil, errors.New("failed to resolve reference \"docker.io/library/nginx:alpine\": dial tcp 1.2.3.4:443: i/o timeout")
+	}
+	return io.NopCloser(strings.NewReader("")), nil
+}
+
+func (e *mirrorAwareRuntimeDockerExecutor) Ping(context.Context) error { return nil }
+func (e *mirrorAwareRuntimeDockerExecutor) Host() string               { return "local" }
+
+type mirrorAwareRuntimeExecutor struct {
+	app  core.App
+	exec *mirrorAwareRuntimeDockerExecutor
+}
+
+func (e mirrorAwareRuntimeExecutor) Name() string                          { return "local" }
+func (e mirrorAwareRuntimeExecutor) PrepareWorkspace(string, string) error { return nil }
+func (e mirrorAwareRuntimeExecutor) DockerClient() (*docker.Client, error) { return docker.New(e.exec), nil }
+func (e mirrorAwareRuntimeExecutor) App() core.App                         { return e.app }
 
 type publishDockerExecutor struct{}
 
@@ -458,6 +519,113 @@ func TestExecuteNodePullsRuntimeImagesEmitsIdleHeartbeat(t *testing.T) {
 	}
 	if !foundHeartbeat {
 		t.Fatalf("expected idle heartbeat diagnostic line, got %v", lines)
+	}
+}
+
+func TestExecuteNodePullsRuntimeImagesViaConfiguredMirrors(t *testing.T) {
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Cleanup()
+
+	if err := sysconfig.SetGroup(app, "docker", "mirror", map[string]any{
+		"mirrors":                 []any{"https://mirror.example.com"},
+		"allowInsecureRegistries": false,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	operation := core.NewRecord(core.NewBaseCollection("app_operations"))
+	operation.Set("project_dir", "/tmp/demo-app")
+	operation.Set("rendered_compose", "services:\n  web:\n    image: nginx:alpine\n")
+
+	fakeExec := &mirrorAwareRuntimeDockerExecutor{}
+	var lines []string
+	result, err := ExecuteNode(
+		context.Background(),
+		operation,
+		model.NodeDefinition{NodeType: "runtime_pull"},
+		mirrorAwareRuntimeExecutor{app: app, exec: fakeExec},
+		nil,
+		NodeExecutionHooks{Logf: func(line string) { lines = append(lines, line) }},
+	)
+	if err != nil {
+		t.Fatalf("expected mirror-aware runtime_pull to succeed, got %v", err)
+	}
+	if result.DockerClient == nil {
+		t.Fatal("expected runtime_pull to retain docker client")
+	}
+	commands := strings.Join(fakeExec.commands, "\n")
+	if !strings.Contains(commands, "docker compose -f /tmp/demo-app/docker-compose.yml pull") {
+		t.Fatalf("expected compose pull to run before mirror fallback, got commands:\n%s", commands)
+	}
+	if !strings.Contains(commands, "docker pull mirror.example.com/library/nginx:alpine") {
+		t.Fatalf("expected mirror pull command, got commands:\n%s", commands)
+	}
+	if !strings.Contains(commands, "docker image tag mirror.example.com/library/nginx:alpine nginx:alpine") {
+		t.Fatalf("expected mirror tag command, got commands:\n%s", commands)
+	}
+	joinedLines := strings.Join(lines, "\n")
+	if !strings.Contains(joinedLines, "docker runtime upstream pull failed, switching to configured mirrors") {
+		t.Fatalf("expected upstream fallback log, got %v", lines)
+	}
+	if !strings.Contains(joinedLines, "docker runtime mirror pull started: nginx:alpine via mirror.example.com/library/nginx:alpine") {
+		t.Fatalf("expected mirror start log, got %v", lines)
+	}
+	if !strings.Contains(joinedLines, "docker runtime mirror pull succeeded: nginx:alpine via mirror.example.com/library/nginx:alpine") {
+		t.Fatalf("expected mirror success log, got %v", lines)
+	}
+}
+
+func TestExecuteNodeRetriesEachMirrorBeforeMovingOn(t *testing.T) {
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Cleanup()
+
+	if err := sysconfig.SetGroup(app, "docker", "mirror", map[string]any{
+		"mirrors":                 []any{"https://mirror-a.example.com", "https://mirror-b.example.com"},
+		"allowInsecureRegistries": false,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	operation := core.NewRecord(core.NewBaseCollection("app_operations"))
+	operation.Set("project_dir", "/tmp/demo-app")
+	operation.Set("rendered_compose", "services:\n  web:\n    image: nginx:alpine\n")
+
+	fakeExec := &mirrorAwareRuntimeDockerExecutor{pullErrSeq: map[string][]error{
+		"mirror-a.example.com/library/nginx:alpine": {errors.New("attempt1"), errors.New("attempt2"), errors.New("attempt3")},
+		"mirror-b.example.com/library/nginx:alpine": {errors.New("attempt1"), errors.New("attempt2"), nil},
+	}}
+	var lines []string
+	_, err = ExecuteNode(
+		context.Background(),
+		operation,
+		model.NodeDefinition{NodeType: "runtime_pull"},
+		mirrorAwareRuntimeExecutor{app: app, exec: fakeExec},
+		nil,
+		NodeExecutionHooks{Logf: func(line string) { lines = append(lines, line) }},
+	)
+	if err != nil {
+		t.Fatalf("expected mirror-aware runtime_pull to succeed, got %v", err)
+	}
+
+	commands := strings.Join(fakeExec.commands, "\n")
+	if strings.Count(commands, "docker pull mirror-a.example.com/library/nginx:alpine") != 3 {
+		t.Fatalf("expected three attempts for mirror A, got commands:\n%s", commands)
+	}
+	if strings.Count(commands, "docker pull mirror-b.example.com/library/nginx:alpine") != 3 {
+		t.Fatalf("expected three attempts for mirror B, got commands:\n%s", commands)
+	}
+	joinedLines := strings.Join(lines, "\n")
+	if !strings.Contains(joinedLines, "docker runtime mirror pull retry 1/2 started: nginx:alpine via mirror-a.example.com/library/nginx:alpine") {
+		t.Fatalf("expected retry log for mirror A, got %v", lines)
+	}
+	if !strings.Contains(joinedLines, "docker runtime mirror pull succeeded: nginx:alpine via mirror-b.example.com/library/nginx:alpine") {
+		t.Fatalf("expected mirror B success log, got %v", lines)
 	}
 }
 

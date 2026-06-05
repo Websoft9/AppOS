@@ -47,10 +47,10 @@ type Manifest struct {
 }
 
 type RenderSpec struct {
-	Env          map[string]string `json:"env"`
-	ComposeValues map[string]any   `json:"compose_values"`
-	Exposure     map[string]any    `json:"exposure"`
-	Files        []any             `json:"files"`
+	Env           map[string]string `json:"env"`
+	ComposeValues map[string]any    `json:"compose_values"`
+	Exposure      map[string]any    `json:"exposure"`
+	Files         []any             `json:"files"`
 }
 
 type Source struct {
@@ -83,6 +83,7 @@ type RenderedTemplate struct {
 	SecretRefs     []string
 	Metadata       map[string]any
 	ExposureIntent map[string]any
+	RenderExposure map[string]any
 	Manifest       Manifest
 }
 
@@ -165,12 +166,13 @@ func (s *Service) Render(app core.App, request RenderRequest) (*RenderedTemplate
 		return nil, err
 	}
 	result := &RenderedTemplate{
-		TemplateKey: request.TemplateKey,
-		ProjectName: projectName,
-		Compose:     compose,
-		ResolvedEnv: resolvedEnv,
-		SecretRefs:  secretRefs,
-		Manifest:    tpl.Manifest,
+		TemplateKey:    request.TemplateKey,
+		ProjectName:    projectName,
+		Compose:        compose,
+		ResolvedEnv:    resolvedEnv,
+		SecretRefs:     secretRefs,
+		RenderExposure: cloneAnyMap(tpl.Render.Exposure),
+		Manifest:       tpl.Manifest,
 		ExposureIntent: map[string]any{
 			"exposure_type": normalizedExposureType(tpl.Render.Exposure),
 			"is_primary":    true,
@@ -179,8 +181,8 @@ func (s *Service) Render(app core.App, request RenderRequest) (*RenderedTemplate
 		Metadata: map[string]any{
 			"candidate_kind": "store-prefill",
 			"prefill_context": map[string]any{
-				"app_key":       tpl.Manifest.Key,
-				"template_key":  tpl.Manifest.Key,
+				"app_key":         tpl.Manifest.Key,
+				"template_key":    tpl.Manifest.Key,
 				"template_source": tpl.Source.OriginKind,
 			},
 			"template_context": map[string]any{
@@ -212,7 +214,7 @@ func (s *Service) Describe(templateKey string) (*DescribeResponse, error) {
 		Exposure:      cloneAnyMap(tpl.Render.Exposure),
 		ComposeValues: cloneAnyMap(tpl.Render.ComposeValues),
 	}, nil
-	}
+}
 
 func (s *Service) loadTemplate(templateKey string) (*Template, error) {
 	if templateKey == "" {

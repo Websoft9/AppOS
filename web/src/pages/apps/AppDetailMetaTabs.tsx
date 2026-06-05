@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TabsContent } from '@/components/ui/tabs'
-import type { AppInstance } from '@/pages/apps/types'
+import { AppDetailDisplaySection } from '@/pages/apps/AppDetailDisplaySection'
+import type { SettingsTabProps } from '@/pages/apps/AppDetailTabPanelTypes'
 import { formatTime } from '@/pages/apps/types'
 
 export function AppDetailAutomationTab() {
@@ -26,7 +27,7 @@ export function AppDetailAutomationTab() {
   )
 }
 
-export function AppDetailSettingsTab({ app }: { app: AppInstance }) {
+export function AppDetailSettingsTab({ app, displaySection }: SettingsTabProps) {
   return (
     <TabsContent value="settings" className="space-y-2.5">
       <Card>
@@ -70,6 +71,21 @@ export function AppDetailSettingsTab({ app }: { app: AppInstance }) {
           </p>
         </CardContent>
       </Card>
+
+      <AppDetailDisplaySection
+        iconValue={displaySection.iconValue}
+        labelValue={displaySection.labelValue}
+        tagsValue={displaySection.tagsValue}
+        tags={displaySection.tags}
+        appName={app.name}
+        saving={displaySection.saving}
+        hasChanges={displaySection.hasChanges}
+        onIconChange={displaySection.onIconChange}
+        onLabelChange={displaySection.onLabelChange}
+        onTagsChange={displaySection.onTagsChange}
+        onSave={displaySection.onSave}
+        onReset={displaySection.onReset}
+      />
     </TabsContent>
   )
 }

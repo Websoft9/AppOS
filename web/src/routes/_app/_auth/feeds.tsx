@@ -1,6 +1,5 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import QRCode from 'qrcode'
 import {
   Bookmark,
   ChevronLeft,
@@ -788,7 +787,14 @@ function FeedsPage() {
     setShareQRCodeLoading(true)
     setShareQRCodeURL('')
 
-    void QRCode.toDataURL(shareURL, { margin: 1, width: 240 })
+    void import('qrcode')
+      .then(module => {
+        const toDataURL = module.toDataURL ?? module.default?.toDataURL
+        if (!toDataURL) {
+          throw new Error('QRCode renderer unavailable')
+        }
+        return toDataURL(shareURL, { margin: 1, width: 240 })
+      })
       .then(dataURL => {
         if (!cancelled) {
           setShareQRCodeURL(dataURL)

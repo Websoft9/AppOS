@@ -26,23 +26,30 @@ export type DisplaySectionProps = {
 
 export type OverviewTabProps = {
   app: AppInstance
-  currentRelease?: AppRelease
-  releases: AppRelease[]
-  openReleaseDetail: (release: AppRelease) => void
   serverDisplayName: string
-  canOpenServerDetail: boolean
-  openServerDetail: () => void
+  serverDetailHref?: string
   primaryExposure?: AppExposure
-  exposures: AppExposure[]
-  serverConnectionPresentation: ServerConnectionPresentationSpec | null
-  openOperationStatus: () => void
+  primaryAccessUrl: string
+  deploymentLabel: string
+  templateName?: string
+  templateDetailHref?: string
+  actionDetailHref?: string
   setTab: (value: string) => void
+}
+
+export type SettingsTabProps = {
+  app: AppInstance
   displaySection: DisplaySectionProps
 }
 
 export type AccessTabProps = {
   app: AppInstance
   primaryExposure?: AppExposure
+  resolvedTargetPort?: number
+  serverDisplayName: string
+  canOpenServerDetail: boolean
+  openServerDetail: () => void
+  serverConnectionPresentation: ServerConnectionPresentationSpec | null
   effectiveServerHost: string
   primaryDomainUrl: string
   publicAccessUrl: string
@@ -65,6 +72,8 @@ export type AccessTabProps = {
 
 export type ActionsTabProps = {
   app: AppInstance
+  releases: AppRelease[]
+  openReleaseDetail: (release: AppRelease) => void
   actionsLoading: boolean
   actionSearch: string
   setActionSearch: (value: string) => void

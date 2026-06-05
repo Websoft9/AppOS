@@ -9,18 +9,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/websoft9/appos/backend/domain/apptemplates"
-	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
+	"github.com/websoft9/appos/backend/domain/apptemplates"
 	"github.com/websoft9/appos/backend/domain/audit"
+	"github.com/websoft9/appos/backend/domain/config/sysconfig"
+	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 	"github.com/websoft9/appos/backend/domain/deploy"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	"github.com/websoft9/appos/backend/domain/lifecycle/projection"
 	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
 	"github.com/websoft9/appos/backend/domain/worker"
+	"gopkg.in/yaml.v3"
 )
 
 const maxGitComposeBytes = 1 << 20
@@ -576,26 +577,45 @@ func handleOperationLogStream(e *core.RequestEvent) error {
 
 	lastStatus := ""
 	lastUpdated := ""
+	lastContent := ""
+	lastTruncated := false
+	const logStreamPollInterval = 250 * time.Millisecond
 
-	sendState := func(current *core.Record) error {
+	sendState := func(current *core.Record, forceSnapshot bool) error {
+		currentStatus := operationDisplayStatus(current)
+		currentUpdated := current.GetDateTime("updated").String()
+		currentContent := current.GetString("execution_log")
+		currentTruncated := current.GetBool("execution_log_truncated")
+
+		messageType := "snapshot"
+		content := currentContent
+		if !forceSnapshot && !currentTruncated && !lastTruncated && strings.HasPrefix(currentContent, lastContent) {
+			if len(currentContent) > len(lastContent) {
+				messageType = "append"
+				content = currentContent[len(lastContent):]
+			}
+		}
+
 		payload := map[string]any{
 			"id":                      current.Id,
-			"status":                  operationDisplayStatus(current),
-			"updated":                 current.GetDateTime("updated").String(),
-			"execution_log_truncated": current.GetBool("execution_log_truncated"),
-			"type":                    "snapshot",
-			"content":                 current.GetString("execution_log"),
+			"status":                  currentStatus,
+			"updated":                 currentUpdated,
+			"execution_log_truncated": currentTruncated,
+			"type":                    messageType,
+			"content":                 content,
 		}
-		lastStatus = payload["status"].(string)
-		lastUpdated = payload["updated"].(string)
+		lastStatus = currentStatus
+		lastUpdated = currentUpdated
+		lastContent = currentContent
+		lastTruncated = currentTruncated
 		return conn.WriteJSON(payload)
 	}
 
-	if err := sendState(record); err != nil {
+	if err := sendState(record, true); err != nil {
 		return nil
 	}
 
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(logStreamPollInterval)
 	defer ticker.Stop()
 
 	for range ticker.C {
@@ -606,10 +626,12 @@ func handleOperationLogStream(e *core.RequestEvent) error {
 		}
 		currentStatus := operationDisplayStatus(current)
 		currentUpdated := current.GetDateTime("updated").String()
-		if currentStatus == lastStatus && currentUpdated == lastUpdated {
+		currentContent := current.GetString("execution_log")
+		currentTruncated := current.GetBool("execution_log_truncated")
+		if currentStatus == lastStatus && currentUpdated == lastUpdated && currentContent == lastContent && currentTruncated == lastTruncated {
 			continue
 		}
-		if err := sendState(current); err != nil {
+		if err := sendState(current, false); err != nil {
 			return nil
 		}
 	}
@@ -954,23 +976,77 @@ func renderTemplateInstall(e *core.RequestEvent, body map[string]any) (*apptempl
 		body["server_id"] = serverID
 	}
 	templateKey := bodyString(body, "template_key")
+	requestedExposure := lifecyclesvc.ParseExposureIntentMap(bodyMap(body, "exposure"))
+	inputValues := copyAnyMap(bodyMap(body, "input_values"))
+	if inputValues == nil {
+		inputValues = map[string]any{}
+	}
+	if requestedExposure != nil && requestedExposure.ExposureType == "port" && requestedExposure.TargetPort > 0 {
+		inputValues["http_port"] = requestedExposure.TargetPort
+	}
 	service := apptemplates.NewService()
 	rendered, err := service.Render(e.App, apptemplates.RenderRequest{
 		TemplateKey: templateKey,
 		ProjectName: bodyString(body, "project_name"),
-		Values:      bodyMap(body, "input_values"),
+		Values:      inputValues,
 		UserID:      authRecordID(e.Auth),
 	})
 	if err != nil {
 		return nil, lifecyclesvc.InstallIngressOptions{}, err
 	}
+	if requestedExposure != nil && requestedExposure.ExposureType == "internal_only" {
+		serviceName := firstNonEmptyString(
+			bodyString(rendered.RenderExposure, "service"),
+			firstPrimaryService(rendered.Manifest.ServiceRoles),
+		)
+		if serviceName != "" {
+			rendered.Compose, err = removeComposeServicePorts(rendered.Compose, serviceName)
+			if err != nil {
+				return nil, lifecyclesvc.InstallIngressOptions{}, err
+			}
+		}
+	}
 	metadata := copyAnyMap(rendered.Metadata)
 	ingressOptions := buildInstallIngressOptionsFromBody(e.Auth, body, metadata)
-	ingressOptions.ExposureIntent = lifecyclesvc.ParseExposureIntentMap(rendered.ExposureIntent)
+	if requestedExposure != nil {
+		ingressOptions.ExposureIntent = requestedExposure
+	} else {
+		ingressOptions.ExposureIntent = lifecyclesvc.ParseExposureIntentMap(rendered.ExposureIntent)
+	}
 	if strings.TrimSpace(ingressOptions.ComposeProjectName) == "" {
 		ingressOptions.ComposeProjectName = rendered.ProjectName
 	}
 	return rendered, ingressOptions, nil
+}
+
+func firstPrimaryService(serviceRoles map[string]string) string {
+	for name, role := range serviceRoles {
+		if strings.TrimSpace(role) == "primary" {
+			return strings.TrimSpace(name)
+		}
+	}
+	return ""
+}
+
+func removeComposeServicePorts(compose, serviceName string) (string, error) {
+	var doc map[string]any
+	if err := yaml.Unmarshal([]byte(compose), &doc); err != nil {
+		return "", err
+	}
+	services, ok := doc["services"].(map[string]any)
+	if !ok {
+		return compose, nil
+	}
+	service, ok := services[serviceName].(map[string]any)
+	if !ok {
+		return compose, nil
+	}
+	delete(service, "ports")
+	encoded, err := yaml.Marshal(doc)
+	if err != nil {
+		return "", err
+	}
+	return string(encoded), nil
 }
 
 func authRecordID(record *core.Record) string {

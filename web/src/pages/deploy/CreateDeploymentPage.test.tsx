@@ -162,6 +162,32 @@ function getTargetLocationField() {
   return screen.getByLabelText(/^Target Location/)
 }
 
+async function enablePortAccess() {
+  fireEvent.click(screen.getByRole('button', { name: /Server Port Access/i }))
+  await waitFor(() => {
+    expect(screen.getByText('Service Name')).toBeInTheDocument()
+    expect(screen.getAllByLabelText(/Server Port /i).length).toBeGreaterThan(0)
+  })
+}
+
+function openAdvancedOptions() {
+  const summary = screen.getByText('Advanced Options').closest('summary')
+  expect(summary).not.toBeNull()
+  const details = summary?.closest('details') as HTMLDetailsElement | null
+  expect(details).not.toBeNull()
+  if (details && !details.open) {
+    details.open = true
+  }
+}
+
+function expectPortExposure() {
+  return expect.objectContaining({
+    exposure_type: 'port',
+    is_primary: true,
+    target_port: expect.any(Number),
+  })
+}
+
 describe('CreateDeploymentPage', () => {
   afterEach(() => {
     cleanup()
@@ -326,7 +352,12 @@ describe('CreateDeploymentPage', () => {
         if (path === '/api/catalog/apps/odoo/template') {
           return Promise.resolve({
             templateKey: 'odoo',
-            manifest: { trademark: 'Odoo', category: 'Business', requirements: { diskGb: 1 } },
+            manifest: {
+              trademark: 'Odoo',
+              category: 'Business',
+              requirements: { diskGb: 1 },
+              serviceRoles: { odoo: 'primary', postgresql: 'database' },
+            },
             inputs: [
               {
                 key: 'admin_email',
@@ -338,12 +369,41 @@ describe('CreateDeploymentPage', () => {
                 default: '',
               },
             ],
+            exposure: { kind: 'http', service: 'odoo', targetPort: 8069 },
+            composeValues: { primaryService: 'odoo', databaseService: 'postgresql' },
+          })
+        }
+        if (path === '/api/catalog/apps/odoo?locale=en') {
+          return Promise.resolve({
+            key: 'odoo',
+            title: 'Odoo',
+            overview: '',
+            iconUrl: 'https://example.com/odoo.png',
+            screenshots: [],
+            source: { kind: 'official', visibility: 'public' },
+            categories: { primary: { key: 'business', title: 'Business' }, secondary: [] },
+            links: {},
+            requirements: { storageGb: 1 },
+            template: { key: 'odoo', source: 'official', available: true },
+            deploy: {
+              supported: true,
+              mode: 'template',
+              sourceKind: 'official',
+              defaultAppName: 'odoo',
+            },
+            personalization: { isFavorite: false },
+            audit: {},
           })
         }
         if (path === '/api/catalog/apps/wordpress/template') {
           return Promise.resolve({
             templateKey: 'wordpress',
-            manifest: { trademark: 'WordPress', category: 'CMS', requirements: { diskGb: 1 } },
+            manifest: {
+              trademark: 'WordPress',
+              category: 'CMS',
+              requirements: { diskGb: 1 },
+              serviceRoles: { wordpress: 'primary', mysql: 'database' },
+            },
             inputs: [
               {
                 key: 'admin_email',
@@ -364,6 +424,30 @@ describe('CreateDeploymentPage', () => {
                 default: '',
               },
             ],
+            exposure: { kind: 'http', service: 'wordpress', targetPort: 80 },
+            composeValues: { primaryService: 'wordpress', databaseService: 'mysql' },
+          })
+        }
+        if (path === '/api/catalog/apps/wordpress?locale=en') {
+          return Promise.resolve({
+            key: 'wordpress',
+            title: 'WordPress',
+            overview: '',
+            iconUrl: 'https://example.com/wordpress.png',
+            screenshots: [],
+            source: { kind: 'official', visibility: 'public' },
+            categories: { primary: { key: 'cms', title: 'CMS' }, secondary: [] },
+            links: {},
+            requirements: { storageGb: 1 },
+            template: { key: 'wordpress', source: 'official', available: true },
+            deploy: {
+              supported: true,
+              mode: 'template',
+              sourceKind: 'official',
+              defaultAppName: 'wordpress',
+            },
+            personalization: { isFavorite: false },
+            audit: {},
           })
         }
         if (path === '/api/actions/install/template/check' && options?.method === 'POST') {
@@ -399,7 +483,13 @@ describe('CreateDeploymentPage', () => {
       expect(getAppNameField()).toBeInTheDocument()
     })
 
+    await enablePortAccess()
+
     expect(screen.getByText('Basic')).toBeInTheDocument()
+    expect(screen.getByText('Action')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open deployment help' })).toBeInTheDocument()
+    expect(screen.queryByText('Create Deployment Help')).toBeNull()
+    expect(screen.queryByText('FAQ')).toBeNull()
     expect(getAppNameField()).toBeRequired()
     expect(getTargetLocationField()).toBeRequired()
 
@@ -410,6 +500,12 @@ describe('CreateDeploymentPage', () => {
       screen.queryByText('Leave blank to auto-generate the normalized app name.')
     ).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Cancel' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open deployment help' }))
+
+    expect(screen.getByText('Create Deployment Help')).toBeInTheDocument()
+    expect(screen.getByText('FAQ')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
     fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
@@ -423,30 +519,32 @@ describe('CreateDeploymentPage', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/actions/install/manual-compose/check', {
         method: 'POST',
-        body: {
+        body: expect.objectContaining({
           server_id: 'local',
           project_name: 'wordpress-prod',
           compose: 'services:\n  web:\n    image: nginx:alpine\n',
           env: {},
+          exposure: expectPortExposure(),
           metadata: { candidate_kind: 'manual-compose' },
           runtime_inputs: undefined,
           app_required_disk_gib: '',
-        },
+        }),
       })
     })
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/actions/install/manual-compose', {
         method: 'POST',
-        body: {
+        body: expect.objectContaining({
           server_id: 'local',
           project_name: 'wordpress-prod',
           compose: 'services:\n  web:\n    image: nginx:alpine\n',
           env: {},
+          exposure: expectPortExposure(),
           metadata: { candidate_kind: 'manual-compose' },
           runtime_inputs: undefined,
           app_required_disk_gib: '',
-        },
+        }),
       })
     })
 
@@ -503,6 +601,8 @@ describe('CreateDeploymentPage', () => {
       expect(getAppNameField()).toBeInTheDocument()
     })
 
+    await enablePortAccess()
+
     fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
     fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
     fireEvent.change(screen.getByPlaceholderText(/services:/i), {
@@ -513,15 +613,16 @@ describe('CreateDeploymentPage', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/actions/install/manual-compose/check', {
         method: 'POST',
-        body: {
+        body: expect.objectContaining({
           server_id: 'local',
           project_name: 'wordpress-prod',
           compose: 'services:\n  web:\n    image: nginx:alpine\n',
           env: {},
+          exposure: expectPortExposure(),
           metadata: { candidate_kind: 'manual-compose' },
           runtime_inputs: undefined,
           app_required_disk_gib: '',
-        },
+        }),
       })
     })
 
@@ -537,18 +638,22 @@ describe('CreateDeploymentPage', () => {
     await waitFor(() => {
       expect(getAppNameField()).toBeInTheDocument()
     })
+    expect(screen.queryByText('Pre-flight checks')).toBeNull()
 
     fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
     fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
     fireEvent.change(screen.getByPlaceholderText(/services:/i), {
       target: { value: 'services:\n  web:\n    image: nginx:alpine\n' },
     })
+    expect(screen.getByRole('button', { name: 'Check' })).toBeEnabled()
     fireEvent.click(screen.getByRole('button', { name: 'Check' }))
+
+    expect(screen.getByText('Pre-flight checks')).toBeInTheDocument()
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/actions/install/manual-compose/check', {
         method: 'POST',
-        body: {
+        body: expect.objectContaining({
           server_id: 'local',
           project_name: 'wordpress-prod',
           compose: 'services:\n  web:\n    image: nginx:alpine\n',
@@ -556,7 +661,7 @@ describe('CreateDeploymentPage', () => {
           metadata: { candidate_kind: 'manual-compose' },
           runtime_inputs: undefined,
           app_required_disk_gib: '',
-        },
+        }),
       })
     })
 
@@ -620,6 +725,8 @@ describe('CreateDeploymentPage', () => {
       expect(getAppNameField()).toBeInTheDocument()
     })
 
+    await enablePortAccess()
+
     fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
     fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
     fireEvent.change(screen.getByPlaceholderText(/services:/i), {
@@ -630,28 +737,30 @@ describe('CreateDeploymentPage', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/actions/install/manual-compose/check', {
         method: 'POST',
-        body: {
+        body: expect.objectContaining({
           server_id: 'local',
           project_name: 'wordpress-prod',
           compose: 'services:\n  web:\n    image: nginx:alpine\n',
           env: {},
+          exposure: expectPortExposure(),
           metadata: { candidate_kind: 'manual-compose' },
           app_required_disk_gib: '',
-        },
+        }),
       })
     })
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/actions/install/manual-compose', {
         method: 'POST',
-        body: {
+        body: expect.objectContaining({
           server_id: 'local',
           project_name: 'wordpress-prod',
           compose: 'services:\n  web:\n    image: nginx:alpine\n',
           env: {},
+          exposure: expectPortExposure(),
           metadata: { candidate_kind: 'manual-compose' },
           app_required_disk_gib: '',
-        },
+        }),
       })
       expect(
         screen.queryByText('Create blocked by preflight: Preflight completed with warnings')
@@ -712,6 +821,13 @@ describe('CreateDeploymentPage', () => {
       expect(getAppNameField()).toBeInTheDocument()
     })
 
+    await enablePortAccess()
+    openAdvancedOptions()
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Estimated App Disk (GiB)')).toBeInTheDocument()
+    })
+
     fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
     fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
     fireEvent.change(screen.getByLabelText('Estimated App Disk (GiB)'), { target: { value: '2' } })
@@ -723,15 +839,16 @@ describe('CreateDeploymentPage', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/actions/install/manual-compose/check', {
         method: 'POST',
-        body: {
+        body: expect.objectContaining({
           server_id: 'local',
           project_name: 'wordpress-prod',
           compose: 'services:\n  web:\n    image: nginx:alpine\n',
           env: {},
+          exposure: expectPortExposure(),
           metadata: { candidate_kind: 'manual-compose' },
           runtime_inputs: undefined,
           app_required_disk_gib: '2',
-        },
+        }),
       })
     })
 
@@ -749,7 +866,7 @@ describe('CreateDeploymentPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('runs realtime name availability check when app name changes', async () => {
+  it('checks name availability after the app name field blurs', async () => {
     renderCreateDeploymentPage({ entryMode: 'compose' })
 
     await waitFor(() => {
@@ -757,6 +874,9 @@ describe('CreateDeploymentPage', () => {
     })
 
     fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
+    expect(sendMock).not.toHaveBeenCalledWith('/api/actions/install/name-availability', expect.anything())
+
+    fireEvent.blur(getAppNameField())
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/actions/install/name-availability', {
@@ -780,6 +900,8 @@ describe('CreateDeploymentPage', () => {
         expect(getAppNameField()).toBeInTheDocument()
       })
 
+      await enablePortAccess()
+
       fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
       fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
       fireEvent.change(screen.getByPlaceholderText(/services:/i), {
@@ -790,11 +912,12 @@ describe('CreateDeploymentPage', () => {
       await waitFor(() => {
         expect(sendMock).toHaveBeenCalledWith('/api/actions/install/manual-compose', {
           method: 'POST',
-          body: {
+          body: expect.objectContaining({
             server_id: 'local',
             project_name: 'wordpress-prod',
             compose: 'services:\n  web:\n    image: nginx:alpine\n',
             env: {},
+            exposure: expectPortExposure(),
             metadata: { candidate_kind: candidateKind },
             runtime_inputs: undefined,
             source_build:
@@ -814,7 +937,7 @@ describe('CreateDeploymentPage', () => {
                   }
                 : undefined,
             app_required_disk_gib: '',
-          },
+          }),
         })
       })
     }
@@ -826,6 +949,8 @@ describe('CreateDeploymentPage', () => {
     await waitFor(() => {
       expect(getAppNameField()).toBeInTheDocument()
     })
+
+    await enablePortAccess()
 
     fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
     fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
@@ -866,11 +991,12 @@ describe('CreateDeploymentPage', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/actions/install/manual-compose/check', {
         method: 'POST',
-        body: {
+        body: expect.objectContaining({
           server_id: 'local',
           project_name: 'wordpress-prod',
           compose: 'services:\n  web:\n    image: nginx:alpine\n',
           env: { APP_SECRET: expect.any(String) },
+          exposure: expectPortExposure(),
           metadata: { candidate_kind: 'install-script' },
           runtime_inputs: {
             env: [{ name: 'APP_SECRET', kind: 'sensitive', generator_method: 'password_16' }],
@@ -897,7 +1023,7 @@ describe('CreateDeploymentPage', () => {
             },
           },
           app_required_disk_gib: '',
-        },
+        }),
       })
     })
 
@@ -910,11 +1036,12 @@ describe('CreateDeploymentPage', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/actions/install/manual-compose', {
         method: 'POST',
-        body: {
+        body: expect.objectContaining({
           server_id: 'local',
           project_name: 'wordpress-prod',
           compose: 'services:\n  web:\n    image: nginx:alpine\n',
           env: { APP_SECRET: expect.any(String) },
+          exposure: expectPortExposure(),
           metadata: { candidate_kind: 'install-script' },
           runtime_inputs: {
             env: [{ name: 'APP_SECRET', kind: 'sensitive', generator_method: 'password_16' }],
@@ -941,7 +1068,7 @@ describe('CreateDeploymentPage', () => {
             },
           },
           app_required_disk_gib: '',
-        },
+        }),
       })
     })
   })
@@ -952,6 +1079,8 @@ describe('CreateDeploymentPage', () => {
     await waitFor(() => {
       expect(getAppNameField()).toBeInTheDocument()
     })
+
+    await enablePortAccess()
 
     fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
     fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
@@ -976,11 +1105,12 @@ describe('CreateDeploymentPage', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/actions/install/manual-compose', {
         method: 'POST',
-        body: {
+        body: expect.objectContaining({
           server_id: 'local',
           project_name: 'wordpress-prod',
           compose: 'services:\n  web:\n    image: nginx:alpine\n  worker:\n    image: busybox\n',
           env: {},
+          exposure: expectPortExposure(),
           metadata: { candidate_kind: 'install-script' },
           runtime_inputs: undefined,
           source_build: {
@@ -997,7 +1127,7 @@ describe('CreateDeploymentPage', () => {
             },
           },
           app_required_disk_gib: '',
-        },
+        }),
       })
     })
   })
@@ -1009,6 +1139,8 @@ describe('CreateDeploymentPage', () => {
       expect(screen.getByText('Repository')).toBeInTheDocument()
       expect(screen.getByLabelText('Repository URL')).toBeInTheDocument()
     })
+
+    await enablePortAccess()
 
     fireEvent.change(getAppNameField(), { target: { value: 'git-wordpress' } })
     fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
@@ -1023,7 +1155,7 @@ describe('CreateDeploymentPage', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/actions/install/git-compose', {
         method: 'POST',
-        body: {
+        body: expect.objectContaining({
           server_id: 'local',
           project_name: 'git-wordpress',
           repository_url: 'https://github.com/org/repo',
@@ -1031,8 +1163,9 @@ describe('CreateDeploymentPage', () => {
           compose_path: 'docker-compose.yml',
           auth_header_name: '',
           auth_header_value: '',
+          exposure: expectPortExposure(),
           app_required_disk_gib: '',
-        },
+        }),
       })
     })
 
@@ -1062,6 +1195,8 @@ describe('CreateDeploymentPage', () => {
       expect(screen.getByLabelText('Compose Path')).toHaveValue('deploy/custom-compose.yml')
     })
 
+    await enablePortAccess()
+
     fireEvent.change(getAppNameField(), { target: { value: 'git-wordpress' } })
     fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
     fireEvent.change(screen.getByLabelText('Repository URL'), {
@@ -1072,7 +1207,7 @@ describe('CreateDeploymentPage', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/actions/install/git-compose', {
         method: 'POST',
-        body: {
+        body: expect.objectContaining({
           server_id: 'local',
           project_name: 'git-wordpress',
           repository_url: 'https://github.com/org/repo',
@@ -1080,8 +1215,9 @@ describe('CreateDeploymentPage', () => {
           compose_path: 'deploy/custom-compose.yml',
           auth_header_name: '',
           auth_header_value: '',
+          exposure: expectPortExposure(),
           app_required_disk_gib: '',
-        },
+        }),
       })
     })
   })
@@ -1096,18 +1232,20 @@ describe('CreateDeploymentPage', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('wordpress')).toBeInTheDocument()
-      expect(screen.getByText(/Template loaded for WordPress\./)).toBeInTheDocument()
-      expect(
-        screen.getByText(
-          'This deployment is pinned to the app you selected in App Store. Fill only the required basic inputs.'
-        )
-      ).toBeInTheDocument()
+      expect(screen.getByText('Template Selection')).toBeInTheDocument()
     })
 
     expect(screen.queryByLabelText('Search Template')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('App Template')).not.toBeInTheDocument()
+    expect(screen.getByText('Template Selection')).toBeInTheDocument()
+    expect(screen.queryByText('Template key: wordpress · CMS')).toBeNull()
+    expect(screen.getByAltText('WordPress logo')).toBeInTheDocument()
+    expect(screen.getByLabelText('Database Source')).toHaveValue('companion')
+    expect(screen.getByText('Template DB (mysql)')).toBeInTheDocument()
+    expect((getAppNameField() as HTMLInputElement).value).toMatch(/^wordpress-\d{4}$/)
+    openAdvancedOptions()
     expect(screen.getByLabelText('Estimated App Disk (GiB)')).toHaveValue(1)
+    expect(screen.queryByLabelText('HTTP Port *')).not.toBeInTheDocument()
   })
 
   it('stores secret-backed template values in secrets before check and create', async () => {
@@ -1118,11 +1256,17 @@ describe('CreateDeploymentPage', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Database Password *')).toBeInTheDocument()
+      expect(screen.getByLabelText('Database Source')).toBeInTheDocument()
       expect(getTargetLocationField()).toBeInTheDocument()
     })
 
-    expect(screen.getByText('Stored as Secret. Only ref sent.')).toBeInTheDocument()
+    await enablePortAccess()
+
+    openAdvancedOptions()
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Database Password *')).toBeInTheDocument()
+    })
 
     fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
     fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
@@ -1149,7 +1293,7 @@ describe('CreateDeploymentPage', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/actions/install/template/check', {
         method: 'POST',
-        body: {
+        body: expect.objectContaining({
           server_id: 'local',
           project_name: 'wordpress-prod',
           template_key: 'wordpress',
@@ -1157,8 +1301,9 @@ describe('CreateDeploymentPage', () => {
             admin_email: 'admin@example.com',
             db_password: 'secretRef:secret-1',
           },
+          exposure: expectPortExposure(),
           app_required_disk_gib: '1',
-        },
+        }),
       })
     })
 
@@ -1167,7 +1312,7 @@ describe('CreateDeploymentPage', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/actions/install/template', {
         method: 'POST',
-        body: {
+        body: expect.objectContaining({
           server_id: 'local',
           project_name: 'wordpress-prod',
           template_key: 'wordpress',
@@ -1175,8 +1320,9 @@ describe('CreateDeploymentPage', () => {
             admin_email: 'admin@example.com',
             db_password: 'secretRef:secret-1',
           },
+          exposure: expectPortExposure(),
           app_required_disk_gib: '1',
-        },
+        }),
       })
     })
 
@@ -1185,6 +1331,51 @@ describe('CreateDeploymentPage', () => {
       to: '/actions/$actionId',
       params: { actionId: 'act_template_1' },
       search: { returnTo: 'list' },
+    })
+  })
+
+  it('starts with exposure cards unselected and lets operators enable port access independently', async () => {
+    renderCreateDeploymentPage({ entryMode: 'compose' })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Server Port Access/i })).toBeInTheDocument()
+    })
+
+    expect(screen.queryByText('Service Name')).toBeNull()
+    expect(screen.queryByLabelText('Server Port primary')).toBeNull()
+    expect(screen.queryByRole('button', { name: /No access/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Create Deployment' })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('button', { name: /Primary Domain Access/i }))
+
+    expect(
+      screen.getAllByText(/Domain access currently applies only to the primary service/i).length
+    ).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: 'Create Deployment' })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('button', { name: /Server Port Access/i }))
+
+    expect(screen.getByText('Service Name')).toBeInTheDocument()
+    expect(screen.getByText('Container Port')).toBeInTheDocument()
+    expect(screen.getByText('Open Port')).toBeInTheDocument()
+    expect(screen.getByLabelText('Open Port primary')).toBeInTheDocument()
+    expect(screen.getByLabelText('Server Port primary')).toBeInTheDocument()
+
+    fireEvent.change(getAppNameField(), { target: { value: 'internal-demo' } })
+    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
+    fireEvent.change(screen.getByPlaceholderText(/services:/i), {
+      target: { value: 'services:\n  web:\n    image: nginx:alpine\n' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Create Deployment' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/actions/install/manual-compose/check', {
+        method: 'POST',
+        body: expect.objectContaining({
+          project_name: 'internal-demo',
+          exposure: expectPortExposure(),
+        }),
+      })
     })
   })
 

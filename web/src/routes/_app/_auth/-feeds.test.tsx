@@ -5,6 +5,7 @@ import { Route } from './feeds'
 const sendMock = vi.fn()
 
 vi.mock('qrcode', () => ({
+  toDataURL: vi.fn().mockResolvedValue('data:image/png;base64,qr-code'),
   default: {
     toDataURL: vi.fn().mockResolvedValue('data:image/png;base64,qr-code'),
   },

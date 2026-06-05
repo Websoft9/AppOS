@@ -255,6 +255,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
 
     const connect = useCallback(() => {
       if (!termRef.current) return
+
       const attemptId = connectionAttemptRef.current + 1
       connectionAttemptRef.current = attemptId
       setError(null)
@@ -264,7 +265,6 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       disposeSocket(1000, 'reconnect')
       disposeTerminal()
 
-      // Determine WebSocket URL
       let wsUrl: string
       if (serverId) {
         wsUrl = sshWebSocketUrl(serverId)
@@ -277,7 +277,6 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       }
 
       const requestedSessionId = latestSessionIdRef.current
-
       const url = new URL(wsUrl)
       if (requestedSessionId && (serverId || containerId)) {
         url.searchParams.set('session_id', requestedSessionId)
@@ -292,16 +291,12 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         }
       }
 
-      // Append auth token as query param
       const token = pb.authStore.token
       if (token) {
         url.searchParams.set('token', token)
       }
 
-      // Load preferences
       const prefs = loadPreferences()
-
-      // Create terminal
       const terminal = new Terminal({
         fontSize: prefs.terminal_font_size,
         scrollback: prefs.terminal_scrollback,
@@ -315,17 +310,14 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       })
       terminalRef.current = terminal
 
-      // Fit addon
       const fitAddon = new FitAddon()
       fitRef.current = fitAddon
       terminal.loadAddon(fitAddon)
 
-      // Mount terminal
       terminal.open(termRef.current)
       applyViewportInset()
       window.setTimeout(() => scheduleFitAndSync(), 0)
 
-      // Open WebSocket
       const ws = new WebSocket(url.toString())
       ws.binaryType = 'arraybuffer'
       wsRef.current = ws
@@ -340,16 +332,14 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         }
         setConnecting(false)
         terminal.focus()
-        // Send initial resize
-        const { cols, rows } = terminal
-        ws.send(makeResizeFrame(cols, rows))
+        ws.send(makeResizeFrame(terminal.cols, terminal.rows))
       }
 
       ws.onmessage = event => {
         if (isStaleAttempt()) return
+
         if (event.data instanceof ArrayBuffer) {
           const bytes = new Uint8Array(event.data)
-          // Control frame: 0x00 prefix + JSON payload (error/close sent by backend)
           if (bytes.length > 0 && bytes[0] === 0x00) {
             try {
               const ctrl = JSON.parse(new TextDecoder().decode(bytes.slice(1))) as {
@@ -381,6 +371,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
                   }, 0)
                   return
                 }
+
                 structuredErrorRef.current = true
                 setError(ctrl.message ?? `Connection ${ctrl.type}`)
                 if (ctrl.category && ctrl.category in categoryMeta) {
@@ -391,16 +382,18 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
                 ws.close(1000)
               }
             } catch {
-              // Not a valid control frame — ignore silently
+              // Ignore malformed control frames.
             }
             return
           }
+
           terminal.write(bytes)
           scrollToBottom()
-        } else {
-          terminal.write(event.data)
-          scrollToBottom()
+          return
         }
+
+        terminal.write(event.data)
+        scrollToBottom()
       }
 
       ws.onclose = event => {
@@ -426,14 +419,12 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         setErrorCategory(null)
       }
 
-      // Terminal → WebSocket
       terminal.onData(data => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(new TextEncoder().encode(data))
         }
       })
 
-      // Terminal resize → control frame
       terminal.onResize(({ cols, rows }) => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(makeResizeFrame(cols, rows))

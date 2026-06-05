@@ -164,3 +164,18 @@ docker.1ms.run
 1. queued 的 Action 没有显示在 actions list 中
 2. queued 的应用，竟然也是 installed
 3. Uninstall 也在等待一个 install running 的
+
+
+
+docker.m.daocloud.io
+docker.zhai.cm
+docker.1ms.run
+
+
+再更改一下 wordpress 模板
+
+1. W9_ADMIN_PATH="/wp-admin" 起始这个只是一个说明，它不是环境变量。
+2. WORDPRESS_ROOT_URL 我们也把它当做一个说明，它不算环境变量。
+root url 
+
+docker image 下载完成后，记得镜像更名

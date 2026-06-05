@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
@@ -50,9 +50,12 @@ import {
   DockerDependencyAlert,
   getDockerDependencyIssue,
 } from '@/components/docker/DockerDependencyAlert'
-import { TerminalPanel } from '@/components/connect/TerminalPanel'
 import { dockerApiPath, dockerTargetsPath } from '@/lib/docker-api'
 import { cn } from '@/lib/utils'
+
+const LazyTerminalPanel = lazy(() =>
+  import('@/components/connect/TerminalPanel').then(module => ({ default: module.TerminalPanel }))
+)
 
 interface HostEntry {
   id: string
@@ -1751,36 +1754,44 @@ export function DockerPanel({ serverId, className, showWorkspaceHeader = true }:
           </DialogHeader>
           <div className="flex-1 min-h-0">
             {terminalContainerId && (
-              <TerminalPanel
-                key={`${terminalContainerId}-${manualShell ? terminalShell : 'auto'}`}
-                containerId={terminalContainerId}
-                sessionId={
-                  activeTerminalSessionKey != null &&
-                  terminalResumeSession?.key === activeTerminalSessionKey
-                    ? terminalResumeSession.sessionId
-                    : undefined
+              <Suspense
+                fallback={
+                  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                    Loading terminal...
+                  </div>
                 }
-                dockerServerId={serverId}
-                shell={manualShell ? terminalShell : undefined}
-                onSessionEstablished={sessionId => {
-                  if (activeTerminalSessionKey) {
-                    setTerminalResumeSession({ key: activeTerminalSessionKey, sessionId })
+              >
+                <LazyTerminalPanel
+                  key={`${terminalContainerId}-${manualShell ? terminalShell : 'auto'}`}
+                  containerId={terminalContainerId}
+                  sessionId={
+                    activeTerminalSessionKey != null &&
+                    terminalResumeSession?.key === activeTerminalSessionKey
+                      ? terminalResumeSession.sessionId
+                      : undefined
                   }
-                }}
-                onSessionInvalidated={sessionId => {
-                  setTerminalResumeSession(current => {
-                    if (
-                      current &&
-                      current.sessionId === sessionId &&
-                      current.key === activeTerminalSessionKey
-                    ) {
-                      return null
+                  dockerServerId={serverId}
+                  shell={manualShell ? terminalShell : undefined}
+                  onSessionEstablished={sessionId => {
+                    if (activeTerminalSessionKey) {
+                      setTerminalResumeSession({ key: activeTerminalSessionKey, sessionId })
                     }
-                    return current
-                  })
-                }}
-                className="h-full"
-              />
+                  }}
+                  onSessionInvalidated={sessionId => {
+                    setTerminalResumeSession(current => {
+                      if (
+                        current &&
+                        current.sessionId === sessionId &&
+                        current.key === activeTerminalSessionKey
+                      ) {
+                        return null
+                      }
+                      return current
+                    })
+                  }}
+                  className="h-full"
+                />
+              </Suspense>
             )}
           </div>
         </DialogContent>

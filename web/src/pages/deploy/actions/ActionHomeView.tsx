@@ -148,6 +148,7 @@ function MoreAppsTile() {
   return (
     <Link
       to="/store"
+      search={{ q: undefined, app: undefined }}
       className="group flex min-w-0 flex-col items-center gap-2 rounded-xl px-1 py-2 text-center transition-colors hover:bg-sky-100/60 dark:hover:bg-sky-500/10"
     >
       <span className="flex h-12 w-12 items-center justify-center text-slate-500 transition-colors group-hover:text-sky-700 dark:text-slate-400 dark:group-hover:text-sky-300">
@@ -273,7 +274,7 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
                 </div>
               </div>
               <Button asChild className="justify-between sm:min-w-[180px]">
-                <Link to="/store">
+                <Link to="/store" search={{ q: undefined, app: undefined }}>
                   Open App Store
                   <ArrowRight className="h-4 w-4" />
                 </Link>

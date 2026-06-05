@@ -14,6 +14,7 @@ import (
 type fakeDeploymentImageClient struct {
 	inspectErr map[string]error
 	pullErr    map[string]error
+	pullErrSeq map[string][]error
 	pulls      []string
 	tags       [][2]string
 	blockPull  bool
@@ -31,6 +32,14 @@ func (f *fakeDeploymentImageClient) ImagePull(ctx context.Context, name string) 
 	if f.blockPull {
 		<-ctx.Done()
 		return "", ctx.Err()
+	}
+	if seq, ok := f.pullErrSeq[name]; ok && len(seq) > 0 {
+		err := seq[0]
+		f.pullErrSeq[name] = seq[1:]
+		if err != nil {
+			return "", err
+		}
+		return "ok", nil
 	}
 	if err, ok := f.pullErr[name]; ok {
 		return "", err
@@ -115,5 +124,45 @@ func TestPrepareDeploymentImagesTimesOutPull(t *testing.T) {
 	}
 	if got := err.Error(); !strings.Contains(got, "timed out pulling image nginx:alpine") {
 		t.Fatalf("expected timeout error, got %q", got)
+	}
+}
+
+func TestPrepareDeploymentImagesRetriesEachMirrorBeforeMovingOn(t *testing.T) {
+	app := newWorkerTestApp(t)
+	if err := sysconfig.SetGroup(app, "docker", "mirror", map[string]any{
+		"mirrors":                 []any{"mirror-a.example.com", "mirror-b.example.com"},
+		"allowInsecureRegistries": false,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	client := &fakeDeploymentImageClient{
+		inspectErr: map[string]error{"nginx:alpine": errors.New("missing")},
+		pullErr:    map[string]error{"nginx:alpine": errors.New("network unreachable")},
+		pullErrSeq: map[string][]error{
+			"mirror-a.example.com/library/nginx:alpine": {errors.New("attempt1"), errors.New("attempt2"), errors.New("attempt3")},
+			"mirror-b.example.com/library/nginx:alpine": {errors.New("attempt1"), errors.New("attempt2"), nil},
+		},
+	}
+
+	err := prepareDeploymentImages(context.Background(), app, client, "services:\n  web:\n    image: nginx:alpine\n", func(string) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wantPulls := []string{
+		"nginx:alpine",
+		"mirror-a.example.com/library/nginx:alpine",
+		"mirror-a.example.com/library/nginx:alpine",
+		"mirror-a.example.com/library/nginx:alpine",
+		"mirror-b.example.com/library/nginx:alpine",
+		"mirror-b.example.com/library/nginx:alpine",
+		"mirror-b.example.com/library/nginx:alpine",
+	}
+	if !reflect.DeepEqual(client.pulls, wantPulls) {
+		t.Fatalf("unexpected pull order: %#v", client.pulls)
+	}
+	if !reflect.DeepEqual(client.tags, [][2]string{{"mirror-b.example.com/library/nginx:alpine", "nginx:alpine"}}) {
+		t.Fatalf("unexpected tag operations: %#v", client.tags)
 	}
 }

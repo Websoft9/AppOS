@@ -78,19 +78,24 @@ function matchesStoreSearch(
 
 export const Route = createFileRoute('/_app/_auth/store/')({
   component: StorePage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    q: typeof search.q === 'string' ? search.q : undefined,
+    app: typeof search.app === 'string' ? search.app : undefined,
+  }),
 })
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function StorePage() {
   const navigate = useNavigate()
+  const searchParams = Route.useSearch()
   const { t } = useTranslation('store')
   const locale = getLocale()
 
   // ─── Filters & pagination state ──────────────────────────────────────────────
   const [primaryCategory, setPrimaryCategory] = useState<string | null>(null)
   const [secondaryCategory, setSecondaryCategory] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(searchParams.q ?? '')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<PageSize>(PAGE_SIZES[0])
 
@@ -338,6 +343,32 @@ export function StorePage() {
     () => officialTotal + visibleCustomApps.length,
     [officialTotal, visibleCustomApps.length]
   )
+  const deepLinkedAppKey = searchParams.app?.trim() || null
+  const deepLinkedProduct = useMemo(() => {
+    if (!deepLinkedAppKey) return null
+
+    const customApp = customApps.find(
+      item =>
+        item.key === deepLinkedAppKey &&
+        (item.created_by === currentUserId || item.visibility === 'shared')
+    )
+    if (customApp) return { product: customAppToProduct(customApp), isCustom: true, customApp }
+
+    const product =
+      searchedOfficialProducts.find(item => item.key === deepLinkedAppKey) ||
+      paginatedProducts.find(item => item.key === deepLinkedAppKey) ||
+      officialCatalogSeedProducts.find(item => item.key === deepLinkedAppKey)
+    if (!product) return null
+
+    return { product, isCustom: false, customApp: null }
+  }, [
+    currentUserId,
+    customApps,
+    deepLinkedAppKey,
+    officialCatalogSeedProducts,
+    paginatedProducts,
+    searchedOfficialProducts,
+  ])
   const pageLoading = catalogLoading && !categoryTree
   const pageError = catalogError && !categoryTree
   const listLoading = (!searchActive && officialAppsLoading) || (searchActive && officialCatalogSeedLoading)
@@ -351,6 +382,19 @@ export function StorePage() {
       setPage(totalPages)
     }
   }, [page, totalPages])
+
+  useEffect(() => {
+    setSearch(searchParams.q ?? '')
+  }, [searchParams.q])
+
+  useEffect(() => {
+    if (!deepLinkedAppKey || !deepLinkedProduct || modalOpen) return
+    if (selectedApp?.key === deepLinkedAppKey) return
+    setSelectedApp(deepLinkedProduct.product)
+    setSelectedAppIsCustom(deepLinkedProduct.isCustom)
+    setSelectedCustomAppRaw(deepLinkedProduct.customApp)
+    setModalOpen(true)
+  }, [deepLinkedAppKey, deepLinkedProduct, modalOpen, selectedApp?.key])
 
   // Reset to page 1 when filters change
   const handleSetPrimary = (key: string | null) => {

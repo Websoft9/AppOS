@@ -1,7 +1,6 @@
-import { useState } from 'react'
+import { Suspense, lazy, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from '@tanstack/react-router'
-import ReactMarkdown from 'react-markdown'
 import {
   ExternalLink,
   Github,
@@ -25,6 +24,8 @@ import { getDocUrl, getGithubUrl } from '@/lib/store-presenter'
 import type { CatalogAppDetail } from '@/lib/catalog-api'
 import type { ProductWithCategories, PrimaryCategory, Locale, Screenshot } from '@/lib/store-types'
 import type { UserApp } from '@/lib/store-user-api'
+
+const LazyReactMarkdown = lazy(() => import('react-markdown'))
 
 interface AppDetailModalProps {
   product: ProductWithCategories | null
@@ -337,7 +338,9 @@ export function AppDetailModal({
               <div>
                 <h4 className="text-sm font-semibold mb-2">{t('detail.description')}</h4>
                 <div className="prose prose-sm dark:prose-invert max-w-none text-sm text-muted-foreground">
-                  <ReactMarkdown>{description}</ReactMarkdown>
+                  <Suspense fallback={<p>{t('loading')}</p>}>
+                    <LazyReactMarkdown>{description}</LazyReactMarkdown>
+                  </Suspense>
                 </div>
               </div>
             </>

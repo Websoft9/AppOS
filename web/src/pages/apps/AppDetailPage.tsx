@@ -891,15 +891,20 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const canStopAction = Boolean(app) && ['running', 'starting'].includes(normalizedRuntimeStatus)
   const canRestartAction = Boolean(app) && normalizedRuntimeStatus === 'running'
   const primaryExposure = exposures.find(item => item.is_primary)
-  const currentRelease = releases.find(item => item.is_active)
+  const accessExposure =
+    primaryExposure || exposures.find(item => item.target_port || item.path || item.domain)
   const serverConnectionPresentation = useMemo<ServerConnectionPresentationSpec | null>(() => {
     if (!serverConnectionRecord) return null
     return getServerConnectionPresentation(serverConnectionRecord)
   }, [serverConnectionRecord])
-  const domainExposure = primaryExposure?.domain
-    ? primaryExposure
-    : exposures.find(item => item.domain)
-  const exposurePath = primaryExposure?.path || ''
+  const domainExposure =
+    (primaryExposure?.domain && primaryExposure.publication_state === 'published'
+      ? primaryExposure
+      : undefined) ||
+    exposures.find(item => item.domain && item.publication_state === 'published')
+  const resolvedTargetPort =
+    primaryExposure?.target_port || exposures.find(item => item.target_port && item.target_port > 0)?.target_port
+  const exposurePath = primaryExposure?.path || accessExposure?.path || ''
   const effectiveServerHost = useMemo(() => {
     const host =
       typeof serverConnectionRecord?.host === 'string' ? serverConnectionRecord.host.trim() : ''
@@ -910,26 +915,62 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const primaryDomainUrl = useMemo(() => {
     if (!domainExposure?.domain) return ''
     const scheme = domainExposure.certificate_id ? 'https' : 'http'
+    const port =
+      domainExposure.target_port && domainExposure.target_port > 0
+        ? `:${domainExposure.target_port}`
+        : ''
     const normalizedPath = domainExposure.path
       ? domainExposure.path.startsWith('/')
         ? domainExposure.path
         : `/${domainExposure.path}`
       : ''
-    return `${scheme}://${domainExposure.domain}${normalizedPath}`
+    return `${scheme}://${domainExposure.domain}${port}${normalizedPath}`
   }, [domainExposure])
   const publicAccessUrl = useMemo(() => {
     if (!effectiveServerHost) return ''
-    const port =
-      primaryExposure?.target_port && primaryExposure.target_port > 0
-        ? `:${primaryExposure.target_port}`
-        : ''
+    const port = resolvedTargetPort && resolvedTargetPort > 0 ? `:${resolvedTargetPort}` : ''
     const normalizedPath = exposurePath
       ? exposurePath.startsWith('/')
         ? exposurePath
         : `/${exposurePath}`
       : ''
     return `http://${effectiveServerHost}${port}${normalizedPath}`
-  }, [effectiveServerHost, exposurePath, primaryExposure?.target_port])
+  }, [effectiveServerHost, exposurePath, resolvedTargetPort])
+  const templateKey = useMemo(() => {
+    const raw = app?.catalog_app_key?.trim()
+    if (!raw) return null
+    const lowered = raw.toLowerCase()
+    if (lowered === 'nil' || lowered === '<nil>' || lowered === 'null' || lowered === 'none') {
+      return null
+    }
+    return raw
+  }, [app?.catalog_app_key])
+  const deploymentLabel = useMemo(() => {
+    if (templateKey) return 'Template'
+    switch (app?.source) {
+      case 'manualops':
+        return 'Docker Compose'
+      case 'gitops':
+        return 'Git'
+      case 'package':
+        return 'Package'
+      case 'docker':
+        return 'Docker Run'
+      default:
+        return app?.source
+          ? app.source
+              .split(/[^a-zA-Z0-9]+/)
+              .filter(Boolean)
+              .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+              .join(' ')
+          : '-'
+    }
+  }, [app?.source, templateKey])
+  const templateDetailHref = useMemo(() => {
+    if (!templateKey) return undefined
+    const encoded = encodeURIComponent(templateKey)
+    return `/store?q=${encoded}&app=${encoded}`
+  }, [templateKey])
   const hasAccessDraftChanges = useMemo(() => {
     return (
       accessUsernameDraft !== (app?.access_username || '') ||
@@ -1142,6 +1183,11 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const buildActionDetailHref = useCallback((actionId: string) => {
     return `/actions/${actionId}?returnTo=list`
   }, [])
+
+  const serverDetailHref = useMemo(() => {
+    if (!app?.server_id || app.server_id === 'local') return undefined
+    return `/resources/servers?server=${encodeURIComponent(app.server_id)}&tab=overview`
+  }, [app?.server_id])
 
   const openServerWorkspace = useCallback(
     (options?: { panel?: 'none' | 'files' | 'docker'; path?: string; lockedRoot?: string }) => {
@@ -1378,34 +1424,24 @@ export function AppDetailPage({ appId }: { appId: string }) {
           <AppDetailTabRail />
           <AppDetailOverviewTab
             app={app}
-            currentRelease={currentRelease}
-            releases={releases}
-            openReleaseDetail={openReleaseDetail}
             serverDisplayName={serverDisplayName}
-            canOpenServerDetail={canOpenServerDetail}
-            openServerDetail={openServerDetail}
+            serverDetailHref={serverDetailHref}
             primaryExposure={primaryExposure}
-            exposures={exposures}
-            serverConnectionPresentation={serverConnectionPresentation}
-            openOperationStatus={openOperationStatus}
+            primaryAccessUrl={publicAccessUrl || primaryDomainUrl || ''}
+            deploymentLabel={deploymentLabel}
+            templateName={templateKey || undefined}
+            templateDetailHref={templateDetailHref}
+            actionDetailHref={app.last_operation ? buildActionDetailHref(app.last_operation) : undefined}
             setTab={setTab}
-            displaySection={{
-              iconValue: displayIconDraft,
-              labelValue: displayLabelDraft,
-              tagsValue: displayTagsDraft,
-              tags: displayTags,
-              saving: displaySaving,
-              hasChanges: hasDisplayChanges,
-              onIconChange: setDisplayIconDraft,
-              onLabelChange: setDisplayLabelDraft,
-              onTagsChange: setDisplayTagsDraft,
-              onSave: () => void saveDisplayMetadata(),
-              onReset: resetDisplayMetadata,
-            }}
           />
           <AppDetailAccessTab
             app={app}
             primaryExposure={primaryExposure}
+            resolvedTargetPort={resolvedTargetPort}
+            serverDisplayName={serverDisplayName}
+            canOpenServerDetail={canOpenServerDetail}
+            openServerDetail={openServerDetail}
+            serverConnectionPresentation={serverConnectionPresentation}
             effectiveServerHost={effectiveServerHost}
             primaryDomainUrl={primaryDomainUrl}
             publicAccessUrl={publicAccessUrl}
@@ -1427,6 +1463,8 @@ export function AppDetailPage({ appId }: { appId: string }) {
           />
           <AppDetailActionsTab
             app={app}
+            releases={releases}
+            openReleaseDetail={openReleaseDetail}
             actionsLoading={actionsLoading}
             actionSearch={actionSearch}
             setActionSearch={setActionSearch}
@@ -1517,7 +1555,22 @@ export function AppDetailPage({ appId }: { appId: string }) {
             openServerWorkspace={openServerWorkspace}
           />
           <AppDetailAutomationTab />
-          <AppDetailSettingsTab app={app} />
+          <AppDetailSettingsTab
+            app={app}
+            displaySection={{
+              iconValue: displayIconDraft,
+              labelValue: displayLabelDraft,
+              tagsValue: displayTagsDraft,
+              tags: displayTags,
+              saving: displaySaving,
+              hasChanges: hasDisplayChanges,
+              onIconChange: setDisplayIconDraft,
+              onLabelChange: setDisplayLabelDraft,
+              onTagsChange: setDisplayTagsDraft,
+              onSave: () => void saveDisplayMetadata(),
+              onReset: resetDisplayMetadata,
+            }}
+          />
         </Tabs>
       ) : null}
       <ActionControlDialog

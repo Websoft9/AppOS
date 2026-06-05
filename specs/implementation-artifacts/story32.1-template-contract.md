@@ -206,6 +206,32 @@ Default product behavior for install UX:
 - if the operator enters a plaintext value, the frontend should create a secret record first, then continue the flow using the returned reference
 - if the operator selects an existing secret, the flow should continue with that reference directly
 
+## Canonical Root URL Rules
+
+Some apps have one canonical external URL such as `root_url`.
+
+When present, this value should not be treated as an ordinary env field.
+
+Contract guidance:
+
+- templates may mark one input or derived value as `canonical_root_url`
+- when `canonical_root_url` is set and the app enforces it, AppOS should treat that address as the primary external entry
+- template metadata should distinguish whether AppOS can manage later changes or only detect drift
+
+Recommended change policies for v0:
+
+- `rebuild_ok`: AppOS can apply a changed canonical URL through later render and redeploy behavior
+- `install_only`: AppOS can seed the canonical URL only during first install; later changes should not be presented as ordinary reconfigure
+- `migration_required`: AppOS cannot reliably write the canonical URL because it is set inside app initialization or other app-internal state; later domain changes require app-specific remediation
+
+Management boundary guidance:
+
+- `template_env`: AppOS writes the value through template render output
+- `bootstrap_seed`: AppOS may seed the value only during first install
+- `app_internal`: AppOS does not control the value directly and should surface remediation state instead of pretending it can reconcile automatically
+
+For `migration_required` or `app_internal` cases, the control plane should treat domain binding and app-effective canonical URL as related but not identical facts.
+
 ## Service Identity Rules
 
 Templates should model service roles explicitly.

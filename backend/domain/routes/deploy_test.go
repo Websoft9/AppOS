@@ -564,7 +564,7 @@ func TestOperationTemplateCreateOdoo(t *testing.T) {
 	defer te.cleanup()
 	ensureDockerSecretRuntime(t)
 	secret := createDockerRouteSecret(t, te, "odoo-secret")
-	payload := fmt.Sprintf(`{"project_name":"ERP Demo","template_key":"odoo","input_values":{"version":"18.0","http_port":9010,"db_password":"secretRef:%s"}}`, secret.Id)
+	payload := fmt.Sprintf(`{"project_name":"ERP Demo","template_key":"odoo","input_values":{"version":"18.0","db_password":"secretRef:%s"},"exposure":{"exposure_type":"port","is_primary":true,"target_port":9010}}`, secret.Id)
 
 	rec := te.doOperations(t, http.MethodPost, "/api/actions/install/template", payload, true)
 	if rec.Code != http.StatusAccepted {
@@ -578,6 +578,28 @@ func TestOperationTemplateCreateOdoo(t *testing.T) {
 	renderedCompose := opRecord.GetString("rendered_compose")
 	if !strings.Contains(renderedCompose, "image: odoo:18.0") || !strings.Contains(renderedCompose, "9010:8069") {
 		t.Fatalf("expected rendered odoo compose to honor overrides, got %q", renderedCompose)
+	}
+}
+
+func TestOperationTemplateCreateCanDisablePrimaryPublishedPort(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+	ensureDockerSecretRuntime(t)
+	secret := createDockerRouteSecret(t, te, "wp-secret")
+	payload := fmt.Sprintf(`{"project_name":"Private Blog","template_key":"wordpress","input_values":{"db_password":"secretRef:%s"},"exposure":{"exposure_type":"internal_only","is_primary":true}}`, secret.Id)
+
+	rec := te.doOperations(t, http.MethodPost, "/api/actions/install/template", payload, true)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d: %s", rec.Code, rec.Body.String())
+	}
+	created := parseJSON(t, rec)
+	opRecord, err := te.app.FindRecordById("app_operations", created["id"].(string))
+	if err != nil {
+		t.Fatal(err)
+	}
+	renderedCompose := opRecord.GetString("rendered_compose")
+	if strings.Contains(renderedCompose, ":80") {
+		t.Fatalf("expected rendered wordpress compose to remove published ports, got %q", renderedCompose)
 	}
 }
 
