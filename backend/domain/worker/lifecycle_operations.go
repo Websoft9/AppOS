@@ -22,8 +22,8 @@ import (
 )
 
 const (
-	TaskRunOperation           = "lifecycle:run_operation"
-	lifecycleSchedulerInterval = 2 * time.Second
+	TaskRunOperation                 = "lifecycle:run_operation"
+	lifecycleSchedulerInterval       = 2 * time.Second
 	defaultLifecycleOperationTimeout = 45 * time.Minute
 )
 
@@ -64,7 +64,7 @@ func (e proxyAwareOperationExecutor) Name() string {
 
 func (e proxyAwareOperationExecutor) App() core.App {
 	return e.app
-	}
+}
 
 var errOperationCancelled = errors.New("operation cancelled")
 
@@ -277,7 +277,7 @@ func reconcileTerminalPipelineOperation(app core.App, operation *core.Record) (b
 		endedAt = types.NowDateTime()
 	}
 
-	message := "operation reconciled from terminal pipeline state"
+	var message string
 	if status == "failed" {
 		message = "operation failed after pipeline entered terminal failed state"
 	} else {

@@ -47,10 +47,18 @@ type Manifest struct {
 }
 
 type RenderSpec struct {
-	Env           map[string]string `json:"env"`
-	ComposeValues map[string]any    `json:"compose_values"`
-	Exposure      map[string]any    `json:"exposure"`
-	Files         []any             `json:"files"`
+	Env           map[string]string  `json:"env"`
+	ComposeValues map[string]any     `json:"compose_values"`
+	Exposures     []TemplateExposure `json:"exposures"`
+	Files         []any              `json:"files"`
+}
+
+type TemplateExposure struct {
+	Label    string `json:"label"`
+	Service  string `json:"service"`
+	Port     int    `json:"port"`
+	Protocol string `json:"protocol"`
+	Default  bool   `json:"default,omitempty"`
 }
 
 type Source struct {
@@ -76,24 +84,25 @@ type RenderRequest struct {
 }
 
 type RenderedTemplate struct {
-	TemplateKey    string
-	ProjectName    string
-	Compose        string
-	ResolvedEnv    map[string]any
-	SecretRefs     []string
-	Metadata       map[string]any
-	ExposureIntent map[string]any
-	RenderExposure map[string]any
-	Manifest       Manifest
+	TemplateKey     string
+	ProjectName     string
+	Compose         string
+	ResolvedEnv     map[string]any
+	SecretRefs      []string
+	Metadata        map[string]any
+	ExposureIntent  map[string]any
+	RenderExposures []TemplateExposure
+	Manifest        Manifest
 }
 
 type DescribeResponse struct {
-	TemplateKey   string         `json:"templateKey"`
-	Manifest      Manifest       `json:"manifest"`
-	Inputs        []Field        `json:"inputs"`
-	Source        Source         `json:"source"`
-	Exposure      map[string]any `json:"exposure,omitempty"`
-	ComposeValues map[string]any `json:"composeValues,omitempty"`
+	TemplateKey   string             `json:"templateKey"`
+	Manifest      Manifest           `json:"manifest"`
+	Inputs        []Field            `json:"inputs"`
+	Source        Source             `json:"source"`
+	Exposure      map[string]any     `json:"exposure,omitempty"`
+	Exposures     []TemplateExposure `json:"exposures,omitempty"`
+	ComposeValues map[string]any     `json:"composeValues,omitempty"`
 }
 
 type Service struct {
@@ -166,18 +175,14 @@ func (s *Service) Render(app core.App, request RenderRequest) (*RenderedTemplate
 		return nil, err
 	}
 	result := &RenderedTemplate{
-		TemplateKey:    request.TemplateKey,
-		ProjectName:    projectName,
-		Compose:        compose,
-		ResolvedEnv:    resolvedEnv,
-		SecretRefs:     secretRefs,
-		RenderExposure: cloneAnyMap(tpl.Render.Exposure),
-		Manifest:       tpl.Manifest,
-		ExposureIntent: map[string]any{
-			"exposure_type": normalizedExposureType(tpl.Render.Exposure),
-			"is_primary":    true,
-			"target_port":   tpl.Render.Exposure["targetPort"],
-		},
+		TemplateKey:     request.TemplateKey,
+		ProjectName:     projectName,
+		Compose:         compose,
+		ResolvedEnv:     resolvedEnv,
+		SecretRefs:      secretRefs,
+		RenderExposures: cloneTemplateExposures(tpl.Render.Exposures),
+		Manifest:        tpl.Manifest,
+		ExposureIntent:  exposureIntentFromTemplateExposures(tpl.Render.Exposures),
 		Metadata: map[string]any{
 			"candidate_kind": "store-prefill",
 			"prefill_context": map[string]any{
@@ -190,6 +195,7 @@ func (s *Service) Render(app core.App, request RenderRequest) (*RenderedTemplate
 				"template_revision": tpl.Source.TemplateRevision,
 				"origin_kind":       tpl.Source.OriginKind,
 				"origin_ref":        tpl.Source.OriginRef,
+				"exposures":         templateExposuresToMaps(tpl.Render.Exposures),
 				"input_values":      values,
 				"secret_refs":       secretRefs,
 			},
@@ -211,7 +217,8 @@ func (s *Service) Describe(templateKey string) (*DescribeResponse, error) {
 		Manifest:      tpl.Manifest,
 		Inputs:        append([]Field(nil), tpl.Inputs.Fields...),
 		Source:        tpl.Source,
-		Exposure:      cloneAnyMap(tpl.Render.Exposure),
+		Exposure:      legacyExposureFromTemplateExposures(tpl.Render.Exposures),
+		Exposures:     cloneTemplateExposures(tpl.Render.Exposures),
 		ComposeValues: cloneAnyMap(tpl.Render.ComposeValues),
 	}, nil
 }
@@ -331,22 +338,6 @@ func renderCompose(base string, resolvedEnv map[string]any) (string, error) {
 	if err := yaml.Unmarshal([]byte(base), &node); err != nil {
 		return "", fmt.Errorf("invalid compose yaml: %w", err)
 	}
-	visitAndReplace(&node, func(value string) (string, bool, error) {
-		if !strings.Contains(value, "${") {
-			return value, false, nil
-		}
-		result := placeholderPattern.ReplaceAllStringFunc(value, func(raw string) string {
-			token := strings.TrimSuffix(strings.TrimPrefix(raw, "${"), "}")
-			if envValue, ok := resolvedEnv[token]; ok {
-				return stringify(envValue)
-			}
-			return raw
-		})
-		if strings.Contains(result, "${") {
-			return "", false, fmt.Errorf("unresolved compose placeholder in %q", value)
-		}
-		return result, true, nil
-	})
 	if err := visitAndReplace(&node, func(value string) (string, bool, error) {
 		if !strings.Contains(value, "${") {
 			return value, false, nil
@@ -432,16 +423,67 @@ func requirementBytes(requirements map[string]any) int64 {
 	return 0
 }
 
-func normalizedExposureType(exposure map[string]any) string {
-	kind := strings.TrimSpace(fmt.Sprint(exposure["kind"]))
-	switch kind {
-	case "http", "https", "tcp", "port":
-		return "port"
-	case "internal_only":
-		return "internal_only"
-	default:
-		return kind
+func exposureIntentFromTemplateExposures(exposures []TemplateExposure) map[string]any {
+	for _, exposure := range exposures {
+		if exposure.Default || len(exposures) == 1 {
+			if exposure.Port <= 0 {
+				return nil
+			}
+			return map[string]any{
+				"exposure_type": "port",
+				"is_primary":    true,
+				"target_port":   exposure.Port,
+			}
+		}
 	}
+	return nil
+}
+
+func cloneTemplateExposures(input []TemplateExposure) []TemplateExposure {
+	if len(input) == 0 {
+		return nil
+	}
+	return append([]TemplateExposure(nil), input...)
+}
+
+func templateExposuresToMaps(input []TemplateExposure) []map[string]any {
+	if len(input) == 0 {
+		return nil
+	}
+	result := make([]map[string]any, 0, len(input))
+	for _, exposure := range input {
+		item := map[string]any{
+			"label":    strings.TrimSpace(exposure.Label),
+			"service":  strings.TrimSpace(exposure.Service),
+			"port":     exposure.Port,
+			"protocol": strings.TrimSpace(exposure.Protocol),
+		}
+		if exposure.Default {
+			item["default"] = true
+		}
+		result = append(result, item)
+	}
+	return result
+}
+
+func legacyExposureFromTemplateExposures(exposures []TemplateExposure) map[string]any {
+	for _, exposure := range exposures {
+		if exposure.Default || len(exposures) == 1 {
+			if exposure.Port <= 0 {
+				return nil
+			}
+			kind := strings.TrimSpace(exposure.Protocol)
+			if kind == "" {
+				kind = "http"
+			}
+			return map[string]any{
+				"kind":       kind,
+				"service":    strings.TrimSpace(exposure.Service),
+				"targetPort": exposure.Port,
+			}
+		}
+	}
+	return nil
 }
 
 func uniqueStrings(values []string) []string {

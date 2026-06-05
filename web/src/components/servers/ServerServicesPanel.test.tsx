@@ -7,7 +7,8 @@ const { translateServicesKey } = vi.hoisted(() => {
   const translateServicesKey = (key: string, options?: Record<string, unknown>) => {
     const messages: Record<string, string> = {
       'servers.servicesTab.title': 'Systemd',
-      'servers.servicesTab.description': 'Inspect service status, open logs, and work with unit files from a single view.',
+      'servers.servicesTab.description':
+        'Inspect service status, open logs, and work with unit files from a single view.',
       'servers.servicesTab.loading': 'Loading services...',
       'servers.servicesTab.loadingDetails': 'Loading details...',
       'servers.servicesTab.inventory.ariaLabel': 'Systemd inventory',
@@ -26,7 +27,8 @@ const { translateServicesKey } = vi.hoisted(() => {
       'servers.servicesTab.columns.actions': 'Actions',
       'servers.servicesTab.selected.title': 'Selected Service',
       'servers.servicesTab.selected.selectPrompt': 'Select one service from the inventory.',
-      'servers.servicesTab.selected.empty': 'Choose a service to inspect its status, logs, and unit details.',
+      'servers.servicesTab.selected.empty':
+        'Choose a service to inspect its status, logs, and unit details.',
       'servers.servicesTab.detailRows.name': 'Name',
       'servers.servicesTab.detailRows.description': 'Description',
       'servers.servicesTab.detailRows.status': 'Status',

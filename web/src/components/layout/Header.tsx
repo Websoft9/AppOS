@@ -34,17 +34,17 @@ export function Header({ actions }: HeaderProps) {
         )}
       >
         <div className="pl-4 flex items-center h-full gap-3">
-        {!isDesktop && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleSidebar}
-            aria-label="Toggle navigation menu"
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-        )}
-        <Logo />
+          {!isDesktop && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleSidebar}
+              aria-label="Toggle navigation menu"
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+          )}
+          <Logo />
         </div>
       </div>
 
@@ -59,7 +59,9 @@ export function Header({ actions }: HeaderProps) {
           {headerRightStartContent ? (
             <div className="min-w-0 max-w-[min(44rem,62%)] pr-1">{headerRightStartContent}</div>
           ) : null}
-          <div className={cn('flex items-center gap-1 shrink-0', headerRightStartContent && 'pl-3')}>
+          <div
+            className={cn('flex items-center gap-1 shrink-0', headerRightStartContent && 'pl-3')}
+          >
             <LanguageSwitcher />
             <ModeToggle />
             {actions}

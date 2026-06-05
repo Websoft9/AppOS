@@ -8,6 +8,53 @@ import type {
 } from './server-connection-presentation'
 import { ServerConnectionTab } from './ServerConnectionTab'
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => {
+      const labels: Record<string, string> = {
+        'servers.connectionTab.state.connected': 'Connected',
+        'servers.connectionTab.state.connecting': 'Connecting',
+        'servers.connectionTab.state.needsAttention': 'Needs Attention',
+        'servers.connectionTab.reason.tunnelActive': 'Tunnel session is active.',
+        'servers.connectionTab.reason.sshVerified': 'SSH access is reachable.',
+        'servers.connectionTab.fields.connectionStatus': 'Connection Status',
+        'servers.connectionTab.fields.mode': 'Mode',
+        'servers.connectionTab.fields.interactiveSession': 'Interactive Session',
+        'servers.connectionTab.fields.lastActivity': 'Last Activity',
+        'servers.connectionTab.fields.recommendedAction': 'Recommended Action',
+        'servers.connectionTab.modeSummary.tunnelRelay': 'Tunnel relay',
+        'servers.connectionTab.modeSummary.directSsh': 'Direct SSH',
+        'servers.connectionTab.sessions.none': 'None',
+        'servers.connectionTab.sessions.oneActive': '1 active session',
+        'servers.connectionTab.hero.tunnelLive': 'Connected',
+        'servers.connectionTab.hero.directReady': 'Connected',
+        'servers.connectionTab.hero.waitingFirstTunnelCallback': 'Connecting',
+        'servers.connectionTab.hero.setupInProgress': 'Connecting',
+        'servers.connectionTab.hero.tunnelNeedsAttention': 'Needs Attention',
+        'servers.connectionTab.hero.connectionNeedsAttention': 'Needs Attention',
+        'servers.connectionTab.subline.remoteAccessAvailable':
+          'The tunnel is healthy and ready for workspace access.',
+        'servers.connectionTab.subline.serverReachable':
+          'The tunnel is healthy and ready for workspace access.',
+        'servers.connectionTab.subline.restoreAccess':
+          'SSH access needs recovery before workspace access is available.',
+        'servers.connectionTab.activityLog.title': 'Activity Log',
+        'servers.connectionTab.activityLog.empty': 'No recent activity yet.',
+        'servers.connectionTab.activityLog.mostRecent': 'Most recent',
+        'servers.connectionTab.activity.heartbeatReceived': 'Heartbeat received',
+        'servers.connectionTab.activity.connected': 'Connected',
+      }
+      if (key === 'servers.connectionTab.reason.lastHeartbeat') {
+        return `Last heartbeat ${String(options?.time ?? '')}`
+      }
+      if (key === 'servers.connectionTab.sessions.manyActive') {
+        return `${String(options?.count ?? '')} active sessions`
+      }
+      return labels[key] ?? key
+    },
+  }),
+}))
+
 afterEach(() => {
   cleanup()
   window.localStorage.clear()
@@ -68,7 +115,7 @@ describe('ServerConnectionTab', () => {
 
     const heartbeatLabel = new Date('2026-04-16T01:01:00Z').toLocaleString()
 
-    expect(screen.getByText('Connected')).toBeInTheDocument()
+    expect(screen.getAllByText('Connected').length).toBeGreaterThan(0)
     expect(screen.getByText('Connection Status')).toBeInTheDocument()
     expect(screen.getByText('Interactive Session')).toBeInTheDocument()
     expect(screen.getByText('None')).toBeInTheDocument()
@@ -112,7 +159,7 @@ describe('ServerConnectionTab', () => {
       />
     )
 
-    expect(screen.getByText('Needs Attention')).toBeInTheDocument()
+    expect(screen.getAllByText('Needs Attention').length).toBeGreaterThan(0)
     expect(screen.getByText('SSH access is failing.')).toBeInTheDocument()
     expect(screen.getByText('Activity Log')).toBeInTheDocument()
     expect(screen.queryByText('Configuration')).toBeNull()

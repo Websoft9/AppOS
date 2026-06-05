@@ -156,7 +156,7 @@ func ensureCatalogSeedDir(dir string) error {
 
 func writeCatalogSeedFile(path string, data []byte) error {
 	tmpPath := path + ".tmp"
-	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+	if err := os.WriteFile(tmpPath, data, 0o600); err != nil {
 		return err
 	}
 	if err := os.Rename(tmpPath, path); err != nil {
@@ -164,11 +164,6 @@ func writeCatalogSeedFile(path string, data []byte) error {
 		return err
 	}
 	return nil
-}
-
-func isReadableDir(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.IsDir()
 }
 
 func catalogSeedFileExists(path string) bool {

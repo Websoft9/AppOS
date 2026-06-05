@@ -216,98 +216,100 @@ describe('AppDetailPage', () => {
           })
         }
         if (path.startsWith('/api/actions?') && options?.method === 'GET') {
-          return Promise.resolve(paginatedActionsResponse([
-            {
-              id: 'op-last',
-              app_id: 'app-1',
-              server_id: 'local',
-              source: 'manualops',
-              status: 'success',
-              adapter: 'docker',
-              compose_project_name: 'demo-app',
-              project_dir: '/tmp/demo-app',
-              rendered_compose: '',
-              error_summary: '',
-              created: '2026-03-30T10:09:00Z',
-              updated: '2026-03-30T10:10:00Z',
-              started_at: '2026-03-30T10:09:00Z',
-              finished_at: '2026-03-30T10:10:00Z',
-              pipeline: {
-                id: 'pipe-1',
-                operation_id: 'op-last',
+          return Promise.resolve(
+            paginatedActionsResponse([
+              {
+                id: 'op-last',
                 app_id: 'app-1',
                 server_id: 'local',
-                family: 'change',
+                source: 'manualops',
                 status: 'success',
-                current_phase: 'completed',
-                selector: { operation_type: 'restart', source: 'manualops', adapter: 'docker' },
-              },
-              pipeline_selector: {
-                operation_type: 'restart',
-                source: 'manualops',
                 adapter: 'docker',
+                compose_project_name: 'demo-app',
+                project_dir: '/tmp/demo-app',
+                rendered_compose: '',
+                error_summary: '',
+                created: '2026-03-30T10:09:00Z',
+                updated: '2026-03-30T10:10:00Z',
+                started_at: '2026-03-30T10:09:00Z',
+                finished_at: '2026-03-30T10:10:00Z',
+                pipeline: {
+                  id: 'pipe-1',
+                  operation_id: 'op-last',
+                  app_id: 'app-1',
+                  server_id: 'local',
+                  family: 'change',
+                  status: 'success',
+                  current_phase: 'completed',
+                  selector: { operation_type: 'restart', source: 'manualops', adapter: 'docker' },
+                },
+                pipeline_selector: {
+                  operation_type: 'restart',
+                  source: 'manualops',
+                  adapter: 'docker',
+                },
               },
-            },
-            {
-              id: 'op-queued',
-              app_id: 'app-1',
-              server_id: 'local',
-              source: 'manualops',
-              status: 'queued',
-              adapter: 'docker',
-              compose_project_name: 'demo-app-queued',
-              project_dir: '/tmp/demo-app',
-              rendered_compose: '',
-              error_summary: '',
-              created: '2026-03-30T10:11:00Z',
-              updated: '2026-03-30T10:11:00Z',
-              pipeline: {
-                id: 'pipe-queued',
-                operation_id: 'op-queued',
+              {
+                id: 'op-queued',
                 app_id: 'app-1',
                 server_id: 'local',
-                family: 'provision',
-                status: 'pending',
-                current_phase: 'queued',
-                selector: { operation_type: 'install', source: 'manualops', adapter: 'docker' },
-              },
-              pipeline_selector: {
-                operation_type: 'install',
                 source: 'manualops',
+                status: 'queued',
                 adapter: 'docker',
+                compose_project_name: 'demo-app-queued',
+                project_dir: '/tmp/demo-app',
+                rendered_compose: '',
+                error_summary: '',
+                created: '2026-03-30T10:11:00Z',
+                updated: '2026-03-30T10:11:00Z',
+                pipeline: {
+                  id: 'pipe-queued',
+                  operation_id: 'op-queued',
+                  app_id: 'app-1',
+                  server_id: 'local',
+                  family: 'provision',
+                  status: 'pending',
+                  current_phase: 'queued',
+                  selector: { operation_type: 'install', source: 'manualops', adapter: 'docker' },
+                },
+                pipeline_selector: {
+                  operation_type: 'install',
+                  source: 'manualops',
+                  adapter: 'docker',
+                },
               },
-            },
-            {
-              id: 'op-running',
-              app_id: 'app-1',
-              server_id: 'local',
-              source: 'manualops',
-              status: 'running',
-              adapter: 'docker',
-              compose_project_name: 'demo-app-running',
-              project_dir: '/tmp/demo-app',
-              rendered_compose: '',
-              error_summary: '',
-              created: '2026-03-30T10:12:00Z',
-              updated: '2026-03-30T10:13:00Z',
-              started_at: '2026-03-30T10:12:00Z',
-              pipeline: {
-                id: 'pipe-running',
-                operation_id: 'op-running',
+              {
+                id: 'op-running',
                 app_id: 'app-1',
                 server_id: 'local',
-                family: 'change',
-                status: 'active',
-                current_phase: 'executing',
-                selector: { operation_type: 'upgrade', source: 'manualops', adapter: 'docker' },
-              },
-              pipeline_selector: {
-                operation_type: 'upgrade',
                 source: 'manualops',
+                status: 'running',
                 adapter: 'docker',
+                compose_project_name: 'demo-app-running',
+                project_dir: '/tmp/demo-app',
+                rendered_compose: '',
+                error_summary: '',
+                created: '2026-03-30T10:12:00Z',
+                updated: '2026-03-30T10:13:00Z',
+                started_at: '2026-03-30T10:12:00Z',
+                pipeline: {
+                  id: 'pipe-running',
+                  operation_id: 'op-running',
+                  app_id: 'app-1',
+                  server_id: 'local',
+                  family: 'change',
+                  status: 'active',
+                  current_phase: 'executing',
+                  selector: { operation_type: 'upgrade', source: 'manualops', adapter: 'docker' },
+                },
+                pipeline_selector: {
+                  operation_type: 'upgrade',
+                  source: 'manualops',
+                  adapter: 'docker',
+                },
               },
-            },
-          ]))
+            ])
+          )
         }
         if (path === '/api/actions/op-queued/cancel' && options?.method === 'POST') {
           return Promise.resolve({})
@@ -563,6 +565,103 @@ describe('AppDetailPage', () => {
     expect(accessLink).toHaveAttribute('href', 'http://demo.example.com:8080')
   })
 
+  it('prefers app access endpoint serverPort when building the access URL', async () => {
+    appDetailResponse = {
+      ...appDetailResponse,
+      server_id: 'server-1',
+      server_name: 'Remote Demo Server',
+      access_endpoints: [
+        {
+          label: 'Web',
+          service: 'wordpress',
+          port: 80,
+          protocol: 'http',
+          serverPort: 18080,
+          default: true,
+        },
+      ],
+    }
+
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, string> }) => {
+        if (path === '/api/apps/app-1' && options?.method === 'GET') {
+          return Promise.resolve(appDetailResponse)
+        }
+        if (path === '/api/apps/app-1/releases' && options?.method === 'GET') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/apps/app-1/exposures' && options?.method === 'GET') {
+          return Promise.resolve([
+            {
+              id: 'exposure-1',
+              app_id: 'app-1',
+              is_primary: true,
+              target_port: 8080,
+              publication_state: 'unpublished',
+              updated: '2026-04-01T10:00:00Z',
+            },
+          ])
+        }
+        if (path === '/api/servers/connection' && options?.method === 'GET') {
+          return Promise.resolve({
+            items: [
+              {
+                id: 'server-1',
+                name: 'Remote Demo Server',
+                connect_type: 'direct',
+                host: 'demo.example.com',
+                port: 22,
+                access: {
+                  status: 'available',
+                  reason: '',
+                  checked_at: '2026-04-01T10:00:00Z',
+                  source: 'probe',
+                },
+              },
+            ],
+          })
+        }
+        if (path.startsWith('/api/actions?') && options?.method === 'GET') {
+          return Promise.resolve(paginatedActionsResponse([]))
+        }
+        if (path === '/api/instances' && options?.method === 'GET') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/servers/server-1/docker/containers' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/servers/server-1/docker/volumes' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/servers/server-1/docker/containers/stats' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
+          return Promise.resolve({
+            id: 'app-1',
+            name: 'Demo App',
+            server_id: 'server-1',
+            project_dir: '/tmp/demo-app',
+            runtime_status: 'running',
+            output: '',
+          })
+        }
+        if (path === '/api/ext/backup/list' && options?.method === 'GET') {
+          return Promise.resolve({ message: 'not implemented' })
+        }
+        return Promise.resolve({})
+      }
+    )
+
+    render(<AppDetailPage appId="app-1" />)
+
+    expect(await screen.findByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
+
+    const accessLink = screen.getByRole('link', { name: /http:\/\/demo\.example\.com:18080/i })
+    expect(accessLink).toHaveAttribute('href', 'http://demo.example.com:18080')
+    expect(screen.queryByRole('link', { name: /http:\/\/demo\.example\.com:8080/i })).toBeNull()
+  })
+
   it('prefers the server host and port in overview even when a published domain exists', async () => {
     appDetailResponse = {
       ...appDetailResponse,
@@ -654,7 +753,9 @@ describe('AppDetailPage', () => {
 
     const accessLink = screen.getByRole('link', { name: /http:\/\/10\.0\.0\.8:8080/i })
     expect(accessLink).toHaveAttribute('href', 'http://10.0.0.8:8080')
-    expect(screen.queryByRole('link', { name: /https:\/\/demo\.example\.com:8080/i })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: /https:\/\/demo\.example\.com:8080/i })
+    ).not.toBeInTheDocument()
   })
 
   it('shows app name, deployment details, and a template detail link in overview', async () => {
@@ -1065,47 +1166,49 @@ describe('AppDetailPage', () => {
       server_name: 'API Server Name',
     }
 
-    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, string> }) => {
-      if (path === '/api/apps/app-1' && options?.method === 'GET') {
-        return Promise.resolve(appDetailResponse)
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, string> }) => {
+        if (path === '/api/apps/app-1' && options?.method === 'GET') {
+          return Promise.resolve(appDetailResponse)
+        }
+        if (path === '/api/apps/app-1/releases' && options?.method === 'GET') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/apps/app-1/exposures' && options?.method === 'GET') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/servers/connection' && options?.method === 'GET') {
+          return Promise.resolve({ items: [] })
+        }
+        if (path.startsWith('/api/actions?') && options?.method === 'GET') {
+          return Promise.resolve(paginatedActionsResponse([]))
+        }
+        if (path === '/api/instances' && options?.method === 'GET') return Promise.resolve([])
+        if (path === '/api/servers/server-1/docker/containers' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/servers/server-1/docker/volumes' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/servers/server-1/docker/containers/stats' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
+          return Promise.resolve({
+            id: 'app-1',
+            name: 'Demo App',
+            server_id: 'server-1',
+            project_dir: '/tmp/demo-app',
+            runtime_status: 'running',
+            output: '',
+          })
+        }
+        if (path === '/api/ext/backup/list' && options?.method === 'GET') {
+          return Promise.resolve({ message: 'not implemented' })
+        }
+        return Promise.resolve({})
       }
-      if (path === '/api/apps/app-1/releases' && options?.method === 'GET') {
-        return Promise.resolve([])
-      }
-      if (path === '/api/apps/app-1/exposures' && options?.method === 'GET') {
-        return Promise.resolve([])
-      }
-      if (path === '/api/servers/connection' && options?.method === 'GET') {
-        return Promise.resolve({ items: [] })
-      }
-      if (path.startsWith('/api/actions?') && options?.method === 'GET') {
-        return Promise.resolve(paginatedActionsResponse([]))
-      }
-      if (path === '/api/instances' && options?.method === 'GET') return Promise.resolve([])
-      if (path === '/api/servers/server-1/docker/containers' && options?.method === 'GET') {
-        return Promise.resolve({ output: '' })
-      }
-      if (path === '/api/servers/server-1/docker/volumes' && options?.method === 'GET') {
-        return Promise.resolve({ output: '' })
-      }
-      if (path === '/api/servers/server-1/docker/containers/stats' && options?.method === 'GET') {
-        return Promise.resolve({ output: '' })
-      }
-      if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
-        return Promise.resolve({
-          id: 'app-1',
-          name: 'Demo App',
-          server_id: 'server-1',
-          project_dir: '/tmp/demo-app',
-          runtime_status: 'running',
-          output: '',
-        })
-      }
-      if (path === '/api/ext/backup/list' && options?.method === 'GET') {
-        return Promise.resolve({ message: 'not implemented' })
-      }
-      return Promise.resolve({})
-    })
+    )
 
     render(<AppDetailPage appId="app-1" />)
 
@@ -1444,7 +1547,9 @@ describe('AppDetailPage', () => {
     fireEvent.click(actionsTab)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Force Fail demo-app-running' })).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Force Fail demo-app-running' })
+      ).toBeInTheDocument()
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Force Fail demo-app-running' }))

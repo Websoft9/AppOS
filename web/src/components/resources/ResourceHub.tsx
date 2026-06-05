@@ -235,20 +235,26 @@ export function ResourceHub() {
       <Dialog open={createChooserOpen} onOpenChange={setCreateChooserOpen}>
         <DialogContent className="sm:max-w-2xl" aria-describedby={undefined}>
           <DialogHeader className="text-left">
-            <DialogTitle className="text-2xl font-semibold tracking-tight">{t('dialog.title')}</DialogTitle>
+            <DialogTitle className="text-2xl font-semibold tracking-tight">
+              {t('dialog.title')}
+            </DialogTitle>
           </DialogHeader>
 
           <div className="max-h-[70vh] space-y-6 overflow-y-auto pr-1">
             {RESOURCE_SECTIONS.map(section => (
               <section key={section.key} className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-base font-semibold tracking-tight text-foreground">{t(section.titleKey)}</h3>
+                  <h3 className="text-base font-semibold tracking-tight text-foreground">
+                    {t(section.titleKey)}
+                  </h3>
                   <Tooltip delayDuration={100}>
                     <TooltipTrigger asChild>
                       <button
                         type="button"
                         className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
-                        aria-label={t('dialog.sectionDescriptionAria', { title: t(section.titleKey) })}
+                        aria-label={t('dialog.sectionDescriptionAria', {
+                          title: t(section.titleKey),
+                        })}
                       >
                         <CircleQuestionMark className="h-4 w-4" />
                       </button>
@@ -340,7 +346,9 @@ export function ResourceHub() {
                           {r.icon}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-medium leading-tight truncate">{t(r.titleKey)}</p>
+                          <p className="text-sm font-medium leading-tight truncate">
+                            {t(r.titleKey)}
+                          </p>
                           <p
                             id={`${r.key}-meta`}
                             className="mt-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground"

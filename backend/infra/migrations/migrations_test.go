@@ -108,6 +108,7 @@ func TestAppInstancesCollectionFields(t *testing.T) {
 	assertFieldExists(t, col, "access_secret_hint", core.FieldTypeText, false)
 	assertFieldExists(t, col, "access_retrieval_method", core.FieldTypeText, false)
 	assertFieldExists(t, col, "access_notes", core.FieldTypeText, false)
+	assertFieldExists(t, col, "access_endpoints", core.FieldTypeJSON, false)
 	assertFieldExists(t, col, "created", core.FieldTypeAutodate, false)
 	assertFieldExists(t, col, "updated", core.FieldTypeAutodate, false)
 	assertRelationTarget(t, app, col, "current_release", "app_releases")

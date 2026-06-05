@@ -38,7 +38,8 @@ vi.mock('react-i18next', () => ({
       const labels: Record<string, string> = {
         'hub.title': 'Resources',
         'connectors.page.title': 'Connectors',
-        'connectors.page.description': 'Reusable API, webhook, MCP, proxy, SMTP, registry, and DNS connectors backed by grouped connector profiles',
+        'connectors.page.description':
+          'Reusable API, webhook, MCP, proxy, SMTP, registry, and DNS connectors backed by grouped connector profiles',
         'connectors.page.addConnector': 'Add Connector',
         'connectors.page.searchPlaceholder': 'Search connectors',
         'connectors.fields.name': 'Name',
@@ -71,9 +72,10 @@ vi.mock('react-i18next', () => ({
         'connectors.secret.new': 'New Secret',
         'connectors.secret.edit': 'Edit Secret',
         'connectors.secret.newTitle': 'New Secret',
-        'connectors.secret.newDescription': 'Create a reusable secret and attach it to this connector.',
+        'connectors.secret.newDescription':
+          'Create a reusable secret and attach it to this connector.',
         'connectors.secretTemplates.single_value': 'Token / Single Value',
-        'connectors.errors.profileRequired': 'Connector profile is required'
+        'connectors.errors.profileRequired': 'Connector profile is required',
       }
       if (key === 'connectors.page.totalItems') {
         return `Total ${String(options?.count ?? '')} items`

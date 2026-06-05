@@ -85,7 +85,9 @@ function productTitle(template: ProviderAccountTemplate, t: Translate) {
 }
 
 function categoryLabel(category: string | undefined, t: Translate) {
-  const normalized = String(category ?? '').trim().toLowerCase()
+  const normalized = String(category ?? '')
+    .trim()
+    .toLowerCase()
   if (CATEGORY_LABELS[normalized]) {
     return t(`platformAccounts.categories.${normalized}`)
   }
@@ -305,7 +307,8 @@ export function PlatformAccountsPage() {
     () =>
       [...providerAccountTemplates]
         .sort((left, right) => {
-          const genericCompare = Number(isGenericTemplate(right, t)) - Number(isGenericTemplate(left, t))
+          const genericCompare =
+            Number(isGenericTemplate(right, t)) - Number(isGenericTemplate(left, t))
           if (genericCompare !== 0) return genericCompare
           return productTitle(left, t).localeCompare(productTitle(right, t))
         })
@@ -352,8 +355,7 @@ export function PlatformAccountsPage() {
     <ResourcePage
       config={{
         title: t('platformAccounts.page.title'),
-        description:
-          t('platformAccounts.page.description'),
+        description: t('platformAccounts.page.description'),
         apiPath: '/api/provider-accounts',
         columns,
         fields: bootstrapFields,

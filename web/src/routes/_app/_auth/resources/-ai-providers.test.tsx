@@ -38,14 +38,17 @@ vi.mock('react-i18next', () => ({
       const labels: Record<string, string> = {
         'hub.title': 'Resources',
         'aiProviders.page.title': 'AI Providers',
-        'aiProviders.page.description': 'Hosted and local AI provider definitions such as OpenAI, Anthropic, OpenRouter, and Ollama endpoints.',
+        'aiProviders.page.description':
+          'Hosted and local AI provider definitions such as OpenAI, Anthropic, OpenRouter, and Ollama endpoints.',
         'aiProviders.page.emptyState': 'No AI Providers found',
         'aiProviders.page.searchPlaceholder': 'Search any AI providers',
         'aiProviders.page.addProvider': 'Add AI Provider',
         'aiProviders.page.refresh': 'Refresh',
         'aiProviders.selection.title': 'Choose a Product',
-        'aiProviders.selection.description': 'Choose a provider product, then enter connection details.',
-        'aiProviders.selection.searchPlaceholder': 'Search products like OpenAI, Ollama, Anthropic, OpenRouter...',
+        'aiProviders.selection.description':
+          'Choose a provider product, then enter connection details.',
+        'aiProviders.selection.searchPlaceholder':
+          'Search products like OpenAI, Ollama, Anthropic, OpenRouter...',
         'aiProviders.selection.emptyMessage': 'No matching products found.',
         'aiProviders.columns.name': 'Name',
         'aiProviders.columns.profile': 'Profile',
@@ -71,7 +74,8 @@ vi.mock('react-i18next', () => ({
         'aiProviders.placeholders.name': 'my-ai-provider',
         'aiProviders.placeholders.advancedConfig': '{"temperature": 0.2}',
         'aiProviders.credential.generateTitle': 'Generate API Key',
-        'aiProviders.credential.generateDescription': 'Choose the API key length before filling the field.',
+        'aiProviders.credential.generateDescription':
+          'Choose the API key length before filling the field.',
         'aiProviders.credential.generateLengthLabel': 'API Key Length',
         'aiProviders.credential.generateConfirmLabel': 'Fill API Key',
         'aiProviders.dialog.providerTitle': 'AI provider title',
@@ -84,9 +88,10 @@ vi.mock('react-i18next', () => ({
         'aiProviders.secret.new': 'New Secret',
         'aiProviders.secret.edit': 'Edit Secret',
         'aiProviders.secret.newTitle': 'New Secret',
-        'aiProviders.secret.newDescription': 'Create a reusable secret and attach it to this AI Provider.',
+        'aiProviders.secret.newDescription':
+          'Create a reusable secret and attach it to this AI Provider.',
         'aiProviders.secret.singleValueTemplate': 'Token / Single Value',
-        'aiProviders.errors.profileRequired': 'AI Provider profile is required'
+        'aiProviders.errors.profileRequired': 'AI Provider profile is required',
       }
       if (key === 'aiProviders.credential.enterField') {
         return `Enter ${String(options?.field ?? '')}`

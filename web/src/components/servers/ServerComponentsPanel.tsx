@@ -152,7 +152,10 @@ function addonActionLabel(t: ResourcesT, action: SoftwareActionType): string {
   }
 }
 
-function softwareActionLabel(t: ResourcesT, action: SoftwareActionType | string | undefined): string {
+function softwareActionLabel(
+  t: ResourcesT,
+  action: SoftwareActionType | string | undefined
+): string {
   if (!action) return t('servers.componentsTab.actionLabels.default')
   if (action === 'verify') return t('servers.componentsTab.actionLabels.verify')
   if (action === 'reinstall') return t('servers.componentsTab.actionLabels.reinstall')
@@ -247,7 +250,10 @@ function prerequisiteActionLabel(t: ResourcesT, action: SoftwareActionType): str
   return addonActionLabel(t, action)
 }
 
-function prerequisiteChecks(t: ResourcesT, component: SoftwareComponentSummary): Array<{
+function prerequisiteChecks(
+  t: ResourcesT,
+  component: SoftwareComponentSummary
+): Array<{
   label: string
   ready: boolean
 }> {
@@ -337,8 +343,7 @@ function readVerificationDetails(
 
 function installSourceLabel(t: ResourcesT, source: InstallSource | undefined): string {
   if (source === 'managed') return t('servers.componentsTab.installSources.managed')
-  if (source === 'foreign_package')
-    return t('servers.componentsTab.installSources.foreignPackage')
+  if (source === 'foreign_package') return t('servers.componentsTab.installSources.foreignPackage')
   if (source === 'manual') return t('servers.componentsTab.installSources.manual')
   return t('servers.componentsTab.installSources.unknown')
 }
@@ -692,7 +697,10 @@ function prerequisiteStatusLabel(t: ResourcesT, component: SoftwareComponentSumm
   return t('servers.componentsTab.prerequisiteStatus.unknown')
 }
 
-function prerequisiteActionSlots(t: ResourcesT, component: SoftwareComponentSummary): Array<{
+function prerequisiteActionSlots(
+  t: ResourcesT,
+  component: SoftwareComponentSummary
+): Array<{
   label: string
   action: SoftwareActionType | null
 }> {
@@ -750,15 +758,18 @@ function dockerFocusHintTitle(t: ResourcesT, source: DockerFocusSource): string 
   })
 }
 
-function dockerFocusHintDescription(t: ResourcesT, {
-  source,
-  panelMode,
-  issueCode,
-}: {
-  source: DockerFocusSource
-  panelMode: PrerequisitePanelMode
-  issueCode?: DockerDependencyIssueCode | null
-}) {
+function dockerFocusHintDescription(
+  t: ResourcesT,
+  {
+    source,
+    panelMode,
+    issueCode,
+  }: {
+    source: DockerFocusSource
+    panelMode: PrerequisitePanelMode
+    issueCode?: DockerDependencyIssueCode | null
+  }
+) {
   const sourceLabel = dockerFocusSourceLabel(t, source)
   if (panelMode === 'history') {
     if (issueCode === 'docker_daemon_unavailable') {
@@ -846,9 +857,7 @@ function OperationHistory({
       setOperations(await listSoftwareOperations(serverId, componentKey))
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : t('servers.componentsTab.operationHistory.errors.load')
+        err instanceof Error ? err.message : t('servers.componentsTab.operationHistory.errors.load')
       )
     } finally {
       setLoading(false)
@@ -996,9 +1005,9 @@ function addonDetailRows(
     component,
     entry,
   }: {
-  component: SoftwareComponentSummary
-  entry?: SupportedServerSoftwareEntry
-}
+    component: SoftwareComponentSummary
+    entry?: SupportedServerSoftwareEntry
+  }
 ) {
   const installSource = installSourceSummary(t, component)
   const lastOp = component.last_operation
@@ -1010,13 +1019,20 @@ function addonDetailRows(
   const apposConnection = appOSConnectionLabel(t, component)
   const guidance = stoppedAddonGuidance(t, component)
   return [
-    { label: t('servers.componentsTab.detailRows.serviceStatus'), value: statusLabel(t, component) },
-    ...(guidance ? [{ label: t('servers.componentsTab.detailRows.guidance'), value: guidance }] : []),
+    {
+      label: t('servers.componentsTab.detailRows.serviceStatus'),
+      value: statusLabel(t, component),
+    },
+    ...(guidance
+      ? [{ label: t('servers.componentsTab.detailRows.guidance'), value: guidance }]
+      : []),
     ...(apposConnection
       ? [{ label: t('servers.componentsTab.detailRows.apposConnection'), value: apposConnection }]
       : []),
     { label: t('servers.componentsTab.detailRows.installed'), value: detected || '—' },
-    ...(hasUpgrade ? [{ label: t('servers.componentsTab.detailRows.latest'), value: packaged! }] : []),
+    ...(hasUpgrade
+      ? [{ label: t('servers.componentsTab.detailRows.latest'), value: packaged! }]
+      : []),
     {
       label: t('servers.componentsTab.detailRows.artifact'),
       value: addonArtifactLabel(component, entry) || '—',
@@ -1043,7 +1059,10 @@ function addonDetailRows(
       label: t('servers.componentsTab.detailRows.verification'),
       value: component.verification?.reason || component.verification_state || '—',
     },
-    { label: t('servers.componentsTab.detailRows.healthReasons'), value: healthReasonLabel(component) },
+    {
+      label: t('servers.componentsTab.detailRows.healthReasons'),
+      value: healthReasonLabel(component),
+    },
   ]
 }
 
@@ -1229,7 +1248,8 @@ function AddonInventoryRow({
         ) : null}
         {inProgress ? (
           <div className="whitespace-normal break-words text-foreground/80">
-            {t('servers.componentsTab.inventory.operation')}: {phaseLabel(t, component.last_operation)}
+            {t('servers.componentsTab.inventory.operation')}:{' '}
+            {phaseLabel(t, component.last_operation)}
           </div>
         ) : null}
       </div>
@@ -1317,7 +1337,10 @@ function prerequisiteNeedsDetailHydration(component: SoftwareComponentSummary): 
   if (component.component_key !== 'docker') return false
   const dockerVerificationDetails = readVerificationDetails(component)
   if (!dockerVerificationDetails) return true
-  return !('compose_available' in dockerVerificationDetails) || !('compose_version' in dockerVerificationDetails)
+  return (
+    !('compose_available' in dockerVerificationDetails) ||
+    !('compose_version' in dockerVerificationDetails)
+  )
 }
 
 function PrerequisiteChecklist({ component }: { component: SoftwareComponentSummary }) {
@@ -1514,7 +1537,8 @@ function PrerequisiteCard({
                     {t('servers.componentsTab.prerequisiteCard.fields.version')}:
                   </span>
                   <span className="break-words text-muted-foreground">
-                    {context.engineVersion || t('servers.componentsTab.prerequisiteCard.fallback.unavailable')}
+                    {context.engineVersion ||
+                      t('servers.componentsTab.prerequisiteCard.fallback.unavailable')}
                   </span>
                 </div>
                 <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
@@ -1558,7 +1582,7 @@ function PrerequisiteCard({
                       onClick={() => onPanelModeChange('operation')}
                       className={`h-7 rounded-sm px-2.5 text-xs ${panelMode === 'operation' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:bg-transparent hover:text-foreground'}`}
                     >
-                        {t('servers.componentsTab.panelTabs.liveLog')}
+                      {t('servers.componentsTab.panelTabs.liveLog')}
                     </Button>
                   ) : null}
                   <Button
@@ -1575,7 +1599,8 @@ function PrerequisiteCard({
                   <div className="min-w-0 truncate text-sm font-medium text-foreground">
                     {panelMode === 'operation'
                       ? t('servers.componentsTab.panelTitles.actionLog', {
-                          action: activeActionLabel || t('servers.componentsTab.actionLabels.default'),
+                          action:
+                            activeActionLabel || t('servers.componentsTab.actionLabels.default'),
                         })
                       : panelMode === 'history'
                         ? t('servers.componentsTab.panelTitles.operationHistory')
@@ -1596,7 +1621,9 @@ function PrerequisiteCard({
                 {panelMode === 'operation' ? (
                   actionLogs.length > 0 ? (
                     <div
-                      aria-label={t('servers.componentsTab.logRegions.prerequisiteActionLogEntries')}
+                      aria-label={t(
+                        'servers.componentsTab.logRegions.prerequisiteActionLogEntries'
+                      )}
                       className="max-h-72 space-y-2 overflow-y-auto pr-1 text-sm"
                     >
                       {actionLogs.map(entry => (
@@ -1933,8 +1960,8 @@ export function ServerComponentsPanel({
       setPrerequisitesLoading(false)
 
       const prerequisiteBlocker = prerequisites
-      .map(component => addonInventoryBlockingError(component))
-      .find((message): message is string => !!message)
+        .map(component => addonInventoryBlockingError(component))
+        .find((message): message is string => !!message)
       if (prerequisiteBlocker) {
         setAddonComponents([])
         setAddonError(prerequisiteBlocker)
@@ -2330,7 +2357,7 @@ export function ServerComponentsPanel({
         setConfirmDangerAction({
           componentKey,
           action,
-            label: prerequisiteActionLabel(t, action),
+          label: prerequisiteActionLabel(t, action),
         })
         return
       }
@@ -2396,12 +2423,14 @@ export function ServerComponentsPanel({
           <AlertDialogHeader>
             <AlertDialogTitle>
               {t('servers.componentsTab.dialogs.confirmDanger.title', {
-                action: confirmDangerAction?.label ?? t('servers.componentsTab.actionLabels.default'),
+                action:
+                  confirmDangerAction?.label ?? t('servers.componentsTab.actionLabels.default'),
               })}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {t('servers.componentsTab.dialogs.confirmDanger.description', {
-                action: confirmDangerAction?.label ?? t('servers.componentsTab.actionLabels.default'),
+                action:
+                  confirmDangerAction?.label ?? t('servers.componentsTab.actionLabels.default'),
                 consequence:
                   confirmDangerAction?.action === 'upgrade'
                     ? t('servers.componentsTab.dialogs.confirmDanger.upgradeConsequence')
@@ -2410,7 +2439,9 @@ export function ServerComponentsPanel({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t('servers.componentsTab.dialogs.confirmDanger.cancel')}</AlertDialogCancel>
+            <AlertDialogCancel>
+              {t('servers.componentsTab.dialogs.confirmDanger.cancel')}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (!confirmDangerAction) return
@@ -2443,7 +2474,9 @@ export function ServerComponentsPanel({
             <X className="h-4 w-4" />
           </Button>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('servers.componentsTab.dialogs.monitorAddress.title')}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t('servers.componentsTab.dialogs.monitorAddress.title')}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               {t('servers.componentsTab.dialogs.monitorAddress.description')}
             </AlertDialogDescription>
@@ -2503,17 +2536,23 @@ export function ServerComponentsPanel({
       actionConflictComponent &&
       isInProgress(actionConflictComponent.last_operation) ? (
         <Alert variant="destructive">
-          <AlertTitle>{t('servers.componentsTab.alerts.operationAlreadyInProgress.title')}</AlertTitle>
+          <AlertTitle>
+            {t('servers.componentsTab.alerts.operationAlreadyInProgress.title')}
+          </AlertTitle>
           <AlertDescription className="space-y-2">
             <div>
               {t('servers.componentsTab.alerts.operationAlreadyInProgress.description', {
                 name: displayComponentLabel(actionConflictComponent),
-                action: softwareActionLabel(t, actionConflictComponent.last_operation?.action).toLowerCase(),
+                action: softwareActionLabel(
+                  t,
+                  actionConflictComponent.last_operation?.action
+                ).toLowerCase(),
               })}
             </div>
             <div>
               {t('servers.componentsTab.alerts.operationAlreadyInProgress.currentPhase')}:{' '}
-              {phaseLabel(t, actionConflictComponent.last_operation)}. {t('servers.componentsTab.alerts.operationAlreadyInProgress.lastUpdated')}:{' '}
+              {phaseLabel(t, actionConflictComponent.last_operation)}.{' '}
+              {t('servers.componentsTab.alerts.operationAlreadyInProgress.lastUpdated')}:{' '}
               {formatTimestamp(actionConflictComponent.last_operation?.updated_at) || '—'}.
             </div>
             <div className="flex items-center gap-2">
@@ -2530,7 +2569,9 @@ export function ServerComponentsPanel({
                     }))
                   }}
                 >
-                  {t('servers.componentsTab.alerts.operationAlreadyInProgress.openOperationHistory')}
+                  {t(
+                    'servers.componentsTab.alerts.operationAlreadyInProgress.openOperationHistory'
+                  )}
                 </Button>
               ) : null}
               <span className="text-xs text-destructive/80">{actionError}</span>
@@ -2596,17 +2637,15 @@ export function ServerComponentsPanel({
                   <PrerequisiteCard
                     component={component}
                     open={prerequisiteOpen[component.component_key] ?? false}
-                    onOpenChange={open =>
-                      {
-                        setPrerequisiteOpen(current => ({
-                          ...current,
-                          [component.component_key]: open,
-                        }))
-                        if (open) {
-                          void hydratePrerequisiteComponent(component.component_key)
-                        }
+                    onOpenChange={open => {
+                      setPrerequisiteOpen(current => ({
+                        ...current,
+                        [component.component_key]: open,
+                      }))
+                      if (open) {
+                        void hydratePrerequisiteComponent(component.component_key)
                       }
-                    }
+                    }}
                     onAction={handleAction}
                     actionLoading={actionLoading}
                     panelMode={prerequisitePanelMode[component.component_key] ?? 'checklist'}
@@ -2712,10 +2751,13 @@ export function ServerComponentsPanel({
               <div className="space-y-4 text-sm">
                 {isInProgress(selectedAddon.last_operation) ? (
                   <Alert>
-                    <AlertTitle>{t('servers.componentsTab.selectedAddon.inProgress.title')}</AlertTitle>
+                    <AlertTitle>
+                      {t('servers.componentsTab.selectedAddon.inProgress.title')}
+                    </AlertTitle>
                     <AlertDescription className="space-y-2">
                       <div>
-                        {softwareActionLabel(t, selectedAddon.last_operation?.action)} {t('servers.componentsTab.selectedAddon.inProgress.isStill')}{' '}
+                        {softwareActionLabel(t, selectedAddon.last_operation?.action)}{' '}
+                        {t('servers.componentsTab.selectedAddon.inProgress.isStill')}{' '}
                         {phaseLabel(t, selectedAddon.last_operation)} for{' '}
                         {displayComponentLabel(selectedAddon)}.
                       </div>

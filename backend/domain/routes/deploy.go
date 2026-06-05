@@ -996,7 +996,7 @@ func renderTemplateInstall(e *core.RequestEvent, body map[string]any) (*apptempl
 	}
 	if requestedExposure != nil && requestedExposure.ExposureType == "internal_only" {
 		serviceName := firstNonEmptyString(
-			bodyString(rendered.RenderExposure, "service"),
+			firstTemplateExposureService(rendered.RenderExposures),
 			firstPrimaryService(rendered.Manifest.ServiceRoles),
 		)
 		if serviceName != "" {
@@ -1017,6 +1017,15 @@ func renderTemplateInstall(e *core.RequestEvent, body map[string]any) (*apptempl
 		ingressOptions.ComposeProjectName = rendered.ProjectName
 	}
 	return rendered, ingressOptions, nil
+}
+
+func firstTemplateExposureService(exposures []apptemplates.TemplateExposure) string {
+	for _, exposure := range exposures {
+		if strings.TrimSpace(exposure.Service) != "" {
+			return strings.TrimSpace(exposure.Service)
+		}
+	}
+	return ""
 }
 
 func firstPrimaryService(serviceRoles map[string]string) string {

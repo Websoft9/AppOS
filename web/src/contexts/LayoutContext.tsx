@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react'
 import { useMediaQuery } from '@/hooks/use-media-query'
 
 const SIDEBAR_STORAGE_KEY = 'sidebar-collapsed'
@@ -95,11 +103,7 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
     ]
   )
 
-  return (
-    <LayoutContext.Provider value={contextValue}>
-      {children}
-    </LayoutContext.Provider>
-  )
+  return <LayoutContext.Provider value={contextValue}>{children}</LayoutContext.Provider>
 }
 
 export function useLayout() {

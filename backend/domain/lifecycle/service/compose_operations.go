@@ -155,6 +155,9 @@ func CreateOperationFromNormalizedInstallSpec(app core.App, auth *core.Record, n
 		if templateKey := normalizedCatalogAppKey(normalizedSpec.Metadata); templateKey != "" && strings.TrimSpace(appRecord.GetString("template_key")) == "" {
 			appRecord.Set("template_key", templateKey)
 		}
+		if accessEndpoints := resolveAccessEndpoints(normalizedSpec); accessEndpoints != nil {
+			appRecord.Set("access_endpoints", accessEndpoints)
+		}
 
 		operationRecord = core.NewRecord(operationsCol)
 		operationRecord.Set("app", appRecord.Id)

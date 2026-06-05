@@ -380,36 +380,37 @@ export function useActionsController({
   }, [entryMode])
 
   useEffect(() => {
-  let cancelled = false
+    let cancelled = false
 
-  void pb
-    .send<{ value?: DeployGitDefaultsValue }>(settingsEntryPath('deploy-git-defaults'), {
-      method: 'GET',
-    })
-    .then(response => {
-      if (cancelled) {
-        return
-      }
-      const nextRef =
-        typeof response?.value?.defaultRef === 'string' && response.value.defaultRef.trim().length > 0
-          ? response.value.defaultRef.trim()
-          : 'main'
-      const nextComposePath =
-        typeof response?.value?.defaultComposePath === 'string' &&
-        response.value.defaultComposePath.trim().length > 0
-          ? response.value.defaultComposePath.trim()
-          : 'docker-compose.yml'
+    void pb
+      .send<{ value?: DeployGitDefaultsValue }>(settingsEntryPath('deploy-git-defaults'), {
+        method: 'GET',
+      })
+      .then(response => {
+        if (cancelled) {
+          return
+        }
+        const nextRef =
+          typeof response?.value?.defaultRef === 'string' &&
+          response.value.defaultRef.trim().length > 0
+            ? response.value.defaultRef.trim()
+            : 'main'
+        const nextComposePath =
+          typeof response?.value?.defaultComposePath === 'string' &&
+          response.value.defaultComposePath.trim().length > 0
+            ? response.value.defaultComposePath.trim()
+            : 'docker-compose.yml'
 
-      setGitRef(current => (current.trim() === '' || current === 'main' ? nextRef : current))
-      setGitComposePath(current =>
-        current.trim() === '' || current === 'docker-compose.yml' ? nextComposePath : current
-      )
-    })
-    .catch(() => undefined)
+        setGitRef(current => (current.trim() === '' || current === 'main' ? nextRef : current))
+        setGitComposePath(current =>
+          current.trim() === '' || current === 'docker-compose.yml' ? nextComposePath : current
+        )
+      })
+      .catch(() => undefined)
 
-  return () => {
-    cancelled = true
-  }
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
@@ -451,7 +452,18 @@ export function useActionsController({
 
   useEffect(() => {
     void fetchOperations()
-  }, [appFilterId, excludeServer, excludeSource, excludeStatus, page, pageSize, search, sortDir, sortField, view])
+  }, [
+    appFilterId,
+    excludeServer,
+    excludeSource,
+    excludeStatus,
+    page,
+    pageSize,
+    search,
+    sortDir,
+    sortField,
+    view,
+  ])
 
   useEffect(() => {
     void fetchStoreShortcuts()
@@ -675,9 +687,12 @@ export function useActionsController({
   }, [filteredItems, sortDir, sortField, view])
 
   const totalPages =
-    view === 'list' ? Math.max(1, serverTotalPages) : Math.max(1, Math.ceil(sortedItems.length / pageSize))
+    view === 'list'
+      ? Math.max(1, serverTotalPages)
+      : Math.max(1, Math.ceil(sortedItems.length / pageSize))
   const pagedItems = useMemo(
-    () => (view === 'list' ? sortedItems : sortedItems.slice((page - 1) * pageSize, page * pageSize)),
+    () =>
+      view === 'list' ? sortedItems : sortedItems.slice((page - 1) * pageSize, page * pageSize),
     [page, pageSize, sortedItems, view]
   )
 
@@ -737,7 +752,19 @@ export function useActionsController({
       summary.active > 0 ? 3000 : 6000
     )
     return () => window.clearInterval(timer)
-  }, [summary.active, appFilterId, excludeServer, excludeSource, excludeStatus, page, pageSize, search, sortDir, sortField, view])
+  }, [
+    summary.active,
+    appFilterId,
+    excludeServer,
+    excludeSource,
+    excludeStatus,
+    page,
+    pageSize,
+    search,
+    sortDir,
+    sortField,
+    view,
+  ])
 
   useEffect(() => {
     setSelectedIds(current => {
@@ -764,9 +791,14 @@ export function useActionsController({
   async function fetchStoreShortcuts() {
     try {
       const [appsResponse, categoriesResponse] = await Promise.all([
-        pb.send('/api/catalog/apps?locale=' + encodeURIComponent(locale) + '&source=official&limit=1000&offset=0', {
-          method: 'GET',
-        }) as Promise<CatalogAppListResponse>,
+        pb.send(
+          '/api/catalog/apps?locale=' +
+            encodeURIComponent(locale) +
+            '&source=official&limit=1000&offset=0',
+          {
+            method: 'GET',
+          }
+        ) as Promise<CatalogAppListResponse>,
         pb.send('/api/catalog/categories?locale=' + encodeURIComponent(locale), {
           method: 'GET',
         }) as Promise<CatalogCategoryTreeResponse>,
@@ -841,9 +873,7 @@ export function useActionsController({
         }
         setServerTotalItems(Number.isFinite(response?.totalItems) ? response.totalItems : 0)
         setServerTotalPages(
-          Number.isFinite(response?.totalPages) && response.totalPages > 0
-            ? response.totalPages
-            : 1
+          Number.isFinite(response?.totalPages) && response.totalPages > 0 ? response.totalPages : 1
         )
       } else {
         const response = await pb.send<ActionRecord[]>('/api/actions', { method: 'GET' })
@@ -1103,11 +1133,17 @@ export function useActionsController({
           app_required_disk_gib: appRequiredDiskGiB,
         },
       })
-      showNotice('default', `Action ${created.compose_project_name || created.id} created from template`)
+      showNotice(
+        'default',
+        `Action ${created.compose_project_name || created.id} created from template`
+      )
       await fetchOperations()
       openOperationDetail(created.id)
     } catch (err) {
-      showNotice('destructive', err instanceof Error ? err.message : 'Failed to create template action')
+      showNotice(
+        'destructive',
+        err instanceof Error ? err.message : 'Failed to create template action'
+      )
     } finally {
       setSubmitting(false)
     }

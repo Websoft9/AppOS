@@ -425,11 +425,10 @@ function buildServerBaseFields(t: Translate): FieldDef[] {
       key: 'credential',
       label: t('servers.fields.credentialSecret'),
       type: 'relation',
-      relationApiPath:
-        buildResourceSecretRelationApiPath({
-          visibleTo: 'server',
-          templateIds: ['single_value', 'ssh_key'],
-        }),
+      relationApiPath: buildResourceSecretRelationApiPath({
+        visibleTo: 'server',
+        templateIds: ['single_value', 'ssh_key'],
+      }),
       relationLabelKey: 'name',
       relationFormatLabel: formatSecretLabel,
     },
@@ -664,9 +663,7 @@ export function ServersPage() {
 
       closeSecretEditor(false)
     } catch (error) {
-      setSecretEditError(
-        error instanceof Error ? error.message : t('servers.secret.errors.update')
-      )
+      setSecretEditError(error instanceof Error ? error.message : t('servers.secret.errors.update'))
     } finally {
       setSecretEditSaving(false)
     }
@@ -699,7 +696,8 @@ export function ServersPage() {
                   const hostRequired = !String(formData.connect_type ?? 'direct').startsWith(
                     'tunnel'
                   )
-                  const displayValue = useLocalHost && browserHostname ? browserHostname : String(value ?? '')
+                  const displayValue =
+                    useLocalHost && browserHostname ? browserHostname : String(value ?? '')
 
                   return (
                     <div className="space-y-1.5">
@@ -727,7 +725,9 @@ export function ServersPage() {
                                   return
                                 }
                                 if (!browserHostname) {
-                                  setLocalHostError(t('servers.localHost.errors.loadCurrentHostname'))
+                                  setLocalHostError(
+                                    t('servers.localHost.errors.loadCurrentHostname')
+                                  )
                                   updateField('use_local_host', false)
                                   return
                                 }
@@ -762,12 +762,7 @@ export function ServersPage() {
               }
             : f
       ),
-    [
-      localHostError,
-      openSecretDialog,
-      openSecretEditor,
-      t,
-    ]
+    [localHostError, openSecretDialog, openSecretEditor, t]
   )
   const checkServerStatus = useCallback(async (item: Record<string, unknown>) => {
     const id = String(item.id)
@@ -1084,7 +1079,9 @@ export function ServersPage() {
             >
               <span>{String(value || '—')}</span>
               <span className="sr-only">
-                {selected ? t('servers.actions.overviewAlreadyOpen') : t('servers.actions.openOverview')}
+                {selected
+                  ? t('servers.actions.overviewAlreadyOpen')
+                  : t('servers.actions.openOverview')}
               </span>
             </button>
           )
@@ -1099,7 +1096,9 @@ export function ServersPage() {
         ],
         render: v => (
           <Badge variant="outline">
-            {v === 'tunnel' ? t('servers.connection.tunnelShort') : t('servers.connection.directSsh')}
+            {v === 'tunnel'
+              ? t('servers.connection.tunnelShort')
+              : t('servers.connection.directSsh')}
           </Badge>
         ),
       },
@@ -1122,10 +1121,11 @@ export function ServersPage() {
             ? {
                 state: String(row.connection_state ?? '').trim() || 'awaiting_connection',
                 stateLabel:
-                    String(row.connection_state_label ?? '').trim() || t('servers.connectionStates.awaitingConnection'),
+                  String(row.connection_state_label ?? '').trim() ||
+                  t('servers.connectionStates.awaitingConnection'),
                 reason:
                   String(row.connection_reason ?? '').trim() ||
-                    t('servers.connection.configurationReady'),
+                  t('servers.connection.configurationReady'),
               }
             : getConnectionPresentation(row)
           const state = presentation.state
@@ -1386,8 +1386,12 @@ export function ServersPage() {
           <button
             type="button"
             className="absolute -top-2 right-8 z-10 inline-flex items-center justify-center p-0 opacity-70 transition-opacity hover:opacity-100 focus:outline-none"
-            aria-label={detailExpanded ? t('servers.detail.restoreWidth') : t('servers.detail.expandWidth')}
-            title={detailExpanded ? t('servers.detail.restoreWidth') : t('servers.detail.expandWidth')}
+            aria-label={
+              detailExpanded ? t('servers.detail.restoreWidth') : t('servers.detail.expandWidth')
+            }
+            title={
+              detailExpanded ? t('servers.detail.restoreWidth') : t('servers.detail.expandWidth')
+            }
             onClick={() => setServerDetailDrawerTier(prev => (prev === 'full' ? 'lg' : 'full'))}
           >
             {detailExpanded ? <SquareMinus className="size-4" /> : <Square className="size-4" />}

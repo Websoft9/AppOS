@@ -138,17 +138,17 @@ func (s *Service) AppDetail(app core.App, auth *core.Record, locale, key string)
 	if custom, ok, err := loadVisibleCustomAppDetail(app, auth, key, secondaryToPrimaries, secondaryTitles, personalization); err != nil {
 		return nil, err
 	} else if ok {
-			custom.Installed = installedSummary
-			return custom, nil
+		custom.Installed = installedSummary
+		return custom, nil
 	}
 
 	for _, product := range bundle.Products {
 		if product.Key != key {
 			continue
 		}
-			response := officialDetail(product, personalization[key], bundle.SourceVersion, locale)
-			response.Installed = installedSummary
-			return response, nil
+		response := officialDetail(product, personalization[key], bundle.SourceVersion, locale)
+		response.Installed = installedSummary
+		return response, nil
 	}
 
 	return nil, fmt.Errorf("catalog app not found")

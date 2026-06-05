@@ -60,6 +60,8 @@ type runtimeDockerExecutor struct{}
 func (runtimeDockerExecutor) Run(_ context.Context, command string, args ...string) (string, error) {
 	joined := command + " " + strings.Join(args, " ")
 	switch {
+	case strings.Contains(joined, "docker image inspect postgres:16"):
+		return "", errors.New("missing")
 	case strings.Contains(joined, "docker compose -f /tmp/demo-app/docker-compose.yml up -d"):
 		return "runtime started", nil
 	default:
@@ -78,6 +80,53 @@ func (runtimeDockerExecutor) RunStream(_ context.Context, command string, args .
 func (runtimeDockerExecutor) Ping(context.Context) error { return nil }
 func (runtimeDockerExecutor) Host() string               { return "local" }
 
+type runtimeNetworkDockerExecutor struct {
+	commands []string
+	created  map[string]bool
+}
+
+func (e *runtimeNetworkDockerExecutor) Run(_ context.Context, command string, args ...string) (string, error) {
+	joined := command + " " + strings.Join(args, " ")
+	e.commands = append(e.commands, joined)
+	switch {
+	case strings.Contains(joined, "docker network inspect websoft9"):
+		if e.created != nil && e.created["websoft9"] {
+			return "[{\"Name\":\"websoft9\"}]", nil
+		}
+		return "", errors.New("network not found")
+	case strings.Contains(joined, "docker network create websoft9"):
+		if e.created == nil {
+			e.created = map[string]bool{}
+		}
+		e.created["websoft9"] = true
+		return "websoft9", nil
+	case strings.Contains(joined, "docker compose -f /tmp/demo-app/docker-compose.yml up -d"):
+		return "runtime started", nil
+	default:
+		return "", nil
+	}
+}
+
+func (e *runtimeNetworkDockerExecutor) RunStream(_ context.Context, command string, args ...string) (io.ReadCloser, error) {
+	joined := command + " " + strings.Join(args, " ")
+	e.commands = append(e.commands, joined)
+	if strings.Contains(joined, "docker compose -f /tmp/demo-app/docker-compose.yml pull") {
+		return io.NopCloser(strings.NewReader("Pull complete\n")), nil
+	}
+	return io.NopCloser(strings.NewReader("")), nil
+}
+
+func (e *runtimeNetworkDockerExecutor) Ping(context.Context) error { return nil }
+func (e *runtimeNetworkDockerExecutor) Host() string               { return "local" }
+
+type runtimeNetworkExecutor struct{ exec *runtimeNetworkDockerExecutor }
+
+func (runtimeNetworkExecutor) Name() string                          { return "local" }
+func (runtimeNetworkExecutor) PrepareWorkspace(string, string) error { return nil }
+func (e runtimeNetworkExecutor) DockerClient() (*docker.Client, error) {
+	return docker.New(e.exec), nil
+}
+
 type runtimeExecutor struct{}
 
 func (runtimeExecutor) Name() string                          { return "local" }
@@ -92,6 +141,9 @@ func (runtimeHeartbeatDockerExecutor) Run(_ context.Context, command string, arg
 	joined := command + " " + strings.Join(args, " ")
 	if strings.Contains(joined, "docker compose -f /tmp/demo-app/docker-compose.yml up -d") {
 		return "runtime started", nil
+	}
+	if strings.Contains(joined, "docker image inspect postgres:16") {
+		return "", errors.New("missing")
 	}
 	return "", nil
 }
@@ -122,8 +174,40 @@ func (runtimeHeartbeatExecutor) DockerClient() (*docker.Client, error) {
 	return docker.New(runtimeHeartbeatDockerExecutor{}), nil
 }
 
-type mirrorAwareRuntimeDockerExecutor struct {
+type runtimeLocalImageDockerExecutor struct {
 	commands []string
+}
+
+func (e *runtimeLocalImageDockerExecutor) Run(_ context.Context, command string, args ...string) (string, error) {
+	joined := strings.TrimSpace(command + " " + strings.Join(args, " "))
+	e.commands = append(e.commands, joined)
+	if strings.Contains(joined, "docker image inspect postgres:16") {
+		return `[{"Id":"sha256:postgres16local"}]`, nil
+	}
+	return "", nil
+}
+
+func (e *runtimeLocalImageDockerExecutor) RunStream(_ context.Context, command string, args ...string) (io.ReadCloser, error) {
+	joined := strings.TrimSpace(command + " " + strings.Join(args, " "))
+	e.commands = append(e.commands, joined)
+	return io.NopCloser(strings.NewReader("")), nil
+}
+
+func (e *runtimeLocalImageDockerExecutor) Ping(context.Context) error { return nil }
+func (e *runtimeLocalImageDockerExecutor) Host() string               { return "local" }
+
+type runtimeLocalImageExecutor struct {
+	exec *runtimeLocalImageDockerExecutor
+}
+
+func (runtimeLocalImageExecutor) Name() string                          { return "local" }
+func (runtimeLocalImageExecutor) PrepareWorkspace(string, string) error { return nil }
+func (e runtimeLocalImageExecutor) DockerClient() (*docker.Client, error) {
+	return docker.New(e.exec), nil
+}
+
+type mirrorAwareRuntimeDockerExecutor struct {
+	commands   []string
 	pullErrSeq map[string][]error
 }
 
@@ -176,8 +260,10 @@ type mirrorAwareRuntimeExecutor struct {
 
 func (e mirrorAwareRuntimeExecutor) Name() string                          { return "local" }
 func (e mirrorAwareRuntimeExecutor) PrepareWorkspace(string, string) error { return nil }
-func (e mirrorAwareRuntimeExecutor) DockerClient() (*docker.Client, error) { return docker.New(e.exec), nil }
-func (e mirrorAwareRuntimeExecutor) App() core.App                         { return e.app }
+func (e mirrorAwareRuntimeExecutor) DockerClient() (*docker.Client, error) {
+	return docker.New(e.exec), nil
+}
+func (e mirrorAwareRuntimeExecutor) App() core.App { return e.app }
 
 type publishDockerExecutor struct{}
 
@@ -454,6 +540,7 @@ func TestExecuteNodeRejectsUnimplementedSourceBuildNodeTypes(t *testing.T) {
 func TestExecuteNodePullsRuntimeImages(t *testing.T) {
 	operation := core.NewRecord(core.NewBaseCollection("app_operations"))
 	operation.Set("project_dir", "/tmp/demo-app")
+	operation.Set("rendered_compose", "services:\n  db:\n    image: postgres:16\n")
 
 	var lines []string
 	result, err := ExecuteNode(
@@ -484,6 +571,77 @@ func TestExecuteNodePullsRuntimeImages(t *testing.T) {
 	}
 	if result.OperationChanged {
 		t.Fatal("expected runtime_pull not to mutate operation state")
+	}
+}
+
+func TestExecuteNodeSkipsRuntimePullWhenImagesAlreadyExistLocally(t *testing.T) {
+	operation := core.NewRecord(core.NewBaseCollection("app_operations"))
+	operation.Set("project_dir", "/tmp/demo-app")
+	operation.Set("rendered_compose", "services:\n  db:\n    image: postgres:16\n")
+
+	fakeExec := &runtimeLocalImageDockerExecutor{}
+	var lines []string
+	result, err := ExecuteNode(
+		context.Background(),
+		operation,
+		model.NodeDefinition{NodeType: "runtime_pull"},
+		runtimeLocalImageExecutor{exec: fakeExec},
+		nil,
+		NodeExecutionHooks{Logf: func(line string) { lines = append(lines, line) }},
+	)
+	if err != nil {
+		t.Fatalf("expected runtime_pull to skip when image already exists locally, got %v", err)
+	}
+	if result.DockerClient == nil {
+		t.Fatal("expected runtime_pull to retain docker client")
+	}
+	commands := strings.Join(fakeExec.commands, "\n")
+	if !strings.Contains(commands, "docker image inspect postgres:16") {
+		t.Fatalf("expected local image inspect, got commands:\n%s", commands)
+	}
+	if strings.Contains(commands, "docker compose -f /tmp/demo-app/docker-compose.yml pull") {
+		t.Fatalf("expected compose pull to be skipped when image exists locally, got commands:\n%s", commands)
+	}
+	joinedLines := strings.Join(lines, "\n")
+	if !strings.Contains(joinedLines, "docker runtime image already available locally: postgres:16") {
+		t.Fatalf("expected local image reuse log, got %v", lines)
+	}
+	if !strings.Contains(joinedLines, "docker runtime pull skipped because all runtime images are already available locally") {
+		t.Fatalf("expected runtime pull skip log, got %v", lines)
+	}
+}
+
+func TestExecuteNodeRuntimePullCreatesMissingExternalNetwork(t *testing.T) {
+	operation := core.NewRecord(core.NewBaseCollection("app_operations"))
+	operation.Set("project_dir", "/tmp/demo-app")
+	operation.Set("rendered_compose", "services:\n  web:\n    image: nginx:alpine\nnetworks:\n  default:\n    name: websoft9\n    external: true\n")
+
+	fakeExec := &runtimeNetworkDockerExecutor{}
+	var lines []string
+	_, err := ExecuteNode(
+		context.Background(),
+		operation,
+		model.NodeDefinition{NodeType: "runtime_pull"},
+		runtimeNetworkExecutor{exec: fakeExec},
+		nil,
+		NodeExecutionHooks{Logf: func(line string) { lines = append(lines, line) }},
+	)
+	if err != nil {
+		t.Fatalf("expected runtime_pull to auto-create missing external network, got %v", err)
+	}
+	commands := strings.Join(fakeExec.commands, "\n")
+	if !strings.Contains(commands, "docker network inspect websoft9") {
+		t.Fatalf("expected network inspect before pull, got commands:\n%s", commands)
+	}
+	if !strings.Contains(commands, "docker network create websoft9") {
+		t.Fatalf("expected missing external network to be created, got commands:\n%s", commands)
+	}
+	joinedLines := strings.Join(lines, "\n")
+	if !strings.Contains(joinedLines, "docker external network missing, creating: websoft9") {
+		t.Fatalf("expected creation log line, got %v", lines)
+	}
+	if !strings.Contains(joinedLines, "docker external network created: websoft9") {
+		t.Fatalf("expected created log line, got %v", lines)
 	}
 }
 

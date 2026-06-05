@@ -47,6 +47,15 @@ export type AppExposure = {
   updated: string
 }
 
+export type AppAccessEndpoint = {
+  label?: string
+  service?: string
+  port?: number
+  protocol?: 'http' | 'https' | 'tcp' | 'udp' | string
+  serverPort?: number
+  default?: boolean
+}
+
 export type AppInstance = {
   id: string
   iac_path?: string
@@ -66,6 +75,7 @@ export type AppInstance = {
   access_secret_hint?: string
   access_retrieval_method?: string
   access_notes?: string
+  access_endpoints?: AppAccessEndpoint[]
   last_operation?: string
   current_pipeline?: AppPipeline | null
   runtime_reason?: string

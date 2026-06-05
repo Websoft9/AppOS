@@ -84,11 +84,10 @@ function translateOrFallback(
   return value === key ? fallback : value
 }
 
-export function getConnectorKindLabel(
-  kind: string,
-  t?: Translate
-) {
-  const normalized = String(kind ?? '').trim().toLowerCase() as (typeof SUPPORTED_KINDS)[number]
+export function getConnectorKindLabel(kind: string, t?: Translate) {
+  const normalized = String(kind ?? '')
+    .trim()
+    .toLowerCase() as (typeof SUPPORTED_KINDS)[number]
   const fallback = KIND_LABELS[normalized] ?? String(kind ?? 'Unknown')
   return translateOrFallback(t, `connectors.kinds.${normalized}`, fallback)
 }
@@ -100,7 +99,9 @@ export function getConnectorSecretTemplateLabel(templateId: string, t?: Translat
 }
 
 export function getConnectorAuthSchemeLabel(authScheme: string, t?: Translate) {
-  const normalized = String(authScheme ?? '').trim().toLowerCase()
+  const normalized = String(authScheme ?? '')
+    .trim()
+    .toLowerCase()
   const fallback = normalized || 'none'
   return translateOrFallback(t, `connectors.authValues.${normalized || 'none'}`, fallback)
 }
@@ -112,11 +113,7 @@ export function buildProxyAuthOptions(t?: Translate): SelectOption[] {
       value: 'none',
     },
     {
-      label: translateOrFallback(
-        t,
-        'connectors.auth.usernamePassword',
-        'Username + Password'
-      ),
+      label: translateOrFallback(t, 'connectors.auth.usernamePassword', 'Username + Password'),
       value: 'username_password',
     },
   ]

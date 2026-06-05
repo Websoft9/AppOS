@@ -160,13 +160,19 @@ function parseUserMessageContent(message: AIChatMessage): ParsedUserMessage {
     return { text: message.content, attachments: [] }
   }
   const trimmed = message.content.trim()
-  if (!trimmed.startsWith(USER_MESSAGE_ENVELOPE_START) || !trimmed.endsWith(USER_MESSAGE_ENVELOPE_END)) {
+  if (
+    !trimmed.startsWith(USER_MESSAGE_ENVELOPE_START) ||
+    !trimmed.endsWith(USER_MESSAGE_ENVELOPE_END)
+  ) {
     return { text: message.content, attachments: [] }
   }
 
   try {
     const payload = JSON.parse(
-      trimmed.slice(USER_MESSAGE_ENVELOPE_START.length, trimmed.length - USER_MESSAGE_ENVELOPE_END.length)
+      trimmed.slice(
+        USER_MESSAGE_ENVELOPE_START.length,
+        trimmed.length - USER_MESSAGE_ENVELOPE_END.length
+      )
     ) as { text?: string; attachments?: AIChatAttachment[] }
     return {
       text: payload.text?.trim() ?? '',
@@ -328,7 +334,9 @@ export function AIChatPage() {
       )
     )
     setAttachments(prev => {
-      const existing = prev.filter(item => !placeholders.some(placeholder => placeholder.id === item.id))
+      const existing = prev.filter(
+        item => !placeholders.some(placeholder => placeholder.id === item.id)
+      )
       return [...existing, ...built]
     })
     if (fileInputRef.current) {
@@ -390,7 +398,9 @@ export function AIChatPage() {
           onChunk: chunk => {
             setMessages(prev =>
               prev.map(message =>
-                message.id === assistantId ? { ...message, content: message.content + chunk } : message
+                message.id === assistantId
+                  ? { ...message, content: message.content + chunk }
+                  : message
               )
             )
           },
@@ -415,12 +425,15 @@ export function AIChatPage() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">{t('page.title')}</h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              {t('page.subtitle')}
-            </p>
+            <p className="mt-0.5 text-sm text-muted-foreground">{t('page.subtitle')}</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button size="icon" variant="outline" aria-label={t('actions.refresh')} onClick={() => void refreshSessions()}>
+            <Button
+              size="icon"
+              variant="outline"
+              aria-label={t('actions.refresh')}
+              onClick={() => void refreshSessions()}
+            >
               <RefreshCw className={cn('h-4 w-4', loading ? 'animate-spin' : undefined)} />
             </Button>
             <Button size="sm" onClick={() => void createSession()}>
@@ -455,7 +468,9 @@ export function AIChatPage() {
           >
             <div className="mb-2.5 flex items-center justify-between gap-2 border-b pb-2.5">
               <div className="flex items-center gap-1">
-                <div className="text-sm font-semibold tracking-tight">{t('page.conversationList')}</div>
+                <div className="text-sm font-semibold tracking-tight">
+                  {t('page.conversationList')}
+                </div>
                 <Button
                   type="button"
                   size="icon"
@@ -473,11 +488,17 @@ export function AIChatPage() {
                 variant="ghost"
                 className="h-7 w-7"
                 aria-label={
-                  conversationListWide ? t('actions.shrinkConversationList') : t('actions.expandConversationList')
+                  conversationListWide
+                    ? t('actions.shrinkConversationList')
+                    : t('actions.expandConversationList')
                 }
                 onClick={() => setConversationListWide(prev => !prev)}
               >
-                {conversationListWide ? <PanelLeftClose className="h-3.5 w-3.5" /> : <PanelLeft className="h-3.5 w-3.5" />}
+                {conversationListWide ? (
+                  <PanelLeftClose className="h-3.5 w-3.5" />
+                ) : (
+                  <PanelLeft className="h-3.5 w-3.5" />
+                )}
               </Button>
             </div>
 
@@ -491,7 +512,9 @@ export function AIChatPage() {
                     key={session.id}
                     className={cn(
                       'rounded-lg border border-transparent px-2 py-1.5 transition-colors',
-                      isActive ? 'border-primary/[0.07] bg-primary/[0.035] shadow-sm shadow-primary/[0.03]' : 'hover:bg-muted/20'
+                      isActive
+                        ? 'border-primary/[0.07] bg-primary/[0.035] shadow-sm shadow-primary/[0.03]'
+                        : 'hover:bg-muted/20'
                     )}
                   >
                     {isRenaming ? (
@@ -558,14 +581,16 @@ export function AIChatPage() {
                               size="icon"
                               variant="ghost"
                               className="h-7 w-7 shrink-0"
-                              aria-label={
-                                t('aria.conversationActions', {
-                                  title: session.title || defaultSessionTitle,
-                                })
-                              }
+                              aria-label={t('aria.conversationActions', {
+                                title: session.title || defaultSessionTitle,
+                              })}
                               disabled={isBusy}
                             >
-                              {isBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <MoreVertical className="h-3.5 w-3.5" />}
+                              {isBusy ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <MoreVertical className="h-3.5 w-3.5" />
+                              )}
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
@@ -645,8 +670,12 @@ export function AIChatPage() {
                       >
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-foreground/85">{attachment.name}</span>
-                          <span className="text-muted-foreground">{formatAttachmentSize(attachment.size)}</span>
-                          {attachment.loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                          <span className="text-muted-foreground">
+                            {formatAttachmentSize(attachment.size)}
+                          </span>
+                          {attachment.loading ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : null}
                           <button
                             type="button"
                             onClick={() => removeAttachment(attachment.id)}
@@ -656,7 +685,11 @@ export function AIChatPage() {
                             <X className="h-3 w-3" />
                           </button>
                         </div>
-                        {attachment.error ? <div className="mt-1 text-[11px] text-muted-foreground">{attachment.error}</div> : null}
+                        {attachment.error ? (
+                          <div className="mt-1 text-[11px] text-muted-foreground">
+                            {attachment.error}
+                          </div>
+                        ) : null}
                       </div>
                     ))}
                   </div>
@@ -708,12 +741,16 @@ export function AIChatPage() {
         </div>
       </main>
 
-      <AlertDialog open={deleteTarget !== null} onOpenChange={open => (!open ? setDeleteTarget(null) : undefined)}>
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={open => (!open ? setDeleteTarget(null) : undefined)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('dialog.deleteTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t('dialog.deleteDescriptionPrefix')} <strong>{deleteTarget?.title || defaultSessionTitle}</strong>{' '}
+              {t('dialog.deleteDescriptionPrefix')}{' '}
+              <strong>{deleteTarget?.title || defaultSessionTitle}</strong>{' '}
               {t('dialog.deleteDescriptionSuffix')}
             </AlertDialogDescription>
           </AlertDialogHeader>

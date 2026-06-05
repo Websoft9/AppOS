@@ -142,55 +142,60 @@ function buildWorkspaceGroup(labels: NavLabels): NavGroup {
     id: 'workspace',
     label: labels.groups.workspace,
     items: [
-    {
-      id: 'overview',
-      label: labels.items.overview,
-      icon: <LayoutDashboard className="h-5 w-5" />,
-      href: '/overview',
-    },
-    {
-      id: 'applications',
-      label: labels.items.applications,
-      icon: <Layers className="h-5 w-5" />,
-      href: '/store',
-      children: [
-        { id: 'installed', label: labels.items.myApps, href: '/apps' },
-        { id: 'store', label: labels.items.appStore, href: '/store' },
-        { id: 'deploy', label: labels.items.deploy, href: '/deploy' },
-        { id: 'actions', label: labels.items.actions, href: '/actions' },
-      ],
-    },
-    {
-      id: 'terminal',
-      label: labels.items.terminal,
-      icon: <TerminalSquare className="h-5 w-5" />,
-      href: '/terminal',
-    },
-    {
-      id: 'ai-chat',
-      label: labels.items.aiChat,
-      icon: <BotMessageSquare className="h-5 w-5" />,
-      href: '/ai-chat',
-    },
-    {
-      id: 'collaboration',
-      label: labels.items.collaboration,
-      icon: <BookOpen className="h-5 w-5" />,
-      href: '/groups',
-      children: [
-        { id: 'groups', label: labels.items.groups, href: '/groups' },
-        { id: 'topics', label: labels.items.topics, href: '/topics' },
-        { id: 'feeds', label: labels.items.feeds, href: '/feeds' },
-      ],
-    },
-    {
-      id: 'assets',
-      label: labels.items.assets,
-      icon: <FileCode2 className="h-5 w-5" />,
-      href: '/ai-assets',
-    },
-    { id: 'space', label: labels.items.space, icon: <FolderOpen className="h-5 w-5" />, href: '/space' },
-  ],
+      {
+        id: 'overview',
+        label: labels.items.overview,
+        icon: <LayoutDashboard className="h-5 w-5" />,
+        href: '/overview',
+      },
+      {
+        id: 'applications',
+        label: labels.items.applications,
+        icon: <Layers className="h-5 w-5" />,
+        href: '/store',
+        children: [
+          { id: 'installed', label: labels.items.myApps, href: '/apps' },
+          { id: 'store', label: labels.items.appStore, href: '/store' },
+          { id: 'deploy', label: labels.items.deploy, href: '/deploy' },
+          { id: 'actions', label: labels.items.actions, href: '/actions' },
+        ],
+      },
+      {
+        id: 'terminal',
+        label: labels.items.terminal,
+        icon: <TerminalSquare className="h-5 w-5" />,
+        href: '/terminal',
+      },
+      {
+        id: 'ai-chat',
+        label: labels.items.aiChat,
+        icon: <BotMessageSquare className="h-5 w-5" />,
+        href: '/ai-chat',
+      },
+      {
+        id: 'collaboration',
+        label: labels.items.collaboration,
+        icon: <BookOpen className="h-5 w-5" />,
+        href: '/groups',
+        children: [
+          { id: 'groups', label: labels.items.groups, href: '/groups' },
+          { id: 'topics', label: labels.items.topics, href: '/topics' },
+          { id: 'feeds', label: labels.items.feeds, href: '/feeds' },
+        ],
+      },
+      {
+        id: 'assets',
+        label: labels.items.assets,
+        icon: <FileCode2 className="h-5 w-5" />,
+        href: '/ai-assets',
+      },
+      {
+        id: 'space',
+        label: labels.items.space,
+        icon: <FolderOpen className="h-5 w-5" />,
+        href: '/space',
+      },
+    ],
   }
 }
 
@@ -232,7 +237,11 @@ function buildPlatformGroup(isSuperuser: boolean, labels: NavLabels): NavGroup {
     icon: <Settings className="h-5 w-5" />,
     href: '/platform-components',
     children: [
-      { id: 'platform-components', label: labels.items.platformComponents, href: '/platform-components' },
+      {
+        id: 'platform-components',
+        label: labels.items.platformComponents,
+        href: '/platform-components',
+      },
       { id: 'tunnels', label: labels.items.tunnels, href: '/tunnels' },
       { id: 'audit', label: labels.items.audit, href: '/audit' },
     ],
@@ -595,11 +604,18 @@ export function Sidebar({ groups }: SidebarProps) {
             <Button
               variant="ghost"
               size="sm"
-              className={cn('h-8 w-full px-3', sidebarCollapsed ? 'justify-center px-2' : 'justify-start')}
+              className={cn(
+                'h-8 w-full px-3',
+                sidebarCollapsed ? 'justify-center px-2' : 'justify-start'
+              )}
               onClick={toggleSidebar}
               aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
-              {sidebarCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+              {sidebarCollapsed ? (
+                <PanelLeft className="h-4 w-4" />
+              ) : (
+                <PanelLeftClose className="h-4 w-4" />
+              )}
             </Button>
           </TooltipTrigger>
           <TooltipContent side="top" sideOffset={8}>

@@ -46,13 +46,9 @@ export const RESOURCE_SECRET_VISIBLE_TO_OPTIONS: Array<{
 
 const RESOURCE_SECRET_VISIBLE_TO_SET = new Set<string>(RESOURCE_SECRET_VISIBLE_TO_VALUES)
 
-export function normalizeResourceSecretVisibleTo(
-  value: unknown
-): ResourceSecretVisibleTo[] {
+export function normalizeResourceSecretVisibleTo(value: unknown): ResourceSecretVisibleTo[] {
   const normalized = Array.isArray(value)
-    ? value.filter(
-        item => typeof item === 'string' && RESOURCE_SECRET_VISIBLE_TO_SET.has(item)
-      )
+    ? value.filter(item => typeof item === 'string' && RESOURCE_SECRET_VISIBLE_TO_SET.has(item))
     : []
   const unique = Array.from(new Set(normalized)) as ResourceSecretVisibleTo[]
   return unique.length > 0 ? unique : [...RESOURCE_SECRET_VISIBLE_TO_VALUES]

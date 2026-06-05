@@ -58,7 +58,9 @@ Minimum checks:
 
 - required input placeholders resolve or remain explicitly allowed
 - env mappings do not contain unresolved accidental references
-- render targets align with declared service roles and exposure intent
+- render targets align with declared service roles and minimal exposure intent
+- each template exposure intent has only the compact access fields needed by the MVP: `label`, `service`, `port`, `protocol`, and optional `default`
+- exposure intent does not include runtime-only or resolved fields such as `id`, `containerName`, `serverPort`, `url`, host, or route id
 - compose-related outputs remain structurally valid for the supported template slice
 
 ### 3. Sample Regression Validation
@@ -69,6 +71,7 @@ Minimum v0 expectation:
 
 - keep at least one concrete sample such as `wordpress`
 - compare expected manifest, input classes, render targets, and source metadata shape
+- compare expected exposure intent entries for service, protocol, container port, and default marker
 - catch accidental contract drift caused by future template changes
 
 ### 4. Upstream Change Review

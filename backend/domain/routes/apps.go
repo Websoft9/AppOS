@@ -15,11 +15,12 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
-	appcatalog "github.com/websoft9/appos/backend/domain/catalog"
 	"github.com/websoft9/appos/backend/domain/audit"
+	appcatalog "github.com/websoft9/appos/backend/domain/catalog"
 	"github.com/websoft9/appos/backend/domain/deploy"
 	"github.com/websoft9/appos/backend/domain/iac"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
+	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
 	"github.com/websoft9/appos/backend/domain/terminal"
 )
@@ -638,6 +639,7 @@ func appInstanceResponse(app core.App, record *core.Record, runtimeIndex map[str
 		"access_secret_hint":      record.GetString("access_secret_hint"),
 		"access_retrieval_method": record.GetString("access_retrieval_method"),
 		"access_notes":            record.GetString("access_notes"),
+		"access_endpoints":        appAccessEndpoints(app, record),
 		"last_operation":          record.GetString("last_operation"),
 		"current_pipeline":        currentPipeline,
 		"created":                 record.GetDateTime("created").String(),
@@ -654,6 +656,58 @@ func appInstanceResponse(app core.App, record *core.Record, runtimeIndex map[str
 	}
 	if value := record.GetDateTime("installed_at"); !value.IsZero() {
 		result["installed_at"] = value.String()
+	}
+	return result
+}
+
+func appAccessEndpoints(app core.App, record *core.Record) any {
+	if record == nil {
+		return []any{}
+	}
+	if endpoints := decodeAccessEndpointItems(record.Get("access_endpoints")); len(endpoints) > 0 {
+		return endpoints
+	}
+	if endpoints := appAccessEndpointsFromLatestOperation(app, record.Id); endpoints != nil {
+		return endpoints
+	}
+	return []any{}
+}
+
+func appAccessEndpointsFromLatestOperation(app core.App, appID string) []map[string]any {
+	if app == nil || strings.TrimSpace(appID) == "" {
+		return nil
+	}
+	records, err := app.FindRecordsByFilter("app_operations", "app = {:appID}", "-updated", 1, 0, map[string]any{"appID": appID})
+	if err != nil || len(records) == 0 {
+		return nil
+	}
+	operation := records[0]
+	spec := decodeMapValue(operation.Get("spec_json"))
+	metadata := decodeMapValue(spec["metadata"])
+	exposureIntent := lifecyclesvc.ParseExposureIntentMap(decodeMapValue(spec["exposure_intent"]))
+	return lifecyclesvc.ResolveAccessEndpointsFromArtifacts(metadata, operation.GetString("rendered_compose"), exposureIntent)
+}
+
+func decodeAccessEndpointItems(raw any) []map[string]any {
+	data, err := json.Marshal(raw)
+	if err != nil || len(data) == 0 || string(data) == "null" {
+		return nil
+	}
+	var items []map[string]any
+	if err := json.Unmarshal(data, &items); err != nil {
+		return nil
+	}
+	return items
+}
+
+func decodeMapValue(raw any) map[string]any {
+	data, err := json.Marshal(raw)
+	if err != nil || len(data) == 0 || string(data) == "null" {
+		return nil
+	}
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil
 	}
 	return result
 }

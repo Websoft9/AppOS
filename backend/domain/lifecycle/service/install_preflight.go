@@ -261,6 +261,14 @@ func buildInstallResourceChecks(ctx context.Context, app core.App, probe Install
 	}
 	warnings = append(warnings, diskWarnings...)
 
+	externalNetworks, err := extractComposeExternalNetworkNames(compose)
+	if err != nil {
+		return InstallPreflightChecks{}, nil, err
+	}
+	if len(externalNetworks) > 0 {
+		warnings = append(warnings, fmt.Sprintf("External Docker networks declared by this compose will be created automatically if missing: %s", strings.Join(externalNetworks, ", ")))
+	}
+
 	return InstallPreflightChecks{
 		Compose:            InstallPreflightCheck{OK: true, Status: "ok", Message: "compose config is valid"},
 		Ports:              portsCheck,
@@ -426,6 +434,61 @@ func extractComposePublishedPorts(raw string) ([]InstallPreflightPublishedPort, 
 
 func ExtractComposePublishedPortsForTest(raw string) ([]InstallPreflightPublishedPort, error) {
 	return extractComposePublishedPorts(raw)
+}
+
+func ExtractComposeExternalNetworkNamesForTest(raw string) ([]string, error) {
+	return extractComposeExternalNetworkNames(raw)
+}
+
+func extractComposeExternalNetworkNames(raw string) ([]string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, nil
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal([]byte(trimmed), &doc); err != nil {
+		return nil, fmt.Errorf("parse compose external networks: %w", err)
+	}
+	rawNetworks, ok := doc["networks"].(map[string]any)
+	if !ok || len(rawNetworks) == 0 {
+		return nil, nil
+	}
+	names := make([]string, 0, len(rawNetworks))
+	seen := map[string]struct{}{}
+	for key, value := range rawNetworks {
+		networkSpec, ok := value.(map[string]any)
+		if !ok {
+			continue
+		}
+		external := false
+		switch typed := networkSpec["external"].(type) {
+		case bool:
+			external = typed
+		case map[string]any:
+			if flag, ok := typed["external"].(bool); ok {
+				external = flag
+			} else {
+				external = true
+			}
+		}
+		if !external {
+			continue
+		}
+		name := strings.TrimSpace(fmt.Sprint(networkSpec["name"]))
+		if name == "" || name == "<nil>" {
+			name = strings.TrimSpace(key)
+		}
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names, nil
 }
 
 func extractComposePortEntries(entry any) []InstallPreflightPublishedPort {

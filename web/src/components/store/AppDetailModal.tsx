@@ -142,41 +142,41 @@ export function AppDetailModal({
                     {t('detail.website')}
                   </a>
                 )}
-              {githubUrl && (
-                <a
-                href={githubUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                >
-                <Github className="w-3 h-3" />
-                {t('detail.github')}
-                </a>
-              )}
-              {docUrl && (
-                <a
-                href={docUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                >
-                <BookOpen className="w-3 h-3" />
-                {t('detail.docs')}
-                </a>
-              )}
+                {githubUrl && (
+                  <a
+                    href={githubUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    <Github className="w-3 h-3" />
+                    {t('detail.github')}
+                  </a>
+                )}
+                {docUrl && (
+                  <a
+                    href={docUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    <BookOpen className="w-3 h-3" />
+                    {t('detail.docs')}
+                  </a>
+                )}
               </div>
 
               {typeof detail?.installed?.count === 'number' && (
-              <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
-                <span className="text-muted-foreground">
-                {t('detail.installedCount', { count: detail.installed.count })}
-                </span>
-                <Button variant="link" className="h-auto p-0" asChild>
-                <Link to="/apps" search={{ catalogAppKey: product.key }} onClick={onClose}>
-                  {t('detail.viewInstalled')}
-                </Link>
-                </Button>
-              </div>
+                <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+                  <span className="text-muted-foreground">
+                    {t('detail.installedCount', { count: detail.installed.count })}
+                  </span>
+                  <Button variant="link" className="h-auto p-0" asChild>
+                    <Link to="/apps" search={{ catalogAppKey: product.key }} onClick={onClose}>
+                      {t('detail.viewInstalled')}
+                    </Link>
+                  </Button>
+                </div>
               )}
             </div>
           </div>
@@ -197,7 +197,9 @@ export function AppDetailModal({
                 className="flex items-center gap-2"
                 onClick={handleFavoriteClick}
               >
-                <Star className={isFavorite ? 'h-4 w-4 fill-amber-500 text-amber-500' : 'h-4 w-4'} />
+                <Star
+                  className={isFavorite ? 'h-4 w-4 fill-amber-500 text-amber-500' : 'h-4 w-4'}
+                />
                 {isFavorite ? t('detail.unfavorite') : t('detail.favorite')}
               </Button>
             )}

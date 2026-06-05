@@ -156,13 +156,19 @@ describe('AIChatPage', () => {
 
   it('disables empty sends and renders streamed assistant output', async () => {
     render(<AIChatPage />)
-    const input = await screen.findByPlaceholderText('Ask about operations, diagnosis, or AppOS knowledge')
+    const input = await screen.findByPlaceholderText(
+      'Ask about operations, diagnosis, or AppOS knowledge'
+    )
     const sendButton = screen.getByRole('button', { name: 'Send message' })
 
     expect(sendButton).toBeDisabled()
 
     sendMessageMock.mockImplementation(
-      async (_sessionId: string, _content: string, callbacks: Parameters<typeof sendAIChatMessage>[2]) => {
+      async (
+        _sessionId: string,
+        _content: string,
+        callbacks: Parameters<typeof sendAIChatMessage>[2]
+      ) => {
         callbacks.onChunk('received: ')
         callbacks.onChunk('check nginx')
         callbacks.onDone?.({
@@ -180,13 +186,20 @@ describe('AIChatPage', () => {
     expect(await screen.findByText('check nginx')).toBeInTheDocument()
     expect(await screen.findByText('received: check nginx')).toBeInTheDocument()
     await waitFor(() =>
-      expect(sendMessageMock).toHaveBeenCalledWith('session-1', 'check nginx', expect.any(Object), [])
+      expect(sendMessageMock).toHaveBeenCalledWith(
+        'session-1',
+        'check nginx',
+        expect.any(Object),
+        []
+      )
     )
   })
 
   it('shows provider setup errors without erasing persisted history', async () => {
     render(<AIChatPage />)
-    const input = await screen.findByPlaceholderText('Ask about operations, diagnosis, or AppOS knowledge')
+    const input = await screen.findByPlaceholderText(
+      'Ask about operations, diagnosis, or AppOS knowledge'
+    )
     sendMessageMock.mockRejectedValue(new Error('default LLM provider is not configured'))
 
     fireEvent.change(input, { target: { value: 'hello again' } })
@@ -211,7 +224,9 @@ describe('AIChatPage', () => {
     await waitFor(() => expect(updateSessionMock).toHaveBeenCalledWith('session-1', 'Renamed chat'))
     expect(await screen.findByRole('heading', { name: 'Renamed chat' })).toBeInTheDocument()
 
-    fireEvent.pointerDown(screen.getByRole('button', { name: 'Conversation actions for Renamed chat' }))
+    fireEvent.pointerDown(
+      screen.getByRole('button', { name: 'Conversation actions for Renamed chat' })
+    )
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }))
     expect(await screen.findByRole('heading', { name: 'Delete conversation?' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
@@ -222,7 +237,9 @@ describe('AIChatPage', () => {
 
   it('attaches uploaded files when sending a message', async () => {
     render(<AIChatPage />)
-    const input = await screen.findByPlaceholderText('Ask about operations, diagnosis, or AppOS knowledge')
+    const input = await screen.findByPlaceholderText(
+      'Ask about operations, diagnosis, or AppOS knowledge'
+    )
     const upload = screen.getByLabelText('Chat file upload') as HTMLInputElement
     const sendButton = screen.getByRole('button', { name: 'Send message' })
     const file = new File(['worker_processes auto;'], 'nginx.conf', { type: 'text/plain' })
@@ -234,7 +251,11 @@ describe('AIChatPage', () => {
     fireEvent.change(upload)
 
     sendMessageMock.mockImplementation(
-      async (_sessionId: string, _content: string, callbacks: Parameters<typeof sendAIChatMessage>[2]) => {
+      async (
+        _sessionId: string,
+        _content: string,
+        callbacks: Parameters<typeof sendAIChatMessage>[2]
+      ) => {
         callbacks.onDone?.({
           id: 'msg-3',
           session_id: 'session-1',
@@ -276,7 +297,12 @@ describe('AIChatPage', () => {
 
   it('renders assistant markdown tables', async () => {
     listMessagesMock.mockResolvedValueOnce([
-      { id: 'msg-1', session_id: 'session-1', role: 'assistant', content: '| Name | Value |\n| --- | --- |\n| CPU | 20% |' },
+      {
+        id: 'msg-1',
+        session_id: 'session-1',
+        role: 'assistant',
+        content: '| Name | Value |\n| --- | --- |\n| CPU | 20% |',
+      },
     ])
 
     render(<AIChatPage />)
@@ -304,13 +330,19 @@ describe('AIChatPage', () => {
     expect(await screen.findByText('Start a conversation')).toBeInTheDocument()
     expect(createSessionMock).not.toHaveBeenCalled()
     expect(screen.getAllByRole('heading', { name: 'AI Copilot' })).toHaveLength(2)
-    expect(screen.getByPlaceholderText('Ask about operations, diagnosis, or AppOS knowledge')).toBeEnabled()
+    expect(
+      screen.getByPlaceholderText('Ask about operations, diagnosis, or AppOS knowledge')
+    ).toBeEnabled()
   })
 
   it('creates a conversation when sending the first message from an empty state', async () => {
     listSessionsMock.mockResolvedValueOnce([])
     sendMessageMock.mockImplementation(
-      async (_sessionId: string, _content: string, callbacks: Parameters<typeof sendAIChatMessage>[2]) => {
+      async (
+        _sessionId: string,
+        _content: string,
+        callbacks: Parameters<typeof sendAIChatMessage>[2]
+      ) => {
         callbacks.onDone?.({
           id: 'msg-3',
           session_id: 'session-new',
@@ -322,13 +354,20 @@ describe('AIChatPage', () => {
 
     render(<AIChatPage />)
 
-    const input = await screen.findByPlaceholderText('Ask about operations, diagnosis, or AppOS knowledge')
+    const input = await screen.findByPlaceholderText(
+      'Ask about operations, diagnosis, or AppOS knowledge'
+    )
     fireEvent.change(input, { target: { value: 'hello from empty state' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
     await waitFor(() => expect(createSessionMock).toHaveBeenCalledTimes(1))
     await waitFor(() =>
-      expect(sendMessageMock).toHaveBeenCalledWith('session-new', 'hello from empty state', expect.any(Object), [])
+      expect(sendMessageMock).toHaveBeenCalledWith(
+        'session-new',
+        'hello from empty state',
+        expect.any(Object),
+        []
+      )
     )
     expect(await screen.findByText('created on demand')).toBeInTheDocument()
   })

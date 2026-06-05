@@ -69,9 +69,11 @@ vi.mock('react-i18next', () => ({
         'servers.help.connectionTypeLabel': 'Connection type help',
         'servers.help.connectionTypeBody': 'Choose how the managed server connects to AppOS.',
         'servers.help.hostLabel': 'Host help',
-        'servers.help.hostBody': 'Enter the IP address or domain name of the server managed by AppOS.',
+        'servers.help.hostBody':
+          'Enter the IP address or domain name of the server managed by AppOS.',
         'servers.localHost.label': 'The same host with AppOS',
-        'servers.localHost.errors.loadCurrentHostname': 'Failed to resolve the current AppOS hostname',
+        'servers.localHost.errors.loadCurrentHostname':
+          'Failed to resolve the current AppOS hostname',
         'servers.secret.newCredential': 'New credential',
         'servers.secret.editSecret': 'Edit Secret',
         'servers.secret.errors.load': 'Failed to load secret',
@@ -113,50 +115,69 @@ vi.mock('react-i18next', () => ({
         'servers.tabs.crontab': 'Crontab',
         'servers.tabs.systemd': 'Systemd',
         'servers.monitorTab.heading': 'Monitor',
-        'servers.monitorTab.description': 'Review current resource signals, trend history, and compact server conclusions.',
+        'servers.monitorTab.description':
+          'Review current resource signals, trend history, and compact server conclusions.',
         'servers.monitorTab.currentValuesRegion': 'Monitor current values and trend history',
-        'servers.monitorTab.errors.collectorStatusUnavailable': 'Unable to read monitor collector service status',
+        'servers.monitorTab.errors.collectorStatusUnavailable':
+          'Unable to read monitor collector service status',
         'servers.monitorTab.state.ok': 'OK',
         'servers.monitorTab.state.attention': 'Action needed',
         'servers.monitorTab.state.checking': 'Checking',
         'servers.monitorTab.state.review': 'Review',
         'servers.monitorTab.time.updatedUnknown': 'Updated —',
         'servers.monitorTab.hints.checking': 'Checking monitoring',
-        'servers.monitorTab.hints.awaitingFirstSample': 'Monitoring active · waiting for first sample',
+        'servers.monitorTab.hints.awaitingFirstSample':
+          'Monitoring active · waiting for first sample',
         'servers.monitorTab.hints.notConnected': 'Monitoring not connected',
         'servers.monitorTab.alert.notConnectedTitle': 'Monitoring is not connected on this server.',
-        'servers.monitorTab.alert.notConnectedBody': 'Install or repair the Monitor Agent addon from Components before relying on monitor data.',
+        'servers.monitorTab.alert.notConnectedBody':
+          'Install or repair the Monitor Agent addon from Components before relying on monitor data.',
         'servers.monitorTab.actions.refreshStatus': 'Refresh monitor status',
         'servers.monitorTab.actions.openComponents': 'Open Components',
         'servers.monitorTab.actions.installMonitorAgent': 'Install monitor agent',
         'servers.monitorTab.actions.fixMonitorAgent': 'Fix monitor agent',
         'servers.monitorTab.actions.repairMonitorAgent': 'Repair monitor agent',
-        'servers.monitorTab.actions.repairMonitorAgentDescription': 'Reissues monitor write credentials, rewrites the callback address when needed, and restarts the AppOS monitor collector.',
-        'servers.monitorTab.actions.openComponentsDescription': 'Use Repair on the Monitor Agent addon to reissue credentials and refresh the callback address.',
+        'servers.monitorTab.actions.repairMonitorAgentDescription':
+          'Reissues monitor write credentials, rewrites the callback address when needed, and restarts the AppOS monitor collector.',
+        'servers.monitorTab.actions.openComponentsDescription':
+          'Use Repair on the Monitor Agent addon to reissue credentials and refresh the callback address.',
         'servers.monitorTab.conclusions.regionLabel': 'Monitor conclusions',
         'servers.monitorTab.conclusions.title': 'Conclusions',
-        'servers.monitorTab.conclusions.subtitle': 'Compact server insights from usable monitor signals.',
+        'servers.monitorTab.conclusions.subtitle':
+          'Compact server insights from usable monitor signals.',
         'servers.monitorTab.conclusions.emptyTitle': 'No conclusions yet.',
-        'servers.monitorTab.conclusions.emptyBody': 'Monitoring data is required before AppOS can analyze this server.',
+        'servers.monitorTab.conclusions.emptyBody':
+          'Monitoring data is required before AppOS can analyze this server.',
         'servers.monitorTab.conclusions.dismissedTitle': 'All conclusions dismissed.',
-        'servers.monitorTab.conclusions.dismissedBody': 'Refresh monitor data to rebuild the conclusion list.',
+        'servers.monitorTab.conclusions.dismissedBody':
+          'Refresh monitor data to rebuild the conclusion list.',
         'servers.monitorTab.conclusions.listLabel': 'Monitor conclusion list',
         'servers.monitorTab.conclusions.deleteTitle': 'Delete conclusion',
         'servers.monitorTab.conclusions.controlReachable.label': 'Control reachable',
         'servers.monitorTab.conclusions.controlReachable.summaryOk': 'AppOS can reach this server.',
-        'servers.monitorTab.conclusions.controlReachable.summaryAttention': 'Server access needs attention.',
+        'servers.monitorTab.conclusions.controlReachable.summaryAttention':
+          'Server access needs attention.',
         'servers.monitorTab.conclusions.controlReachable.nextOk': 'No action needed.',
-        'servers.monitorTab.conclusions.controlReachable.nextAttention': 'Open the Connection tab and fix access.',
+        'servers.monitorTab.conclusions.controlReachable.nextAttention':
+          'Open the Connection tab and fix access.',
         'servers.monitorTab.conclusions.trendDataAvailable.label': 'Trend data available',
-        'servers.monitorTab.conclusions.trendDataAvailable.summaryChecking': 'Checking monitor data path.',
-        'servers.monitorTab.conclusions.trendDataAvailable.summaryReady': 'Use charts to confirm freshness.',
-        'servers.monitorTab.conclusions.trendDataAvailable.detailChecking': 'AppOS is checking whether the monitor collector can provide usable trend data.',
-        'servers.monitorTab.conclusions.trendDataAvailable.detailReady': 'Trend cards on the left are the source of truth for whether data is current and complete.',
-        'servers.monitorTab.conclusions.trendDataAvailable.nextStep': 'If charts stay empty or stale, open Components to verify the Monitor Agent addon.',
+        'servers.monitorTab.conclusions.trendDataAvailable.summaryChecking':
+          'Checking monitor data path.',
+        'servers.monitorTab.conclusions.trendDataAvailable.summaryReady':
+          'Use charts to confirm freshness.',
+        'servers.monitorTab.conclusions.trendDataAvailable.detailChecking':
+          'AppOS is checking whether the monitor collector can provide usable trend data.',
+        'servers.monitorTab.conclusions.trendDataAvailable.detailReady':
+          'Trend cards on the left are the source of truth for whether data is current and complete.',
+        'servers.monitorTab.conclusions.trendDataAvailable.nextStep':
+          'If charts stay empty or stale, open Components to verify the Monitor Agent addon.',
         'servers.monitorTab.conclusions.resourcePressure.label': 'Resource pressure',
-        'servers.monitorTab.conclusions.resourcePressure.summary': 'Review current values and trends.',
-        'servers.monitorTab.conclusions.resourcePressure.detail': 'CPU, memory, disk, and network cards show the current pressure and recent direction.',
-        'servers.monitorTab.conclusions.resourcePressure.nextStep': 'Investigate only when values are high, rising, or missing unexpectedly.',
+        'servers.monitorTab.conclusions.resourcePressure.summary':
+          'Review current values and trends.',
+        'servers.monitorTab.conclusions.resourcePressure.detail':
+          'CPU, memory, disk, and network cards show the current pressure and recent direction.',
+        'servers.monitorTab.conclusions.resourcePressure.nextStep':
+          'Investigate only when values are high, rising, or missing unexpectedly.',
         'servers.overview.sections.metadata': 'Server Metadata',
         'servers.overview.sections.systemInformation': 'System Information',
         'servers.overview.sections.cloudProvider': 'Cloud Provider',
@@ -207,7 +228,8 @@ vi.mock('react-i18next', () => ({
         'servers.connectionTab.reason.connectionUnavailable': 'Connection unavailable',
         'servers.connectionTab.hero.tunnelLive': 'Tunnel connection is live',
         'servers.connectionTab.hero.directReady': 'Direct SSH is ready',
-        'servers.connectionTab.hero.waitingFirstTunnelCallback': 'Waiting for the first tunnel callback',
+        'servers.connectionTab.hero.waitingFirstTunnelCallback':
+          'Waiting for the first tunnel callback',
         'servers.connectionTab.hero.setupInProgress': 'Connection setup is in progress',
         'servers.connectionTab.hero.tunnelNeedsAttention': 'Tunnel connection needs attention',
         'servers.connectionTab.hero.connectionNeedsAttention': 'Connection needs attention',
@@ -243,9 +265,11 @@ vi.mock('react-i18next', () => ({
         'servers.componentsTab.sections.addonsRegion': 'Addons section',
         'servers.componentsTab.sections.addonInventory': 'Addon inventory',
         'servers.componentsTab.help.prerequisitesLabel': 'Prerequisites help',
-        'servers.componentsTab.help.prerequisitesBody': 'Core platform requirements that should be ready before AppOS manages workloads on this server.',
+        'servers.componentsTab.help.prerequisitesBody':
+          'Core platform requirements that should be ready before AppOS manages workloads on this server.',
         'servers.componentsTab.help.addonsLabel': 'Addons help',
-        'servers.componentsTab.help.addonsBody': 'Optional server-side components that AppOS can inspect, verify, install, or repair after the baseline is ready.',
+        'servers.componentsTab.help.addonsBody':
+          'Optional server-side components that AppOS can inspect, verify, install, or repair after the baseline is ready.',
         'servers.componentsTab.actions.refresh': 'Refresh',
         'servers.componentsTab.actions.refreshComponents': 'Refresh components',
         'servers.componentsTab.columns.name': 'Name',
@@ -265,8 +289,10 @@ vi.mock('react-i18next', () => ({
         'servers.componentsTab.groups.recommended': 'Recommended',
         'servers.componentsTab.groups.secondary': 'Secondary',
         'servers.componentsTab.groups.dangerous': 'Dangerous',
-        'servers.componentsTab.guidance.stoppedWithStart': 'This addon is stopped. Use Start to bring it back online.',
-        'servers.componentsTab.guidance.stoppedWithoutStart': 'This addon is stopped. Bring the service back online, then run Check to verify health.',
+        'servers.componentsTab.guidance.stoppedWithStart':
+          'This addon is stopped. Use Start to bring it back online.',
+        'servers.componentsTab.guidance.stoppedWithoutStart':
+          'This addon is stopped. Bring the service back online, then run Check to verify health.',
         'servers.componentsTab.installSources.managed': 'Managed',
         'servers.componentsTab.installSources.foreignPackage': 'Foreign package',
         'servers.componentsTab.installSources.manual': 'Manual',
@@ -310,18 +336,22 @@ vi.mock('react-i18next', () => ({
         'servers.componentsTab.inventory.service': 'Service',
         'servers.componentsTab.inventory.appos': 'AppOS',
         'servers.componentsTab.inventory.operation': 'Operation',
-        'servers.componentsTab.checklist.checkDockerEngineInstallation': 'Check Docker Engine installation',
+        'servers.componentsTab.checklist.checkDockerEngineInstallation':
+          'Check Docker Engine installation',
         'servers.componentsTab.checklist.checkDockerEngineVersion': 'Check Docker Engine version',
-        'servers.componentsTab.checklist.checkDockerComposeAvailability': 'Check Docker Compose availability',
+        'servers.componentsTab.checklist.checkDockerComposeAvailability':
+          'Check Docker Compose availability',
         'servers.componentsTab.checklist.checkDockerComposeVersion': 'Check Docker Compose version',
         'servers.componentsTab.operationHistory.loading': 'Loading operation history...',
         'servers.componentsTab.operationHistory.empty': 'No operation history yet.',
         'servers.componentsTab.operationHistory.badges.current': 'Current',
         'servers.componentsTab.operationHistory.errors.load': 'Failed to load operation history',
-        'servers.componentsTab.operationHistory.errors.delete': 'Failed to delete operation history record',
+        'servers.componentsTab.operationHistory.errors.delete':
+          'Failed to delete operation history record',
         'servers.componentsTab.operationHistory.actions.refresh': 'Refresh operation history',
         'servers.componentsTab.operationHistory.actions.deleteRecord': 'Delete history record',
-        'servers.componentsTab.operationHistory.actions.deleteBlocked': 'In-flight operations cannot be deleted',
+        'servers.componentsTab.operationHistory.actions.deleteBlocked':
+          'In-flight operations cannot be deleted',
         'servers.componentsTab.panelTabs.checklist': 'Checklist',
         'servers.componentsTab.panelTabs.details': 'Details',
         'servers.componentsTab.panelTabs.liveLog': 'Live Log',
@@ -331,10 +361,13 @@ vi.mock('react-i18next', () => ({
         'servers.componentsTab.panelTitles.addonDetails': 'Addon Details',
         'servers.componentsTab.badges.streaming': 'Streaming',
         'servers.componentsTab.badges.inProgress': 'In progress',
-        'servers.componentsTab.errors.loadPrerequisiteComponents': 'Failed to load prerequisite components',
+        'servers.componentsTab.errors.loadPrerequisiteComponents':
+          'Failed to load prerequisite components',
         'servers.componentsTab.errors.loadAddonComponents': 'Failed to load addon components',
-        'servers.componentsTab.actionFeedback.waitingForFirstMetricsSample': 'Waiting for the first metrics sample from this server.',
-        'servers.componentsTab.actionFeedback.waitingForFirstMetricsSampleWithConnection': 'Waiting for the first metrics sample; AppOS Connection will show Connecting until trend data arrives.',
+        'servers.componentsTab.actionFeedback.waitingForFirstMetricsSample':
+          'Waiting for the first metrics sample from this server.',
+        'servers.componentsTab.actionFeedback.waitingForFirstMetricsSampleWithConnection':
+          'Waiting for the first metrics sample; AppOS Connection will show Connecting until trend data arrives.',
         'servers.componentsTab.actionFeedback.now': 'Now',
         'servers.componentsTab.phase.accepted': 'Accepted',
         'servers.componentsTab.phase.preflight': 'Preflight check...',
@@ -351,33 +384,44 @@ vi.mock('react-i18next', () => ({
         'servers.componentsTab.dockerFocus.sources.volumes': 'Volumes',
         'servers.componentsTab.dockerFocus.sources.networks': 'Networks',
         'servers.componentsTab.dockerFocus.sources.overview': 'Overview',
-        'servers.componentsTab.logRegions.prerequisiteActionLogEntries': 'Prerequisite action log entries',
+        'servers.componentsTab.logRegions.prerequisiteActionLogEntries':
+          'Prerequisite action log entries',
         'servers.componentsTab.logRegions.addonActionLogEntries': 'Addon action log entries',
-        'servers.componentsTab.dialogs.confirmDanger.upgradeConsequence': 'upgrade or replace Docker components',
-        'servers.componentsTab.dialogs.confirmDanger.reinstallConsequence': 'reinstall or replace Docker components',
+        'servers.componentsTab.dialogs.confirmDanger.upgradeConsequence':
+          'upgrade or replace Docker components',
+        'servers.componentsTab.dialogs.confirmDanger.reinstallConsequence':
+          'reinstall or replace Docker components',
         'servers.componentsTab.dialogs.confirmDanger.cancel': 'Cancel',
         'servers.componentsTab.dialogs.confirmDanger.continue': 'Continue',
         'servers.componentsTab.dialogs.monitorAddress.title': 'Choose monitor callback address',
-        'servers.componentsTab.dialogs.monitorAddress.description': 'The monitor agent will send metrics back to AppOS. The address detected from this browser session differs from the configured App URL. Choose the address that the target server can reach.',
-        'servers.componentsTab.dialogs.monitorAddress.close': 'Close monitor callback address dialog',
+        'servers.componentsTab.dialogs.monitorAddress.description':
+          'The monitor agent will send metrics back to AppOS. The address detected from this browser session differs from the configured App URL. Choose the address that the target server can reach.',
+        'servers.componentsTab.dialogs.monitorAddress.close':
+          'Close monitor callback address dialog',
         'servers.componentsTab.dialogs.monitorAddress.detectedAddress': 'Detected address',
         'servers.componentsTab.dialogs.monitorAddress.appUrl': 'App URL',
         'servers.componentsTab.dialogs.monitorAddress.useDetectedAddress': 'Use detected address',
         'servers.componentsTab.dialogs.monitorAddress.useAppUrl': 'Use App URL',
         'servers.componentsTab.dialogs.monitorAddress.errors.loadAppUrl': 'Failed to load App URL',
-        'servers.componentsTab.dialogs.monitorAddress.errors.detectCallback': 'Cannot detect the AppOS callback address from this browser session.',
-        'servers.componentsTab.alerts.operationAlreadyInProgress.title': 'Operation already in progress',
+        'servers.componentsTab.dialogs.monitorAddress.errors.detectCallback':
+          'Cannot detect the AppOS callback address from this browser session.',
+        'servers.componentsTab.alerts.operationAlreadyInProgress.title':
+          'Operation already in progress',
         'servers.componentsTab.alerts.operationAlreadyInProgress.currentPhase': 'Current phase',
         'servers.componentsTab.alerts.operationAlreadyInProgress.lastUpdated': 'Last updated',
-        'servers.componentsTab.alerts.operationAlreadyInProgress.openOperationHistory': 'Open operation history',
+        'servers.componentsTab.alerts.operationAlreadyInProgress.openOperationHistory':
+          'Open operation history',
         'servers.componentsTab.selectedAddon.title': 'Selected Addon',
-        'servers.componentsTab.selectedAddon.selectFromInventory': 'Select one addon from the inventory.',
-        'servers.componentsTab.selectedAddon.empty': 'Choose a component to inspect status, activity, readiness issues, and available actions.',
+        'servers.componentsTab.selectedAddon.selectFromInventory':
+          'Select one addon from the inventory.',
+        'servers.componentsTab.selectedAddon.empty':
+          'Choose a component to inspect status, activity, readiness issues, and available actions.',
         'servers.componentsTab.selectedAddon.inProgress.title': 'Operation in progress',
         'servers.componentsTab.selectedAddon.inProgress.isStill': 'is still',
         'servers.componentsTab.selectedAddon.inProgress.lastUpdated': 'Last updated',
         'servers.componentsTab.prerequisiteCard.summary.checksPassed': 'Checks passed',
-        'servers.componentsTab.prerequisiteCard.summary.openDetails': 'Open details for verification and recovery actions',
+        'servers.componentsTab.prerequisiteCard.summary.openDetails':
+          'Open details for verification and recovery actions',
         'servers.componentsTab.prerequisiteCard.fields.status': 'Status',
         'servers.componentsTab.prerequisiteCard.fields.version': 'Version',
         'servers.componentsTab.prerequisiteCard.fields.dockerCompose': 'Docker Compose',
@@ -385,11 +429,14 @@ vi.mock('react-i18next', () => ({
         'servers.componentsTab.prerequisiteCard.fallback.unavailable': 'Unavailable',
         'servers.componentsTab.prerequisiteCard.fallback.missing': 'Missing',
         'servers.componentsTab.empty.loadingPrerequisites': 'Loading prerequisites...',
-        'servers.componentsTab.empty.noPrerequisites': 'No prerequisite components are defined for this server.',
+        'servers.componentsTab.empty.noPrerequisites':
+          'No prerequisite components are defined for this server.',
         'servers.componentsTab.empty.loadingAddons': 'Loading addons...',
         'servers.componentsTab.empty.noAddons': 'No addon components found for this server.',
-        'servers.componentsTab.empty.waitingForOperationUpdates': 'Waiting for operation updates...',
-        'servers.componentsTab.empty.noLiveLogYet': 'No live log yet. Run an action to stream updates here.',
+        'servers.componentsTab.empty.waitingForOperationUpdates':
+          'Waiting for operation updates...',
+        'servers.componentsTab.empty.noLiveLogYet':
+          'No live log yet. Run an action to stream updates here.',
         'servers.summary.viaTunnel': 'via AppOS tunnel',
         'servers.sessions.oneActive': '1 active terminal session',
         'servers.listSettings.title': 'List settings',

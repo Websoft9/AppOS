@@ -15,7 +15,10 @@ let catalogAllAppsError = false
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
-  createFileRoute: () => (config: unknown) => config,
+  createFileRoute: () => (config: unknown) => ({
+    ...((config as Record<string, unknown>) ?? {}),
+    useSearch: () => ({}),
+  }),
 }))
 
 vi.mock('react-i18next', () => ({
@@ -156,7 +159,13 @@ vi.mock('@/lib/catalog-api', () => ({
       : null,
     error: null,
   }),
-  toLegacyProduct: (item: typeof wordpressSummary | typeof nocodbSummary | typeof odooSummary | typeof erpnextSummary) => ({
+  toLegacyProduct: (
+    item:
+      | typeof wordpressSummary
+      | typeof nocodbSummary
+      | typeof odooSummary
+      | typeof erpnextSummary
+  ) => ({
     sys: { id: item.key },
     key: item.key,
     trademark: item.title,
@@ -175,7 +184,11 @@ vi.mock('@/lib/catalog-api', () => ({
     primaryCategoryKey: item.primaryCategory?.key ?? null,
     secondaryCategoryKeys: item.secondaryCategories.map(category => category.key),
   }),
-  toLegacyProducts: (response: { items: Array<typeof wordpressSummary | typeof nocodbSummary | typeof odooSummary | typeof erpnextSummary> }) =>
+  toLegacyProducts: (response: {
+    items: Array<
+      typeof wordpressSummary | typeof nocodbSummary | typeof odooSummary | typeof erpnextSummary
+    >
+  }) =>
     response.items.map(item => ({
       sys: { id: item.key },
       key: item.key,
@@ -187,7 +200,9 @@ vi.mock('@/lib/catalog-api', () => ({
       primaryCategoryKey: item.primaryCategory?.key ?? null,
       secondaryCategoryKeys: [],
     })),
-  toLegacyPrimaryCategories: (response: { items: Array<{ key: string; title: string; position?: number | null }> }) =>
+  toLegacyPrimaryCategories: (response: {
+    items: Array<{ key: string; title: string; position?: number | null }>
+  }) =>
     response.items.map(item => ({
       key: item.key,
       title: item.title,
@@ -211,7 +226,13 @@ vi.mock('@/lib/store-custom-api', () => ({
 }))
 
 vi.mock('@/components/store/SearchAutocomplete', () => ({
-  SearchAutocomplete: ({ value, onChange }: { value: string; onChange: (value: string) => void }) => (
+  SearchAutocomplete: ({
+    value,
+    onChange,
+  }: {
+    value: string
+    onChange: (value: string) => void
+  }) => (
     <input aria-label="search" value={value} onChange={event => onChange(event.target.value)} />
   ),
 }))
@@ -239,7 +260,15 @@ vi.mock('@/components/store/CustomAppDialog', () => ({
 }))
 
 vi.mock('@/components/store/AppDetailModal', () => ({
-  AppDetailModal: ({ product, open, onDeploy }: { product: { trademark: string } | null; open: boolean; onDeploy?: () => void }) =>
+  AppDetailModal: ({
+    product,
+    open,
+    onDeploy,
+  }: {
+    product: { trademark: string } | null
+    open: boolean
+    onDeploy?: () => void
+  }) =>
     open && product ? (
       <div>
         <div>{product.trademark}</div>

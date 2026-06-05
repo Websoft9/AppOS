@@ -33,7 +33,15 @@
     ]
   },
   "render": {
-    "exposureKind": "http",
+    "exposures": [
+      {
+        "label": "Web",
+        "service": "odoo",
+        "port": 8069,
+        "protocol": "http",
+        "default": true
+      }
+    ],
     "primaryService": "odoo",
     "databaseService": "postgresql",
     "secretRefs": [

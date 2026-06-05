@@ -16,13 +16,13 @@ func TestDescribeFindsRuntimeTemplateUnderApposDataTemplatesApps(t *testing.T) {
 	}
 	write := func(path, content string) {
 		t.Helper()
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 			t.Fatalf("write %s: %v", path, err)
 		}
 	}
 	write(filepath.Join(templateDir, "manifest.json"), `{"key":"runtime-template-test","name":"Runtime Template Test","trademark":"Runtime Template Test","category":"Test","requirements":{},"serviceRoles":{}}`)
 	write(filepath.Join(templateDir, "inputs.schema.json"), `{"fields":[{"key":"admin_email","type":"string","label":"Admin Email","required":true,"default":"admin@example.com","visibility":"basic","storage_mode":"plain"}]}`)
-	write(filepath.Join(templateDir, "render.json"), `{"env":{"ADMIN_EMAIL":"${admin_email}"},"compose_values":{},"exposure":{},"files":[]}`)
+	write(filepath.Join(templateDir, "render.json"), `{"env":{"ADMIN_EMAIL":"${admin_email}"},"compose_values":{},"exposures":[{"label":"Web","service":"app","port":80,"protocol":"http","default":true}],"files":[]}`)
 	write(filepath.Join(templateDir, "source.json"), `{"template_revision":"test","origin_kind":"runtime","origin_ref":"unit-test"}`)
 	write(filepath.Join(composeDir, "base.yml"), "services:\n  app:\n    image: nginx:alpine\n")
 	t.Cleanup(func() {
@@ -38,5 +38,8 @@ func TestDescribeFindsRuntimeTemplateUnderApposDataTemplatesApps(t *testing.T) {
 	}
 	if response.Manifest.Trademark != "Runtime Template Test" {
 		t.Fatalf("expected trademark Runtime Template Test, got %q", response.Manifest.Trademark)
+	}
+	if len(response.Exposures) != 1 || response.Exposures[0].Service != "app" || response.Exposures[0].Port != 80 {
+		t.Fatalf("expected compact exposures in describe response, got %+v", response.Exposures)
 	}
 }

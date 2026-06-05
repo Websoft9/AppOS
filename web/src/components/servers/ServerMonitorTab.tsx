@@ -301,9 +301,7 @@ export function ServerMonitorConclusions({
           <div className="font-medium text-foreground">
             {t('servers.monitorTab.conclusions.emptyTitle')}
           </div>
-          <div className="mt-1">
-            {t('servers.monitorTab.conclusions.emptyBody')}
-          </div>
+          <div className="mt-1">{t('servers.monitorTab.conclusions.emptyBody')}</div>
         </div>
       ) : visibleConclusions.length === 0 ? (
         <div className="rounded-md border border-dashed px-3 py-6 text-sm text-muted-foreground">
@@ -357,7 +355,9 @@ export function ServerMonitorConclusions({
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6 shrink-0"
-                      aria-label={t('servers.monitorTab.conclusions.deleteItem', { label: item.label })}
+                      aria-label={t('servers.monitorTab.conclusions.deleteItem', {
+                        label: item.label,
+                      })}
                       title={t('servers.monitorTab.conclusions.deleteTitle')}
                       onClick={() => dismissConclusion(item.id)}
                     >
@@ -430,9 +430,7 @@ export function ServerMonitorTab({
       : monitoringConnected
         ? t('servers.monitorTab.hints.active', {
             subState:
-              monitorAgent.connected && monitorAgent.subState
-                ? ` · ${monitorAgent.subState}`
-                : '',
+              monitorAgent.connected && monitorAgent.subState ? ` · ${monitorAgent.subState}` : '',
           })
         : t('servers.monitorTab.hints.notConnected')
   const refreshMonitorStatus = useCallback(() => {
@@ -445,9 +443,7 @@ export function ServerMonitorTab({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
           <h2 className="text-sm font-semibold">{t('servers.monitorTab.heading')}</h2>
-          <p className="text-sm text-muted-foreground">
-            {t('servers.monitorTab.description')}
-          </p>
+          <p className="text-sm text-muted-foreground">{t('servers.monitorTab.description')}</p>
         </div>
         <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
           {monitorAgent.loadingStatus || monitorTarget.loading ? (
@@ -502,10 +498,7 @@ export function ServerMonitorTab({
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <section
-          className="space-y-4"
-          aria-label={t('servers.monitorTab.currentValuesRegion')}
-        >
+        <section className="space-y-4" aria-label={t('servers.monitorTab.currentValuesRegion')}>
           <MonitorTargetPanel
             targetType="server"
             targetId={serverId}

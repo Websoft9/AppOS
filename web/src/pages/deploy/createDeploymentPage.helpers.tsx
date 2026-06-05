@@ -57,7 +57,9 @@ export function isSecretBackedTemplateField(field: CatalogTemplateField) {
 
 export function isDatabasePasswordTemplateField(field: CatalogTemplateField) {
   const key = field.key.trim().toLowerCase()
-  const label = String(field.label || '').trim().toLowerCase()
+  const label = String(field.label || '')
+    .trim()
+    .toLowerCase()
   return key === 'db_password' || (label.includes('database') && label.includes('password'))
 }
 
@@ -88,9 +90,9 @@ export function buildRandomNumericSuffix(length = 4) {
     cryptoObject.getRandomValues(bytes)
     return Array.from(bytes, value => String(value % 10)).join('')
   }
-  return Array.from({ length: normalizedLength }, () => String(Math.floor(Math.random() * 10))).join(
-    ''
-  )
+  return Array.from({ length: normalizedLength }, () =>
+    String(Math.floor(Math.random() * 10))
+  ).join('')
 }
 
 export function slugifySecretPart(value: string) {
@@ -137,11 +139,13 @@ export function buildTemplateDefaultAppName(templateName: string, templateKey: s
   return `${base}-${buildRandomNumericSuffix()}`
 }
 
-export function buildTemplateServiceItems(templateDetail?: {
-  manifest?: { serviceRoles?: Record<string, string> }
-  exposure?: Record<string, unknown>
-  composeValues?: Record<string, unknown>
-} | null): TemplateServiceItem[] {
+export function buildTemplateServiceItems(
+  templateDetail?: {
+    manifest?: { serviceRoles?: Record<string, string> }
+    exposure?: Record<string, unknown>
+    composeValues?: Record<string, unknown>
+  } | null
+): TemplateServiceItem[] {
   if (!templateDetail) return []
 
   const roles = templateDetail.manifest?.serviceRoles || {}
@@ -382,7 +386,10 @@ export function HelpTip({ text }: { text: string }) {
 
 export function DeployCreateBreadcrumb() {
   return (
-    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
+    <nav
+      aria-label="Breadcrumb"
+      className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground"
+    >
       <Link
         to="/deploy"
         search={{} as never}

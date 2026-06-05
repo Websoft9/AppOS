@@ -209,8 +209,7 @@ export function ConnectorsPage() {
       <ResourcePage
         config={{
           title: t('connectors.page.title'),
-          description:
-            t('connectors.page.description'),
+          description: t('connectors.page.description'),
           apiPath: `/api/connectors?kind=${CONNECTOR_KIND_QUERY}`,
           dialogContentClassName: 'max-w-2xl',
           createButtonLabel: t('connectors.page.addConnector'),
@@ -237,7 +236,8 @@ export function ConnectorsPage() {
           paginationPlacement: 'header',
           paginationVariant: 'minimal',
           paginationSummary: false,
-          paginationTotalLabel: totalCount => t('connectors.page.totalItems', { count: totalCount }),
+          paginationTotalLabel: totalCount =>
+            t('connectors.page.totalItems', { count: totalCount }),
           pageSizeSelectorPlacement: 'none',
           actionsAlign: 'left',
           actionsMenuAlign: 'start',

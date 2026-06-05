@@ -1,8 +1,8 @@
 package routes
 
 import (
-	"fmt"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,8 +12,8 @@ import (
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	"github.com/websoft9/appos/backend/domain/config/sharedenv"
+	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	"github.com/websoft9/appos/backend/domain/deploy"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
@@ -557,6 +557,7 @@ func TestOperationTemplateCheckAndCreateWordPress(t *testing.T) {
 	if appRecord.GetString("template_key") != "wordpress" {
 		t.Fatalf("expected wordpress template_key, got %q", appRecord.GetString("template_key"))
 	}
+	assertAccessEndpoint(t, appRecord.Get("access_endpoints"), "wordpress", 80, 9001, "http", true)
 }
 
 func TestOperationTemplateCreateOdoo(t *testing.T) {
@@ -579,6 +580,11 @@ func TestOperationTemplateCreateOdoo(t *testing.T) {
 	if !strings.Contains(renderedCompose, "image: odoo:18.0") || !strings.Contains(renderedCompose, "9010:8069") {
 		t.Fatalf("expected rendered odoo compose to honor overrides, got %q", renderedCompose)
 	}
+	appRecord, err := te.app.FindRecordById("app_instances", opRecord.GetString("app"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertAccessEndpoint(t, appRecord.Get("access_endpoints"), "odoo", 8069, 9010, "http", true)
 }
 
 func TestOperationTemplateCreateCanDisablePrimaryPublishedPort(t *testing.T) {
@@ -600,6 +606,61 @@ func TestOperationTemplateCreateCanDisablePrimaryPublishedPort(t *testing.T) {
 	renderedCompose := opRecord.GetString("rendered_compose")
 	if strings.Contains(renderedCompose, ":80") {
 		t.Fatalf("expected rendered wordpress compose to remove published ports, got %q", renderedCompose)
+	}
+	appRecord, err := te.app.FindRecordById("app_instances", opRecord.GetString("app"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if endpoints := accessEndpointItems(t, appRecord.Get("access_endpoints")); len(endpoints) != 0 {
+		t.Fatalf("expected internal-only install to persist no access endpoints, got %v", endpoints)
+	}
+}
+
+func assertAccessEndpoint(t *testing.T, raw any, service string, port int, serverPort int, protocol string, defaultEndpoint bool) {
+	t.Helper()
+	items := accessEndpointItems(t, raw)
+	if len(items) != 1 {
+		t.Fatalf("expected 1 access endpoint, got %d: %v", len(items), items)
+	}
+	endpoint := items[0]
+	if endpoint["service"] != service || endpoint["protocol"] != protocol || endpoint["default"] != defaultEndpoint {
+		t.Fatalf("unexpected access endpoint identity: %v", endpoint)
+	}
+	if intFromEndpoint(endpoint["port"]) != port || intFromEndpoint(endpoint["serverPort"]) != serverPort {
+		t.Fatalf("unexpected access endpoint ports: %v", endpoint)
+	}
+	if _, exists := endpoint["url"]; exists {
+		t.Fatalf("access endpoint must not persist url: %v", endpoint)
+	}
+	if _, exists := endpoint["id"]; exists {
+		t.Fatalf("access endpoint must not persist id: %v", endpoint)
+	}
+}
+
+func accessEndpointItems(t *testing.T, raw any) []map[string]any {
+	t.Helper()
+	if raw == nil {
+		return nil
+	}
+	data, err := json.Marshal(raw)
+	if err != nil {
+		t.Fatalf("marshal access_endpoints %T: %v", raw, err)
+	}
+	var items []map[string]any
+	if err := json.Unmarshal(data, &items); err != nil {
+		t.Fatalf("decode access_endpoints %T: %v; data=%s", raw, err, string(data))
+	}
+	return items
+}
+
+func intFromEndpoint(value any) int {
+	switch typed := value.(type) {
+	case int:
+		return typed
+	case float64:
+		return int(typed)
+	default:
+		return 0
 	}
 }
 

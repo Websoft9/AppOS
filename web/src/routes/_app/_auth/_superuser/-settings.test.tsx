@@ -184,10 +184,11 @@ describe('SettingsPage shared settings paths', () => {
               source: 'custom',
               fields: [
                 {
-					id: 'minFreeDiskGiB',
-					label: 'Minimum Free Disk (GiB)',
-					type: 'number',
-					helpText: 'Block deployment when the target keeps less free disk than this buffer.',
+                  id: 'minFreeDiskGiB',
+                  label: 'Minimum Free Disk (GiB)',
+                  type: 'number',
+                  helpText:
+                    'Block deployment when the target keeps less free disk than this buffer.',
                 },
               ],
             },
@@ -660,7 +661,7 @@ describe('SettingsPage shared settings paths', () => {
       expect(screen.getByText('Deploy Preflight')).toBeInTheDocument()
       expect(screen.getByText('Deploy Runtime')).toBeInTheDocument()
       expect(screen.getByText('Deploy Git Defaults')).toBeInTheDocument()
-  		expect(screen.getByLabelText('Minimum Free Disk (GiB)')).toBeInTheDocument()
+      expect(screen.getByLabelText('Minimum Free Disk (GiB)')).toBeInTheDocument()
       expect(screen.getByLabelText('Image Pull Timeout Seconds')).toBeInTheDocument()
       expect(screen.getByLabelText('Default Ref')).toBeInTheDocument()
     })

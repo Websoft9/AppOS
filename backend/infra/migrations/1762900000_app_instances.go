@@ -52,6 +52,7 @@ func ensureAppInstancesCollection(app core.App) (*core.Collection, error) {
 	addFieldIfMissing(col, &core.TextField{Name: "access_secret_hint"})
 	addFieldIfMissing(col, &core.TextField{Name: "access_retrieval_method"})
 	addFieldIfMissing(col, &core.TextField{Name: "access_notes"})
+	addFieldIfMissing(col, &core.JSONField{Name: "access_endpoints", MaxSize: 1 << 20})
 	addFieldIfMissing(col, &core.AutodateField{Name: "created", OnCreate: true})
 	addFieldIfMissing(col, &core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true})
 	col.AddIndex("idx_app_instances_key", true, "`key`", "")

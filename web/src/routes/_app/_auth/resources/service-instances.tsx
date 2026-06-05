@@ -129,7 +129,10 @@ function buildDatabaseCommonFields(t: Translate): InstanceTemplateField[] {
   ]
 }
 
-function localizeTemplateFieldCopy(field: InstanceTemplateField, t: Translate): InstanceTemplateField {
+function localizeTemplateFieldCopy(
+  field: InstanceTemplateField,
+  t: Translate
+): InstanceTemplateField {
   const key = TEMPLATE_FIELD_OVERRIDE_KEYS[field.id]
   if (!key) {
     return field
@@ -168,7 +171,9 @@ function kindLabel(kind: string, t: Translate) {
   if (KIND_LABELS[normalized]) {
     return t(`serviceInstances.kinds.${normalized}`)
   }
-  return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : t('serviceInstances.kinds.unknown')
+  return normalized
+    ? normalized.charAt(0).toUpperCase() + normalized.slice(1)
+    : t('serviceInstances.kinds.unknown')
 }
 
 function isGenericTemplate(template: InstanceTemplate, t: Translate) {
@@ -190,14 +195,20 @@ function buildDefaultInstanceName(template: InstanceTemplate, t: Translate) {
   return `${base}-${Date.now().toString().slice(-4)}`
 }
 
-function buildDefaultCredentialSecretName(template: InstanceTemplate, instanceName: string, t: Translate) {
+function buildDefaultCredentialSecretName(
+  template: InstanceTemplate,
+  instanceName: string,
+  t: Translate
+) {
   const base =
     slugifyNamePart(instanceName) || slugifyNamePart(productTitle(template, t)) || 'instance'
   return `${base}-password`
 }
 
 function categoryLabel(category: string | undefined, t: Translate) {
-  const normalized = String(category ?? '').trim().toLowerCase()
+  const normalized = String(category ?? '')
+    .trim()
+    .toLowerCase()
   if (CATEGORY_LABELS[normalized]) {
     return t(`serviceInstances.categories.${normalized}`)
   }
@@ -292,10 +303,7 @@ function buildSecretRelationApiPath(secretTemplateIds: string[]) {
   })
 }
 
-function databaseCertificateHelpText(
-  template: InstanceTemplate | null | undefined,
-  t: Translate
-) {
+function databaseCertificateHelpText(template: InstanceTemplate | null | undefined, t: Translate) {
   if (template?.kind === 'postgres') {
     return t('serviceInstances.help.sslCertificatePostgres')
   }
@@ -354,10 +362,7 @@ function monitorStatusVariant(
   }
 }
 
-function mergeDatabaseTemplateFields(
-  template: InstanceTemplate | null | undefined,
-  t: Translate
-) {
+function mergeDatabaseTemplateFields(template: InstanceTemplate | null | undefined, t: Translate) {
   if (!template) {
     return [] as InstanceTemplateField[]
   }
@@ -640,19 +645,25 @@ function buildColumns(t: Translate): Column[] {
       label: t('serviceInstances.columns.lastChecked'),
       sortable: true,
       sortValue: row => String(row.monitor_last_checked_at ?? ''),
-      render: value => <span className="text-sm text-muted-foreground">{formatDateTime(value)}</span>,
+      render: value => (
+        <span className="text-sm text-muted-foreground">{formatDateTime(value)}</span>
+      ),
     },
     {
       key: 'created',
       label: t('serviceInstances.columns.created'),
       sortable: true,
-      render: value => <span className="text-sm text-muted-foreground">{formatDateTime(value)}</span>,
+      render: value => (
+        <span className="text-sm text-muted-foreground">{formatDateTime(value)}</span>
+      ),
     },
     {
       key: 'updated',
       label: t('serviceInstances.columns.updated'),
       sortable: true,
-      render: value => <span className="text-sm text-muted-foreground">{formatDateTime(value)}</span>,
+      render: value => (
+        <span className="text-sm text-muted-foreground">{formatDateTime(value)}</span>
+      ),
     },
   ]
 }
@@ -698,7 +709,8 @@ export function ServiceInstancesPage() {
     () =>
       [...instanceTemplates]
         .sort((left, right) => {
-          const genericCompare = Number(isGenericTemplate(right, t)) - Number(isGenericTemplate(left, t))
+          const genericCompare =
+            Number(isGenericTemplate(right, t)) - Number(isGenericTemplate(left, t))
           if (genericCompare !== 0) return genericCompare
           return productTitle(left, t).localeCompare(productTitle(right, t))
         })
@@ -760,7 +772,7 @@ export function ServiceInstancesPage() {
         label:
           template.id === 'single_value'
             ? t('serviceInstances.secret.singleValueTemplate')
-            : SECRET_TEMPLATE_LABELS[template.id] ?? template.label,
+            : (SECRET_TEMPLATE_LABELS[template.id] ?? template.label),
       }))
   }, [t])
 
@@ -1166,9 +1178,10 @@ export function ServiceInstancesPage() {
     <>
       <ResourcePage
         config={{
-          title: t('resources.serviceInstances.title', { defaultValue: t('serviceInstances.page.title') }),
-          description:
-            t('serviceInstances.page.description'),
+          title: t('resources.serviceInstances.title', {
+            defaultValue: t('serviceInstances.page.title'),
+          }),
+          description: t('serviceInstances.page.description'),
           apiPath: '/api/instances',
           favoriteStorageKey: 'resource-page:favorites:service-instances',
           favoritesFilterLabel: t('serviceInstances.page.favoritesOnly'),
@@ -1332,9 +1345,7 @@ export function ServiceInstancesPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{t('serviceInstances.secret.editTitle')}</DialogTitle>
-            <DialogDescription>
-              {t('serviceInstances.secret.editDescription')}
-            </DialogDescription>
+            <DialogDescription>{t('serviceInstances.secret.editDescription')}</DialogDescription>
           </DialogHeader>
 
           {secretEditLoading ? (

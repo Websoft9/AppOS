@@ -159,10 +159,7 @@ function getStatusLabel(service: Pick<SystemdService, 'active_state' | 'sub_stat
   return activeState || subState || 'unknown'
 }
 
-function getStatusText(
-  t: (key: string) => string,
-  status: string
-) {
+function getStatusText(t: (key: string) => string, status: string) {
   switch (status) {
     case 'running':
       return t('servers.servicesTab.status.running')
@@ -251,7 +248,10 @@ function buildDetailRows(
   t: (key: string) => string
 ): DetailRow[] {
   const rows: DetailRow[] = [
-    { label: t('servers.servicesTab.detailRows.name'), value: getDisplayName(selectedService.name) || '—' },
+    {
+      label: t('servers.servicesTab.detailRows.name'),
+      value: getDisplayName(selectedService.name) || '—',
+    },
     {
       label: t('servers.servicesTab.detailRows.description'),
       value: statusDetails.Description || selectedService.description || '—',
@@ -268,14 +268,26 @@ function buildDetailRows(
     },
     { label: t('servers.servicesTab.detailRows.path'), value: unitPath || '—' },
     { label: t('servers.servicesTab.detailRows.pid'), value: statusDetails.MainPID || '—' },
-    { label: t('servers.servicesTab.detailRows.loadState'), value: statusDetails.LoadState || selectedService.load_state || '—' },
+    {
+      label: t('servers.servicesTab.detailRows.loadState'),
+      value: statusDetails.LoadState || selectedService.load_state || '—',
+    },
     {
       label: t('servers.servicesTab.detailRows.activeState'),
       value: statusDetails.ActiveState || selectedService.active_state || '—',
     },
-    { label: t('servers.servicesTab.detailRows.subState'), value: statusDetails.SubState || selectedService.sub_state || '—' },
-    { label: t('servers.servicesTab.detailRows.unitFileState'), value: statusDetails.UnitFileState || '—' },
-    { label: t('servers.servicesTab.detailRows.stateChange'), value: statusDetails.StateChangeTimestamp || '—' },
+    {
+      label: t('servers.servicesTab.detailRows.subState'),
+      value: statusDetails.SubState || selectedService.sub_state || '—',
+    },
+    {
+      label: t('servers.servicesTab.detailRows.unitFileState'),
+      value: statusDetails.UnitFileState || '—',
+    },
+    {
+      label: t('servers.servicesTab.detailRows.stateChange'),
+      value: statusDetails.StateChangeTimestamp || '—',
+    },
   ]
 
   for (const [key, value] of Object.entries(statusDetails)) {
@@ -647,9 +659,7 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">
             <h2 className="text-sm font-semibold">{t('servers.servicesTab.title')}</h2>
-            <p className="text-sm text-muted-foreground">
-              {t('servers.servicesTab.description')}
-            </p>
+            <p className="text-sm text-muted-foreground">{t('servers.servicesTab.description')}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <Button
@@ -672,7 +682,10 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <section className="space-y-4 rounded-md border p-4" aria-label={t('servers.servicesTab.inventory.ariaLabel')}>
+        <section
+          className="space-y-4 rounded-md border p-4"
+          aria-label={t('servers.servicesTab.inventory.ariaLabel')}
+        >
           <div className="overflow-x-auto pb-1">
             <div className="flex min-w-max items-center gap-3 whitespace-nowrap">
               <span className="text-sm text-muted-foreground">
@@ -695,11 +708,29 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                   onChange={event => setStatusFilter(event.target.value as StatusFilter)}
                   className="h-8 w-36 shrink-0 rounded-md border bg-background px-2 text-sm"
                 >
-                  <option value="all">{t('servers.servicesTab.filterOptions.all', { count: statusOptionCounts.all })}</option>
-                  <option value="running">{t('servers.servicesTab.filterOptions.running', { count: statusOptionCounts.running })}</option>
-                  <option value="exited">{t('servers.servicesTab.filterOptions.exited', { count: statusOptionCounts.exited })}</option>
-                  <option value="failed">{t('servers.servicesTab.filterOptions.failed', { count: statusOptionCounts.failed })}</option>
-                  <option value="inactive">{t('servers.servicesTab.filterOptions.inactive', { count: statusOptionCounts.inactive })}</option>
+                  <option value="all">
+                    {t('servers.servicesTab.filterOptions.all', { count: statusOptionCounts.all })}
+                  </option>
+                  <option value="running">
+                    {t('servers.servicesTab.filterOptions.running', {
+                      count: statusOptionCounts.running,
+                    })}
+                  </option>
+                  <option value="exited">
+                    {t('servers.servicesTab.filterOptions.exited', {
+                      count: statusOptionCounts.exited,
+                    })}
+                  </option>
+                  <option value="failed">
+                    {t('servers.servicesTab.filterOptions.failed', {
+                      count: statusOptionCounts.failed,
+                    })}
+                  </option>
+                  <option value="inactive">
+                    {t('servers.servicesTab.filterOptions.inactive', {
+                      count: statusOptionCounts.inactive,
+                    })}
+                  </option>
                 </select>
                 <div className="flex items-center gap-0.5 text-sm text-muted-foreground">
                   <Button
@@ -994,7 +1025,9 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                 <div className="space-y-3">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="space-y-1.5">
-                      <div className="text-sm font-medium text-foreground">{t('servers.servicesTab.unit.title')}</div>
+                      <div className="text-sm font-medium text-foreground">
+                        {t('servers.servicesTab.unit.title')}
+                      </div>
                       <div className="mt-1 break-all text-xs text-muted-foreground">
                         {unitPath || '-'}
                       </div>

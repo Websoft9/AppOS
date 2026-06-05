@@ -297,13 +297,41 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
 
   const weekdayOptions = useMemo(
     () => [
-      { value: '0', shortLabel: t('servers.cronTab.weekdays.sun.short'), label: t('servers.cronTab.weekdays.sun.label') },
-      { value: '1', shortLabel: t('servers.cronTab.weekdays.mon.short'), label: t('servers.cronTab.weekdays.mon.label') },
-      { value: '2', shortLabel: t('servers.cronTab.weekdays.tue.short'), label: t('servers.cronTab.weekdays.tue.label') },
-      { value: '3', shortLabel: t('servers.cronTab.weekdays.wed.short'), label: t('servers.cronTab.weekdays.wed.label') },
-      { value: '4', shortLabel: t('servers.cronTab.weekdays.thu.short'), label: t('servers.cronTab.weekdays.thu.label') },
-      { value: '5', shortLabel: t('servers.cronTab.weekdays.fri.short'), label: t('servers.cronTab.weekdays.fri.label') },
-      { value: '6', shortLabel: t('servers.cronTab.weekdays.sat.short'), label: t('servers.cronTab.weekdays.sat.label') },
+      {
+        value: '0',
+        shortLabel: t('servers.cronTab.weekdays.sun.short'),
+        label: t('servers.cronTab.weekdays.sun.label'),
+      },
+      {
+        value: '1',
+        shortLabel: t('servers.cronTab.weekdays.mon.short'),
+        label: t('servers.cronTab.weekdays.mon.label'),
+      },
+      {
+        value: '2',
+        shortLabel: t('servers.cronTab.weekdays.tue.short'),
+        label: t('servers.cronTab.weekdays.tue.label'),
+      },
+      {
+        value: '3',
+        shortLabel: t('servers.cronTab.weekdays.wed.short'),
+        label: t('servers.cronTab.weekdays.wed.label'),
+      },
+      {
+        value: '4',
+        shortLabel: t('servers.cronTab.weekdays.thu.short'),
+        label: t('servers.cronTab.weekdays.thu.label'),
+      },
+      {
+        value: '5',
+        shortLabel: t('servers.cronTab.weekdays.fri.short'),
+        label: t('servers.cronTab.weekdays.fri.label'),
+      },
+      {
+        value: '6',
+        shortLabel: t('servers.cronTab.weekdays.sat.short'),
+        label: t('servers.cronTab.weekdays.sat.label'),
+      },
     ],
     [t]
   )
@@ -614,9 +642,7 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
       <div className="flex flex-col gap-3 border-b border-border/40 pb-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-sm font-semibold text-foreground">{t('servers.cronTab.title')}</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t('servers.cronTab.description')}
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('servers.cronTab.description')}</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -661,7 +687,9 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
         </div>
       ) : sortedJobs.length === 0 ? (
         <div className="rounded-xl border border-dashed px-6 py-10 text-center">
-          <h4 className="text-base font-medium text-foreground">{t('servers.cronTab.empty.title')}</h4>
+          <h4 className="text-base font-medium text-foreground">
+            {t('servers.cronTab.empty.title')}
+          </h4>
           <p className="mt-2 text-sm text-muted-foreground">
             {t('servers.cronTab.empty.description')}
           </p>
@@ -671,11 +699,17 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
         </div>
       ) : (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-          <section className="space-y-4 rounded-md border p-4" aria-label={t('servers.cronTab.inventory.ariaLabel')}>
+          <section
+            className="space-y-4 rounded-md border p-4"
+            aria-label={t('servers.cronTab.inventory.ariaLabel')}
+          >
             <div className="overflow-x-auto pb-1">
               <div className="flex min-w-max items-center gap-3 whitespace-nowrap">
                 <span className="text-sm text-muted-foreground">
-                  {t('servers.cronTab.inventory.summary', { count: filteredJobs.length, failed: 0 })}
+                  {t('servers.cronTab.inventory.summary', {
+                    count: filteredJobs.length,
+                    failed: 0,
+                  })}
                 </span>
                 <div className="ml-auto flex items-center gap-2">
                   <input
@@ -734,11 +768,21 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                           {renderNameSortIcon()}
                         </button>
                       </th>
-                      <th className="align-middle px-3 py-2 font-medium">{t('servers.cronTab.columns.schedule')}</th>
-                      <th className="align-middle px-3 py-2 font-medium">{t('servers.cronTab.columns.path')}</th>
-                      <th className="align-middle px-3 py-2 font-medium">{t('servers.cronTab.columns.takeEffective')}</th>
-                      <th className="align-middle px-3 py-2 font-medium">{t('servers.cronTab.columns.singleRunOnly')}</th>
-                      <th className="align-middle px-3 py-2 font-medium text-right">{t('servers.cronTab.columns.actions')}</th>
+                      <th className="align-middle px-3 py-2 font-medium">
+                        {t('servers.cronTab.columns.schedule')}
+                      </th>
+                      <th className="align-middle px-3 py-2 font-medium">
+                        {t('servers.cronTab.columns.path')}
+                      </th>
+                      <th className="align-middle px-3 py-2 font-medium">
+                        {t('servers.cronTab.columns.takeEffective')}
+                      </th>
+                      <th className="align-middle px-3 py-2 font-medium">
+                        {t('servers.cronTab.columns.singleRunOnly')}
+                      </th>
+                      <th className="align-middle px-3 py-2 font-medium text-right">
+                        {t('servers.cronTab.columns.actions')}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -869,29 +913,39 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
             ) : (
               <div className="space-y-3 text-sm">
                 <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
-                  <span className="shrink-0 font-medium text-foreground">{t('servers.cronTab.detailRows.name')}</span>
+                  <span className="shrink-0 font-medium text-foreground">
+                    {t('servers.cronTab.detailRows.name')}
+                  </span>
                   <span className="break-words text-muted-foreground">{selectedJob.name}</span>
                 </div>
                 <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
-                  <span className="shrink-0 font-medium text-foreground">{t('servers.cronTab.detailRows.schedule')}</span>
+                  <span className="shrink-0 font-medium text-foreground">
+                    {t('servers.cronTab.detailRows.schedule')}
+                  </span>
                   <span className="break-words font-mono text-muted-foreground">
                     {selectedJob.schedule}
                   </span>
                 </div>
                 <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
-                  <span className="shrink-0 font-medium text-foreground">{t('servers.cronTab.detailRows.path')}</span>
+                  <span className="shrink-0 font-medium text-foreground">
+                    {t('servers.cronTab.detailRows.path')}
+                  </span>
                   <span className="break-all font-mono text-muted-foreground">
                     {selectedJob.path}
                   </span>
                 </div>
                 <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
-                  <span className="shrink-0 font-medium text-foreground">{t('servers.cronTab.detailRows.takeEffective')}</span>
+                  <span className="shrink-0 font-medium text-foreground">
+                    {t('servers.cronTab.detailRows.takeEffective')}
+                  </span>
                   <span className="break-words text-muted-foreground">
                     {statusLabel(t, selectedJob)}
                   </span>
                 </div>
                 <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
-                  <span className="shrink-0 font-medium text-foreground">{t('servers.cronTab.detailRows.singleRunOnly')}</span>
+                  <span className="shrink-0 font-medium text-foreground">
+                    {t('servers.cronTab.detailRows.singleRunOnly')}
+                  </span>
                   <span className="break-words text-muted-foreground">
                     {selectedJob.singleRunOnly
                       ? t('servers.cronTab.status.yes')
@@ -899,7 +953,9 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                   </span>
                 </div>
                 <div className="space-y-1">
-                  <div className="font-medium text-foreground">{t('servers.cronTab.detailRows.command')}</div>
+                  <div className="font-medium text-foreground">
+                    {t('servers.cronTab.detailRows.command')}
+                  </div>
                   <pre className="overflow-auto whitespace-pre-wrap break-words rounded-md border bg-muted/10 px-3 py-2 font-mono text-[11px] leading-5 text-muted-foreground">
                     {selectedJob.command}
                   </pre>
@@ -964,9 +1020,7 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                 ? t('servers.cronTab.dialogs.editor.editTitle')
                 : t('servers.cronTab.dialogs.editor.createTitle')}
             </DialogTitle>
-            <DialogDescription>
-              {t('servers.cronTab.dialogs.editor.description')}
-            </DialogDescription>
+            <DialogDescription>{t('servers.cronTab.dialogs.editor.description')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-5">
             {panelSection(
@@ -1058,12 +1112,24 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                         }))
                       }
                     >
-                      <option value="minute">{t('servers.cronTab.editor.frequencyOptions.minute')}</option>
-                      <option value="hour">{t('servers.cronTab.editor.frequencyOptions.hour')}</option>
-                      <option value="day">{t('servers.cronTab.editor.frequencyOptions.day')}</option>
-                      <option value="week">{t('servers.cronTab.editor.frequencyOptions.week')}</option>
-                      <option value="month">{t('servers.cronTab.editor.frequencyOptions.month')}</option>
-                      <option value="custom">{t('servers.cronTab.editor.frequencyOptions.custom')}</option>
+                      <option value="minute">
+                        {t('servers.cronTab.editor.frequencyOptions.minute')}
+                      </option>
+                      <option value="hour">
+                        {t('servers.cronTab.editor.frequencyOptions.hour')}
+                      </option>
+                      <option value="day">
+                        {t('servers.cronTab.editor.frequencyOptions.day')}
+                      </option>
+                      <option value="week">
+                        {t('servers.cronTab.editor.frequencyOptions.week')}
+                      </option>
+                      <option value="month">
+                        {t('servers.cronTab.editor.frequencyOptions.month')}
+                      </option>
+                      <option value="custom">
+                        {t('servers.cronTab.editor.frequencyOptions.custom')}
+                      </option>
                     </select>
                   </div>
 
@@ -1102,7 +1168,9 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
                   builderState.mode === 'week' ||
                   builderState.mode === 'month' ? (
                     <div className="space-y-2">
-                      <div className="text-sm font-medium leading-5 text-foreground">{t('servers.cronTab.editor.fields.atTime')}</div>
+                      <div className="text-sm font-medium leading-5 text-foreground">
+                        {t('servers.cronTab.editor.fields.atTime')}
+                      </div>
                       <div className="grid min-h-10 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
                         <select
                           aria-label={t('servers.cronTab.editor.fields.hour')}
@@ -1146,7 +1214,9 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
 
                 {builderState.mode === 'week' ? (
                   <div className="space-y-3">
-                    <div className="text-sm font-medium text-foreground">{t('servers.cronTab.editor.fields.daysOfWeek')}</div>
+                    <div className="text-sm font-medium text-foreground">
+                      {t('servers.cronTab.editor.fields.daysOfWeek')}
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       {weekdayOptions.map(option => {
                         const checked = builderState.dayOfWeek.includes(option.value)
@@ -1201,7 +1271,9 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
 
                 {builderState.mode === 'custom' ? (
                   <div className="space-y-1">
-                    <div className="text-sm font-medium text-foreground">{t('servers.cronTab.editor.fields.customCronFields')}</div>
+                    <div className="text-sm font-medium text-foreground">
+                      {t('servers.cronTab.editor.fields.customCronFields')}
+                    </div>
                     <div className="grid gap-3 md:grid-cols-5">
                       <div className="space-y-2">
                         <label

@@ -41,7 +41,9 @@ export function CreateDeploymentExposureSection({
     isTemplate && templateServiceItems.length > 0
       ? templateServiceItems
       : [{ name: 'primary', role: 'primary', isPrimary: true, containerPort: '' }]
-  ).slice().sort((left, right) => Number(right.isPrimary) - Number(left.isPrimary))
+  )
+    .slice()
+    .sort((left, right) => Number(right.isPrimary) - Number(left.isPrimary))
 
   const updateServiceMapping = (
     serviceName: string,
@@ -65,7 +67,8 @@ export function CreateDeploymentExposureSection({
           <HelpTip text="Prefer server ports in the 9001-9999 range when the host port is operator-managed." />
         </div>
         <div className="text-xs text-muted-foreground">
-          Choose whether this deployment should be published by server port or reserved for a future domain binding flow.
+          Choose whether this deployment should be published by server port or reserved for a future
+          domain binding flow.
         </div>
       </div>
       <div className="pt-3.5">
@@ -131,7 +134,10 @@ export function CreateDeploymentExposureSection({
                               updateServiceMapping(service.name, {
                                 enabled: e.target.checked,
                                 port:
-                                  mapping?.port || (service.name === primaryServiceName ? recommendedExposurePort : ''),
+                                  mapping?.port ||
+                                  (service.name === primaryServiceName
+                                    ? recommendedExposurePort
+                                    : ''),
                               })
                             }
                           />
@@ -143,11 +149,19 @@ export function CreateDeploymentExposureSection({
                           type="number"
                           min={1}
                           max={65535}
-                          value={mapping?.port ?? (service.name === primaryServiceName ? recommendedExposurePort : '')}
-                          onChange={e =>
-                            updateServiceMapping(service.name, { enabled: true, port: e.target.value })
+                          value={
+                            mapping?.port ??
+                            (service.name === primaryServiceName ? recommendedExposurePort : '')
                           }
-                          placeholder={service.name === primaryServiceName ? recommendedExposurePort : '—'}
+                          onChange={e =>
+                            updateServiceMapping(service.name, {
+                              enabled: true,
+                              port: e.target.value,
+                            })
+                          }
+                          placeholder={
+                            service.name === primaryServiceName ? recommendedExposurePort : '—'
+                          }
                           disabled={!(mapping?.enabled ?? service.isPrimary)}
                           className="h-8 px-2.5"
                         />
@@ -156,13 +170,19 @@ export function CreateDeploymentExposureSection({
                   })}
                 </div>
                 {exposurePortError ? (
-                  <div className="pt-2 text-[11px] text-amber-700 dark:text-amber-400">{exposurePortError}</div>
+                  <div className="pt-2 text-[11px] text-amber-700 dark:text-amber-400">
+                    {exposurePortError}
+                  </div>
                 ) : null}
                 {exposureSelectionError ? (
-                  <div className="pt-2 text-[11px] text-amber-700 dark:text-amber-400">{exposureSelectionError}</div>
+                  <div className="pt-2 text-[11px] text-amber-700 dark:text-amber-400">
+                    {exposureSelectionError}
+                  </div>
                 ) : null}
                 {extraServiceMappingMessage ? (
-                  <div className="pt-2 text-[11px] text-muted-foreground">{extraServiceMappingMessage}</div>
+                  <div className="pt-2 text-[11px] text-muted-foreground">
+                    {extraServiceMappingMessage}
+                  </div>
                 ) : null}
               </div>
             ) : null}

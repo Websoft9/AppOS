@@ -73,7 +73,8 @@ function normalizeTemplateKey(value?: string | null): string | null {
   const trimmed = value?.trim()
   if (!trimmed) return null
   const lowered = trimmed.toLowerCase()
-  if (lowered === 'nil' || lowered === '<nil>' || lowered === 'null' || lowered === 'none') return null
+  if (lowered === 'nil' || lowered === '<nil>' || lowered === 'null' || lowered === 'none')
+    return null
   return trimmed
 }
 
@@ -209,7 +210,9 @@ function AppAvatar({
         'flex shrink-0 items-center justify-center overflow-hidden text-sm font-semibold shadow-sm',
         sizeClass,
         radiusClass,
-        showTemplateIcon ? 'bg-background ring-1 ring-border/60 dark:bg-muted/40' : appIconClass(app.name)
+        showTemplateIcon
+          ? 'bg-background ring-1 ring-border/60 dark:bg-muted/40'
+          : appIconClass(app.name)
       )}
     >
       {showTemplateIcon ? (
@@ -423,8 +426,10 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
   }
 
   const activeRuntime = useMemo(() => {
-    const includedStatuses = filterOptions.runtime.filter(option => !excludeRuntime.has(option.value))
-    return includedStatuses.length === 1 ? includedStatuses[0]?.value ?? null : null
+    const includedStatuses = filterOptions.runtime.filter(
+      option => !excludeRuntime.has(option.value)
+    )
+    return includedStatuses.length === 1 ? (includedStatuses[0]?.value ?? null) : null
   }, [excludeRuntime, filterOptions.runtime])
 
   function handleRuntimeSummaryClick(runtime: string | null) {
@@ -506,7 +511,8 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                 to: '/apps/$appId',
                 params: { appId: app.id },
                 search: { catalogAppKey: undefined },
-              })}
+              })
+            }
           >
             <ExternalLink className="h-4 w-4" />
             Open detail
@@ -533,11 +539,17 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
             {currentOperationAction === 'upgrade' ? 'Upgrading...' : 'Upgrade'}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => void runAction(app, 'start')} disabled={Boolean(actionLoading)}>
+          <DropdownMenuItem
+            onSelect={() => void runAction(app, 'start')}
+            disabled={Boolean(actionLoading)}
+          >
             <Play className="h-4 w-4" />
             {currentAction === 'start' ? 'Starting...' : 'Start'}
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => void runAction(app, 'stop')} disabled={Boolean(actionLoading)}>
+          <DropdownMenuItem
+            onSelect={() => void runAction(app, 'stop')}
+            disabled={Boolean(actionLoading)}
+          >
             <Square className="h-4 w-4" />
             {currentAction === 'stop' ? 'Stopping...' : 'Stop'}
           </DropdownMenuItem>
@@ -563,165 +575,188 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
   }
 
   function renderAppsSurface() {
-  if (loading) {
-    return (
-      <div className="rounded-2xl bg-background/80 p-6 text-sm text-muted-foreground shadow-sm ring-1 ring-border/60">
-        Loading apps...
-      </div>
-    )
-  }
+    if (loading) {
+      return (
+        <div className="rounded-2xl bg-background/80 p-6 text-sm text-muted-foreground shadow-sm ring-1 ring-border/60">
+          Loading apps...
+        </div>
+      )
+    }
 
-  if (view === 'grid') {
-    if (!hasResults) {
-      return renderEmptyState()
+    if (view === 'grid') {
+      if (!hasResults) {
+        return renderEmptyState()
+      }
+
+      return (
+        <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {pagedItems.map(app => (
+            <Card
+              key={app.id}
+              className="overflow-hidden rounded-[24px] border-border/70 bg-card/95 shadow-[0_10px_30px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_18px_36px_rgba(15,23,42,0.10)] dark:bg-card/92 dark:shadow-[0_16px_34px_rgba(2,6,23,0.42)]"
+            >
+              <CardContent
+                role="link"
+                tabIndex={0}
+                className="relative flex h-full min-h-[214px] cursor-pointer flex-col justify-between gap-4 p-4"
+                onClick={() => navigateToAppDetail(app.id)}
+                onKeyDown={event => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    navigateToAppDetail(app.id)
+                  }
+                }}
+              >
+                <div className="absolute right-0 top-0 h-20 w-20 rounded-full bg-primary/10 blur-2xl dark:bg-primary/15" />
+                <div className="relative flex flex-col gap-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-3">
+                      {renderAppAvatar(app, 'h-11 w-11', 'rounded-2xl')}
+                      <div className="min-w-0">
+                        <div className="truncate text-[15px] font-semibold leading-5">
+                          {app.name}
+                        </div>
+                        <div className="truncate pt-0.5 text-[11px] text-muted-foreground">
+                          {formatCardSourceLabel(app)}
+                        </div>
+                      </div>
+                    </div>
+                    <Badge variant={runtimeVariant(app.runtime_status)}>{app.runtime_status}</Badge>
+                  </div>
+
+                  <div className="rounded-2xl bg-muted/55 px-3 py-3 ring-1 ring-border/70 dark:bg-muted/35 dark:ring-border/60">
+                    <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-xs text-muted-foreground">
+                      <span>Server</span>
+                      <span className="truncate text-right text-foreground">
+                        {appServerLabel(app)}
+                      </span>
+                      <span>Uptime</span>
+                      <span className="text-right text-foreground">{formatUptime(app)}</span>
+                      <span>Updated</span>
+                      <span className="truncate text-right text-foreground">
+                        {formatTime(app.updated)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="relative mt-auto flex items-end justify-between gap-3 border-t border-border/75 pt-3">
+                  {app.last_operation ? (
+                    <div className="min-w-0 flex-1 text-[11px] text-muted-foreground">
+                      <div className="truncate text-[10px] uppercase tracking-[0.12em] text-muted-foreground/80">
+                        Latest action
+                      </div>
+                      <div className="truncate font-mono text-[11px] text-muted-foreground">
+                        {app.last_operation}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-[11px] text-muted-foreground">No action recorded yet</div>
+                  )}
+                  <div
+                    className="flex items-center gap-1"
+                    onClick={event => event.stopPropagation()}
+                  >
+                    {renderActionMenu(app)}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )
     }
 
     return (
-      <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-        {pagedItems.map(app => (
-          <Card
-            key={app.id}
-            className="overflow-hidden rounded-[24px] border-border/70 bg-card/95 shadow-[0_10px_30px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_18px_36px_rgba(15,23,42,0.10)] dark:bg-card/92 dark:shadow-[0_16px_34px_rgba(2,6,23,0.42)]"
-          >
-            <CardContent
-              role="link"
-              tabIndex={0}
-              className="relative flex h-full min-h-[214px] cursor-pointer flex-col justify-between gap-4 p-4"
-              onClick={() => navigateToAppDetail(app.id)}
-              onKeyDown={event => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault()
-                  navigateToAppDetail(app.id)
-                }
-              }}
-            >
-              <div className="absolute right-0 top-0 h-20 w-20 rounded-full bg-primary/10 blur-2xl dark:bg-primary/15" />
-              <div className="relative flex flex-col gap-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-3">
-                    {renderAppAvatar(app, 'h-11 w-11', 'rounded-2xl')}
-                    <div className="min-w-0">
-                      <div className="truncate text-[15px] font-semibold leading-5">{app.name}</div>
-                      <div className="truncate pt-0.5 text-[11px] text-muted-foreground">
-                        {formatCardSourceLabel(app)}
+      <div className="overflow-hidden rounded-2xl bg-background/88 shadow-sm ring-1 ring-border/60">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="pl-6">
+                <SortableHeader
+                  label="Name"
+                  field="name"
+                  current={sortField}
+                  dir={sortDir}
+                  onSort={handleSort}
+                />
+              </TableHead>
+              <TableHead>
+                <FilterHeader
+                  label="Runtime"
+                  options={filterOptions.runtime}
+                  excluded={excludeRuntime}
+                  onChange={setExcludeRuntime}
+                />
+              </TableHead>
+              <TableHead>Server</TableHead>
+              <TableHead>Uptime</TableHead>
+              <TableHead>Latest Action</TableHead>
+              <TableHead>
+                <SortableHeader
+                  label="Updated"
+                  field="updated"
+                  current={sortField}
+                  dir={sortDir}
+                  onSort={handleSort}
+                />
+              </TableHead>
+              <TableHead className="w-[72px]" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {pagedItems.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                  No apps found.
+                </TableCell>
+              </TableRow>
+            ) : (
+              pagedItems.map(item => (
+                <TableRow key={item.id} className="h-14">
+                  <TableCell className="pl-6">
+                    <div className="flex items-center gap-3">
+                      {renderAppAvatar(item, 'h-10 w-10', 'rounded-xl')}
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{item.name}</div>
+                        <div className="font-mono text-xs text-muted-foreground">{item.id}</div>
                       </div>
                     </div>
-                  </div>
-                  <Badge variant={runtimeVariant(app.runtime_status)}>{app.runtime_status}</Badge>
-                </div>
-
-                <div className="rounded-2xl bg-muted/55 px-3 py-3 ring-1 ring-border/70 dark:bg-muted/35 dark:ring-border/60">
-                  <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-xs text-muted-foreground">
-                    <span>Server</span>
-                    <span className="truncate text-right text-foreground">{appServerLabel(app)}</span>
-                    <span>Uptime</span>
-                    <span className="text-right text-foreground">{formatUptime(app)}</span>
-                    <span>Updated</span>
-                    <span className="truncate text-right text-foreground">{formatTime(app.updated)}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="relative mt-auto flex items-end justify-between gap-3 border-t border-border/75 pt-3">
-                {app.last_operation ? (
-                  <div className="min-w-0 flex-1 text-[11px] text-muted-foreground">
-                    <div className="truncate text-[10px] uppercase tracking-[0.12em] text-muted-foreground/80">
-                      Latest action
-                    </div>
-                    <div className="truncate font-mono text-[11px] text-muted-foreground">
-                      {app.last_operation}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-[11px] text-muted-foreground">No action recorded yet</div>
-                )}
-                <div className="flex items-center gap-1" onClick={event => event.stopPropagation()}>
-                  {renderActionMenu(app)}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={runtimeVariant(item.runtime_status)}>
+                      {item.runtime_status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{appServerLabel(item)}</TableCell>
+                  <TableCell>{formatUptime(item)}</TableCell>
+                  <TableCell>
+                    {item.last_operation ? (
+                      <div className="space-y-0.5">
+                        <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                          Latest action detail
+                        </div>
+                        <button
+                          type="button"
+                          className="font-mono text-xs text-primary underline-offset-4 hover:underline"
+                          onClick={() => openOperationStatus(item)}
+                        >
+                          {item.last_operation}
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell>{formatTime(item.updated)}</TableCell>
+                  <TableCell className="text-right">{renderActionMenu(item)}</TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
       </div>
     )
-  }
-
-  return (
-    <div className="overflow-hidden rounded-2xl bg-background/88 shadow-sm ring-1 ring-border/60">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="pl-6">
-              <SortableHeader label="Name" field="name" current={sortField} dir={sortDir} onSort={handleSort} />
-            </TableHead>
-            <TableHead>
-              <FilterHeader
-                label="Runtime"
-                options={filterOptions.runtime}
-                excluded={excludeRuntime}
-                onChange={setExcludeRuntime}
-              />
-            </TableHead>
-            <TableHead>Server</TableHead>
-            <TableHead>Uptime</TableHead>
-            <TableHead>Latest Action</TableHead>
-            <TableHead>
-              <SortableHeader label="Updated" field="updated" current={sortField} dir={sortDir} onSort={handleSort} />
-            </TableHead>
-            <TableHead className="w-[72px]" />
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {pagedItems.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                No apps found.
-              </TableCell>
-            </TableRow>
-          ) : (
-            pagedItems.map(item => (
-              <TableRow key={item.id} className="h-14">
-                <TableCell className="pl-6">
-                  <div className="flex items-center gap-3">
-                    {renderAppAvatar(item, 'h-10 w-10', 'rounded-xl')}
-                    <div className="min-w-0">
-                      <div className="truncate font-medium">{item.name}</div>
-                      <div className="font-mono text-xs text-muted-foreground">{item.id}</div>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={runtimeVariant(item.runtime_status)}>{item.runtime_status}</Badge>
-                </TableCell>
-                <TableCell>{appServerLabel(item)}</TableCell>
-                <TableCell>{formatUptime(item)}</TableCell>
-                <TableCell>
-                  {item.last_operation ? (
-                    <div className="space-y-0.5">
-                      <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                        Latest action detail
-                      </div>
-                      <button
-                        type="button"
-                        className="font-mono text-xs text-primary underline-offset-4 hover:underline"
-                        onClick={() => openOperationStatus(item)}
-                      >
-                        {item.last_operation}
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="text-muted-foreground">-</span>
-                  )}
-                </TableCell>
-                <TableCell>{formatTime(item.updated)}</TableCell>
-                <TableCell className="text-right">{renderActionMenu(item)}</TableCell>
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
-    </div>
-  )
   }
 
   return (
@@ -761,7 +796,8 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
           <AlertTitle>Store Filter Active</AlertTitle>
           <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span>
-              Showing installed instances for catalog app <span className="font-mono">{catalogAppKey}</span>.
+              Showing installed instances for catalog app{' '}
+              <span className="font-mono">{catalogAppKey}</span>.
             </span>
             <Button
               variant="outline"
@@ -779,76 +815,68 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
           <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:gap-3">
             <div className="inline-flex h-8.5 flex-wrap items-center rounded-xl bg-background/88 px-1 py-0.5 text-sm text-muted-foreground shadow-sm backdrop-blur-sm">
               <button
-              type="button"
-              className={cn(
-                'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
-                !activeRuntime
-                  ? 'bg-muted/55 text-foreground'
-                  : 'hover:bg-muted/70'
-              )}
-              onClick={() => handleRuntimeSummaryClick(null)}
-            >
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
-                Total
-              </span>
-              <span className="font-semibold text-foreground underline-offset-2 hover:underline">
-                {summary.total}
-              </span>
-            </button>
+                type="button"
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
+                  !activeRuntime ? 'bg-muted/55 text-foreground' : 'hover:bg-muted/70'
+                )}
+                onClick={() => handleRuntimeSummaryClick(null)}
+              >
+                <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                  Total
+                </span>
+                <span className="font-semibold text-foreground underline-offset-2 hover:underline">
+                  {summary.total}
+                </span>
+              </button>
               <span className="mx-0.5 hidden h-4 w-px bg-border/55 md:block" aria-hidden="true" />
               <button
-              type="button"
-              className={cn(
-                'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
-                activeRuntime === 'running'
-                  ? 'bg-muted/55 text-foreground'
-                  : 'hover:bg-muted/70'
-              )}
-              onClick={() => handleRuntimeSummaryClick('running')}
-            >
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
-                Running
-              </span>
-              <span className="font-semibold text-foreground underline-offset-2 hover:underline">
-                {summary.running}
-              </span>
-            </button>
+                type="button"
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
+                  activeRuntime === 'running' ? 'bg-muted/55 text-foreground' : 'hover:bg-muted/70'
+                )}
+                onClick={() => handleRuntimeSummaryClick('running')}
+              >
+                <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                  Running
+                </span>
+                <span className="font-semibold text-foreground underline-offset-2 hover:underline">
+                  {summary.running}
+                </span>
+              </button>
               <span className="mx-0.5 hidden h-4 w-px bg-border/55 md:block" aria-hidden="true" />
               <button
-              type="button"
-              className={cn(
-                'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
-                activeRuntime === 'stopped'
-                  ? 'bg-muted/55 text-foreground'
-                  : 'hover:bg-muted/70'
-              )}
-              onClick={() => handleRuntimeSummaryClick('stopped')}
-            >
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
-                Stopped
-              </span>
-              <span className="font-semibold text-foreground underline-offset-2 hover:underline">
-                {summary.stopped}
-              </span>
-            </button>
+                type="button"
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
+                  activeRuntime === 'stopped' ? 'bg-muted/55 text-foreground' : 'hover:bg-muted/70'
+                )}
+                onClick={() => handleRuntimeSummaryClick('stopped')}
+              >
+                <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                  Stopped
+                </span>
+                <span className="font-semibold text-foreground underline-offset-2 hover:underline">
+                  {summary.stopped}
+                </span>
+              </button>
               <span className="mx-0.5 hidden h-4 w-px bg-border/55 md:block" aria-hidden="true" />
               <button
-              type="button"
-              className={cn(
-                'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
-                activeRuntime === 'error'
-                  ? 'bg-muted/55 text-foreground'
-                  : 'hover:bg-muted/70'
-              )}
-              onClick={() => handleRuntimeSummaryClick('error')}
-            >
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
-                Error
-              </span>
-              <span className="font-semibold text-foreground underline-offset-2 hover:underline">
-                {summary.error}
-              </span>
-            </button>
+                type="button"
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
+                  activeRuntime === 'error' ? 'bg-muted/55 text-foreground' : 'hover:bg-muted/70'
+                )}
+                onClick={() => handleRuntimeSummaryClick('error')}
+              >
+                <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                  Error
+                </span>
+                <span className="font-semibold text-foreground underline-offset-2 hover:underline">
+                  {summary.error}
+                </span>
+              </button>
             </div>
 
             <div className="relative min-w-0 w-full sm:w-[156px]">
@@ -930,7 +958,11 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                 onClick={() => setView(current => (current === 'grid' ? 'list' : 'grid'))}
                 aria-label={view === 'grid' ? 'Switch to list view' : 'Switch to grid view'}
               >
-                {view === 'grid' ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
+                {view === 'grid' ? (
+                  <List className="h-4 w-4" />
+                ) : (
+                  <LayoutGrid className="h-4 w-4" />
+                )}
               </Button>
             </div>
           </div>

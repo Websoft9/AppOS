@@ -35,7 +35,15 @@
     ]
   },
   "render": {
-    "exposureKind": "http",
+    "exposures": [
+      {
+        "label": "Web",
+        "service": "wordpress",
+        "port": 80,
+        "protocol": "http",
+        "default": true
+      }
+    ],
     "primaryService": "wordpress",
     "databaseService": "mysql",
     "secretRefs": [

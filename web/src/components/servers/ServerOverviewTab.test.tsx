@@ -4,6 +4,53 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ServerOverviewTab } from './ServerOverviewTab'
 import { type ServerFactsView } from './server-detail-shared'
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => {
+      const labels: Record<string, string> = {
+        'servers.overview.sections.metadata': 'Server Metadata',
+        'servers.overview.sections.cloudProvider': 'Cloud Provider',
+        'servers.overview.sections.systemInformation': 'System Information',
+        'servers.overview.actions.refresh': 'Refresh overview data',
+        'servers.overview.actions.edit': 'Edit',
+        'servers.overview.fields.id': 'ID',
+        'servers.overview.fields.name': 'Name',
+        'servers.overview.fields.connectionType': 'Connection Type',
+        'servers.overview.fields.host': 'Host',
+        'servers.overview.fields.port': 'Port',
+        'servers.overview.fields.user': 'User',
+        'servers.overview.fields.access': 'Access',
+        'servers.overview.fields.tunnelState': 'Tunnel State',
+        'servers.overview.fields.credentialType': 'Credential type',
+        'servers.overview.fields.createdBy': 'Created By',
+        'servers.overview.fields.description': 'Description',
+        'servers.overview.fields.created': 'Created',
+        'servers.overview.fields.updated': 'Updated',
+        'servers.overview.fields.operatingSystem': 'Operating System',
+        'servers.overview.fields.kernel': 'Kernel',
+        'servers.overview.fields.architecture': 'Architecture',
+        'servers.overview.fields.cpuCores': 'CPU Cores',
+        'servers.overview.fields.memory': 'Memory',
+        'servers.overview.fields.factsObserved': 'Facts Observed',
+        'servers.overview.fields.provider': 'Provider',
+        'servers.overview.fields.region': 'Region',
+        'servers.overview.fields.zone': 'Zone',
+        'servers.overview.fields.source': 'Source',
+        'servers.overview.connection.direct': 'Direct',
+        'servers.connection.tunnelShort': 'Tunnel',
+        'servers.overview.credentialTypes.password': 'Password',
+        'servers.overview.credentialTypes.sshKey': 'SSH key',
+        'servers.overview.fallback.unavailable': 'Unavailable',
+        'servers.overview.empty.noFacts': 'No host facts have been collected for this server yet.',
+        'servers.overview.cloudSources.cloudInit': 'Cloud-init',
+        'servers.overview.cloudSources.metadata': 'Metadata',
+        'servers.overview.cloudSources.manual': 'Manual',
+      }
+      return labels[key] ?? key
+    },
+  }),
+}))
+
 afterEach(() => {
   cleanup()
 })

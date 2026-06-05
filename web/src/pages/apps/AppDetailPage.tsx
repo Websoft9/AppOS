@@ -893,6 +893,9 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const primaryExposure = exposures.find(item => item.is_primary)
   const accessExposure =
     primaryExposure || exposures.find(item => item.target_port || item.path || item.domain)
+  const accessEndpoints = Array.isArray(app?.access_endpoints) ? app.access_endpoints : []
+  const primaryAccessEndpoint =
+    accessEndpoints.find(item => item.default) || accessEndpoints[0] || null
   const serverConnectionPresentation = useMemo<ServerConnectionPresentationSpec | null>(() => {
     if (!serverConnectionRecord) return null
     return getServerConnectionPresentation(serverConnectionRecord)
@@ -900,10 +903,11 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const domainExposure =
     (primaryExposure?.domain && primaryExposure.publication_state === 'published'
       ? primaryExposure
-      : undefined) ||
-    exposures.find(item => item.domain && item.publication_state === 'published')
+      : undefined) || exposures.find(item => item.domain && item.publication_state === 'published')
   const resolvedTargetPort =
-    primaryExposure?.target_port || exposures.find(item => item.target_port && item.target_port > 0)?.target_port
+    primaryAccessEndpoint?.serverPort ||
+    primaryExposure?.target_port ||
+    exposures.find(item => item.target_port && item.target_port > 0)?.target_port
   const exposurePath = primaryExposure?.path || accessExposure?.path || ''
   const effectiveServerHost = useMemo(() => {
     const host =
@@ -928,14 +932,17 @@ export function AppDetailPage({ appId }: { appId: string }) {
   }, [domainExposure])
   const publicAccessUrl = useMemo(() => {
     if (!effectiveServerHost) return ''
+    const endpointProtocol = String(primaryAccessEndpoint?.protocol || '').toLowerCase()
+    if (endpointProtocol && endpointProtocol !== 'http' && endpointProtocol !== 'https') return ''
+    const scheme = endpointProtocol === 'https' ? 'https' : 'http'
     const port = resolvedTargetPort && resolvedTargetPort > 0 ? `:${resolvedTargetPort}` : ''
     const normalizedPath = exposurePath
       ? exposurePath.startsWith('/')
         ? exposurePath
         : `/${exposurePath}`
       : ''
-    return `http://${effectiveServerHost}${port}${normalizedPath}`
-  }, [effectiveServerHost, exposurePath, resolvedTargetPort])
+    return `${scheme}://${effectiveServerHost}${port}${normalizedPath}`
+  }, [effectiveServerHost, exposurePath, primaryAccessEndpoint?.protocol, resolvedTargetPort])
   const templateKey = useMemo(() => {
     const raw = app?.catalog_app_key?.trim()
     if (!raw) return null
@@ -1396,7 +1403,11 @@ export function AppDetailPage({ appId }: { appId: string }) {
         refreshDisabled={hasBusyAction}
         onRefresh={() => void refreshDetailView()}
         actionMenu={renderActionMenu()}
-        breadcrumb={!setHeaderRightStartContent ? <AppDetailBreadcrumb appName={app?.name || 'App Detail'} /> : null}
+        breadcrumb={
+          !setHeaderRightStartContent ? (
+            <AppDetailBreadcrumb appName={app?.name || 'App Detail'} />
+          ) : null
+        }
       />
 
       {error ? (
@@ -1431,7 +1442,9 @@ export function AppDetailPage({ appId }: { appId: string }) {
             deploymentLabel={deploymentLabel}
             templateName={templateKey || undefined}
             templateDetailHref={templateDetailHref}
-            actionDetailHref={app.last_operation ? buildActionDetailHref(app.last_operation) : undefined}
+            actionDetailHref={
+              app.last_operation ? buildActionDetailHref(app.last_operation) : undefined
+            }
             setTab={setTab}
           />
           <AppDetailAccessTab

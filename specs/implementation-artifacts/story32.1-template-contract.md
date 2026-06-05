@@ -118,13 +118,19 @@ Minimum v0 targets:
 - `env`
 - `compose_values`
 - `files`
-- `exposure`
+- `exposures`
 
 Rules:
 
 - render rules are declarative mappings, not arbitrary scripts
 - backend resolution is authoritative for defaulting, validation, and final effective output
 - `.env` may be rendered output, but must not be the only semantic source
+- `exposures` is a minimal template-declared access intent list, not the resolved app endpoint store
+- each exposure intent uses `label`, `service`, `port`, `protocol`, and `default` only
+- `service` is the Docker Compose service name; AppOS must not use runtime container names as stable exposure identity
+- `port` is the container/internal port; deployment resolution assigns any user-visible server port later
+- templates must not store `url`, wildcard host, route id, or resolved `serverPort` in exposure intent
+- endpoint identity is implicit from `service + protocol + port`; no template exposure `id` is required for the MVP
 
 ### 4. `source`
 

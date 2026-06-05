@@ -25,10 +25,7 @@ const APP_DETAIL_TABS = [
 
 export function AppDetailTabRail() {
   return (
-    <TabsList
-      variant="line"
-      className="w-full justify-start bg-transparent p-0 md:sticky md:top-4"
-    >
+    <TabsList variant="line" className="w-full justify-start bg-transparent p-0 md:sticky md:top-4">
       {APP_DETAIL_TABS.map(tab => {
         const Icon = tab.icon
         return (

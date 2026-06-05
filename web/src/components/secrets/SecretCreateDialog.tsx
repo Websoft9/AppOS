@@ -108,7 +108,9 @@ export function SecretCreateDialog({
       setName(resolveDefaultSecretName(defaultName))
       setSecretDescription('')
       setTemplateId(defaultTemplateId)
-      setVisibleTo(defaultVisibleTo?.length ? [...defaultVisibleTo] : [...RESOURCE_SECRET_VISIBLE_TO_VALUES])
+      setVisibleTo(
+        defaultVisibleTo?.length ? [...defaultVisibleTo] : [...RESOURCE_SECRET_VISIBLE_TO_VALUES]
+      )
       setPayload({})
       setError('')
       setGeneratedLength(24)

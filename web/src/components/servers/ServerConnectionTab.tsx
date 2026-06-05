@@ -70,8 +70,10 @@ function compactReason(
   if (reason === 'Reconnect is intentionally paused.') {
     return t('servers.connectionTab.reason.connectionPaused')
   }
-  if (reason === 'AppOS cannot reach this server.') return t('servers.connectionTab.reason.connectionLost')
-  if (reason === 'Tunnel session is offline.') return t('servers.connectionTab.reason.connectionLost')
+  if (reason === 'AppOS cannot reach this server.')
+    return t('servers.connectionTab.reason.connectionLost')
+  if (reason === 'Tunnel session is offline.')
+    return t('servers.connectionTab.reason.connectionLost')
   if (reason === 'Tunnel session is unavailable.') {
     return t('servers.connectionTab.reason.connectionUnavailable')
   }
@@ -83,7 +85,8 @@ function compactActivityLabel(label: string, isTunnel: boolean, t: Translate): s
   const normalized = label.trim().toLowerCase()
 
   if (normalized === 'server created') return t('servers.connectionTab.activity.serverRegistered')
-  if (normalized === 'credential attached') return t('servers.connectionTab.activity.connectionUpdated')
+  if (normalized === 'credential attached')
+    return t('servers.connectionTab.activity.connectionUpdated')
   if (normalized === 'setup started') return t('servers.connectionTab.activity.tunnelSetupStarted')
   if (normalized === 'verification or callback observed') {
     return isTunnel
@@ -96,7 +99,8 @@ function compactActivityLabel(label: string, isTunnel: boolean, t: Translate): s
       : t('servers.connectionTab.activity.lastHealthyCheck')
   }
   if (normalized === 'pause window updated') return t('servers.connectionTab.activity.pauseUpdated')
-  if (normalized === 'last failure observed') return t('servers.connectionTab.activity.connectionFailed')
+  if (normalized === 'last failure observed')
+    return t('servers.connectionTab.activity.connectionFailed')
   if (normalized === 'record updated') return t('servers.connectionTab.activity.settingsUpdated')
 
   return label
@@ -134,7 +138,9 @@ function heroTitle(
   t: Translate
 ): string {
   if (presentation.state === 'online') {
-    return isTunnel ? t('servers.connectionTab.hero.tunnelLive') : t('servers.connectionTab.hero.directReady')
+    return isTunnel
+      ? t('servers.connectionTab.hero.tunnelLive')
+      : t('servers.connectionTab.hero.directReady')
   }
   if (presentation.state === 'awaiting_connection' || presentation.state === 'not_configured') {
     return isTunnel
@@ -163,7 +169,10 @@ function subline(
   return t('servers.connectionTab.subline.restoreAccess')
 }
 
-function modeSummary(modeLabel: ServerConnectionPresentationSpec['modeLabel'], t: Translate): string {
+function modeSummary(
+  modeLabel: ServerConnectionPresentationSpec['modeLabel'],
+  t: Translate
+): string {
   return modeLabel === 'Tunnel'
     ? t('servers.connectionTab.modeSummary.tunnelRelay')
     : t('servers.connectionTab.modeSummary.directSsh')

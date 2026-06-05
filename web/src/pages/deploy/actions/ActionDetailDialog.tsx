@@ -174,7 +174,9 @@ function parsePullProgressSnapshot(logText: string): PullProgressSnapshot | null
     recentEvents.push(body)
     if (recentEvents.length > 8) recentEvents.shift()
 
-    const imageMatch = body.match(/^Image\s+(.+?)\s+(Pulling|Pulled|Already exists|Waiting|Skipped|Error.*)$/i)
+    const imageMatch = body.match(
+      /^Image\s+(.+?)\s+(Pulling|Pulled|Already exists|Waiting|Skipped|Error.*)$/i
+    )
     if (imageMatch) {
       imageMap.set(imageMatch[1], {
         name: imageMatch[1],
@@ -190,7 +192,9 @@ function parsePullProgressSnapshot(logText: string): PullProgressSnapshot | null
     const remainder = layerMatch[2].trim()
     let status = remainder
     let detail = ''
-    const detailMatch = remainder.match(/^(Pulling fs layer|Downloading|Download complete|Pull complete|Extracting|Waiting|Verifying Checksum|Already exists)(?:\s+(.*))?$/i)
+    const detailMatch = remainder.match(
+      /^(Pulling fs layer|Downloading|Download complete|Pull complete|Extracting|Waiting|Verifying Checksum|Already exists)(?:\s+(.*))?$/i
+    )
     if (detailMatch) {
       status = detailMatch[1]
       detail = detailMatch[2]?.trim() || ''
@@ -206,7 +210,9 @@ function parsePullProgressSnapshot(logText: string): PullProgressSnapshot | null
   if (imageMap.size === 0 && layerMap.size === 0) return null
 
   const layers = Array.from(layerMap.values())
-  const completedLayerCount = layers.filter(layer => /pull complete|already exists/i.test(layer.status)).length
+  const completedLayerCount = layers.filter(layer =>
+    /pull complete|already exists/i.test(layer.status)
+  ).length
   const activeLayerCount = layers.filter(
     layer => !/pull complete|already exists/i.test(layer.status)
   ).length
@@ -546,7 +552,8 @@ export function ActionDetailContent({
                         const progressPercent =
                           pullProgress && pullProgress.totalLayerCount > 0
                             ? Math.round(
-                                (pullProgress.completedLayerCount / pullProgress.totalLayerCount) * 100
+                                (pullProgress.completedLayerCount / pullProgress.totalLayerCount) *
+                                  100
                               )
                             : 0
 
@@ -632,7 +639,8 @@ export function ActionDetailContent({
                                           Pull progress
                                         </span>
                                         <Badge variant="outline">
-                                          {pullProgress.completedLayerCount}/{pullProgress.totalLayerCount} layers complete
+                                          {pullProgress.completedLayerCount}/
+                                          {pullProgress.totalLayerCount} layers complete
                                         </Badge>
                                         <Badge variant="outline">
                                           {pullProgress.activeLayerCount} active
@@ -658,24 +666,28 @@ export function ActionDetailContent({
                                       ) : null}
                                       {pullProgress.layers.length > 0 ? (
                                         <div className="mt-3 space-y-2">
-                                          {pullProgress.layers.slice(-6).reverse().map(layer => (
-                                            <div
-                                              key={layer.id}
-                                              className="flex items-center justify-between gap-3 rounded-lg border bg-background/70 px-3 py-2"
-                                            >
-                                              <div className="min-w-0">
-                                                <div className="font-mono text-xs text-foreground">
-                                                  {layer.id}
+                                          {pullProgress.layers
+                                            .slice(-6)
+                                            .reverse()
+                                            .map(layer => (
+                                              <div
+                                                key={layer.id}
+                                                className="flex items-center justify-between gap-3 rounded-lg border bg-background/70 px-3 py-2"
+                                              >
+                                                <div className="min-w-0">
+                                                  <div className="font-mono text-xs text-foreground">
+                                                    {layer.id}
+                                                  </div>
+                                                  <div className="text-xs text-muted-foreground">
+                                                    {layer.detail ||
+                                                      'waiting for next progress update'}
+                                                  </div>
                                                 </div>
-                                                <div className="text-xs text-muted-foreground">
-                                                  {layer.detail || 'waiting for next progress update'}
-                                                </div>
+                                                <Badge variant={pullStatusTone(layer.status)}>
+                                                  {layer.status}
+                                                </Badge>
                                               </div>
-                                              <Badge variant={pullStatusTone(layer.status)}>
-                                                {layer.status}
-                                              </Badge>
-                                            </div>
-                                          ))}
+                                            ))}
                                         </div>
                                       ) : null}
                                       {pullProgress.recentEvents.length > 0 ? (

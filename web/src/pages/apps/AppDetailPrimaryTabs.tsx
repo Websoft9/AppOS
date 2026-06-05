@@ -76,7 +76,7 @@ export function AppDetailOverviewTab({
           : app.health_summary || ''
   const alertValue = healthAlert || certificateAlert
 
-  const accessNode = (
+  const accessNode =
     accessValue !== '-' ? (
       <a
         href={accessValue}
@@ -90,7 +90,6 @@ export function AppDetailOverviewTab({
     ) : (
       <span className="break-all">{accessValue}</span>
     )
-  )
 
   const lastOperationNode = actionDetailHref ? (
     <a
@@ -209,7 +208,9 @@ export function AppDetailOverviewTab({
           ) : null}
         </div>
         <div className="flex flex-wrap gap-2 border-t border-border/40 px-4 py-4 md:px-6">
-          <div className="w-full text-sm font-medium text-muted-foreground">Recommended actions</div>
+          <div className="w-full text-sm font-medium text-muted-foreground">
+            Recommended actions
+          </div>
           {accessValue !== '-' ? (
             <Button size="sm" asChild>
               <a href={accessValue} target="_blank" rel="noreferrer">
@@ -394,8 +395,7 @@ export function AppDetailAccessTab({
             )}
           </div>
           <div>
-            <span className="text-muted-foreground">Target port:</span>{' '}
-            {resolvedTargetPort || '-'}
+            <span className="text-muted-foreground">Target port:</span> {resolvedTargetPort || '-'}
           </div>
           <div>
             <span className="text-muted-foreground">Health state:</span>{' '}
@@ -428,12 +428,9 @@ export function AppDetailAccessTab({
         </CardHeader>
         <CardContent className="space-y-1 text-sm text-muted-foreground">
           <div>
-            <span>Server:</span>{' '}
-            <span>{serverDisplayName}</span>
+            <span>Server:</span> <span>{serverDisplayName}</span>
           </div>
-          <div>
-            Certificate summary: {primaryExposure?.certificate_id ? 'bound' : 'not bound'}
-          </div>
+          <div>Certificate summary: {primaryExposure?.certificate_id ? 'bound' : 'not bound'}</div>
           {serverConnectionPresentation ? (
             <>
               <div className="flex items-center gap-2 text-foreground">

@@ -39,7 +39,10 @@ export async function createAIChatSession(title?: string): Promise<AIChatSession
   })) as AIChatSession
 }
 
-export async function updateAIChatSession(sessionId: string, title: string): Promise<AIChatSession> {
+export async function updateAIChatSession(
+  sessionId: string,
+  title: string
+): Promise<AIChatSession> {
   return (await pb.send(`/api/ai/chat/sessions/${encodeURIComponent(sessionId)}`, {
     method: 'PATCH',
     body: { title },
@@ -53,9 +56,12 @@ export async function deleteAIChatSession(sessionId: string): Promise<void> {
 }
 
 export async function listAIChatMessages(sessionId: string): Promise<AIChatMessage[]> {
-  const response = (await pb.send(`/api/ai/chat/sessions/${encodeURIComponent(sessionId)}/messages`, {
-    method: 'GET',
-  })) as { items?: AIChatMessage[] }
+  const response = (await pb.send(
+    `/api/ai/chat/sessions/${encodeURIComponent(sessionId)}/messages`,
+    {
+      method: 'GET',
+    }
+  )) as { items?: AIChatMessage[] }
   return Array.isArray(response.items) ? response.items : []
 }
 
@@ -107,8 +113,15 @@ export async function sendAIChatMessage(
 
 function handleSSEFrame(frame: string, callbacks: StreamCallbacks) {
   const lines = frame.split('\n')
-  const event = lines.find(line => line.startsWith('event:'))?.slice(6).trim() ?? 'message'
-  const data = lines.find(line => line.startsWith('data:'))?.slice(5).trim()
+  const event =
+    lines
+      .find(line => line.startsWith('event:'))
+      ?.slice(6)
+      .trim() ?? 'message'
+  const data = lines
+    .find(line => line.startsWith('data:'))
+    ?.slice(5)
+    .trim()
   if (!data) return
   const payload = JSON.parse(data) as { content?: string; message?: unknown; code?: string }
   if (event === 'chunk') {

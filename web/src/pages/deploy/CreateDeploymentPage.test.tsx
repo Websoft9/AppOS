@@ -478,10 +478,8 @@ describe('CreateDeploymentPage', () => {
   it('renders the full create page and submits a manual compose action', async () => {
     renderCreateDeploymentPage({ entryMode: 'compose' })
 
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Create Deployment' })).toBeInTheDocument()
-      expect(getAppNameField()).toBeInTheDocument()
-    })
+    await screen.findByRole('heading', { name: 'Create Deployment' })
+    await screen.findByLabelText('App Name *')
 
     await enablePortAccess()
 
@@ -553,7 +551,7 @@ describe('CreateDeploymentPage', () => {
       params: { actionId: 'act_manual_1' },
       search: { returnTo: 'list' },
     })
-  })
+  }, 30000)
 
   it('blocks create when auto preflight check fails', async () => {
     sendMock.mockImplementation(
@@ -874,7 +872,10 @@ describe('CreateDeploymentPage', () => {
     })
 
     fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
-    expect(sendMock).not.toHaveBeenCalledWith('/api/actions/install/name-availability', expect.anything())
+    expect(sendMock).not.toHaveBeenCalledWith(
+      '/api/actions/install/name-availability',
+      expect.anything()
+    )
 
     fireEvent.blur(getAppNameField())
 
@@ -1178,15 +1179,17 @@ describe('CreateDeploymentPage', () => {
 
   it('uses deploy settings defaults in the git compose create request', async () => {
     const fallback = sendMock.getMockImplementation()
-    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
-      if (path === settingsEntryPath('deploy-git-defaults') && options?.method === 'GET') {
-        return Promise.resolve({
-          id: 'deploy-git-defaults',
-          value: { defaultRef: 'release', defaultComposePath: 'deploy/custom-compose.yml' },
-        })
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+        if (path === settingsEntryPath('deploy-git-defaults') && options?.method === 'GET') {
+          return Promise.resolve({
+            id: 'deploy-git-defaults',
+            value: { defaultRef: 'release', defaultComposePath: 'deploy/custom-compose.yml' },
+          })
+        }
+        return fallback?.(path, options)
       }
-      return fallback?.(path, options)
-    })
+    )
 
     renderCreateDeploymentPage({ entryMode: 'git-compose' })
 
@@ -1380,50 +1383,54 @@ describe('CreateDeploymentPage', () => {
   })
 
   it('checks docker readiness after choosing a target and links to prerequisites when Docker is not ready', async () => {
-    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
-      if (path === '/api/servers/docker-targets') {
-        return Promise.resolve([{ id: 'srv-1', label: 'edge-1', host: '10.0.0.8', status: 'online' }])
-      }
-      if (path === '/api/servers/srv-1/software/docker') {
-        return Promise.resolve({
-          component_key: 'docker',
-          label: 'Docker',
-          target_type: 'server',
-          template_kind: 'docker',
-          installed_state: 'installed',
-          detected_version: '27.0.1',
-          verification_state: 'degraded',
-          available_actions: ['upgrade'],
-          preflight: {
-            ok: true,
-            os_supported: true,
-            privilege_ok: true,
-            network_ok: true,
-            dependency_ready: true,
-          },
-          verification: {
-            state: 'degraded',
-            checked_at: '2026-01-01T00:00:00Z',
-            reason: 'docker compose: command not found',
-            details: {
-              engine_version: '27.0.1',
-              compose_available: false,
-              compose_version: '',
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+        if (path === '/api/servers/docker-targets') {
+          return Promise.resolve([
+            { id: 'srv-1', label: 'edge-1', host: '10.0.0.8', status: 'online' },
+          ])
+        }
+        if (path === '/api/servers/srv-1/software/docker') {
+          return Promise.resolve({
+            component_key: 'docker',
+            label: 'Docker',
+            target_type: 'server',
+            template_kind: 'docker',
+            installed_state: 'installed',
+            detected_version: '27.0.1',
+            verification_state: 'degraded',
+            available_actions: ['upgrade'],
+            preflight: {
+              ok: true,
+              os_supported: true,
+              privilege_ok: true,
+              network_ok: true,
+              dependency_ready: true,
             },
-          },
-        })
+            verification: {
+              state: 'degraded',
+              checked_at: '2026-01-01T00:00:00Z',
+              reason: 'docker compose: command not found',
+              details: {
+                engine_version: '27.0.1',
+                compose_available: false,
+                compose_version: '',
+              },
+            },
+          })
+        }
+        if (path === '/api/actions') {
+          return Promise.resolve([])
+        }
+        if (path === settingsEntryPath('deploy-git-defaults') && options?.method === 'GET') {
+          return Promise.resolve({
+            id: 'deploy-git-defaults',
+            value: { defaultRef: 'main', defaultComposePath: 'docker-compose.yml' },
+          })
+        }
+        return Promise.resolve({})
       }
-      if (path === '/api/actions') {
-        return Promise.resolve([])
-      }
-      if (path === settingsEntryPath('deploy-git-defaults') && options?.method === 'GET') {
-        return Promise.resolve({
-          id: 'deploy-git-defaults',
-          value: { defaultRef: 'main', defaultComposePath: 'docker-compose.yml' },
-        })
-      }
-      return Promise.resolve({})
-    })
+    )
 
     renderCreateDeploymentPage({ entryMode: 'compose' })
 

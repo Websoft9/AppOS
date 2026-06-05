@@ -99,3 +99,37 @@ func TestExtractComposePublishedPortsForTest(t *testing.T) {
 		}
 	}
 }
+
+func TestExtractComposeExternalNetworkNamesForTest(t *testing.T) {
+	t.Parallel()
+
+	compose := `services:
+  web:
+    image: nginx:alpine
+networks:
+  default:
+    name: websoft9
+    external: true
+  sidecar:
+    external:
+      name: ignored-by-compose
+    name: custom-net
+  internal:
+    driver: bridge
+`
+
+	networks, err := ExtractComposeExternalNetworkNamesForTest(compose)
+	if err != nil {
+		t.Fatalf("ExtractComposeExternalNetworkNamesForTest() error = %v", err)
+	}
+
+	want := []string{"custom-net", "websoft9"}
+	if len(networks) != len(want) {
+		t.Fatalf("networks length = %d, want %d: %#v", len(networks), len(want), networks)
+	}
+	for i := range want {
+		if networks[i] != want[i] {
+			t.Fatalf("networks[%d] = %q, want %q", i, networks[i], want[i])
+		}
+	}
+}

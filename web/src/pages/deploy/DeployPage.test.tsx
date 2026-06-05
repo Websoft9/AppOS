@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { DeployPage } from './DeployPage'
@@ -71,7 +71,7 @@ describe('DeployPage homepage', () => {
     navigateMock.mockReset()
 
     const storeAppItems = Array.from({ length: 17 }, (_, index) => ({
-      key: `app-${index + 1}`,
+      key: index === 0 ? 'wordpress' : `app-${index + 1}`,
       title: index === 0 ? 'WordPress' : `App ${String(index + 1).padStart(2, '0')}`,
       overview: `Overview ${index + 1}`,
       iconUrl: `https://example.com/app-${index + 1}.png`,
@@ -80,7 +80,11 @@ describe('DeployPage homepage', () => {
       primaryCategory: { key: 'cms', title: 'CMS' },
       secondaryCategories: [{ key: 'featured', title: 'Featured' }],
       badges: [],
-      template: { key: `app-${index + 1}`, source: 'official', available: true },
+      template: {
+        key: index === 0 ? 'wordpress' : `app-${index + 1}`,
+        source: 'official',
+        available: true,
+      },
       personalization: { isFavorite: index === 0, hasNote: false },
       updatedAt: `2026-03-${String(index + 1).padStart(2, '0')}T08:00:00Z`,
     }))
@@ -202,7 +206,14 @@ describe('DeployPage homepage', () => {
               key: 'cms',
               title: 'CMS',
               appCount: storeAppItems.length,
-              children: [{ key: 'featured', title: 'Featured', appCount: storeAppItems.length, parentKey: 'cms' }],
+              children: [
+                {
+                  key: 'featured',
+                  title: 'Featured',
+                  appCount: storeAppItems.length,
+                  parentKey: 'cms',
+                },
+              ],
             },
           ],
           meta: {
@@ -297,16 +308,20 @@ describe('DeployPage homepage', () => {
       </TooltipProvider>
     )
 
+    const storeCard = screen
+      .getByText('Install from Store')
+      .closest('[data-slot="card"]') as HTMLElement
+
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Show another set' })).toBeInTheDocument()
-      expect(screen.getByText('WordPress')).toBeInTheDocument()
+      expect(within(storeCard).getByTitle('WordPress')).toBeInTheDocument()
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Show another set' }))
 
     await waitFor(() => {
-      expect(screen.queryByText('WordPress')).not.toBeInTheDocument()
-      expect(screen.getByText('App 17')).toBeInTheDocument()
+      expect(within(storeCard).queryByTitle('WordPress')).not.toBeInTheDocument()
+      expect(within(storeCard).getAllByTitle(/^(WordPress|App \d{2})$/)).toHaveLength(2)
     })
   })
 

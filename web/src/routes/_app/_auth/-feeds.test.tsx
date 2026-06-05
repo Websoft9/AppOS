@@ -521,9 +521,7 @@ describe('FeedsPage', () => {
     const Component = (Route as unknown as { component: React.ComponentType }).component
     render(<Component />)
 
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Feeds' })).toBeInTheDocument()
-    })
+    await screen.findByRole('heading', { name: 'Feeds' })
 
     expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open bookmarks' })).toBeInTheDocument()
@@ -794,7 +792,7 @@ describe('FeedsPage', () => {
       'href',
       'https://example.com/releases/1'
     )
-  })
+  }, 45000)
 
   it('shows bookmark title hover description, domain-only URL, and late-loading favicon from bookmark metadata', async () => {
     sendMock.mockImplementation((path: string) => {

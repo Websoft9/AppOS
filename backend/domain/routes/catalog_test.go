@@ -851,7 +851,7 @@ func ensureCustomAppTemplateFile(t *testing.T, key, compose string) {
 		t.Fatal(err)
 	}
 	path := filepath.Join(dir, "docker-compose.yml")
-	if err := os.WriteFile(path, []byte(compose), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(compose), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {

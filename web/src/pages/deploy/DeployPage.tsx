@@ -193,7 +193,9 @@ export function DeployPage({
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => openOperationDetail(item.id)}>View</DropdownMenuItem>
           {canCancelAction(item) ? (
-            <DropdownMenuItem onClick={() => openActionControl(item, 'cancel')}>Cancel</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openActionControl(item, 'cancel')}>
+              Cancel
+            </DropdownMenuItem>
           ) : null}
           {canForceFailAction(item) ? (
             <DropdownMenuItem

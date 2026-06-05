@@ -139,7 +139,9 @@ export function ServerOverviewTab({
             </dt>
             <dd className="mt-1">
               <Badge variant="outline">
-                {isTunnel ? t('servers.connection.tunnelShort') : t('servers.overview.connection.direct')}
+                {isTunnel
+                  ? t('servers.connection.tunnelShort')
+                  : t('servers.overview.connection.direct')}
               </Badge>
             </dd>
           </div>
@@ -227,7 +229,9 @@ export function ServerOverviewTab({
       </section>
 
       <section className="space-y-4">
-        <h3 className={detailSectionTitleClassName}>{t('servers.overview.sections.systemInformation')}</h3>
+        <h3 className={detailSectionTitleClassName}>
+          {t('servers.overview.sections.systemInformation')}
+        </h3>
         {facts.hasFacts ? (
           <dl className="grid gap-x-8 gap-y-5 text-sm sm:grid-cols-2 xl:grid-cols-3">
             <div>
@@ -268,14 +272,14 @@ export function ServerOverviewTab({
             </div>
           </dl>
         ) : (
-          <div className="text-sm text-muted-foreground">
-            {t('servers.overview.empty.noFacts')}
-          </div>
+          <div className="text-sm text-muted-foreground">{t('servers.overview.empty.noFacts')}</div>
         )}
       </section>
 
       <section className="space-y-4">
-        <h3 className={detailSectionTitleClassName}>{t('servers.overview.sections.cloudProvider')}</h3>
+        <h3 className={detailSectionTitleClassName}>
+          {t('servers.overview.sections.cloudProvider')}
+        </h3>
         <dl className="grid gap-x-8 gap-y-5 text-sm sm:grid-cols-2 xl:grid-cols-3">
           <div>
             <dt className="text-xs uppercase tracking-wide text-muted-foreground">

@@ -76,9 +76,9 @@ def validate_inputs(inputs_schema: dict) -> None:
 
 def validate_render(render: dict) -> None:
     require_keys(render, ["contractVersion"], "render.json")
-    if not any(key in render for key in ("env", "compose_values", "files", "exposure")):
+    if not any(key in render for key in ("env", "compose_values", "files", "exposures")):
         raise ValidationError(
-            "render.json must contain at least one of: env, compose_values, files, exposure"
+            "render.json must contain at least one of: env, compose_values, files, exposures"
         )
     for env_key, env_value in render.get("env", {}).items():
         if not isinstance(env_value, str):
@@ -86,6 +86,33 @@ def validate_render(render: dict) -> None:
         for match in RENDER_PLACEHOLDER_PATTERN.findall(env_value):
             if not match:
                 raise ValidationError(f"render.json env value for {env_key} contains empty placeholder")
+    exposures = render.get("exposures", [])
+    if exposures is not None:
+        if not isinstance(exposures, list):
+            raise ValidationError("render.json exposures must be an array")
+        allowed_exposure_keys = {"label", "service", "port", "protocol", "default"}
+        seen_exposures = set()
+        default_count = 0
+        for index, exposure in enumerate(exposures):
+            if not isinstance(exposure, dict):
+                raise ValidationError(f"render.json exposures[{index}] must be an object")
+            require_keys(exposure, ["label", "service", "port", "protocol"], f"render.json exposures[{index}]")
+            unknown_keys = sorted(set(exposure) - allowed_exposure_keys)
+            if unknown_keys:
+                raise ValidationError(
+                    f"render.json exposures[{index}] has unsupported keys: {', '.join(unknown_keys)}"
+                )
+            marker = (exposure["service"], exposure["protocol"], exposure["port"])
+            if marker in seen_exposures:
+                raise ValidationError(
+                    "duplicate exposure intent for service/protocol/port: "
+                    f"{exposure['service']}/{exposure['protocol']}/{exposure['port']}"
+                )
+            seen_exposures.add(marker)
+            if exposure.get("default") is True:
+                default_count += 1
+        if default_count > 1:
+            raise ValidationError("render.json exposures may mark at most one default endpoint")
 
 
 def validate_source(source: dict) -> None:
@@ -135,9 +162,9 @@ def validate_expected_shape(template_key: str, template_dir: Path, manifest: dic
         )
 
     expected_render = expected.get("render", {})
-    if render.get("exposure", {}).get("kind") != expected_render.get("exposureKind"):
+    if render.get("exposures", []) != expected_render.get("exposures", []):
         raise ValidationError(
-            f"render exposure kind mismatch: expected {expected_render.get('exposureKind')!r}, got {render.get('exposure', {}).get('kind')!r}"
+            f"render exposures mismatch: expected {expected_render.get('exposures')!r}, got {render.get('exposures', [])!r}"
         )
     if render.get("compose_values", {}).get("primaryService") != expected_render.get("primaryService"):
         raise ValidationError(

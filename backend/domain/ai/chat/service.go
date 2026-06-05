@@ -88,7 +88,6 @@ func (s *Service) ListMessages(ctx context.Context, sessionID, ownerID string) (
 	return s.repo.ListMessages(ctx, sessionID)
 }
 
-
 func (s *Service) SendMessage(ctx context.Context, sessionID, ownerID, content string, attachments []MessageAttachment, onChunk func(string) error) (*Message, error) {
 	content = strings.TrimSpace(content)
 	attachments = normalizeAttachments(attachments)

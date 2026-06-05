@@ -19,7 +19,8 @@ const { translateCronKey } = vi.hoisted(() => {
       'servers.cronTab.actions.removeEffect': 'Remove Effect',
       'servers.cronTab.actions.delete': 'Delete',
       'servers.cronTab.empty.title': 'No managed crontab entries yet',
-      'servers.cronTab.empty.description': 'This list only shows AppOS-managed crontab entries for this server.',
+      'servers.cronTab.empty.description':
+        'This list only shows AppOS-managed crontab entries for this server.',
       'servers.cronTab.inventory.ariaLabel': 'Crontab inventory',
       'servers.cronTab.search.placeholder': 'Search',
       'servers.cronTab.pagination.previous': 'Previous page',
@@ -35,7 +36,8 @@ const { translateCronKey } = vi.hoisted(() => {
       'servers.cronTab.filters.noResults': 'No crontab entries match the current filters.',
       'servers.cronTab.selected.title': 'Selected Entry',
       'servers.cronTab.selected.selectPrompt': 'Select one entry from the inventory.',
-      'servers.cronTab.selected.empty': 'Choose a crontab entry to inspect its schedule, path, and command details.',
+      'servers.cronTab.selected.empty':
+        'Choose a crontab entry to inspect its schedule, path, and command details.',
       'servers.cronTab.detailRows.name': 'Name:',
       'servers.cronTab.detailRows.schedule': 'Schedule:',
       'servers.cronTab.detailRows.path': 'Path:',
@@ -44,8 +46,10 @@ const { translateCronKey } = vi.hoisted(() => {
       'servers.cronTab.detailRows.command': 'Command',
       'servers.cronTab.tabs.liveLog': 'Live log',
       'servers.cronTab.tabs.logs': 'Logs',
-      'servers.cronTab.liveLog.empty': 'No operation log yet. Trigger Test, Edit, enable/disable, or delete actions to see live updates here.',
-      'servers.cronTab.logsPanel.empty': 'Entry historical logs are reserved here. Backend log API is not available yet.',
+      'servers.cronTab.liveLog.empty':
+        'No operation log yet. Trigger Test, Edit, enable/disable, or delete actions to see live updates here.',
+      'servers.cronTab.logsPanel.empty':
+        'Entry historical logs are reserved here. Backend log API is not available yet.',
       'servers.cronTab.hints.created': 'Cron entry created.',
       'servers.cronTab.hints.updated': 'Cron entry updated.',
       'servers.cronTab.hints.deleted': 'Cron entry deleted.',
@@ -69,11 +73,13 @@ const { translateCronKey } = vi.hoisted(() => {
       'servers.cronTab.logs.runningTest': 'Running test for entry...',
       'servers.cronTab.logs.tested': 'Crontab entry tested.',
       'servers.cronTab.validation.nameRequired': 'Name is required',
-      'servers.cronTab.validation.scheduleInvalid': 'Schedule must be a valid five-field cron expression',
+      'servers.cronTab.validation.scheduleInvalid':
+        'Schedule must be a valid five-field cron expression',
       'servers.cronTab.validation.commandRequired': 'Command is required',
       'servers.cronTab.dialogs.editor.createTitle': 'New Entry',
       'servers.cronTab.dialogs.editor.editTitle': 'Edit Entry',
-      'servers.cronTab.dialogs.editor.description': 'Generate a five-field cron schedule with frequency-specific controls.',
+      'servers.cronTab.dialogs.editor.description':
+        'Generate a five-field cron schedule with frequency-specific controls.',
       'servers.cronTab.dialogs.editor.cancel': 'Cancel',
       'servers.cronTab.dialogs.editor.save': 'Save',
       'servers.cronTab.dialogs.delete.title': 'Delete Cron Entry',

@@ -100,8 +100,9 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     Partial<Record<keyof DeployRuntimeGroup, string>>
   >({})
 
-  const [deployGitDefaultsForm, setDeployGitDefaultsForm] =
-    useState<DeployGitDefaultsGroup>(DEFAULT_DEPLOY_GIT_DEFAULTS)
+  const [deployGitDefaultsForm, setDeployGitDefaultsForm] = useState<DeployGitDefaultsGroup>(
+    DEFAULT_DEPLOY_GIT_DEFAULTS
+  )
   const [deployGitDefaultsSaving, setDeployGitDefaultsSaving] = useState(false)
   const [deployGitDefaultsErrors, setDeployGitDefaultsErrors] = useState<
     Partial<Record<keyof DeployGitDefaultsGroup, string>>
@@ -728,12 +729,12 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
       const res = (await pb.send(settingsEntryPath('deploy-preflight'), {
         method: 'PATCH',
         body: {
-			minFreeDiskGiB: deployPreflightForm.minFreeDiskGiB,
+          minFreeDiskGiB: deployPreflightForm.minFreeDiskGiB,
         },
       })) as { value?: Partial<DeployPreflightGroup> }
       const preflight = res.value ?? deployPreflightForm
       setDeployPreflightForm({
-			minFreeDiskGiB: Number(preflight.minFreeDiskGiB ?? deployPreflightForm.minFreeDiskGiB),
+        minFreeDiskGiB: Number(preflight.minFreeDiskGiB ?? deployPreflightForm.minFreeDiskGiB),
       })
       showToast('Deploy checks saved')
     } catch (err) {
@@ -744,7 +745,7 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
             ? (root.errors as Record<string, unknown>)
             : root
         const nextErrors = {
-			minFreeDiskGiB: extractFieldError(bag.minFreeDiskGiB) ?? undefined,
+          minFreeDiskGiB: extractFieldError(bag.minFreeDiskGiB) ?? undefined,
         }
         if (Object.values(nextErrors).some(Boolean)) {
           setDeployPreflightErrors(nextErrors)
@@ -809,12 +810,9 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
             ? (root.errors as Record<string, unknown>)
             : root
         const nextErrors = {
-          imagePullTimeoutSeconds:
-            extractFieldError(bag.imagePullTimeoutSeconds) ?? undefined,
-          composeUpTimeoutSeconds:
-            extractFieldError(bag.composeUpTimeoutSeconds) ?? undefined,
-          healthCheckTimeoutSeconds:
-            extractFieldError(bag.healthCheckTimeoutSeconds) ?? undefined,
+          imagePullTimeoutSeconds: extractFieldError(bag.imagePullTimeoutSeconds) ?? undefined,
+          composeUpTimeoutSeconds: extractFieldError(bag.composeUpTimeoutSeconds) ?? undefined,
+          healthCheckTimeoutSeconds: extractFieldError(bag.healthCheckTimeoutSeconds) ?? undefined,
           runtimePullIdleHeartbeatSeconds:
             extractFieldError(bag.runtimePullIdleHeartbeatSeconds) ?? undefined,
         }
@@ -858,9 +856,7 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
       const gitDefaults = res.value ?? payload
       setDeployGitDefaultsForm({
         defaultRef:
-          typeof gitDefaults.defaultRef === 'string'
-            ? gitDefaults.defaultRef
-            : payload.defaultRef,
+          typeof gitDefaults.defaultRef === 'string' ? gitDefaults.defaultRef : payload.defaultRef,
         defaultComposePath:
           typeof gitDefaults.defaultComposePath === 'string'
             ? gitDefaults.defaultComposePath

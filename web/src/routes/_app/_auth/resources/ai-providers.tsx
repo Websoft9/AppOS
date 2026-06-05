@@ -259,7 +259,9 @@ export async function buildAIProviderPayload(
   if (credentialField?.required && !credentialId) {
     throw new Error(
       t
-        ? t('aiProviders.errors.fieldRequired', { field: credentialField.label || t('aiProviders.fields.apiKey') })
+        ? t('aiProviders.errors.fieldRequired', {
+            field: credentialField.label || t('aiProviders.fields.apiKey'),
+          })
         : `${credentialField.label || 'API Key'} is required`
     )
   }
@@ -529,9 +531,15 @@ export function AIProvidersPage() {
           }}
           onEditReference={openSecretEditor}
           editMode={editMode}
-          manualPlaceholder={t('aiProviders.credential.enterField', { field: String(field.label ?? t('aiProviders.fields.apiKey')) })}
-          showLabel={t('aiProviders.credential.showField', { field: String(field.label ?? t('aiProviders.fields.apiKey')) })}
-          hideLabel={t('aiProviders.credential.hideField', { field: String(field.label ?? t('aiProviders.fields.apiKey')) })}
+          manualPlaceholder={t('aiProviders.credential.enterField', {
+            field: String(field.label ?? t('aiProviders.fields.apiKey')),
+          })}
+          showLabel={t('aiProviders.credential.showField', {
+            field: String(field.label ?? t('aiProviders.fields.apiKey')),
+          })}
+          hideLabel={t('aiProviders.credential.hideField', {
+            field: String(field.label ?? t('aiProviders.fields.apiKey')),
+          })}
           generateValue={buildApiKeyValue}
           generatorTitle={t('aiProviders.credential.generateTitle')}
           generatorDescription={t('aiProviders.credential.generateDescription')}
@@ -570,7 +578,12 @@ export function AIProvidersPage() {
           }
         },
       },
-      { key: 'description', label: t('aiProviders.fields.description'), type: 'textarea', advanced: true },
+      {
+        key: 'description',
+        label: t('aiProviders.fields.description'),
+        type: 'textarea',
+        advanced: true,
+      },
       {
         key: 'selected_product',
         label: t('aiProviders.fields.selectedProduct'),
@@ -695,8 +708,7 @@ export function AIProvidersPage() {
       <ResourcePage
         config={{
           title: t('aiProviders.page.title'),
-          description:
-            t('aiProviders.page.description'),
+          description: t('aiProviders.page.description'),
           emptyStateLabel: t('aiProviders.page.emptyState'),
           apiPath: '/api/ai-providers',
           columns,
@@ -850,9 +862,10 @@ export function AIProvidersPage() {
         defaultTemplateId={AI_PROVIDER_CREDENTIAL_TEMPLATE_ID}
         defaultVisibleTo={['ai_provider']}
         onCreated={({ id, name, templateId }) => {
-          const suffix = templateId === AI_PROVIDER_CREDENTIAL_TEMPLATE_ID
-            ? t('aiProviders.secret.singleValueTemplate')
-            : SECRET_TEMPLATE_LABELS[templateId]
+          const suffix =
+            templateId === AI_PROVIDER_CREDENTIAL_TEMPLATE_ID
+              ? t('aiProviders.secret.singleValueTemplate')
+              : SECRET_TEMPLATE_LABELS[templateId]
           secretAddOption?.(id, suffix ? `${name} (${suffix})` : name)
         }}
       />

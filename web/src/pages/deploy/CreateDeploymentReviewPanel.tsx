@@ -56,63 +56,73 @@ export function CreateDeploymentReviewPanel({
 
             {preflightVisible ? (
               <div className="space-y-2">
-              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Pre-flight checks
-              </div>
-              {checkResult ? (
-                <div className="space-y-2 text-xs">
-                  <div className="flex items-start gap-2">
-                    {checkResult.ok ? (
-                      <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 text-emerald-600" />
-                    ) : (
-                      <ShieldAlert className="mt-0.5 h-3.5 w-3.5 text-amber-600" />
-                    )}
-                    <div className="min-w-0">
-                      <div className="font-medium">{checkResult.message}</div>
-                      {checkResult.compose_project_name ? (
-                        <div className="text-xs text-muted-foreground">
-                          Resolved app name: {checkResult.compose_project_name}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                  {reviewMessages.map(message => (
-                    <div key={message} className="flex items-start gap-2 text-amber-700 dark:text-amber-400">
-                      <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                      <div>{message}</div>
-                    </div>
-                  ))}
-                  {portItems.map(item => (
-                    <div key={`${item.protocol}-${item.port}`} className="flex items-start gap-2">
-                      {item.conflict ? (
-                        <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Pre-flight checks
+                </div>
+                {checkResult ? (
+                  <div className="space-y-2 text-xs">
+                    <div className="flex items-start gap-2">
+                      {checkResult.ok ? (
+                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 text-emerald-600" />
                       ) : (
-                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                        <ShieldAlert className="mt-0.5 h-3.5 w-3.5 text-amber-600" />
                       )}
-                      <div>
-                        <span className="font-mono">{item.port}/{item.protocol}</span>
-                        <span className="text-muted-foreground">{' '}- </span>
-                        <span className={item.conflict ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground'}>
-                          {item.conflict
-                            ? `${item.occupied ? 'occupied' : 'reserved'}${item.occupied && item.reserved ? ' and reserved' : ''}`
-                            : 'available'}
-                        </span>
+                      <div className="min-w-0">
+                        <div className="font-medium">{checkResult.message}</div>
+                        {checkResult.compose_project_name ? (
+                          <div className="text-xs text-muted-foreground">
+                            Resolved app name: {checkResult.compose_project_name}
+                          </div>
+                        ) : null}
                       </div>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-xs text-muted-foreground">
-                  {activeChecking || activeSubmitting
-                    ? 'Checking current inputs...'
-                    : 'No pre-flight result for the current inputs yet.'}
-                </div>
-              )}
+                    {reviewMessages.map(message => (
+                      <div
+                        key={message}
+                        className="flex items-start gap-2 text-amber-700 dark:text-amber-400"
+                      >
+                        <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        <div>{message}</div>
+                      </div>
+                    ))}
+                    {portItems.map(item => (
+                      <div key={`${item.protocol}-${item.port}`} className="flex items-start gap-2">
+                        {item.conflict ? (
+                          <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+                        ) : (
+                          <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                        )}
+                        <div>
+                          <span className="font-mono">
+                            {item.port}/{item.protocol}
+                          </span>
+                          <span className="text-muted-foreground"> - </span>
+                          <span
+                            className={
+                              item.conflict
+                                ? 'text-amber-700 dark:text-amber-400'
+                                : 'text-muted-foreground'
+                            }
+                          >
+                            {item.conflict
+                              ? `${item.occupied ? 'occupied' : 'reserved'}${item.occupied && item.reserved ? ' and reserved' : ''}`
+                              : 'available'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">
+                    {activeChecking || activeSubmitting
+                      ? 'Checking current inputs...'
+                      : 'No pre-flight result for the current inputs yet.'}
+                  </div>
+                )}
               </div>
             ) : null}
           </CardContent>
         </Card>
-
       </div>
     </div>
   )

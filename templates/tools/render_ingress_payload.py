@@ -130,7 +130,7 @@ def build_payload(template_key: str, manifest: dict, inputs_schema: dict, render
             "version": values.get("version"),
             "primaryService": render.get("compose_values", {}).get("primaryService"),
             "databaseService": render.get("compose_values", {}).get("databaseService"),
-            "exposure": render.get("exposure", {}),
+            "exposures": render.get("exposures", []),
             "source": {
                 "kind": "template",
                 "templateKey": template_key,

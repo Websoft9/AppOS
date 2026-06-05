@@ -27,10 +27,12 @@ vi.mock('react-i18next', () => ({
       const labels: Record<string, string> = {
         'hub.title': 'Resources',
         'platformAccounts.page.title': 'Platform Accounts',
-        'platformAccounts.page.description': 'AWS, Azure, Google Cloud, GitHub, Cloudflare, and similar platform identities with profile-based templates.',
+        'platformAccounts.page.description':
+          'AWS, Azure, Google Cloud, GitHub, Cloudflare, and similar platform identities with profile-based templates.',
         'platformAccounts.selection.title': 'Choose a Product',
         'platformAccounts.selection.description': 'Choose a product, then enter account details.',
-        'platformAccounts.selection.searchPlaceholder': 'Search products like AWS, GitHub, Azure, Cloudflare...',
+        'platformAccounts.selection.searchPlaceholder':
+          'Search products like AWS, GitHub, Azure, Cloudflare...',
         'platformAccounts.selection.emptyMessage': 'No matching products found.',
         'platformAccounts.fields.platform': 'Platform',
         'platformAccounts.fields.template': 'Template',
@@ -58,7 +60,7 @@ vi.mock('react-i18next', () => ({
         'platformAccounts.columns.name': 'Name',
         'platformAccounts.columns.platform': 'Platform',
         'platformAccounts.columns.profile': 'Profile',
-        'platformAccounts.columns.identifier': 'Identifier'
+        'platformAccounts.columns.identifier': 'Identifier',
       }
       if (key === 'platformAccounts.product.profileDescription') {
         return `${String(options?.vendorPrefix ?? '')}${String(options?.category ?? '')} profile.`

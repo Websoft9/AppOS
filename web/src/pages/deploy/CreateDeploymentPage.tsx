@@ -16,7 +16,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useOptionalLayout } from '@/contexts/LayoutContext'
-import { useCatalogAppDetail, useCatalogAppTemplate, type CatalogTemplateField } from '@/lib/catalog-api'
+import {
+  useCatalogAppDetail,
+  useCatalogAppTemplate,
+  type CatalogTemplateField,
+} from '@/lib/catalog-api'
 import { getLocale } from '@/lib/i18n'
 import { iacUploadFile, iacMkdir } from '@/lib/iac-api'
 import { pb } from '@/lib/pb'
@@ -150,8 +154,12 @@ export function CreateDeploymentPage({
 
   const [templateKey, setTemplateKey] = useState(prefillAppKey || '')
   const [templateInputValues, setTemplateInputValues] = useState<Record<string, string>>({})
-  const [templateSecretState, setTemplateSecretState] = useState<Record<string, TemplateSecretState>>({})
-  const [templateSecretRevealState, setTemplateSecretRevealState] = useState<Record<string, boolean>>({})
+  const [templateSecretState, setTemplateSecretState] = useState<
+    Record<string, TemplateSecretState>
+  >({})
+  const [templateSecretRevealState, setTemplateSecretRevealState] = useState<
+    Record<string, boolean>
+  >({})
   const isGit = createEntryMode === 'git-compose'
   const isTemplate = createEntryMode === 'template'
   const isPinnedTemplate = isTemplate && Boolean(prefillAppKey?.trim())
@@ -185,10 +193,14 @@ export function CreateDeploymentPage({
         .sort((left, right) => {
           const leftIsVersion =
             left.key.trim().toLowerCase() === 'version' ||
-            String(left.label || '').trim().toLowerCase() === 'version'
+            String(left.label || '')
+              .trim()
+              .toLowerCase() === 'version'
           const rightIsVersion =
             right.key.trim().toLowerCase() === 'version' ||
-            String(right.label || '').trim().toLowerCase() === 'version'
+            String(right.label || '')
+              .trim()
+              .toLowerCase() === 'version'
           if (leftIsVersion === rightIsVersion) return 0
           return leftIsVersion ? -1 : 1
         }),
@@ -202,11 +214,16 @@ export function CreateDeploymentPage({
   const templateHiddenFields = templateFields.filter(
     field => isTemplateFieldHidden(field) && !isTemplateHttpPortField(field)
   )
-  const templateServiceItems = useMemo(() => buildTemplateServiceItems(templateDetail), [templateDetail])
+  const templateServiceItems = useMemo(
+    () => buildTemplateServiceItems(templateDetail),
+    [templateDetail]
+  )
   const templatePrimaryService = templateServiceItems.find(item => item.isPrimary) || null
   const templateDatabaseService =
     templateServiceItems.find(item => item.role.toLowerCase() === 'database') || null
-  const hasTemplateDatabaseSource = templateFields.some(field => isDatabasePasswordTemplateField(field))
+  const hasTemplateDatabaseSource = templateFields.some(field =>
+    isDatabasePasswordTemplateField(field)
+  )
   const templateDisplayName =
     prefillAppName ||
     templateAppDetail?.title ||
@@ -220,7 +237,9 @@ export function CreateDeploymentPage({
       templateBasicFields.find(
         field =>
           field.key.trim().toLowerCase() === 'version' ||
-          String(field.label || '').trim().toLowerCase() === 'version'
+          String(field.label || '')
+            .trim()
+            .toLowerCase() === 'version'
       ) || null,
     [templateBasicFields]
   )
@@ -326,7 +345,7 @@ export function CreateDeploymentPage({
       ? 'Select at least one exposure option.'
       : portExposureEnabled && mappedServiceNames.length === 0
         ? 'Enable at least one service row when Server Port Access is selected.'
-      : null
+        : null
   const exposurePortError =
     portExposureEnabled && primaryPortMapping?.enabled && parsedExposurePort == null
       ? 'Enter a valid server port between 1 and 65535.'
@@ -413,7 +432,10 @@ export function CreateDeploymentPage({
     setTemplateSecretState({})
     setTemplateSecretRevealState({})
     const nextSuggestedName = buildTemplateDefaultAppName(
-      prefillAppName || templateDetail.manifest.trademark || templateDetail.manifest.name || templateDetail.templateKey,
+      prefillAppName ||
+        templateDetail.manifest.trademark ||
+        templateDetail.manifest.name ||
+        templateDetail.templateKey,
       templateDetail.templateKey
     )
     if (!projectName.trim()) {
@@ -497,7 +519,15 @@ export function CreateDeploymentPage({
 
     setTemplateSecretState(nextSecretState)
     return nextPayload
-  }, [prefillAppName, projectName, templateDetail?.manifest.trademark, templateFields, templateInputValues, templateKey, templateSecretState])
+  }, [
+    prefillAppName,
+    projectName,
+    templateDetail?.manifest.trademark,
+    templateFields,
+    templateInputValues,
+    templateKey,
+    templateSecretState,
+  ])
 
   const renderTemplateFieldInput = useCallback(
     (field: CatalogTemplateField, inputId: string) => {
@@ -583,7 +613,11 @@ export function CreateDeploymentPage({
   )
 
   const createDisabled = isGit
-    ? !activeName.trim() || !gitRepositoryUrl.trim() || !gitComposePath.trim() || !serverId || activeSubmitting
+    ? !activeName.trim() ||
+      !gitRepositoryUrl.trim() ||
+      !gitComposePath.trim() ||
+      !serverId ||
+      activeSubmitting
     : isTemplate
       ? !activeName.trim() ||
         !templateKey ||
@@ -594,30 +628,34 @@ export function CreateDeploymentPage({
         Boolean(extraServiceMappingMessage) ||
         (domainExposureEnabled && !portExposureEnabled) ||
         Boolean(exposurePortError)
-    : !activeName.trim() ||
-      !compose.trim() ||
-      !serverId ||
-      activeSubmitting ||
-      Boolean(composeYamlError) ||
-      Boolean(sourceBuildTargetServiceError) ||
-      Boolean(exposureSelectionError) ||
-      Boolean(extraServiceMappingMessage) ||
-      (domainExposureEnabled && !portExposureEnabled) ||
-      Boolean(exposurePortError)
+      : !activeName.trim() ||
+        !compose.trim() ||
+        !serverId ||
+        activeSubmitting ||
+        Boolean(composeYamlError) ||
+        Boolean(sourceBuildTargetServiceError) ||
+        Boolean(exposureSelectionError) ||
+        Boolean(extraServiceMappingMessage) ||
+        (domainExposureEnabled && !portExposureEnabled) ||
+        Boolean(exposurePortError)
   const checkDisabled = isGit
-    ? !activeName.trim() || !gitRepositoryUrl.trim() || !gitComposePath.trim() || !serverId || activeChecking
+    ? !activeName.trim() ||
+      !gitRepositoryUrl.trim() ||
+      !gitComposePath.trim() ||
+      !serverId ||
+      activeChecking
     : isTemplate
       ? !activeName.trim() ||
         !templateKey ||
         !serverId ||
         activeChecking ||
         hasMissingRequiredTemplateFields(templateFields, templateInputValues)
-    : !activeName.trim() ||
-      !compose.trim() ||
-      !serverId ||
-      activeChecking ||
-      Boolean(composeYamlError) ||
-      Boolean(sourceBuildTargetServiceError)
+      : !activeName.trim() ||
+        !compose.trim() ||
+        !serverId ||
+        activeChecking ||
+        Boolean(composeYamlError) ||
+        Boolean(sourceBuildTargetServiceError)
 
   useEffect(() => {
     if (createEntryMode !== 'install-script') {
@@ -648,12 +686,12 @@ export function CreateDeploymentPage({
             silentNotice: true,
             exposureIntent,
           })
-      : await checkManualOperation({
-          silentNotice: true,
-          runtimeInputs,
-          sourceBuild,
-          exposureIntent,
-        })
+        : await checkManualOperation({
+            silentNotice: true,
+            runtimeInputs,
+            sourceBuild,
+            exposureIntent,
+          })
 
     if (!preflight) {
       return
@@ -949,7 +987,10 @@ export function CreateDeploymentPage({
 
       {/* ── Alerts ── */}
       {notice?.variant === 'destructive' ? (
-        <Alert variant={notice.variant} className="flex max-w-2xl items-center justify-between py-2">
+        <Alert
+          variant={notice.variant}
+          className="flex max-w-2xl items-center justify-between py-2"
+        >
           <AlertDescription>{notice.message}</AlertDescription>
           <Button variant="ghost" size="sm" onClick={() => setNotice(null)}>
             <X className="h-3 w-3" />
@@ -976,7 +1017,9 @@ export function CreateDeploymentPage({
               <div className="space-y-1.5">
                 <Label htmlFor="deploy-name" className="text-xs">
                   App Name{' '}
-                  <span aria-hidden="true" className="text-destructive">*</span>
+                  <span aria-hidden="true" className="text-destructive">
+                    *
+                  </span>
                   <HelpTip text="Must be unique across the server. Used as compose project name and the app data directory root." />
                 </Label>
                 <Input
@@ -997,15 +1040,15 @@ export function CreateDeploymentPage({
                   required
                 />
                 {nameHint ? (
-                  <div className="text-[11px] text-amber-700 dark:text-amber-400">
-                    {nameHint}
-                  </div>
+                  <div className="text-[11px] text-amber-700 dark:text-amber-400">{nameHint}</div>
                 ) : null}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="deploy-server" className="text-xs">
                   Target Location{' '}
-                  <span aria-hidden="true" className="text-destructive">*</span>
+                  <span aria-hidden="true" className="text-destructive">
+                    *
+                  </span>
                   <HelpTip text="The target server where containers will be created and managed." />
                 </Label>
                 <div className="flex items-center gap-2">
@@ -1109,7 +1152,8 @@ export function CreateDeploymentPage({
               <CardContent className="space-y-3">
                 {!templateKey ? (
                   <div className="rounded-lg border border-dashed bg-muted/20 p-3 text-xs text-muted-foreground">
-                    Open the target application from App Store and start deployment there. This flow no longer supports switching apps inside the template form.
+                    Open the target application from App Store and start deployment there. This flow
+                    no longer supports switching apps inside the template form.
                   </div>
                 ) : templateLoading ? (
                   <div className="text-xs text-muted-foreground">Loading template contract...</div>
@@ -1118,7 +1162,10 @@ export function CreateDeploymentPage({
                     <div className="grid gap-3 md:grid-cols-2">
                       {templateVersionField ? (
                         <div className="space-y-1.5">
-                          <Label htmlFor={`template-field-${templateVersionField.key}`} className="text-xs">
+                          <Label
+                            htmlFor={`template-field-${templateVersionField.key}`}
+                            className="text-xs"
+                          >
                             {templateVersionField.label || templateVersionField.key}
                             {templateVersionField.required ? ' *' : ''}
                           </Label>
@@ -1158,17 +1205,17 @@ export function CreateDeploymentPage({
                           </Label>
                           {renderTemplateFieldInput(field, `template-field-${field.key}`)}
                           {field.key.trim().toLowerCase() === 'version' ||
-                          String(field.label || '').trim().toLowerCase() === 'version'
-                            ? null
-                            : (
-                                <div className="text-[11px] text-muted-foreground">
-                                  {field.storage_mode === 'secret_backed'
-                                    ? 'Secret-backed input'
-                                    : field.storage_mode === 'system_managed'
-                                      ? 'Managed by the template runtime.'
-                                      : 'Template input'}
-                                </div>
-                              )}
+                          String(field.label || '')
+                            .trim()
+                            .toLowerCase() === 'version' ? null : (
+                            <div className="text-[11px] text-muted-foreground">
+                              {field.storage_mode === 'secret_backed'
+                                ? 'Secret-backed input'
+                                : field.storage_mode === 'system_managed'
+                                  ? 'Managed by the template runtime.'
+                                  : 'Template input'}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1374,7 +1421,8 @@ export function CreateDeploymentPage({
                         }
                       />
                       <div className="text-[11px] text-muted-foreground">
-                        Override the template default only when preflight should reserve a different disk estimate.
+                        Override the template default only when preflight should reserve a different
+                        disk estimate.
                       </div>
                     </div>
                   </div>
@@ -1382,7 +1430,9 @@ export function CreateDeploymentPage({
                     <div className="text-xs font-medium">Advanced Template Inputs</div>
                     <div className="mt-2 space-y-3">
                       {templateAdvancedFields.length === 0 ? (
-                        <div className="text-xs text-muted-foreground">No advanced inputs for this template.</div>
+                        <div className="text-xs text-muted-foreground">
+                          No advanced inputs for this template.
+                        </div>
                       ) : (
                         templateAdvancedFields.map(field => (
                           <div key={field.key} className="space-y-1.5">
@@ -1395,7 +1445,8 @@ export function CreateDeploymentPage({
                             {renderTemplateFieldInput(field, `template-advanced-${field.key}`)}
                             {isDatabasePasswordTemplateField(field) ? (
                               <div className="text-[11px] text-muted-foreground">
-                                Auto-generated by default. Change it only when you need a fixed database credential.
+                                Auto-generated by default. Change it only when you need a fixed
+                                database credential.
                               </div>
                             ) : null}
                           </div>
@@ -1407,20 +1458,20 @@ export function CreateDeploymentPage({
                     <div className="text-xs font-medium">Runtime Notes</div>
                     <div className="mt-2 space-y-2 text-xs text-muted-foreground">
                       <div>
-                        Primary template service:
-                        {' '}
+                        Primary template service:{' '}
                         {templatePrimaryService?.name || 'template-defined'}
                       </div>
                       <div>
-                        Hidden system inputs:
-                        {' '}
+                        Hidden system inputs:{' '}
                         {templateHiddenFields.length > 0
                           ? templateHiddenFields.map(field => field.key).join(', ')
                           : 'none'}
                       </div>
                       <div>
                         Estimated app disk default:{' '}
-                        {templateRequirementDiskGiB ? `${templateRequirementDiskGiB} GiB` : 'not declared'}
+                        {templateRequirementDiskGiB
+                          ? `${templateRequirementDiskGiB} GiB`
+                          : 'not declared'}
                       </div>
                     </div>
                   </div>
@@ -1498,19 +1549,26 @@ export function CreateDeploymentPage({
                 <div>
                   <div className="font-medium text-foreground">Why run Check first?</div>
                   <div className="mt-1">
-                    Check runs backend pre-flight validation and can surface blocking issues before an action is created.
+                    Check runs backend pre-flight validation and can surface blocking issues before
+                    an action is created.
                   </div>
                 </div>
                 <div>
-                  <div className="font-medium text-foreground">Does Create Deployment run validation again?</div>
+                  <div className="font-medium text-foreground">
+                    Does Create Deployment run validation again?
+                  </div>
                   <div className="mt-1">
-                    Yes. The server performs final validation and normalization again when the deployment action is created.
+                    Yes. The server performs final validation and normalization again when the
+                    deployment action is created.
                   </div>
                 </div>
                 <div>
-                  <div className="font-medium text-foreground">What should I do if Check reports warnings?</div>
+                  <div className="font-medium text-foreground">
+                    What should I do if Check reports warnings?
+                  </div>
                   <div className="mt-1">
-                    Review the warnings, decide whether they are acceptable for this target, and then continue with Create Deployment only if the result is acceptable.
+                    Review the warnings, decide whether they are acceptable for this target, and
+                    then continue with Create Deployment only if the result is acceptable.
                   </div>
                 </div>
               </div>

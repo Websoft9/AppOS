@@ -186,19 +186,19 @@ type PersonalizationListResponse struct {
 }
 
 type CustomAppRecord struct {
-	ID           string    `json:"id"`
-	Key          string    `json:"key"`
-	Trademark    string    `json:"trademark"`
-	LogoURL      *string   `json:"logo_url"`
-	Overview     string    `json:"overview"`
-	Description  *string   `json:"description"`
-	CategoryKeys []string  `json:"category_keys"`
-	ComposeYAML  string    `json:"compose_yaml"`
-	EnvText      *string   `json:"env_text"`
-	Visibility   string    `json:"visibility"`
-	CreatedBy    string    `json:"created_by"`
-	Created      string    `json:"created"`
-	Updated      string    `json:"updated"`
+	ID           string   `json:"id"`
+	Key          string   `json:"key"`
+	Trademark    string   `json:"trademark"`
+	LogoURL      *string  `json:"logo_url"`
+	Overview     string   `json:"overview"`
+	Description  *string  `json:"description"`
+	CategoryKeys []string `json:"category_keys"`
+	ComposeYAML  string   `json:"compose_yaml"`
+	EnvText      *string  `json:"env_text"`
+	Visibility   string   `json:"visibility"`
+	CreatedBy    string   `json:"created_by"`
+	Created      string   `json:"created"`
+	Updated      string   `json:"updated"`
 }
 
 type CustomAppUpsert struct {

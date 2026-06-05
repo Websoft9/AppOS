@@ -22,10 +22,15 @@ export function MarkdownView({ children, className }: MarkdownViewProps) {
             </div>
           ),
           th: props => (
-            <th className="border-b border-border/60 bg-muted/30 px-3 py-2.5 text-left text-[12px] font-semibold uppercase tracking-[0.08em] text-foreground/78" {...props} />
+            <th
+              className="border-b border-border/60 bg-muted/30 px-3 py-2.5 text-left text-[12px] font-semibold uppercase tracking-[0.08em] text-foreground/78"
+              {...props}
+            />
           ),
           tr: props => <tr className="odd:bg-background even:bg-muted/10" {...props} />,
-          td: props => <td className="border-b border-border/40 px-3 py-2.5 align-top leading-6" {...props} />,
+          td: props => (
+            <td className="border-b border-border/40 px-3 py-2.5 align-top leading-6" {...props} />
+          ),
         }}
       >
         {children}

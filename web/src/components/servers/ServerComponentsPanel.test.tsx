@@ -1699,39 +1699,39 @@ describe('ServerComponentsPanel', () => {
   it('does not show a live log error or unlock actions when polling fails but history is still running', async () => {
     getSoftwareOperationMock.mockRejectedValueOnce(new Error('Something went wrong.'))
     getSoftwareComponentMock.mockResolvedValueOnce({
-        component_key: 'docker',
-        label: 'Docker Engine',
-        target_type: 'server',
-        template_kind: 'package',
-        installed_state: 'installed',
-        detected_version: '27.0.1',
-        install_source: 'managed',
-        source_evidence: 'apt:docker-ce',
-        verification_state: 'healthy',
-        last_operation: {
-          action: 'reinstall',
-          phase: 'executing',
-          terminal_status: 'none',
-          updated_at: '2026-05-13T09:15:02Z',
+      component_key: 'docker',
+      label: 'Docker Engine',
+      target_type: 'server',
+      template_kind: 'package',
+      installed_state: 'installed',
+      detected_version: '27.0.1',
+      install_source: 'managed',
+      source_evidence: 'apt:docker-ce',
+      verification_state: 'healthy',
+      last_operation: {
+        action: 'reinstall',
+        phase: 'executing',
+        terminal_status: 'none',
+        updated_at: '2026-05-13T09:15:02Z',
+      },
+      preflight: {
+        ok: true,
+        os_supported: true,
+        privilege_ok: true,
+        network_ok: true,
+        dependency_ready: true,
+      },
+      verification: {
+        state: 'healthy',
+        checked_at: '2026-04-16T02:03:04Z',
+        details: {
+          engine_version: '27.0.1',
+          compose_available: true,
+          compose_version: '2.27.0',
         },
-        preflight: {
-          ok: true,
-          os_supported: true,
-          privilege_ok: true,
-          network_ok: true,
-          dependency_ready: true,
-        },
-        verification: {
-          state: 'healthy',
-          checked_at: '2026-04-16T02:03:04Z',
-          details: {
-            engine_version: '27.0.1',
-            compose_available: true,
-            compose_version: '2.27.0',
-          },
-        },
-        available_actions: ['verify', 'upgrade'],
-      })
+      },
+      available_actions: ['verify', 'upgrade'],
+    })
 
     render(<ServerComponentsPanel serverId="server-1" />)
 

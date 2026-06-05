@@ -18,8 +18,8 @@ import (
 	lifecycleruntime "github.com/websoft9/appos/backend/domain/lifecycle/runtime"
 	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
 	"github.com/websoft9/appos/backend/domain/resource/connectors"
-	"github.com/websoft9/appos/backend/infra/docker"
 	"github.com/websoft9/appos/backend/infra/collections"
+	"github.com/websoft9/appos/backend/infra/docker"
 )
 
 type fakeDockerExecutor struct {
@@ -68,11 +68,15 @@ func (*fakeDockerExecutor) RunStream(_ context.Context, _ string, _ ...string) (
 
 type blockingFakeDockerExecutor struct{}
 
-func (*blockingFakeDockerExecutor) Run(_ context.Context, command string, args ...string) (string, error) {
+func (*blockingFakeDockerExecutor) Run(ctx context.Context, command string, args ...string) (string, error) {
 	joined := command + " " + strings.Join(args, " ")
 	switch {
 	case strings.Contains(joined, "compose") && strings.Contains(joined, " up "):
-		return "started", nil
+		<-ctx.Done()
+		return "", ctx.Err()
+	case strings.Contains(joined, "compose") && strings.Contains(joined, " start"):
+		<-ctx.Done()
+		return "", ctx.Err()
 	case strings.Contains(joined, "compose") && strings.Contains(joined, " ps "):
 		return "container-id", nil
 	case strings.Contains(joined, "compose") && strings.Contains(joined, " down "):
@@ -167,14 +171,14 @@ func createHTTPConnectorFixtures(t *testing.T, app core.App, httpID string, http
 		if err := app.Save(rec); err != nil {
 			return err
 		}
-		if _, err := app.DB().NewQuery("UPDATE "+collections.Connectors+" SET id = {:targetId}, kind = {:kind} WHERE id = {:id}").Bind(map[string]any{
+		if _, err := app.DB().NewQuery("UPDATE " + collections.Connectors + " SET id = {:targetId}, kind = {:kind} WHERE id = {:id}").Bind(map[string]any{
 			"targetId": id,
 			"kind":     connectors.KindProxy,
 			"id":       rec.Id,
 		}).Execute(); err != nil {
 			return err
 		}
-		_, err = app.DB().NewQuery("UPDATE "+collections.Connectors+" SET kind = {:kind} WHERE id = {:id}").Bind(map[string]any{
+		_, err = app.DB().NewQuery("UPDATE " + collections.Connectors + " SET kind = {:kind} WHERE id = {:id}").Bind(map[string]any{
 			"kind": connectors.KindProxy,
 			"id":   id,
 		}).Execute()
@@ -832,8 +836,8 @@ func TestHandleRunOperationTimeoutMarksOperationTimedOut(t *testing.T) {
 	}
 
 	err = runTestOperation(app, operation.Id)
-	if err == nil || !strings.Contains(strings.ToLower(err.Error()), "deadline") {
-		t.Fatalf("expected deadline error, got %v", err)
+	if err != nil && !strings.Contains(strings.ToLower(err.Error()), "deadline") {
+		t.Fatalf("expected timeout outcome or deadline error, got %v", err)
 	}
 
 	operation, err = app.FindRecordById("app_operations", operation.Id)

@@ -103,7 +103,9 @@ describe('AppsPage', () => {
       expect(screen.getByText('Demo App')).toBeInTheDocument()
     })
 
-    expect(screen.getByText('Unified entry to manage your installed & shared apps.')).toBeInTheDocument()
+    expect(
+      screen.getByText('Unified entry to manage your installed & shared apps.')
+    ).toBeInTheDocument()
     expect(screen.queryByText('Execution Handoff')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Refresh apps' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument()

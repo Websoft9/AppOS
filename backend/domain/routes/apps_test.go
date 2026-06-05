@@ -394,6 +394,55 @@ func TestAppInstanceAccessHintsUpdate(t *testing.T) {
 	}
 }
 
+func TestAppInstanceDetailDerivesAccessEndpointsFromLatestOperation(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	record := seedAppInstance(t, te, "wordpress-9613")
+	operations, err := te.app.FindRecordsByFilter("app_operations", "app = {:appID}", "-updated", 1, 0, map[string]any{"appID": record.Id})
+	if err != nil || len(operations) == 0 {
+		t.Fatalf("find seeded operation: %v", err)
+	}
+	operation := operations[0]
+	operation.Set("spec_json", map[string]any{
+		"metadata": map[string]any{
+			"template_context": map[string]any{
+				"exposures": []map[string]any{{
+					"label":    "Web",
+					"service":  "wordpress",
+					"port":     80,
+					"protocol": "http",
+					"default":  true,
+				}},
+			},
+		},
+	})
+	operation.Set("rendered_compose", "services:\n  wordpress:\n    image: wordpress:6.9\n    ports:\n      - 9059:80\n")
+	if err := te.app.Save(operation); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := te.doApps(t, http.MethodGet, "/api/apps/"+record.Id, "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("detail: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := parseJSON(t, rec)
+	items, ok := body["access_endpoints"].([]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected derived access endpoint, got %T: %v", body["access_endpoints"], body["access_endpoints"])
+	}
+	endpoint, ok := items[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected access endpoint object, got %T: %v", items[0], items[0])
+	}
+	if endpoint["service"] != "wordpress" || endpoint["serverPort"] != float64(9059) || endpoint["port"] != float64(80) {
+		t.Fatalf("unexpected derived endpoint: %v", endpoint)
+	}
+	if _, exists := endpoint["url"]; exists {
+		t.Fatalf("derived endpoint must not include url: %v", endpoint)
+	}
+}
+
 func TestAppInstanceLifecycleActionsCreateQueuedOperations(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()

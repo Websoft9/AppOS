@@ -31,14 +31,17 @@ vi.mock('react-i18next', () => ({
         'hub.title': 'Resources',
         'resources.serviceInstances.title': 'Service Instances',
         'serviceInstances.page.title': 'Service Instances',
-        'serviceInstances.page.description': 'MySQL, PostgreSQL, Redis, Kafka, S3 storage, and model services with profile-based templates.',
+        'serviceInstances.page.description':
+          'MySQL, PostgreSQL, Redis, Kafka, S3 storage, and model services with profile-based templates.',
         'serviceInstances.page.favoritesOnly': 'Favorites only',
         'serviceInstances.page.addInstance': 'Add Instance',
         'serviceInstances.page.searchPlaceholder': 'Search any instances',
         'serviceInstances.page.cancel': 'Cancel',
         'serviceInstances.selection.title': 'Choose a Product',
-        'serviceInstances.selection.description': 'Choose a product, then enter connection details.',
-        'serviceInstances.selection.searchPlaceholder': 'Search products like MySQL, Redis, Aurora, PostgreSQL...',
+        'serviceInstances.selection.description':
+          'Choose a product, then enter connection details.',
+        'serviceInstances.selection.searchPlaceholder':
+          'Search products like MySQL, Redis, Aurora, PostgreSQL...',
         'serviceInstances.selection.emptyMessage': 'No matching products found.',
         'serviceInstances.fields.kind': 'Kind',
         'serviceInstances.fields.template': 'Template',
@@ -63,11 +66,15 @@ vi.mock('react-i18next', () => ({
         'serviceInstances.fields.groups': 'Groups',
         'serviceInstances.placeholders.name': 'db-prod',
         'serviceInstances.placeholders.username': 'appuser',
-        'serviceInstances.placeholders.endpoint': 'db.example.com:3306 or https://service.example.com',
+        'serviceInstances.placeholders.endpoint':
+          'db.example.com:3306 or https://service.example.com',
         'serviceInstances.placeholders.host': 'db.example.com',
-        'serviceInstances.help.connectionTimeout': 'How many seconds to wait before the first connection attempt times out.',
-        'serviceInstances.help.sslCertificatePostgres': 'Choose a certificate only when your PostgreSQL connection requires mutual SSL.',
-        'serviceInstances.help.sslCertificateMysql': 'Choose a certificate only when your MySQL connection requires mutual SSL.',
+        'serviceInstances.help.connectionTimeout':
+          'How many seconds to wait before the first connection attempt times out.',
+        'serviceInstances.help.sslCertificatePostgres':
+          'Choose a certificate only when your PostgreSQL connection requires mutual SSL.',
+        'serviceInstances.help.sslCertificateMysql':
+          'Choose a certificate only when your MySQL connection requires mutual SSL.',
         'serviceInstances.categories.database': 'Databases',
         'serviceInstances.categories.cache': 'Caches',
         'serviceInstances.categories.message-queue': 'Messaging',
@@ -114,9 +121,11 @@ vi.mock('react-i18next', () => ({
         'serviceInstances.dialog.suffix': 'Service Instance',
         'serviceInstances.secret.singleValueTemplate': 'Password / Single Value',
         'serviceInstances.secret.newTitle': 'New Secret',
-        'serviceInstances.secret.newDescription': 'Create a reusable password secret and attach it to this service instance.',
+        'serviceInstances.secret.newDescription':
+          'Create a reusable password secret and attach it to this service instance.',
         'serviceInstances.secret.editTitle': 'Edit Secret',
-        'serviceInstances.secret.editDescription': 'Update the selected Secret without leaving service instance editing.',
+        'serviceInstances.secret.editDescription':
+          'Update the selected Secret without leaving service instance editing.',
         'serviceInstances.secret.loading': 'Loading secret...',
         'serviceInstances.secret.save': 'Save Secret',
         'serviceInstances.secret.generatedDescription': 'Password for {{name}}',
@@ -126,7 +135,8 @@ vi.mock('react-i18next', () => ({
         'serviceInstances.errors.instanceProfileRequired': 'Instance profile is required',
         'serviceInstances.errors.passwordRequired': 'Password is required',
         'serviceInstances.errors.passwordSecretRequired': 'Password Secret is required',
-        'serviceInstances.errors.sslCertificateRequired': 'SSL certificate is required for mutual SSL'
+        'serviceInstances.errors.sslCertificateRequired':
+          'SSL certificate is required for mutual SSL',
       }
       if (key === 'serviceInstances.product.profileDescription') {
         return `${String(options?.vendorPrefix ?? '')}${String(options?.category ?? '')} profile.`

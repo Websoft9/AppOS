@@ -51,7 +51,7 @@ func runtimeExecutorApp(executor Executor) core.App {
 
 func loadRuntimePullIdleHeartbeatInterval(app core.App) time.Duration {
 	group, _ := sysconfig.GetGroup(app, "deploy", "runtime", settingsschema.DefaultGroup("deploy", "runtime"))
-	seconds := sysconfig.Int(group, "runtimePullIdleHeartbeatSeconds", int((20 * time.Second) / time.Second))
+	seconds := sysconfig.Int(group, "runtimePullIdleHeartbeatSeconds", int((20*time.Second)/time.Second))
 	if seconds < 1 {
 		seconds = 1
 	}
@@ -60,7 +60,7 @@ func loadRuntimePullIdleHeartbeatInterval(app core.App) time.Duration {
 
 func loadRuntimeHealthCheckTimeout(app core.App) time.Duration {
 	group, _ := sysconfig.GetGroup(app, "deploy", "runtime", settingsschema.DefaultGroup("deploy", "runtime"))
-	seconds := sysconfig.Int(group, "healthCheckTimeoutSeconds", int((2 * time.Minute) / time.Second))
+	seconds := sysconfig.Int(group, "healthCheckTimeoutSeconds", int((2*time.Minute)/time.Second))
 	if seconds < 1 {
 		seconds = 1
 	}
@@ -314,6 +314,9 @@ func ExecuteNode(
 			return result, err
 		}
 		result.DockerClient = client
+		if err := ensureComposeExternalNetworks(ctx, client, operation.GetString("rendered_compose"), logf); err != nil {
+			return result, err
+		}
 		var output string
 		if strings.TrimSpace(operation.GetString("operation_type")) == string(model.OperationTypeStart) {
 			output, err = client.ComposeStart(ctx, operation.GetString("project_dir"))
@@ -333,6 +336,17 @@ func ExecuteNode(
 			return result, err
 		}
 		result.DockerClient = client
+		if err := ensureComposeExternalNetworks(ctx, client, operation.GetString("rendered_compose"), logf); err != nil {
+			return result, err
+		}
+		allLocal, err := runtimeImagesAvailableLocally(ctx, client, operation.GetString("rendered_compose"), logf)
+		if err != nil {
+			return result, err
+		}
+		if allLocal {
+			logf("docker runtime pull skipped because all runtime images are already available locally")
+			return result, nil
+		}
 		app := runtimeExecutorApp(executor)
 		composePullErr := streamRuntimeComposePull(ctx, client, operation.GetString("project_dir"), app, logf)
 		if composePullErr == nil {
@@ -454,6 +468,111 @@ func formatRuntimePullIdleDuration(value time.Duration) time.Duration {
 		return value.Round(10 * time.Millisecond)
 	}
 	return value.Round(time.Second)
+}
+
+func ensureComposeExternalNetworks(ctx context.Context, client *docker.Client, renderedCompose string, logf func(string)) error {
+	if client == nil {
+		return fmt.Errorf("docker client is required to ensure compose external networks")
+	}
+	networks, err := extractComposeExternalNetworkNames(renderedCompose)
+	if err != nil {
+		return err
+	}
+	for _, name := range networks {
+		if _, err := client.NetworkInspect(ctx, name); err == nil {
+			continue
+		}
+		if logf != nil {
+			logf("docker external network missing, creating: " + name)
+		}
+		output, createErr := client.NetworkCreate(ctx, name)
+		if createErr != nil {
+			return fmt.Errorf("ensure docker network %q: %w", name, createErr)
+		}
+		if logf != nil {
+			message := "docker external network created: " + name
+			if strings.TrimSpace(output) != "" {
+				message += " (" + strings.TrimSpace(output) + ")"
+			}
+			logf(message)
+		}
+	}
+	return nil
+}
+
+func runtimeImagesAvailableLocally(ctx context.Context, client *docker.Client, renderedCompose string, logf func(string)) (bool, error) {
+	if client == nil {
+		return false, fmt.Errorf("docker client is required to inspect runtime images")
+	}
+	images, err := extractRuntimeComposeImageReferences(renderedCompose)
+	if err != nil {
+		return false, err
+	}
+	if len(images) == 0 {
+		return false, nil
+	}
+	allLocal := true
+	for _, image := range images {
+		if _, err := client.ImageInspect(ctx, image); err != nil {
+			allLocal = false
+			continue
+		}
+		if logf != nil {
+			logf("docker runtime image already available locally: " + image)
+		}
+	}
+	return allLocal, nil
+}
+
+func extractComposeExternalNetworkNames(raw string) ([]string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, nil
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal([]byte(trimmed), &doc); err != nil {
+		return nil, fmt.Errorf("parse compose external networks: %w", err)
+	}
+	rawNetworks, ok := doc["networks"].(map[string]any)
+	if !ok || len(rawNetworks) == 0 {
+		return nil, nil
+	}
+	names := make([]string, 0, len(rawNetworks))
+	seen := map[string]struct{}{}
+	for key, value := range rawNetworks {
+		networkSpec, ok := value.(map[string]any)
+		if !ok {
+			continue
+		}
+		external := false
+		switch typed := networkSpec["external"].(type) {
+		case bool:
+			external = typed
+		case map[string]any:
+			if flag, ok := typed["external"].(bool); ok {
+				external = flag
+			} else {
+				external = true
+			}
+		}
+		if !external {
+			continue
+		}
+		name := strings.TrimSpace(fmt.Sprint(networkSpec["name"]))
+		if name == "" || name == "<nil>" {
+			name = strings.TrimSpace(key)
+		}
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names, nil
 }
 
 func operationMetadataBool(operation *core.Record, key string) bool {

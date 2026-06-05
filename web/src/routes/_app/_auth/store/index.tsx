@@ -58,7 +58,9 @@ function matchesStoreSearch(
   const normalizedQuery = query.trim().toLowerCase()
   if (!normalizedQuery) return true
 
-  const primaryTitle = primaryCategories.find(category => category.key === product.primaryCategoryKey)?.title
+  const primaryTitle = primaryCategories.find(
+    category => category.key === product.primaryCategoryKey
+  )?.title
   const secondaryTitles = product.catalogCollection.items.map(item => item.title)
   const haystacks = [
     product.key,
@@ -305,12 +307,11 @@ export function StorePage() {
     return searchedOfficialProducts.slice(start, start + pageSize)
   }, [page, pageSize, paginatedProducts, searchActive, searchedOfficialProducts])
 
-  const officialTotal = searchActive ? searchedOfficialProducts.length : (officialAppsPage?.page.total ?? 0)
+  const officialTotal = searchActive
+    ? searchedOfficialProducts.length
+    : (officialAppsPage?.page.total ?? 0)
   const totalPages = Math.max(1, Math.ceil(officialTotal / pageSize))
-  const favoriteCount = useMemo(
-    () => userApps.filter(item => item.is_favorite).length,
-    [userApps]
-  )
+  const favoriteCount = useMemo(() => userApps.filter(item => item.is_favorite).length, [userApps])
   const selectedPrimaryNode = useMemo(
     () => categoryTree?.items.find(item => item.key === primaryCategory) ?? null,
     [categoryTree, primaryCategory]
@@ -371,8 +372,10 @@ export function StorePage() {
   ])
   const pageLoading = catalogLoading && !categoryTree
   const pageError = catalogError && !categoryTree
-  const listLoading = (!searchActive && officialAppsLoading) || (searchActive && officialCatalogSeedLoading)
-  const listError = (!searchActive && officialAppsError) || (searchActive && officialCatalogSeedError)
+  const listLoading =
+    (!searchActive && officialAppsLoading) || (searchActive && officialCatalogSeedLoading)
+  const listError =
+    (!searchActive && officialAppsError) || (searchActive && officialCatalogSeedError)
   const showListSkeleton =
     (!searchActive && officialAppsLoading && !officialAppsPage) ||
     (searchActive && officialCatalogSeedLoading && !officialCatalogSeed)
@@ -635,7 +638,9 @@ export function StorePage() {
                 aria-label={`${t('favorites.showOnly')} (${favoriteCount})`}
                 title={`${t('favorites.showOnly')} (${favoriteCount})`}
               >
-                <Star className={`h-4 w-4 ${showFavoritesOnly ? 'fill-current text-amber-500' : ''}`} />
+                <Star
+                  className={`h-4 w-4 ${showFavoritesOnly ? 'fill-current text-amber-500' : ''}`}
+                />
                 <span className="tabular-nums">{favoriteCount}</span>
               </Button>
               <Button

@@ -12,7 +12,8 @@ Use this checklist when validating one normalized template under `templates/apps
 - input keys are unique within the template
 - `storage_mode` values are limited to `system_managed`, `operator_editable`, `secret_backed`
 - `visibility` values are limited to `system`, `basic`, `advanced`
-- `render.json` contains at least one of: `env`, `compose_values`, `files`, `exposure`
+- `render.json` contains at least one of: `env`, `compose_values`, `files`, `exposures`
+- each `exposures` item uses only `label`, `service`, `port`, `protocol`, and optional `default`
 - `source.json` contains: `origin_kind`, `origin_ref`, `template_revision`, `adapter_version`
 
 ### Warning checks
@@ -27,5 +28,6 @@ Use this checklist when validating one normalized template under `templates/apps
 
 - env placeholders are either intentional template placeholders or resolvable through ingress layers
 - compose values align with declared service roles
-- exposure target matches a declared service and expected target port
+- exposure target matches a declared service and expected container port
+- exposure intent does not contain resolved app fields such as `url`, `serverPort`, `id`, or runtime container name
 - defaults do not collapse secret-backed values into plaintext output by mistake

@@ -17,7 +17,10 @@ type AppDetailHeaderProps = {
 
 export function AppDetailBreadcrumb({ appName }: { appName: string }) {
   return (
-    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
+    <nav
+      aria-label="Breadcrumb"
+      className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground"
+    >
       <Link
         to="/apps"
         search={{ catalogAppKey: undefined }}

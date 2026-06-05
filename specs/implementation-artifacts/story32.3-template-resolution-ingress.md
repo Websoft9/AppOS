@@ -81,6 +81,16 @@ Template ingress must preserve these semantics explicitly:
 - exposure and publish-related choices must remain explicit normalized intent, not vanish into generic env blobs
 - the normalized install payload must distinguish runtime env, secret references, and exposure-related intent clearly enough for later preview and execution work
 
+Exposure intent stays intentionally small in this slice. Templates declare access candidates as an `exposures` array using only:
+
+- `label`: user-facing access name
+- `service`: Docker Compose service name, not runtime container name
+- `port`: container/internal port
+- `protocol`: declared protocol such as `http`, `https`, `tcp`, or `udp`
+- `default`: optional default access marker; at most one should be true
+
+Templates must not declare resolved `serverPort`, `url`, route ids, wildcard hosts, or runtime container names. Deployment resolution may later persist app-level `access_endpoints` by adding the allocated `serverPort` to these template facts. Frontend display may derive URLs from `protocol`, the selected server access host, and `serverPort`.
+
 ## Canonical Root URL Handling
 
 If a template declares one `canonical_root_url`, ingress must preserve that meaning as explicit normalized intent rather than flattening it into a generic env map.
@@ -114,7 +124,7 @@ By the end of ingress resolution, the control plane should own one instance decl
 - rendered compose values or template-rendered compose asset references
 - rendered file outputs or file metadata
 - secret-reference metadata
-- normalized exposure intent
+- normalized exposure intent as minimal `label/service/port/protocol/default` entries
 - canonical root URL semantics when declared by the template, including change policy and management boundary
 
 Workers must not need raw template form state.

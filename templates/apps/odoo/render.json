@@ -26,9 +26,13 @@
     "databaseService": "postgresql"
   },
   "files": [],
-  "exposure": {
-    "kind": "http",
-    "service": "odoo",
-    "targetPort": 8069
-  }
+  "exposures": [
+    {
+      "label": "Web",
+      "service": "odoo",
+      "port": 8069,
+      "protocol": "http",
+      "default": true
+    }
+  ]
 }

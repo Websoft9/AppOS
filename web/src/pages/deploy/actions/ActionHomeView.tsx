@@ -183,7 +183,10 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
   renderActionMenu,
 }: ActionHomeViewProps<TOperation>) {
   const [shortcutBatch, setShortcutBatch] = useState(0)
-  const shortcutBatchCount = Math.max(1, Math.ceil(storeShortcuts.length / STORE_SHORTCUTS_PER_BATCH))
+  const shortcutBatchCount = Math.max(
+    1,
+    Math.ceil(storeShortcuts.length / STORE_SHORTCUTS_PER_BATCH)
+  )
   const visibleStoreShortcuts = useMemo(
     () =>
       storeShortcuts.slice(
@@ -357,7 +360,8 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
           <div className="space-y-1">
             <CardTitle className="text-base">Latest Actions Summary</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Showing the 5 most recently updated action records. Open the full Actions page for complete history.
+              Showing the 5 most recently updated action records. Open the full Actions page for
+              complete history.
             </p>
           </div>
           <Button variant="outline" size="sm" asChild>

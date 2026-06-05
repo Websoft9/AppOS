@@ -60,7 +60,10 @@ async function createCustomAppRecord(data: CustomAppFormData): Promise<CustomApp
   }) as Promise<CustomApp>
 }
 
-async function updateCustomAppRecord(id: string, data: Partial<CustomAppFormData>): Promise<CustomApp> {
+async function updateCustomAppRecord(
+  id: string,
+  data: Partial<CustomAppFormData>
+): Promise<CustomApp> {
   const { extraFiles: _extraFiles, basedOnKey: _basedOnKey, ...body } = data
   return pb.send(`/api/catalog/custom-apps/${encodeURIComponent(id)}`, {
     method: 'PATCH',
@@ -119,7 +122,7 @@ export function useCreateCustomApp(
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (data: CustomAppFormData) => {
-	      const { extraFiles, basedOnKey } = data
+      const { extraFiles, basedOnKey } = data
       const app = await createCustomAppRecord(data)
       // Write files to templates/{key}/ via IAC (best-effort — non-blocking on failure)
       try {

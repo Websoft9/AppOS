@@ -24,9 +24,13 @@
     "databaseService": "mysql"
   },
   "files": [],
-  "exposure": {
-    "kind": "http",
-    "service": "wordpress",
-    "targetPort": 80
-  }
+  "exposures": [
+    {
+      "label": "Web",
+      "service": "wordpress",
+      "port": 80,
+      "protocol": "http",
+      "default": true
+    }
+  ]
 }

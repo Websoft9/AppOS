@@ -17,19 +17,19 @@ var deploymentImagePullTimeout = 3 * time.Minute
 var deploymentMirrorRetryCount = 2
 
 type deployRuntimePolicy struct {
-	ImagePullTimeout         time.Duration
-	ComposeUpTimeout         time.Duration
-	HealthCheckTimeout       time.Duration
-	RuntimePullHeartbeat     time.Duration
+	ImagePullTimeout     time.Duration
+	ComposeUpTimeout     time.Duration
+	HealthCheckTimeout   time.Duration
+	RuntimePullHeartbeat time.Duration
 }
 
 func loadDeployRuntimePolicy(app core.App) deployRuntimePolicy {
 	group, _ := sysconfig.GetGroup(app, "deploy", "runtime", settingsschema.DefaultGroup("deploy", "runtime"))
 	policy := deployRuntimePolicy{
-		ImagePullTimeout:     time.Duration(sysconfig.Int(group, "imagePullTimeoutSeconds", int((3 * time.Minute) / time.Second))) * time.Second,
-		ComposeUpTimeout:     time.Duration(sysconfig.Int(group, "composeUpTimeoutSeconds", int((10 * time.Minute) / time.Second))) * time.Second,
-		HealthCheckTimeout:   time.Duration(sysconfig.Int(group, "healthCheckTimeoutSeconds", int((2 * time.Minute) / time.Second))) * time.Second,
-		RuntimePullHeartbeat: time.Duration(sysconfig.Int(group, "runtimePullIdleHeartbeatSeconds", int((20 * time.Second) / time.Second))) * time.Second,
+		ImagePullTimeout:     time.Duration(sysconfig.Int(group, "imagePullTimeoutSeconds", int((3*time.Minute)/time.Second))) * time.Second,
+		ComposeUpTimeout:     time.Duration(sysconfig.Int(group, "composeUpTimeoutSeconds", int((10*time.Minute)/time.Second))) * time.Second,
+		HealthCheckTimeout:   time.Duration(sysconfig.Int(group, "healthCheckTimeoutSeconds", int((2*time.Minute)/time.Second))) * time.Second,
+		RuntimePullHeartbeat: time.Duration(sysconfig.Int(group, "runtimePullIdleHeartbeatSeconds", int((20*time.Second)/time.Second))) * time.Second,
 	}
 	if policy.ImagePullTimeout < time.Second {
 		policy.ImagePullTimeout = time.Second
