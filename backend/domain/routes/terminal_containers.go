@@ -53,24 +53,19 @@ func handleDockerExecTerminal(e *core.RequestEvent) error {
 	}
 
 	serverID := e.Request.URL.Query().Get("server_id")
-	if serverID == "" {
-		serverID = "local"
+	if serverID == "" || serverID == "local" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": "managed server_id is required"})
 	}
 
 	var cfg terminal.ConnectorConfig
 	var connector terminal.Connector
-	if serverID == "local" {
-		cfg = terminal.ConnectorConfig{Host: containerID, Shell: shell}
-		connector = &terminal.DockerExecConnector{}
-	} else {
-		resolvedCfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
-		if resolveErr != nil {
-			return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
-		}
-		resolvedCfg.Shell = fmt.Sprintf("docker exec -it %s %s", containerID, shell)
-		cfg = resolvedCfg
-		connector = &terminal.SSHConnector{}
+	resolvedCfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
+	if resolveErr != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
+	resolvedCfg.Shell = fmt.Sprintf("docker exec -it %s %s", containerID, shell)
+	cfg = resolvedCfg
+	connector = &terminal.SSHConnector{}
 
 	userID, _, ip, _ := clientInfo(e)
 	startedAt := time.Now().UTC()

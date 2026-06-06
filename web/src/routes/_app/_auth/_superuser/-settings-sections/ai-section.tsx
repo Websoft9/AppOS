@@ -5,7 +5,7 @@ import { pb } from '@/lib/pb'
 import type { RelationOption } from '@/components/resources/resource-page-types'
 import { SecretCredentialField } from '@/components/secrets/SecretCredentialField'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
-import { buildResourceSecretRelationApiPath } from '@/components/secrets/SecretVisibilityField'
+import { buildUserVisibleSecretRelationApiPath } from '@/components/secrets/resource-secret-relations'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -60,7 +60,6 @@ const SECRET_TEMPLATE_LABELS: Record<string, string> = {
   single_value: 'Token / Single Value',
 }
 
-const SECRET_TEMPLATE_IDS = new Set(Object.keys(SECRET_TEMPLATE_LABELS))
 const AI_PROVIDER_CREDENTIAL_TEMPLATE_ID = 'single_value'
 const ADD_MODEL_OPTION_VALUE = '__add_model__'
 
@@ -111,18 +110,6 @@ function normalizeTemplateFieldDefault(field: AIProviderTemplateField) {
   return field.default
 }
 
-function resolveSecretTemplateId(secretTemplate?: string) {
-  const normalized = String(secretTemplate ?? '').trim()
-  if (!normalized) return ''
-  return SECRET_TEMPLATE_IDS.has(normalized) ? normalized : ''
-}
-
-function buildSecretRelationApiPath(secretTemplate?: string) {
-  const explicit = resolveSecretTemplateId(secretTemplate)
-  const templateIds = explicit ? [explicit] : Array.from(SECRET_TEMPLATE_IDS)
-  return buildResourceSecretRelationApiPath({ visibleTo: 'ai_provider', templateIds })
-}
-
 function isAdvancedProviderField(field: AIProviderTemplateField) {
   const normalizedId = field.id.trim().toLowerCase()
   const normalizedLabel = String(field.label ?? '')
@@ -156,7 +143,7 @@ function buildProviderOptionLabel(
 }
 
 async function listSecretOptions(secretTemplate?: string): Promise<RelationOption[]> {
-  const apiPath = buildSecretRelationApiPath(secretTemplate)
+  const apiPath = buildUserVisibleSecretRelationApiPath('ai_provider', { secretTemplate })
   const result = await pb.send<{ items?: Array<Record<string, unknown>> }>(apiPath, {
     method: 'GET',
   })

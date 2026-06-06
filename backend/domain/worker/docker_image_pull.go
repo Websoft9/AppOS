@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -18,7 +17,6 @@ import (
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
 	"github.com/websoft9/appos/backend/domain/software"
 	"github.com/websoft9/appos/backend/infra/collections"
-	"github.com/websoft9/appos/backend/infra/docker"
 	persistence "github.com/websoft9/appos/backend/infra/persistence"
 )
 
@@ -39,16 +37,6 @@ type DockerImagePullPayload struct {
 	ImageName   string `json:"image_name"`
 	UserID      string `json:"user_id"`
 	UserEmail   string `json:"user_email"`
-}
-
-var workerLocalDockerClient = newWorkerLocalDockerClient()
-
-func newWorkerLocalDockerClient() *docker.Client {
-	exec := docker.NewLocalExecutor("")
-	if os.Getuid() != 0 {
-		exec.SudoEnabled = true
-	}
-	return docker.New(exec)
 }
 
 func NewDockerImagePullTask(operationID, serverID, imageName, userID, userEmail string) (*asynq.Task, error) {
@@ -199,7 +187,7 @@ func (w *Worker) handleDockerImagePull(ctx context.Context, t *asynq.Task) error
 		return fmt.Errorf("save docker image pull operation start: %w", err)
 	}
 
-	client, err := servers.NewDockerClient(w.app, payload.ServerID, workerLocalDockerClient)
+	client, err := servers.NewDockerClient(w.app, payload.ServerID)
 	if err != nil {
 		markDockerImagePullFailed(record, software.OperationPhaseExecuting, fmt.Sprintf("resolve docker client: %v", err))
 		_ = w.app.Save(record)

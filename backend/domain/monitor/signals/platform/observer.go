@@ -2,6 +2,7 @@ package platform
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"runtime"
@@ -11,13 +12,14 @@ import (
 	"github.com/websoft9/appos/backend/domain/monitor"
 	monitormetrics "github.com/websoft9/appos/backend/domain/monitor/metrics"
 	monitorstatus "github.com/websoft9/appos/backend/domain/monitor/status"
-	"github.com/websoft9/appos/backend/infra/docker"
 	"github.com/websoft9/appos/backend/infra/supervisor"
 )
 
-func NewPlatformObserver(app core.App, snapshotFn func() RuntimeSnapshot) *PlatformObserver {
-	localDockerClient := docker.New(docker.NewLocalExecutor(""))
+func localContainerStatsDisabled(context.Context) (string, error) {
+	return "", fmt.Errorf("local docker daemon access disabled")
+}
 
+func NewPlatformObserver(app core.App, snapshotFn func() RuntimeSnapshot) *PlatformObserver {
 	return &PlatformObserver{
 		app:                app,
 		snapshotFn:         snapshotFn,
@@ -25,7 +27,7 @@ func NewPlatformObserver(app core.App, snapshotFn func() RuntimeSnapshot) *Platf
 		appCoreTelemetryFn: collectLocalAppCoreMetricPoints,
 		appCoreMemoryFn:    readLocalAppCoreMemory,
 		hostTelemetryFn:    collectLocalHostMetricPoints,
-		containerStatsFn:   localDockerClient.ContainerStats,
+		containerStatsFn:   localContainerStatsDisabled,
 		containerSamples:   map[string]localContainerCounters{},
 		nowFn: func() time.Time {
 			return time.Now().UTC()

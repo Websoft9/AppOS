@@ -1899,7 +1899,7 @@ paths:
                 - Apps
     /api/apps/{id}/config:
         get:
-            description: Returns docker-compose.yml content for one installed app. Supports local and remote servers. Superuser only.
+            description: Returns docker-compose.yml content for one installed app on a managed server. Superuser only.
             operationId: get_api_apps_id_config
             parameters:
                 - description: app instance ID
@@ -1950,7 +1950,7 @@ paths:
             tags:
                 - Apps
         put:
-            description: Overwrites docker-compose.yml for one installed app. Supports local and remote servers. Superuser only.
+            description: Overwrites docker-compose.yml for one installed app on a managed server. Superuser only.
             operationId: put_api_apps_id_config
             parameters:
                 - description: app instance ID
@@ -2009,7 +2009,7 @@ paths:
                 - Apps
     /api/apps/{id}/config/rollback:
         post:
-            description: Restores the latest saved docker-compose rollback point for one installed app. Supports local and remote servers. Superuser only.
+            description: Restores the latest saved docker-compose rollback point for one installed app on a managed server. Superuser only.
             operationId: post_api_apps_id_config_rollback
             parameters:
                 - description: app instance ID
@@ -2067,7 +2067,7 @@ paths:
                 - Apps
     /api/apps/{id}/config/validate:
         post:
-            description: Validates draft docker-compose.yml content for one installed app before saving. Supports local and remote servers. Superuser only.
+            description: Validates draft docker-compose.yml content for one installed app on a managed server before saving. Superuser only.
             operationId: post_api_apps_id_config_validate
             parameters:
                 - description: app instance ID
@@ -11935,27 +11935,6 @@ paths:
             summary: List Docker servers
             tags:
                 - Docker
-    /api/servers/local/docker-bridge:
-        get:
-            operationId: get_api_servers_local_docker-bridge
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Get servers local docker bridge
-            tags:
-                - Servers
     /api/settings:
         get:
             operationId: pb_settings_get

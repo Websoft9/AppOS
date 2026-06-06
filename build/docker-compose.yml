@@ -8,16 +8,14 @@ services:
       - "${TUNNEL_SSH_PORT:-9222}:2222"
       #- "${TUNNEL_PORT_START:-40000}-${TUNNEL_PORT_END:-49999}:40000-49999"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
       - appos_data:/appos/data
     environment:
       - TZ=UTC
-      - APPOS_SECRET_KEY=${APPOS_SECRET_KEY}
-      - SUPERVISOR_PASSWORD=${SUPERVISOR_PASSWORD:-changeme}
       - INIT_MODE=${INIT_MODE:-setup}
       - SUPERUSER_EMAIL=${SUPERUSER_EMAIL:-admin@example.com}
       - SUPERUSER_PASSWORD=${SUPERUSER_PASSWORD:-changeme123}
       - TUNNEL_SSH_PORT=${TUNNEL_SSH_PORT:-9222}
+      - REDIS_ADDR=${REDIS_ADDR:-127.0.0.1:6379}
       - TSDB_ADDR=${TSDB_ADDR:-http://127.0.0.1:8428}
 
   # Optional: External reverse proxy for SSL and domain routing

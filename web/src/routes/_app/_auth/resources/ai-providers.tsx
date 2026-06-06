@@ -13,7 +13,7 @@ import {
 } from '@/components/resources/ResourcePage'
 import { buildApiKeyValue, SecretCredentialField } from '@/components/secrets/SecretCredentialField'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
-import { buildResourceSecretRelationApiPath } from '@/components/secrets/SecretVisibilityField'
+import { buildUserVisibleSecretRelationApiPath } from '@/components/secrets/resource-secret-relations'
 import { getLocale } from '@/lib/i18n'
 import { pb } from '@/lib/pb'
 
@@ -61,8 +61,6 @@ const SECRET_TEMPLATE_LABELS: Record<string, string> = {
   single_value: 'Token / Single Value',
 }
 
-const SECRET_TEMPLATE_IDS = new Set(Object.keys(SECRET_TEMPLATE_LABELS))
-
 const AI_PROVIDER_CREDENTIAL_TEMPLATE_ID = 'single_value'
 
 function formatSecretLabel(raw: Record<string, unknown>): string {
@@ -99,20 +97,6 @@ function chooserTitle(template: AIProviderTemplate) {
 function buildDefaultProviderName(template: AIProviderTemplate) {
   const base = slugifyNamePart(productTitle(template)) || 'ai-provider'
   return `${base}-${Date.now().toString().slice(-4)}`
-}
-
-function resolveSecretTemplateId(secretTemplate?: string) {
-  const normalized = String(secretTemplate ?? '').trim()
-  if (!normalized) {
-    return ''
-  }
-  return SECRET_TEMPLATE_IDS.has(normalized) ? normalized : ''
-}
-
-function buildSecretRelationApiPath(secretTemplate?: string) {
-  const explicit = resolveSecretTemplateId(secretTemplate)
-  const templateIds = explicit ? [explicit] : Array.from(SECRET_TEMPLATE_IDS)
-  return buildResourceSecretRelationApiPath({ visibleTo: 'ai_provider', templateIds })
 }
 
 function isAdvancedProviderField(field: AIProviderTemplateField) {
@@ -191,7 +175,9 @@ function mapTemplateFieldToResourceField(
       label: field.label,
       type: 'relation',
       required: field.required,
-      relationApiPath: buildSecretRelationApiPath(field.secretTemplate),
+      relationApiPath: buildUserVisibleSecretRelationApiPath('ai_provider', {
+        secretTemplate: field.secretTemplate,
+      }),
       relationFormatLabel: formatSecretLabel,
       relationCreateButton: {
         label: t('aiProviders.secret.new'),
@@ -661,7 +647,9 @@ export function AIProvidersPage() {
             label: field.label,
             type: 'relation',
             required: field.required,
-            relationApiPath: buildSecretRelationApiPath(AI_PROVIDER_CREDENTIAL_TEMPLATE_ID),
+            relationApiPath: buildUserVisibleSecretRelationApiPath('ai_provider', {
+              secretTemplate: AI_PROVIDER_CREDENTIAL_TEMPLATE_ID,
+            }),
             relationFormatLabel: formatSecretLabel,
             relationCreateButton: {
               label: 'New Secret',

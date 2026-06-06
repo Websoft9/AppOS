@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -53,16 +52,6 @@ func (te *testEnv) doServer(t *testing.T, method, url, body string, authenticate
 	return rec
 }
 
-func TestLocalDockerBridgeRequiresAuth(t *testing.T) {
-	te := newTestEnv(t)
-	defer te.cleanup()
-
-	rec := te.doServer(t, http.MethodGet, "/api/servers/local/docker-bridge", "", false)
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401, got %d: %s", rec.Code, rec.Body.String())
-	}
-}
-
 func TestAllowWebSocketOriginAllowsEmptyOrigin(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "https://console.example.com/api/actions/demo/stream", nil)
 	if !allowWebSocketOrigin(req) {
@@ -94,44 +83,6 @@ func TestAllowWebSocketOriginUsesForwardedProxyHostAndProto(t *testing.T) {
 	req.Header.Set("Origin", "https://console.example.com:9443")
 	if !allowWebSocketOrigin(req) {
 		t.Fatal("expected forwarded proxy origin to be allowed")
-	}
-}
-
-func TestLocalDockerBridgeReturnsAddress(t *testing.T) {
-	te := newTestEnv(t)
-	defer te.cleanup()
-
-	originalLookup := dockerBridgeIPv4Lookup
-	originalGatewayLookup := dockerBridgeGatewayLookup
-	dockerBridgeIPv4Lookup = func(name string) (string, error) {
-		if name != "docker0" {
-			t.Fatalf("expected docker0 lookup, got %s", name)
-		}
-		return "172.17.0.1", nil
-	}
-	defer func() {
-		dockerBridgeIPv4Lookup = originalLookup
-		dockerBridgeGatewayLookup = originalGatewayLookup
-	}()
-	dockerBridgeGatewayLookup = func(_ context.Context) (string, error) {
-		t.Fatal("gateway lookup should not run when docker0 succeeds")
-		return "", nil
-	}
-
-	rec := te.doServer(t, http.MethodGet, "/api/servers/local/docker-bridge", "", true)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	var payload struct {
-		Interface string `json:"interface"`
-		Address   string `json:"address"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("unmarshal response: %v", err)
-	}
-	if payload.Interface != "docker0" || payload.Address != "172.17.0.1" {
-		t.Fatalf("unexpected payload: %+v", payload)
 	}
 }
 
@@ -178,80 +129,6 @@ func TestServerConnectivityOnlineEnqueuesSnapshotWarm(t *testing.T) {
 	}
 	if len(gotComponents) != 3 {
 		t.Fatalf("expected 3 default warm components, got %#v", gotComponents)
-	}
-}
-
-func TestLocalDockerBridgeFallsBackToBridgeGateway(t *testing.T) {
-	te := newTestEnv(t)
-	defer te.cleanup()
-
-	originalLookup := dockerBridgeIPv4Lookup
-	originalGatewayLookup := dockerBridgeGatewayLookup
-	dockerBridgeIPv4Lookup = func(name string) (string, error) {
-		if name != "docker0" {
-			t.Fatalf("expected docker0 lookup, got %s", name)
-		}
-		return "", http.ErrNoLocation
-	}
-	defer func() {
-		dockerBridgeIPv4Lookup = originalLookup
-		dockerBridgeGatewayLookup = originalGatewayLookup
-	}()
-	dockerBridgeGatewayLookup = func(_ context.Context) (string, error) {
-		return "172.17.0.1", nil
-	}
-
-	rec := te.doServer(t, http.MethodGet, "/api/servers/local/docker-bridge", "", true)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	var payload struct {
-		Interface string `json:"interface"`
-		Address   string `json:"address"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("unmarshal response: %v", err)
-	}
-	if payload.Interface != "bridge" || payload.Address != "172.17.0.1" {
-		t.Fatalf("unexpected bridge fallback payload: %+v", payload)
-	}
-}
-
-func TestLocalDockerBridgeFallsBackToLoopback(t *testing.T) {
-	te := newTestEnv(t)
-	defer te.cleanup()
-
-	originalLookup := dockerBridgeIPv4Lookup
-	originalGatewayLookup := dockerBridgeGatewayLookup
-	dockerBridgeIPv4Lookup = func(name string) (string, error) {
-		if name != "docker0" {
-			t.Fatalf("expected docker0 lookup, got %s", name)
-		}
-		return "", http.ErrNoLocation
-	}
-	defer func() {
-		dockerBridgeIPv4Lookup = originalLookup
-		dockerBridgeGatewayLookup = originalGatewayLookup
-	}()
-	dockerBridgeGatewayLookup = func(_ context.Context) (string, error) {
-		return "", http.ErrUseLastResponse
-	}
-
-	rec := te.doServer(t, http.MethodGet, "/api/servers/local/docker-bridge", "", true)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	var payload struct {
-		Interface string `json:"interface"`
-		Address   string `json:"address"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("unmarshal response: %v", err)
-	}
-	if payload.Interface != "loopback" || payload.Address != "127.0.0.1" {
-		t.Fatalf("unexpected loopback fallback payload: %+v", payload)
 	}
 }
 

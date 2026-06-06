@@ -35,10 +35,10 @@ func (c *Client) Host() string {
 
 // SetProxyEnv applies proxy-related environment variables to compatible executors.
 func (c *Client) SetProxyEnv(env map[string]string) {
-	switch exec := c.exec.(type) {
-	case *LocalExecutor:
-		exec.SetEnv(env)
-	case *SSHExecutor:
+	type envSetter interface {
+		SetEnv(map[string]string)
+	}
+	if exec, ok := c.exec.(envSetter); ok {
 		exec.SetEnv(env)
 	}
 }

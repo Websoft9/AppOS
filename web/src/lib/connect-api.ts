@@ -228,6 +228,16 @@ export interface ServerPortItem {
   reservation?: ServerPortReservation
 }
 
+export interface ServerPortInspectResponse {
+  server_id: string
+  port: number
+  protocol: ServerPortProtocol
+  view: ServerPortView
+  detected_at: string
+  occupancy?: ServerPortOccupancy
+  reservation?: ServerPortReservation
+}
+
 export interface ServerPortsResponse {
   server_id: string
   protocol: ServerPortProtocolFilter
@@ -255,11 +265,6 @@ export interface ReleaseServerPortResponse {
   after?: ServerPortOccupancy
 }
 
-export interface LocalDockerBridgeResponse {
-  interface: string
-  address: string
-}
-
 // ─── SFTP operations ──────────────────────────────────────────────────────────
 
 function terminalSftpBasePath(serverId: string): string {
@@ -273,13 +278,6 @@ export async function sftpList(serverId: string, path: string): Promise<SFTPList
     `${terminalSftpBasePath(serverId)}/list?path=${encodeURIComponent(path)}`,
     noAutoCancel
   )
-}
-
-export async function getLocalDockerBridgeAddress(): Promise<string> {
-  const response = await pb.send<LocalDockerBridgeResponse>('/api/servers/local/docker-bridge', {
-    method: 'GET',
-  })
-  return String(response.address ?? '')
 }
 
 export function sftpDownloadUrl(serverId: string, path: string): string {
@@ -488,6 +486,18 @@ export async function listServerPorts(
 ): Promise<ServerPortsResponse> {
   return pb.send<ServerPortsResponse>(
     `/api/servers/${serverId}/ops/ports?view=${encodeURIComponent(view)}&protocol=${encodeURIComponent(protocol)}`,
+    { requestKey: null }
+  )
+}
+
+export async function inspectServerPort(
+  serverId: string,
+  port: number,
+  view: ServerPortView = 'all',
+  protocol: ServerPortProtocol = 'tcp'
+): Promise<ServerPortInspectResponse> {
+  return pb.send<ServerPortInspectResponse>(
+    `/api/servers/${serverId}/ops/ports/${port}?view=${encodeURIComponent(view)}&protocol=${encodeURIComponent(protocol)}`,
     { requestKey: null }
   )
 }

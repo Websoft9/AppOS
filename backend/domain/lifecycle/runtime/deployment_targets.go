@@ -2,7 +2,7 @@ package runtime
 
 import (
 	"context"
-	"os"
+	"fmt"
 	"path/filepath"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -31,29 +31,6 @@ type Executor interface {
 	PrepareWorkspace(projectDir string, compose string) error
 	DockerClient() (*docker.Client, error)
 	Name() string
-}
-
-type localExecutor struct {
-	app core.App
-}
-
-func (e localExecutor) PrepareWorkspace(projectDir string, compose string) error {
-	if err := os.MkdirAll(projectDir, 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join(projectDir, "docker-compose.yml"), []byte(compose), 0o600)
-}
-
-func (e localExecutor) DockerClient() (*docker.Client, error) {
-	exec := docker.NewLocalExecutor("")
-	if os.Getuid() != 0 {
-		exec.SudoEnabled = true
-	}
-	return docker.New(exec), nil
-}
-
-func (e localExecutor) Name() string {
-	return "local"
 }
 
 type sshExecutor struct {
@@ -127,18 +104,25 @@ func (e sshExecutor) factory() sftpClientFactory {
 	return defaultSFTPClientFactory
 }
 
-func executorName(serverID string) string {
-	if serverID == "" || serverID == "local" {
-		return "local"
-	}
-	return "ssh"
-}
-
 func NewDeploymentExecutor(app core.App, serverID string) Executor {
-	if executorName(serverID) == "local" {
-		return localExecutor{app: app}
+	if serverID == "" || serverID == "local" {
+		return unsupportedExecutor{}
 	}
 	return newSSHExecutor(app, serverID)
+}
+
+type unsupportedExecutor struct{}
+
+func (unsupportedExecutor) PrepareWorkspace(string, string) error {
+	return fmt.Errorf("managed server is required for deployment execution")
+}
+
+func (unsupportedExecutor) DockerClient() (*docker.Client, error) {
+	return nil, fmt.Errorf("managed server is required for deployment execution")
+}
+
+func (unsupportedExecutor) Name() string {
+	return "unsupported"
 }
 
 func newSSHExecutor(app core.App, serverID string) sshExecutor {

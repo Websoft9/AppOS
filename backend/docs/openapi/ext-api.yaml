@@ -1718,7 +1718,7 @@ paths:
     get:
       tags: [Apps]
       summary: Get app compose config
-      description: "Returns docker-compose.yml content for one installed app. Supports local and remote servers. Superuser only."
+      description: "Returns docker-compose.yml content for one installed app on a managed server. Superuser only."
       operationId: get_api_apps_id_config
       parameters:
         - name: id
@@ -1768,7 +1768,7 @@ paths:
     put:
       tags: [Apps]
       summary: Write app compose config
-      description: "Overwrites docker-compose.yml for one installed app. Supports local and remote servers. Superuser only."
+      description: "Overwrites docker-compose.yml for one installed app on a managed server. Superuser only."
       operationId: put_api_apps_id_config
       parameters:
         - name: id
@@ -1826,7 +1826,7 @@ paths:
     post:
       tags: [Apps]
       summary: Roll back app compose config
-      description: "Restores the latest saved docker-compose rollback point for one installed app. Supports local and remote servers. Superuser only."
+      description: "Restores the latest saved docker-compose rollback point for one installed app on a managed server. Superuser only."
       operationId: post_api_apps_id_config_rollback
       parameters:
         - name: id
@@ -1883,7 +1883,7 @@ paths:
     post:
       tags: [Apps]
       summary: Validate app compose config
-      description: "Validates draft docker-compose.yml content for one installed app before saving. Supports local and remote servers. Superuser only."
+      description: "Validates draft docker-compose.yml content for one installed app on a managed server before saving. Superuser only."
       operationId: post_api_apps_id_config_validate
       parameters:
         - name: id
@@ -7181,26 +7181,6 @@ paths:
       summary: List Docker servers
       description: "Returns all configured servers with concurrent online/offline ping status. Superuser only."
       operationId: get_api_servers_docker-targets
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-  /api/servers/local/docker-bridge:
-    get:
-      tags: [Servers]
-      summary: Get servers local docker bridge
-      operationId: get_api_servers_local_docker-bridge
       security:
         - bearerAuth: []  # superuser required
       responses:

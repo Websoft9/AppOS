@@ -27,7 +27,7 @@ type Config struct {
 func DefaultConfig() Config {
 	password := os.Getenv("SUPERVISOR_PASSWORD")
 	if password == "" {
-		password = "changeme"
+		panic("SUPERVISOR_PASSWORD is not set")
 	}
 	return Config{
 		URL:      "http://127.0.0.1:9001/RPC2",

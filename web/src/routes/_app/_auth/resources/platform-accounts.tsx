@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { ResourcePage, type Column, type FieldDef } from '@/components/resources/ResourcePage'
+import { buildUserVisibleSecretRelationApiPath } from '@/components/secrets/resource-secret-relations'
 import { pb } from '@/lib/pb'
 
 type ProviderAccountRecord = {
@@ -281,7 +282,7 @@ export function PlatformAccountsPage() {
           key: 'credential',
           label: t('platformAccounts.fields.credential'),
           type: 'relation',
-          relationApiPath: '/api/collections/secrets/records?perPage=500&sort=name',
+          relationApiPath: buildUserVisibleSecretRelationApiPath('provider_account'),
           relationLabelKey: 'name',
         },
         {

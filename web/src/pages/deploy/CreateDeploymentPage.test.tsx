@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { settingsEntryPath } from '@/lib/settings-api'
+import { buildExposurePortCandidates, recommendExposurePort } from './createDeploymentPage.helpers'
 import { CreateDeploymentPage } from './CreateDeploymentPage'
 
 const sendMock = vi.fn()
@@ -485,8 +486,8 @@ describe('CreateDeploymentPage', () => {
 
     expect(screen.getByText('Basic')).toBeInTheDocument()
     expect(screen.getByText('Action')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Open deployment help' })).toBeInTheDocument()
-    expect(screen.queryByText('Create Deployment Help')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Toggle deployment help' })).toBeInTheDocument()
+    expect(screen.queryByText('Help')).toBeNull()
     expect(screen.queryByText('FAQ')).toBeNull()
     expect(getAppNameField()).toBeRequired()
     expect(getTargetLocationField()).toBeRequired()
@@ -499,11 +500,15 @@ describe('CreateDeploymentPage', () => {
     ).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Cancel' })).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open deployment help' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle deployment help' }))
 
-    expect(screen.getByText('Create Deployment Help')).toBeInTheDocument()
+    expect(screen.getByText('Help')).toBeInTheDocument()
     expect(screen.getByText('FAQ')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle deployment help' }))
+
+    expect(screen.queryByText('Help')).toBeNull()
+    expect(screen.queryByText('FAQ')).toBeNull()
 
     fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
     fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
@@ -1335,6 +1340,73 @@ describe('CreateDeploymentPage', () => {
       params: { actionId: 'act_template_1' },
       search: { returnTo: 'list' },
     })
+  })
+
+  it('suggests the next available primary server port when the recommended one is occupied', async () => {
+    const occupiedPort = recommendExposurePort('local:wordpress-prod')
+    const suggestedPort = String(buildExposurePortCandidates(occupiedPort, 2)[1])
+    const fallback = sendMock.getMockImplementation()
+
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+        if (path === `/api/servers/local/ops/ports/${occupiedPort}?view=all&protocol=tcp`) {
+          return Promise.resolve({
+            server_id: 'local',
+            port: Number(occupiedPort),
+            protocol: 'tcp',
+            view: 'all',
+            detected_at: '2026-01-01T00:00:00Z',
+            occupancy: { occupied: true, listeners: [] },
+            reservation: { reserved: false, sources: [] },
+          })
+        }
+        if (path === `/api/servers/local/ops/ports/${suggestedPort}?view=all&protocol=tcp`) {
+          return Promise.resolve({
+            server_id: 'local',
+            port: Number(suggestedPort),
+            protocol: 'tcp',
+            view: 'all',
+            detected_at: '2026-01-01T00:00:00Z',
+            occupancy: { occupied: false, listeners: [] },
+            reservation: { reserved: false, sources: [] },
+          })
+        }
+        return fallback ? fallback(path, options) : Promise.resolve({})
+      }
+    )
+
+    renderCreateDeploymentPage({
+      entryMode: 'template',
+      prefillAppKey: 'wordpress',
+      prefillAppName: 'WordPress',
+    })
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Database Source')).toBeInTheDocument()
+      expect(getTargetLocationField()).toBeInTheDocument()
+    })
+
+    await enablePortAccess()
+
+    fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
+    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(
+        `/api/servers/local/ops/ports/${occupiedPort}?view=all&protocol=tcp`,
+        expect.anything()
+      )
+    })
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Server Port wordpress')).toHaveValue(Number(suggestedPort))
+    })
+
+    expect(
+      screen.getByText(
+        `Primary recommended port ${occupiedPort} is already in use or reserved on this server. Suggested ${suggestedPort} instead.`
+      )
+    ).toBeInTheDocument()
   })
 
   it('starts with exposure cards unselected and lets operators enable port access independently', async () => {

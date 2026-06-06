@@ -9,7 +9,6 @@ const sendMock = vi.fn()
 const createServerMock = vi.fn()
 const getSecretMock = vi.fn()
 const updateSecretMock = vi.fn()
-const getLocalDockerBridgeAddressMock = vi.fn()
 const getSystemdStatusMock = vi.fn()
 const installMonitorAgentMock = vi.fn()
 const updateMonitorAgentMock = vi.fn()
@@ -636,7 +635,6 @@ vi.mock('@/lib/pb', () => ({
 
 vi.mock('@/lib/connect-api', () => ({
   checkServerStatus: (...args: unknown[]) => pingServerStatusMock(...args),
-  getLocalDockerBridgeAddress: (...args: unknown[]) => getLocalDockerBridgeAddressMock(...args),
   getSystemdStatus: (...args: unknown[]) => getSystemdStatusMock(...args),
   installMonitorAgent: (...args: unknown[]) => installMonitorAgentMock(...args),
   serverPower: vi.fn(),
@@ -736,7 +734,6 @@ describe('ServersPage layout', () => {
     updateSecretMock.mockReset()
     windowOpenMock.mockReset()
     pingServerStatusMock.mockReset()
-    getLocalDockerBridgeAddressMock.mockReset()
     getSystemdStatusMock.mockReset()
     installMonitorAgentMock.mockReset()
     updateMonitorAgentMock.mockReset()
@@ -792,7 +789,7 @@ describe('ServersPage layout', () => {
       }
       if (
         path ===
-        "/api/collections/secrets/records?filter=(created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value'||template_id='ssh_key')%26%26(visible_to:length=0||visible_to%3F='server')&sort=name"
+        "/api/collections/secrets/records?filter=(created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value'||template_id='ssh_key')%26%26(visible_to:length=0||visible_to:each%3F='server')&sort=name"
       ) {
         return Promise.resolve({
           items: [
@@ -1878,7 +1875,7 @@ describe('ServersPage layout', () => {
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
-        "/api/collections/secrets/records?filter=(created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value'||template_id='ssh_key')%26%26(visible_to:length=0||visible_to%3F='server')&sort=name",
+        "/api/collections/secrets/records?filter=(created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value'||template_id='ssh_key')%26%26(visible_to:length=0||visible_to:each%3F='server')&sort=name",
         {}
       )
     })

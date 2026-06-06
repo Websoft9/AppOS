@@ -36,10 +36,6 @@ func runtimeExecutorApp(executor Executor) core.App {
 		return typed.App()
 	}
 	switch typed := executor.(type) {
-	case localExecutor:
-		return typed.app
-	case *localExecutor:
-		return typed.app
 	case sshExecutor:
 		return typed.app
 	case *sshExecutor:

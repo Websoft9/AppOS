@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -82,25 +81,6 @@ func TestRegistryStatusUsesPullPathAndCleansUpProbeImage(t *testing.T) {
 	}
 	if got := exec.calls[2].args; len(got) != 3 || got[0] != "image" || got[1] != "rm" || got[2] != registryStatusProbeImage {
 		t.Fatalf("unexpected cleanup call: %#v", got)
-	}
-}
-
-func TestLocalRunStreamIncludesStderrOutput(t *testing.T) {
-	exec := NewLocalExecutor("")
-	stream, err := exec.RunStream(context.Background(), "sh", "-lc", "printf 'progress stderr\\n' >&2")
-	if err != nil {
-		t.Fatalf("run stream: %v", err)
-	}
-
-	data, err := io.ReadAll(stream)
-	if err != nil {
-		t.Fatalf("read stream: %v", err)
-	}
-	if got := strings.TrimSpace(string(data)); got != "progress stderr" {
-		t.Fatalf("expected stderr to be merged into stream, got %q", got)
-	}
-	if err := stream.Close(); err != nil {
-		t.Fatalf("close stream: %v", err)
 	}
 }
 

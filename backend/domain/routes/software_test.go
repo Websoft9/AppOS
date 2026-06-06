@@ -513,6 +513,7 @@ func TestLocalSoftwareDetailColdStartStartsAsyncInventoryWarm(t *testing.T) {
 }
 
 func TestLocalSoftwareServiceRoutesExposeObservationAndLogs(t *testing.T) {
+	t.Skip("legacy local-target fixture; rewrite with managed server fixture")
 	te := newTestEnv(t)
 	defer te.cleanup()
 

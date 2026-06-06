@@ -48,7 +48,7 @@ import { ServerMonitorTab } from '@/components/servers/ServerMonitorTab'
 import { ServerOverviewTab } from '@/components/servers/ServerOverviewTab'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { SecretForm, type SecretTemplate } from '@/components/secrets/SecretForm'
-import { buildResourceSecretRelationApiPath } from '@/components/secrets/SecretVisibilityField'
+import { buildUserVisibleSecretRelationApiPath } from '@/components/secrets/resource-secret-relations'
 import {
   ServerComponentsPanel,
   type ServerComponentActionIntent,
@@ -425,9 +425,8 @@ function buildServerBaseFields(t: Translate): FieldDef[] {
       key: 'credential',
       label: t('servers.fields.credentialSecret'),
       type: 'relation',
-      relationApiPath: buildResourceSecretRelationApiPath({
-        visibleTo: 'server',
-        templateIds: ['single_value', 'ssh_key'],
+      relationApiPath: buildUserVisibleSecretRelationApiPath('server', {
+        fallbackTemplateIds: ['single_value', 'ssh_key'],
       }),
       relationLabelKey: 'name',
       relationFormatLabel: formatSecretLabel,

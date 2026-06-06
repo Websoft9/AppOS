@@ -70,7 +70,7 @@ export function buildResourceSecretRelationApiPath({
     "type!='tunnel_token'",
     "status='active'",
     `(${templateIds.map(id => `template_id='${id}'`).join('||')})`,
-    `(visible_to:length=0||visible_to?='${visibleTo}')`,
+    `(visible_to:length=0||visible_to:each?='${visibleTo}')`,
   ]
   return `/api/collections/secrets/records?filter=${encodeSecretFilterValue(filterParts.join('&&'))}&sort=name`
 }

@@ -34,11 +34,6 @@ RUN npm run build
 FROM node:24-bookworm-slim AS node-provider
 
 # ===========================
-# Docker CLI Provider
-# ===========================
-FROM docker:28-cli AS docker-cli-provider
-
-# ===========================
 # VictoriaMetrics Binary
 # ===========================
 FROM victoriametrics/victoria-metrics:${VICTORIAMETRICS_VERSION} AS victoriametrics-bin
@@ -106,6 +101,7 @@ LABEL maintainer="Websoft9<help@websoft9.com>" \
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         redis-server \
+        openssl \
         unzip \
         ca-certificates \
         tzdata \
@@ -125,8 +121,6 @@ RUN apt-get update \
 # Copy Node.js 24 from node-provider
 COPY --from=node-provider /usr/local/bin/node /usr/local/bin/node
 COPY --from=node-provider /usr/local/lib/node_modules /usr/local/lib/node_modules
-COPY --from=docker-cli-provider /usr/local/bin/docker /usr/local/bin/docker
-COPY --from=docker-cli-provider /usr/local/libexec/docker/cli-plugins/docker-compose /usr/local/libexec/docker/cli-plugins/docker-compose
 RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
@@ -151,7 +145,6 @@ RUN mkdir -p \
     /appos/data/templates/official/apps \
     /var/log/supervisor \
     /var/log/nginx \
-    /usr/local/libexec/docker/cli-plugins \
     /etc/nginx/conf.d \
     /run/nginx
 

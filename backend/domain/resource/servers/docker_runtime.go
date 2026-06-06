@@ -9,10 +9,11 @@ import (
 )
 
 // NewDockerClient returns a Docker client bound to the requested server.
-// When serverID is empty or "local", the provided localClient is returned.
-func NewDockerClient(app core.App, serverID string, localClient *docker.Client) (*docker.Client, error) {
+// Local Docker daemon access is intentionally unsupported; callers must
+// provide a managed server target that resolves to SSH.
+func NewDockerClient(app core.App, serverID string) (*docker.Client, error) {
 	if serverID == "" || serverID == "local" {
-		return localClient, nil
+		return nil, fmt.Errorf("managed server is required for docker operations")
 	}
 
 	server, err := LoadManagedServer(app, serverID)

@@ -3,6 +3,9 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PlatformAccountsPage } from './platform-accounts'
 
+const PROVIDER_ACCOUNT_SECRET_PATH =
+  "/api/collections/secrets/records?filter=(created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value')%26%26(visible_to:length=0||visible_to:each%3F='provider_account')&sort=name"
+
 const sendMock = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({
@@ -111,7 +114,7 @@ describe('PlatformAccountsPage', () => {
       if (path === '/api/collections/groups/records?perPage=500&sort=name') {
         return Promise.resolve({ items: [] })
       }
-      if (path === '/api/collections/secrets/records?perPage=500&sort=name') {
+      if (path === PROVIDER_ACCOUNT_SECRET_PATH) {
         return Promise.resolve({ items: [] })
       }
       return Promise.resolve([])
@@ -164,5 +167,25 @@ describe('PlatformAccountsPage', () => {
 
     const formDialog = await screen.findByRole('dialog')
     expect(formDialog.className).toContain('sm:max-w-4xl')
+  })
+
+  it('requests only provider-account-visible secrets for credentials', async () => {
+    render(<PlatformAccountsPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Create' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    fireEvent.click(await screen.findByRole('button', { name: /GitHub App Installation/i }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(PROVIDER_ACCOUNT_SECRET_PATH, {})
+    })
+
+    expect(sendMock).not.toHaveBeenCalledWith(
+      '/api/collections/secrets/records?perPage=500&sort=name',
+      {}
+    )
   })
 })

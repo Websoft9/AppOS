@@ -3,7 +3,6 @@ package runtime
 import (
 	"context"
 	"errors"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -43,8 +42,8 @@ func TestNewDeploymentExecutor(t *testing.T) {
 		serverID string
 		wantName string
 	}{
-		{name: "empty server id", serverID: "", wantName: "local"},
-		{name: "explicit local", serverID: "local", wantName: "local"},
+		{name: "empty server id", serverID: "", wantName: "unsupported"},
+		{name: "explicit local", serverID: "local", wantName: "unsupported"},
 		{name: "remote id", serverID: "srv-1", wantName: "ssh"},
 	}
 
@@ -58,22 +57,10 @@ func TestNewDeploymentExecutor(t *testing.T) {
 	}
 }
 
-func TestLocalExecutorPrepareWorkspace(t *testing.T) {
-	tmpDir := t.TempDir()
-	projectDir := filepath.Join(tmpDir, "project")
-	compose := "services:\n  web:\n    image: nginx:alpine\n"
-
-	exec := localExecutor{}
-	if err := exec.PrepareWorkspace(projectDir, compose); err != nil {
-		t.Fatalf("PrepareWorkspace returned error: %v", err)
-	}
-
-	data, err := os.ReadFile(filepath.Join(projectDir, "docker-compose.yml"))
-	if err != nil {
-		t.Fatalf("failed to read docker-compose.yml: %v", err)
-	}
-	if got := string(data); got != compose {
-		t.Fatalf("unexpected compose content: got %q want %q", got, compose)
+func TestUnsupportedExecutorRejectsWorkspacePreparation(t *testing.T) {
+	exec := NewDeploymentExecutor(nil, "")
+	if err := exec.PrepareWorkspace(filepath.Join(t.TempDir(), "project"), "services: {}\n"); err == nil {
+		t.Fatal("expected unsupported executor to reject workspace preparation")
 	}
 }
 

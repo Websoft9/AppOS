@@ -134,6 +134,21 @@ export function recommendExposurePort(seed: string): string {
   return String(EXPOSURE_PORT_MIN + (hash % span))
 }
 
+export function buildExposurePortCandidates(recommendedPort: string, limit = 5): number[] {
+  const parsed = Number(recommendedPort)
+  const fallback = EXPOSURE_PORT_MIN
+  const base =
+    Number.isInteger(parsed) && parsed >= EXPOSURE_PORT_MIN && parsed <= EXPOSURE_PORT_MAX
+      ? parsed
+      : fallback
+  const span = EXPOSURE_PORT_MAX - EXPOSURE_PORT_MIN + 1
+  const attempts = Math.min(Math.max(limit, 1), span)
+
+  return Array.from({ length: attempts }, (_, offset) =>
+    EXPOSURE_PORT_MIN + ((base - EXPOSURE_PORT_MIN + offset) % span)
+  )
+}
+
 export function buildTemplateDefaultAppName(templateName: string, templateKey: string): string {
   const base = slugifySecretPart(templateName || templateKey)
   return `${base}-${buildRandomNumericSuffix()}`

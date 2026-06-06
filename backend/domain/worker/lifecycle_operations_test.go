@@ -127,7 +127,7 @@ func (f fakeOperationExecutor) Name() string {
 }
 
 type fixedLocalExecutor struct {
-	local *docker.LocalExecutor
+	exec *envCaptureDockerExecutor
 }
 
 func (f fixedLocalExecutor) PrepareWorkspace(projectDir string, compose string) error {
@@ -138,12 +138,30 @@ func (f fixedLocalExecutor) PrepareWorkspace(projectDir string, compose string) 
 }
 
 func (f fixedLocalExecutor) DockerClient() (*docker.Client, error) {
-	return docker.New(f.local), nil
+	return docker.New(f.exec), nil
 }
 
 func (f fixedLocalExecutor) Name() string {
-	return "local"
+	return "ssh"
 }
+
+type envCaptureDockerExecutor struct {
+	env map[string]string
+}
+
+func (e *envCaptureDockerExecutor) Run(_ context.Context, _ string, _ ...string) (string, error) {
+	return "", nil
+}
+
+func (e *envCaptureDockerExecutor) RunStream(_ context.Context, _ string, _ ...string) (io.ReadCloser, error) {
+	return io.NopCloser(strings.NewReader("")), nil
+}
+
+func (e *envCaptureDockerExecutor) Ping(context.Context) error { return nil }
+
+func (e *envCaptureDockerExecutor) Host() string { return "env-capture" }
+
+func (e *envCaptureDockerExecutor) SetEnv(env map[string]string) { e.env = env }
 
 func saveProxySettings(t *testing.T, app core.App, enabled bool, httpConnectorID string, httpsConnectorID string) error {
 	t.Helper()
@@ -201,13 +219,13 @@ func TestExecutorForAppliesWorkerDockerProxyEnv(t *testing.T) {
 
 	oldFactory := operationExecutorFactory
 	defer func() { operationExecutorFactory = oldFactory }()
-	localExec := docker.NewLocalExecutor("")
+	captureExec := &envCaptureDockerExecutor{}
 	operationExecutorFactory = func(app core.App, serverID string) lifecycleruntime.Executor {
-		return fixedLocalExecutor{local: localExec}
+		return fixedLocalExecutor{exec: captureExec}
 	}
 
 	operation := core.NewRecord(core.NewBaseCollection("app_operations"))
-	operation.Set("server_id", "local")
+	operation.Set("server_id", "srv-1")
 	execCtx := &lifecycleExecutionContext{ExecutionContext: &orchestration.ExecutionContext{Operation: operation}}
 
 	w := &Worker{app: app}
@@ -219,11 +237,11 @@ func TestExecutorForAppliesWorkerDockerProxyEnv(t *testing.T) {
 	if client == nil {
 		t.Fatal("expected docker client")
 	}
-	if localExec.Env["HTTP_PROXY"] != "http://proxy.example.com:8080" {
-		t.Fatalf("expected HTTP_PROXY from worker settings, got %q", localExec.Env["HTTP_PROXY"])
+	if captureExec.env["HTTP_PROXY"] != "http://proxy.example.com:8080" {
+		t.Fatalf("expected HTTP_PROXY from worker settings, got %q", captureExec.env["HTTP_PROXY"])
 	}
-	if localExec.Env["HTTPS_PROXY"] != "http://secure-proxy.example.com:8443" {
-		t.Fatalf("expected HTTPS_PROXY from worker settings, got %q", localExec.Env["HTTPS_PROXY"])
+	if captureExec.env["HTTPS_PROXY"] != "http://secure-proxy.example.com:8443" {
+		t.Fatalf("expected HTTPS_PROXY from worker settings, got %q", captureExec.env["HTTPS_PROXY"])
 	}
 }
 

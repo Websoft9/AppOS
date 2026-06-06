@@ -5,17 +5,11 @@ import { Link } from '@tanstack/react-router'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useOptionalLayout } from '@/contexts/LayoutContext'
+import { inspectServerPort } from '@/lib/connect-api'
 import {
   useCatalogAppDetail,
   useCatalogAppTemplate,
@@ -46,6 +40,7 @@ import {
   buildRandomSecretValue,
   buildRuntimeInputsPayload,
   buildSourceBuildPayload,
+  buildExposurePortCandidates,
   buildTemplateDefaultAppName,
   buildTemplateDefaults,
   buildTemplateInputPayload,
@@ -262,7 +257,7 @@ export function CreateDeploymentPage({
   const [srcUploaded, setSrcUploaded] = useState<string[]>([])
   const [runtimeEnvInputs, setRuntimeEnvInputs] = useState<RuntimeEnvInputPayload[]>([])
   const [targetServiceName, setTargetServiceName] = useState('')
-  const [helpOpen, setHelpOpen] = useState(false)
+  const [helpVisible, setHelpVisible] = useState(false)
   const [preflightVisible, setPreflightVisible] = useState(false)
   const [portExposureEnabled, setPortExposureEnabled] = useState(false)
   const [domainExposureEnabled, setDomainExposureEnabled] = useState(false)
@@ -299,6 +294,12 @@ export function CreateDeploymentPage({
     () => recommendExposurePort(`${serverId}:${activeName}`),
     [activeName, serverId]
   )
+  const [effectiveRecommendedExposurePort, setEffectiveRecommendedExposurePort] =
+    useState(recommendedExposurePort)
+  const [recommendedExposurePortHint, setRecommendedExposurePortHint] = useState<string | null>(
+    null
+  )
+  const [autoManagePrimaryExposurePort, setAutoManagePrimaryExposurePort] = useState(true)
   const exposureServiceItems = useMemo(
     () =>
       isTemplate && templateServiceItems.length > 0
@@ -310,23 +311,80 @@ export function CreateDeploymentPage({
     exposureServiceItems.find(item => item.isPrimary) || exposureServiceItems[0] || null
 
   useEffect(() => {
+    if (!portExposureEnabled || !serverId || !activeName.trim()) {
+      setEffectiveRecommendedExposurePort(recommendedExposurePort)
+      setRecommendedExposurePortHint(null)
+      return
+    }
+
+    let cancelled = false
+
+    const resolveRecommendedExposurePort = async () => {
+      setEffectiveRecommendedExposurePort(recommendedExposurePort)
+      setRecommendedExposurePortHint(null)
+      const candidates = buildExposurePortCandidates(recommendedExposurePort, 5)
+
+      try {
+        for (const candidate of candidates) {
+          const result = await inspectServerPort(serverId, candidate, 'all', 'tcp')
+          if (cancelled) return
+
+          const occupied = result.occupancy?.occupied === true
+          const reserved = result.reservation?.reserved === true
+          if (!occupied && !reserved) {
+            const nextPort = String(candidate)
+            setEffectiveRecommendedExposurePort(nextPort)
+            setRecommendedExposurePortHint(
+              nextPort === recommendedExposurePort
+                ? null
+                : `Primary recommended port ${recommendedExposurePort} is already in use or reserved on this server. Suggested ${nextPort} instead.`
+            )
+            return
+          }
+        }
+
+        setEffectiveRecommendedExposurePort(recommendedExposurePort)
+        setRecommendedExposurePortHint(
+          `Primary recommended port ${recommendedExposurePort} may already be in use or reserved on this server. Review it before deploying.`
+        )
+      } catch {
+        if (cancelled) return
+        setEffectiveRecommendedExposurePort(recommendedExposurePort)
+        setRecommendedExposurePortHint(
+          'Could not verify whether the suggested server port is free on this target. Review it before deploying.'
+        )
+      }
+    }
+
+    void resolveRecommendedExposurePort()
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeName, portExposureEnabled, recommendedExposurePort, serverId])
+
+  useEffect(() => {
     setServicePortMappings(current => {
       const next: Record<string, { enabled: boolean; port: string }> = {}
       for (const service of exposureServiceItems) {
         const previous = current[service.name]
         next[service.name] = {
           enabled: previous?.enabled ?? service.isPrimary,
-          port: previous?.port ?? (service.isPrimary ? recommendedExposurePort : ''),
+          port: service.isPrimary
+            ? autoManagePrimaryExposurePort
+              ? effectiveRecommendedExposurePort
+              : previous?.port ?? effectiveRecommendedExposurePort
+            : previous?.port ?? '',
         }
       }
       return next
     })
-  }, [exposureServiceItems, recommendedExposurePort])
+  }, [autoManagePrimaryExposurePort, effectiveRecommendedExposurePort, exposureServiceItems])
 
   const primaryPortMapping = exposurePrimaryService
     ? servicePortMappings[exposurePrimaryService.name] || {
         enabled: exposurePrimaryService.isPrimary,
-        port: recommendedExposurePort,
+        port: effectiveRecommendedExposurePort,
       }
     : null
   const mappedServiceNames = exposureServiceItems
@@ -971,8 +1029,9 @@ export function CreateDeploymentPage({
             variant="ghost"
             size="sm"
             className="h-9 w-9 px-0"
-            aria-label="Open deployment help"
-            onClick={() => setHelpOpen(true)}
+            aria-label="Toggle deployment help"
+            aria-expanded={helpVisible}
+            onClick={() => setHelpVisible(v => !v)}
           >
             <CircleHelp className="h-4 w-4" />
           </Button>
@@ -1376,8 +1435,10 @@ export function CreateDeploymentPage({
             setDomainExposureEnabled={setDomainExposureEnabled}
             servicePortMappings={servicePortMappings}
             setServicePortMappings={setServicePortMappings}
+            onPrimaryPortManualChange={() => setAutoManagePrimaryExposurePort(false)}
             primaryServiceName={exposurePrimaryService?.name || 'primary'}
-            recommendedExposurePort={recommendedExposurePort}
+            recommendedExposurePort={effectiveRecommendedExposurePort}
+            recommendedExposurePortHint={recommendedExposurePortHint}
             exposurePortError={exposurePortError}
             exposureSelectionError={exposureSelectionError}
             exposureDomainMessage={exposureDomainMessage}
@@ -1518,6 +1579,7 @@ export function CreateDeploymentPage({
         {/* ──── Right: Review panel ──── */}
         <CreateDeploymentReviewPanel
           preflightVisible={preflightVisible}
+          helpVisible={helpVisible}
           checkResult={checkResult}
           reviewMessages={reviewMessages}
           portItems={portItems}
@@ -1530,52 +1592,6 @@ export function CreateDeploymentPage({
           onSubmit={() => void handleSubmit()}
         />
       </div>
-
-      <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Create Deployment Help</DialogTitle>
-            <DialogDescription>
-              Short answers for the most common questions during deployment creation.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <details className="group rounded-md border bg-muted/20">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
-                <span>FAQ</span>
-                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
-              </summary>
-              <div className="space-y-3 border-t px-3 py-3 text-xs text-muted-foreground">
-                <div>
-                  <div className="font-medium text-foreground">Why run Check first?</div>
-                  <div className="mt-1">
-                    Check runs backend pre-flight validation and can surface blocking issues before
-                    an action is created.
-                  </div>
-                </div>
-                <div>
-                  <div className="font-medium text-foreground">
-                    Does Create Deployment run validation again?
-                  </div>
-                  <div className="mt-1">
-                    Yes. The server performs final validation and normalization again when the
-                    deployment action is created.
-                  </div>
-                </div>
-                <div>
-                  <div className="font-medium text-foreground">
-                    What should I do if Check reports warnings?
-                  </div>
-                  <div className="mt-1">
-                    Review the warnings, decide whether they are acceptable for this target, and
-                    then continue with Create Deployment only if the result is acceptable.
-                  </div>
-                </div>
-              </div>
-            </details>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

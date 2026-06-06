@@ -366,7 +366,12 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
         new Map(apps.map(item => [item.server_id || 'local', appServerLabel(item)])).entries()
       )
         .sort((left, right) => left[1].localeCompare(right[1]))
-        .map(([value, label]) => ({ value, label })),
+        .map(([value, label]) => {
+          const count = apps.filter(
+            item => (item.server_id || 'local') === value
+          ).length
+          return { value, label, count }
+        }),
       template: Object.entries(templateCounts)
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([value, count]) => ({ value, label: value, count })),
@@ -813,7 +818,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
       <section className="overflow-hidden rounded-[28px] bg-gradient-to-b from-muted/35 via-background to-background px-4 py-3 md:px-5 md:py-4">
         <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:gap-3">
-            <div className="inline-flex h-8.5 flex-wrap items-center rounded-xl bg-background/88 px-1 py-0.5 text-sm text-muted-foreground shadow-sm backdrop-blur-sm">
+            <div className="inline-flex h-8.5 flex-wrap items-center rounded-xl bg-background/88 px-1 text-sm text-muted-foreground shadow-sm backdrop-blur-sm">
               <button
                 type="button"
                 className={cn(
@@ -894,7 +899,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center xl:justify-end">
             <label className="min-w-0 sm:w-[150px]">
               <select
-                className="h-9 w-full rounded-full border-transparent bg-background/90 px-3 text-sm shadow-sm ring-1 ring-border/60 outline-none focus:ring-2 focus:ring-ring"
+                className="h-9 w-full rounded-md border-transparent bg-background/90 px-3 text-sm shadow-sm ring-1 ring-border/60 outline-none focus:ring-2 focus:ring-ring"
                 value={effectiveTemplate}
                 onChange={event => handleTemplateFilterChange(event.target.value)}
                 aria-label="Filter by app template"
@@ -912,15 +917,15 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
             </label>
             <label className="min-w-0 sm:w-[150px]">
               <select
-                className="h-9 w-full rounded-full border-transparent bg-background/90 px-3 text-sm shadow-sm ring-1 ring-border/60 outline-none focus:ring-2 focus:ring-ring"
+                className="h-9 w-full rounded-md border-transparent bg-background/90 px-3 text-sm shadow-sm ring-1 ring-border/60 outline-none focus:ring-2 focus:ring-ring"
                 value={selectedServer ?? ''}
                 onChange={event => setSelectedServer(event.target.value || null)}
                 aria-label="Filter by server"
               >
-                <option value="">All servers</option>
+                <option value="">By server</option>
                 {filterOptions.server.map(option => (
                   <option key={option.value} value={option.value}>
-                    {option.label}
+                    {option.label} ({option.count})
                   </option>
                 ))}
               </select>

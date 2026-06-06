@@ -1,8 +1,8 @@
 import type { FieldDef, SelectOption } from '@/components/resources/ResourcePage'
 import {
-  buildResourceSecretRelationApiPath,
   type ResourceSecretVisibleTo,
 } from '@/components/secrets/SecretVisibilityField'
+import { buildUserVisibleSecretRelationApiPath as buildSharedUserVisibleSecretRelationApiPath } from '@/components/secrets/resource-secret-relations'
 
 export type ConnectorRecord = {
   id: string
@@ -123,8 +123,6 @@ export function buildDefaultConnectorName() {
   return `connector-${Date.now().toString().slice(-6)}`
 }
 
-const SECRET_TEMPLATE_IDS = new Set(Object.keys(SECRET_TEMPLATE_LABELS))
-
 export function formatSecretLabel(raw: Record<string, unknown>, t?: Translate): string {
   const name = String(raw.name ?? raw.id)
   const templateId = String(raw.template_id ?? '')
@@ -140,21 +138,11 @@ export function humanizeTemplateId(templateId: string) {
     .join(' ')
 }
 
-function resolveSecretTemplateId(secretTemplate?: string) {
-  const normalized = String(secretTemplate ?? '').trim()
-  if (!normalized) {
-    return ''
-  }
-  return SECRET_TEMPLATE_IDS.has(normalized) ? normalized : ''
-}
-
 export function buildUserVisibleSecretRelationApiPath(
   visibleTo: ResourceSecretVisibleTo,
   secretTemplate?: string
 ) {
-  const explicit = resolveSecretTemplateId(secretTemplate)
-  const templateIds = explicit ? [explicit] : Array.from(SECRET_TEMPLATE_IDS)
-  return buildResourceSecretRelationApiPath({ visibleTo, templateIds })
+  return buildSharedUserVisibleSecretRelationApiPath(visibleTo, { secretTemplate })
 }
 
 export function normalizeTemplateFieldDefault(field: ConnectorTemplateField) {

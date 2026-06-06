@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -27,25 +26,12 @@ import (
 	persistence "github.com/websoft9/appos/backend/infra/persistence"
 )
 
-// localDockerClient is the Docker client for the local host, shared across all local requests.
-var localDockerClient *docker.Client
-
 var enqueueDockerImagePullTask = worker.EnqueueDockerImagePull
 
 type dockerImageListCacheEntry struct {
 	output    string
 	host      string
 	fetchedAt time.Time
-}
-
-func init() {
-	exec := docker.NewLocalExecutor("")
-	if os.Getuid() != 0 {
-		// Running as non-root: wrap docker commands with passwordless sudo.
-		// The system must have NOPASSWD configured for docker in sudoers.
-		exec.SudoEnabled = true
-	}
-	localDockerClient = docker.New(exec)
 }
 
 func dockerImageListCacheKey(e *core.RequestEvent, client *docker.Client) string {
@@ -146,7 +132,7 @@ func registerDockerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 // getDockerClient returns a Docker client for the serverId path parameter.
 func getDockerClient(e *core.RequestEvent) (*docker.Client, error) {
 	serverID := strings.TrimSpace(e.Request.PathValue("serverId"))
-	client, err := servers.NewDockerClient(e.App, serverID, localDockerClient)
+	client, err := servers.NewDockerClient(e.App, serverID)
 	if err != nil {
 		return nil, err
 	}
@@ -202,12 +188,7 @@ func handleDockerServers(e *core.RequestEvent) error {
 		Reason string `json:"reason,omitempty"`
 	}
 
-	result := []serverEntry{{
-		ID:     "local",
-		Label:  "local",
-		Host:   "local",
-		Status: "online",
-	}}
+	result := []serverEntry{}
 
 	managedServers, err := servers.ListManagedServers(e.App)
 	if err != nil || len(managedServers) == 0 {

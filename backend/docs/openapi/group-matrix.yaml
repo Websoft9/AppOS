@@ -447,7 +447,6 @@ groups:
     extSurface:
       - GET /api/servers/docker-targets
       - GET /api/servers/connection
-      - GET /api/servers/local/docker-bridge
       - GET /api/servers/{serverId}/ops/connectivity
       - POST /api/servers/{serverId}/ops/power
       - GET /api/servers/{serverId}/ops/ports

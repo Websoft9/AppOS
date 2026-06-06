@@ -2,6 +2,7 @@ package routes
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -17,10 +18,8 @@ func newRouteInstallPreflightProbe(e *core.RequestEvent) lifecyclesvc.InstallPre
 		if existing, ok := targets[serverID]; ok {
 			return existing, nil
 		}
-		if serverID == "local" {
-			target := installprobe.Target{Available: false, WarnReason: "Resource checks are limited for the local pseudo target until it is represented as a managed server record."}
-			targets[serverID] = target
-			return target, nil
+		if strings.TrimSpace(serverID) == "" || serverID == "local" {
+			return installprobe.Target{}, fmt.Errorf("managed server is required for install preflight")
 		}
 		cfg, err := resolveTerminalConfig(e.App, e.Auth, serverID)
 		if err != nil {

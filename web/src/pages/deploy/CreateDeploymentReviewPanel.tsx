@@ -1,10 +1,11 @@
-import { CheckCircle2, ShieldAlert } from 'lucide-react'
+import { CheckCircle2, ChevronDown, ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import type { InstallPreflightResult } from '@/pages/deploy/actions/useActionsController'
 
 type CreateDeploymentReviewPanelProps = {
   preflightVisible: boolean
+  helpVisible: boolean
   checkResult: InstallPreflightResult | null
   reviewMessages: string[]
   portItems: Array<{
@@ -25,6 +26,7 @@ type CreateDeploymentReviewPanelProps = {
 
 export function CreateDeploymentReviewPanel({
   preflightVisible,
+  helpVisible,
   checkResult,
   reviewMessages,
   portItems,
@@ -123,6 +125,52 @@ export function CreateDeploymentReviewPanel({
             ) : null}
           </CardContent>
         </Card>
+
+        {helpVisible ? (
+          <Card className="border-slate-200 dark:border-slate-800">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Help</CardTitle>
+              <CardDescription>
+                Short answers for the most common questions during deployment creation.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <details className="group rounded-md border bg-muted/20">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
+                  <span>FAQ</span>
+                  <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="space-y-3 border-t px-3 py-3 text-xs text-muted-foreground">
+                  <div>
+                    <div className="font-medium text-foreground">Why run Check first?</div>
+                    <div className="mt-1">
+                      Check runs backend pre-flight validation and can surface blocking issues before
+                      an action is created.
+                    </div>
+                  </div>
+                  <div>
+                    <div className="font-medium text-foreground">
+                      Does Create Deployment run validation again?
+                    </div>
+                    <div className="mt-1">
+                      Yes. The server performs final validation and normalization again when the
+                      deployment action is created.
+                    </div>
+                  </div>
+                  <div>
+                    <div className="font-medium text-foreground">
+                      What should I do if Check reports warnings?
+                    </div>
+                    <div className="mt-1">
+                      Review the warnings, decide whether they are acceptable for this target, and
+                      then continue with Create Deployment only if the result is acceptable.
+                    </div>
+                  </div>
+                </div>
+              </details>
+            </CardContent>
+          </Card>
+        ) : null}
       </div>
     </div>
   )

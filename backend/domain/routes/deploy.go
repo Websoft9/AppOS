@@ -683,8 +683,8 @@ func handleOperationInstallGitCompose(e *core.RequestEvent) error {
 		AuthHeaderName:  bodyString(body, "auth_header_name"),
 		AuthHeaderValue: bodyString(body, "auth_header_value"),
 	}
-	if req.ServerID == "" {
-		req.ServerID = "local"
+	if err := requireManagedServerID(req.ServerID); err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 	}
 	defaultRef, defaultComposePath := loadDeployGitDefaults(e.App)
 	if req.Ref == "" {
@@ -763,8 +763,8 @@ func handleOperationInstallGitComposeCheck(e *core.RequestEvent) error {
 		AuthHeaderName:  bodyString(body, "auth_header_name"),
 		AuthHeaderValue: bodyString(body, "auth_header_value"),
 	}
-	if req.ServerID == "" {
-		req.ServerID = "local"
+	if err := requireManagedServerID(req.ServerID); err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 	}
 	defaultRef, defaultComposePath := loadDeployGitDefaults(e.App)
 	if req.Ref == "" {
@@ -811,8 +811,8 @@ func handleOperationInstallManualCompose(e *core.RequestEvent) error {
 		ProjectName: bodyString(body, "project_name"),
 		Compose:     bodyString(body, "compose"),
 	}
-	if req.ServerID == "" {
-		req.ServerID = "local"
+	if err := requireManagedServerID(req.ServerID); err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 	}
 	ingressOptions := buildInstallIngressOptionsFromBody(e.Auth, body, nil)
 	resolutionRequest := lifecyclesvc.BuildManualComposeInstallResolutionRequest(req, ingressOptions)
@@ -870,8 +870,8 @@ func handleOperationInstallManualComposeCheck(e *core.RequestEvent) error {
 		ProjectName: bodyString(body, "project_name"),
 		Compose:     bodyString(body, "compose"),
 	}
-	if req.ServerID == "" {
-		req.ServerID = "local"
+	if err := requireManagedServerID(req.ServerID); err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 	}
 	ingressOptions := buildInstallIngressOptionsFromBody(e.Auth, body, nil)
 	resolutionRequest := lifecyclesvc.BuildManualComposeInstallResolutionRequest(req, ingressOptions)
@@ -895,6 +895,9 @@ func handleOperationInstallTemplate(e *core.RequestEvent) error {
 	body, err := readBody(e)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "invalid request body"})
+	}
+	if err := requireManagedServerID(bodyString(body, "server_id")); err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 	}
 	rendered, ingressOptions, err := renderTemplateInstall(e, body)
 	if err != nil {
@@ -941,6 +944,9 @@ func handleOperationInstallTemplateCheck(e *core.RequestEvent) error {
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "invalid request body"})
 	}
+	if err := requireManagedServerID(bodyString(body, "server_id")); err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
+	}
 	rendered, ingressOptions, err := renderTemplateInstall(e, body)
 	if err != nil {
 		if isOperationCreateBadRequest(err) || strings.Contains(strings.ToLower(err.Error()), "template ") {
@@ -971,9 +977,8 @@ func handleOperationInstallTemplateCheck(e *core.RequestEvent) error {
 
 func renderTemplateInstall(e *core.RequestEvent, body map[string]any) (*apptemplates.RenderedTemplate, lifecyclesvc.InstallIngressOptions, error) {
 	serverID := bodyString(body, "server_id")
-	if serverID == "" {
-		serverID = "local"
-		body["server_id"] = serverID
+	if err := requireManagedServerID(serverID); err != nil {
+		return nil, lifecyclesvc.InstallIngressOptions{}, err
 	}
 	templateKey := bodyString(body, "template_key")
 	requestedExposure := lifecyclesvc.ParseExposureIntentMap(bodyMap(body, "exposure"))
@@ -1017,6 +1022,17 @@ func renderTemplateInstall(e *core.RequestEvent, body map[string]any) (*apptempl
 		ingressOptions.ComposeProjectName = rendered.ProjectName
 	}
 	return rendered, ingressOptions, nil
+}
+
+func requireManagedServerID(serverID string) error {
+	trimmed := strings.TrimSpace(serverID)
+	if trimmed == "" {
+		return fmt.Errorf("server_id is required")
+	}
+	if trimmed == "local" {
+		return fmt.Errorf("local server targets are unsupported")
+	}
+	return nil
 }
 
 func firstTemplateExposureService(exposures []apptemplates.TemplateExposure) string {

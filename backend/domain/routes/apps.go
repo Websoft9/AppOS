@@ -86,7 +86,7 @@ func handleAppInstanceList(e *core.RequestEvent) error {
 	runtimeByServer := map[string]map[string]string{}
 	runtimeErrByServer := map[string]string{}
 	catalogIconByKey := appCatalogIconIndex()
-	serverNameByID := map[string]string{"local": "Local"}
+	serverNameByID := map[string]string{}
 	for _, record := range records {
 		serverID := normalizeAppServerID(record.GetString("server_id"))
 		if _, ok := runtimeByServer[serverID]; ok || runtimeErrByServer[serverID] != "" {
@@ -168,7 +168,7 @@ func handleAppInstanceLogs(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 	}
 
-	client, err := servers.NewDockerClient(e.App, normalizeAppServerID(record.GetString("server_id")), localDockerClient)
+	client, err := servers.NewDockerClient(e.App, normalizeAppServerID(record.GetString("server_id")))
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 	}
@@ -195,7 +195,7 @@ func handleAppInstanceLogs(e *core.RequestEvent) error {
 }
 
 // @Summary Get app compose config
-// @Description Returns docker-compose.yml content for one installed app. Supports local and remote servers. Superuser only.
+// @Description Returns docker-compose.yml content for one installed app on a managed server. Superuser only.
 // @Tags Apps
 // @Security BearerAuth
 // @Param id path string true "app instance ID"
@@ -216,6 +216,9 @@ func handleAppInstanceConfigGet(e *core.RequestEvent) error {
 	}
 
 	serverID := normalizeAppServerID(record.GetString("server_id"))
+	if serverID == "" || serverID == "local" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "managed server is required for app compose config"})
+	}
 	content, err := readAppComposeConfig(e, serverID, runtimeContext.ProjectDir)
 	if err != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": err.Error()})
@@ -269,7 +272,7 @@ func handleAppInstanceAccessUpdate(e *core.RequestEvent) error {
 }
 
 // @Summary Validate app compose config
-// @Description Validates draft docker-compose.yml content for one installed app before saving. Supports local and remote servers. Superuser only.
+// @Description Validates draft docker-compose.yml content for one installed app on a managed server before saving. Superuser only.
 // @Tags Apps
 // @Security BearerAuth
 // @Param id path string true "app instance ID"
@@ -300,6 +303,9 @@ func handleAppInstanceConfigValidate(e *core.RequestEvent) error {
 	}
 
 	serverID := normalizeAppServerID(record.GetString("server_id"))
+	if serverID == "" || serverID == "local" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "managed server is required for app compose config"})
+	}
 	if err := validateAppComposeConfig(e, serverID, runtimeContext.ProjectDir, content); err != nil {
 		return e.JSON(http.StatusOK, withMapFields(map[string]any{
 			"id":       record.Id,
@@ -317,7 +323,7 @@ func handleAppInstanceConfigValidate(e *core.RequestEvent) error {
 }
 
 // @Summary Write app compose config
-// @Description Overwrites docker-compose.yml for one installed app. Supports local and remote servers. Superuser only.
+// @Description Overwrites docker-compose.yml for one installed app on a managed server. Superuser only.
 // @Tags Apps
 // @Security BearerAuth
 // @Param id path string true "app instance ID"
@@ -348,6 +354,9 @@ func handleAppInstanceConfigWrite(e *core.RequestEvent) error {
 	}
 
 	serverID := normalizeAppServerID(record.GetString("server_id"))
+	if serverID == "" || serverID == "local" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "managed server is required for app compose config"})
+	}
 	if err := validateAppComposeConfig(e, serverID, runtimeContext.ProjectDir, content); err != nil {
 		writeAppAudit(e, record, "app.config.validate", audit.StatusFailed, map[string]any{"errorMessage": err.Error()})
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
@@ -388,7 +397,7 @@ func handleAppInstanceConfigWrite(e *core.RequestEvent) error {
 }
 
 // @Summary Roll back app compose config
-// @Description Restores the latest saved docker-compose rollback point for one installed app. Supports local and remote servers. Superuser only.
+// @Description Restores the latest saved docker-compose rollback point for one installed app on a managed server. Superuser only.
 // @Tags Apps
 // @Security BearerAuth
 // @Param id path string true "app instance ID"
@@ -414,6 +423,9 @@ func handleAppInstanceConfigRollback(e *core.RequestEvent) error {
 	}
 
 	serverID := normalizeAppServerID(record.GetString("server_id"))
+	if serverID == "" || serverID == "local" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "managed server is required for app compose config"})
+	}
 	currentContent, err := readAppComposeConfig(e, serverID, runtimeContext.ProjectDir)
 	if err != nil {
 		writeAppAudit(e, record, "app.config.rollback", audit.StatusFailed, map[string]any{"errorMessage": err.Error()})
@@ -713,8 +725,8 @@ func decodeMapValue(raw any) map[string]any {
 }
 
 func appServerName(app core.App, serverID string) string {
-	if serverID == "" || serverID == "local" {
-		return "Local"
+	if strings.TrimSpace(serverID) == "" || serverID == "local" {
+		return "Unavailable"
 	}
 	server, err := app.FindRecordById("servers", serverID)
 	if err != nil {
@@ -839,14 +851,11 @@ func normalizeComposeRuntimeStatus(raw string) string {
 }
 
 func normalizeAppServerID(serverID string) string {
-	if strings.TrimSpace(serverID) == "" {
-		return "local"
-	}
-	return serverID
+	return strings.TrimSpace(serverID)
 }
 
 func composeStatusIndex(app core.App, serverID string) (map[string]string, error) {
-	client, err := servers.NewDockerClient(app, serverID, localDockerClient)
+	client, err := servers.NewDockerClient(app, serverID)
 	if err != nil {
 		return nil, err
 	}
@@ -946,7 +955,7 @@ func writeAppAudit(e *core.RequestEvent, record *core.Record, action string, sta
 }
 
 func validateAppComposeConfig(e *core.RequestEvent, serverID string, projectDir string, content string) error {
-	client, err := servers.NewDockerClient(e.App, serverID, localDockerClient)
+	client, err := servers.NewDockerClient(e.App, serverID)
 	if err != nil {
 		return err
 	}
@@ -957,26 +966,17 @@ func validateAppComposeConfig(e *core.RequestEvent, serverID string, projectDir 
 	tempName := fmt.Sprintf(".appos-validate-%d.yml", time.Now().UnixNano())
 	tempPath := filepath.Join(projectDir, tempName)
 
-	if serverID == "local" {
-		if err := os.WriteFile(tempPath, []byte(content), 0o600); err != nil {
-			return fmt.Errorf("write temp compose file: %w", err)
-		}
-		defer func() {
-			_ = os.Remove(tempPath)
-		}()
-	} else {
-		sftpClient, err := openAppSFTPClient(e, serverID)
-		if err != nil {
-			return err
-		}
-		defer sftpClient.Close()
-		if err := sftpClient.WriteFile(tempPath, content); err != nil {
-			return fmt.Errorf("write remote temp compose file: %w", err)
-		}
-		defer func() {
-			_ = sftpClient.Delete(tempPath)
-		}()
+	sftpClient, err := openAppSFTPClient(e, serverID)
+	if err != nil {
+		return err
 	}
+	defer sftpClient.Close()
+	if err := sftpClient.WriteFile(tempPath, content); err != nil {
+		return fmt.Errorf("write remote temp compose file: %w", err)
+	}
+	defer func() {
+		_ = sftpClient.Delete(tempPath)
+	}()
 
 	_, err = client.Exec(ctx, "compose", "-f", tempPath, "config", "-q")
 	if err != nil {
@@ -986,10 +986,6 @@ func validateAppComposeConfig(e *core.RequestEvent, serverID string, projectDir 
 }
 
 func readAppComposeConfig(e *core.RequestEvent, serverID string, projectDir string) (string, error) {
-	if serverID == "local" {
-		return localDockerClient.ComposeConfigRead(projectDir)
-	}
-
 	client, err := openAppSFTPClient(e, serverID)
 	if err != nil {
 		return "", err
@@ -1000,10 +996,6 @@ func readAppComposeConfig(e *core.RequestEvent, serverID string, projectDir stri
 }
 
 func writeAppComposeConfig(e *core.RequestEvent, serverID string, projectDir string, content string) error {
-	if serverID == "local" {
-		return localDockerClient.ComposeConfigWrite(projectDir, content)
-	}
-
 	client, err := openAppSFTPClient(e, serverID)
 	if err != nil {
 		return err

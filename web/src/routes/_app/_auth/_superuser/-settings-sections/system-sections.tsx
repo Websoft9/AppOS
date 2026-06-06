@@ -27,20 +27,20 @@ export function BasicSection({
     <Card>
       <CardHeader>
         <CardTitle>Basic</CardTitle>
-        <CardDescription>Application name and public URL</CardDescription>
+        <CardDescription>Platform basic information</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-1">
-          <Label htmlFor="appName">App Name</Label>
+          <Label htmlFor="appName">Platform Title</Label>
           <Input
             id="appName"
             value={appName}
             onChange={e => setAppName(e.target.value)}
-            placeholder="AppOS"
+            placeholder="AppOS platform"
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="appURL">App URL</Label>
+          <Label htmlFor="appURL">Platform URL</Label>
           <Input
             id="appURL"
             type="url"

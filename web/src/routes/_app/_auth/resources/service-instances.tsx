@@ -18,7 +18,7 @@ import { ResourcePage, type Column, type FieldDef } from '@/components/resources
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { SecretCredentialField } from '@/components/secrets/SecretCredentialField'
 import { SecretForm, type SecretTemplate } from '@/components/secrets/SecretForm'
-import { buildResourceSecretRelationApiPath } from '@/components/secrets/SecretVisibilityField'
+import { buildUserVisibleSecretRelationApiPath } from '@/components/secrets/resource-secret-relations'
 import { getLocale } from '@/lib/i18n'
 import { pb } from '@/lib/pb'
 
@@ -294,13 +294,6 @@ function isSecretBackedConnectionKind(template: InstanceTemplate | null | undefi
 function defaultPortForTemplate(template: InstanceTemplate | null | undefined) {
   if (template?.kind === 'postgres') return 5432
   return 3306
-}
-
-function buildSecretRelationApiPath(secretTemplateIds: string[]) {
-  return buildResourceSecretRelationApiPath({
-    visibleTo: 'service_instance',
-    templateIds: secretTemplateIds,
-  })
 }
 
 function databaseCertificateHelpText(template: InstanceTemplate | null | undefined, t: Translate) {
@@ -1045,9 +1038,9 @@ export function ServiceInstancesPage() {
                   : t('serviceInstances.fields.credential'),
           type: 'relation',
           required: isDatabaseConnectionKind(selectedTemplate) && Boolean(selectedTemplate),
-          relationApiPath: isSecretBackedConnectionKind(selectedTemplate)
-            ? buildSecretRelationApiPath(['single_value'])
-            : '/api/collections/secrets/records?perPage=500&sort=name',
+          relationApiPath: buildUserVisibleSecretRelationApiPath('service_instance', {
+            secretTemplate: 'single_value',
+          }),
           relationLabelKey: 'name',
           render: isSecretBackedConnectionKind(selectedTemplate)
             ? renderDatabaseCredentialField

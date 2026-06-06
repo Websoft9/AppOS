@@ -3,6 +3,9 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ServiceInstancesPage } from './service-instances'
 
+const SERVICE_INSTANCE_SECRET_PATH =
+  "/api/collections/secrets/records?filter=(created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value')%26%26(visible_to:length=0||visible_to:each%3F='service_instance')&sort=name"
+
 const sendMock = vi.fn()
 const createSecretMock = vi.fn()
 const getSecretMock = vi.fn()
@@ -335,13 +338,10 @@ describe('ServiceInstancesPage', () => {
         if (path === '/api/provider-accounts') {
           return Promise.resolve([])
         }
-        if (path.startsWith('/api/collections/secrets/records?filter=')) {
+        if (path === SERVICE_INSTANCE_SECRET_PATH) {
           return Promise.resolve({ items: [{ id: 'secret-1', name: 'db-password' }] })
         }
         if (path === '/api/collections/groups/records?perPage=500&sort=name') {
-          return Promise.resolve({ items: [] })
-        }
-        if (path === '/api/collections/secrets/records?perPage=500&sort=name') {
           return Promise.resolve({ items: [] })
         }
         if (path === "/api/collections/certificates/records?filter=(status='active')&sort=name") {
@@ -428,6 +428,15 @@ describe('ServiceInstancesPage', () => {
     fireEvent.click(screen.getByText('Select a Secret'))
     expect(screen.getByPlaceholderText('Search secrets...')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(SERVICE_INSTANCE_SECRET_PATH, {})
+    })
+
+    expect(sendMock).not.toHaveBeenCalledWith(
+      '/api/collections/secrets/records?perPage=500&sort=name',
+      {}
+    )
 
     expect(screen.queryByLabelText('Platform Account')).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/^Connection Timeout/)).not.toBeInTheDocument()
@@ -705,7 +714,9 @@ describe('ServiceInstancesPage', () => {
     fireEvent.change(screen.getByLabelText('Description'), {
       target: { value: 'updated description' },
     })
-    fireEvent.change(screen.getByLabelText('Value *'), { target: { value: 'new-secret-value' } })
+    fireEvent.change(await screen.findByLabelText('Value *'), {
+      target: { value: 'new-secret-value' },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Save Secret' }))
 
     await waitFor(() => {
@@ -785,6 +796,10 @@ describe('ServiceInstancesPage', () => {
     fireEvent.click(screen.getByText('Select a Secret'))
     expect(screen.getByPlaceholderText('Search secrets...')).toBeInTheDocument()
 
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(SERVICE_INSTANCE_SECRET_PATH, {})
+    })
+
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
     fireEvent.click(await screen.findByRole('button', { name: /^Kafka/i }))
@@ -793,5 +808,14 @@ describe('ServiceInstancesPage', () => {
     expect(screen.getByRole('button', { name: 'Generate' })).toBeInTheDocument()
     fireEvent.click(screen.getByText('Select a Secret'))
     expect(screen.getByPlaceholderText('Search secrets...')).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(SERVICE_INSTANCE_SECRET_PATH, {})
+    })
+
+    expect(sendMock).not.toHaveBeenCalledWith(
+      '/api/collections/secrets/records?perPage=500&sort=name',
+      {}
+    )
   }, 15000)
 })

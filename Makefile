@@ -245,11 +245,6 @@ endif
 
 redo:
 	@echo "Full rebuild: building artifacts and image before replacing container + volumes..."
-	@if grep -q '^APPOS_SECRET_KEY=replace-with-a-random-base64-secret' build/.env 2>/dev/null; then \
-		NEW_KEY=$$(openssl rand -base64 32); \
-		sed -i "s|^APPOS_SECRET_KEY=replace-with-a-random-base64-secret|APPOS_SECRET_KEY=$$NEW_KEY|" build/.env; \
-		echo "✓ Generated APPOS_SECRET_KEY in build/.env"; \
-	fi
 	@$(MAKE) build
 	@$(MAKE) image build-local
 	@docker rm -f $$(docker ps -aq --filter name=$(CONTAINER)) 2>/dev/null || true
@@ -266,6 +261,7 @@ run:
 	@docker cp backend/appos $(CONTAINER):/usr/local/bin/appos
 	@docker cp web/dist/. $(CONTAINER):/usr/share/nginx/html/web/
 	@docker cp templates/apps/. $(CONTAINER):/appos/data/templates/apps/
+	@docker cp build/supervisord.conf $(CONTAINER):/etc/supervisor/supervisord.conf
 	@docker cp build/nginx.conf $(CONTAINER):/etc/nginx/nginx.conf
 	@docker exec $(CONTAINER) nginx -t
 	@docker exec $(CONTAINER) supervisorctl -c /etc/supervisor/supervisord.conf restart appos nginx
@@ -963,11 +959,6 @@ endif
 # Container Management
 # ============================================================
 start:
-	@if grep -q '^APPOS_SECRET_KEY=replace-with-a-random-base64-secret' build/.env 2>/dev/null; then \
-		NEW_KEY=$$(openssl rand -base64 32); \
-		sed -i "s|^APPOS_SECRET_KEY=replace-with-a-random-base64-secret|APPOS_SECRET_KEY=$$NEW_KEY|" build/.env; \
-		echo "✓ Generated APPOS_SECRET_KEY in build/.env"; \
-	fi
 	@if [ "$(ARG2)" = "dev" ] || [ "$(ARG2)" = "latest" ]; then \
 		IMAGE_TAG=$(ARG2); \
 		PORT=9091; \

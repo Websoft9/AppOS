@@ -2,6 +2,9 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AIProvidersPage, buildAIProviderPayload } from './ai-providers'
 
+const AI_PROVIDER_SECRET_PATH =
+  "/api/collections/secrets/records?filter=(created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value')%26%26(visible_to:length=0||visible_to:each%3F='ai_provider')&sort=name"
+
 const sendMock = vi.fn()
 const getOneMock = vi.fn()
 const createMock = vi.fn()
@@ -228,12 +231,7 @@ describe('AIProvidersPage', () => {
         if (path === '/api/collections/groups/records?perPage=500&sort=name') {
           return Promise.resolve({ items: [] })
         }
-        if (
-          path ===
-            "/api/collections/secrets/records?filter=(created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value')%26%26(visible_to:length=0||visible_to%3F='ai_provider')&sort=name" ||
-          path ===
-            "/api/collections/secrets/records?filter=(created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value')%26%26(visible_to:length=0||visible_to%3F='ai_provider')&sort=name"
-        ) {
+        if (path === AI_PROVIDER_SECRET_PATH) {
           return Promise.resolve({
             items: [{ id: 'secret-1', name: 'shared-secret', template_id: 'single_value' }],
           })
@@ -301,6 +299,10 @@ describe('AIProvidersPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Base URL')).toBeInTheDocument()
+    })
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(AI_PROVIDER_SECRET_PATH, {})
     })
 
     expect(screen.getByText('Add OpenAI AI Provider')).toBeInTheDocument()
@@ -414,12 +416,7 @@ describe('AIProvidersPage', () => {
         if (path === '/api/collections/groups/records?perPage=500&sort=name') {
           return Promise.resolve({ items: [] })
         }
-        if (
-          path ===
-            "/api/collections/secrets/records?filter=(created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value')%26%26(visible_to:length=0||visible_to%3F='ai_provider')&sort=name" ||
-          path ===
-            "/api/collections/secrets/records?filter=(created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value')%26%26(visible_to:length=0||visible_to%3F='ai_provider')&sort=name"
-        ) {
+        if (path === AI_PROVIDER_SECRET_PATH) {
           return Promise.resolve({ items: [] })
         }
         if (path === '/api/ai-providers' && options?.method === 'POST') {

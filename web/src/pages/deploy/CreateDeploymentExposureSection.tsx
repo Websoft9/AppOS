@@ -13,8 +13,10 @@ type CreateDeploymentExposureSectionProps = {
   setServicePortMappings: React.Dispatch<
     React.SetStateAction<Record<string, { enabled: boolean; port: string }>>
   >
+  onPrimaryPortManualChange: () => void
   primaryServiceName: string
   recommendedExposurePort: string
+  recommendedExposurePortHint: string | null
   exposurePortError: string | null
   exposureSelectionError: string | null
   exposureDomainMessage: string
@@ -30,8 +32,10 @@ export function CreateDeploymentExposureSection({
   setDomainExposureEnabled,
   servicePortMappings,
   setServicePortMappings,
+  onPrimaryPortManualChange,
   primaryServiceName,
   recommendedExposurePort,
+  recommendedExposurePortHint,
   exposurePortError,
   exposureSelectionError,
   exposureDomainMessage,
@@ -154,10 +158,15 @@ export function CreateDeploymentExposureSection({
                             (service.name === primaryServiceName ? recommendedExposurePort : '')
                           }
                           onChange={e =>
-                            updateServiceMapping(service.name, {
-                              enabled: true,
-                              port: e.target.value,
-                            })
+                            {
+                              if (service.name === primaryServiceName) {
+                                onPrimaryPortManualChange()
+                              }
+                              updateServiceMapping(service.name, {
+                                enabled: true,
+                                port: e.target.value,
+                              })
+                            }
                           }
                           placeholder={
                             service.name === primaryServiceName ? recommendedExposurePort : '—'
@@ -177,6 +186,11 @@ export function CreateDeploymentExposureSection({
                 {exposureSelectionError ? (
                   <div className="pt-2 text-[11px] text-amber-700 dark:text-amber-400">
                     {exposureSelectionError}
+                  </div>
+                ) : null}
+                {recommendedExposurePortHint ? (
+                  <div className="pt-2 text-[11px] text-amber-700 dark:text-amber-400">
+                    {recommendedExposurePortHint}
                   </div>
                 ) : null}
                 {extraServiceMappingMessage ? (
