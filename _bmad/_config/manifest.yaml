@@ -1,49 +1,49 @@
 installation:
-  version: 6.6.0
+  version: 6.8.0
   installDate: 2026-04-01T00:28:27.817Z
-  lastUpdated: 2026-04-30T08:35:37.416Z
+  lastUpdated: 2026-06-08T01:59:00.330Z
 modules:
   - name: core
-    version: 6.6.0
+    version: 6.8.0
     installDate: 2026-04-01T00:28:23.117Z
-    lastUpdated: 2026-04-30T08:35:36.826Z
+    lastUpdated: 2026-06-08T01:59:00.319Z
     source: built-in
     npmPackage: null
     repoUrl: null
   - name: bmm
-    version: 6.6.0
+    version: 6.8.0
     installDate: 2026-04-01T00:27:59.429Z
-    lastUpdated: 2026-04-30T08:35:36.827Z
+    lastUpdated: 2026-06-08T01:59:00.320Z
     source: built-in
     npmPackage: null
     repoUrl: null
   - name: cis
-    version: v0.2.0
+    version: v0.2.1
     installDate: 2026-04-01T00:28:04.197Z
-    lastUpdated: 2026-04-30T08:35:36.976Z
+    lastUpdated: 2026-06-08T01:59:00.323Z
     source: external
     npmPackage: bmad-creative-intelligence-suite
     repoUrl: https://github.com/bmad-code-org/bmad-module-creative-intelligence-suite
     channel: stable
-    sha: 14a63b893c07173b7a6cfe0fb6a9a72ba51d3cf1
+    sha: 07a8dd03d196a762f21c241d985293fe5b0f90e7
   - name: tea
-    version: v1.15.1
+    version: v1.19.0
     installDate: 2026-04-01T00:28:08.204Z
-    lastUpdated: 2026-04-30T08:35:37.119Z
+    lastUpdated: 2026-06-08T01:59:00.326Z
     source: external
     npmPackage: bmad-method-test-architecture-enterprise
     repoUrl: https://github.com/bmad-code-org/bmad-method-test-architecture-enterprise
     channel: stable
-    sha: 7c94bdc6e3d2c8c3cad09eb0a32a42fade0e9079
+    sha: 8734d51f24071ddbcb3617390b5fcddb4128ef77
   - name: wds
-    version: v0.1.0
+    version: v0.4.3
     installDate: 2026-04-01T00:28:14.703Z
-    lastUpdated: 2026-04-30T08:35:37.416Z
-    source: community
-    npmPackage: bmad-method-wds-expansion
+    lastUpdated: 2026-06-08T01:59:00.330Z
+    source: external
+    npmPackage: bmad-wds
     repoUrl: https://github.com/bmad-code-org/bmad-method-wds-expansion
     channel: stable
-    sha: 50312755ca93d6667f9a9087cfe72cfd378b5329
+    sha: cc16f09fcfab26d35635af1491f36a38a8431c8d
     registryApprovedTag: v0.1.0
 ides:
   - github-copilot

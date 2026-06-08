@@ -1,4 +1,5 @@
 import { pb } from '@/lib/pb'
+import { useEffect } from 'react'
 
 export const BRANDING_UPDATED_EVENT = 'appos:branding-updated'
 export const DEFAULT_APP_NAME = 'AppOS'
@@ -10,6 +11,7 @@ export interface BrandingPayload {
   logoMediaId?: string
   logoUrl?: string
   wordmark?: string
+  description?: string
   useLogoAsFavicon?: boolean
   faviconMediaId?: string
   faviconUrl?: string
@@ -19,6 +21,7 @@ export interface ResolvedBranding {
   appName: string
   appURL: string
   wordmark: string
+  description: string
   logoUrl: string
   faviconUrl: string
   useLogoAsFavicon: boolean
@@ -34,6 +37,7 @@ export function resolveBranding(payload?: BrandingPayload | null): ResolvedBrand
   const appName = payload?.appName?.trim() || DEFAULT_APP_NAME
   const appURL = payload?.appURL?.trim() || ''
   const wordmark = payload?.wordmark?.trim() || DEFAULT_WORDMARK
+  const description = payload?.description?.trim() || 'Application Platform'
   const generatedLogoUrl = createGeneratedLogoDataUrl(wordmark || appName)
   const logoUrl = payload?.logoUrl?.trim() || generatedLogoUrl
   const useLogoAsFavicon = payload?.useLogoAsFavicon ?? false
@@ -43,6 +47,7 @@ export function resolveBranding(payload?: BrandingPayload | null): ResolvedBrand
     appName,
     appURL,
     wordmark,
+    description,
     logoUrl,
     faviconUrl,
     useLogoAsFavicon,
@@ -92,4 +97,35 @@ function escapeXml(value: string) {
         return char
     }
   })
+}
+
+// ─── Page title ──────────────────────────────────────────────────────────────
+
+let pageTitle = ''
+const titleListeners = new Set<() => void>()
+
+/** Set the current page title segment.  BrandingProvider appends " - wordmark". */
+export function setPageTitle(title: string) {
+  pageTitle = title
+  for (const listener of titleListeners) {
+    listener()
+  }
+}
+
+/** React hook that sets the page title for the lifetime of the component. */
+export function usePageTitle(title: string) {
+  useEffect(() => {
+    setPageTitle(title)
+    return () => setPageTitle('')
+  }, [title])
+}
+
+/** Subscribe to title changes.  Returns the current title.  Internal use. */
+export function subscribePageTitle(listener: () => void): string {
+  titleListeners.add(listener)
+  return pageTitle
+}
+
+export function unsubscribePageTitle(listener: () => void) {
+  titleListeners.delete(listener)
 }

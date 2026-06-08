@@ -286,15 +286,16 @@ function renderBrandingSection(
 ) {
   return (
     <BrandingSection
-      appName={controller.appName}
       logoUrl={controller.logoUrl}
       wordmark={controller.wordmark}
+      description={controller.description}
       useLogoAsFavicon={controller.useLogoAsFavicon}
       faviconUrl={controller.faviconUrl}
       brandingSaving={controller.brandingSaving}
       setLogoMediaId={controller.setLogoMediaId}
       setLogoUrl={controller.setLogoUrl}
       setWordmark={controller.setWordmark}
+      setDescription={controller.setDescription}
       setUseLogoAsFavicon={controller.setUseLogoAsFavicon}
       setFaviconMediaId={controller.setFaviconMediaId}
       setFaviconUrl={controller.setFaviconUrl}

@@ -1,6 +1,101 @@
 package service
 
-import "testing"
+import (
+	"context"
+	"os"
+	"strings"
+	"sync"
+	"testing"
+
+	"github.com/pocketbase/pocketbase/tests"
+	"github.com/websoft9/appos/backend/domain/deploy"
+
+	_ "github.com/websoft9/appos/backend/infra/migrations"
+)
+
+var (
+	installPreflightBaselineOnce sync.Once
+	installPreflightBaselineDir  string
+	installPreflightBaselineErr  error
+)
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+	if installPreflightBaselineDir != "" {
+		_ = os.RemoveAll(installPreflightBaselineDir)
+	}
+	os.Exit(code)
+}
+
+type installPreflightProbeStub struct {
+	ports []InstallPreflightPublishedPort
+}
+
+func (p *installPreflightProbeStub) CheckPorts(_ context.Context, _ string, ports []InstallPreflightPublishedPort) (InstallPreflightPortsCheck, []string, error) {
+	p.ports = append([]InstallPreflightPublishedPort(nil), ports...)
+	hasConflict := false
+	items := make([]InstallPreflightPortItem, 0, len(ports))
+	for _, port := range ports {
+		conflict := port.Port == 8080 && port.Protocol == "tcp"
+		if conflict {
+			hasConflict = true
+		}
+		items = append(items, InstallPreflightPortItem{
+			Port:       port.Port,
+			Protocol:   port.Protocol,
+			Conflict:   conflict,
+			Occupied:   conflict,
+			Occupancy:  map[string]any{"occupied": conflict},
+			Reservation: map[string]any{
+				"reserved": false,
+				"sources":  []map[string]any{},
+			},
+		})
+	}
+	check := InstallPreflightCheck{OK: !hasConflict, Status: "ok", Message: "No host-port conflicts detected"}
+	if hasConflict {
+		check = InstallPreflightCheck{OK: false, Conflict: true, Status: "conflict", Message: "One or more declared host ports are already occupied or reserved"}
+	}
+	return InstallPreflightPortsCheck{InstallPreflightCheck: check, Items: items}, nil, nil
+}
+
+func (p *installPreflightProbeStub) CheckContainerNames(context.Context, string, []string) (InstallPreflightContainerNamesCheck, []string, error) {
+	return InstallPreflightContainerNamesCheck{InstallPreflightCheck: InstallPreflightCheck{OK: true, Status: "not_applicable", Message: "compose does not declare explicit container_name values"}}, nil, nil
+}
+
+func (p *installPreflightProbeStub) CheckDockerAvailability(context.Context, string) (InstallPreflightDockerCheck, []string, error) {
+	return InstallPreflightDockerCheck{InstallPreflightCheck: InstallPreflightCheck{OK: true, Status: "ok", Message: "Docker daemon is available"}, ServerVersion: "test"}, nil, nil
+}
+
+func (p *installPreflightProbeStub) CheckDiskSpace(context.Context, string, string, int64, int64) (InstallPreflightDiskSpaceCheck, []string, error) {
+	return InstallPreflightDiskSpaceCheck{InstallPreflightCheck: InstallPreflightCheck{OK: true, Status: "ok", Message: "disk space is sufficient"}}, nil, nil
+}
+
+func newInstallPreflightTestApp(t *testing.T) *tests.TestApp {
+	t.Helper()
+
+	installPreflightBaselineOnce.Do(func() {
+		app, err := tests.NewTestApp()
+		if err != nil {
+			installPreflightBaselineErr = err
+			return
+		}
+		installPreflightBaselineDir = app.DataDir()
+		installPreflightBaselineErr = app.ResetBootstrapState()
+	})
+	if installPreflightBaselineErr != nil {
+		t.Fatal(installPreflightBaselineErr)
+	}
+
+	app, err := tests.NewTestApp(installPreflightBaselineDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		app.Cleanup()
+	})
+	return app
+}
 
 func TestParseAppRequiredDiskBytes(t *testing.T) {
 	t.Parallel()
@@ -131,5 +226,64 @@ networks:
 		if networks[i] != want[i] {
 			t.Fatalf("networks[%d] = %q, want %q", i, networks[i], want[i])
 		}
+	}
+}
+
+func TestCheckInstallFromComposeIncludesExposureIntentPortInChecks(t *testing.T) {
+	t.Parallel()
+
+	app := newInstallPreflightTestApp(t)
+	probe := &installPreflightProbeStub{}
+
+	result, err := CheckInstallFromCompose(app, InstallPreflightRequest{InstallResolutionRequest: InstallResolutionRequest{
+		ServerID:    "server-1",
+		ProjectName: "Exposure Demo",
+		Compose:     "services:\n  web:\n    image: nginx:alpine\n",
+		Source:      deploy.SourceManualOps,
+		Adapter:     deploy.AdapterManualCompose,
+		ExposureIntent: &ExposureIntent{
+			ExposureType: "port",
+			TargetPort:   8080,
+		},
+	}}, probe)
+	if err != nil {
+		t.Fatalf("CheckInstallFromCompose() error = %v", err)
+	}
+	if result.OK {
+		t.Fatal("expected preflight to fail when exposure intent port conflicts")
+	}
+	if len(probe.ports) != 1 || probe.ports[0].Port != 8080 || probe.ports[0].Protocol != "tcp" {
+		t.Fatalf("expected exposure intent port to be checked, got %#v", probe.ports)
+	}
+	if !result.Checks.Ports.Conflict {
+		t.Fatalf("expected port conflict in preflight checks, got %#v", result.Checks.Ports)
+	}
+}
+
+func TestPreflightAndCreateOperationFromComposeBlocksExposureIntentPortConflict(t *testing.T) {
+	t.Parallel()
+
+	app := newInstallPreflightTestApp(t)
+	probe := &installPreflightProbeStub{}
+
+	_, err := PreflightAndCreateOperationFromCompose(app, nil, ComposeOperationRequest{
+		ServerID:    "server-1",
+		ProjectName: "Exposure Demo",
+		Compose:     "services:\n  web:\n    image: nginx:alpine\n",
+		Source:      deploy.SourceManualOps,
+		Adapter:     deploy.AdapterManualCompose,
+		ExposureIntent: &ExposureIntent{
+			ExposureType: "port",
+			TargetPort:   8080,
+		},
+	}, ComposeOperationOptions{}, probe)
+	if err == nil {
+		t.Fatal("expected create preflight to block exposure intent port conflict")
+	}
+	if !strings.Contains(err.Error(), "install preflight blocked") {
+		t.Fatalf("expected install preflight blocked error, got %v", err)
+	}
+	if len(probe.ports) != 1 || probe.ports[0].Port != 8080 || probe.ports[0].Protocol != "tcp" {
+		t.Fatalf("expected exposure intent port to be checked before create, got %#v", probe.ports)
 	}
 }

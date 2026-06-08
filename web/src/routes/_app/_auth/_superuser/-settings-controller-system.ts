@@ -11,6 +11,7 @@ export function useSystemSettingsController(showToast: ShowToast) {
   const [logoMediaId, setLogoMediaId] = useState('')
   const [logoUrl, setLogoUrl] = useState('')
   const [wordmark, setWordmark] = useState('appos')
+  const [description, setDescription] = useState('Application Platform')
   const [useLogoAsFavicon, setUseLogoAsFavicon] = useState(false)
   const [faviconMediaId, setFaviconMediaId] = useState('')
   const [faviconUrl, setFaviconUrl] = useState('')
@@ -42,6 +43,7 @@ export function useSystemSettingsController(showToast: ShowToast) {
         logoMediaId: string
         logoUrl: string
         wordmark: string
+        description: string
         useLogoAsFavicon: boolean
         faviconMediaId: string
         faviconUrl: string
@@ -49,6 +51,7 @@ export function useSystemSettingsController(showToast: ShowToast) {
     setLogoMediaId(branding.logoMediaId ?? '')
     setLogoUrl(branding.logoUrl ?? '')
     setWordmark(branding.wordmark ?? 'appos')
+    setDescription(branding.description ?? 'Application Platform')
     setUseLogoAsFavicon(branding.useLogoAsFavicon ?? false)
     setFaviconMediaId(branding.faviconMediaId ?? '')
     setFaviconUrl(branding.faviconUrl ?? '')
@@ -108,12 +111,13 @@ export function useSystemSettingsController(showToast: ShowToast) {
     try {
       await pb.send(settingsEntryPath('branding'), {
         method: 'PATCH',
-        body: { logoMediaId, logoUrl, wordmark, useLogoAsFavicon, faviconMediaId, faviconUrl },
+        body: { logoMediaId, logoUrl, wordmark, description, useLogoAsFavicon, faviconMediaId, faviconUrl },
       })
       dispatchBrandingUpdated({
         logoMediaId,
         logoUrl,
         wordmark,
+        description,
         useLogoAsFavicon,
         faviconMediaId,
         faviconUrl,
@@ -187,6 +191,7 @@ export function useSystemSettingsController(showToast: ShowToast) {
     logoMediaId,
     logoUrl,
     wordmark,
+    description,
     useLogoAsFavicon,
     faviconMediaId,
     faviconUrl,
@@ -196,6 +201,7 @@ export function useSystemSettingsController(showToast: ShowToast) {
     setLogoMediaId,
     setLogoUrl,
     setWordmark,
+    setDescription,
     setUseLogoAsFavicon,
     setFaviconMediaId,
     setFaviconUrl,

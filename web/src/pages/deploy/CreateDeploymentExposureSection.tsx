@@ -1,8 +1,11 @@
 import { CheckCircle2, Circle } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { HelpTip, type TemplateServiceItem } from './createDeploymentPage.helpers'
 
 type CreateDeploymentExposureSectionProps = {
+  showHeader?: boolean
   isTemplate: boolean
   templateServiceItems: TemplateServiceItem[]
   portExposureEnabled: boolean
@@ -24,6 +27,7 @@ type CreateDeploymentExposureSectionProps = {
 }
 
 export function CreateDeploymentExposureSection({
+  showHeader = true,
   isTemplate,
   templateServiceItems,
   portExposureEnabled,
@@ -41,6 +45,7 @@ export function CreateDeploymentExposureSection({
   exposureDomainMessage,
   extraServiceMappingMessage,
 }: CreateDeploymentExposureSectionProps) {
+  const publicAccessDisabled = !portExposureEnabled && !domainExposureEnabled
   const serviceItems = (
     isTemplate && templateServiceItems.length > 0
       ? templateServiceItems
@@ -64,30 +69,109 @@ export function CreateDeploymentExposureSection({
   }
 
   return (
-    <section className="rounded-lg border bg-card px-4 py-2.5">
-      <div className="min-w-0">
-        <div className="flex items-center gap-1">
-          <span className="text-base font-semibold">Exposure Intent</span>
-          <HelpTip text="Prefer server ports in the 9001-9999 range when the host port is operator-managed." />
+    <section>
+      {showHeader ? (
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1">
+              <span className="text-base font-semibold">Public Access</span>
+              <HelpTip text="Prefer server ports in the 9001-9999 range when the host port is operator-managed." />
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Choose one public access path, or disable public access entirely.
+            </div>
+          </div>
+          <div className="flex items-center gap-2 pt-0.5">
+            <Checkbox
+              id="public-access-disabled"
+              checked={publicAccessDisabled}
+              onCheckedChange={checked => {
+                if (checked) {
+                  setDomainExposureEnabled(false)
+                  setPortExposureEnabled(false)
+                  return
+                }
+
+                setDomainExposureEnabled(true)
+                setPortExposureEnabled(false)
+              }}
+            />
+            <TooltipProvider delayDuration={150}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <label
+                    htmlFor="public-access-disabled"
+                    className="cursor-pointer text-sm font-medium text-foreground transition-colors hover:text-foreground/80"
+                  >
+                    Disabled
+                  </label>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs text-xs">
+                  Disabled / Public access blocked
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
         </div>
-        <div className="text-xs text-muted-foreground">
-          Choose whether this deployment should be published by server port or reserved for a future
-          domain binding flow.
-        </div>
-      </div>
-      <div className="pt-3.5">
+      ) : null}
+      <div className={showHeader ? 'pt-3.5' : ''}>
         <div className="grid gap-3 md:grid-cols-2">
+          <div
+            className={`rounded-lg border px-3.5 py-2.5 transition-colors ${
+              domainExposureEnabled
+                ? 'border-foreground/50 bg-muted/30 text-foreground shadow-sm'
+                : 'border-border bg-background text-foreground'
+            } ${publicAccessDisabled ? 'opacity-50' : ''}`}
+          >
+            <button
+              type="button"
+              className="w-full text-left"
+              onClick={() => {
+                if (publicAccessDisabled) return
+                setDomainExposureEnabled(true)
+                setPortExposureEnabled(false)
+              }}
+              disabled={publicAccessDisabled}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2">
+                  {domainExposureEnabled ? (
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-foreground" />
+                  ) : (
+                    <Circle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                  )}
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold">Domain Access</span>
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                        Recommended
+                      </span>
+                    </div>
+                    <div className="pt-0.5 text-xs text-muted-foreground">
+                      Access via domain for security.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </button>
+          </div>
+
           <div
             className={`rounded-lg border px-3.5 py-2.5 transition-colors ${
               portExposureEnabled
                 ? 'border-foreground/50 bg-muted/30 text-foreground shadow-sm'
                 : 'border-border bg-background text-foreground'
-            }`}
+            } ${publicAccessDisabled ? 'opacity-50' : ''}`}
           >
             <button
               type="button"
               className="w-full text-left"
-              onClick={() => setPortExposureEnabled(current => !current)}
+              onClick={() => {
+                if (publicAccessDisabled) return
+                setPortExposureEnabled(true)
+                setDomainExposureEnabled(false)
+              }}
+              disabled={publicAccessDisabled}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-2">
@@ -97,17 +181,25 @@ export function CreateDeploymentExposureSection({
                     <Circle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                   )}
                   <div>
-                    <div className="text-sm font-semibold">Server Port Access</div>
+                    <div className="text-sm font-semibold">Port Access</div>
                     <div className="pt-0.5 text-xs text-muted-foreground">
-                      Use a server port only when no domain is available for this deployment.
+                      Access via port if domain unavailable.
                     </div>
                   </div>
                 </div>
               </div>
             </button>
+          </div>
+        </div>
 
-            {portExposureEnabled ? (
-              <div className="pt-3">
+        {!publicAccessDisabled && domainExposureEnabled ? (
+          <div className="mt-3 rounded-lg border bg-muted/10 px-3.5 py-3 text-sm text-muted-foreground">
+            {exposureDomainMessage}
+          </div>
+        ) : null}
+
+        {!publicAccessDisabled && portExposureEnabled ? (
+          <div className="mt-3 rounded-lg border bg-muted/10 px-3.5 py-3">
                 <div className="grid grid-cols-[minmax(0,1.35fr)_110px_88px_116px] gap-2.5 border-b pb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                   <div>Service Name</div>
                   <div>Container Port</div>
@@ -198,49 +290,8 @@ export function CreateDeploymentExposureSection({
                     {extraServiceMappingMessage}
                   </div>
                 ) : null}
-              </div>
-            ) : null}
           </div>
-
-          <div
-            className={`rounded-lg border px-3.5 py-2.5 transition-colors ${
-              domainExposureEnabled
-                ? 'border-foreground/50 bg-muted/30 text-foreground shadow-sm'
-                : 'border-border bg-background text-foreground'
-            }`}
-          >
-            <button
-              type="button"
-              className="w-full text-left"
-              onClick={() => setDomainExposureEnabled(current => !current)}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-2">
-                  {domainExposureEnabled ? (
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-foreground" />
-                  ) : (
-                    <Circle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                  )}
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold">Primary Domain Access</span>
-                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                        Recommended
-                      </span>
-                    </div>
-                    <div className="pt-0.5 text-xs text-muted-foreground">
-                      Applies only to the primary service.
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </button>
-
-            {domainExposureEnabled ? (
-              <div className="pt-3 text-sm text-muted-foreground">{exposureDomainMessage}</div>
-            ) : null}
-          </div>
-        </div>
+        ) : null}
       </div>
     </section>
   )

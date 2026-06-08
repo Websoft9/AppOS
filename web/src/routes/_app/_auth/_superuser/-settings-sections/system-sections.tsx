@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react'
 import { Loader2, Upload } from 'lucide-react'
-import { resolveBranding } from '@/lib/branding'
 import { uploadMedia } from '@/lib/media-api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -56,29 +55,31 @@ export function BasicSection({
 }
 
 export function BrandingSection({
-  appName,
   logoUrl,
   wordmark,
+  description,
   useLogoAsFavicon,
   faviconUrl,
   brandingSaving,
   setLogoMediaId,
   setLogoUrl,
   setWordmark,
+  setDescription,
   setUseLogoAsFavicon,
   setFaviconMediaId,
   setFaviconUrl,
   saveBranding,
 }: {
-  appName: string
   logoUrl: string
   wordmark: string
+  description: string
   useLogoAsFavicon: boolean
   faviconUrl: string
   brandingSaving: boolean
   setLogoMediaId: (value: string) => void
   setLogoUrl: (value: string) => void
   setWordmark: (value: string) => void
+  setDescription: (value: string) => void
   setUseLogoAsFavicon: (value: boolean) => void
   setFaviconMediaId: (value: string) => void
   setFaviconUrl: (value: string) => void
@@ -87,13 +88,6 @@ export function BrandingSection({
   const [uploadError, setUploadError] = useState('')
   const logoUploadRef = useRef<HTMLInputElement | null>(null)
   const faviconUploadRef = useRef<HTMLInputElement | null>(null)
-  const brandingPreview = resolveBranding({
-    appName,
-    logoUrl,
-    wordmark,
-    useLogoAsFavicon,
-    faviconUrl,
-  })
 
   function handleImageUpload(
     event: React.ChangeEvent<HTMLInputElement>,
@@ -138,35 +132,14 @@ export function BrandingSection({
     <Card>
       <CardHeader>
         <CardTitle>Branding</CardTitle>
-        <CardDescription>
-          Configure the platform logo, wordmark, and favicon. If no logo is provided, one is
-          generated automatically.
-        </CardDescription>
+        <CardDescription>Configure your organization branding</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex items-center gap-4 rounded-md bg-muted/40 p-3">
-          <img
-            src={brandingPreview.logoUrl}
-            alt={`${brandingPreview.appName} preview logo`}
-            className="h-10 w-10 rounded-lg object-cover"
-          />
-          <div className="min-w-0 flex-1">
-            <div className="truncate font-medium">{brandingPreview.wordmark}</div>
-            <div className="truncate text-xs text-muted-foreground">{brandingPreview.appName}</div>
-          </div>
-          <img
-            src={brandingPreview.faviconUrl}
-            alt={`${brandingPreview.appName} preview favicon`}
-            className="h-6 w-6 rounded object-cover"
-          />
-        </div>
         {uploadError ? <p className="text-sm text-destructive">{uploadError}</p> : null}
         <div className="space-y-1">
           <div className="space-y-1">
             <Label htmlFor="logoUrl">Logo</Label>
-            <p className="text-sm text-muted-foreground">
-              Enter an online URL, or upload an image to fill this field automatically.
-            </p>
+            <p className="text-sm text-muted-foreground">Enter an online URL, or upload an image</p>
           </div>
           <div className="flex gap-2">
             <Input
@@ -192,21 +165,10 @@ export function BrandingSection({
             </Button>
           </div>
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="wordmark">Wordmark</Label>
-          <Input
-            id="wordmark"
-            value={wordmark}
-            onChange={e => setWordmark(e.target.value)}
-            placeholder="appos"
-          />
-        </div>
         <div className="space-y-3">
           <div className="space-y-1">
             <Label htmlFor="faviconUrl">Favicon</Label>
-            <p className="text-sm text-muted-foreground">
-              Same as Logo, with an optional switch to reuse the Logo directly.
-            </p>
+            <p className="text-sm text-muted-foreground">Enter an online URL, or upload an image, or use logo</p>
           </div>
           <div className="flex items-center gap-3">
             <Toggle
@@ -245,6 +207,24 @@ export function BrandingSection({
               </Button>
             </div>
           ) : null}
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="wordmark">Wordmark</Label>
+          <Input
+            id="wordmark"
+            value={wordmark}
+            onChange={e => setWordmark(e.target.value)}
+            placeholder="appos"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="description">Description</Label>
+          <Input
+            id="description"
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            placeholder="Application Platform"
+          />
         </div>
         <SaveButton onClick={saveBranding} saving={brandingSaving} />
       </CardContent>

@@ -117,7 +117,7 @@ func CheckInstallFromCompose(app core.App, request InstallPreflightRequest, prob
 		return InstallPreflightResult{}, err
 	}
 
-	checks, warnings, err := buildInstallResourceChecks(context.Background(), app, probe, normalizedSpec.ServerID, normalizedSpec.ProjectDir, normalizedSpec.RenderedCompose, normalizedSpec.Metadata)
+	checks, warnings, err := buildInstallResourceChecks(context.Background(), app, probe, normalizedSpec.ServerID, normalizedSpec.ProjectDir, normalizedSpec.RenderedCompose, normalizedSpec.ExposureIntent, normalizedSpec.Metadata)
 	if err != nil {
 		return InstallPreflightResult{}, err
 	}
@@ -224,11 +224,12 @@ func hasActiveAppName(app core.App, composeProjectName string) (bool, error) {
 	return len(existing) > 0, nil
 }
 
-func buildInstallResourceChecks(ctx context.Context, app core.App, probe InstallPreflightProbe, serverID string, projectDir string, compose string, metadata map[string]any) (InstallPreflightChecks, []string, error) {
+func buildInstallResourceChecks(ctx context.Context, app core.App, probe InstallPreflightProbe, serverID string, projectDir string, compose string, exposureIntent *ExposureIntent, metadata map[string]any) (InstallPreflightChecks, []string, error) {
 	publishedPorts, err := extractComposePublishedPorts(compose)
 	if err != nil {
 		return InstallPreflightChecks{}, nil, err
 	}
+	publishedPorts = mergeInstallPreflightPublishedPorts(publishedPorts, exposureIntent)
 	containerNames, err := extractComposeContainerNames(compose)
 	if err != nil {
 		return InstallPreflightChecks{}, nil, err
@@ -276,6 +277,36 @@ func buildInstallResourceChecks(ctx context.Context, app core.App, probe Install
 		DockerAvailability: dockerCheck,
 		DiskSpace:          diskCheck,
 	}, warnings, nil
+}
+
+func mergeInstallPreflightPublishedPorts(composePorts []InstallPreflightPublishedPort, exposureIntent *ExposureIntent) []InstallPreflightPublishedPort {
+	if len(composePorts) == 0 && (exposureIntent == nil || strings.TrimSpace(exposureIntent.ExposureType) != "port" || exposureIntent.TargetPort <= 0) {
+		return composePorts
+	}
+
+	result := make([]InstallPreflightPublishedPort, 0, len(composePorts)+1)
+	seen := make(map[string]struct{}, len(composePorts)+1)
+	appendUnique := func(port InstallPreflightPublishedPort) {
+		protocol := strings.ToLower(strings.TrimSpace(port.Protocol))
+		if protocol == "" {
+			protocol = "tcp"
+		}
+		key := fmt.Sprintf("%d/%s", port.Port, protocol)
+		if _, exists := seen[key]; exists {
+			return
+		}
+		seen[key] = struct{}{}
+		result = append(result, InstallPreflightPublishedPort{Port: port.Port, Protocol: protocol})
+	}
+
+	for _, port := range composePorts {
+		appendUnique(port)
+	}
+	if exposureIntent != nil && strings.TrimSpace(exposureIntent.ExposureType) == "port" && exposureIntent.TargetPort > 0 {
+		appendUnique(InstallPreflightPublishedPort{Port: exposureIntent.TargetPort, Protocol: "tcp"})
+	}
+
+	return result
 }
 
 func loadDeployMinFreeDiskBytes(app core.App) int64 {

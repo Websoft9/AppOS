@@ -4,6 +4,8 @@ import {
   DEFAULT_APP_NAME,
   fetchBranding,
   resolveBranding,
+  subscribePageTitle,
+  unsubscribePageTitle,
   type BrandingPayload,
   type ResolvedBranding,
 } from '@/lib/branding'
@@ -46,8 +48,15 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    document.title = branding.appName
+    const sync = () => {
+      const prefix = subscribePageTitle(() => sync)
+      document.title = prefix ? `${prefix} - ${branding.wordmark}` : branding.wordmark
+    }
+    sync()
+    return () => unsubscribePageTitle(sync)
+  }, [branding.wordmark])
 
+  useEffect(() => {
     const existing = document.querySelector("link[rel='icon']") as HTMLLinkElement | null
     const icon = existing ?? document.createElement('link')
     icon.rel = 'icon'

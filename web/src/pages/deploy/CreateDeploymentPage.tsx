@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2, ChevronDown, Eye, EyeOff, List, Loader2, ShieldAlert, X } from 'lucide-react'
 import { CircleHelp } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
@@ -84,6 +84,59 @@ type TemplateSecretState = {
   rawValue: string
 }
 
+type SectionHeadingProps = {
+  title: string
+  description: string
+  helpText?: string
+}
+
+type FormRowProps = {
+  label: string
+  htmlFor: string
+  helpText?: string
+  required?: boolean
+  children: ReactNode
+  hint?: ReactNode
+}
+
+const FORM_CONTROL_CLASS = 'w-[30rem] max-w-full'
+const FORM_SECTION_CLASS = 'max-w-[40rem]'
+
+function SectionHeading({ title, description, helpText }: SectionHeadingProps) {
+  return (
+    <div className="px-1">
+      <div className="flex items-center gap-1">
+        <span className="text-base font-semibold tracking-tight">{title}</span>
+        {helpText ? <HelpTip text={helpText} /> : null}
+      </div>
+      <div className="text-xs text-muted-foreground">{description}</div>
+    </div>
+  )
+}
+
+function FormRow({ label, htmlFor, helpText, required, children, hint }: FormRowProps) {
+  return (
+    <div className="grid gap-2 md:grid-cols-[140px_minmax(0,1fr)] md:gap-3">
+      <div className="flex items-center gap-1 md:pt-2">
+        <Label htmlFor={htmlFor} className="text-xs font-medium">
+          {label}
+          {required ? (
+            <span aria-hidden="true" className="text-destructive">
+              {' '}
+              *
+            </span>
+          ) : null}
+        </Label>
+        {helpText ? <HelpTip text={helpText} /> : null}
+      </div>
+      <div>
+        {children}
+        {hint ? <div className="mt-1 text-[11px] leading-5 text-muted-foreground">{hint}</div> : null}
+      </div>
+    </div>
+  )
+}
+
 export function CreateDeploymentPage({
   prefillMode,
   prefillSource,
@@ -157,7 +210,6 @@ export function CreateDeploymentPage({
   >({})
   const isGit = createEntryMode === 'git-compose'
   const isTemplate = createEntryMode === 'template'
-  const isPinnedTemplate = isTemplate && Boolean(prefillAppKey?.trim())
   const activeName = isGit ? gitProjectName : projectName
   const activeSubmitting = isGit ? gitSubmitting : submitting
   const activeChecking = isGit ? gitChecking : checking
@@ -260,7 +312,7 @@ export function CreateDeploymentPage({
   const [helpVisible, setHelpVisible] = useState(false)
   const [preflightVisible, setPreflightVisible] = useState(false)
   const [portExposureEnabled, setPortExposureEnabled] = useState(false)
-  const [domainExposureEnabled, setDomainExposureEnabled] = useState(false)
+  const [domainExposureEnabled, setDomainExposureEnabled] = useState(true)
   const [servicePortMappings, setServicePortMappings] = useState<
     Record<string, { enabled: boolean; port: string }>
   >({})
@@ -399,11 +451,9 @@ export function CreateDeploymentPage({
     return parsed
   }, [portExposureEnabled, primaryPortMapping])
   const exposureSelectionError =
-    !portExposureEnabled && !domainExposureEnabled
-      ? 'Select at least one exposure option.'
-      : portExposureEnabled && mappedServiceNames.length === 0
-        ? 'Enable at least one service row when Server Port Access is selected.'
-        : null
+    portExposureEnabled && mappedServiceNames.length === 0
+      ? 'Enable at least one service row when Server Port Access is selected.'
+      : null
   const exposurePortError =
     portExposureEnabled && primaryPortMapping?.enabled && parsedExposurePort == null
       ? 'Enter a valid server port between 1 and 65535.'
@@ -664,6 +714,7 @@ export function CreateDeploymentPage({
           value={templateInputValues[field.key] ?? ''}
           onChange={e => setTemplateInputValue(field.key, e.target.value)}
           placeholder={field.default == null ? '' : String(field.default)}
+          className="w-full"
         />
       )
     },
@@ -972,6 +1023,17 @@ export function CreateDeploymentPage({
     return messages
   }, [checkResult, diskSummary, nameResult, preflightSummary])
 
+  const selectedServer = useMemo(
+    () => servers.find(item => item.id === serverId) || null,
+    [serverId, servers]
+  )
+  const targetLabel = selectedServer ? selectedServer.label : serverId ? 'Selected target' : 'Not set'
+  const exposureSummary = domainExposureEnabled
+    ? 'Domain Access'
+    : portExposureEnabled
+      ? 'Port Access'
+      : 'Public access blocked'
+
   useEffect(() => {
     if (!activeName.trim()) {
       setNameResult(null)
@@ -1058,31 +1120,27 @@ export function CreateDeploymentPage({
       ) : null}
 
       {/* ════ Two-column: Form workspace │ Review panel ════ */}
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+      <div className="grid gap-7 xl:grid-cols-[40rem_25rem] xl:justify-start">
         {/* ──── Left: Form workspace ──── */}
-        <div className="space-y-5">
+        <div className="space-y-6 p-4 xl:p-5">
           {/* ── Section 1: Basic ── */}
-          <section className="rounded-lg border bg-card px-4 py-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-1">
-                <span className="text-base font-semibold">Basic</span>
-                <HelpTip text="Set the deployment name and choose the target server." />
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Application identity and target server
-              </div>
-            </div>
-            <div className="grid gap-4 pt-4 md:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="deploy-name" className="text-xs">
-                  App Name{' '}
-                  <span aria-hidden="true" className="text-destructive">
-                    *
-                  </span>
-                  <HelpTip text="Must be unique across the server. Used as compose project name and the app data directory root." />
-                </Label>
+          <div>
+            <section className="px-1 py-1">
+            <div className={`grid gap-4 ${FORM_SECTION_CLASS}`}>
+              <FormRow
+                label="App Name"
+                htmlFor="deploy-name"
+                required
+                helpText="Must be unique across the server. Used as compose project name and the app data directory root."
+                hint={
+                  nameHint ? (
+                    <span className="text-amber-700 dark:text-amber-400">{nameHint}</span>
+                  ) : null
+                }
+              >
                 <Input
                   id="deploy-name"
+                  className={FORM_CONTROL_CLASS}
                   value={activeName}
                   onChange={e => {
                     if (isGit) {
@@ -1098,22 +1156,17 @@ export function CreateDeploymentPage({
                   placeholder={isGit ? 'Required, e.g. repo-app' : 'Required, e.g. wordpress-prod'}
                   required
                 />
-                {nameHint ? (
-                  <div className="text-[11px] text-amber-700 dark:text-amber-400">{nameHint}</div>
-                ) : null}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="deploy-server" className="text-xs">
-                  Target Location{' '}
-                  <span aria-hidden="true" className="text-destructive">
-                    *
-                  </span>
-                  <HelpTip text="The target server where containers will be created and managed." />
-                </Label>
+              </FormRow>
+              <FormRow
+                label="Target Location"
+                htmlFor="deploy-server"
+                required
+                helpText="The target server where containers will be created and managed."
+              >
                 <div className="flex items-center gap-2">
                   <select
                     id="deploy-server"
-                    className="border-input bg-background h-9 min-w-0 flex-1 rounded-md border px-3 text-sm"
+                    className={`border-input bg-background h-9 rounded-md border px-3 text-sm ${FORM_CONTROL_CLASS}`}
                     value={serverId}
                     onChange={e => setServerId(e.target.value)}
                     required
@@ -1171,44 +1224,17 @@ export function CreateDeploymentPage({
                     </TooltipProvider>
                   ) : null}
                 </div>
-              </div>
+              </FormRow>
             </div>
-          </section>
+            </section>
+          </div>
 
           {/* ── Section 2: Source inputs ── */}
           {isTemplate ? (
-            <Card>
-              <CardHeader className="pb-2.5">
-                <div className="flex items-start justify-between gap-4">
-                  <CardTitle className="flex min-w-0 items-center gap-1 pt-0.5 text-sm leading-5">
-                    Template Selection
-                    <HelpTip
-                      text={
-                        isPinnedTemplate
-                          ? 'This deployment is pinned to the app you selected in App Store. Fill only the required basic inputs.'
-                          : 'Template deployment must start from App Store so the selected application stays consistent end to end.'
-                      }
-                    />
-                  </CardTitle>
-                  {templateKey && templateDisplayName ? (
-                    <div className="flex shrink-0 items-center gap-2 pt-0.5 text-sm font-medium leading-5 text-foreground">
-                      {templateAppDetail?.iconUrl ? (
-                        <img
-                          src={templateAppDetail.iconUrl}
-                          alt={`${templateDisplayName} logo`}
-                          className="h-5 w-5 shrink-0 rounded-sm bg-muted object-cover ring-1 ring-border/60"
-                        />
-                      ) : (
-                        <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm bg-muted text-[10px] font-semibold text-foreground ring-1 ring-border/60">
-                          {templateDisplayInitial}
-                        </div>
-                      )}
-                      <div className="truncate leading-5">{templateDisplayName}</div>
-                    </div>
-                  ) : null}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
+            <div className="space-y-2 pt-2">
+              <div className="px-1 text-xs font-medium text-muted-foreground">App Settings</div>
+              <Card className={`border-0 bg-transparent shadow-none ${FORM_SECTION_CLASS}`}>
+                <CardContent className="space-y-4 px-1 py-1">
                 {!templateKey ? (
                   <div className="rounded-lg border border-dashed bg-muted/20 p-3 text-xs text-muted-foreground">
                     Open the target application from App Store and start deployment there. This flow
@@ -1218,30 +1244,26 @@ export function CreateDeploymentPage({
                   <div className="text-xs text-muted-foreground">Loading template contract...</div>
                 ) : templateDetail ? (
                   <>
-                    <div className="grid gap-3 md:grid-cols-2">
+                    <div className="grid gap-4">
                       {templateVersionField ? (
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor={`template-field-${templateVersionField.key}`}
-                            className="text-xs"
-                          >
-                            {templateVersionField.label || templateVersionField.key}
-                            {templateVersionField.required ? ' *' : ''}
-                          </Label>
-                          {renderTemplateFieldInput(
-                            templateVersionField,
-                            `template-field-${templateVersionField.key}`
-                          )}
-                        </div>
+                        <FormRow
+                          label={templateVersionField.label || templateVersionField.key}
+                          htmlFor={`template-field-${templateVersionField.key}`}
+                          required={templateVersionField.required}
+                        >
+                          <div className={FORM_CONTROL_CLASS}>
+                            {renderTemplateFieldInput(
+                              templateVersionField,
+                              `template-field-${templateVersionField.key}`
+                            )}
+                          </div>
+                        </FormRow>
                       ) : null}
                       {hasTemplateDatabaseSource ? (
-                        <div className="space-y-1.5">
-                          <Label htmlFor="template-db-source" className="text-xs">
-                            Database Source
-                          </Label>
+                        <FormRow label="Database Source" htmlFor="template-db-source">
                           <select
                             id="template-db-source"
-                            className="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
+                            className={`border-input bg-background h-9 rounded-md border px-3 text-sm ${FORM_CONTROL_CLASS}`}
                             value="companion"
                             onChange={() => undefined}
                           >
@@ -1254,36 +1276,40 @@ export function CreateDeploymentPage({
                               Service Instance DB (coming soon)
                             </option>
                           </select>
-                        </div>
+                        </FormRow>
                       ) : null}
                       {templateRemainingBasicFields.map(field => (
-                        <div key={field.key} className="space-y-1.5">
-                          <Label htmlFor={`template-field-${field.key}`} className="text-xs">
-                            {field.label || field.key}
-                            {field.required ? ' *' : ''}
-                          </Label>
-                          {renderTemplateFieldInput(field, `template-field-${field.key}`)}
-                          {field.key.trim().toLowerCase() === 'version' ||
-                          String(field.label || '')
-                            .trim()
-                            .toLowerCase() === 'version' ? null : (
-                            <div className="text-[11px] text-muted-foreground">
-                              {field.storage_mode === 'secret_backed'
+                        <FormRow
+                          key={field.key}
+                          label={field.label || field.key}
+                          htmlFor={`template-field-${field.key}`}
+                          required={field.required}
+                          hint={
+                            field.key.trim().toLowerCase() === 'version' ||
+                            String(field.label || '')
+                              .trim()
+                              .toLowerCase() === 'version'
+                              ? null
+                              : field.storage_mode === 'secret_backed'
                                 ? 'Secret-backed input'
                                 : field.storage_mode === 'system_managed'
                                   ? 'Managed by the template runtime.'
-                                  : 'Template input'}
-                            </div>
-                          )}
-                        </div>
+                                  : 'Template input'
+                          }
+                        >
+                          <div className={FORM_CONTROL_CLASS}>
+                            {renderTemplateFieldInput(field, `template-field-${field.key}`)}
+                          </div>
+                        </FormRow>
                       ))}
                     </div>
                   </>
                 ) : templateKey ? (
                   <div className="text-xs text-muted-foreground">Template details unavailable.</div>
                 ) : null}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
           ) : isGit ? (
             /* ── Git-compose inputs ── */
             <Card>
@@ -1426,48 +1452,49 @@ export function CreateDeploymentPage({
             </>
           )}
 
-          <CreateDeploymentExposureSection
-            isTemplate={isTemplate}
-            templateServiceItems={templateServiceItems}
-            portExposureEnabled={portExposureEnabled}
-            setPortExposureEnabled={setPortExposureEnabled}
-            domainExposureEnabled={domainExposureEnabled}
-            setDomainExposureEnabled={setDomainExposureEnabled}
-            servicePortMappings={servicePortMappings}
-            setServicePortMappings={setServicePortMappings}
-            onPrimaryPortManualChange={() => setAutoManagePrimaryExposurePort(false)}
-            primaryServiceName={exposurePrimaryService?.name || 'primary'}
-            recommendedExposurePort={effectiveRecommendedExposurePort}
-            recommendedExposurePortHint={recommendedExposurePortHint}
-            exposurePortError={exposurePortError}
-            exposureSelectionError={exposureSelectionError}
-            exposureDomainMessage={exposureDomainMessage}
-            extraServiceMappingMessage={extraServiceMappingMessage}
-          />
+          <div className={FORM_SECTION_CLASS}>
+            <CreateDeploymentExposureSection
+              showHeader
+              isTemplate={isTemplate}
+              templateServiceItems={templateServiceItems}
+              portExposureEnabled={portExposureEnabled}
+              setPortExposureEnabled={setPortExposureEnabled}
+              domainExposureEnabled={domainExposureEnabled}
+              setDomainExposureEnabled={setDomainExposureEnabled}
+              servicePortMappings={servicePortMappings}
+              setServicePortMappings={setServicePortMappings}
+              onPrimaryPortManualChange={() => setAutoManagePrimaryExposurePort(false)}
+              primaryServiceName={exposurePrimaryService?.name || 'primary'}
+              recommendedExposurePort={effectiveRecommendedExposurePort}
+              recommendedExposurePortHint={recommendedExposurePortHint}
+              exposurePortError={exposurePortError}
+              exposureSelectionError={exposureSelectionError}
+              exposureDomainMessage={exposureDomainMessage}
+              extraServiceMappingMessage={extraServiceMappingMessage}
+            />
+          </div>
 
           {/* ── Section 3: Advanced Options ── */}
-          <details className="group rounded-lg border bg-card">
-            <summary className="flex cursor-pointer list-none items-start justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
-              <div className="min-w-0">
-                <div className="flex items-center gap-1">
-                  <span className="text-base font-semibold">Advanced Options</span>
-                  <HelpTip text="Additional deployment parameters resolved and normalized by the backend before execution." />
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Password overrides, runtime notes, and deferred controls
-                </div>
-              </div>
-              <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-0 [&:not([open]_&)]:rotate-[-90deg]" />
-            </summary>
-            <div className="grid gap-3 px-4 pb-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <SectionHeading
+              title="Advanced"
+              description="Optional settings"
+              helpText="Additional deployment parameters resolved and normalized by the backend before execution."
+            />
+            <details className={`group ${FORM_SECTION_CLASS} rounded-xl border border-border/60 bg-card/40 px-3 py-2`}>
+              <summary className="flex cursor-pointer list-none items-center justify-end gap-3 py-1 text-sm font-medium text-muted-foreground [&::-webkit-details-marker]:hidden">
+                <span className="sr-only">Toggle advanced settings</span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+              </summary>
+            <div className="grid gap-4 px-1 pb-2 pt-3">
               {isTemplate ? (
                 <>
-                  <div className="rounded-lg border bg-muted/10 p-3">
-                    <Label htmlFor="required-disk" className="text-xs font-medium">
-                      Estimated App Disk (GiB){' '}
-                      <HelpTip text="Optional for manual inputs. Template mode prefills this from the app metadata and still allows an override before preflight." />
-                    </Label>
-                    <div className="mt-2 space-y-1.5">
+                  <FormRow
+                    label="Estimated App Disk"
+                    htmlFor="required-disk"
+                    helpText="Optional for manual inputs. Template mode prefills this from the app metadata and still allows an override before preflight."
+                  >
+                    <div className={`flex items-center gap-2 ${FORM_CONTROL_CLASS}`}>
                       <Input
                         id="required-disk"
                         type="number"
@@ -1481,70 +1508,58 @@ export function CreateDeploymentPage({
                             : 'Optional, e.g. 2'
                         }
                       />
-                      <div className="text-[11px] text-muted-foreground">
-                        Override the template default only when preflight should reserve a different
-                        disk estimate.
-                      </div>
+                      <span className="shrink-0 text-sm text-muted-foreground">GiB</span>
                     </div>
-                  </div>
-                  <div className="rounded-lg border bg-muted/10 p-3">
-                    <div className="text-xs font-medium">Advanced Template Inputs</div>
-                    <div className="mt-2 space-y-3">
-                      {templateAdvancedFields.length === 0 ? (
-                        <div className="text-xs text-muted-foreground">
-                          No advanced inputs for this template.
+                  </FormRow>
+                  {templateAdvancedFields.length === 0 ? (
+                    <div className="px-1 text-xs text-muted-foreground">
+                      No advanced inputs for this template.
+                    </div>
+                  ) : (
+                    templateAdvancedFields.map(field => (
+                      <FormRow
+                        key={field.key}
+                        label={isDatabasePasswordTemplateField(field) ? 'Database Password' : field.label || field.key}
+                        htmlFor={`template-advanced-${field.key}`}
+                        required={field.required}
+                        hint={
+                          isDatabasePasswordTemplateField(field)
+                            ? 'Auto-generated by default; change only if you need a fixed credential.'
+                            : undefined
+                        }
+                      >
+                        <div className={FORM_CONTROL_CLASS}>
+                          {renderTemplateFieldInput(field, `template-advanced-${field.key}`)}
                         </div>
-                      ) : (
-                        templateAdvancedFields.map(field => (
-                          <div key={field.key} className="space-y-1.5">
-                            <Label htmlFor={`template-advanced-${field.key}`} className="text-xs">
-                              {isDatabasePasswordTemplateField(field)
-                                ? 'Database Password'
-                                : field.label || field.key}
-                              {field.required ? ' *' : ''}
-                            </Label>
-                            {renderTemplateFieldInput(field, `template-advanced-${field.key}`)}
-                            {isDatabasePasswordTemplateField(field) ? (
-                              <div className="text-[11px] text-muted-foreground">
-                                Auto-generated by default. Change it only when you need a fixed
-                                database credential.
-                              </div>
-                            ) : null}
-                          </div>
-                        ))
-                      )}
+                      </FormRow>
+                    ))
+                  )}
+                  <FormRow label="Primary Service" htmlFor="advanced-primary-service">
+                    <div id="advanced-primary-service" className="pt-2 text-sm text-muted-foreground">
+                      {templatePrimaryService?.name || 'template-defined'}
                     </div>
-                  </div>
-                  <div className="rounded-lg border bg-muted/10 p-3">
-                    <div className="text-xs font-medium">Runtime Notes</div>
-                    <div className="mt-2 space-y-2 text-xs text-muted-foreground">
-                      <div>
-                        Primary template service:{' '}
-                        {templatePrimaryService?.name || 'template-defined'}
-                      </div>
-                      <div>
-                        Hidden system inputs:{' '}
-                        {templateHiddenFields.length > 0
-                          ? templateHiddenFields.map(field => field.key).join(', ')
-                          : 'none'}
-                      </div>
-                      <div>
-                        Estimated app disk default:{' '}
-                        {templateRequirementDiskGiB
-                          ? `${templateRequirementDiskGiB} GiB`
-                          : 'not declared'}
-                      </div>
+                  </FormRow>
+                  <FormRow label="Hidden Inputs" htmlFor="advanced-hidden-inputs">
+                    <div id="advanced-hidden-inputs" className="pt-2 text-sm text-muted-foreground">
+                      {templateHiddenFields.length > 0
+                        ? templateHiddenFields.map(field => field.key).join(', ')
+                        : 'none'}
                     </div>
-                  </div>
+                  </FormRow>
+                  <FormRow label="Default Disk" htmlFor="advanced-default-disk">
+                    <div id="advanced-default-disk" className="pt-2 text-sm text-muted-foreground">
+                      {templateRequirementDiskGiB ? `${templateRequirementDiskGiB} GiB` : 'not declared'}
+                    </div>
+                  </FormRow>
                 </>
               ) : (
                 <>
-                  <div className="rounded-lg border bg-muted/10 p-3">
-                    <Label htmlFor="required-disk" className="text-xs font-medium">
-                      Estimated App Disk (GiB){' '}
-                      <HelpTip text="Optional estimate used by preflight when checking whether the selected target has enough free space." />
-                    </Label>
-                    <div className="mt-2 space-y-1.5">
+                  <FormRow
+                    label="Estimated App Disk"
+                    htmlFor="required-disk"
+                    helpText="Optional estimate used by preflight when checking whether the selected target has enough free space."
+                  >
+                    <div className={`flex items-center gap-2 ${FORM_CONTROL_CLASS}`}>
                       <Input
                         id="required-disk"
                         type="number"
@@ -1554,30 +1569,45 @@ export function CreateDeploymentPage({
                         onChange={e => setAppRequiredDiskGiB(e.target.value)}
                         placeholder="Optional, e.g. 2"
                       />
+                      <span className="shrink-0 text-sm text-muted-foreground">GiB</span>
                     </div>
-                  </div>
-                  <div className="rounded-lg border bg-muted/10 p-3">
-                    <div className="text-xs font-medium">
-                      Exposure Intent{' '}
-                      <HelpTip text="Domain, path, or port publication intent for reverse-proxy configuration." />
+                  </FormRow>
+                  <FormRow
+                    label="Exposure Rules"
+                    htmlFor="advanced-exposure-rules"
+                    helpText="Domain, path, or port publication intent for reverse-proxy configuration."
+                  >
+                    <div id="advanced-exposure-rules" className="pt-2 text-sm text-muted-foreground">
+                      Coming soon
                     </div>
-                    <div className="mt-1 text-xs text-muted-foreground">Coming soon</div>
-                  </div>
-                  <div className="rounded-lg border bg-muted/10 p-3">
-                    <div className="text-xs font-medium">
-                      Secret-backed Inputs{' '}
-                      <HelpTip text="Sensitive values managed through the backend secret store, never exposed in plain text." />
+                  </FormRow>
+                  <FormRow
+                    label="Secret-backed Inputs"
+                    htmlFor="advanced-secret-inputs"
+                    helpText="Sensitive values managed through the backend secret store, never exposed in plain text."
+                  >
+                    <div id="advanced-secret-inputs" className="pt-2 text-sm text-muted-foreground">
+                      Coming soon
                     </div>
-                    <div className="mt-1 text-xs text-muted-foreground">Coming soon</div>
-                  </div>
+                  </FormRow>
                 </>
               )}
             </div>
           </details>
         </div>
 
+        </div>
+
         {/* ──── Right: Review panel ──── */}
         <CreateDeploymentReviewPanel
+          appName={activeName}
+          targetServerId={serverId || undefined}
+          targetLabel={targetLabel}
+          templateAppKey={isTemplate ? templateKey || undefined : undefined}
+          templateLabel={isTemplate ? templateDisplayName || templateKey || undefined : undefined}
+          templateIconUrl={isTemplate ? templateAppDetail?.iconUrl || undefined : undefined}
+          templateInitial={isTemplate ? templateDisplayInitial : undefined}
+          exposureSummary={exposureSummary}
           preflightVisible={preflightVisible}
           helpVisible={helpVisible}
           checkResult={checkResult}

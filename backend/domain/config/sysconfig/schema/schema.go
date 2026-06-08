@@ -73,10 +73,11 @@ var entryCatalog = []EntrySchema{
 		Fields: []FieldSchema{
 			{ID: "logoMediaId", Label: "Logo Media ID", Type: "string"},
 			{ID: "logoUrl", Label: "Logo", Type: "url", HelpText: "Logo image URL. Leave empty to auto-generate one from the current name or wordmark."},
-			{ID: "wordmark", Label: "Wordmark", Type: "string", HelpText: "Text shown beside the logo in the sidebar."},
 			{ID: "useLogoAsFavicon", Label: "Use Logo as Favicon", Type: "boolean"},
 			{ID: "faviconMediaId", Label: "Favicon Media ID", Type: "string"},
 			{ID: "faviconUrl", Label: "Favicon", Type: "url", HelpText: "Custom favicon image URL. Ignored when using the logo as favicon."},
+			{ID: "wordmark", Label: "Wordmark", Type: "string", HelpText: "Text shown beside the logo in the sidebar."},
+			{ID: "description", Label: "Description", Type: "string", HelpText: "Short tagline shown below the platform name in the sidebar."},
 		},
 	},
 	{
@@ -406,6 +407,7 @@ var customSettingDefaults = map[string]map[string]any{
 		"logoMediaId":      "",
 		"logoUrl":          "",
 		"wordmark":         "appos",
+		"description":      "Application Platform",
 		"useLogoAsFavicon": false,
 		"faviconMediaId":   "",
 		"faviconUrl":       "",
