@@ -169,11 +169,10 @@ templates:
     reinstall:
       strategy: reinstall  # re-run install then verify
 
-  # binary-supervisor: pre-installed binary managed by supervisord inside the AppOS container.
-  # Software Delivery detects the version and verifies the supervisord program state.
-  # No install or upgrade — these components are baked into the container image.
-  # Reinstall restarts the supervisord program.
-  binary-supervisor:
+  # binary-service: pre-installed binary with an associated local process.
+  # Software Delivery detects the version and verifies that the process is running.
+  # No install, upgrade, or reinstall — these components are baked into the runtime image.
+  binary-service:
     template_kind: binary
     detect:
       version_command: "{{binary}} --version"
@@ -198,10 +197,10 @@ templates:
     uninstall:
       strategy: ""
     verify:
-      strategy: supervisor
-      service_name: "{{service_name}}"  # supervisord program name, e.g., "nginx"
+      strategy: process-running
+      service_name: "{{binary}}"
     reinstall:
-      strategy: supervisor-restart  # supervisorctl restart {{service_name}}
+      strategy: ""
 
   # binary-detect: standalone binary with no associated service (e.g., Docker CLI, Node.js).
   # Software Delivery detects the binary and version only. No service verification or reinstall.

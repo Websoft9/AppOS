@@ -5,7 +5,7 @@ import (
 	"time"
 
 	swcatalog "github.com/websoft9/appos/backend/domain/software/catalog"
-	"github.com/websoft9/appos/backend/infra/supervisor"
+	"github.com/websoft9/appos/backend/infra/process"
 )
 
 func TestObserveLocalServicesReturnsFastSnapshotThenBackgroundCPU(t *testing.T) {
@@ -46,8 +46,8 @@ func TestObserveLocalServicesReturnsFastSnapshotThenBackgroundCPU(t *testing.T) 
 	}
 
 	refreshed := make(chan struct{}, 1)
-	localServiceProcessInfoFn = func() ([]supervisor.ProcessInfo, error) {
-		return []supervisor.ProcessInfo{{Name: "appos", PID: 123, Uptime: 60, StateName: "RUNNING"}}, nil
+	localServiceProcessInfoFn = func([]process.MatchTarget) ([]process.ProcessInfo, error) {
+		return []process.ProcessInfo{{Name: "appos", PID: 123, Uptime: 60, StateName: "running"}}, nil
 	}
 	localServiceMemoryFn = func([]int) map[int]int64 {
 		return map[int]int64{123: 1024}
@@ -55,12 +55,12 @@ func TestObserveLocalServicesReturnsFastSnapshotThenBackgroundCPU(t *testing.T) 
 	localServiceUptimeFn = func([]int) map[int]int64 {
 		return map[int]int64{123: 60}
 	}
-	localServiceResourceFn = func([]int) map[int]supervisor.ResourceInfo {
+	localServiceResourceFn = func([]int) map[int]process.ResourceInfo {
 		select {
 		case refreshed <- struct{}{}:
 		default:
 		}
-		return map[int]supervisor.ResourceInfo{123: {PID: 123, CPU: 1.5, Memory: 2048}}
+		return map[int]process.ResourceInfo{123: {PID: 123, CPU: 1.5, Memory: 2048}}
 	}
 
 	first := ObserveLocalServices(registry)
@@ -95,5 +95,12 @@ func TestObserveLocalServicesReturnsFastSnapshotThenBackgroundCPU(t *testing.T) 
 	}
 	if second[0].Uptime != 60 {
 		t.Fatalf("expected cached uptime 60 after background refresh, got %d", second[0].Uptime)
+	}
+}
+
+func TestObserveLocalServicesNilRegistryReturnsEmpty(t *testing.T) {
+	items := ObserveLocalServices(nil)
+	if len(items) != 0 {
+		t.Fatalf("expected empty result for nil registry, got %d items", len(items))
 	}
 }

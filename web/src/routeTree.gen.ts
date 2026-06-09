@@ -34,7 +34,7 @@ import { Route as AppAuthCertificatesRouteImport } from './routes/_app/_auth/cer
 import { Route as AppAuthAuditRouteImport } from './routes/_app/_auth/audit'
 import { Route as AppAuthAppsRouteImport } from './routes/_app/_auth/apps'
 import { Route as AppAuthAiChatRouteImport } from './routes/_app/_auth/ai-chat'
-import { Route as AppAuthActionsRouteImport } from './routes/_app/_auth/actions'
+import { Route as AppAuthActivityRouteImport } from './routes/_app/_auth/activity'
 import { Route as AppAuthSuperuserRouteImport } from './routes/_app/_auth/_superuser'
 import { Route as AppAuthTopicsIndexRouteImport } from './routes/_app/_auth/topics.index'
 import { Route as AppAuthStoreIndexRouteImport } from './routes/_app/_auth/store/index'
@@ -51,7 +51,7 @@ import { Route as AppAuthResourcesAiProvidersRouteImport } from './routes/_app/_
 import { Route as AppAuthGroupsIdRouteImport } from './routes/_app/_auth/groups.$id'
 import { Route as AppAuthDeployCreateRouteImport } from './routes/_app/_auth/deploy.create'
 import { Route as AppAuthAppsAppIdRouteImport } from './routes/_app/_auth/apps.$appId'
-import { Route as AppAuthActionsActionIdRouteImport } from './routes/_app/_auth/actions.$actionId'
+import { Route as AppAuthActivityActionIdRouteImport } from './routes/_app/_auth/activity.$actionId'
 import { Route as AppAuthSuperuserTunnelsRouteImport } from './routes/_app/_auth/_superuser/tunnels'
 import { Route as AppAuthSuperuserSystemTasksRouteImport } from './routes/_app/_auth/_superuser/system-tasks'
 import { Route as AppAuthSuperuserStatusRouteImport } from './routes/_app/_auth/_superuser/status'
@@ -191,9 +191,9 @@ const AppAuthAiChatRoute = AppAuthAiChatRouteImport.update({
   path: '/ai-chat',
   getParentRoute: () => AppAuthRoute,
 } as any)
-const AppAuthActionsRoute = AppAuthActionsRouteImport.update({
-  id: '/actions',
-  path: '/actions',
+const AppAuthActivityRoute = AppAuthActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
   getParentRoute: () => AppAuthRoute,
 } as any)
 const AppAuthSuperuserRoute = AppAuthSuperuserRouteImport.update({
@@ -279,10 +279,10 @@ const AppAuthAppsAppIdRoute = AppAuthAppsAppIdRouteImport.update({
   path: '/$appId',
   getParentRoute: () => AppAuthAppsRoute,
 } as any)
-const AppAuthActionsActionIdRoute = AppAuthActionsActionIdRouteImport.update({
+const AppAuthActivityActionIdRoute = AppAuthActivityActionIdRouteImport.update({
   id: '/$actionId',
   path: '/$actionId',
-  getParentRoute: () => AppAuthActionsRoute,
+  getParentRoute: () => AppAuthActivityRoute,
 } as any)
 const AppAuthSuperuserTunnelsRoute = AppAuthSuperuserTunnelsRouteImport.update({
   id: '/tunnels',
@@ -372,7 +372,7 @@ export interface FileRoutesByFullPath {
   '/register': typeof AppRegisterRoute
   '/reset-password': typeof AppResetPasswordRoute
   '/setup': typeof AppSetupRoute
-  '/actions': typeof AppAuthActionsRouteWithChildren
+  '/activity': typeof AppAuthActivityRouteWithChildren
   '/ai-chat': typeof AppAuthAiChatRoute
   '/apps': typeof AppAuthAppsRouteWithChildren
   '/audit': typeof AppAuthAuditRoute
@@ -398,7 +398,7 @@ export interface FileRoutesByFullPath {
   '/status': typeof AppAuthSuperuserStatusRoute
   '/system-tasks': typeof AppAuthSuperuserSystemTasksRoute
   '/tunnels': typeof AppAuthSuperuserTunnelsRoute
-  '/actions/$actionId': typeof AppAuthActionsActionIdRoute
+  '/activity/$actionId': typeof AppAuthActivityActionIdRoute
   '/apps/$appId': typeof AppAuthAppsAppIdRoute
   '/deploy/create': typeof AppAuthDeployCreateRoute
   '/groups/$id': typeof AppAuthGroupsIdRoute
@@ -428,7 +428,7 @@ export interface FileRoutesByTo {
   '/register': typeof AppRegisterRoute
   '/reset-password': typeof AppResetPasswordRoute
   '/setup': typeof AppSetupRoute
-  '/actions': typeof AppAuthActionsRouteWithChildren
+  '/activity': typeof AppAuthActivityRouteWithChildren
   '/ai-chat': typeof AppAuthAiChatRoute
   '/apps': typeof AppAuthAppsRouteWithChildren
   '/audit': typeof AppAuthAuditRoute
@@ -451,7 +451,7 @@ export interface FileRoutesByTo {
   '/status': typeof AppAuthSuperuserStatusRoute
   '/system-tasks': typeof AppAuthSuperuserSystemTasksRoute
   '/tunnels': typeof AppAuthSuperuserTunnelsRoute
-  '/actions/$actionId': typeof AppAuthActionsActionIdRoute
+  '/activity/$actionId': typeof AppAuthActivityActionIdRoute
   '/apps/$appId': typeof AppAuthAppsAppIdRoute
   '/deploy/create': typeof AppAuthDeployCreateRoute
   '/groups/$id': typeof AppAuthGroupsIdRoute
@@ -485,7 +485,7 @@ export interface FileRoutesById {
   '/_app/reset-password': typeof AppResetPasswordRoute
   '/_app/setup': typeof AppSetupRoute
   '/_app/_auth/_superuser': typeof AppAuthSuperuserRouteWithChildren
-  '/_app/_auth/actions': typeof AppAuthActionsRouteWithChildren
+  '/_app/_auth/activity': typeof AppAuthActivityRouteWithChildren
   '/_app/_auth/ai-chat': typeof AppAuthAiChatRoute
   '/_app/_auth/apps': typeof AppAuthAppsRouteWithChildren
   '/_app/_auth/audit': typeof AppAuthAuditRoute
@@ -511,7 +511,7 @@ export interface FileRoutesById {
   '/_app/_auth/_superuser/status': typeof AppAuthSuperuserStatusRoute
   '/_app/_auth/_superuser/system-tasks': typeof AppAuthSuperuserSystemTasksRoute
   '/_app/_auth/_superuser/tunnels': typeof AppAuthSuperuserTunnelsRoute
-  '/_app/_auth/actions/$actionId': typeof AppAuthActionsActionIdRoute
+  '/_app/_auth/activity/$actionId': typeof AppAuthActivityActionIdRoute
   '/_app/_auth/apps/$appId': typeof AppAuthAppsAppIdRoute
   '/_app/_auth/deploy/create': typeof AppAuthDeployCreateRoute
   '/_app/_auth/groups/$id': typeof AppAuthGroupsIdRoute
@@ -543,7 +543,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/setup'
-    | '/actions'
+    | '/activity'
     | '/ai-chat'
     | '/apps'
     | '/audit'
@@ -569,7 +569,7 @@ export interface FileRouteTypes {
     | '/status'
     | '/system-tasks'
     | '/tunnels'
-    | '/actions/$actionId'
+    | '/activity/$actionId'
     | '/apps/$appId'
     | '/deploy/create'
     | '/groups/$id'
@@ -599,7 +599,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/setup'
-    | '/actions'
+    | '/activity'
     | '/ai-chat'
     | '/apps'
     | '/audit'
@@ -622,7 +622,7 @@ export interface FileRouteTypes {
     | '/status'
     | '/system-tasks'
     | '/tunnels'
-    | '/actions/$actionId'
+    | '/activity/$actionId'
     | '/apps/$appId'
     | '/deploy/create'
     | '/groups/$id'
@@ -655,7 +655,7 @@ export interface FileRouteTypes {
     | '/_app/reset-password'
     | '/_app/setup'
     | '/_app/_auth/_superuser'
-    | '/_app/_auth/actions'
+    | '/_app/_auth/activity'
     | '/_app/_auth/ai-chat'
     | '/_app/_auth/apps'
     | '/_app/_auth/audit'
@@ -681,7 +681,7 @@ export interface FileRouteTypes {
     | '/_app/_auth/_superuser/status'
     | '/_app/_auth/_superuser/system-tasks'
     | '/_app/_auth/_superuser/tunnels'
-    | '/_app/_auth/actions/$actionId'
+    | '/_app/_auth/activity/$actionId'
     | '/_app/_auth/apps/$appId'
     | '/_app/_auth/deploy/create'
     | '/_app/_auth/groups/$id'
@@ -888,11 +888,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthAiChatRouteImport
       parentRoute: typeof AppAuthRoute
     }
-    '/_app/_auth/actions': {
-      id: '/_app/_auth/actions'
-      path: '/actions'
-      fullPath: '/actions'
-      preLoaderRoute: typeof AppAuthActionsRouteImport
+    '/_app/_auth/activity': {
+      id: '/_app/_auth/activity'
+      path: '/activity'
+      fullPath: '/activity'
+      preLoaderRoute: typeof AppAuthActivityRouteImport
       parentRoute: typeof AppAuthRoute
     }
     '/_app/_auth/_superuser': {
@@ -1007,12 +1007,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthAppsAppIdRouteImport
       parentRoute: typeof AppAuthAppsRoute
     }
-    '/_app/_auth/actions/$actionId': {
-      id: '/_app/_auth/actions/$actionId'
+    '/_app/_auth/activity/$actionId': {
+      id: '/_app/_auth/activity/$actionId'
       path: '/$actionId'
-      fullPath: '/actions/$actionId'
-      preLoaderRoute: typeof AppAuthActionsActionIdRouteImport
-      parentRoute: typeof AppAuthActionsRoute
+      fullPath: '/activity/$actionId'
+      preLoaderRoute: typeof AppAuthActivityActionIdRouteImport
+      parentRoute: typeof AppAuthActivityRoute
     }
     '/_app/_auth/_superuser/tunnels': {
       id: '/_app/_auth/_superuser/tunnels'
@@ -1163,16 +1163,16 @@ const AppAuthSuperuserRouteChildren: AppAuthSuperuserRouteChildren = {
 const AppAuthSuperuserRouteWithChildren =
   AppAuthSuperuserRoute._addFileChildren(AppAuthSuperuserRouteChildren)
 
-interface AppAuthActionsRouteChildren {
-  AppAuthActionsActionIdRoute: typeof AppAuthActionsActionIdRoute
+interface AppAuthActivityRouteChildren {
+  AppAuthActivityActionIdRoute: typeof AppAuthActivityActionIdRoute
 }
 
-const AppAuthActionsRouteChildren: AppAuthActionsRouteChildren = {
-  AppAuthActionsActionIdRoute: AppAuthActionsActionIdRoute,
+const AppAuthActivityRouteChildren: AppAuthActivityRouteChildren = {
+  AppAuthActivityActionIdRoute: AppAuthActivityActionIdRoute,
 }
 
-const AppAuthActionsRouteWithChildren = AppAuthActionsRoute._addFileChildren(
-  AppAuthActionsRouteChildren,
+const AppAuthActivityRouteWithChildren = AppAuthActivityRoute._addFileChildren(
+  AppAuthActivityRouteChildren,
 )
 
 interface AppAuthAppsRouteChildren {
@@ -1231,7 +1231,7 @@ const AppAuthTopicsRouteWithChildren = AppAuthTopicsRoute._addFileChildren(
 
 interface AppAuthRouteChildren {
   AppAuthSuperuserRoute: typeof AppAuthSuperuserRouteWithChildren
-  AppAuthActionsRoute: typeof AppAuthActionsRouteWithChildren
+  AppAuthActivityRoute: typeof AppAuthActivityRouteWithChildren
   AppAuthAiChatRoute: typeof AppAuthAiChatRoute
   AppAuthAppsRoute: typeof AppAuthAppsRouteWithChildren
   AppAuthAuditRoute: typeof AppAuthAuditRoute
@@ -1261,7 +1261,7 @@ interface AppAuthRouteChildren {
 
 const AppAuthRouteChildren: AppAuthRouteChildren = {
   AppAuthSuperuserRoute: AppAuthSuperuserRouteWithChildren,
-  AppAuthActionsRoute: AppAuthActionsRouteWithChildren,
+  AppAuthActivityRoute: AppAuthActivityRouteWithChildren,
   AppAuthAiChatRoute: AppAuthAiChatRoute,
   AppAuthAppsRoute: AppAuthAppsRouteWithChildren,
   AppAuthAuditRoute: AppAuthAuditRoute,

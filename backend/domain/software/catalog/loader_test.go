@@ -31,7 +31,7 @@ func TestLoadTemplateRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadTemplateRegistry: %v", err)
 	}
-	for _, name := range []string{"package-systemd", "script-systemd", "binary-supervisor", "binary-detect"} {
+	for _, name := range []string{"package-systemd", "script-systemd", "binary-service", "binary-detect"} {
 		if _, ok := reg.Templates[name]; !ok {
 			t.Errorf("expected %q template in registry", name)
 		}
@@ -52,7 +52,7 @@ func TestReinstallStepPresent(t *testing.T) {
 }
 
 // TestPreflightVerifiedOSNonEmpty verifies server templates declare at least one verified OS baseline.
-// binary-supervisor and binary-detect are OS-agnostic by design (container-internal) and are skipped.
+// binary-service and binary-detect are OS-agnostic by design (container-internal) and are skipped.
 func TestPreflightVerifiedOSNonEmpty(t *testing.T) {
 	reg, err := catalog.LoadTemplateRegistry()
 	if err != nil {

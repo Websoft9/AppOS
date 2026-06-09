@@ -15,7 +15,7 @@ func TestLocalRegistryValidate_Valid(t *testing.T) {
 			{ID: "appos", Name: "AppOS", Enabled: true, RuntimeKind: "service"},
 		},
 		Services: []LocalService{
-			{Name: "appos", ComponentID: "appos", Enabled: true, Manager: "supervisor", Lifecycle: "always_on", Visibility: "default"},
+			{Name: "appos", ComponentID: "appos", Enabled: true, Manager: "process", Lifecycle: "always_on", Visibility: "default"},
 		},
 	}
 	if err := reg.Validate(); err != nil {
@@ -37,10 +37,27 @@ func TestLocalRegistryValidate_InvalidServiceVisibility(t *testing.T) {
 	reg := &LocalRegistry{
 		Version:    1,
 		Components: []LocalComponent{{ID: "appos", Name: "AppOS"}},
-		Services:   []LocalService{{Name: "appos", ComponentID: "appos", Enabled: true, Manager: "supervisor", Lifecycle: "always_on", Visibility: "secondary"}},
+		Services:   []LocalService{{Name: "appos", ComponentID: "appos", Enabled: true, Manager: "process", Lifecycle: "always_on", Visibility: "secondary"}},
 	}
 	if err := reg.Validate(); err == nil {
 		t.Fatal("expected error for invalid service visibility")
+	}
+}
+
+func TestLocalRegistryValidate_DuplicateEnabledProgram(t *testing.T) {
+	reg := &LocalRegistry{
+		Version: 1,
+		Components: []LocalComponent{
+			{ID: "appos", Name: "AppOS"},
+			{ID: "worker", Name: "Worker"},
+		},
+		Services: []LocalService{
+			{Name: "appos", ComponentID: "appos", Enabled: true, Manager: "process", Program: "appos", Lifecycle: "always_on", Visibility: "default"},
+			{Name: "worker", ComponentID: "worker", Enabled: true, Manager: "process", Program: "appos", Lifecycle: "always_on", Visibility: "default"},
+		},
+	}
+	if err := reg.Validate(); err == nil {
+		t.Fatal("expected error for duplicate enabled service program")
 	}
 }
 
@@ -108,7 +125,7 @@ func TestLocalRegistryEnabledComponents(t *testing.T) {
 func TestLocalRegistryEnabledServices(t *testing.T) {
 	reg := &LocalRegistry{
 		Version:  1,
-		Services: []LocalService{{Name: "svc1", ComponentID: "c1", Enabled: true, Manager: "supervisor", Lifecycle: "always_on", Visibility: "default"}, {Name: "svc2", ComponentID: "c2", Enabled: false, Manager: "supervisor", Lifecycle: "on_demand", Visibility: "hidden"}},
+		Services: []LocalService{{Name: "svc1", ComponentID: "c1", Enabled: true, Manager: "process", Lifecycle: "always_on", Visibility: "default"}, {Name: "svc2", ComponentID: "c2", Enabled: false, Manager: "process", Lifecycle: "on_demand", Visibility: "hidden"}},
 	}
 	enabled := reg.EnabledServices()
 	if len(enabled) != 1 {
@@ -122,7 +139,7 @@ func TestLocalRegistryEnabledServices(t *testing.T) {
 func TestLocalRegistryFindService(t *testing.T) {
 	reg := &LocalRegistry{
 		Version:  1,
-		Services: []LocalService{{Name: "appos", ComponentID: "appos", Enabled: true, Manager: "supervisor", Lifecycle: "always_on", Visibility: "default"}},
+		Services: []LocalService{{Name: "appos", ComponentID: "appos", Enabled: true, Manager: "process", Lifecycle: "always_on", Visibility: "default"}},
 	}
 	svc, ok := reg.FindService("appos")
 	if !ok {
@@ -145,23 +162,23 @@ func TestProjectLocalCatalog_UsesProjectionMetadataAndDerivedService(t *testing.
 				Notes:       "Bundled reverse proxy service.",
 				SoftwareCatalog: &LocalSoftwareCatalogProjection{
 					ComponentKey:          software.ComponentKey("reverse-proxy"),
-					ReadinessRequirements: []string{"bundled_with_appos", "supervisor_process"},
+					ReadinessRequirements: []string{"bundled_with_appos", "local_process"},
 				},
 			},
 			{
-				ID:           "docker",
-				Name:         "Docker CLI",
+				ID:           "git",
+				Name:         "Git",
 				Enabled:      true,
-				VersionProbe: LocalInventoryProbe{Type: "command", Command: []string{"docker", "version"}},
-				Notes:        "Bundled Docker CLI.",
+				VersionProbe: LocalInventoryProbe{Type: "command", Command: []string{"git", "--version"}},
+				Notes:        "Bundled source control client.",
 				SoftwareCatalog: &LocalSoftwareCatalogProjection{
-					ComponentKey:          software.ComponentKeyDocker,
-					ReadinessRequirements: []string{"bundled_with_appos", "docker_socket_access"},
+					ComponentKey:          software.ComponentKey("git"),
+					ReadinessRequirements: []string{"bundled_with_appos", "binary_available"},
 				},
 			},
 		},
 		Services: []LocalService{
-			{Name: "nginx", ComponentID: "nginx", Enabled: true, Manager: "supervisor", Lifecycle: "always_on", Visibility: "default"},
+			{Name: "nginx", ComponentID: "nginx", Enabled: true, Manager: "process", Lifecycle: "always_on", Visibility: "default"},
 		},
 	}
 
@@ -175,8 +192,8 @@ func TestProjectLocalCatalog_UsesProjectionMetadataAndDerivedService(t *testing.
 	if cat.Components[0].ComponentKey != software.ComponentKey("reverse-proxy") {
 		t.Fatalf("expected reverse-proxy key, got %q", cat.Components[0].ComponentKey)
 	}
-	if cat.Components[0].TemplateRef != "binary-supervisor" {
-		t.Fatalf("expected binary-supervisor, got %q", cat.Components[0].TemplateRef)
+	if cat.Components[0].TemplateRef != "binary-service" {
+		t.Fatalf("expected binary-service, got %q", cat.Components[0].TemplateRef)
 	}
 	if cat.Components[0].ServiceName != "nginx" {
 		t.Fatalf("expected derived service name nginx, got %q", cat.Components[0].ServiceName)
@@ -190,8 +207,8 @@ func TestProjectLocalCatalog_UsesProjectionMetadataAndDerivedService(t *testing.
 	if cat.Components[1].TemplateRef != "binary-detect" {
 		t.Fatalf("expected binary-detect, got %q", cat.Components[1].TemplateRef)
 	}
-	if cat.Components[1].Binary != "docker" {
-		t.Fatalf("expected binary docker, got %q", cat.Components[1].Binary)
+	if cat.Components[1].Binary != "git" {
+		t.Fatalf("expected binary git, got %q", cat.Components[1].Binary)
 	}
 	if len(cat.Components[1].SupportedActions) != 1 || cat.Components[1].SupportedActions[0] != software.ActionVerify {
 		t.Fatalf("expected verify-only supported actions, got %#v", cat.Components[1].SupportedActions)

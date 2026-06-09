@@ -50,7 +50,7 @@ describe('AppDetailActionHistoryTable', () => {
             updated: '2026-03-21T08:10:00Z',
           },
         ]}
-        buildActionDetailHref={actionId => `/actions/${actionId}`}
+        buildActionDetailHref={actionId => `/activity/${actionId}`}
         onRequestCancel={onRequestCancel}
         onRequestForceFail={onRequestForceFail}
       />

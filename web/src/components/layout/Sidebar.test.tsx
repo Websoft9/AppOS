@@ -47,7 +47,7 @@ vi.mock('react-i18next', () => ({
         'items.myApps': 'My Apps',
         'items.appStore': 'App Store',
         'items.deploy': 'Deploy',
-        'items.actions': 'Actions',
+        'items.actions': 'Activity',
         'items.terminal': 'Terminal',
         'items.aiChat': 'AI Copilot',
         'items.collaboration': 'Collaboration',
@@ -127,7 +127,7 @@ describe('Sidebar', () => {
     expect(within(workspaceNav).queryByText('Dashboard')).not.toBeInTheDocument()
   })
 
-  it('orders Applications children as My Apps, App Store, Deploy, Actions', () => {
+  it('orders Applications children as My Apps, App Store, Deploy, Activity', () => {
     pathname = '/apps'
     assignMock.mockReset()
     render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
@@ -140,10 +140,10 @@ describe('Sidebar', () => {
     const appLinks = links
       .map(link => link.textContent?.trim())
       .filter((label): label is string =>
-        ['My Apps', 'App Store', 'Deploy', 'Actions'].includes(label ?? '')
+        ['My Apps', 'App Store', 'Deploy', 'Activity'].includes(label ?? '')
       )
 
-    expect(appLinks).toEqual(['My Apps', 'App Store', 'Deploy', 'Actions'])
+    expect(appLinks).toEqual(['My Apps', 'App Store', 'Deploy', 'Activity'])
   })
 
   it('toggles Applications children open and closed', () => {

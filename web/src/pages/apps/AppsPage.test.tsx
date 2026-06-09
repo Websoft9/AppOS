@@ -62,13 +62,13 @@ describe('AppsPage', () => {
       expect(screen.getByText('Demo App')).toBeInTheDocument()
     })
 
-    fireEvent.pointerDown(screen.getByRole('button', { name: 'Open actions for Demo App' }))
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Open activity for Demo App' }))
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Start' }))
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/apps/app-1/start', { method: 'POST' })
       expect(navigateMock).toHaveBeenCalledWith({
-        to: '/actions/$actionId',
+        to: '/activity/$actionId',
         params: { actionId: 'op-start-1' },
         search: { returnTo: 'list' },
       })
@@ -82,14 +82,14 @@ describe('AppsPage', () => {
       expect(screen.getByText('Demo App')).toBeInTheDocument()
     })
 
-    fireEvent.pointerDown(screen.getByRole('button', { name: 'Open actions for Demo App' }))
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Open activity for Demo App' }))
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Uninstall' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Confirm Uninstall' }))
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/apps/app-1', { method: 'DELETE' })
       expect(navigateMock).toHaveBeenCalledWith({
-        to: '/actions/$actionId',
+        to: '/activity/$actionId',
         params: { actionId: 'op-uninstall-1' },
         search: { returnTo: 'list' },
       })

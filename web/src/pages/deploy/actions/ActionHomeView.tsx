@@ -270,15 +270,15 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
             <div className="flex flex-col gap-3 rounded-2xl border border-sky-100 bg-white/70 px-4 py-3 dark:border-sky-900/50 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                  Need more templates?
+                  Need more applications?
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Browse 300+ installable app templates, then hand off directly into deployment.
+                  Browse 300+ applications in the App Store, then deploy with one click.
                 </div>
               </div>
-              <Button asChild className="justify-between sm:min-w-[180px]">
+              <Button asChild className="gap-2">
                 <Link to="/store" search={{ q: undefined, app: undefined }}>
-                  Open App Store
+                  Browse All
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
@@ -358,26 +358,26 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <div className="space-y-1">
-            <CardTitle className="text-base">Latest Actions Summary</CardTitle>
+            <CardTitle className="text-base">Latest Activity Summary</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Showing the 5 most recently updated action records. Open the full Actions page for
+              Showing the 5 most recently updated activity records. Open the full Activity page for
               complete history.
             </p>
           </div>
           <Button variant="outline" size="sm" asChild>
-            <Link to="/actions" params={{} as never} search={{} as never}>
-              Open full action history
+            <Link to="/activity" params={{} as never} search={{} as never}>
+              Open full activity
             </Link>
           </Button>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="rounded-xl border border-dashed px-4 py-6 text-sm text-muted-foreground">
-              Loading actions...
+              Loading activity...
             </div>
           ) : latestOperations.length === 0 ? (
             <div className="rounded-xl border border-dashed px-4 py-6 text-sm text-muted-foreground">
-              No action records yet.
+              No activity records yet.
             </div>
           ) : (
             <div className="overflow-hidden rounded-xl border">

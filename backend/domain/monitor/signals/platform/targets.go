@@ -8,7 +8,7 @@ import (
 	"github.com/websoft9/appos/backend/domain/monitor"
 	monitormetrics "github.com/websoft9/appos/backend/domain/monitor/metrics"
 	monitorstatus "github.com/websoft9/appos/backend/domain/monitor/status"
-	"github.com/websoft9/appos/backend/infra/supervisor"
+	"github.com/websoft9/appos/backend/infra/process"
 )
 
 type appCoreTargetObservation struct {
@@ -16,7 +16,7 @@ type appCoreTargetObservation struct {
 	Points  []monitormetrics.MetricPoint
 }
 
-func (o *PlatformObserver) collectAppCoreTarget(now time.Time, snapshot RuntimeSnapshot, resource supervisor.ResourceInfo, mem runtime.MemStats) (appCoreTargetObservation, error) {
+func (o *PlatformObserver) collectAppCoreTarget(now time.Time, snapshot RuntimeSnapshot, resource process.ResourceInfo, mem runtime.MemStats) (appCoreTargetObservation, error) {
 	memoryUsedBytes := float64(resource.Memory)
 	memoryAvailableBytes := 0.0
 	hasMemoryLimit := false

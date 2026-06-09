@@ -70,7 +70,7 @@ vi.mock('@/pages/apps/AppDetailActionHistoryTable', () => ({
       pipeline_selector?: { operation_type?: string }
     }) => void
   }) => (
-    <section aria-label="Action History Table">
+    <section aria-label="Activity Table">
       {actions.map(action => (
         <div key={action.id}>
           <span>
@@ -952,7 +952,7 @@ describe('AppDetailPage', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/apps/app-1/start', { method: 'POST' })
       expect(navigateMock).toHaveBeenCalledWith({
-        to: '/actions/$actionId',
+        to: '/activity/$actionId',
         params: { actionId: 'op-start-1' },
         search: { returnTo: 'list' },
       })
@@ -1036,7 +1036,7 @@ describe('AppDetailPage', () => {
       expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
     })
 
-    const actionsTab = screen.getByRole('tab', { name: 'Actions' })
+    const actionsTab = screen.getByRole('tab', { name: 'Activity' })
     fireEvent.mouseDown(actionsTab)
     fireEvent.click(actionsTab)
 
@@ -1278,7 +1278,7 @@ describe('AppDetailPage', () => {
       expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
     })
 
-    const actionsTab = screen.getByRole('tab', { name: 'Actions' })
+    const actionsTab = screen.getByRole('tab', { name: 'Activity' })
     fireEvent.mouseDown(actionsTab)
     fireEvent.click(actionsTab)
 
@@ -1355,7 +1355,7 @@ describe('AppDetailPage', () => {
       expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
     })
 
-    const actionsTab = screen.getByRole('tab', { name: 'Actions' })
+    const actionsTab = screen.getByRole('tab', { name: 'Activity' })
     fireEvent.mouseDown(actionsTab)
     fireEvent.click(actionsTab)
 
@@ -1372,7 +1372,7 @@ describe('AppDetailPage', () => {
 
     await waitFor(() => {
       expect(navigateMock).toHaveBeenCalledWith({
-        to: '/actions/$actionId',
+        to: '/activity/$actionId',
         params: { actionId: 'op-source-build-1' },
         search: { returnTo: 'list' },
       })
@@ -1438,7 +1438,7 @@ describe('AppDetailPage', () => {
       expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
     })
 
-    const actionsTab = screen.getByRole('tab', { name: 'Actions' })
+    const actionsTab = screen.getByRole('tab', { name: 'Activity' })
     fireEvent.mouseDown(actionsTab)
     fireEvent.click(actionsTab)
 
@@ -1477,21 +1477,21 @@ describe('AppDetailPage', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/apps/app-1', { method: 'DELETE' })
       expect(navigateMock).toHaveBeenCalledWith({
-        to: '/actions/$actionId',
+        to: '/activity/$actionId',
         params: { actionId: 'op-uninstall-1' },
         search: { returnTo: 'list' },
       })
     })
   })
 
-  it('shows app-scoped action history in the Actions tab', async () => {
+  it('shows app-scoped activity in the Activity tab', async () => {
     render(<AppDetailPage appId="app-1" />)
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
     })
 
-    const actionsTab = screen.getByRole('tab', { name: 'Actions' })
+    const actionsTab = screen.getByRole('tab', { name: 'Activity' })
     fireEvent.mouseDown(actionsTab)
     fireEvent.click(actionsTab)
 
@@ -1513,7 +1513,7 @@ describe('AppDetailPage', () => {
       expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
     })
 
-    const actionsTab = screen.getByRole('tab', { name: 'Actions' })
+    const actionsTab = screen.getByRole('tab', { name: 'Activity' })
     fireEvent.mouseDown(actionsTab)
     fireEvent.click(actionsTab)
 
@@ -1542,7 +1542,7 @@ describe('AppDetailPage', () => {
       expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
     })
 
-    const actionsTab = screen.getByRole('tab', { name: 'Actions' })
+    const actionsTab = screen.getByRole('tab', { name: 'Activity' })
     fireEvent.mouseDown(actionsTab)
     fireEvent.click(actionsTab)
 
@@ -1650,15 +1650,15 @@ describe('AppDetailPage', () => {
       expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
     })
 
-    const actionsTab = screen.getByRole('tab', { name: 'Actions' })
+    const actionsTab = screen.getByRole('tab', { name: 'Activity' })
     fireEvent.mouseDown(actionsTab)
     fireEvent.click(actionsTab)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Open in Actions' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Open in Activity' }))
 
     await waitFor(() => {
       expect(navigateMock).toHaveBeenCalledWith({
-        to: '/actions',
+        to: '/activity',
         search: {
           appId: 'app-1',
         },
@@ -1717,7 +1717,7 @@ describe('AppDetailPage', () => {
     expect(logsDialog).toHaveTextContent('demo log line 2')
   })
 
-  it('shows observability projections from logs, runtime, and action history', async () => {
+  it('shows observability projections from logs, runtime, and activity', async () => {
     render(<AppDetailPage appId="app-1" />)
 
     await waitFor(() => {

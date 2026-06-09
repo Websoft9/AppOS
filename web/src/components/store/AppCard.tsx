@@ -10,10 +10,11 @@ interface AppCardProps {
   product: ProductWithCategories
   primaryCategories: PrimaryCategory[]
   onSelectApp: (product: ProductWithCategories) => void
+  onDeploy?: (product: ProductWithCategories) => void
   userApps?: UserApp[]
 }
 
-export function AppCard({ product, primaryCategories, onSelectApp, userApps = [] }: AppCardProps) {
+export function AppCard({ product, primaryCategories, onSelectApp, onDeploy, userApps = [] }: AppCardProps) {
   const { t } = useTranslation('store')
 
   const primaryCat = primaryCategories.find(c => c.key === product.primaryCategoryKey)
@@ -62,7 +63,11 @@ export function AppCard({ product, primaryCategories, onSelectApp, userApps = []
         className="w-full mt-auto"
         onClick={e => {
           e.stopPropagation()
-          onSelectApp(product)
+          if (onDeploy) {
+            onDeploy(product)
+          } else {
+            onSelectApp(product)
+          }
         }}
       >
         {t('card.deploy')}

@@ -7,7 +7,6 @@
 // Supported connectors (current):
 //   - SSHConnector         — SSH PTY for registered managed servers
 //   - SFTPClient           — REST file operations over SSH transport
-//   - DockerExecConnector  — Docker exec PTY for local containers
 //   - LocalSession         — local bash PTY (system terminal)
 package terminal
 

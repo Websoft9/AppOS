@@ -105,7 +105,7 @@ const DEFAULT_NAV_LABELS: NavLabels = {
     myApps: 'My Apps',
     appStore: 'App Store',
     deploy: 'Deploy',
-    actions: 'Actions',
+    actions: 'Activity',
     terminal: 'Terminal',
     aiChat: 'AI Copilot',
     collaboration: 'Collaboration',
@@ -157,7 +157,7 @@ function buildWorkspaceGroup(labels: NavLabels): NavGroup {
           { id: 'installed', label: labels.items.myApps, href: '/apps' },
           { id: 'store', label: labels.items.appStore, href: '/store' },
           { id: 'deploy', label: labels.items.deploy, href: '/deploy' },
-          { id: 'actions', label: labels.items.actions, href: '/actions' },
+          { id: 'actions', label: labels.items.actions, href: '/activity' },
         ],
       },
       {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -338,54 +337,6 @@ func TestConnectorConfigFields(t *testing.T) {
 	}
 	if cfg.Shell != "bash" {
 		t.Fatal("shell mismatch")
-	}
-}
-
-func TestDockerExecDefaultShell(t *testing.T) {
-	if defaultDockerShell != "/bin/sh" {
-		t.Fatalf("defaultDockerShell: got %q, want /bin/sh", defaultDockerShell)
-	}
-}
-
-func TestDockerExecDefaultSocket(t *testing.T) {
-	if defaultDockerSocket != "/var/run/docker.sock" {
-		t.Fatalf("defaultDockerSocket: got %q, want /var/run/docker.sock", defaultDockerSocket)
-	}
-}
-
-func TestDockerExecConnectorImplementsInterface(t *testing.T) {
-	// Compile-time check that DockerExecConnector implements Connector
-	var _ Connector = &DockerExecConnector{}
-}
-
-func TestDockerShellAutoFallbackOrder(t *testing.T) {
-	origCreate := dockerCreateExecFn
-	origStart := dockerStartExecFn
-	defer func() {
-		dockerCreateExecFn = origCreate
-		dockerStartExecFn = origStart
-	}()
-
-	attempts := make([]string, 0)
-	dockerCreateExecFn = func(_ string, shell string) (string, error) {
-		attempts = append(attempts, shell)
-		if shell == "/bin/sh" {
-			return "ok", nil
-		}
-		return "", fmt.Errorf("unsupported shell")
-	}
-	dockerStartExecFn = func(execID string) (net.Conn, error) {
-		return nil, fmt.Errorf("stop after shell selection: %s", execID)
-	}
-
-	conn := &DockerExecConnector{}
-	_, _ = conn.Connect(context.Background(), ConnectorConfig{Host: "container-1"})
-
-	if len(attempts) < 2 {
-		t.Fatalf("expected multiple shell attempts, got %v", attempts)
-	}
-	if attempts[0] != "/bin/bash" || attempts[1] != "/bin/sh" {
-		t.Fatalf("unexpected fallback order: %v", attempts)
 	}
 }
 

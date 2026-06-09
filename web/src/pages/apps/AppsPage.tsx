@@ -274,7 +274,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
 
   function navigateToActionDetail(actionId: string) {
     void navigate({
-      to: '/actions/$actionId' as never,
+      to: '/activity/$actionId' as never,
       params: { actionId } as never,
       search: { returnTo: 'list' } as never,
     })
@@ -506,7 +506,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon" className="h-8 w-8" disabled={Boolean(actionLoading)}>
             <MoreVertical className="h-4 w-4" />
-            <span className="sr-only">Open actions for {app.name}</span>
+            <span className="sr-only">Open activity for {app.name}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-44">

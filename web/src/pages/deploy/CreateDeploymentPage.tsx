@@ -471,8 +471,11 @@ export function CreateDeploymentPage({
     if (portExposureEnabled && parsedExposurePort) {
       return { exposure_type: 'port', is_primary: true, target_port: parsedExposurePort }
     }
+    if (!portExposureEnabled && !domainExposureEnabled) {
+      return { exposure_type: 'internal_only', is_primary: true }
+    }
     return undefined
-  }, [portExposureEnabled, parsedExposurePort])
+  }, [domainExposureEnabled, portExposureEnabled, parsedExposurePort])
 
   useEffect(() => {
     if (!serverId) {
@@ -1098,9 +1101,9 @@ export function CreateDeploymentPage({
             <CircleHelp className="h-4 w-4" />
           </Button>
           <Button variant="ghost" size="sm" asChild>
-            <Link to="/actions" params={{} as never} search={{} as never}>
+            <Link to="/activity" params={{} as never} search={{} as never}>
               <List className="mr-1 h-4 w-4" />
-              History
+              Activity
             </Link>
           </Button>
         </div>

@@ -164,7 +164,7 @@ function getTargetLocationField() {
 }
 
 async function enablePortAccess() {
-  fireEvent.click(screen.getByRole('button', { name: /Server Port Access/i }))
+  fireEvent.click(screen.getByRole('button', { name: /Port Access/i }))
   await waitFor(() => {
     expect(screen.getByText('Service Name')).toBeInTheDocument()
     expect(screen.getAllByLabelText(/Server Port /i).length).toBeGreaterThan(0)
@@ -186,6 +186,13 @@ function expectPortExposure() {
     exposure_type: 'port',
     is_primary: true,
     target_port: expect.any(Number),
+  })
+}
+
+function expectInternalOnlyExposure() {
+  return expect.objectContaining({
+    exposure_type: 'internal_only',
+    is_primary: true,
   })
 }
 
@@ -552,7 +559,7 @@ describe('CreateDeploymentPage', () => {
     })
 
     expect(navigateMock).toHaveBeenCalledWith({
-      to: '/actions/$actionId',
+      to: '/activity/$actionId',
       params: { actionId: 'act_manual_1' },
       search: { returnTo: 'list' },
     })
@@ -1176,7 +1183,7 @@ describe('CreateDeploymentPage', () => {
     })
 
     expect(navigateMock).toHaveBeenCalledWith({
-      to: '/actions/$actionId',
+      to: '/activity/$actionId',
       params: { actionId: 'act_git_1' },
       search: { returnTo: 'list' },
     })
@@ -1336,9 +1343,66 @@ describe('CreateDeploymentPage', () => {
 
     expect(collectionCreateMock).toHaveBeenCalledTimes(1)
     expect(navigateMock).toHaveBeenCalledWith({
-      to: '/actions/$actionId',
+      to: '/activity/$actionId',
       params: { actionId: 'act_template_1' },
       search: { returnTo: 'list' },
+    })
+  })
+
+  it('submits internal-only exposure when public access is disabled for template installs', async () => {
+    renderCreateDeploymentPage({
+      entryMode: 'template',
+      prefillAppKey: 'wordpress',
+      prefillAppName: 'WordPress',
+    })
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Database Source')).toBeInTheDocument()
+      expect(getTargetLocationField()).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByLabelText('Disabled'))
+
+    fireEvent.change(getAppNameField(), { target: { value: 'wordpress-private' } })
+    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
+    fireEvent.change(screen.getByLabelText('Admin Email *'), {
+      target: { value: 'admin@example.com' },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Check' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/actions/install/template/check', {
+        method: 'POST',
+        body: expect.objectContaining({
+          server_id: 'local',
+          project_name: 'wordpress-private',
+          template_key: 'wordpress',
+          input_values: {
+            admin_email: 'admin@example.com',
+          },
+          exposure: expectInternalOnlyExposure(),
+          app_required_disk_gib: '1',
+        }),
+      })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create Deployment' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/actions/install/template', {
+        method: 'POST',
+        body: expect.objectContaining({
+          server_id: 'local',
+          project_name: 'wordpress-private',
+          template_key: 'wordpress',
+          input_values: {
+            admin_email: 'admin@example.com',
+          },
+          exposure: expectInternalOnlyExposure(),
+          app_required_disk_gib: '1',
+        }),
+      })
     })
   })
 
@@ -1413,7 +1477,7 @@ describe('CreateDeploymentPage', () => {
     renderCreateDeploymentPage({ entryMode: 'compose' })
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Server Port Access/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Port Access/i })).toBeInTheDocument()
     })
 
     expect(screen.queryByText('Service Name')).toBeNull()
@@ -1421,14 +1485,14 @@ describe('CreateDeploymentPage', () => {
     expect(screen.queryByRole('button', { name: /No access/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Create Deployment' })).toBeDisabled()
 
-    fireEvent.click(screen.getByRole('button', { name: /Primary Domain Access/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Domain Access/i }))
 
     expect(
       screen.getAllByText(/Domain access currently applies only to the primary service/i).length
     ).toBeGreaterThan(0)
     expect(screen.getByRole('button', { name: 'Create Deployment' })).toBeDisabled()
 
-    fireEvent.click(screen.getByRole('button', { name: /Server Port Access/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Port Access/i }))
 
     expect(screen.getByText('Service Name')).toBeInTheDocument()
     expect(screen.getByText('Container Port')).toBeInTheDocument()

@@ -21,7 +21,7 @@ function ActionDetailRoutePage() {
   )
 }
 
-export const Route = createFileRoute('/_app/_auth/actions/$actionId' as never)({
+export const Route = createFileRoute('/_app/_auth/activity/$actionId' as never)({
   component: ActionDetailRoutePage,
   validateSearch: (search: Record<string, unknown>) => ({
     appId: typeof search.appId === 'string' && search.appId.trim() ? search.appId : undefined,

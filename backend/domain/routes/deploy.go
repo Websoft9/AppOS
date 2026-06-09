@@ -911,7 +911,7 @@ func handleOperationInstallTemplate(e *core.RequestEvent) error {
 		bodyString(body, "server_id"),
 		rendered.ProjectName,
 		rendered.Compose,
-		deploy.SourceManualOps,
+		string(model.TriggerSourceStore),
 		deploy.AdapterManualCompose,
 		map[string]any{
 			"template_key": rendered.TemplateKey,

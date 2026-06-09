@@ -258,7 +258,7 @@ describe('DeployPage homepage', () => {
       expect(screen.getByText('Deploy Application')).toBeInTheDocument()
       expect(screen.getByText('Install from Store')).toBeInTheDocument()
       expect(screen.getByText('Custom Deployment')).toBeInTheDocument()
-      expect(screen.getByText('Latest Actions Summary')).toBeInTheDocument()
+      expect(screen.getByText('Latest Activity Summary')).toBeInTheDocument()
       expect(screen.getByText('Need more templates?')).toBeInTheDocument()
     })
 
@@ -295,7 +295,7 @@ describe('DeployPage homepage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'wordpress-prod' }))
 
     expect(navigateMock).toHaveBeenCalledWith({
-      to: '/actions/$actionId',
+      to: '/activity/$actionId',
       params: { actionId: 'dep_1' },
       search: { returnTo: 'list' },
     })
@@ -339,7 +339,7 @@ describe('DeployPage homepage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'wordpress-prod' }))
 
     expect(navigateMock).toHaveBeenCalledWith({
-      to: '/actions/$actionId',
+      to: '/activity/$actionId',
       params: { actionId: 'dep_1' },
       search: { returnTo: 'list' },
     })
@@ -368,7 +368,7 @@ describe('DeployPage homepage', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'View' }))
 
     expect(navigateMock).toHaveBeenCalledWith({
-      to: '/actions/$actionId',
+      to: '/activity/$actionId',
       params: { actionId: 'dep_1' },
       search: { returnTo: 'list' },
     })
@@ -465,7 +465,7 @@ describe('DeployPage homepage', () => {
     fireEvent.click(screen.getByText('Delete Selected (2)'))
 
     await waitFor(() => {
-      expect(screen.getByText('Delete Actions')).toBeInTheDocument()
+      expect(screen.getByText('Delete Activity Records')).toBeInTheDocument()
       expect(screen.getByText('Delete 2')).toBeInTheDocument()
     })
 

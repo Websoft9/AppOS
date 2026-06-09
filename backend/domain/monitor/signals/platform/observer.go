@@ -12,7 +12,7 @@ import (
 	"github.com/websoft9/appos/backend/domain/monitor"
 	monitormetrics "github.com/websoft9/appos/backend/domain/monitor/metrics"
 	monitorstatus "github.com/websoft9/appos/backend/domain/monitor/status"
-	"github.com/websoft9/appos/backend/infra/supervisor"
+	"github.com/websoft9/appos/backend/infra/process"
 )
 
 func localContainerStatsDisabled(context.Context) (string, error) {
@@ -23,7 +23,7 @@ func NewPlatformObserver(app core.App, snapshotFn func() RuntimeSnapshot) *Platf
 	return &PlatformObserver{
 		app:                app,
 		snapshotFn:         snapshotFn,
-		resourceFn:         supervisor.GetProcessResources,
+		resourceFn:         process.GetProcessResources,
 		appCoreTelemetryFn: collectLocalAppCoreMetricPoints,
 		appCoreMemoryFn:    readLocalAppCoreMemory,
 		hostTelemetryFn:    collectLocalHostMetricPoints,
@@ -42,7 +42,7 @@ func (o *PlatformObserver) SetNowFunc(nowFn func() time.Time) {
 	o.nowFn = nowFn
 }
 
-func (o *PlatformObserver) SetResourceFunc(resourceFn func([]int) map[int]supervisor.ResourceInfo) {
+func (o *PlatformObserver) SetResourceFunc(resourceFn func([]int) map[int]process.ResourceInfo) {
 	if resourceFn == nil {
 		return
 	}

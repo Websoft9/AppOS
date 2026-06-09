@@ -14,7 +14,7 @@ import (
 	"github.com/websoft9/appos/backend/domain/monitor/signals/platform"
 	monitorstore "github.com/websoft9/appos/backend/domain/monitor/status/store"
 	"github.com/websoft9/appos/backend/infra/collections"
-	"github.com/websoft9/appos/backend/infra/supervisor"
+	"github.com/websoft9/appos/backend/infra/process"
 )
 
 func TestPlatformObserverCollectWritesPlatformTargets(t *testing.T) {
@@ -32,8 +32,8 @@ func TestPlatformObserverCollectWritesPlatformTargets(t *testing.T) {
 		}
 	})
 	observer.SetNowFunc(func() time.Time { return now })
-	observer.SetResourceFunc(func([]int) map[int]supervisor.ResourceInfo {
-		return map[int]supervisor.ResourceInfo{
+	observer.SetResourceFunc(func([]int) map[int]process.ResourceInfo {
+		return map[int]process.ResourceInfo{
 			os.Getpid(): {CPU: 12.5, Memory: 2048},
 		}
 	})
@@ -72,8 +72,8 @@ func TestPlatformObserverCollectMarksStaleSchedulerDegraded(t *testing.T) {
 		}
 	})
 	observer.SetNowFunc(func() time.Time { return now })
-	observer.SetResourceFunc(func([]int) map[int]supervisor.ResourceInfo {
-		return map[int]supervisor.ResourceInfo{}
+	observer.SetResourceFunc(func([]int) map[int]process.ResourceInfo {
+		return map[int]process.ResourceInfo{}
 	})
 	if err := sysconfig.SetGroup(app, "monitor", "platform-self-observation", map[string]any{
 		"platformObserverIntervalSeconds":        30,
@@ -124,8 +124,8 @@ func TestPlatformObserverCollectWritesPlatformMetrics(t *testing.T) {
 		}
 	})
 	observer.SetNowFunc(func() time.Time { return now })
-	observer.SetResourceFunc(func([]int) map[int]supervisor.ResourceInfo {
-		return map[int]supervisor.ResourceInfo{}
+	observer.SetResourceFunc(func([]int) map[int]process.ResourceInfo {
+		return map[int]process.ResourceInfo{}
 	})
 
 	if err := observer.Collect(); err != nil {
@@ -179,8 +179,8 @@ func TestPlatformObserverCollectOmitsAvailableMemoryWhenLimitUnknown(t *testing.
 		return platform.RuntimeSnapshot{StartedAt: now.Add(-time.Minute), WorkerRunning: true, SchedulerRunning: true, SchedulerLastTick: now, LastDispatchAt: now}
 	})
 	observer.SetNowFunc(func() time.Time { return now })
-	observer.SetResourceFunc(func([]int) map[int]supervisor.ResourceInfo {
-		return map[int]supervisor.ResourceInfo{os.Getpid(): {CPU: 1.5, Memory: 2048}}
+	observer.SetResourceFunc(func([]int) map[int]process.ResourceInfo {
+		return map[int]process.ResourceInfo{os.Getpid(): {CPU: 1.5, Memory: 2048}}
 	})
 	observer.SetAppCoreMemoryFunc(func() (float64, float64, bool, error) {
 		return 4096, 0, false, nil
@@ -222,7 +222,7 @@ func TestPlatformObserverCollectDegradesAppCoreWhenSelfTelemetryFails(t *testing
 		return platform.RuntimeSnapshot{StartedAt: now.Add(-time.Minute), WorkerRunning: true, SchedulerRunning: true, SchedulerLastTick: now, LastDispatchAt: now}
 	})
 	observer.SetNowFunc(func() time.Time { return now })
-	observer.SetResourceFunc(func([]int) map[int]supervisor.ResourceInfo { return map[int]supervisor.ResourceInfo{} })
+	observer.SetResourceFunc(func([]int) map[int]process.ResourceInfo { return map[int]process.ResourceInfo{} })
 	observer.SetAppCoreTelemetryFunc(func(time.Time, platform.LocalAppCoreTelemetryState) ([]monitormetrics.MetricPoint, platform.LocalAppCoreTelemetryState, error) {
 		return nil, platform.LocalAppCoreTelemetryState{}, errors.New("cgroup unavailable")
 	})
@@ -263,7 +263,7 @@ func TestPlatformObserverCollectWritesLocalContainerMetrics(t *testing.T) {
 		return platform.RuntimeSnapshot{}
 	})
 	observer.SetNowFunc(func() time.Time { return now.Add(-30 * time.Second) })
-	observer.SetResourceFunc(func([]int) map[int]supervisor.ResourceInfo { return map[int]supervisor.ResourceInfo{} })
+	observer.SetResourceFunc(func([]int) map[int]process.ResourceInfo { return map[int]process.ResourceInfo{} })
 	observer.SetContainerStatsFunc(func(context.Context) (string, error) {
 		return `{"Container":"abc","Name":"demo-web","CPUPerc":"12.5%","MemUsage":"128MiB / 256MiB","NetIO":"1.0KiB / 2.0KiB","BlockIO":"3.0KiB / 4.0KiB"}`, nil
 	})
@@ -331,7 +331,7 @@ func TestPlatformObserverCollectSkipsLocalContainerTelemetryErrors(t *testing.T)
 		}
 	})
 	observer.SetNowFunc(func() time.Time { return now })
-	observer.SetResourceFunc(func([]int) map[int]supervisor.ResourceInfo { return map[int]supervisor.ResourceInfo{} })
+	observer.SetResourceFunc(func([]int) map[int]process.ResourceInfo { return map[int]process.ResourceInfo{} })
 	observer.SetContainerStatsFunc(func(context.Context) (string, error) {
 		return "", errors.New("docker unavailable")
 	})
@@ -362,7 +362,7 @@ func TestPlatformObserverCollectWritesLocalHostMetrics(t *testing.T) {
 	defer restore()
 
 	observer := platform.NewPlatformObserver(app, func() platform.RuntimeSnapshot { return platform.RuntimeSnapshot{} })
-	observer.SetResourceFunc(func([]int) map[int]supervisor.ResourceInfo { return map[int]supervisor.ResourceInfo{} })
+	observer.SetResourceFunc(func([]int) map[int]process.ResourceInfo { return map[int]process.ResourceInfo{} })
 	observer.SetContainerStatsFunc(func(context.Context) (string, error) { return "", nil })
 	observer.SetNowFunc(func() time.Time { return now.Add(-30 * time.Second) })
 	if err := sysconfig.SetGroup(app, "monitor", "platform-self-observation", map[string]any{
@@ -403,7 +403,7 @@ func TestPlatformObserverCollectSkipsLocalHostTelemetryErrors(t *testing.T) {
 		return platform.RuntimeSnapshot{StartedAt: now.Add(-time.Minute), WorkerRunning: true, SchedulerRunning: true, SchedulerLastTick: now, LastDispatchAt: now}
 	})
 	observer.SetNowFunc(func() time.Time { return now })
-	observer.SetResourceFunc(func([]int) map[int]supervisor.ResourceInfo { return map[int]supervisor.ResourceInfo{} })
+	observer.SetResourceFunc(func([]int) map[int]process.ResourceInfo { return map[int]process.ResourceInfo{} })
 	observer.SetContainerStatsFunc(func(context.Context) (string, error) { return "", nil })
 	if err := sysconfig.SetGroup(app, "monitor", "platform-self-observation", map[string]any{
 		"platformObserverIntervalSeconds":        30,

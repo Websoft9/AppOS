@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { useOptionalLayout } from '@/contexts/LayoutContext'
 import { Badge } from '@/components/ui/badge'
 import {
   ResourcePage,
@@ -8,6 +9,7 @@ import {
   type FieldDef,
   type SelectOption,
 } from '@/components/resources/ResourcePage'
+import { ResourcesBreadcrumb } from '@/components/resources/ResourcesBreadcrumb'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { pb } from '@/lib/pb'
 import {
@@ -66,6 +68,8 @@ function buildColumns(t: Translate): Column[] {
 
 export function ConnectorsPage() {
   const { t } = useTranslation('resources')
+  const layout = useOptionalLayout()
+  const setHeaderRightStartContent = layout?.setHeaderRightStartContent
   const navigate = useNavigate()
   const autoCreate = new URLSearchParams(window.location.search).get('create') === '1'
   const [secretDialogOpen, setSecretDialogOpen] = useState(false)
@@ -73,6 +77,17 @@ export function ConnectorsPage() {
   const [secretAddOption, setSecretAddOption] = useState<
     ((id: string, label: string) => void) | null
   >(null)
+
+  useEffect(() => {
+    if (!setHeaderRightStartContent) return undefined
+    setHeaderRightStartContent(
+      <ResourcesBreadcrumb
+        parentLabel={t('hub.title')}
+        currentPage={t('connectors.page.title')}
+      />
+    )
+    return () => setHeaderRightStartContent(null)
+  }, [setHeaderRightStartContent, t])
 
   useEffect(() => {
     void (async () => {
@@ -221,7 +236,6 @@ export function ConnectorsPage() {
           fields: baseConnectorFields,
           resolveFields: resolveConnectorFields,
           resourceType: 'connector',
-          parentNav: { label: t('hub.title'), href: '/resources' },
           autoCreate,
           defaultSort: { key: 'name', dir: 'asc' },
           searchPlaceholder: t('connectors.page.searchPlaceholder'),

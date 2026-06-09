@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { useOptionalLayout } from '@/contexts/LayoutContext'
 import { Check, Loader2, Pencil } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -15,6 +16,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { ResourcePage, type Column, type FieldDef } from '@/components/resources/ResourcePage'
+import { ResourcesBreadcrumb } from '@/components/resources/ResourcesBreadcrumb'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { SecretCredentialField } from '@/components/secrets/SecretCredentialField'
 import { SecretForm, type SecretTemplate } from '@/components/secrets/SecretForm'
@@ -663,6 +665,8 @@ function buildColumns(t: Translate): Column[] {
 
 export function ServiceInstancesPage() {
   const { t } = useTranslation('resources')
+  const layout = useOptionalLayout()
+  const setHeaderRightStartContent = layout?.setHeaderRightStartContent
   const autoCreate = new URLSearchParams(window.location.search).get('create') === '1'
   const [instanceTemplates, setInstanceTemplates] = useState<InstanceTemplate[]>([])
   const [secretDialogOpen, setSecretDialogOpen] = useState(false)
@@ -679,6 +683,19 @@ export function ServiceInstancesPage() {
   const [secretEditTemplateId, setSecretEditTemplateId] = useState('')
   const [secretEditPayload, setSecretEditPayload] = useState<Record<string, string>>({})
   const [secretEditTemplates, setSecretEditTemplates] = useState<SecretTemplate[]>([])
+
+  useEffect(() => {
+    if (!setHeaderRightStartContent) return undefined
+    setHeaderRightStartContent(
+      <ResourcesBreadcrumb
+        parentLabel={t('hub.title')}
+        currentPage={t('resources.serviceInstances.title', {
+          defaultValue: t('serviceInstances.page.title'),
+        })}
+      />
+    )
+    return () => setHeaderRightStartContent(null)
+  }, [setHeaderRightStartContent, t])
 
   useEffect(() => {
     void (async () => {
@@ -1293,7 +1310,6 @@ export function ServiceInstancesPage() {
           },
           resolveFields: resolveInstanceFields,
           resourceType: 'instance',
-          parentNav: { label: t('hub.title'), href: '/resources' },
           autoCreate,
           enableGroupAssign: true,
           showRefreshButton: true,

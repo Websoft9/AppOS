@@ -414,13 +414,13 @@ func TestSoftwareInventoryRoutesExposeFlatServerAndLocalScopes(t *testing.T) {
 		t.Fatal("expected local software list to include a Go version or pending probe state")
 	}
 
-	rec = te.doSoftware(t, http.MethodGet, "/api/software/local/docker", "", true)
+	rec = te.doSoftware(t, http.MethodGet, "/api/software/local/sqlite", "", true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected local component route 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 	body = parseJSON(t, rec)
-	if body["component_key"] != "docker" {
-		t.Fatalf("expected local component_key docker, got %#v", body["component_key"])
+	if body["component_key"] != "sqlite" {
+		t.Fatalf("expected local component_key sqlite, got %#v", body["component_key"])
 	}
 	if body["target_type"] != "local" {
 		t.Fatalf("expected local target_type local, got %#v", body["target_type"])
@@ -480,13 +480,13 @@ func TestLocalSoftwareDetailColdStartStartsAsyncInventoryWarm(t *testing.T) {
 		return swservice.ComputedComponent{
 			Entry: software.CatalogEntry{
 				ComponentKey: componentKey,
-				Label:        "Docker",
+				Label:        "SQLite",
 				TargetType:   software.TargetTypeLocal,
 			},
 			Detail: software.SoftwareComponentDetail{
 				SoftwareComponentSummary: software.SoftwareComponentSummary{
 					ComponentKey:      componentKey,
-					Label:             "Docker",
+					Label:             "SQLite",
 					TemplateKind:      software.TemplateKindPackage,
 					InstalledState:    software.InstalledStateUnknown,
 					VerificationState: software.VerificationStateUnknown,
@@ -499,7 +499,7 @@ func TestLocalSoftwareDetailColdStartStartsAsyncInventoryWarm(t *testing.T) {
 		warmCalled = true
 	}
 
-	rec := te.doSoftware(t, http.MethodGet, "/api/software/local/docker", "", true)
+	rec := te.doSoftware(t, http.MethodGet, "/api/software/local/sqlite", "", true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected local software detail 200 on cold start, got %d: %s", rec.Code, rec.Body.String())
 	}

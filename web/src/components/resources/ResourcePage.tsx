@@ -7,7 +7,6 @@ import {
   type FormEvent,
   type ChangeEvent,
 } from 'react'
-import { Link } from '@tanstack/react-router'
 import {
   Plus,
   Pencil,
@@ -1194,15 +1193,6 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          {config.parentNav && (
-            <Link
-              to={config.parentNav.href as never}
-              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-1 w-fit transition-colors"
-            >
-              <ChevronLeft className="h-3.5 w-3.5" />
-              {config.parentNav.label}
-            </Link>
-          )}
           <h1 className="text-2xl font-bold tracking-tight">{config.title}</h1>
           {config.description && (
             <p className={cn('mt-1 text-muted-foreground', config.descriptionClassName)}>

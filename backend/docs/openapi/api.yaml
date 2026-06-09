@@ -12836,7 +12836,7 @@ paths:
                 - System
     /api/terminal/docker/{containerId}:
         get:
-            description: Upgrades to a WebSocket PTY session inside the given container via docker exec. Supports remote servers via server_id. Superuser only.
+            description: Upgrades to a WebSocket PTY session inside the given container on a managed server via docker exec over SSH. Superuser only.
             operationId: get_api_terminal_docker_containerid
             parameters:
                 - description: container ID or name
@@ -12845,10 +12845,10 @@ paths:
                   required: true
                   schema:
                     type: string
-                - description: server ID (omit for local)
+                - description: managed server ID
                   in: query
                   name: server_id
-                  required: false
+                  required: true
                   schema:
                     type: string
                 - in: query

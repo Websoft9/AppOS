@@ -354,7 +354,7 @@ export function AppDetailPage({ appId }: { appId: string }) {
       setActionsLoaded(true)
       setError('')
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load action history'))
+      setError(getApiErrorMessage(err, 'Failed to load activity'))
     } finally {
       setActionsLoading(false)
     }
@@ -773,7 +773,7 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const navigateToActionDetail = useCallback(
     (actionId: string) => {
       void navigate({
-        to: '/actions/$actionId' as never,
+        to: '/activity/$actionId' as never,
         params: { actionId } as never,
         search: { returnTo: 'list' } as never,
       })
@@ -1136,7 +1136,7 @@ export function AppDetailPage({ appId }: { appId: string }) {
 
   const openAllActionsForApp = useCallback(() => {
     void navigate({
-      to: '/actions' as never,
+      to: '/activity' as never,
       search: {
         appId,
       } as never,
@@ -1188,7 +1188,7 @@ export function AppDetailPage({ appId }: { appId: string }) {
   )
 
   const buildActionDetailHref = useCallback((actionId: string) => {
-    return `/actions/${actionId}?returnTo=list`
+    return `/activity/${actionId}?returnTo=list`
   }, [])
 
   const serverDetailHref = useMemo(() => {

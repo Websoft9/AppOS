@@ -728,7 +728,7 @@ export function useActionsController({
 
     if (areListSearchEqual(nextSearch, currentSearch)) return
 
-    void navigate({ to: '/actions' as never, search: nextSearch as never, replace: true })
+    void navigate({ to: '/activity' as never, search: nextSearch as never, replace: true })
   }, [
     appFilterId,
     excludeServer,
@@ -974,7 +974,7 @@ export function useActionsController({
       nextListSearch && Object.keys(nextListSearch).length > 0 ? nextListSearch : undefined
     const detailSearch = buildActionDetailSearch(currentListSearch, true)
     void navigate({
-      to: '/actions/$actionId' as never,
+      to: '/activity/$actionId' as never,
       params: { actionId: id } as never,
       search: detailSearch as never,
     })
@@ -982,7 +982,7 @@ export function useActionsController({
 
   function openLatestOperationDetail(id: string) {
     void navigate({
-      to: '/actions/$actionId' as never,
+      to: '/activity/$actionId' as never,
       params: { actionId: id } as never,
       search: { returnTo: 'list' } as never,
     })
@@ -1333,7 +1333,7 @@ export function useActionsController({
   function removeFilterChip(chipKey: string) {
     if (chipKey === 'app') {
       void navigate({
-        to: '/actions' as never,
+        to: '/activity' as never,
         search: buildListSearchState({
           search,
           sortField,
@@ -1386,7 +1386,7 @@ export function useActionsController({
 
   function clearAllFilters() {
     if (appFilterId && view === 'list') {
-      void navigate({ to: '/actions' as never, search: {} as never, replace: true })
+      void navigate({ to: '/activity' as never, search: {} as never, replace: true })
     }
     setSearch('')
     setExcludeStatus(new Set())

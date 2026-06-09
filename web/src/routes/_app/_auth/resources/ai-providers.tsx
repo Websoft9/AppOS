@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { useOptionalLayout } from '@/contexts/LayoutContext'
 import { Check, Pencil } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -11,6 +12,7 @@ import {
   type FieldDef,
   type SelectOption,
 } from '@/components/resources/ResourcePage'
+import { ResourcesBreadcrumb } from '@/components/resources/ResourcesBreadcrumb'
 import { buildApiKeyValue, SecretCredentialField } from '@/components/secrets/SecretCredentialField'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { buildUserVisibleSecretRelationApiPath } from '@/components/secrets/resource-secret-relations'
@@ -396,6 +398,8 @@ function buildColumns(t: Translate): Column[] {
 
 export function AIProvidersPage() {
   const { t } = useTranslation('resources')
+  const layout = useOptionalLayout()
+  const setHeaderRightStartContent = layout?.setHeaderRightStartContent
   const navigate = useNavigate()
   const autoCreate = new URLSearchParams(window.location.search).get('create') === '1'
   const [secretDialogOpen, setSecretDialogOpen] = useState(false)
@@ -403,6 +407,17 @@ export function AIProvidersPage() {
   const [secretAddOption, setSecretAddOption] = useState<
     ((id: string, label: string) => void) | null
   >(null)
+
+  useEffect(() => {
+    if (!setHeaderRightStartContent) return undefined
+    setHeaderRightStartContent(
+      <ResourcesBreadcrumb
+        parentLabel={t('hub.title')}
+        currentPage={t('aiProviders.page.title')}
+      />
+    )
+    return () => setHeaderRightStartContent(null)
+  }, [setHeaderRightStartContent, t])
 
   useEffect(() => {
     void (async () => {
@@ -803,7 +818,6 @@ export function AIProvidersPage() {
           },
           resolveFields: resolveProviderFields,
           resourceType: 'ai_provider',
-          parentNav: { label: t('hub.title'), href: '/resources' },
           autoCreate,
           enableGroupAssign: true,
           createButtonLabel: t('aiProviders.page.addProvider'),

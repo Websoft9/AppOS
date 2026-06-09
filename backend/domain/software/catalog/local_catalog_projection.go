@@ -27,9 +27,7 @@ func ProjectLocalCatalog(reg *LocalRegistry) (software.ComponentCatalog, error) 
 		binary := deriveLocalCatalogBinary(component)
 		if service, ok := reg.findEnabledServiceByComponentID(component.ID); ok {
 			serviceName = service.Name
-			if strings.EqualFold(strings.TrimSpace(service.Manager), "supervisor") {
-				templateRef = "binary-supervisor"
-			}
+			templateRef = "binary-service"
 		}
 		if strings.TrimSpace(binary) == "" {
 			return software.ComponentCatalog{}, fmt.Errorf("component %q cannot derive software binary from runtime metadata", component.ID)

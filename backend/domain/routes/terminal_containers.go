@@ -23,11 +23,11 @@ func registerServerContainerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 // handleDockerExecTerminal upgrades to a WebSocket PTY for docker exec on a container.
 //
 // @Summary Docker exec WebSocket terminal
-// @Description Upgrades to a WebSocket PTY session inside the given container via docker exec. Supports remote servers via server_id. Superuser only.
+// @Description Upgrades to a WebSocket PTY session inside the given container on a managed server via docker exec over SSH. Superuser only.
 // @Tags Terminal Docker
 // @Security BearerAuth
 // @Param containerId path string true "container ID or name"
-// @Param server_id query string false "server ID (omit for local)"
+// @Param server_id query string true "managed server ID"
 // @Param shell query string false "shell binary" Enums(/bin/sh, /bin/bash, /bin/zsh)
 // @Success 101 {string} string "WebSocket upgrade"
 // @Failure 400 {object} map[string]any

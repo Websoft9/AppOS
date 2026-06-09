@@ -150,7 +150,7 @@ export function buildActionDetailSearch(
 
 export function buildActionListHref(search?: ActionDetailSearch): string {
   const listSearch = stripActionDetailReturnTo(search)
-  if (!listSearch) return '/actions'
+  if (!listSearch) return '/activity'
 
   const params = new URLSearchParams()
   if (listSearch.appId) params.set('appId', listSearch.appId)
@@ -164,7 +164,7 @@ export function buildActionListHref(search?: ActionDetailSearch): string {
   if (listSearch.excludeServer) params.set('excludeServer', listSearch.excludeServer)
 
   const query = params.toString()
-  return query ? `/actions?${query}` : '/actions'
+  return query ? `/activity?${query}` : '/activity'
 }
 
 export function buildActionListSearch(search?: ActionDetailSearch): ActionListSearch | undefined {

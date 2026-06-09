@@ -85,28 +85,17 @@ describe('ActionDetailContent', () => {
           getServerLabel={item => item.server_label || item.server_id}
           getServerHost={item => item.server_host || '-'}
           formatTime={value => value || '-'}
-          onRefresh={vi.fn()}
         />
       </TooltipProvider>
     )
 
-    expect(screen.queryByText('Overview')).not.toBeInTheDocument()
-    expect(screen.queryByText('Execution Stages')).not.toBeInTheDocument()
-    expect(screen.queryByText('Execution Timeline')).not.toBeInTheDocument()
-    expect(screen.queryByText('Full Execution Log')).not.toBeInTheDocument()
     expect(screen.getByText('Failed')).toBeInTheDocument()
     expect(screen.getByText(/Total duration 7m 0s/i)).toBeInTheDocument()
-    expect(screen.queryByText('Operation ID')).not.toBeInTheDocument()
-    expect(screen.queryByText('Server Target')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'More metadata' }))
     expect(screen.getByText('Operation ID')).toBeInTheDocument()
     expect(screen.getByText('Server Target')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /explain error/i }))
-    expect(screen.getByText('Error Log')).toBeInTheDocument()
-    expect(screen.getByText('Show all logs')).toBeInTheDocument()
-    expect(screen.getByText('2026-03-26T08:07:00Z error: probe failed')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Steps' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /prepare workspace/i }))
     expect(screen.getByText('Node execution log')).toBeInTheDocument()
@@ -192,7 +181,6 @@ describe('ActionDetailContent', () => {
           getServerLabel={item => item.server_label || item.server_id}
           getServerHost={item => item.server_host || '-'}
           formatTime={value => value || '-'}
-          onRefresh={vi.fn()}
         />
       </TooltipProvider>
     )
@@ -268,12 +256,10 @@ describe('ActionDetailContent', () => {
           getServerLabel={item => item.server_label || item.server_id}
           getServerHost={item => item.server_host || '-'}
           formatTime={value => value || '-'}
-          onRefresh={vi.fn()}
         />
       </TooltipProvider>
     )
 
-    expect(screen.queryByText('Active Stage Log')).not.toBeInTheDocument()
     expect(screen.getByText('Pull progress')).toBeInTheDocument()
     expect(screen.getByText('1/1 layers complete')).toBeInTheDocument()
     expect(screen.getByText('postgres:16: Pulling')).toBeInTheDocument()

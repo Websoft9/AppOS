@@ -5,10 +5,10 @@ describe('login redirect helpers', () => {
   it('normalizes same-origin absolute redirects into SPA targets', () => {
     expect(
       resolveLoginRedirectTarget(
-        'http://appos.local/actions?returnTo=list#logs',
+        'http://appos.local/activity?returnTo=list#logs',
         'http://appos.local'
       )
-    ).toBe('/actions?returnTo=list#logs')
+    ).toBe('/activity?returnTo=list#logs')
   })
 
   it('keeps relative in-app redirects as SPA targets', () => {
@@ -27,12 +27,12 @@ describe('login redirect helpers', () => {
 
     await completeLoginRedirect(
       navigate,
-      'http://appos.local/actions?returnTo=list',
+      'http://appos.local/activity?returnTo=list',
       'http://appos.local',
       assign
     )
 
-    expect(navigate).toHaveBeenCalledWith({ to: '/actions?returnTo=list' })
+    expect(navigate).toHaveBeenCalledWith({ to: '/activity?returnTo=list' })
     expect(assign).not.toHaveBeenCalled()
   })
 

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	swcatalog "github.com/websoft9/appos/backend/domain/software/catalog"
-	"github.com/websoft9/appos/backend/infra/supervisor"
+	"github.com/websoft9/appos/backend/infra/process"
 )
 
 type LocalServiceObservation struct {
@@ -25,14 +25,11 @@ type LocalServiceObservation struct {
 	LogAvailable   bool
 }
 
-var localServiceProcessInfoFn = func() ([]supervisor.ProcessInfo, error) {
-	client := supervisor.NewClient(supervisor.DefaultConfig())
-	return client.GetAllProcessInfo()
-}
+var localServiceProcessInfoFn = process.ListMatchedProcesses
 
-var localServiceResourceFn = supervisor.GetProcessResources
-var localServiceMemoryFn = supervisor.GetProcessMemory
-var localServiceUptimeFn = supervisor.GetProcessUptime
+var localServiceResourceFn = process.GetProcessResources
+var localServiceMemoryFn = process.GetProcessMemory
+var localServiceUptimeFn = process.GetProcessUptime
 
 var localServiceObservationCache = struct {
 	mu          sync.Mutex
@@ -42,6 +39,9 @@ var localServiceObservationCache = struct {
 }{}
 
 func ObserveLocalServices(registry *swcatalog.LocalRegistry) []LocalServiceObservation {
+	if registry == nil {
+		return []LocalServiceObservation{}
+	}
 	if items, ok := loadLocalServiceObservationSnapshot(); ok {
 		startLocalServiceObservationRefresh(registry)
 		return items
@@ -54,11 +54,24 @@ func ObserveLocalServices(registry *swcatalog.LocalRegistry) []LocalServiceObser
 }
 
 func observeLocalServicesSnapshot(registry *swcatalog.LocalRegistry, includeCPU bool) []LocalServiceObservation {
-	processes, procErr := localServiceProcessInfoFn()
-	resources := map[int]supervisor.ResourceInfo{}
+	if registry == nil {
+		return []LocalServiceObservation{}
+	}
+	services := registry.EnabledServices()
+	targets := make([]process.MatchTarget, 0, len(services))
+	for _, service := range services {
+		program := strings.TrimSpace(service.Program)
+		if program == "" {
+			program = service.Name
+		}
+		targets = append(targets, process.MatchTarget{Name: service.Name, Program: program})
+	}
+
+	processes, procErr := localServiceProcessInfoFn(targets)
+	resources := map[int]process.ResourceInfo{}
 	memoryByPID := map[int]int64{}
 	uptimeByPID := map[int]int64{}
-	processMap := map[string]supervisor.ProcessInfo{}
+	processMap := map[string]process.ProcessInfo{}
 	if procErr == nil {
 		pids := make([]int, 0, len(processes))
 		for _, process := range processes {
@@ -76,8 +89,8 @@ func observeLocalServicesSnapshot(registry *swcatalog.LocalRegistry, includeCPU 
 	}
 
 	now := time.Now().UTC().Format(time.RFC3339)
-	items := make([]LocalServiceObservation, 0, len(registry.EnabledServices()))
-	for _, service := range registry.EnabledServices() {
+	items := make([]LocalServiceObservation, 0, len(services))
+	for _, service := range services {
 		process, ok := processMap[service.Name]
 		state := "unknown"
 		pid := 0
@@ -132,6 +145,9 @@ func storeLocalServiceObservationSnapshot(items []LocalServiceObservation) {
 }
 
 func startLocalServiceObservationRefresh(registry *swcatalog.LocalRegistry) {
+	if registry == nil {
+		return
+	}
 	localServiceObservationCache.mu.Lock()
 	if localServiceObservationCache.refreshing {
 		localServiceObservationCache.mu.Unlock()
@@ -161,14 +177,6 @@ func cloneLocalServiceObservations(items []LocalServiceObservation) []LocalServi
 
 func LoadLocalServiceLog(service swcatalog.LocalService, stream string, maxBytes int) (string, bool, error) {
 	switch service.LogAccess.Type {
-	case "supervisor":
-		client := supervisor.NewClient(supervisor.DefaultConfig())
-		if stream == "stderr" {
-			content, _, _, err := client.TailErrLog(service.LogAccess.Service, 0, maxBytes)
-			return content, len(content) >= maxBytes, err
-		}
-		content, _, _, err := client.TailLog(service.LogAccess.Service, 0, maxBytes)
-		return content, len(content) >= maxBytes, err
 	case "file":
 		path := service.LogAccess.StdoutPath
 		if stream == "stderr" {

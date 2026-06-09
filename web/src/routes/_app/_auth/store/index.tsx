@@ -431,6 +431,21 @@ export function StorePage() {
     setModalOpen(true)
   }
 
+  const handleDirectDeploy = (product: ProductWithCategories) => {
+    void navigate({
+      to: '/deploy/create',
+      search: {
+        entry: 'template',
+        prefillMode: 'target',
+        prefillSource: 'library',
+        prefillAppId: undefined,
+        prefillAppKey: product.key,
+        prefillAppName: product.trademark,
+        prefillServerId: undefined,
+      },
+    })
+  }
+
   const openCustomDetail = (app: CustomApp) => {
     setSelectedApp(customAppToProduct(app))
     setSelectedAppIsCustom(true)
@@ -804,6 +819,7 @@ export function StorePage() {
                           product={product}
                           primaryCategories={primaryCategories}
                           onSelectApp={openDetail}
+                          onDeploy={handleDirectDeploy}
                           userApps={userApps}
                         />
                       </div>

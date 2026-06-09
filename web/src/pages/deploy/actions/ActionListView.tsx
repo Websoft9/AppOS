@@ -259,7 +259,7 @@ export function ActionListView<TOperation extends ActionListItem>({
             <Input
               value={search}
               onChange={event => onSearchChange(event.target.value)}
-              placeholder="Search actions..."
+              placeholder="Search activity..."
               className="w-full min-w-[220px] pl-9 lg:w-[280px]"
             />
           </div>
@@ -335,7 +335,7 @@ export function ActionListView<TOperation extends ActionListItem>({
           ) : null}
           {selectedActiveCount > 0 ? (
             <span className="text-xs text-muted-foreground">
-              Executing actions cannot be deleted.
+              Executing activity items cannot be deleted.
             </span>
           ) : null}
         </div>
@@ -375,7 +375,7 @@ export function ActionListView<TOperation extends ActionListItem>({
               <TableHead className="w-10">
                 <Checkbox
                   checked={allPageSelected ? true : somePageSelected ? 'indeterminate' : false}
-                  aria-label="Select visible actions"
+                  aria-label="Select visible activity items"
                   onCheckedChange={checked => onTogglePageSelection(Boolean(checked))}
                 />
               </TableHead>
@@ -453,7 +453,7 @@ export function ActionListView<TOperation extends ActionListItem>({
                   colSpan={showCreatedColumn ? 11 : 10}
                   className="py-8 text-center text-muted-foreground"
                 >
-                  Loading actions...
+                  Loading activity...
                 </TableCell>
               </TableRow>
             ) : pagedItems.length === 0 ? (

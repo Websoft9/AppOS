@@ -14,7 +14,7 @@ import { TabsList, TabsTrigger } from '@/components/ui/tabs'
 const APP_DETAIL_TABS = [
   { value: 'overview', label: 'Overview', icon: LayoutDashboard },
   { value: 'access', label: 'Access', icon: KeyRound },
-  { value: 'actions', label: 'Actions', icon: ScrollText },
+  { value: 'actions', label: 'Activity', icon: ScrollText },
   { value: 'runtime', label: 'Runtime', icon: Boxes },
   { value: 'compose', label: 'Compose', icon: FileCode2 },
   { value: 'observability', label: 'Observability', icon: Activity },

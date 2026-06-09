@@ -130,6 +130,7 @@ func (r *LocalRegistry) Validate() error {
 		seenComponents[component.ID] = struct{}{}
 	}
 	seenServices := map[string]struct{}{}
+	seenPrograms := map[string]string{}
 	for _, service := range r.Services {
 		if strings.TrimSpace(service.Name) == "" {
 			return errors.New("service name is required")
@@ -167,6 +168,16 @@ func (r *LocalRegistry) Validate() error {
 			return fmt.Errorf("duplicate service name %q", service.Name)
 		}
 		seenServices[service.Name] = struct{}{}
+		if service.Enabled {
+			program := strings.TrimSpace(service.Program)
+			if program == "" {
+				program = service.Name
+			}
+			if existing, exists := seenPrograms[program]; exists {
+				return fmt.Errorf("service %q reuses program %q already claimed by %q", service.Name, program, existing)
+			}
+			seenPrograms[program] = service.Name
+		}
 	}
 	return nil
 }

@@ -172,7 +172,7 @@ export interface ResourcePageConfig {
   nameField?: string
   autoCreate?: boolean
   onAutoCreateHandled?: () => void
-  parentNav?: { label: string; href: string }
+  parentNav?: { label: string; href: string; icon?: React.ReactNode }
   enableGroupAssign?: boolean
   onCreateSuccess?: (record: Record<string, unknown>) => void
   showRefreshButton?: boolean

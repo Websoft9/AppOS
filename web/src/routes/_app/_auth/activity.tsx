@@ -44,22 +44,22 @@ function parseCsv(value: unknown): string | undefined {
   return normalized || undefined
 }
 
-function ActionsRoutePage() {
+function ActivityRoutePage() {
   const location = useLocation()
   const search = Route.useSearch()
-  const isListRoute = location.pathname === '/actions' || location.pathname === '/actions/'
+  const isListRoute = location.pathname === '/activity' || location.pathname === '/activity/'
 
   return (
     <Suspense
-      fallback={<div className="p-6 text-sm text-muted-foreground">Loading Actions...</div>}
+      fallback={<div className="p-6 text-sm text-muted-foreground">Loading Activity...</div>}
     >
       {isListRoute ? <LazyDeployPage view="list" listSearch={search} /> : <Outlet />}
     </Suspense>
   )
 }
 
-export const Route = createFileRoute('/_app/_auth/actions' as never)({
-  component: ActionsRoutePage,
+export const Route = createFileRoute('/_app/_auth/activity' as never)({
+  component: ActivityRoutePage,
   validateSearch: (search: Record<string, unknown>): ActionListSearch => ({
     appId: typeof search.appId === 'string' && search.appId.trim() ? search.appId : undefined,
     q: typeof search.q === 'string' && search.q.trim() ? search.q : undefined,

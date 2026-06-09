@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { useOptionalLayout } from '@/contexts/LayoutContext'
 import { Badge } from '@/components/ui/badge'
 import { ResourcePage, type Column, type FieldDef } from '@/components/resources/ResourcePage'
+import { ResourcesBreadcrumb } from '@/components/resources/ResourcesBreadcrumb'
 import { buildUserVisibleSecretRelationApiPath } from '@/components/secrets/resource-secret-relations'
 import { pb } from '@/lib/pb'
 
@@ -207,10 +209,23 @@ function buildColumns(t: Translate): Column[] {
 
 export function PlatformAccountsPage() {
   const { t } = useTranslation('resources')
+  const layout = useOptionalLayout()
+  const setHeaderRightStartContent = layout?.setHeaderRightStartContent
   const autoCreate = new URLSearchParams(window.location.search).get('create') === '1'
   const [providerAccountTemplates, setProviderAccountTemplates] = useState<
     ProviderAccountTemplate[]
   >([])
+
+  useEffect(() => {
+    if (!setHeaderRightStartContent) return undefined
+    setHeaderRightStartContent(
+      <ResourcesBreadcrumb
+        parentLabel={t('hub.title')}
+        currentPage={t('platformAccounts.page.title')}
+      />
+    )
+    return () => setHeaderRightStartContent(null)
+  }, [setHeaderRightStartContent, t])
 
   useEffect(() => {
     void (async () => {
@@ -388,7 +403,6 @@ export function PlatformAccountsPage() {
         dialogContentClassName: 'sm:max-w-4xl',
         resolveFields: resolveProviderAccountFields,
         resourceType: 'provider_account',
-        parentNav: { label: t('hub.title'), href: '/resources' },
         autoCreate,
         enableGroupAssign: true,
         listItems: async () => {

@@ -54,7 +54,7 @@ components:
       component_key: appos
       readiness_requirements:
         - bundled_with_appos
-        - supervisor_process
+        - local_process
     version_probe:
       type: static
       value: unknown
@@ -66,8 +66,9 @@ components:
       type: file_mtime
       path: /usr/local/bin/appos
     log_access:
-      type: supervisor
-      service: appos
+      type: file
+      stdout_path: /var/log/supervisor/appos.log
+      stderr_path: /var/log/supervisor/appos-error.log
       default_stream: stdout
     operations:
       start: false
@@ -87,7 +88,7 @@ components:
       capability: reverse_proxy
       readiness_requirements:
         - bundled_with_appos
-        - supervisor_process
+        - local_process
     version_probe:
       type: command
       command: ["sh", "-c", "nginx -v 2>&1 | sed 's|.*nginx/||'"]
@@ -98,8 +99,9 @@ components:
       type: file_mtime
       path: /usr/sbin/nginx
     log_access:
-      type: supervisor
-      service: nginx
+      type: file
+      stdout_path: /var/log/supervisor/nginx.log
+      stderr_path: /var/log/supervisor/nginx-error.log
       default_stream: stdout
     operations:
       start: false
@@ -145,7 +147,7 @@ components:
       component_key: redis
       readiness_requirements:
         - bundled_with_appos
-        - supervisor_process
+        - local_process
     version_probe:
       type: command
       command: ['sh', '-c', "redis-server --version | sed -n 's/.*v=\\([^ ]*\\).*/\\1/p'"]
@@ -157,41 +159,15 @@ components:
       type: file_mtime
       path: /usr/bin/redis-server
     log_access:
-      type: supervisor
-      service: redis
+      type: file
+      stdout_path: /var/log/supervisor/redis.log
+      stderr_path: /var/log/supervisor/redis-error.log
       default_stream: stdout
     operations:
       start: false
       stop: false
       restart: false
     notes: Internal cache/runtime dependency.
-
-  - id: docker
-    name: Docker CLI
-    enabled: true
-    criticality: important
-    runtime_kind: tool
-    role: container cli
-    owned_capability: container operations
-    software_catalog:
-      component_key: docker
-      readiness_requirements:
-        - bundled_with_appos
-        - docker_socket_access
-    version_probe:
-      type: command
-      command: ["docker", "version", "--format", "{{.Client.Version}}"]
-    availability_probe:
-      type: command
-      command: ["docker", "version", "--format", "{{.Client.Version}}"]
-    update_probe:
-      type: file_mtime
-      path: /usr/local/bin/docker
-    operations:
-      start: false
-      stop: false
-      restart: false
-    notes: Local Docker client.
 
   - id: node
     name: Node.js
@@ -247,60 +223,6 @@ components:
       restart: false
     notes: Package manager for Node tooling.
 
-  - id: pi-agent
-    name: Pi Agent
-    enabled: true
-    criticality: optional
-    runtime_kind: tool
-    role: ai coding agent
-    owned_capability: local ai assistance
-    software_catalog:
-      component_key: pi-agent
-      readiness_requirements:
-        - bundled_with_appos
-        - binary_available
-    version_probe:
-      type: command
-      command: ["sh", "-c", "npm list -g --depth=0 @mariozechner/pi-coding-agent 2>/dev/null | tail -n 1 | sed 's|.*@||'"]
-    availability_probe:
-      type: command
-      command: ["sh", "-c", "npm list -g --depth=0 @mariozechner/pi-coding-agent >/dev/null 2>&1"]
-    update_probe:
-      type: file_mtime
-      path: /usr/local/lib/node_modules/@mariozechner/pi-coding-agent
-    operations:
-      start: false
-      stop: false
-      restart: false
-    notes: AI coding assistant runtime dependency.
-
-  - id: store-library
-    name: Store Library
-    enabled: true
-    criticality: important
-    runtime_kind: bundled_artifact
-    role: app catalog bundle
-    owned_capability: app catalog content
-    software_catalog:
-      component_key: store-library
-      readiness_requirements:
-        - bundled_with_appos
-        - artifact_available
-    version_probe:
-      type: static
-      value: unknown
-    availability_probe:
-      type: file_exists
-      path: /appos/library
-    update_probe:
-      type: file_mtime
-      path: /appos/library
-    operations:
-      start: false
-      stop: false
-      restart: false
-    notes: App catalog bundle downloaded at build time.
-
   - id: victoria-metrics
     name: VictoriaMetrics
     enabled: true
@@ -312,7 +234,7 @@ components:
       component_key: victoria-metrics
       readiness_requirements:
         - bundled_with_appos
-        - supervisor_process
+        - local_process
     version_probe:
       type: command
       command: ['sh', '-c', "victoria-metrics-prod --version 2>&1 | sed -n 's/.*v\\([0-9.]*\\).*/\\1/p' | head -n 1"]
@@ -324,8 +246,9 @@ components:
       type: file_mtime
       path: /usr/local/bin/victoria-metrics-prod
     log_access:
-      type: supervisor
-      service: victoriametrics
+      type: file
+      stdout_path: /var/log/supervisor/victoriametrics.log
+      stderr_path: /var/log/supervisor/victoriametrics-error.log
       default_stream: stdout
     operations:
       start: false
@@ -359,33 +282,6 @@ components:
       stop: false
       restart: false
     notes: Embedded SQLite engine used by the AppOS PocketBase runtime.
-
-  - id: docker-compose
-    name: Docker Compose
-    enabled: true
-    criticality: important
-    runtime_kind: tool
-    role: compose cli
-    owned_capability: multi-container orchestration
-    software_catalog:
-      component_key: docker-compose
-      readiness_requirements:
-        - bundled_with_appos
-        - binary_available
-    version_probe:
-      type: command
-      command: ["docker", "compose", "version", "--short"]
-    availability_probe:
-      type: command
-      command: ["docker", "compose", "version"]
-    update_probe:
-      type: file_mtime
-      path: /usr/local/libexec/docker/cli-plugins/docker-compose
-    operations:
-      start: false
-      stop: false
-      restart: false
-    notes: Docker Compose plugin for multi-container management.
 
   - id: git
     name: Git
@@ -445,15 +341,16 @@ services:
   - name: appos
     component_id: appos
     enabled: true
-    manager: supervisor
+    manager: process
     program: appos
-    declared_in: /etc/supervisor/supervisord.conf
+    declared_in: runtime
     role: AppOS API and control-plane service.
     lifecycle: always_on
     visibility: default
     log_access:
-      type: supervisor
-      service: appos
+      type: file
+      stdout_path: /var/log/supervisor/appos.log
+      stderr_path: /var/log/supervisor/appos-error.log
       default_stream: stdout
     operations:
       start: false
@@ -463,15 +360,16 @@ services:
   - name: redis
     component_id: redis
     enabled: true
-    manager: supervisor
-    program: redis
-    declared_in: /etc/supervisor/supervisord.conf
+    manager: process
+    program: redis-server
+    declared_in: runtime
     role: Internal cache and runtime dependency.
     lifecycle: always_on
     visibility: diagnostic
     log_access:
-      type: supervisor
-      service: redis
+      type: file
+      stdout_path: /var/log/supervisor/redis.log
+      stderr_path: /var/log/supervisor/redis-error.log
       default_stream: stdout
     operations:
       start: false
@@ -481,15 +379,16 @@ services:
   - name: nginx
     component_id: nginx
     enabled: true
-    manager: supervisor
+    manager: process
     program: nginx
-    declared_in: /etc/supervisor/supervisord.conf
+    declared_in: runtime
     role: Reverse proxy and static web server.
     lifecycle: always_on
     visibility: default
     log_access:
-      type: supervisor
-      service: nginx
+      type: file
+      stdout_path: /var/log/supervisor/nginx.log
+      stderr_path: /var/log/supervisor/nginx-error.log
       default_stream: stdout
     operations:
       start: false
@@ -499,15 +398,16 @@ services:
   - name: victoriametrics
     component_id: victoria-metrics
     enabled: true
-    manager: supervisor
-    program: victoriametrics
-    declared_in: /etc/supervisor/supervisord.conf
+    manager: process
+    program: victoria-metrics-prod
+    declared_in: runtime
     role: Embedded time-series metrics storage service.
     lifecycle: always_on
     visibility: diagnostic
     log_access:
-      type: supervisor
-      service: victoriametrics
+      type: file
+      stdout_path: /var/log/supervisor/victoriametrics.log
+      stderr_path: /var/log/supervisor/victoriametrics-error.log
       default_stream: stdout
     operations:
       start: false

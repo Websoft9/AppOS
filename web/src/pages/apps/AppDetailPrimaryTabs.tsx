@@ -70,7 +70,7 @@ export function AppDetailOverviewTab({
     app.runtime_status === 'error'
       ? app.runtime_reason || 'Runtime reported an error.'
       : app.current_pipeline?.status === 'failed'
-        ? 'Latest pipeline failed. Review Actions for details.'
+        ? 'Latest pipeline failed. Review Activity for details.'
         : app.health_summary && /healthy|running|available|ok/i.test(app.health_summary)
           ? ''
           : app.health_summary || ''
@@ -222,7 +222,7 @@ export function AppDetailOverviewTab({
             Open Access
           </Button>
           <Button variant="outline" size="sm" onClick={() => setTab('actions')}>
-            Open Actions
+            Open Activity
           </Button>
           <Button variant="outline" size="sm" onClick={() => setTab('compose')}>
             Open Compose
@@ -623,9 +623,9 @@ export function AppDetailActionsTab({
 
       <Card>
         <CardHeader className="border-b pb-3">
-          <CardTitle>Action History</CardTitle>
+          <CardTitle>Activity</CardTitle>
           <CardDescription>
-            App-scoped action records pulled from the shared Actions subsystem.
+            App-scoped activity records pulled from the shared Activity subsystem.
           </CardDescription>
           <CardAction>
             <div className="flex flex-wrap gap-2">
@@ -643,7 +643,7 @@ export function AppDetailActionsTab({
                 Refresh
               </Button>
               <Button variant="outline" size="sm" onClick={openAllActionsForApp}>
-                Open in Actions
+                Open in Activity
               </Button>
             </div>
           </CardAction>
@@ -655,7 +655,7 @@ export function AppDetailActionsTab({
               <Input
                 value={actionSearch}
                 onChange={event => setActionSearch(event.target.value)}
-                placeholder="Search this app's actions"
+                placeholder="Search this app's activity"
                 className="pl-9"
               />
             </div>
@@ -690,8 +690,8 @@ export function AppDetailActionsTab({
           <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
             <div>
               {actionHistoryTotalItems > 0
-                ? `Showing page ${actionHistoryPage} of ${actionHistoryTotalPages} · ${actionHistoryTotalItems} total action records`
-                : 'No action records loaded yet.'}
+                ? `Showing page ${actionHistoryPage} of ${actionHistoryTotalPages} · ${actionHistoryTotalItems} total activity records`
+                : 'No activity records loaded yet.'}
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -715,7 +715,7 @@ export function AppDetailActionsTab({
 
           {actionsLoading && scopedActions.length === 0 ? (
             <div className="rounded-2xl border p-4 text-sm text-muted-foreground">
-              Loading action history...
+              Loading activity...
             </div>
           ) : filteredScopedActions.length > 0 ? (
             <AppDetailActionHistoryTable
@@ -726,19 +726,19 @@ export function AppDetailActionsTab({
             />
           ) : scopedActions.length > 0 ? (
             <div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
-              No action records match the current local filters.
+              No activity records match the current local filters.
             </div>
           ) : (
             <div className="space-y-2 rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
-              <p>No shared actions are associated with this app yet.</p>
+              <p>No shared activity is associated with this app yet.</p>
               <div className="flex flex-wrap gap-2">
                 {app.last_operation ? (
                   <Button variant="outline" onClick={openOperationStatus}>
-                    Open Latest Action Detail
+                    Open Latest Activity Detail
                   </Button>
                 ) : null}
                 <Button variant="outline" onClick={openAllActionsForApp}>
-                  Open Actions Page
+                  Open Activity Page
                 </Button>
               </div>
             </div>

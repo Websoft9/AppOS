@@ -222,11 +222,11 @@ export function DeployPage({
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-2xl font-bold">
-            {view === 'list' ? 'Action History' : 'Deploy Application'}
+            {view === 'list' ? 'Activity' : 'Deploy Application'}
           </h1>
           <p className="text-sm text-muted-foreground">
             {view === 'list'
-              ? 'Browse lifecycle actions and open execution details.'
+              ? 'Browse deployment activity and open execution details.'
               : 'Choose an application source and start deployment.'}
           </p>
         </div>
@@ -244,11 +244,11 @@ export function DeployPage({
               <Button
                 variant="outline"
                 size="icon"
-                title="View actions"
-                aria-label="View actions"
+                title="View activity"
+                aria-label="View activity"
                 asChild
               >
-                <Link to="/actions" params={{} as never} search={{} as never}>
+                <Link to="/activity" params={{} as never} search={{} as never}>
                   <List className="h-4 w-4" />
                 </Link>
               </Button>
@@ -293,11 +293,11 @@ export function DeployPage({
         <Alert>
           <AlertDescription className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <span>
-              Showing actions scoped to app {listSearch.appId}. Search, sorting, and filters apply
+              Showing activity scoped to app {listSearch.appId}. Search, sorting, and filters apply
               within this app only.
             </span>
             <Button variant="outline" size="sm" asChild>
-              <Link to="/actions" params={{} as never} search={{} as never}>
+              <Link to="/activity" params={{} as never} search={{} as never}>
                 Clear App Scope
               </Link>
             </Button>

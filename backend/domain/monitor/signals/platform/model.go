@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/infra/supervisor"
+	"github.com/websoft9/appos/backend/infra/process"
 )
 
 const (
@@ -37,7 +37,7 @@ type RuntimeSnapshot struct {
 type PlatformObserver struct {
 	app                core.App
 	snapshotFn         func() RuntimeSnapshot
-	resourceFn         func([]int) map[int]supervisor.ResourceInfo
+	resourceFn         func([]int) map[int]process.ResourceInfo
 	appCoreTelemetryFn func(time.Time, localAppCoreTelemetryState) ([]MetricPoint, localAppCoreTelemetryState, error)
 	appCoreMemoryFn    func() (float64, float64, bool, error)
 	hostTelemetryFn    func(time.Time, localHostTelemetryState) ([]MetricPoint, localHostTelemetryState, error)

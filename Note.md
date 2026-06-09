@@ -179,3 +179,22 @@ docker.1ms.run
 root url 
 
 docker image 下载完成后，记得镜像更名
+
+
+AI settings 哪里，应该是禁用哪些厂商。默认全部启用
+
+activity metadata 区展开后会导致页面抖动
+
+
+对。不管是 chat、agent、还是后续任何 AI 能力，模型选择都应该在执行时那一刻决定，而不是绑在 provider 配置上。
+
+这和现实世界是一样的：你注册了一个 DeepSeek 账号（provider），不等于你永远只用 deepseek-chat；你也可能今天用 chat、明天换 reasoner。选择权在执行时，不在注册时。
+
+唯一需要持久化的偏好是"上次用的是什么"，这样用户打开 chat 不用每次都重选。但这只是一个 UI 状态记录（localStorage 或 user preference），不会污染 provider 的业务数据。
+
+所以最终模型是：
+
+层	职责	存储
+Provider	endpoint + credential + kind	数据库
+模型列表	fetch-models 运行时拉取	不存
+默认偏好	上次用哪个 model	前端 localStorage 或用户偏好字段

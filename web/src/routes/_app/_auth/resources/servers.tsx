@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { useOptionalLayout } from '@/contexts/LayoutContext'
 import { Badge } from '@/components/ui/badge'
 import {
   PlugZap,
@@ -42,6 +43,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ResourcePage, type Column, type FieldDef } from '@/components/resources/ResourcePage'
+import { ResourcesBreadcrumb } from '@/components/resources/ResourcesBreadcrumb'
 import { TunnelSetupWizard } from '@/components/servers/TunnelSetupWizard'
 import { ServerConnectionTab } from '@/components/servers/ServerConnectionTab'
 import { ServerMonitorTab } from '@/components/servers/ServerMonitorTab'
@@ -437,6 +439,8 @@ function buildServerBaseFields(t: Translate): FieldDef[] {
 
 export function ServersPage() {
   const { t } = useTranslation('resources')
+  const layout = useOptionalLayout()
+  const setHeaderRightStartContent = layout?.setHeaderRightStartContent
   const {
     create,
     returnGroup,
@@ -927,6 +931,17 @@ export function ServersPage() {
   useEffect(() => {
     setSelectedServerId(server)
   }, [server])
+
+  useEffect(() => {
+    if (!setHeaderRightStartContent) return undefined
+    setHeaderRightStartContent(
+      <ResourcesBreadcrumb
+        parentLabel={t('hub.title')}
+        currentPage={t('servers.page.title')}
+      />
+    )
+    return () => setHeaderRightStartContent(null)
+  }, [setHeaderRightStartContent, t])
 
   // ── Realtime subscription: patch connection state as PB pushes server record changes ──
   // Tunnel connect/disconnect and connectivity-probe write-backs both save the
@@ -1828,7 +1843,6 @@ export function ServersPage() {
           resourceType: 'server',
           actionsAlign: 'left',
           actionsMenuAlign: 'start',
-          parentNav: { label: t('hub.title'), href: '/resources' },
           listItems,
           createItem: async payload =>
             await pb.collection('servers').create({

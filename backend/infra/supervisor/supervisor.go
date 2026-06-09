@@ -6,9 +6,11 @@ package supervisor
 
 import (
 	"bytes"
+	"context"
 	"encoding/xml"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -18,21 +20,30 @@ import (
 
 // Config holds supervisord connection settings.
 type Config struct {
-	URL      string // e.g. "http://127.0.0.1:9001/RPC2"
-	Username string
-	Password string
+	URL        string // e.g. "http://127.0.0.1:9001/RPC2"
+	SocketPath string // e.g. "/var/run/supervisor.sock"
+	Username   string
+	Password   string
 }
 
 // DefaultConfig returns config using environment variables.
 func DefaultConfig() Config {
-	password := os.Getenv("SUPERVISOR_PASSWORD")
-	if password == "" {
-		panic("SUPERVISOR_PASSWORD is not set")
+	if rawURL := strings.TrimSpace(os.Getenv("SUPERVISOR_URL")); rawURL != "" {
+		return Config{
+			URL:      rawURL,
+			Username: strings.TrimSpace(os.Getenv("SUPERVISOR_USERNAME")),
+			Password: os.Getenv("SUPERVISOR_PASSWORD"),
+		}
 	}
+
+	socketPath := strings.TrimSpace(os.Getenv("SUPERVISOR_SOCKET"))
+	if socketPath == "" {
+		socketPath = "/var/run/supervisor.sock"
+	}
+
 	return Config{
-		URL:      "http://127.0.0.1:9001/RPC2",
-		Username: "admin",
-		Password: password,
+		URL:        "http://unix/RPC2",
+		SocketPath: socketPath,
 	}
 }
 
@@ -46,9 +57,22 @@ type Client struct {
 func NewClient(cfg Config) *Client {
 	return &Client{
 		cfg: cfg,
-		http: &http.Client{
-			Timeout: 10 * time.Second,
-		},
+		http: newHTTPClient(cfg),
+	}
+}
+
+func newHTTPClient(cfg Config) *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if cfg.SocketPath != "" {
+		transport.Proxy = nil
+		transport.DialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, "unix", cfg.SocketPath)
+		}
+	}
+
+	return &http.Client{
+		Timeout:   10 * time.Second,
+		Transport: transport,
 	}
 }
 
@@ -188,7 +212,9 @@ func (c *Client) call(method string, params ...string) ([]byte, error) {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "text/xml")
-	req.SetBasicAuth(c.cfg.Username, c.cfg.Password)
+	if c.cfg.Username != "" || c.cfg.Password != "" {
+		req.SetBasicAuth(c.cfg.Username, c.cfg.Password)
+	}
 
 	resp, err := c.http.Do(req)
 	if err != nil {
