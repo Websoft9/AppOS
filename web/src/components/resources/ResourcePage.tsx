@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useState,
   useEffect,
   useCallback,
@@ -396,6 +397,8 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   const showListControlsReset = config.listControlsShowReset ?? true
   const favoriteActionPlacement = config.favoriteActionPlacement ?? 'beforeExtraActions'
   const emptyStateLabel = config.emptyStateLabel ?? `No ${config.title.toLowerCase()} found`
+  const tableColumnCount =
+    config.columns.length + 1 + (config.enableGroupAssign ? 1 : 0)
 
   const filteredCreateSelectionOptions = useMemo(() => {
     const selection = config.createSelection
@@ -595,7 +598,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
       return
     }
     hasAutoOpenedCreateRef.current = true
-    openCreateDialog()
+    triggerCreate()
     config.onAutoCreateHandled?.()
   }, [config.autoCreate, loading, createSelectionReady])
 
@@ -694,7 +697,16 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
     openCreateForm(config.initialCreateData?.() ?? {})
   }
 
+  function triggerCreate() {
+    if (config.onCreateClick) {
+      config.onCreateClick()
+      return
+    }
+    openCreateDialog()
+  }
+
   function openEditDialog(item: Record<string, unknown>) {
+    config.onEditOpen?.(item)
     setEditingItem(item)
     const data: Record<string, unknown> = {}
     for (const f of getFields(item, item)) {
@@ -1199,6 +1211,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
               {config.description}
             </p>
           )}
+          {config.headerStatus ? <div className="mt-3">{config.headerStatus}</div> : null}
         </div>
         <div className="flex items-center justify-end gap-2 self-end sm:self-auto">
           {config.showRefreshButton && (
@@ -1242,7 +1255,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
             </Button>
           )}
           <Button
-            onClick={openCreateDialog}
+            onClick={triggerCreate}
             size={compactHeaderActionsOnMobile || config.createButtonIconOnly ? 'icon' : 'default'}
             className={cn(
               compactHeaderActionsOnMobile && !config.createButtonIconOnly && 'sm:w-auto sm:px-4'
@@ -1383,7 +1396,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                   Clear current filters
                 </Button>
               ) : (
-                <Button variant="link" onClick={openCreateDialog}>
+                <Button variant="link" onClick={triggerCreate}>
                   Create your first one
                 </Button>
               )}
@@ -1412,118 +1425,121 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pagedItems.map(item => (
-                  <TableRow
-                    key={String(item.id)}
-                    data-selected={selectedItems.has(String(item.id))}
-                    className={
-                      config.selectedItemId === String(item.id) ? 'bg-muted/40' : undefined
-                    }
-                    onClick={
-                      config.onSelectItem
-                        ? event => {
-                            if (isInteractiveTarget(event.target)) return
-                            config.onSelectItem?.(item)
-                          }
-                        : undefined
-                    }
-                  >
-                    {config.enableGroupAssign && (
-                      <TableCell>
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 rounded border-input"
-                          checked={selectedItems.has(String(item.id))}
-                          onChange={() => toggleSelectItem(String(item.id))}
-                        />
-                      </TableCell>
-                    )}
-                    {config.columns.map(col => (
-                      <TableCell key={col.key}>
-                        {col.render ? col.render(item[col.key], item) : String(item[col.key] ?? '')}
-                      </TableCell>
-                    ))}
-                    <TableCell className={actionsCellClassName}>
-                      <div className={actionsContentClassName}>
-                        <div className={actionsPrimarySlotClassName}>
-                          {config.primaryAction?.(item, () => {
-                            void fetchItems()
-                          })}
-                        </div>
-                        <div className={actionsMenuSlotClassName}>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" title="More actions">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align={actionsMenuAlign}>
-                              {favoriteActionPlacement === 'beforeExtraActions' &&
-                                config.favoriteStorageKey && (
-                                  <>
-                                    <DropdownMenuItem
-                                      onClick={() => toggleFavorite(String(item.id ?? ''))}
-                                    >
-                                      <Star
-                                        className="h-4 w-4"
-                                        fill={
-                                          favoriteIds.has(String(item.id ?? ''))
-                                            ? 'currentColor'
-                                            : 'none'
-                                        }
-                                      />
-                                      {favoriteIds.has(String(item.id ?? ''))
-                                        ? 'Remove Favorite'
-                                        : 'Add Favorite'}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                  </>
-                                )}
-                              {config.extraActions?.(item, () => {
+                {pagedItems.map(item => {
+                  const itemID = String(item.id)
+                  const rowDetail =
+                    config.expandedRowId === itemID
+                      ? config.renderRowDetail?.(item, fetchItems)
+                      : null
+
+                  return (
+                    <Fragment key={itemID}>
+                      <TableRow
+                        key={itemID}
+                        data-selected={selectedItems.has(itemID)}
+                        className={config.selectedItemId === itemID ? 'bg-muted/40' : undefined}
+                        onClick={
+                          config.onSelectItem
+                            ? event => {
+                                if (isInteractiveTarget(event.target)) return
+                                config.onSelectItem?.(item)
+                              }
+                            : undefined
+                        }
+                      >
+                        {config.enableGroupAssign && (
+                          <TableCell>
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-input"
+                              checked={selectedItems.has(itemID)}
+                              onChange={() => toggleSelectItem(itemID)}
+                            />
+                          </TableCell>
+                        )}
+                        {config.columns.map(col => (
+                          <TableCell key={col.key}>
+                            {col.render ? col.render(item[col.key], item) : String(item[col.key] ?? '')}
+                          </TableCell>
+                        ))}
+                        <TableCell className={actionsCellClassName}>
+                          <div className={actionsContentClassName}>
+                            <div className={actionsPrimarySlotClassName}>
+                              {config.primaryAction?.(item, () => {
                                 void fetchItems()
                               })}
-                              {favoriteActionPlacement === 'afterExtraActions' &&
-                                config.favoriteStorageKey && (
-                                  <>
-                                    {config.extraActions && <DropdownMenuSeparator />}
-                                    <DropdownMenuItem
-                                      onClick={() => toggleFavorite(String(item.id ?? ''))}
-                                    >
-                                      <Star
-                                        className="h-4 w-4"
-                                        fill={
-                                          favoriteIds.has(String(item.id ?? ''))
-                                            ? 'currentColor'
-                                            : 'none'
-                                        }
-                                      />
-                                      {favoriteIds.has(String(item.id ?? ''))
-                                        ? 'Remove Favorite'
-                                        : 'Add Favorite'}
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
-                              {(config.extraActions ||
-                                (favoriteActionPlacement === 'afterExtraActions' &&
-                                  config.favoriteStorageKey)) && <DropdownMenuSeparator />}
-                              <DropdownMenuItem onClick={() => openEditDialog(item)}>
-                                <Pencil className="h-4 w-4" />
-                                Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                variant="destructive"
-                                onClick={() => setDeleteTarget(item)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                            </div>
+                            <div className={actionsMenuSlotClassName}>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" title="More actions">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align={actionsMenuAlign}>
+                                  {favoriteActionPlacement === 'beforeExtraActions' &&
+                                    config.favoriteStorageKey && (
+                                      <>
+                                        <DropdownMenuItem onClick={() => toggleFavorite(itemID)}>
+                                          <Star
+                                            className="h-4 w-4"
+                                            fill={favoriteIds.has(itemID) ? 'currentColor' : 'none'}
+                                          />
+                                          {favoriteIds.has(itemID)
+                                            ? 'Remove Favorite'
+                                            : 'Add Favorite'}
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                      </>
+                                    )}
+                                  {config.extraActions?.(item, () => {
+                                    void fetchItems()
+                                  })}
+                                  {favoriteActionPlacement === 'afterExtraActions' &&
+                                    config.favoriteStorageKey && (
+                                      <>
+                                        {config.extraActions && <DropdownMenuSeparator />}
+                                        <DropdownMenuItem onClick={() => toggleFavorite(itemID)}>
+                                          <Star
+                                            className="h-4 w-4"
+                                            fill={favoriteIds.has(itemID) ? 'currentColor' : 'none'}
+                                          />
+                                          {favoriteIds.has(itemID)
+                                            ? 'Remove Favorite'
+                                            : 'Add Favorite'}
+                                        </DropdownMenuItem>
+                                      </>
+                                    )}
+                                  {(config.extraActions ||
+                                    (favoriteActionPlacement === 'afterExtraActions' &&
+                                      config.favoriteStorageKey)) && <DropdownMenuSeparator />}
+                                  <DropdownMenuItem onClick={() => openEditDialog(item)}>
+                                    <Pencil className="h-4 w-4" />
+                                    Edit
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    variant="destructive"
+                                    onClick={() => setDeleteTarget(item)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {rowDetail ? (
+                        <TableRow key={`${itemID}-detail`}>
+                          <TableCell colSpan={tableColumnCount} className="bg-muted/15 py-3">
+                            {rowDetail}
+                          </TableCell>
+                        </TableRow>
+                      ) : null}
+                    </Fragment>
+                  )
+                })}
               </TableBody>
             </Table>
           )}
@@ -1534,7 +1550,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
             {items.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                 <p>{emptyStateLabel}</p>
-                <Button variant="link" onClick={openCreateDialog}>
+                <Button variant="link" onClick={triggerCreate}>
                   Create your first one
                 </Button>
               </div>
@@ -1562,120 +1578,121 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pagedItems.map(item => (
-                    <TableRow
-                      key={String(item.id)}
-                      data-selected={selectedItems.has(String(item.id))}
-                      className={
-                        config.selectedItemId === String(item.id) ? 'bg-muted/40' : undefined
-                      }
-                      onClick={
-                        config.onSelectItem
-                          ? event => {
-                              if (isInteractiveTarget(event.target)) return
-                              config.onSelectItem?.(item)
-                            }
-                          : undefined
-                      }
-                    >
-                      {config.enableGroupAssign && (
-                        <TableCell>
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4 rounded border-input"
-                            checked={selectedItems.has(String(item.id))}
-                            onChange={() => toggleSelectItem(String(item.id))}
-                          />
-                        </TableCell>
-                      )}
-                      {config.columns.map(col => (
-                        <TableCell key={col.key}>
-                          {col.render
-                            ? col.render(item[col.key], item)
-                            : String(item[col.key] ?? '')}
-                        </TableCell>
-                      ))}
-                      <TableCell className={actionsCellClassName}>
-                        <div className={actionsContentClassName}>
-                          <div className={actionsPrimarySlotClassName}>
-                            {config.primaryAction?.(item, () => {
-                              void fetchItems()
-                            })}
-                          </div>
-                          <div className={actionsMenuSlotClassName}>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" title="More actions">
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align={actionsMenuAlign}>
-                                {favoriteActionPlacement === 'beforeExtraActions' &&
-                                  config.favoriteStorageKey && (
-                                    <>
-                                      <DropdownMenuItem
-                                        onClick={() => toggleFavorite(String(item.id ?? ''))}
-                                      >
-                                        <Star
-                                          className="h-4 w-4"
-                                          fill={
-                                            favoriteIds.has(String(item.id ?? ''))
-                                              ? 'currentColor'
-                                              : 'none'
-                                          }
-                                        />
-                                        {favoriteIds.has(String(item.id ?? ''))
-                                          ? 'Remove Favorite'
-                                          : 'Add Favorite'}
-                                      </DropdownMenuItem>
-                                      <DropdownMenuSeparator />
-                                    </>
-                                  )}
-                                {config.extraActions?.(item, () => {
+                  {pagedItems.map(item => {
+                    const itemID = String(item.id)
+                    const rowDetail =
+                      config.expandedRowId === itemID
+                        ? config.renderRowDetail?.(item, fetchItems)
+                        : null
+
+                    return (
+                      <Fragment key={itemID}>
+                        <TableRow
+                          key={itemID}
+                          data-selected={selectedItems.has(itemID)}
+                          className={config.selectedItemId === itemID ? 'bg-muted/40' : undefined}
+                          onClick={
+                            config.onSelectItem
+                              ? event => {
+                                  if (isInteractiveTarget(event.target)) return
+                                  config.onSelectItem?.(item)
+                                }
+                              : undefined
+                          }
+                        >
+                          {config.enableGroupAssign && (
+                            <TableCell>
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4 rounded border-input"
+                                checked={selectedItems.has(itemID)}
+                                onChange={() => toggleSelectItem(itemID)}
+                              />
+                            </TableCell>
+                          )}
+                          {config.columns.map(col => (
+                            <TableCell key={col.key}>
+                              {col.render ? col.render(item[col.key], item) : String(item[col.key] ?? '')}
+                            </TableCell>
+                          ))}
+                          <TableCell className={actionsCellClassName}>
+                            <div className={actionsContentClassName}>
+                              <div className={actionsPrimarySlotClassName}>
+                                {config.primaryAction?.(item, () => {
                                   void fetchItems()
                                 })}
-                                {favoriteActionPlacement === 'afterExtraActions' &&
-                                  config.favoriteStorageKey && (
-                                    <>
-                                      {config.extraActions && <DropdownMenuSeparator />}
-                                      <DropdownMenuItem
-                                        onClick={() => toggleFavorite(String(item.id ?? ''))}
-                                      >
-                                        <Star
-                                          className="h-4 w-4"
-                                          fill={
-                                            favoriteIds.has(String(item.id ?? ''))
-                                              ? 'currentColor'
-                                              : 'none'
-                                          }
-                                        />
-                                        {favoriteIds.has(String(item.id ?? ''))
-                                          ? 'Remove Favorite'
-                                          : 'Add Favorite'}
-                                      </DropdownMenuItem>
-                                    </>
-                                  )}
-                                {(config.extraActions ||
-                                  (favoriteActionPlacement === 'afterExtraActions' &&
-                                    config.favoriteStorageKey)) && <DropdownMenuSeparator />}
-                                <DropdownMenuItem onClick={() => openEditDialog(item)}>
-                                  <Pencil className="h-4 w-4" />
-                                  Edit
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  variant="destructive"
-                                  onClick={() => setDeleteTarget(item)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                              </div>
+                              <div className={actionsMenuSlotClassName}>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" title="More actions">
+                                      <MoreVertical className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align={actionsMenuAlign}>
+                                    {favoriteActionPlacement === 'beforeExtraActions' &&
+                                      config.favoriteStorageKey && (
+                                        <>
+                                          <DropdownMenuItem onClick={() => toggleFavorite(itemID)}>
+                                            <Star
+                                              className="h-4 w-4"
+                                              fill={favoriteIds.has(itemID) ? 'currentColor' : 'none'}
+                                            />
+                                            {favoriteIds.has(itemID)
+                                              ? 'Remove Favorite'
+                                              : 'Add Favorite'}
+                                          </DropdownMenuItem>
+                                          <DropdownMenuSeparator />
+                                        </>
+                                      )}
+                                    {config.extraActions?.(item, () => {
+                                      void fetchItems()
+                                    })}
+                                    {favoriteActionPlacement === 'afterExtraActions' &&
+                                      config.favoriteStorageKey && (
+                                        <>
+                                          {config.extraActions && <DropdownMenuSeparator />}
+                                          <DropdownMenuItem onClick={() => toggleFavorite(itemID)}>
+                                            <Star
+                                              className="h-4 w-4"
+                                              fill={favoriteIds.has(itemID) ? 'currentColor' : 'none'}
+                                            />
+                                            {favoriteIds.has(itemID)
+                                              ? 'Remove Favorite'
+                                              : 'Add Favorite'}
+                                          </DropdownMenuItem>
+                                        </>
+                                      )}
+                                    {(config.extraActions ||
+                                      (favoriteActionPlacement === 'afterExtraActions' &&
+                                        config.favoriteStorageKey)) && <DropdownMenuSeparator />}
+                                    <DropdownMenuItem onClick={() => openEditDialog(item)}>
+                                      <Pencil className="h-4 w-4" />
+                                      Edit
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      variant="destructive"
+                                      onClick={() => setDeleteTarget(item)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        {rowDetail ? (
+                          <TableRow key={`${itemID}-detail`}>
+                            <TableCell colSpan={tableColumnCount} className="bg-muted/15 py-3">
+                              {rowDetail}
+                            </TableCell>
+                          </TableRow>
+                        ) : null}
+                      </Fragment>
+                    )
+                  })}
                 </TableBody>
               </Table>
             )}
@@ -1905,33 +1922,39 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
           fileRefs.current[key] = element
         }}
         selectedSummary={
-          !dialogHeader?.hideSelectedProductSummary &&
-          String(formData['selected_product'] ?? '').trim() ? (
-            <div className="rounded-lg border bg-muted/40 px-4 py-3">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Selected Product
-                </span>
-                <span className="font-semibold text-foreground">
-                  {String(formData['selected_product'] ?? '')}
-                </span>
-                {String(formData['selected_product_meta'] ?? '').trim() && (
-                  <span className="text-xs text-muted-foreground">
-                    {String(formData['selected_product_meta'] ?? '')}
+          <>
+            {config.selectedSummary ?? null}
+            {!dialogHeader?.hideSelectedProductSummary &&
+            String(formData['selected_product'] ?? '').trim() ? (
+              <div className="rounded-lg border bg-muted/40 px-4 py-3">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Selected Product
                   </span>
-                )}
-                {String(formData['selected_product_description'] ?? '').trim() && (
-                  <span className="text-sm text-muted-foreground">
-                    {String(formData['selected_product_description'] ?? '')}
+                  <span className="font-semibold text-foreground">
+                    {String(formData['selected_product'] ?? '')}
                   </span>
-                )}
+                  {String(formData['selected_product_meta'] ?? '').trim() && (
+                    <span className="text-xs text-muted-foreground">
+                      {String(formData['selected_product_meta'] ?? '')}
+                    </span>
+                  )}
+                  {String(formData['selected_product_description'] ?? '').trim() && (
+                    <span className="text-sm text-muted-foreground">
+                      {String(formData['selected_product_description'] ?? '')}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          ) : undefined
+            ) : null}
+          </>
         }
         error={formError}
         saving={saving}
         submitLabel={editingItem ? 'Save' : 'Create'}
+        cancelLabel={config.cancelLabel}
+        onCancel={config.onCancel ? () => config.onCancel?.(editingItem) : undefined}
+        dialogExtra={config.dialogExtra}
         resetAction={
           config.resetFormButtonLabel
             ? { label: config.resetFormButtonLabel, onClick: resetFormDialog }

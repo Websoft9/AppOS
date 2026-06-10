@@ -1,0 +1,29 @@
+{
+  "id": "aws-bedrock",
+  "title": "AWS Bedrock",
+  "vendor": "Amazon Web Services",
+  "providerMode": "gateway",
+  "description": "Amazon Bedrock gateway for foundation models from multiple vendors.",
+  "helpUrl": "https://docs.aws.amazon.com/bedrock/",
+  "defaultEndpoint": "https://bedrock-runtime.{region}.amazonaws.com/openai/v1",
+  "defaultEnabledModels": [
+    "anthropic.claude-3-5-sonnet-20240620-v1:0",
+    "anthropic.claude-3-5-haiku-20241022-v1:0",
+    "amazon.nova-pro-v1:0",
+    "meta.llama3-1-70b-instruct-v1:0"
+  ],
+  "capabilities": ["chat", "routing", "streaming"],
+  "aliases": ["aws bedrock", "bedrock", "aws-bedrock"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "placeholder": "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1"
+    },
+    {
+      "id": "region",
+      "label": "Region",
+      "type": "string",
+      "placeholder": "us-east-1"
+    }
+  ]
+}

@@ -109,6 +109,13 @@ export interface ResourcePageConfig {
   favoritesFilterLabel?: string
   createButtonLabel?: string
   createButtonShowIcon?: boolean
+  onCreateClick?: () => void
+  onEditOpen?: (item: Record<string, unknown>) => void
+  headerStatus?: ReactNode
+  selectedSummary?: ReactNode
+  cancelLabel?: string
+  onCancel?: (editingItem: Record<string, unknown> | null) => void
+  dialogExtra?: ReactNode
   compactHeaderActionsOnMobile?: boolean
   descriptionClassName?: string
   searchPlaceholder?: string
@@ -190,6 +197,8 @@ export interface ResourcePageConfig {
   extraActions?: (item: Record<string, unknown>, refreshList: () => void) => ReactNode
   actionsAlign?: 'left' | 'right'
   actionsMenuAlign?: 'start' | 'end'
+  expandedRowId?: string | null
+  renderRowDetail?: (item: Record<string, unknown>, refreshList: () => Promise<void>) => ReactNode
   selectedItemId?: string
   onSelectItem?: (item: Record<string, unknown> | null) => void
   renderDetailPanel?: (item: Record<string, unknown>, refreshList: () => Promise<void>) => ReactNode

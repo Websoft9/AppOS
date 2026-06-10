@@ -989,6 +989,7 @@ export function useActionsController({
   }
 
   function getServerLabel(item: ActionRecord): string {
+    if (item.server_name) return item.server_name
     if (item.server_label) return item.server_label
     if (item.server_id && serverMap.has(item.server_id))
       return serverMap.get(item.server_id)?.label || item.server_id

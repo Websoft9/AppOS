@@ -24,6 +24,9 @@ This story covers provider-style AI access such as OpenAI-compatible APIs and lo
 - migrate current settings-owned LLM provider persistence out of `settings`
 - keep secret masking and preserve-on-patch semantics
 - support optional secret binding and optional provider-account linkage
+- support provider template metadata for operator help and gateway-specific model governance
+- support `enabled_models` persistence on provider records as the operator-approved model subset
+- support settings-owned default-provider references for same-endpoint provider groups
 - update settings/frontend behavior so LLM provider management no longer relies on `/api/settings/entries/llm-providers`
 - document that provider-style Ollama access belongs to `ai_providers`, while runtime operation remains out of scope
 
@@ -31,7 +34,7 @@ This story covers provider-style AI access such as OpenAI-compatible APIs and lo
 
 - full generic AI workflow framework
 - model runtime installation, migration, and lifecycle management
-- model discovery, quota, usage, or per-model runtime semantics
+- quota, usage, or runtime execution semantics beyond recording approved model ids
 - advanced provider-account automation
 - frontend IA redesign beyond the minimum route and create-surface support required by dependent stories
 
@@ -46,6 +49,7 @@ This story covers provider-style AI access such as OpenAI-compatible APIs and lo
 | `credential` | optional secret relation for API key or token auth |
 | `provider_account` | optional platform-account relation |
 | `config` | non-sensitive provider-specific configuration |
+| `enabled_models` | operator-approved model ids that the consumer UI may expose |
 | `description` | human description |
 
 ## Target Shape
@@ -80,6 +84,26 @@ Naming rules:
 2. `template_id` must stay inside one `kind` family.
 3. Local provider endpoints that AppOS only consumes still belong to `ai_providers`, not `instances`.
 
+Additional template metadata rules:
+
+4. Every AI provider template must expose a `help_url`.
+5. Templates must distinguish direct vendor providers from LLM gateways.
+6. `Azure`, `Ollama`, `OpenRouter`, and `Alibaba Cloud Bailian (Qwen)` are treated as `LLM Gateway` templates in product UI.
+7. LLM gateway templates must carry a small default model whitelist and must resolve extended vendor/model trees dynamically from the upstream API, not from static bundled groups.
+
+## Save and Validation Rules
+
+- `Test connection` is advisory for record persistence and must not hard-block create or edit.
+- For direct vendor providers, operators may save the base record even when connectivity validation fails.
+- For LLM gateway providers, operators may save the base record even when connectivity validation fails, but failed validation must not overwrite `enabled_models`.
+- When LLM gateway validation succeeds, the backend may update `enabled_models` with the validated operator-approved subset.
+
+## Settings Reference Rules
+
+- Settings may reference AI Providers, but must not own the full provider payload.
+- Settings should support one default AI Provider reference for each shared endpoint group.
+- If no explicit default is configured for one endpoint group, consumers should fall back to the earliest-created provider record in that group.
+
 ## Acceptance Criteria
 
 1. `settings` is no longer the canonical owner of LLM provider objects.
@@ -89,6 +113,10 @@ Naming rules:
 5. Dashboard LLM management uses the dedicated AI Provider resource surface instead of settings-entry transport.
 6. The story explicitly documents that provider-style Ollama access belongs to `ai_providers` and runtime operation remains out of scope.
 7. Settings, if it still needs LLM defaults later, references resource identity rather than owning the full provider payload.
+8. AI Provider templates document `help_url`, provider-vs-gateway classification, and gateway default whitelist metadata.
+9. AI Provider records may persist `enabled_models` as the approved consumer-visible subset.
+10. Connectivity testing must not block saving a provider record; failed gateway validation only blocks replacing `enabled_models`.
+11. Settings may store same-endpoint default-provider references without reclaiming canonical ownership of provider records.
 
 ## Tasks / Subtasks
 
@@ -111,6 +139,11 @@ Naming rules:
   - [ ] 4.1 Replace settings-entry LLM API calls with the dedicated AI Provider route
   - [ ] 4.2 Keep the current provider-management UI behavior stable during the transition
   - [ ] 4.3 Record that current LLM provider configs are `ai_provider` resources, not `connector` records
+
+- [ ] Task 5: Add gateway governance and consumer reference rules
+  - [ ] 5.1 Extend template metadata with `help_url`, gateway classification, and default whitelist models
+  - [ ] 5.2 Add `enabled_models` persistence and non-blocking validation semantics
+  - [ ] 5.3 Define the settings-owned same-endpoint default-provider reference contract
 
 ## Notes
 

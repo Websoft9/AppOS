@@ -320,6 +320,129 @@ func TestAIProvidersCRUD(t *testing.T) {
 	}
 }
 
+func TestAIProvidersPersistEnabledModels(t *testing.T) {
+	ensureConnectorSecretRuntime(t)
+	te := newTestEnv(t)
+	defer te.cleanup()
+	secret := createRouteSecret(t, te, "global", "")
+
+	rec := te.do(t, http.MethodPost, "/api/ai-providers",
+		`{"name":"gateway-openrouter","template_id":"openrouter","credential":"`+secret.Id+`","enabled_models":["openai/gpt-4.1-mini","anthropic/claude-3.5-sonnet"]}`,
+		true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create AI provider with enabled models: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	created := parseJSON(t, rec)
+	providerID := created["id"].(string)
+	enabledModels, ok := created["enabled_models"].([]any)
+	if !ok || len(enabledModels) != 2 {
+		t.Fatalf("expected enabled_models in create response, got %#v", created["enabled_models"])
+	}
+
+	rec = te.do(t, http.MethodGet, "/api/ai-providers/"+providerID, "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get AI provider: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	got := parseJSON(t, rec)
+	enabledModels, ok = got["enabled_models"].([]any)
+	if !ok || len(enabledModels) != 2 {
+		t.Fatalf("expected enabled_models in get response, got %#v", got["enabled_models"])
+	}
+
+	rec = te.do(t, http.MethodPut, "/api/ai-providers/"+providerID,
+		`{"name":"gateway-openrouter","template_id":"openrouter","credential":"`+secret.Id+`","enabled_models":["openai/gpt-4.1-mini"]}`,
+		true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("update AI provider enabled models: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	updated := parseJSON(t, rec)
+	enabledModels, ok = updated["enabled_models"].([]any)
+	if !ok || len(enabledModels) != 1 || enabledModels[0] != "openai/gpt-4.1-mini" {
+		t.Fatalf("expected enabled_models to update, got %#v", updated["enabled_models"])
+	}
+}
+
+func TestAIProviderDefaultsAndChatModels(t *testing.T) {
+	ensureConnectorSecretRuntime(t)
+	te := newTestEnv(t)
+	defer te.cleanup()
+	secret := createRouteSecret(t, te, "global", "")
+
+	createBody := func(name string) string {
+		return `{"name":"` + name + `","template_id":"openrouter","credential":"` + secret.Id + `","endpoint":"https://openrouter.ai/api/v1","enabled_models":["openai/gpt-4.1-mini"]}`
+	}
+
+	rec := te.do(t, http.MethodPost, "/api/ai-providers", createBody("OpenRouter Alpha"), true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create first gateway provider: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	firstID := parseJSON(t, rec)["id"].(string)
+
+	rec = te.do(t, http.MethodPost, "/api/ai-providers", createBody("OpenRouter Beta"), true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create second gateway provider: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	secondID := parseJSON(t, rec)["id"].(string)
+
+	rec = te.do(t, http.MethodGet, "/api/ai-providers/chat-models", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get chat models before defaults: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	chatModelsPayload := parseJSON(t, rec)
+	items, ok := chatModelsPayload["items"].([]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected a single merged chat model, got %#v", chatModelsPayload["items"])
+	}
+	firstItem, ok := items[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected chat model item object, got %#v", items[0])
+	}
+	if firstItem["provider_id"] != firstID {
+		t.Fatalf("expected earliest provider to win before defaults, got %v", firstItem["provider_id"])
+	}
+	if firstItem["label"] != "openai/gpt-4.1-mini · OpenRouter" {
+		t.Fatalf("expected gateway label, got %v", firstItem["label"])
+	}
+
+	rec = te.do(t, http.MethodPut, "/api/ai-providers/defaults", `{"items":[{"endpoint":"https://openrouter.ai/api/v1","provider_id":"`+secondID+`"}]}`, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("save AI provider defaults: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	defaultsPayload := parseJSON(t, rec)
+	defaultItems, ok := defaultsPayload["items"].([]any)
+	if !ok || len(defaultItems) != 1 {
+		t.Fatalf("expected one defaults row, got %#v", defaultsPayload["items"])
+	}
+
+	rec = te.do(t, http.MethodGet, "/api/ai-providers/defaults", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get AI provider defaults: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	defaultsPayload = parseJSON(t, rec)
+	defaultItems, ok = defaultsPayload["items"].([]any)
+	if !ok || len(defaultItems) != 1 {
+		t.Fatalf("expected persisted defaults rows, got %#v", defaultsPayload["items"])
+	}
+	defaultItem, ok := defaultItems[0].(map[string]any)
+	if !ok || defaultItem["provider_id"] != secondID {
+		t.Fatalf("expected persisted default provider %s, got %#v", secondID, defaultsPayload["items"])
+	}
+
+	rec = te.do(t, http.MethodGet, "/api/ai-providers/chat-models", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get chat models after defaults: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	chatModelsPayload = parseJSON(t, rec)
+	items, ok = chatModelsPayload["items"].([]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected a single merged chat model after defaults, got %#v", chatModelsPayload["items"])
+	}
+	selectedItem, ok := items[0].(map[string]any)
+	if !ok || selectedItem["provider_id"] != secondID {
+		t.Fatalf("expected configured provider to win after defaults, got %#v", chatModelsPayload["items"])
+	}
+}
+
 func TestConnectorTemplateGet(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()

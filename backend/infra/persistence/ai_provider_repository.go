@@ -133,8 +133,8 @@ func (r *pocketBaseAIProviderRepository) recordForSave(provider *domainaiprovide
 func aiProviderFromRecord(record *core.Record) *domainaiproviders.AIProvider {
 	return domainaiproviders.RestoreAIProvider(domainaiproviders.Snapshot{
 		ID:                record.Id,
-		Created:           record.GetString("created"),
-		Updated:           record.GetString("updated"),
+		Created:           record.GetDateTime("created").String(),
+		Updated:           record.GetDateTime("updated").String(),
 		Name:              record.GetString("name"),
 		Kind:              record.GetString("kind"),
 		IsDefault:         record.GetBool("is_default"),

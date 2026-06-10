@@ -23,6 +23,28 @@ func NewDefaultProviderResolver(providers aiproviders.Repository, secrets Secret
 }
 
 func (r *DefaultProviderResolver) ResolveDefault(ctx context.Context, actorID string) (*ProviderConfig, error) {
+	selected, err := r.defaultProvider()
+	if err != nil {
+		return nil, err
+	}
+	return r.providerConfig(ctx, actorID, selected)
+}
+
+func (r *DefaultProviderResolver) ResolveSelection(ctx context.Context, actorID, providerID string) (*ProviderConfig, error) {
+	items, err := r.providers.ListByKind(aiproviders.KindLLM)
+	if err != nil {
+		return nil, err
+	}
+	providerID = strings.TrimSpace(providerID)
+	for _, item := range items {
+		if item.ID() == providerID {
+			return r.providerConfig(ctx, actorID, item)
+		}
+	}
+	return nil, coded(CodeProviderSetupRequired, "selected LLM provider is not available", nil)
+}
+
+func (r *DefaultProviderResolver) defaultProvider() (*aiproviders.AIProvider, error) {
 	items, err := r.providers.ListByKind(aiproviders.KindLLM)
 	if err != nil {
 		return nil, err
@@ -40,12 +62,15 @@ func (r *DefaultProviderResolver) ResolveDefault(ctx context.Context, actorID st
 	if selected == nil {
 		return nil, coded(CodeProviderSetupRequired, "default LLM provider is not configured", nil)
 	}
+	return selected, nil
+}
 
+func (r *DefaultProviderResolver) providerConfig(ctx context.Context, actorID string, selected *aiproviders.AIProvider) (*ProviderConfig, error) {
 	endpoint := strings.TrimSpace(selected.Endpoint())
 	credentialID := strings.TrimSpace(selected.CredentialID())
 	model := firstConfigString(selected.Config(), "defaultModel", "model")
-	if endpoint == "" || credentialID == "" || model == "" {
-		return nil, coded(CodeProviderInvalid, "default LLM provider requires endpoint, credential, and model", nil)
+	if endpoint == "" || credentialID == "" {
+		return nil, coded(CodeProviderInvalid, "default LLM provider requires endpoint and credential", nil)
 	}
 
 	resolved, err := r.secrets.Resolve(ctx, credentialID, actorID)

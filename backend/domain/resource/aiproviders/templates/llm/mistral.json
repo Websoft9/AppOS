@@ -10,12 +10,6 @@
     {
       "id": "endpoint",
       "default": "https://api.mistral.ai/v1"
-    },
-    {
-      "id": "defaultModel",
-      "label": "Default Model",
-      "type": "string",
-      "placeholder": "mistral-small-latest"
     }
   ]
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type RefObject } from 'react'
 import { Link } from '@tanstack/react-router'
-import { AlertTriangle, ChevronDown, ChevronRight, CircleX, Copy } from 'lucide-react'
+import { AlertTriangle, ChevronDown, ChevronRight, CircleX, Copy, ExternalLink } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -215,19 +215,12 @@ export function ActionDetailContent({
   autoScrollEnabled = true,
   onAutoScrollChange,
   getUserLabel,
-  getServerLabel,
   getServerHost,
   formatTime,
 }: ActionDetailContentProps) {
   const [copyState, setCopyState] = useState<'idle' | 'done' | 'failed'>('idle')
   const [expandedStageKey, setExpandedStageKey] = useState<string | null>(null)
   const [tab, setTab] = useState<'steps' | 'logs'>('steps')
-
-  const serverTarget = operation
-    ? getServerHost(operation) && getServerHost(operation) !== '-'
-      ? `${getServerLabel(operation)} · ${getServerHost(operation)}`
-      : getServerLabel(operation)
-    : '-'
 
   const stageItems = operation?.steps || []
   const failedStage = stageItems.find(step => step.status === 'failed') || null
@@ -367,7 +360,7 @@ export function ActionDetailContent({
                 More metadata
               </button>
               {metadataOpen ? (
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
                   <OverviewField
                     label="Application"
                     value={
@@ -396,15 +389,17 @@ export function ActionDetailContent({
                     label="Server Target"
                     value={
                       operation.server_id && operation.server_id !== 'local' ? (
-                        <Link
-                          to="/resources/servers"
-                          search={{ server: operation.server_id } as never}
-                          className="font-medium text-foreground hover:underline"
+                        <a
+                          href={`/resources/servers?server=${operation.server_id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 font-medium text-foreground hover:underline"
                         >
-                          {serverTarget}
-                        </Link>
+                          {operation.server_name || operation.server_label || operation.server_id}
+                          <ExternalLink className="h-3 w-3 shrink-0" />
+                        </a>
                       ) : (
-                        <span className="font-medium">{serverTarget}</span>
+                        <span className="font-medium">{operation.server_name || 'Local'}</span>
                       )
                     }
                   />
@@ -433,11 +428,6 @@ export function ActionDetailContent({
                   <OverviewField
                     label="Pipeline Status"
                     value={operation.pipeline?.status || '-'}
-                  />
-                  <OverviewField
-                    label="Project Directory"
-                    value={<span className="break-all">{operation.project_dir || '-'}</span>}
-                    className="xl:col-span-2"
                   />
                 </div>
               ) : null}

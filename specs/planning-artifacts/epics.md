@@ -51,3 +51,4 @@ See `README.md` for spec maintenance conventions.
 - [Epic 30: Assets](../implementation-artifacts/epic30-assets.md)
 - [Epic 31: AI Runtime](../implementation-artifacts/epic31-ai-runtime.md)
 - [Epic 32: Proxy](../implementation-artifacts/epic32-proxy.md)
+- [Epic 33: App Migration](../implementation-artifacts/epic33-app-migration.md)

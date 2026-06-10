@@ -23,6 +23,18 @@ func (fakeAIChatFactory) NewStreamer(context.Context, *chat.ProviderConfig) (cha
 	return fakeAIChatStreamer{}, nil
 }
 
+type captureAIChatFactory struct {
+	seen **chat.ProviderConfig
+}
+
+func (f captureAIChatFactory) NewStreamer(_ context.Context, provider *chat.ProviderConfig) (chat.ModelStreamer, error) {
+	if f.seen != nil {
+		clone := *provider
+		*f.seen = &clone
+	}
+	return fakeAIChatStreamer{}, nil
+}
+
 type fakeAIChatStreamer struct{}
 
 func (fakeAIChatStreamer) Stream(_ context.Context, messages []*chat.Message, onChunk func(string) error) (string, error) {
@@ -154,6 +166,43 @@ func TestAIChatRouteReportsProviderSetupRequired(t *testing.T) {
 	}
 }
 
+func TestAIChatRouteUsesSelectedProviderAndModel(t *testing.T) {
+	var seen *chat.ProviderConfig
+	oldFactory := aiChatModelFactory
+	aiChatModelFactory = captureAIChatFactory{seen: &seen}
+	t.Cleanup(func() { aiChatModelFactory = oldFactory })
+
+	te := newTestEnv(t)
+	defer te.cleanup()
+	ensureConnectorSecretRuntime(t)
+	seedAIChatProvider(t, te)
+	selectedProviderID := seedNamedAIChatProvider(t, te, "OpenRouter", false, "https://openrouter.ai/api/v1", "openai/gpt-4.1-mini")
+
+	create := te.doAIChat(t, http.MethodPost, "/api/ai/chat/sessions", `{"title":""}`, true)
+	if create.Code != http.StatusCreated {
+		t.Fatalf("create session status %d body %s", create.Code, create.Body.String())
+	}
+	sessionID := stringFromJSON(t, create.Body.Bytes(), "id")
+
+	body := `{"content":"route through selected provider","provider_id":"` + selectedProviderID + `","model":"anthropic/claude-3.5-sonnet"}`
+	stream := te.doAIChat(t, http.MethodPost, "/api/ai/chat/sessions/"+sessionID+"/messages", body, true)
+	if stream.Code != http.StatusOK {
+		t.Fatalf("stream status %d body %s", stream.Code, stream.Body.String())
+	}
+	if seen == nil {
+		t.Fatalf("expected factory to capture provider config")
+	}
+	if seen.Name != "OpenRouter" {
+		t.Fatalf("expected selected provider name OpenRouter, got %s", seen.Name)
+	}
+	if seen.Endpoint != "https://openrouter.ai/api/v1" {
+		t.Fatalf("expected selected provider endpoint, got %s", seen.Endpoint)
+	}
+	if seen.Model != "anthropic/claude-3.5-sonnet" {
+		t.Fatalf("expected request model override, got %s", seen.Model)
+	}
+}
+
 func (te *testEnv) doAIChat(t *testing.T, method, url, body string, authenticated bool) *httptest.ResponseRecorder {
 	t.Helper()
 	r, err := apis.NewRouter(te.app)
@@ -177,6 +226,11 @@ func (te *testEnv) doAIChat(t *testing.T, method, url, body string, authenticate
 
 func seedAIChatProvider(t *testing.T, te *testEnv) {
 	t.Helper()
+	seedNamedAIChatProvider(t, te, "DeepSeek", true, "https://api.deepseek.com/v1", "deepseek-chat")
+}
+
+func seedNamedAIChatProvider(t *testing.T, te *testEnv, name string, isDefault bool, endpoint string, model string) string {
+	t.Helper()
 	secretCol, err := te.app.FindCollectionByNameOrId("secrets")
 	if err != nil {
 		t.Fatal(err)
@@ -186,7 +240,7 @@ func seedAIChatProvider(t *testing.T, te *testEnv) {
 		t.Fatal(err)
 	}
 	secret := core.NewRecord(secretCol)
-	secret.Set("name", "deepseek-test")
+	secret.Set("name", strings.ToLower(strings.ReplaceAll(name, " ", "-"))+"-secret")
 	secret.Set("type", "api_key")
 	secret.Set("template_id", secrets.TemplateSingleValue)
 	secret.Set("scope", "global")
@@ -203,17 +257,18 @@ func seedAIChatProvider(t *testing.T, te *testEnv) {
 		t.Fatal(err)
 	}
 	provider := core.NewRecord(providerCol)
-	provider.Set("name", "DeepSeek")
+	provider.Set("name", name)
 	provider.Set("kind", aiproviders.KindLLM)
-	provider.Set("is_default", true)
+	provider.Set("is_default", isDefault)
 	provider.Set("template_id", "deepseek")
-	provider.Set("endpoint", "https://api.deepseek.com/v1")
+	provider.Set("endpoint", endpoint)
 	provider.Set("auth_scheme", connectors.AuthSchemeBearer)
 	provider.Set("credential", secret.Id)
-	provider.Set("config", map[string]any{"defaultModel": "deepseek-chat"})
+	provider.Set("config", map[string]any{"defaultModel": model})
 	if err := te.app.Save(provider); err != nil {
 		t.Fatal(err)
 	}
+	return provider.Id
 }
 
 func stringFromJSON(t *testing.T, data []byte, key string) string {

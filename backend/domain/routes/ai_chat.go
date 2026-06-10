@@ -101,6 +101,8 @@ func handleAIChatDeleteSession(e *core.RequestEvent) error {
 func handleAIChatSendMessage(e *core.RequestEvent) error {
 	var body struct {
 		Content     string                   `json:"content"`
+		ProviderID  string                   `json:"provider_id,omitempty"`
+		Model       string                   `json:"model,omitempty"`
 		Attachments []chat.MessageAttachment `json:"attachments"`
 	}
 	if err := e.BindBody(&body); err != nil {
@@ -131,7 +133,7 @@ func handleAIChatSendMessage(e *core.RequestEvent) error {
 	}
 
 	userID, _ := authInfo(e)
-	assistant, err := newAIChatService(e.App).SendMessage(e.Request.Context(), e.Request.PathValue("sessionId"), userID, body.Content, body.Attachments, func(chunk string) error {
+	assistant, err := newAIChatService(e.App).SendMessage(e.Request.Context(), e.Request.PathValue("sessionId"), userID, body.Content, body.ProviderID, body.Model, body.Attachments, func(chunk string) error {
 		return push("chunk", map[string]any{"content": chunk})
 	})
 	if err != nil {

@@ -52,6 +52,7 @@ interface SecretCredentialFieldProps {
   manualPlaceholder?: string
   showLabel?: string
   hideLabel?: string
+  allowGenerate?: boolean
   generateValue?: (length: number) => string
   generatorTitle?: string
   generatorDescription?: string
@@ -74,6 +75,7 @@ export function SecretCredentialField({
   manualPlaceholder = 'Enter a password',
   showLabel = 'Show password',
   hideLabel = 'Hide password',
+  allowGenerate = true,
   generateValue = buildRandomPassword,
   generatorTitle = 'Generate Password',
   generatorDescription = 'Choose the password length before filling the field.',
@@ -139,9 +141,11 @@ export function SecretCredentialField({
                   {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-              <Button type="button" className="h-10" onClick={() => setGeneratorOpen(true)}>
-                Generate
-              </Button>
+              {allowGenerate ? (
+                <Button type="button" className="h-10" onClick={() => setGeneratorOpen(true)}>
+                  Generate
+                </Button>
+              ) : null}
             </div>
           )}
         </div>
@@ -162,17 +166,19 @@ export function SecretCredentialField({
         )}
       </div>
 
-      <PasswordGeneratorDialog
-        open={generatorOpen}
-        onOpenChange={setGeneratorOpen}
-        length={length}
-        onLengthChange={setLength}
-        onConfirm={() => onManualValueChange(generateValue(length))}
-        title={generatorTitle}
-        description={generatorDescription}
-        lengthLabel={generatorLengthLabel}
-        confirmLabel={generatorConfirmLabel}
-      />
+      {allowGenerate ? (
+        <PasswordGeneratorDialog
+          open={generatorOpen}
+          onOpenChange={setGeneratorOpen}
+          length={length}
+          onLengthChange={setLength}
+          onConfirm={() => onManualValueChange(generateValue(length))}
+          title={generatorTitle}
+          description={generatorDescription}
+          lengthLabel={generatorLengthLabel}
+          confirmLabel={generatorConfirmLabel}
+        />
+      ) : null}
     </div>
   )
 }

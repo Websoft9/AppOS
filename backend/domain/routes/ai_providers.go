@@ -1,11 +1,20 @@
 package routes
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
+	"sort"
+	"strings"
+	"sync"
+	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+	sysconfig "github.com/websoft9/appos/backend/domain/config/sysconfig"
 	"github.com/websoft9/appos/backend/domain/audit"
 	"github.com/websoft9/appos/backend/domain/resource/accounts"
 	"github.com/websoft9/appos/backend/domain/resource/aiproviders"
@@ -22,6 +31,7 @@ type aiProviderUpsertRequest struct {
 	AuthScheme        string         `json:"auth_scheme"`
 	ProviderAccountID string         `json:"provider_account"`
 	CredentialID      string         `json:"credential"`
+	EnabledModels     []string       `json:"enabled_models,omitempty"`
 	Config            map[string]any `json:"config"`
 	Description       string         `json:"description"`
 }
@@ -32,12 +42,14 @@ type aiProviderResponseDocument struct {
 	Updated           string         `json:"updated"`
 	Name              string         `json:"name"`
 	Kind              string         `json:"kind"`
+	IsEnabled         bool           `json:"is_enabled"`
 	IsDefault         bool           `json:"is_default"`
 	TemplateID        string         `json:"template_id"`
 	Endpoint          string         `json:"endpoint"`
 	AuthScheme        string         `json:"auth_scheme"`
 	ProviderAccountID string         `json:"provider_account"`
 	CredentialID      string         `json:"credential"`
+	EnabledModels     []string       `json:"enabled_models,omitempty"`
 	Config            map[string]any `json:"config"`
 	Description       string         `json:"description"`
 }
@@ -47,17 +59,55 @@ var _ = aiProviderResponseDocument{}
 func registerAIProviderRoutes(se *core.ServeEvent) {
 	group := se.Router.Group("/api/ai-providers")
 	group.Bind(apis.RequireAuth())
+	group.GET("/chat-models", handleAIProviderChatModels)
+	group.GET("/defaults", handleAIProviderDefaultsGet)
 	group.GET("/templates", handleAIProviderTemplateList)
 	group.GET("/templates/{id}", handleAIProviderTemplateGet)
+	group.POST("/fetch-models", handleFetchModels)
+	group.GET("/reachability", handleAIProviderReachability)
+	group.GET("/models/{id}", handleAIProviderModels)
 	group.GET("", handleAIProviderList)
 	group.GET("/{id}", handleAIProviderGet)
 
 	mutations := se.Router.Group("/api/ai-providers")
 	mutations.Bind(apis.RequireAuth())
 	mutations.Bind(apis.RequireSuperuserAuth())
+	mutations.PUT("/defaults", handleAIProviderDefaultsPut)
 	mutations.POST("", handleAIProviderCreate)
 	mutations.PUT("/{id}", handleAIProviderUpdate)
 	mutations.DELETE("/{id}", handleAIProviderDelete)
+}
+
+const aiProviderDefaultsModule = "ai"
+const aiProviderDefaultsKey = "provider_defaults"
+
+type aiProviderDefaultSelection struct {
+	Endpoint   string `json:"endpoint"`
+	ProviderID string `json:"provider_id"`
+}
+
+type aiProviderDefaultsResponse struct {
+	Items []aiProviderDefaultSelection `json:"items"`
+}
+
+type aiProviderChatModelItem struct {
+	ProviderID   string `json:"provider_id"`
+	Endpoint     string `json:"endpoint"`
+	ModelID      string `json:"model_id"`
+	Label        string `json:"label"`
+	ProviderName string `json:"provider_name,omitempty"`
+	ProviderMode string `json:"provider_mode,omitempty"`
+	GatewayName  string `json:"gateway_name,omitempty"`
+}
+
+type aiProviderChatModelsResponse struct {
+	Items []aiProviderChatModelItem `json:"items"`
+}
+
+type aiProviderModelCandidate struct {
+	provider *aiproviders.AIProvider
+	template aiproviders.Template
+	modelID  string
 }
 
 func handleAIProviderTemplateList(e *core.RequestEvent) error {
@@ -166,6 +216,10 @@ func bindAIProviderUpsertRequest(e *core.RequestEvent) (aiproviders.SaveInput, e
 	if err := e.BindBody(&body); err != nil {
 		return aiproviders.SaveInput{}, e.BadRequestError("invalid JSON body", err)
 	}
+	config := cloneStringAnyMap(body.Config)
+	if body.EnabledModels != nil {
+		config["enabled_models"] = normalizeStringSlice(body.EnabledModels)
+	}
 	return aiproviders.SaveInput{
 		Name:              body.Name,
 		Kind:              body.Kind,
@@ -175,7 +229,7 @@ func bindAIProviderUpsertRequest(e *core.RequestEvent) (aiproviders.SaveInput, e
 		AuthScheme:        body.AuthScheme,
 		ProviderAccountID: body.ProviderAccountID,
 		CredentialID:      body.CredentialID,
-		Config:            body.Config,
+		Config:            config,
 		Description:       body.Description,
 	}, nil
 }
@@ -200,6 +254,381 @@ func aiProviderSaveError(e *core.RequestEvent, err error) error {
 	return e.InternalServerError("failed to save AI provider", err)
 }
 
+// ─── Fetch Models ────────────────────────────────────────────────────────────
+
+type fetchModelsRequest struct {
+	Endpoint   string `json:"endpoint"`
+	APIKey     string `json:"api_key"`
+	TemplateID string `json:"template_id,omitempty"`
+}
+
+type fetchModelsResponse struct {
+	Models []fetchModelsItem  `json:"models"`
+	Groups []fetchModelsGroup `json:"groups,omitempty"`
+}
+
+type aiProviderReachabilityItem struct {
+	ID        string `json:"id"`
+	Status    string `json:"status"`
+	CheckedAt string `json:"checked_at,omitempty"`
+	Error     string `json:"error,omitempty"`
+}
+
+type aiProviderReachabilityResponse struct {
+	Items []aiProviderReachabilityItem `json:"items"`
+}
+
+type fetchModelsItem struct {
+	ID               string `json:"id"`
+	Vendor           string `json:"vendor,omitempty"`
+	EnabledByDefault bool   `json:"enabled_by_default,omitempty"`
+}
+
+type fetchModelsGroup struct {
+	Vendor string            `json:"vendor"`
+	Models []fetchModelsItem `json:"models"`
+}
+
+func handleFetchModels(e *core.RequestEvent) error {
+	var body fetchModelsRequest
+	if err := e.BindBody(&body); err != nil {
+		return e.BadRequestError("invalid JSON body", err)
+	}
+
+	endpoint := strings.TrimSpace(body.Endpoint)
+	apiKey := strings.TrimSpace(body.APIKey)
+	if endpoint == "" {
+		return e.BadRequestError("endpoint is required", nil)
+	}
+	result, err := fetchProviderModels(e.Request.Context(), endpoint, apiKey, body.TemplateID)
+	if err != nil {
+		return e.BadRequestError("failed to fetch provider models", err)
+	}
+	return e.JSON(http.StatusOK, result)
+}
+
+// handleAIProviderModels fetches available models from a stored AI provider.
+func handleAIProviderModels(e *core.RequestEvent) error {
+	providerID := e.Request.PathValue("id")
+	repo := persistence.NewAIProviderRepository(e.App)
+	item, err := repo.Get(providerID)
+	if err != nil {
+		return e.NotFoundError("AI provider not found", err)
+	}
+	apiKey, resolveErr := resolveAIProviderAPIKey(e, item)
+	if resolveErr != nil {
+		return e.InternalServerError("failed to resolve provider credential", resolveErr)
+	}
+	result, fetchErr := fetchProviderModels(e.Request.Context(), strings.TrimSpace(item.Endpoint()), apiKey, strings.TrimSpace(item.TemplateID()))
+	if fetchErr != nil {
+		return e.BadRequestError("failed to fetch provider models", fetchErr)
+	}
+	return e.JSON(http.StatusOK, result)
+}
+
+func handleAIProviderReachability(e *core.RequestEvent) error {
+	repo := persistence.NewAIProviderRepository(e.App)
+	idsParam := strings.TrimSpace(e.Request.URL.Query().Get("ids"))
+	var (
+		items []*aiproviders.AIProvider
+		err   error
+	)
+	if idsParam == "" {
+		items, err = aiproviders.List(repo)
+	} else {
+		for _, id := range strings.Split(idsParam, ",") {
+			trimmed := strings.TrimSpace(id)
+			if trimmed == "" {
+				continue
+			}
+			item, getErr := aiproviders.Get(repo, trimmed)
+			if getErr != nil {
+				continue
+			}
+			items = append(items, item)
+		}
+	}
+	if err != nil {
+		return e.InternalServerError("failed to list AI providers", err)
+	}
+
+	results := make([]aiProviderReachabilityItem, len(items))
+	var waitGroup sync.WaitGroup
+	for index, item := range items {
+		waitGroup.Add(1)
+		go func(index int, item *aiproviders.AIProvider) {
+			defer waitGroup.Done()
+			status := aiProviderReachabilityItem{
+				ID:        item.ID(),
+				Status:    "unknown",
+				CheckedAt: time.Now().UTC().Format(time.RFC3339),
+			}
+			apiKey, resolveErr := resolveAIProviderAPIKey(e, item)
+			if resolveErr != nil {
+				status.Status = "unreachable"
+				status.Error = resolveErr.Error()
+				results[index] = status
+				return
+			}
+			_, fetchErr := fetchProviderModels(e.Request.Context(), strings.TrimSpace(item.Endpoint()), apiKey, strings.TrimSpace(item.TemplateID()))
+			if fetchErr != nil {
+				status.Status = "unreachable"
+				status.Error = fetchErr.Error()
+				results[index] = status
+				return
+			}
+			status.Status = "reachable"
+			results[index] = status
+		}(index, item)
+	}
+	waitGroup.Wait()
+
+	return e.JSON(http.StatusOK, aiProviderReachabilityResponse{Items: results})
+}
+
+func handleAIProviderDefaultsGet(e *core.RequestEvent) error {
+	return e.JSON(http.StatusOK, aiProviderDefaultsResponse{Items: listAIProviderDefaults(e.App)})
+}
+
+func handleAIProviderDefaultsPut(e *core.RequestEvent) error {
+	var body aiProviderDefaultsResponse
+	if err := e.BindBody(&body); err != nil {
+		return e.BadRequestError("invalid JSON body", err)
+	}
+	if err := saveAIProviderDefaults(e.App, body.Items); err != nil {
+		return e.InternalServerError("failed to save AI provider defaults", err)
+	}
+	return e.JSON(http.StatusOK, aiProviderDefaultsResponse{Items: listAIProviderDefaults(e.App)})
+}
+
+func handleAIProviderChatModels(e *core.RequestEvent) error {
+	repo := persistence.NewAIProviderRepository(e.App)
+	items, err := aiproviders.List(repo)
+	if err != nil {
+		return e.InternalServerError("failed to list AI providers", err)
+	}
+	filtered := make([]*aiproviders.AIProvider, 0, len(items))
+	for _, item := range items {
+		if strings.TrimSpace(item.Kind()) == aiproviders.KindLLM && aiProviderIsEnabled(item) {
+			filtered = append(filtered, item)
+		}
+	}
+	defaults := defaultProviderMap(e.App)
+	chatModels := buildAIProviderChatModels(filtered, defaults)
+	return e.JSON(http.StatusOK, aiProviderChatModelsResponse{Items: chatModels})
+}
+
+func fetchProviderModels(ctx context.Context, endpoint string, apiKey string, templateID string) (fetchModelsResponse, error) {
+	endpoint = strings.TrimSpace(endpoint)
+	if endpoint == "" {
+		return fetchModelsResponse{}, errors.New("endpoint is required")
+	}
+
+	modelsURL := strings.TrimRight(endpoint, "/") + "/models"
+	if templateID != "" {
+		if template, ok := aiproviders.FindTemplate(templateID); ok && template.ModelsEndpoint != "" {
+			modelsURL = resolveModelsEndpoint(endpoint, template.ModelsEndpoint)
+		}
+	}
+
+	client := &http.Client{Timeout: 8 * time.Second}
+	req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, modelsURL, nil)
+	if reqErr != nil {
+		return fetchModelsResponse{}, reqErr
+	}
+	req.Header.Set("Accept", "application/json")
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+
+	resp, doErr := client.Do(req)
+	if doErr != nil {
+		return fetchModelsResponse{}, doErr
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fetchModelsResponse{}, errors.New("provider returned non-200: " + http.StatusText(resp.StatusCode) + ": " + string(bodyBytes))
+	}
+
+	raw, readErr := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if readErr != nil {
+		return fetchModelsResponse{}, readErr
+	}
+
+	var parsed any
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return fetchModelsResponse{}, err
+	}
+	defaultEnabled := map[string]struct{}{}
+	if template, ok := aiproviders.FindTemplate(templateID); ok {
+		for _, model := range template.DefaultEnabledModels {
+			trimmed := strings.TrimSpace(model)
+			if trimmed != "" {
+				defaultEnabled[trimmed] = struct{}{}
+			}
+		}
+	}
+	return buildFetchModelsResponse(parsed, defaultEnabled), nil
+}
+
+func buildFetchModelsResponse(parsed any, defaultEnabled map[string]struct{}) fetchModelsResponse {
+	models := collectModelItems(parsed, defaultEnabled)
+	groups := make([]fetchModelsGroup, 0)
+	if len(models) > 0 {
+		grouped := map[string][]fetchModelsItem{}
+		order := make([]string, 0)
+		for _, model := range models {
+			vendor := strings.TrimSpace(model.Vendor)
+			if vendor == "" {
+				vendor = "Other"
+			}
+			if _, ok := grouped[vendor]; !ok {
+				order = append(order, vendor)
+			}
+			grouped[vendor] = append(grouped[vendor], model)
+		}
+		for _, vendor := range order {
+			groups = append(groups, fetchModelsGroup{Vendor: vendor, Models: grouped[vendor]})
+		}
+	}
+	return fetchModelsResponse{Models: models, Groups: groups}
+}
+
+func collectModelItems(parsed any, defaultEnabled map[string]struct{}) []fetchModelsItem {
+	items := make([]fetchModelsItem, 0)
+	seen := map[string]struct{}{}
+	appendItem := func(id string, vendor string) {
+		trimmedID := strings.TrimSpace(id)
+		if trimmedID == "" {
+			return
+		}
+		if _, ok := seen[trimmedID]; ok {
+			return
+		}
+		seen[trimmedID] = struct{}{}
+		_, enabledByDefault := defaultEnabled[trimmedID]
+		items = append(items, fetchModelsItem{ID: trimmedID, Vendor: strings.TrimSpace(vendor), EnabledByDefault: enabledByDefault})
+	}
+
+	var visit func(any)
+	visit = func(node any) {
+		switch typed := node.(type) {
+		case map[string]any:
+			if id := firstMapString(typed, "id", "name", "model"); id != "" {
+				appendItem(id, inferModelVendor(id, typed))
+			}
+			for _, key := range []string{"data", "models", "items", "results"} {
+				if next, ok := typed[key]; ok {
+					visit(next)
+				}
+			}
+		case []any:
+			for _, item := range typed {
+				visit(item)
+			}
+		}
+	}
+	visit(parsed)
+	return items
+}
+
+func inferModelVendor(id string, source map[string]any) string {
+	if vendor := firstMapString(source, "vendor", "provider", "owned_by", "family"); vendor != "" {
+		return humanizeVendor(vendor)
+	}
+	trimmedID := strings.TrimSpace(id)
+	if strings.Contains(trimmedID, "/") {
+		return humanizeVendor(strings.SplitN(trimmedID, "/", 2)[0])
+	}
+	return ""
+}
+
+func firstMapString(source map[string]any, keys ...string) string {
+	for _, key := range keys {
+		value, ok := source[key]
+		if !ok || value == nil {
+			continue
+		}
+		text := strings.TrimSpace(fmt.Sprint(value))
+		if text != "" {
+			return text
+		}
+	}
+	return ""
+}
+
+func humanizeVendor(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	parts := strings.FieldsFunc(strings.ReplaceAll(raw, "_", "-"), func(r rune) bool { return r == '-' || r == '/' || r == ':' || r == '.' })
+	for index, part := range parts {
+		if part == "" {
+			continue
+		}
+		parts[index] = strings.ToUpper(part[:1]) + strings.ToLower(part[1:])
+	}
+	return strings.Join(parts, " ")
+}
+
+func normalizeStringSlice(values []string) []string {
+	result := make([]string, 0, len(values))
+	seen := map[string]struct{}{}
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		result = append(result, trimmed)
+	}
+	return result
+}
+
+func cloneStringAnyMap(input map[string]any) map[string]any {
+	if input == nil {
+		return map[string]any{}
+	}
+	result := make(map[string]any, len(input))
+	for key, value := range input {
+		result[key] = value
+	}
+	return result
+}
+
+func resolveAIProviderAPIKey(e *core.RequestEvent, item *aiproviders.AIProvider) (string, error) {
+	credentialID := strings.TrimSpace(item.CredentialID())
+	if credentialID == "" {
+		return "", nil
+	}
+	userID, _ := authInfo(e)
+	resolved, resolveErr := secrets.Resolve(e.App, credentialID, userID)
+	if resolveErr != nil {
+		return "", resolveErr
+	}
+	return secrets.FirstStringFromPayload(resolved.Payload, "apiKey", "api_key", "token", "value"), nil
+}
+
+// resolveModelsEndpoint builds an absolute models URL.
+// If modelsEndpoint starts with "http", it is used as-is.
+// Otherwise it is treated as a path relative to the provider endpoint (with /v1 stripped).
+func resolveModelsEndpoint(providerEndpoint, modelsEndpoint string) string {
+	if strings.HasPrefix(modelsEndpoint, "http") {
+		return modelsEndpoint
+	}
+	base := strings.TrimRight(providerEndpoint, "/")
+	if strings.HasSuffix(base, "/v1") {
+		base = strings.TrimRight(base, "/v1")
+	}
+	return strings.TrimRight(base, "/") + "/" + strings.TrimLeft(modelsEndpoint, "/")
+}
+
 func aiProviderResponse(item *aiproviders.AIProvider) map[string]any {
 	return map[string]any{
 		"id":               item.ID(),
@@ -207,14 +636,197 @@ func aiProviderResponse(item *aiproviders.AIProvider) map[string]any {
 		"updated":          item.Updated(),
 		"name":             item.Name(),
 		"kind":             item.Kind(),
+		"is_enabled":       aiProviderIsEnabled(item),
 		"is_default":       item.IsDefault(),
 		"template_id":      item.TemplateID(),
 		"endpoint":         item.Endpoint(),
 		"auth_scheme":      item.AuthScheme(),
 		"provider_account": item.ProviderAccountID(),
 		"credential":       item.CredentialID(),
+		"enabled_models":   normalizeStringSlice(configStringSlice(item.Config(), "enabled_models")),
 		"config":           item.Config(),
 		"description":      item.Description(),
+	}
+}
+
+func listAIProviderDefaults(app core.App) []aiProviderDefaultSelection {
+	byEndpoint := defaultProviderMap(app)
+	endpoints := make([]string, 0, len(byEndpoint))
+	for endpoint := range byEndpoint {
+		endpoints = append(endpoints, endpoint)
+	}
+	sort.Strings(endpoints)
+	result := make([]aiProviderDefaultSelection, 0, len(endpoints))
+	for _, endpoint := range endpoints {
+		result = append(result, aiProviderDefaultSelection{Endpoint: endpoint, ProviderID: byEndpoint[endpoint]})
+	}
+	return result
+}
+
+func saveAIProviderDefaults(app core.App, items []aiProviderDefaultSelection) error {
+	byEndpoint := map[string]any{}
+	for _, item := range items {
+		endpoint := strings.TrimSpace(item.Endpoint)
+		providerID := strings.TrimSpace(item.ProviderID)
+		if endpoint == "" || providerID == "" {
+			continue
+		}
+		byEndpoint[endpoint] = providerID
+	}
+	return sysconfig.SetGroup(app, aiProviderDefaultsModule, aiProviderDefaultsKey, map[string]any{"by_endpoint": byEndpoint})
+}
+
+func defaultProviderMap(app core.App) map[string]string {
+	group, _ := sysconfig.GetGroup(app, aiProviderDefaultsModule, aiProviderDefaultsKey, map[string]any{"by_endpoint": map[string]any{}})
+	raw, _ := group["by_endpoint"].(map[string]any)
+	result := map[string]string{}
+	for endpoint, value := range raw {
+		providerID := strings.TrimSpace(fmt.Sprint(value))
+		if endpoint != "" && providerID != "" {
+			result[strings.TrimSpace(endpoint)] = providerID
+		}
+	}
+	return result
+}
+
+func buildAIProviderChatModels(items []*aiproviders.AIProvider, defaults map[string]string) []aiProviderChatModelItem {
+	byKey := map[string][]aiProviderModelCandidate{}
+	for _, item := range items {
+		endpoint := strings.TrimSpace(item.Endpoint())
+		if endpoint == "" {
+			continue
+		}
+		modelIDs := normalizeStringSlice(configStringSlice(item.Config(), "enabled_models"))
+		if len(modelIDs) == 0 {
+			fallback := firstConfigString(item.Config(), "defaultModel", "model")
+			if fallback != "" {
+				modelIDs = []string{fallback}
+			}
+		}
+		if len(modelIDs) == 0 {
+			continue
+		}
+		template, _ := aiproviders.FindTemplate(item.TemplateID())
+		for _, modelID := range modelIDs {
+			key := endpoint + "\n" + modelID
+			byKey[key] = append(byKey[key], aiProviderModelCandidate{provider: item, template: template, modelID: modelID})
+		}
+	}
+
+	keys := make([]string, 0, len(byKey))
+	for key := range byKey {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	result := make([]aiProviderChatModelItem, 0, len(keys))
+	for _, key := range keys {
+		candidates := byKey[key]
+		if len(candidates) == 0 {
+			continue
+		}
+		preferred := preferredProviderForEndpoint(candidates, defaults)
+		endpoint := strings.TrimSpace(preferred.provider.Endpoint())
+		providerMode := strings.TrimSpace(preferred.template.ProviderMode)
+		gatewayName := strings.TrimSpace(preferred.template.Title)
+		label := preferred.modelID
+		if providerMode == "gateway" && gatewayName != "" {
+			label = preferred.modelID + " · " + gatewayName
+		}
+		result = append(result, aiProviderChatModelItem{
+			ProviderID:   preferred.provider.ID(),
+			Endpoint:     endpoint,
+			ModelID:      preferred.modelID,
+			Label:        label,
+			ProviderName: preferred.provider.Name(),
+			ProviderMode: providerMode,
+			GatewayName:  gatewayName,
+		})
+	}
+	return result
+}
+
+func preferredProviderForEndpoint(candidates []aiProviderModelCandidate, defaults map[string]string) aiProviderModelCandidate {
+	if len(candidates) == 1 {
+		return candidates[0]
+	}
+	endpoint := strings.TrimSpace(candidates[0].provider.Endpoint())
+	if providerID := strings.TrimSpace(defaults[endpoint]); providerID != "" {
+		for _, candidate := range candidates {
+			if candidate.provider.ID() == providerID {
+				return candidate
+			}
+		}
+	}
+	preferred := candidates[0]
+	for _, candidate := range candidates[1:] {
+		if strings.TrimSpace(candidate.provider.Created()) == "" {
+			continue
+		}
+		if strings.TrimSpace(preferred.provider.Created()) == "" || candidate.provider.Created() < preferred.provider.Created() {
+			preferred = candidate
+		}
+	}
+	return preferred
+}
+
+func configStringSlice(config map[string]any, key string) []string {
+	raw, ok := config[key]
+	if !ok || raw == nil {
+		return nil
+	}
+	switch typed := raw.(type) {
+	case []string:
+		return typed
+	case []any:
+		result := make([]string, 0, len(typed))
+		for _, item := range typed {
+			text := strings.TrimSpace(fmt.Sprint(item))
+			if text != "" {
+				result = append(result, text)
+			}
+		}
+		return result
+	default:
+		text := strings.TrimSpace(fmt.Sprint(raw))
+		if text == "" {
+			return nil
+		}
+		return []string{text}
+	}
+}
+
+func firstConfigString(config map[string]any, keys ...string) string {
+	for _, key := range keys {
+		value, ok := config[key]
+		if !ok || value == nil {
+			continue
+		}
+		text := strings.TrimSpace(fmt.Sprint(value))
+		if text != "" {
+			return text
+		}
+	}
+	return ""
+}
+
+func aiProviderIsEnabled(item *aiproviders.AIProvider) bool {
+	config := item.Config()
+	raw, exists := config["is_enabled"]
+	if !exists {
+		return true
+	}
+	switch value := raw.(type) {
+	case bool:
+		return value
+	case string:
+		return strings.EqualFold(strings.TrimSpace(value), "true")
+	case float64:
+		return value != 0
+	case int:
+		return value != 0
+	default:
+		return true
 	}
 }
 

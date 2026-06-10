@@ -1407,6 +1407,18 @@ func normalizeOperationServerID(value string) string {
 	return trimmed
 }
 
+func lookupServerName(app core.App, serverID string) string {
+	id := strings.TrimSpace(serverID)
+	if id == "" || id == "local" {
+		return ""
+	}
+	server, err := app.FindRecordById("servers", id)
+	if err != nil || server == nil {
+		return ""
+	}
+	return strings.TrimSpace(server.GetString("name"))
+}
+
 func operationRecordResponse(app core.App, record *core.Record) (map[string]any, error) {
 	pipelineRunID := record.GetString("pipeline_run")
 	stepRuns, err := findPipelineNodeRuns(app, pipelineRunID)
@@ -1421,6 +1433,7 @@ func operationRecordResponse(app core.App, record *core.Record) (map[string]any,
 		"id":                       record.Id,
 		"app_id":                   record.GetString("app"),
 		"server_id":                record.GetString("server_id"),
+		"server_name":              lookupServerName(app, record.GetString("server_id")),
 		"source":                   record.GetString("trigger_source"),
 		"status":                   operationDisplayStatus(record),
 		"adapter":                  record.GetString("adapter"),

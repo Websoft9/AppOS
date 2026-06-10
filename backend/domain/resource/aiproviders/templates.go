@@ -113,10 +113,14 @@ type templateFile struct {
 	Title           *string             `json:"title,omitempty"`
 	Vendor          *string             `json:"vendor,omitempty"`
 	Category        *string             `json:"category,omitempty"`
+	ProviderMode    *string             `json:"providerMode,omitempty"`
 	Description     *string             `json:"description,omitempty"`
+	HelpURL         *string             `json:"helpUrl,omitempty"`
 	ContextSize     *int                `json:"contextSize,omitempty"`
+	ModelsEndpoint  *string             `json:"modelsEndpoint,omitempty"`
 	DefaultEndpoint *string             `json:"defaultEndpoint,omitempty"`
 	DefaultAuth     *string             `json:"defaultAuthScheme,omitempty"`
+	DefaultEnabledModels []string       `json:"defaultEnabledModels,omitempty"`
 	Capabilities    []string            `json:"capabilities,omitempty"`
 	Aliases         []string            `json:"aliases,omitempty"`
 	Fields          []templateFieldFile `json:"fields,omitempty"`
@@ -181,17 +185,29 @@ func applyTemplateOverlay(base Template, file templateFile) (Template, error) {
 	if file.Category != nil {
 		result.Category = strings.TrimSpace(*file.Category)
 	}
+	if file.ProviderMode != nil {
+		result.ProviderMode = strings.TrimSpace(*file.ProviderMode)
+	}
 	if file.Description != nil {
 		result.Description = strings.TrimSpace(*file.Description)
 	}
+	if file.HelpURL != nil {
+		result.HelpURL = strings.TrimSpace(*file.HelpURL)
+	}
 	if file.ContextSize != nil {
 		result.ContextSize = *file.ContextSize
+	}
+	if file.ModelsEndpoint != nil {
+		result.ModelsEndpoint = strings.TrimSpace(*file.ModelsEndpoint)
 	}
 	if file.DefaultEndpoint != nil {
 		result.DefaultEndpoint = strings.TrimSpace(*file.DefaultEndpoint)
 	}
 	if file.DefaultAuth != nil {
 		result.DefaultAuth = strings.TrimSpace(*file.DefaultAuth)
+	}
+	if file.DefaultEnabledModels != nil {
+		result.DefaultEnabledModels = append([]string(nil), file.DefaultEnabledModels...)
 	}
 	if file.Capabilities != nil {
 		result.Capabilities = append([]string(nil), file.Capabilities...)
@@ -289,6 +305,9 @@ func validateTemplate(template Template) error {
 	}
 	if strings.TrimSpace(template.Title) == "" {
 		return fmt.Errorf("template title is required")
+	}
+	if mode := strings.TrimSpace(template.ProviderMode); mode != "" && mode != "vendor" && mode != "gateway" {
+		return fmt.Errorf("template providerMode must be vendor or gateway")
 	}
 	seen := make(map[string]struct{}, len(template.Fields))
 	for _, field := range template.Fields {

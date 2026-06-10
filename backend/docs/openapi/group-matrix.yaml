@@ -348,10 +348,16 @@ groups:
     description: AI provider template discovery and managed AI provider CRUD APIs.
     apiType: Ext
     extSurface:
+      - GET /api/ai-providers/chat-models
+      - GET /api/ai-providers/defaults
       - GET /api/ai-providers/templates
       - GET /api/ai-providers/templates/{id}
+      - POST /api/ai-providers/fetch-models
+      - GET /api/ai-providers/reachability
       - GET /api/ai-providers
       - GET /api/ai-providers/{id}
+      - GET /api/ai-providers/models/{id}
+      - PUT /api/ai-providers/defaults
       - POST /api/ai-providers
       - PUT /api/ai-providers/{id}
       - DELETE /api/ai-providers/{id}

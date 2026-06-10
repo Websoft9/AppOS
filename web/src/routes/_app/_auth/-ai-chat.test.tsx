@@ -8,6 +8,7 @@ const createSessionMock = vi.fn()
 const updateSessionMock = vi.fn()
 const deleteSessionMock = vi.fn()
 const listMessagesMock = vi.fn()
+const listModelsMock = vi.fn()
 const sendMessageMock = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({
@@ -110,6 +111,7 @@ vi.mock('@/lib/ai-chat-api', () => ({
   updateAIChatSession: (...args: unknown[]) => updateSessionMock(...args),
   deleteAIChatSession: (...args: unknown[]) => deleteSessionMock(...args),
   listAIChatMessages: (...args: unknown[]) => listMessagesMock(...args),
+  listAIChatModels: (...args: unknown[]) => listModelsMock(...args),
   sendAIChatMessage: (...args: unknown[]) => sendMessageMock(...args),
 }))
 
@@ -132,11 +134,26 @@ describe('AIChatPage', () => {
     updateSessionMock.mockReset()
     deleteSessionMock.mockReset()
     listMessagesMock.mockReset()
+    listModelsMock.mockReset()
     sendMessageMock.mockReset()
     listSessionsMock.mockResolvedValue([{ id: 'session-1', title: 'Ops chat' }])
     listMessagesMock.mockResolvedValue([
       { id: 'msg-1', session_id: 'session-1', role: 'user', content: 'hello' },
       { id: 'msg-2', session_id: 'session-1', role: 'assistant', content: 'hi' },
+    ])
+    listModelsMock.mockResolvedValue([
+      {
+        provider_id: 'provider-1',
+        endpoint: 'https://openrouter.ai/api/v1',
+        model_id: 'openai/gpt-4.1-mini',
+        label: 'openai/gpt-4.1-mini · OpenRouter',
+      },
+      {
+        provider_id: 'provider-2',
+        endpoint: 'https://api.openai.com/v1',
+        model_id: 'gpt-4.1',
+        label: 'gpt-4.1',
+      },
     ])
     createSessionMock.mockResolvedValue({ id: 'session-new', title: 'New chat' })
     updateSessionMock.mockResolvedValue({ id: 'session-1', title: 'Renamed chat' })
@@ -167,7 +184,9 @@ describe('AIChatPage', () => {
       async (
         _sessionId: string,
         _content: string,
-        callbacks: Parameters<typeof sendAIChatMessage>[2]
+        _providerId: string,
+        _model: string,
+        callbacks: Parameters<typeof sendAIChatMessage>[4]
       ) => {
         callbacks.onChunk('received: ')
         callbacks.onChunk('check nginx')
@@ -189,6 +208,50 @@ describe('AIChatPage', () => {
       expect(sendMessageMock).toHaveBeenCalledWith(
         'session-1',
         'check nginx',
+        'provider-1',
+        'openai/gpt-4.1-mini',
+        expect.any(Object),
+        []
+      )
+    )
+  })
+
+  it('lets the user switch to another provider-backed model before sending', async () => {
+    render(<AIChatPage />)
+
+    const input = await screen.findByPlaceholderText(
+      'Ask about operations, diagnosis, or AppOS knowledge'
+    )
+    const modelSelect = await screen.findByRole('combobox')
+    expect(screen.getByRole('option', { name: 'gpt-4.1' })).toBeInTheDocument()
+
+    sendMessageMock.mockImplementation(
+      async (
+        _sessionId: string,
+        _content: string,
+        _providerId: string,
+        _model: string,
+        callbacks: Parameters<typeof sendAIChatMessage>[4]
+      ) => {
+        callbacks.onDone?.({
+          id: 'msg-3',
+          session_id: 'session-1',
+          role: 'assistant',
+          content: 'switched provider',
+        })
+      }
+    )
+
+    fireEvent.change(modelSelect, { target: { value: 'provider-2::gpt-4.1' } })
+    fireEvent.change(input, { target: { value: 'use direct openai' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() =>
+      expect(sendMessageMock).toHaveBeenCalledWith(
+        'session-1',
+        'use direct openai',
+        'provider-2',
+        'gpt-4.1',
         expect.any(Object),
         []
       )
@@ -254,7 +317,9 @@ describe('AIChatPage', () => {
       async (
         _sessionId: string,
         _content: string,
-        callbacks: Parameters<typeof sendAIChatMessage>[2]
+        _providerId: string,
+        _model: string,
+        callbacks: Parameters<typeof sendAIChatMessage>[4]
       ) => {
         callbacks.onDone?.({
           id: 'msg-3',
@@ -273,6 +338,8 @@ describe('AIChatPage', () => {
       expect(sendMessageMock).toHaveBeenCalledWith(
         'session-1',
         'review attachment',
+        'provider-2',
+        'gpt-4.1',
         expect.any(Object),
         [
           expect.objectContaining({
@@ -341,7 +408,9 @@ describe('AIChatPage', () => {
       async (
         _sessionId: string,
         _content: string,
-        callbacks: Parameters<typeof sendAIChatMessage>[2]
+        _providerId: string,
+        _model: string,
+        callbacks: Parameters<typeof sendAIChatMessage>[4]
       ) => {
         callbacks.onDone?.({
           id: 'msg-3',
@@ -365,6 +434,8 @@ describe('AIChatPage', () => {
       expect(sendMessageMock).toHaveBeenCalledWith(
         'session-new',
         'hello from empty state',
+        'provider-2',
+        'gpt-4.1',
         expect.any(Object),
         []
       )

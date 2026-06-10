@@ -1,0 +1,23 @@
+{
+  "id": "cloudflare-ai-gateway",
+  "title": "Cloudflare AI Gateway",
+  "vendor": "Cloudflare",
+  "providerMode": "gateway",
+  "description": "Cloudflare AI Gateway for routing, observability, and policy across multiple providers.",
+  "helpUrl": "https://developers.cloudflare.com/ai-gateway/",
+  "defaultEndpoint": "https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/openai",
+  "defaultEnabledModels": [
+    "openai/gpt-4o-mini",
+    "openai/gpt-4.1-mini",
+    "anthropic/claude-3.5-sonnet",
+    "google/gemini-2.0-flash"
+  ],
+  "capabilities": ["chat", "routing", "observability", "streaming"],
+  "aliases": ["cloudflare ai gateway", "cloudflare-ai-gateway"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "placeholder": "https://gateway.ai.cloudflare.com/v1/account/gateway/openai"
+    }
+  ]
+}

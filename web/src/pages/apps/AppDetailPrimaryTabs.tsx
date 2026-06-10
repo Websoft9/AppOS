@@ -27,11 +27,32 @@ import {
   parseReleaseAttribution,
 } from '@/pages/apps/app-detail-utils'
 import { formatTime, formatUptime } from '@/pages/apps/types'
+import { actionStatusLabel, formatDurationCompact, statusVariant } from '@/pages/deploy/actions/action-utils'
 import type {
   AccessTabProps,
   ActionsTabProps,
   OverviewTabProps,
 } from '@/pages/apps/AppDetailTabPanelTypes'
+
+const ACTION_NAME_MAP: Record<string, string> = {
+  install: 'Install',
+  upgrade: 'Upgrade',
+  uninstall: 'Uninstall',
+  start: 'Start',
+  stop: 'Stop',
+  restart: 'Restart',
+  redeploy: 'Redeploy',
+  rollback: 'Rollback',
+}
+
+function actionNameFromKey(key: string): string {
+  for (const [verb, label] of Object.entries(ACTION_NAME_MAP)) {
+    if (key.includes(`.${verb}.`) || key.includes(`.${verb}`) || key === verb) return label
+  }
+  const parts = key.split('.')
+  const candidate = parts.length >= 2 ? parts[1] : parts[0]
+  return candidate.charAt(0).toUpperCase() + candidate.slice(1)
+}
 
 export function AppDetailOverviewTab({
   app,
@@ -44,6 +65,8 @@ export function AppDetailOverviewTab({
   templateDetailHref,
   actionDetailHref,
   setTab,
+  recentActivity,
+  recentActivityLoading,
 }: OverviewTabProps) {
   const accessValue = primaryAccessUrl || '-'
   const operationLabel = app.current_pipeline?.selector?.operation_type
@@ -207,26 +230,50 @@ export function AppDetailOverviewTab({
             </div>
           ) : null}
         </div>
-        <div className="flex flex-wrap gap-2 border-t border-border/40 px-4 py-4 md:px-6">
-          <div className="w-full text-sm font-medium text-muted-foreground">
-            Recommended actions
-          </div>
-          {accessValue !== '-' ? (
-            <Button size="sm" asChild>
-              <a href={accessValue} target="_blank" rel="noreferrer">
-                Open App
-              </a>
+        <div className="border-t border-border/40 px-4 py-4 md:px-6">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-sm font-medium text-muted-foreground">Recent Activity</div>
+            <Button variant="ghost" size="sm" onClick={() => setTab('actions')}>
+              View all
+              <ChevronRight className="ml-1 h-3.5 w-3.5" />
             </Button>
-          ) : null}
-          <Button variant="outline" size="sm" onClick={() => setTab('access')}>
-            Open Access
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setTab('actions')}>
-            Open Activity
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setTab('compose')}>
-            Open Compose
-          </Button>
+          </div>
+          {recentActivityLoading ? (
+            <div className="py-3 text-center text-sm text-muted-foreground">Loading...</div>
+          ) : recentActivity.length === 0 ? (
+            <div className="py-3 text-center text-sm text-muted-foreground">No activity yet.</div>
+          ) : (
+            <div className="space-y-1">
+              <div className="grid grid-cols-[minmax(56px,1fr)_minmax(64px,2fr)_minmax(72px,1fr)_minmax(88px,1fr)] gap-3 px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                <div>Status</div>
+                <div>Action</div>
+                <div>Duration</div>
+                <div>When</div>
+              </div>
+              {recentActivity.map(item => {
+                const actionLabel = actionNameFromKey(item.pipeline_definition_key || item.pipeline?.definition_key || '')
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="grid w-full grid-cols-[minmax(56px,1fr)_minmax(64px,2fr)_minmax(72px,1fr)_minmax(88px,1fr)] items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50"
+                    onClick={() => setTab('actions')}
+                  >
+                    <Badge variant={statusVariant(item.status)} className="w-fit shrink-0 text-[10px]">
+                      {actionStatusLabel(item.status)}
+                    </Badge>
+                    <span className="truncate text-xs">{actionLabel}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatDurationCompact(item.started_at, item.finished_at)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatTime(item.started_at || item.created)}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
     </TabsContent>

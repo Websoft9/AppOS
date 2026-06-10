@@ -14,6 +14,7 @@ vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (config: Record<string, unknown>) => ({
     ...config,
   }),
+  useNavigate: () => vi.fn(),
   Link: ({
     to,
     children,
@@ -41,7 +42,7 @@ vi.mock('@/lib/pb', () => ({
 describe('SettingsPage shared settings paths', () => {
   beforeEach(() => {
     sendMock.mockReset()
-    sendMock.mockImplementation((path: string) => {
+    sendMock.mockImplementation((path: string, options?: { method?: string; body?: unknown }) => {
       if (path === SETTINGS_SCHEMA_API_PATH) {
         return Promise.resolve({
           entries: [
@@ -570,6 +571,19 @@ describe('SettingsPage shared settings paths', () => {
             ],
           },
         ])
+      }
+      if (path === '/api/ai-providers/defaults' && (!options || options.method === 'GET')) {
+        return Promise.resolve({
+          items: [
+            {
+              endpoint: 'https://api.openai.com/v1',
+              provider_id: 'provider-1',
+            },
+          ],
+        })
+      }
+      if (path === '/api/ai-providers/defaults' && options?.method === 'PUT') {
+        return Promise.resolve(options.body ?? { items: [] })
       }
       if (path === '/api/ai-providers') {
         return Promise.resolve([
@@ -1366,8 +1380,9 @@ describe('SettingsPage shared settings paths', () => {
     within(nav).getByRole('button', { name: 'AI' }).click()
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Default Model')).toBeInTheDocument()
-      expect(screen.getByRole('combobox', { name: 'Default Model' })).toBeInTheDocument()
+      expect(screen.getByText('Preferred provider for endpoint')).toBeInTheDocument()
+      expect(screen.getByText('https://api.openai.com/v1')).toBeInTheDocument()
+      expect(screen.getByRole('combobox')).toBeInTheDocument()
     })
 
     expect(
@@ -1377,7 +1392,23 @@ describe('SettingsPage shared settings paths', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Open AI Providers' })).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Default Model' }), {
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/ai-providers/defaults', {
+        method: 'PUT',
+        body: {
+          items: [
+            {
+              endpoint: 'https://api.openai.com/v1',
+              provider_id: 'provider-1',
+            },
+          ],
+        },
+      })
+    })
+
+    fireEvent.change(screen.getByRole('combobox'), {
       target: { value: '__add_model__' },
     })
 

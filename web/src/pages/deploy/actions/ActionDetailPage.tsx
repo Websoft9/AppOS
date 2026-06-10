@@ -13,8 +13,8 @@ function getUserLabel(item: { user_email?: string; user_id?: string }): string {
   return item.user_email || item.user_id || '-'
 }
 
-function getServerLabel(item: { server_label?: string; server_id: string }): string {
-  return item.server_label || item.server_id || 'local'
+function getServerLabel(item: { server_name?: string; server_label?: string; server_id: string }): string {
+  return item.server_name || item.server_label || item.server_id || 'local'
 }
 
 function getServerHost(item: { server_host?: string; server_id: string }): string {

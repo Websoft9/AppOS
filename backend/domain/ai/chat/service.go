@@ -30,6 +30,7 @@ type userMessageEnvelope struct {
 
 type ProviderResolver interface {
 	ResolveDefault(ctx context.Context, actorID string) (*ProviderConfig, error)
+	ResolveSelection(ctx context.Context, actorID, providerID string) (*ProviderConfig, error)
 }
 
 type ModelFactory interface {
@@ -88,7 +89,7 @@ func (s *Service) ListMessages(ctx context.Context, sessionID, ownerID string) (
 	return s.repo.ListMessages(ctx, sessionID)
 }
 
-func (s *Service) SendMessage(ctx context.Context, sessionID, ownerID, content string, attachments []MessageAttachment, onChunk func(string) error) (*Message, error) {
+func (s *Service) SendMessage(ctx context.Context, sessionID, ownerID, content, providerID, model string, attachments []MessageAttachment, onChunk func(string) error) (*Message, error) {
 	content = strings.TrimSpace(content)
 	attachments = normalizeAttachments(attachments)
 	if content == "" && len(attachments) == 0 {
@@ -112,9 +113,20 @@ func (s *Service) SendMessage(ctx context.Context, sessionID, ownerID, content s
 		return nil, err
 	}
 	messages = prepareMessagesForModel(messages)
-	provider, err := s.resolver.ResolveDefault(ctx, ownerID)
+	var provider *ProviderConfig
+	if strings.TrimSpace(providerID) != "" {
+		provider, err = s.resolver.ResolveSelection(ctx, ownerID, providerID)
+	} else {
+		provider, err = s.resolver.ResolveDefault(ctx, ownerID)
+	}
 	if err != nil {
 		return nil, err
+	}
+	if model != "" {
+		provider.Model = model
+	}
+	if strings.TrimSpace(provider.Model) == "" {
+		return nil, coded(CodeInvalidRequest, "model is required — specify one in the request or configure a default on the provider", nil)
 	}
 	streamer, err := s.factory.NewStreamer(ctx, provider)
 	if err != nil {

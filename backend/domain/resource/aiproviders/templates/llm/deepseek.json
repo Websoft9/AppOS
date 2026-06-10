@@ -3,19 +3,14 @@
   "title": "DeepSeek",
   "vendor": "DeepSeek",
   "description": "DeepSeek hosted LLM access using an API key.",
-  "defaultEndpoint": "https://api.deepseek.com/v1",
+  "modelsEndpoint": "https://api.deepseek.com/models",
+  "defaultEndpoint": "https://api.deepseek.com",
   "capabilities": ["chat", "reasoning", "tools", "streaming"],
   "aliases": ["deepseek"],
   "fields": [
     {
       "id": "endpoint",
-      "default": "https://api.deepseek.com/v1"
-    },
-    {
-      "id": "defaultModel",
-      "label": "Default Model",
-      "type": "string",
-      "placeholder": "deepseek-chat"
+      "default": "https://api.deepseek.com"
     }
   ]
 }

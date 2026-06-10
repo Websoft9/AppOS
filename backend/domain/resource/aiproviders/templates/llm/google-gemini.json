@@ -10,12 +10,6 @@
     {
       "id": "endpoint",
       "default": "https://generativelanguage.googleapis.com/v1beta"
-    },
-    {
-      "id": "defaultModel",
-      "label": "Default Model",
-      "type": "string",
-      "placeholder": "gemini-2.5-flash"
     }
   ]
 }

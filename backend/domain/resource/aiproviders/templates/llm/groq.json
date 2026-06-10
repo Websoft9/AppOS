@@ -10,12 +10,6 @@
     {
       "id": "endpoint",
       "default": "https://api.groq.com/openai/v1"
-    },
-    {
-      "id": "defaultModel",
-      "label": "Default Model",
-      "type": "string",
-      "placeholder": "llama-3.3-70b-versatile"
     }
   ]
 }

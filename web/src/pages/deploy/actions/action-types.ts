@@ -58,6 +58,7 @@ export type ActionRecord = {
   app_id?: string
   server_id: string
   server_label?: string
+  server_name?: string
   server_host?: string
   source: string
   status: string

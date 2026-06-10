@@ -11,12 +11,6 @@
     {
       "id": "endpoint",
       "default": "https://api.x.ai/v1"
-    },
-    {
-      "id": "defaultModel",
-      "label": "Default Model",
-      "type": "string",
-      "placeholder": "grok-4"
     }
   ]
 }

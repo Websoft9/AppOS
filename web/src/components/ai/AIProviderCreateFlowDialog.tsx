@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { Check, Loader2, Pencil } from 'lucide-react'
-import { buildApiKeyValue, SecretCredentialField } from '@/components/secrets/SecretCredentialField'
+import { SecretCredentialField } from '@/components/secrets/SecretCredentialField'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { ResourceDialogForm } from '@/components/resources/ResourceDialogForm'
 import type { FieldDef, RelationOption } from '@/components/resources/resource-page-types'
@@ -15,115 +15,30 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import {
+  AI_PROVIDER_CREDENTIAL_TEMPLATE_ID,
+  SECRET_TEMPLATE_LABELS,
+  buildAIProviderPayload,
+  buildDefaultProviderName,
+  chooserTitle,
+  formatSecretLabel,
+  type AIProviderRecord,
+  type AIProviderTemplate,
+  type AIProviderTemplateField,
+  isGatewayProviderTemplate,
+  isAdvancedProviderField,
+  normalizeTemplateFieldDefault,
+  providerSelectionGroup,
+  productTitle,
+} from '@/lib/ai-providers'
 import { pb } from '@/lib/pb'
-import { buildAIProviderPayload } from '@/routes/_app/_auth/resources/ai-providers'
-
-export type AIProviderRecord = {
-  id: string
-  name?: string
-  kind?: string
-  is_default?: boolean
-  template_id?: string
-  endpoint?: string
-  auth_scheme?: string
-  provider_account?: string
-  credential?: string
-  config?: Record<string, unknown>
-  description?: string
-}
-
-type AIProviderTemplateField = {
-  id: string
-  label: string
-  type: string
-  required?: boolean
-  secretTemplate?: string
-  placeholder?: string
-  helpText?: string
-  default?: unknown
-}
-
-type AIProviderTemplate = {
-  id: string
-  kind: string
-  title: string
-  vendor?: string
-  description?: string
-  defaultEndpoint?: string
-  defaultAuthScheme?: string
-  fields?: AIProviderTemplateField[]
-}
-
-const SECRET_TEMPLATE_LABELS: Record<string, string> = {
-  single_value: 'Token / Single Value',
-}
-
-const AI_PROVIDER_CREDENTIAL_TEMPLATE_ID = 'single_value'
-
-function formatSecretLabel(raw: Record<string, unknown>): string {
-  const name = String(raw.name ?? raw.id)
-  const templateId = String(raw.template_id ?? '')
-  const suffix = SECRET_TEMPLATE_LABELS[templateId]
-  return suffix ? `${name} (${suffix})` : name
-}
-
-function humanizeTemplateId(templateId: string) {
-  return templateId
-    .split('-')
-    .filter(Boolean)
-    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ')
-}
-
-function productTitle(template: AIProviderTemplate) {
-  return template.title.trim() || humanizeTemplateId(template.id)
-}
-
-function chooserTitle(template: AIProviderTemplate) {
-  return String(template.vendor ?? '').trim() || productTitle(template)
-}
-
-function slugifyNamePart(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-}
-
-function buildDefaultProviderName(template: AIProviderTemplate) {
-  const base = slugifyNamePart(productTitle(template)) || 'ai-provider'
-  return `${base}-${Date.now().toString().slice(-4)}`
-}
-
-function normalizeTemplateFieldDefault(field: AIProviderTemplateField) {
-  if (field.default === undefined) {
-    if (field.type === 'boolean') return false
-    return ''
-  }
-  if (field.type === 'json' && typeof field.default !== 'string') {
-    return JSON.stringify(field.default, null, 2)
-  }
-  return field.default
-}
-
-function isAdvancedProviderField(field: AIProviderTemplateField) {
-  const normalizedId = field.id.trim().toLowerCase()
-  const normalizedLabel = String(field.label ?? '')
-    .trim()
-    .toLowerCase()
-  return (
-    normalizedId === 'apiversion' ||
-    normalizedId === 'api_version' ||
-    normalizedLabel === 'api version'
-  )
-}
 
 function mapTemplateFieldToResourceField(
   field: AIProviderTemplateField,
   openSecretDialog: (callbacks: { addOption: (id: string, label: string) => void }) => void,
   openSecretEditor: (secretId: string) => void,
-  renderCredentialField: NonNullable<FieldDef['render']>
+  renderCredentialField: NonNullable<FieldDef['render']>,
+  renderEndpointField: NonNullable<FieldDef['render']>,
 ): FieldDef {
   if (field.id === 'credential') {
     return {
@@ -144,6 +59,39 @@ function mapTemplateFieldToResourceField(
         onClick: openSecretEditor,
       },
       render: renderCredentialField,
+    }
+  }
+
+  if (field.id === 'endpoint') {
+    return {
+      key: field.id,
+      label: field.label,
+      type: 'text',
+      required: field.required,
+      placeholder: field.placeholder,
+      defaultValue: normalizeTemplateFieldDefault(field),
+      render: renderEndpointField,
+    }
+  }
+
+  if (field.type === 'secret_ref') {
+    return {
+      key: field.id,
+      label: field.label,
+      type: 'relation',
+      required: field.required,
+      relationApiPath: buildUserVisibleSecretRelationApiPath('ai_provider', {
+        secretTemplate: field.secretTemplate,
+      }),
+      relationFormatLabel: formatSecretLabel,
+      relationCreateButton: {
+        label: 'New Secret',
+        onClick: openSecretDialog,
+      },
+      relationEditButton: {
+        label: 'Edit Secret',
+        onClick: openSecretEditor,
+      },
     }
   }
 
@@ -210,8 +158,21 @@ export function AIProviderCreateFlowDialog({
   const [secretDialogOpen, setSecretDialogOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [endpointEditing, setEndpointEditing] = useState(false)
+  const [selectedModels, setSelectedModels] = useState<string[]>([])
+  const [expandedVendor, setExpandedVendor] = useState('')
+  const [lastFetchSucceeded, setLastFetchSucceeded] = useState(false)
 
   useEffect(() => {
+    setFetchModelsError('')
+    setFetchedModels([])
+    setFetchingModels(false)
+    setFetchedGroups([])
+    setSelectedModels([])
+    setExpandedVendor('')
+    setLastFetchSucceeded(false)
+    setEndpointEditing(false)
+
     if (!open) {
       setSelectionOpen(false)
       setFormOpen(false)
@@ -247,6 +208,11 @@ export function AIProviderCreateFlowDialog({
     () =>
       [...templates]
         .sort((left, right) => {
+          const leftIsGateway = isGatewayProviderTemplate(left)
+          const rightIsGateway = isGatewayProviderTemplate(right)
+          if (leftIsGateway !== rightIsGateway) {
+            return leftIsGateway ? -1 : 1
+          }
           const leftIsOpenAICompatible = left.id === 'generic-llm'
           const rightIsOpenAICompatible = right.id === 'generic-llm'
           if (leftIsOpenAICompatible !== rightIsOpenAICompatible) {
@@ -309,49 +275,225 @@ export function AIProviderCreateFlowDialog({
           manualPlaceholder={`Enter ${String(field.label ?? 'API Key')}`}
           showLabel={`Show ${String(field.label ?? 'API Key')}`}
           hideLabel={`Hide ${String(field.label ?? 'API Key')}`}
-          generateValue={buildApiKeyValue}
-          generatorTitle="Generate API Key"
-          generatorDescription="Create a random API key value to store in a secret."
-          generatorLengthLabel="Length"
-          generatorConfirmLabel="Use Generated Value"
+          allowGenerate={false}
         />
       )
     },
     [openSecretEditor]
   )
 
+  const renderEndpointField = useCallback<NonNullable<FieldDef['render']>>(
+    ({ inputId, formData: currentFormData, updateField }) => {
+      const current = String(currentFormData.endpoint ?? '')
+      const editing = endpointEditing
+      if (!editing) {
+        return (
+          <div className="flex items-center gap-2">
+            <input
+              id={inputId}
+              type="text"
+              className="border-input bg-muted/40 text-muted-foreground h-9 w-full rounded-md border px-3 text-sm"
+              value={current}
+              readOnly
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              title="Edit endpoint"
+              onClick={() => setEndpointEditing(true)}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )
+      }
+      return (
+        <div className="flex items-center gap-2">
+          <input
+            id={inputId}
+            type="text"
+            className="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
+            value={current}
+            onChange={e => updateField('endpoint', e.target.value)}
+            autoFocus
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            title="Done"
+            onClick={() => setEndpointEditing(false)}
+          >
+            <Check className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      )
+    },
+    [endpointEditing]
+  )
+
+  const [fetchModelsError, setFetchModelsError] = useState('')
+  const [fetchingModels, setFetchingModels] = useState(false)
+  const [fetchedModels, setFetchedModels] = useState<string[]>([])
+  const [fetchedGroups, setFetchedGroups] = useState<Array<{ vendor: string; models: Array<{ id: string }> }>>([])
+
+  const runFetchModels = useCallback(async (): Promise<boolean> => {
+    const endpoint = String(formData.endpoint ?? '').trim()
+    const apiKey = String(formData.api_key_value ?? '').trim()
+    if (!endpoint || !apiKey) return false
+
+    setFetchingModels(true)
+    setFetchModelsError('')
+    setFetchedModels([])
+    setFetchedGroups([])
+    setLastFetchSucceeded(false)
+    try {
+      const result = await pb.send<{ models: Array<{ id: string; enabled_by_default?: boolean }>; groups?: Array<{ vendor: string; models: Array<{ id: string }> }> }>('/api/ai-providers/fetch-models', {
+        method: 'POST',
+        body: { endpoint, api_key: apiKey, template_id: String(formData.template_id ?? '') },
+      })
+      const models = (result?.models ?? []).map(m => m.id).filter(Boolean)
+      setFetchedModels(models)
+      setFetchedGroups(Array.isArray(result?.groups) ? result.groups : [])
+      setLastFetchSucceeded(true)
+      setSelectedModels(current => {
+        const available = new Set(models)
+        const preferred = current.length > 0 ? current : (result?.models ?? []).filter(model => model.enabled_by_default).map(model => model.id)
+        const filtered = preferred.filter(model => available.has(model))
+        return filtered.length > 0 ? filtered : current
+      })
+      return models.length > 0
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to fetch models'
+      setFetchModelsError(msg)
+      return false
+    } finally {
+      setFetchingModels(false)
+    }
+  }, [formData.endpoint, formData.api_key_value, formData.template_id])
+
+  const handleTestConnection = useCallback(() => {
+    void runFetchModels()
+  }, [runFetchModels])
+
+  const toggleSelectedModel = useCallback((modelID: string) => {
+    setSelectedModels(current =>
+      current.includes(modelID)
+        ? current.filter(item => item !== modelID)
+        : [...current, modelID]
+    )
+  }, [])
+
+  const isGateway = isGatewayProviderTemplate(selectedTemplate)
+
+  const gatewayModelSelector = isGateway && (selectedTemplate?.defaultEnabledModels?.length || fetchedGroups.length > 0) ? (
+    <div className="space-y-3 rounded-lg border bg-muted/10 px-4 py-3">
+      <div className="space-y-1">
+        <div className="text-sm font-medium">Enabled models</div>
+        <div className="text-xs text-muted-foreground">
+          Save is allowed without a successful test, but only validated selections will be stored as enabled models.
+        </div>
+      </div>
+
+      {selectedTemplate?.defaultEnabledModels?.length ? (
+        <div className="flex flex-wrap gap-1.5">
+          {selectedTemplate.defaultEnabledModels.map(model => {
+            const checked = selectedModels.includes(model)
+            return (
+              <button
+                key={model}
+                type="button"
+                onClick={() => toggleSelectedModel(model)}
+                className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${checked ? 'border-primary bg-primary/10 text-primary' : 'bg-background text-foreground/80'}`}
+              >
+                {model}
+              </button>
+            )
+          })}
+        </div>
+      ) : null}
+
+      {fetchedGroups.length > 0 ? (
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-1.5">
+            {fetchedGroups.map(group => (
+              <button
+                key={group.vendor}
+                type="button"
+                onClick={() => setExpandedVendor(current => (current === group.vendor ? '' : group.vendor))}
+                className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${expandedVendor === group.vendor ? 'border-primary bg-primary/10 text-primary' : 'bg-background text-foreground/80'}`}
+              >
+                {group.vendor}
+              </button>
+            ))}
+          </div>
+          {expandedVendor ? (
+            <div className="grid max-h-48 gap-2 overflow-y-auto rounded-md border bg-background p-3 sm:grid-cols-2">
+              {(fetchedGroups.find(group => group.vendor === expandedVendor)?.models ?? []).map(model => {
+                const checked = selectedModels.includes(model.id)
+                return (
+                  <label key={model.id} className="flex items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={checked}
+                      onChange={() => toggleSelectedModel(model.id)}
+                    />
+                    <span className="min-w-0 break-all">{model.id}</span>
+                  </label>
+                )
+              })}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  ) : null
+
+  const testSummary = fetchingModels ? (
+    <div className="rounded-lg border bg-muted/20 px-4 py-3">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        Testing connection...
+      </div>
+    </div>
+  ) : fetchModelsError ? (
+    <div className="rounded-lg border bg-destructive/10 px-4 py-3">
+      <div className="text-sm text-destructive">{fetchModelsError}</div>
+    </div>
+  ) : fetchedModels.length > 0 ? (
+    <div className="rounded-lg border bg-emerald-50/40 px-4 py-3 dark:bg-emerald-950/10">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="font-medium text-emerald-700 dark:text-emerald-300">
+          {fetchedModels.length} model{fetchedModels.length === 1 ? '' : 's'} available
+        </span>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {fetchedModels.map(model => (
+          <span key={model} className="inline-flex items-center rounded-full border bg-muted/40 px-2.5 py-0.5 text-xs font-medium">
+            {model}
+          </span>
+        ))}
+      </div>
+    </div>
+  ) : null
+
   const baseProviderFields = useMemo<FieldDef[]>(
     () => [
       {
-        key: 'name',
-        label: 'Name',
-        type: 'text',
-        required: true,
-        placeholder: 'e.g. openai-1234',
+        key: 'is_enabled',
+        label: 'Enabled',
+        type: 'boolean',
+        defaultValue: true,
       },
       {
         key: 'description',
         label: 'Description',
         type: 'textarea',
         advanced: true,
-      },
-      {
-        key: 'selected_product',
-        label: 'Selected Product',
-        type: 'text',
-        hidden: true,
-      },
-      {
-        key: 'selected_product_meta',
-        label: 'Selected Product Meta',
-        type: 'text',
-        hidden: true,
-      },
-      {
-        key: 'selected_product_description',
-        label: 'Selected Product Description',
-        type: 'text',
-        hidden: true,
       },
       {
         key: 'title_name_editing',
@@ -398,16 +540,17 @@ export function AIProviderCreateFlowDialog({
 
   const resolvedFields = useMemo(() => {
     const dynamicFields = (selectedTemplate?.fields ?? []).map(field =>
-      mapTemplateFieldToResourceField(field, () => setSecretDialogOpen(true), openSecretEditor, renderCredentialField)
+      mapTemplateFieldToResourceField(field, () => setSecretDialogOpen(true), openSecretEditor, renderCredentialField, renderEndpointField)
     )
 
     return [
-      baseProviderFields[0],
-      ...baseProviderFields.slice(2, 8),
+      baseProviderFields[1],
+      ...baseProviderFields.slice(2, 5),
       ...dynamicFields,
-      ...baseProviderFields.slice(8),
+      baseProviderFields[0],
+      ...baseProviderFields.slice(5),
     ]
-  }, [baseProviderFields, openSecretEditor, renderCredentialField, selectedTemplate])
+  }, [baseProviderFields, openSecretEditor, renderCredentialField, renderEndpointField, selectedTemplate])
 
   const activeFields = useMemo(() => filterVisibleFields(resolvedFields, formData), [resolvedFields, formData])
   const headerFields = activeFields.filter(field => field.header)
@@ -450,12 +593,10 @@ export function AIProviderCreateFlowDialog({
       kind: template.kind,
       template_id: template.id,
       name: buildDefaultProviderName(template),
-      selected_product: chooserTitle(template),
-      selected_product_meta: '',
-      selected_product_description: '',
       endpoint: template.defaultEndpoint ?? '',
       credential_use_secret: false,
       api_key_value: '',
+      is_enabled: true,
       title_name_editing: false,
     }
 
@@ -464,6 +605,11 @@ export function AIProviderCreateFlowDialog({
     }
 
     setFormData(defaults)
+    setSelectedModels(Array.isArray(template.defaultEnabledModels) ? [...template.defaultEnabledModels] : [])
+    setExpandedVendor('')
+    setFetchedModels([])
+    setFetchedGroups([])
+    setLastFetchSucceeded(false)
     setRelationOptions({})
     setError('')
     setSelectionOpen(false)
@@ -504,14 +650,24 @@ export function AIProviderCreateFlowDialog({
     event.preventDefault()
     setSaving(true)
     setError('')
+
+    if (!String(formData.name ?? '').trim()) {
+      setSaving(false)
+      setError('Name is required')
+      return
+    }
+
     try {
-      const body = await buildAIProviderPayload(formData, templatesById)
+      const body = await buildAIProviderPayload(
+        {
+          ...formData,
+          enabled_models: lastFetchSucceeded ? selectedModels : undefined,
+        },
+        templatesById
+      )
       const created = await pb.send<AIProviderRecord>('/api/ai-providers', {
         method: 'POST',
-        body: {
-          ...body,
-          is_default: true,
-        },
+        body: { ...body, is_default: true },
       })
       onCreated(created)
       setFormOpen(false)
@@ -616,16 +772,43 @@ export function AIProviderCreateFlowDialog({
               </div>
             ) : (
               <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
-                {productOptions.map(option => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    className="w-full rounded-lg border px-4 py-3 text-left transition-colors hover:bg-muted"
-                    onClick={() => selectTemplate(option)}
-                  >
-                    <div className="text-sm font-medium text-foreground">{chooserTitle(option)}</div>
-                  </button>
-                ))}
+                {['LLM Gateway', 'Provider'].map(group => {
+                  const groupOptions = productOptions.filter(option => providerSelectionGroup(option) === group)
+                  if (groupOptions.length === 0) return null
+                  return (
+                    <div key={group} className="space-y-2">
+                      <div className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group}</div>
+                      {groupOptions.map(option => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          className="w-full rounded-lg border px-4 py-3 text-left transition-colors hover:bg-muted"
+                          onClick={() => selectTemplate(option)}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium text-foreground">{chooserTitle(option)}</div>
+                              {option.description ? (
+                                <div className="mt-1 text-xs text-muted-foreground">{option.description}</div>
+                              ) : null}
+                            </div>
+                            {option.helpUrl ? (
+                              <a
+                                href={option.helpUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="shrink-0 text-xs text-primary hover:underline"
+                                onClick={event => event.stopPropagation()}
+                              >
+                                Help
+                              </a>
+                            ) : null}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -657,14 +840,17 @@ export function AIProviderCreateFlowDialog({
         fileInputRef={fileInputRef}
         error={error}
         saving={saving}
+        selectedSummary={
+          <div className="space-y-3">
+            {testSummary}
+            {gatewayModelSelector}
+          </div>
+        }
         submitLabel="Create Model"
+        cancelLabel="Test Connection"
         resetAction={{
-          label: 'Back',
-          onClick: () => {
-            setFormOpen(false)
-            setSelectionOpen(true)
-            setError('')
-          },
+          label: 'Test Connection',
+          onClick: handleTestConnection,
         }}
         onSubmit={handleSubmit}
       />

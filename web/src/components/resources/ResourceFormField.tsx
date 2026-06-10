@@ -106,6 +106,7 @@ export function ResourceFormField({
           value={String(formData[field.key] ?? '')}
           onChange={e => handleChange(field, e.target.value)}
           required={field.required}
+          disabled={field.readOnly}
         >
           <option value="">Select…</option>
           {renderSelectOptions(field.options)}

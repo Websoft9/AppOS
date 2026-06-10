@@ -42,11 +42,13 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   createAIChatSession,
   deleteAIChatSession,
+  listAIChatModels,
   listAIChatMessages,
   listAIChatSessions,
   sendAIChatMessage,
   updateAIChatSession,
   type AIChatAttachment,
+  type AIChatModelOption,
   type AIChatMessage,
   type AIChatSession,
 } from '@/lib/ai-chat-api'
@@ -72,6 +74,15 @@ type DraftAttachment = {
 type ParsedUserMessage = {
   text: string
   attachments: AIChatAttachment[]
+}
+
+function modelSelectionValue(option: Pick<AIChatModelOption, 'provider_id' | 'model_id'>) {
+  return `${option.provider_id}::${option.model_id}`
+}
+
+function parseModelSelection(value: string) {
+  const [providerId = '', ...rest] = value.split('::')
+  return { providerId, model: rest.join('::') }
 }
 
 function isTextAttachment(file: File) {
@@ -192,6 +203,44 @@ export function AIChatPage() {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
+  const [selectedModel, setSelectedModel] = useState(() => localStorage.getItem('ai-chat-model') ?? '')
+  const [availableModels, setAvailableModels] = useState<AIChatModelOption[]>([])
+  const [loadingModels, setLoadingModels] = useState(false)
+
+  useEffect(() => {
+    localStorage.setItem('ai-chat-model', selectedModel)
+  }, [selectedModel])
+
+  useEffect(() => {
+    let cancelled = false
+    setLoadingModels(true)
+    void listAIChatModels()
+      .then(models => {
+        if (cancelled) return
+        setAvailableModels(models)
+        if (models.length > 0) {
+          const stored = localStorage.getItem('ai-chat-model')
+          const fallback = modelSelectionValue(models[0])
+          if (stored && models.some(model => modelSelectionValue(model) === stored)) {
+            setSelectedModel(stored)
+          } else {
+            setSelectedModel(fallback)
+          }
+        } else {
+          setSelectedModel('')
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAvailableModels([])
+          setSelectedModel('')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingModels(false)
+      })
+    return () => { cancelled = true }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const [busySessionId, setBusySessionId] = useState('')
   const [renamingSessionId, setRenamingSessionId] = useState('')
   const [renameDraft, setRenameDraft] = useState('')
@@ -391,9 +440,12 @@ export function AIChatPage() {
     setMessages(prev => [...prev, userMessage, assistantMessage])
 
     try {
+      const targetModel = parseModelSelection(selectedModel)
       await sendAIChatMessage(
         sessionId,
         content,
+        targetModel.providerId,
+        targetModel.model,
         {
           onChunk: chunk => {
             setMessages(prev =>
@@ -709,7 +761,7 @@ export function AIChatPage() {
                     className="min-h-10 max-h-28 resize-none rounded-none border-0 bg-transparent px-0.5 py-0 leading-5 shadow-none focus-visible:border-0 focus-visible:ring-0"
                     disabled={sending}
                   />
-                  <div className="flex items-center justify-between gap-1.5 px-0.5 pb-1 pt-0.5">
+                  <div className="flex items-center gap-1.5 px-0.5 pb-1 pt-0.5">
                     <Button
                       type="button"
                       size="icon"
@@ -721,6 +773,28 @@ export function AIChatPage() {
                     >
                       <FileUp className="h-3 w-3" />
                     </Button>
+                    {availableModels.length > 0 ? (
+                      <select
+                        className="h-7 rounded-md border border-input bg-background px-2 text-xs text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        value={selectedModel}
+                        onChange={e => setSelectedModel(e.target.value)}
+                        disabled={sending}
+                      >
+                        {availableModels.map(model => (
+                          <option
+                            key={modelSelectionValue(model)}
+                            value={modelSelectionValue(model)}
+                          >
+                            {model.label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : loadingModels ? (
+                      <span className="flex items-center gap-1 h-7 px-2 text-xs text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      </span>
+                    ) : null}
+                    <div className="flex-1" />
                     <Button
                       type="submit"
                       size="icon"

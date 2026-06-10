@@ -2,8 +2,16 @@
   "id": "openrouter",
   "title": "OpenRouter",
   "vendor": "OpenRouter",
+  "providerMode": "gateway",
   "description": "Unified hosted LLM routing across multiple model providers.",
+  "helpUrl": "https://openrouter.ai/docs",
   "defaultEndpoint": "https://openrouter.ai/api/v1",
+  "defaultEnabledModels": [
+    "openai/gpt-4o-mini",
+    "openai/gpt-4.1-mini",
+    "anthropic/claude-3.5-sonnet",
+    "google/gemini-2.0-flash"
+  ],
   "capabilities": ["chat", "routing", "tools", "streaming"],
   "aliases": ["openrouter"],
   "fields": [

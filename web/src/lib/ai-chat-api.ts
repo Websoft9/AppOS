@@ -25,6 +25,16 @@ export type AIChatAttachment = {
   record_id?: string
 }
 
+export type AIChatModelOption = {
+  provider_id: string
+  endpoint: string
+  model_id: string
+  label: string
+  provider_name?: string
+  provider_mode?: string
+  gateway_name?: string
+}
+
 export async function listAIChatSessions(): Promise<AIChatSession[]> {
   const response = (await pb.send('/api/ai/chat/sessions', { method: 'GET' })) as {
     items?: AIChatSession[]
@@ -65,6 +75,13 @@ export async function listAIChatMessages(sessionId: string): Promise<AIChatMessa
   return Array.isArray(response.items) ? response.items : []
 }
 
+export async function listAIChatModels(): Promise<AIChatModelOption[]> {
+  const response = (await pb.send('/api/ai-providers/chat-models', {
+    method: 'GET',
+  })) as { items?: AIChatModelOption[] }
+  return Array.isArray(response.items) ? response.items : []
+}
+
 type StreamCallbacks = {
   onChunk: (content: string) => void
   onDone?: (message: AIChatMessage) => void
@@ -73,6 +90,8 @@ type StreamCallbacks = {
 export async function sendAIChatMessage(
   sessionId: string,
   content: string,
+  providerId: string,
+  model: string,
   callbacks: StreamCallbacks,
   attachments: AIChatAttachment[] = []
 ): Promise<void> {
@@ -82,7 +101,7 @@ export async function sendAIChatMessage(
       'Content-Type': 'application/json',
       Authorization: pb.authStore.token,
     },
-    body: JSON.stringify({ content, attachments }),
+    body: JSON.stringify({ content, provider_id: providerId, model, attachments }),
   })
   if (!response.ok) {
     throw new Error(`Chat request failed with status ${response.status}`)

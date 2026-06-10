@@ -106,9 +106,14 @@ The first slice may generate session titles from the first user message or use a
 ## Provider and Model Rules
 
 - DeepSeek should be consumed as an OpenAI-compatible chat model.
-- The runtime should prefer the default AI Provider selected in Settings when present.
+- The runtime should prefer the settings-selected default AI Provider for one shared endpoint when present.
+- If no explicit same-endpoint default exists, the runtime should fall back to the earliest-created provider in that endpoint group.
 - If no default provider exists, the API should return a clear setup-required error rather than silently using a hard-coded key.
 - If the selected provider lacks a credential, endpoint, or model, the API should return a validation error that points the operator to AI Provider configuration.
+- Chat model selection should consume the union of provider `enabled_models`, not the raw upstream model list.
+- The chat model picker should merge duplicate models exposed through the same endpoint.
+- Direct vendor models should display as the bare model id.
+- Gateway-backed models should display as `model + gateway name`.
 - The implementation may support an environment-only development fallback only if it does not bypass production AI Provider behavior.
 
 ## Eino Integration Rules
@@ -138,6 +143,7 @@ Add the smallest authenticated chat surface that supports:
 - showing assistant output incrementally while streaming
 - showing loading and error states
 - preserving session messages after refresh
+- allowing model switching within one conversation without rebinding the session to a single model
 
 The first UI should be functional and quiet. It should not introduce a marketing-style AI cockpit or broad dashboard redesign.
 
@@ -181,6 +187,8 @@ The implementation should keep route placement small and reversible.
 10. The MVP does not expose tool calling, shell execution, deployment actions, or workflow mutation to the model.
 11. Backend tests cover provider validation, authentication, message persistence, and successful chat execution through a mocked model boundary.
 12. Frontend tests cover session load, message send, streaming or progressive update state, empty input guard, and provider setup error state.
+13. The chat model picker reads consumer-visible models from provider `enabled_models` and applies same-endpoint default-provider resolution.
+14. Duplicate `endpoint + model` entries are merged in the picker.
 
 ## Tasks / Subtasks
 
@@ -210,6 +218,11 @@ The implementation should keep route placement small and reversible.
   - [x] 5.2 frontend component or route tests for the MVP chat flow
   - [x] 5.3 run focused backend and frontend test targets documented by the implementation
 
+- [ ] Task 6: Provider-governed model selection follow-up
+  - [ ] 6.1 resolve chat-visible models from provider `enabled_models`
+  - [ ] 6.2 apply settings-owned same-endpoint default-provider selection before fallback to earliest-created provider
+  - [ ] 6.3 merge duplicate `endpoint + model` entries and render direct-vendor vs gateway display labels differently
+
 ## Guardrails
 
 - Do not introduce a Node/TypeScript AI sidecar.
@@ -218,6 +231,7 @@ The implementation should keep route placement small and reversible.
 - Do not add tool execution or operational mutations in this MVP.
 - Do not let the AI Runtime mutate deployment, software, terminal, monitoring, or resource domains directly.
 - Keep the story as a foundation for future context-based agents, not as the final agent product.
+- Do not let the chat picker expose the unbounded raw model inventory from one gateway when operators have already curated `enabled_models`.
 
 ## Future Follow-ups
 

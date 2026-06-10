@@ -199,6 +199,8 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const [pendingActionControl, setPendingActionControl] = useState<PendingActionControl | null>(
     null
   )
+  const [recentActivity, setRecentActivity] = useState<ActionRecord[]>([])
+  const [recentActivityLoading, setRecentActivityLoading] = useState(false)
   const [actionControlSubmitting, setActionControlSubmitting] = useState(false)
   const [actionStatusFilter, setActionStatusFilter] = useState('all')
   const [actionTypeFilter, setActionTypeFilter] = useState('all')
@@ -359,6 +361,24 @@ export function AppDetailPage({ appId }: { appId: string }) {
       setActionsLoading(false)
     }
   }, [actionHistoryPage, actionSearch, appId])
+
+  const fetchRecentActivity = useCallback(async () => {
+    setRecentActivityLoading(true)
+    try {
+      const params = new URLSearchParams()
+      params.set('appId', appId)
+      params.set('page', '1')
+      params.set('perPage', '3')
+      const response = await pb.send<ActionListResponse>(`/api/actions?${params.toString()}`, {
+        method: 'GET',
+      })
+      setRecentActivity(Array.isArray(response?.items) ? response.items.slice(0, 3) : [])
+    } catch {
+      setRecentActivity([])
+    } finally {
+      setRecentActivityLoading(false)
+    }
+  }, [appId])
 
   const fetchRuntimeInventory = useCallback(async () => {
     setRuntimeLoading(true)
@@ -525,6 +545,7 @@ export function AppDetailPage({ appId }: { appId: string }) {
       await Promise.all([
         fetchDetail(),
         fetchLifecycleResources(),
+        fetchRecentActivity(),
         ...(tab === 'actions' || actionsLoaded ? [fetchActionHistory()] : []),
         ...(tab === 'runtime' || runtimeLoaded ? [fetchRuntimeInventory()] : []),
         ...(tab === 'data' || dataLoaded ? [fetchDataResources()] : []),
@@ -547,7 +568,8 @@ export function AppDetailPage({ appId }: { appId: string }) {
   useEffect(() => {
     void fetchDetail()
     void fetchLifecycleResources()
-  }, [fetchDetail, fetchLifecycleResources])
+    void fetchRecentActivity()
+  }, [fetchDetail, fetchLifecycleResources, fetchRecentActivity])
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -1446,6 +1468,8 @@ export function AppDetailPage({ appId }: { appId: string }) {
               app.last_operation ? buildActionDetailHref(app.last_operation) : undefined
             }
             setTab={setTab}
+            recentActivity={recentActivity}
+            recentActivityLoading={recentActivityLoading}
           />
           <AppDetailAccessTab
             app={app}

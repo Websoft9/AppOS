@@ -41,6 +41,8 @@ type ResourceDialogFormProps = {
   submitLabel: string
   cancelLabel?: string
   resetAction?: { label: string; onClick: () => void }
+  onCancel?: () => void
+  dialogExtra?: ReactNode
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
 }
 
@@ -68,6 +70,8 @@ export function ResourceDialogForm({
   submitLabel,
   cancelLabel = 'Cancel',
   resetAction,
+  onCancel,
+  dialogExtra,
   onSubmit,
 }: ResourceDialogFormProps) {
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -136,6 +140,7 @@ export function ResourceDialogForm({
           )}
 
           {error ? <p className="text-destructive text-sm">{error}</p> : null}
+          {dialogExtra ?? null}
 
           <DialogFooter>
             {resetAction ? (
@@ -143,7 +148,7 @@ export function ResourceDialogForm({
                 {resetAction.label}
               </Button>
             ) : (
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              <Button type="button" variant="outline" onClick={() => (onCancel ? onCancel() : onOpenChange(false))}>
                 {cancelLabel}
               </Button>
             )}

@@ -213,10 +213,14 @@ type Template struct {
 	Title           string          `json:"title"`
 	Vendor          string          `json:"vendor,omitempty"`
 	Category        string          `json:"category,omitempty"`
+	ProviderMode    string          `json:"providerMode,omitempty"`
 	Description     string          `json:"description,omitempty"`
+	HelpURL         string          `json:"helpUrl,omitempty"`
 	ContextSize     int             `json:"contextSize,omitempty"`
+	ModelsEndpoint  string          `json:"modelsEndpoint,omitempty"`
 	DefaultEndpoint string          `json:"defaultEndpoint,omitempty"`
 	DefaultAuth     string          `json:"defaultAuthScheme,omitempty"`
+	DefaultEnabledModels []string   `json:"defaultEnabledModels,omitempty"`
 	Capabilities    []string        `json:"capabilities,omitempty"`
 	Aliases         []string        `json:"aliases,omitempty"`
 	Fields          []TemplateField `json:"fields,omitempty"`

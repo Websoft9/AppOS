@@ -1,0 +1,23 @@
+{
+  "id": "alibaba-cloud-bailian",
+  "title": "Alibaba Cloud Bailian",
+  "vendor": "Alibaba Cloud",
+  "providerMode": "gateway",
+  "description": "Alibaba Cloud Bailian (Qwen) model gateway and model management platform.",
+  "helpUrl": "https://www.alibabacloud.com/help/en/model-studio/",
+  "defaultEndpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "defaultEnabledModels": [
+    "qwen-turbo",
+    "qwen-plus",
+    "qwen-max",
+    "qwen-long"
+  ],
+  "capabilities": ["chat", "routing", "streaming"],
+  "aliases": ["alibaba cloud bailian", "bailian", "qwen", "alibaba-cloud-bailian"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "default": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    }
+  ]
+}

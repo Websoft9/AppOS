@@ -35,6 +35,8 @@ export type OverviewTabProps = {
   templateDetailHref?: string
   actionDetailHref?: string
   setTab: (value: string) => void
+  recentActivity: ActionRecord[]
+  recentActivityLoading: boolean
 }
 
 export type SettingsTabProps = {

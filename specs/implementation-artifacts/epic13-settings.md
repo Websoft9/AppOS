@@ -201,6 +201,8 @@ Epic 13 is not responsible for:
 - consumer runtime behavior after settings are read
 - compatibility aliases for legacy settings routes
 
+Settings may still act as a reference layer for other domains. For AI Providers, that means storing default-provider references for one shared endpoint group, but never reclaiming canonical ownership of provider records or provider model payloads.
+
 ## Ownership Model
 
 | Settings surface | Canonical owner |
@@ -216,6 +218,8 @@ Epic 13 is not responsible for:
 | `proxy-network` | Remains documented in Epic 13 until a dedicated consumer document exists |
 | `docker-mirror`, `image-pull-network-policy`, `docker-registries` | Story 4.8 / Docker Settings |
 | `llm-providers` | Remains documented in Epic 13 until a dedicated consumer document exists |
+
+Future AI reference entries may store same-endpoint default-provider selection only; they must reference `ai_provider` resource ids rather than duplicating provider payloads.
 
 ## Story Split
 

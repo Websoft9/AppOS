@@ -10,6 +10,15 @@ const getOneMock = vi.fn()
 const createMock = vi.fn()
 const navigateMock = vi.fn()
 
+function getProductButton(title: string) {
+  const titleNode = screen.getByText(title)
+  const button = titleNode.closest('button')
+  if (!(button instanceof HTMLButtonElement)) {
+    throw new Error(`expected ${title} product button`)
+  }
+  return button
+}
+
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute:
     () =>
@@ -228,6 +237,9 @@ describe('AIProvidersPage', () => {
         if (path === '/api/ai-providers') {
           return Promise.resolve([])
         }
+        if (path.startsWith('/api/ai-providers/reachability?')) {
+          return Promise.resolve({ items: [] })
+        }
         if (path === '/api/collections/groups/records?perPage=500&sort=name') {
           return Promise.resolve({ items: [] })
         }
@@ -270,21 +282,18 @@ describe('AIProvidersPage', () => {
     expect(
       screen.getByPlaceholderText('Search products like OpenAI, Ollama, Anthropic, OpenRouter...')
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^OpenAI$/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^OpenAI-Compatible$/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Ollama$/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^xAI$/i })).toBeInTheDocument()
-    expect(screen.queryByText('Hosted OpenAI models')).not.toBeInTheDocument()
-    expect(screen.queryByText('Local Ollama runtime')).not.toBeInTheDocument()
-    expect(screen.queryByText('Custom OpenAI-compatible endpoint')).not.toBeInTheDocument()
+    expect(getProductButton('OpenAI')).toBeInTheDocument()
+    expect(getProductButton('OpenAI-Compatible')).toBeInTheDocument()
+    expect(getProductButton('Ollama')).toBeInTheDocument()
+    expect(getProductButton('xAI')).toBeInTheDocument()
+    expect(screen.getByText('Hosted OpenAI models')).toBeInTheDocument()
+    expect(screen.getByText('Local Ollama runtime')).toBeInTheDocument()
+    expect(screen.getByText('Custom OpenAI-compatible endpoint')).toBeInTheDocument()
     expect(document.querySelector('optgroup')).toBeNull()
 
-    const productButtons = screen
-      .getAllByRole('button')
-      .filter(button =>
-        ['OpenAI', 'Ollama', 'xAI', 'OpenAI-Compatible'].includes(button.textContent ?? '')
-      )
-      .map(button => button.textContent)
+    const productButtons = ['OpenAI', 'Ollama', 'xAI', 'OpenAI-Compatible'].filter(title =>
+      screen.queryByText(title)
+    )
     expect(productButtons).toEqual(['OpenAI', 'Ollama', 'xAI', 'OpenAI-Compatible'])
 
     fireEvent.change(
@@ -292,31 +301,28 @@ describe('AIProvidersPage', () => {
       { target: { value: 'openai' } }
     )
 
-    expect(screen.getByRole('button', { name: /^OpenAI$/i })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^Ollama$/i })).not.toBeInTheDocument()
+    expect(getProductButton('OpenAI')).toBeInTheDocument()
+    expect(screen.queryByText('Ollama')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /^OpenAI$/i }))
+    fireEvent.click(getProductButton('OpenAI'))
 
     await waitFor(() => {
       expect(screen.getByText('Base URL')).toBeInTheDocument()
     })
 
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith(AI_PROVIDER_SECRET_PATH, {})
+      expect(sendMock).toHaveBeenCalledWith(AI_PROVIDER_SECRET_PATH, { method: 'GET' })
     })
 
     expect(screen.getByText('Add OpenAI AI Provider')).toBeInTheDocument()
     expect(screen.queryByLabelText('Profile')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Name')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Runtime Default')).not.toBeInTheDocument()
     expect(screen.getByText('API Key')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Enter API Key')).toBeInTheDocument()
     expect(screen.queryByText('API Version')).not.toBeInTheDocument()
     expect(screen.queryByText('Advanced Config (JSON)')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
-    expect(screen.getByText('Generate API Key')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Fill API Key' }))
-    expect((screen.getByPlaceholderText('Enter API Key') as HTMLInputElement).value).toMatch(/^sk-/)
+    expect(screen.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Advanced/i }))
 
@@ -455,7 +461,8 @@ describe('AIProvidersPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add AI Provider' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^OpenAI$/i }))
+    await screen.findByText('Choose a Product')
+    fireEvent.click(getProductButton('OpenAI'))
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Organization Secret' })).toBeInTheDocument()
@@ -472,5 +479,142 @@ describe('AIProvidersPage', () => {
     )
 
     openSpy.mockRestore()
+  })
+
+  it('shows provider and enabled status, loads reachability, and opens edit from name', async () => {
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/ai-providers/templates') {
+        return Promise.resolve([
+          {
+            id: 'xai',
+            kind: 'llm',
+            title: 'xAI',
+            vendor: 'xAI',
+            defaultEndpoint: 'https://api.x.ai/v1',
+            defaultAuthScheme: 'api_key',
+            fields: [
+              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+            ],
+          },
+        ])
+      }
+      if (path === '/api/ai-providers') {
+        return Promise.resolve([
+          {
+            id: 'provider-xai',
+            name: 'xai-main',
+            template_id: 'xai',
+            endpoint: 'https://api.x.ai/v1',
+            credential: 'secret-1',
+            is_enabled: false,
+            config: {},
+            created: '2025-01-05T10:30:00Z',
+            updated: '2025-01-06T11:45:00Z',
+          },
+        ])
+      }
+      if (path.startsWith('/api/ai-providers/reachability?')) {
+        return Promise.resolve({ items: [{ id: 'provider-xai', status: 'reachable' }] })
+      }
+      if (path === '/api/ai-providers/models/provider-xai') {
+        return Promise.resolve({ models: [{ id: 'grok-4' }] })
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === AI_PROVIDER_SECRET_PATH) {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === '/api/collections/group_items/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      return Promise.resolve([])
+    })
+
+    render(<AIProvidersPage />)
+
+    expect(await screen.findByRole('button', { name: 'xai-main' })).toBeInTheDocument()
+    expect(screen.getByText('Provider')).toBeInTheDocument()
+    expect(screen.getByText('Status')).toBeInTheDocument()
+    expect(screen.getByText('Disabled')).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(expect.stringContaining('/api/ai-providers/reachability?'), {
+        method: 'GET',
+      })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'xai-main' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+    })
+    expect(screen.getByText('Update xAI AI Provider')).toBeInTheDocument()
+  })
+
+  it('renders Test Connection feedback inline under the selected row and lets the name toggle it', async () => {
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/ai-providers/templates') {
+        return Promise.resolve([
+          {
+            id: 'openrouter',
+            kind: 'llm',
+            title: 'OpenRouter',
+            vendor: 'OpenRouter',
+            providerMode: 'gateway',
+            defaultEndpoint: 'https://openrouter.ai/api/v1',
+            defaultAuthScheme: 'api_key',
+            fields: [
+              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+            ],
+          },
+        ])
+      }
+      if (path === '/api/ai-providers') {
+        return Promise.resolve([
+          {
+            id: 'provider-openrouter',
+            name: 'openrouter-main',
+            template_id: 'openrouter',
+            endpoint: 'https://openrouter.ai/api/v1',
+            credential: 'secret-1',
+            is_enabled: true,
+            enabled_models: ['openai/gpt-4.1-mini'],
+            config: {},
+          },
+        ])
+      }
+      if (path.startsWith('/api/ai-providers/reachability?')) {
+        return Promise.resolve({ items: [{ id: 'provider-openrouter', status: 'reachable' }] })
+      }
+      if (path === '/api/ai-providers/models/provider-openrouter') {
+        return Promise.resolve({ models: [{ id: 'openai/gpt-4.1-mini' }] })
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === AI_PROVIDER_SECRET_PATH) {
+        return Promise.resolve({ items: [] })
+      }
+      return Promise.resolve([])
+    })
+
+    render(<AIProvidersPage />)
+
+    expect(await screen.findByRole('button', { name: 'openrouter-main' })).toBeInTheDocument()
+
+    fireEvent.pointerDown(screen.getByTitle('More actions'))
+    fireEvent.click(await screen.findByText('Test Connection'))
+
+    expect(await screen.findByText('1 model available')).toBeInTheDocument()
+    expect(screen.getByText('openai/gpt-4.1-mini')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'openrouter-main' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('1 model available')).not.toBeInTheDocument()
+    })
   })
 })

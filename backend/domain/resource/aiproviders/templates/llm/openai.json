@@ -17,12 +17,6 @@
       "label": "Organization",
       "type": "string",
       "placeholder": "org_..."
-    },
-    {
-      "id": "defaultModel",
-      "label": "Default Model",
-      "type": "string",
-      "placeholder": "gpt-4.1-mini"
     }
   ]
 }

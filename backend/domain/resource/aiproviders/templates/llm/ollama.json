@@ -3,6 +3,7 @@
   "title": "Ollama",
   "vendor": "Ollama",
   "description": "Self-hosted Ollama server exposed through an OpenAI-compatible local endpoint.",
+  "modelsEndpoint": "/api/tags",
   "defaultEndpoint": "http://localhost:11434/v1",
   "defaultAuthScheme": "none",
   "capabilities": ["chat", "embeddings", "local", "openai-compatible"],
@@ -17,12 +18,6 @@
       "label": "Credential",
       "required": false,
       "sensitive": false
-    },
-    {
-      "id": "defaultModel",
-      "label": "Default Model",
-      "type": "string",
-      "placeholder": "llama3.2"
     }
   ]
 }
