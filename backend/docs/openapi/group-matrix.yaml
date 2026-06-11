@@ -371,16 +371,16 @@ groups:
     description: AI Runtime chat session and message APIs backed by the default AI Provider.
     apiType: Ext
     extSurface:
-      - GET /api/ai/chat/sessions
-      - POST /api/ai/chat/sessions
-      - PATCH /api/ai/chat/sessions/{sessionId}
-      - DELETE /api/ai/chat/sessions/{sessionId}
-      - GET /api/ai/chat/sessions/{sessionId}/messages
-      - POST /api/ai/chat/sessions/{sessionId}/messages
+      - GET /api/ai/copilot/sessions
+      - POST /api/ai/copilot/sessions
+      - PATCH /api/ai/copilot/sessions/{sessionId}
+      - DELETE /api/ai/copilot/sessions/{sessionId}
+      - GET /api/ai/copilot/sessions/{sessionId}/messages
+      - POST /api/ai/copilot/sessions/{sessionId}/messages
     nativeSurface: []
     sources:
       extRouteFiles:
-        - ai_chat.go
+        - ai_copilot.go
       nativeRefs: []
 
   - group: Service Instances

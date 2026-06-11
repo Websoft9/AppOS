@@ -71,7 +71,7 @@ func newPersistenceTestApp(t *testing.T) *tests.TestApp {
 func resetPersistenceTestState(t *testing.T, app *tests.TestApp) {
 	t.Helper()
 
-	for _, collection := range []string{"connectors", "instances", "provider_accounts", "ai_chat_messages", "ai_chat_sessions"} {
+	for _, collection := range []string{"connectors", "instances", "provider_accounts", "ai_copilot_messages", "ai_copilot_sessions"} {
 		records, err := app.FindAllRecords(collection)
 		if err != nil {
 			t.Fatalf("reset %s: %v", collection, err)

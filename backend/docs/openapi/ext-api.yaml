@@ -1510,11 +1510,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-  /api/ai/chat/sessions:
+  /api/ai/copilot/sessions:
     get:
       tags: [AI Chat]
-      summary: Get ai chat sessions
-      operationId: get_api_ai_chat_sessions
+      summary: Get ai copilot sessions
+      operationId: get_api_ai_copilot_sessions
       security:
         - bearerAuth: []  # superuser required
       responses:
@@ -1532,8 +1532,8 @@ paths:
                 $ref: '#/components/schemas/ErrorEnvelope'
     post:
       tags: [AI Chat]
-      summary: Create or execute ai chat sessions
-      operationId: post_api_ai_chat_sessions
+      summary: Create or execute ai copilot sessions
+      operationId: post_api_ai_copilot_sessions
       requestBody:
         required: false
         content:
@@ -1555,11 +1555,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-  /api/ai/chat/sessions/{sessionId}:
+  /api/ai/copilot/sessions/{sessionId}:
     delete:
       tags: [AI Chat]
-      summary: Delete ai chat sessions by sessionId
-      operationId: delete_api_ai_chat_sessions_sessionid
+      summary: Delete ai copilot sessions by sessionId
+      operationId: delete_api_ai_copilot_sessions_sessionid
       parameters:
         - name: sessionId
           in: path
@@ -1583,8 +1583,8 @@ paths:
                 $ref: '#/components/schemas/ErrorEnvelope'
     patch:
       tags: [AI Chat]
-      summary: Patch ai chat sessions by sessionId
-      operationId: patch_api_ai_chat_sessions_sessionid
+      summary: Patch ai copilot sessions by sessionId
+      operationId: patch_api_ai_copilot_sessions_sessionid
       parameters:
         - name: sessionId
           in: path
@@ -1612,11 +1612,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-  /api/ai/chat/sessions/{sessionId}/messages:
+  /api/ai/copilot/sessions/{sessionId}/messages:
     get:
       tags: [AI Chat]
-      summary: Get ai chat sessions by sessionId messages
-      operationId: get_api_ai_chat_sessions_sessionid_messages
+      summary: Get ai copilot sessions by sessionId messages
+      operationId: get_api_ai_copilot_sessions_sessionid_messages
       parameters:
         - name: sessionId
           in: path
@@ -1640,8 +1640,8 @@ paths:
                 $ref: '#/components/schemas/ErrorEnvelope'
     post:
       tags: [AI Chat]
-      summary: Create or execute ai chat sessions by sessionId messages
-      operationId: post_api_ai_chat_sessions_sessionid_messages
+      summary: Create or execute ai copilot sessions by sessionId messages
+      operationId: post_api_ai_copilot_sessions_sessionid_messages
       parameters:
         - name: sessionId
           in: path

@@ -140,17 +140,18 @@ function OptionGroup({
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-4">
         {options.map(option => (
-          <Button
-            key={option.value}
-            type="button"
-            size="sm"
-            variant={value === option.value ? 'default' : 'outline'}
-            onClick={() => onChange(option.value)}
-          >
-            {option.label}
-          </Button>
+          <label key={option.value} className="inline-flex items-center gap-2 text-sm">
+            <input
+              type="radio"
+              name={`option-group-${label.toLowerCase().replace(/\s+/g, '-')}`}
+              className="h-4 w-4"
+              checked={value === option.value}
+              onChange={() => onChange(option.value)}
+            />
+            <span>{option.label}</span>
+          </label>
         ))}
       </div>
     </div>
@@ -327,6 +328,7 @@ export function SecretsPage() {
   const [editPayload, setEditPayload] = useState<Record<string, string>>({})
   const [editSavingMeta, setEditSavingMeta] = useState(false)
   const [editSavingPayload, setEditSavingPayload] = useState(false)
+  const [editSavingVisibility, setEditSavingVisibility] = useState(false)
   const [editError, setEditError] = useState('')
   const [editNotice, setEditNotice] = useState('')
 
@@ -652,7 +654,6 @@ export function SecretsPage() {
         description: editDescription,
         scope: editScope,
         access_mode: editAccessMode,
-        visible_to: editVisibleTo,
       })
       setEditNotice('Metadata updated')
       await loadData()
@@ -685,6 +686,25 @@ export function SecretsPage() {
       setEditError(err instanceof Error ? err.message : 'Payload update failed')
     } finally {
       setEditSavingPayload(false)
+    }
+  }
+
+  async function handleEditVisibilitySubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editId) return
+    setEditSavingVisibility(true)
+    setEditError('')
+    setEditNotice('')
+    try {
+      await pb.collection('secrets').update(editId, {
+        visible_to: editVisibleTo,
+      })
+      setEditNotice('Visibility updated')
+      await loadData()
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Visibility update failed')
+    } finally {
+      setEditSavingVisibility(false)
     }
   }
 
@@ -1150,10 +1170,11 @@ export function SecretsPage() {
               options={ACCESS_MODE_OPTIONS}
               onChange={setEditAccessMode}
             />
-            <SecretVisibilityField value={editVisibleTo} onChange={setEditVisibleTo} />
-            <Button type="submit" disabled={editSavingMeta || !editId}>
-              {editSavingMeta ? 'Saving...' : 'Save Metadata'}
-            </Button>
+            <div className="flex justify-end">
+              <Button type="submit" disabled={editSavingMeta || !editId}>
+                {editSavingMeta ? 'Saving...' : 'Save Metadata'}
+              </Button>
+            </div>
           </form>
 
           <Separator />
@@ -1174,9 +1195,22 @@ export function SecretsPage() {
               onTemplateChange={() => {}}
               onPayloadChange={(key, value) => setEditPayload(prev => ({ ...prev, [key]: value }))}
             />
-            <Button type="submit" disabled={editSavingPayload || !editId || !editPayloadHasValues}>
-              {editSavingPayload ? 'Updating...' : 'Update Values'}
-            </Button>
+            <div className="flex justify-end">
+              <Button type="submit" disabled={editSavingPayload || !editId || !editPayloadHasValues}>
+                {editSavingPayload ? 'Updating...' : 'Update Values'}
+              </Button>
+            </div>
+          </form>
+
+          <Separator />
+
+          <form className="space-y-4" onSubmit={e => void handleEditVisibilitySubmit(e)}>
+            <SecretVisibilityField value={editVisibleTo} onChange={setEditVisibleTo} />
+            <div className="flex justify-end">
+              <Button type="submit" disabled={editSavingVisibility || !editId}>
+                {editSavingVisibility ? 'Saving...' : 'Save Visibility'}
+              </Button>
+            </div>
           </form>
         </DialogContent>
       </Dialog>

@@ -1,6 +1,6 @@
 import { pb } from '@/lib/pb'
 
-export type AIChatSession = {
+export type AICopilotSession = {
   id: string
   title: string
   created_at?: string
@@ -8,7 +8,7 @@ export type AIChatSession = {
   last_message_at?: string
 }
 
-export type AIChatMessage = {
+export type AICopilotMessage = {
   id: string
   session_id: string
   role: 'system' | 'user' | 'assistant'
@@ -17,7 +17,7 @@ export type AIChatMessage = {
   created_at?: string
 }
 
-export type AIChatAttachment = {
+export type AICopilotAttachment = {
   name: string
   mime_type?: string
   size?: number
@@ -25,7 +25,7 @@ export type AIChatAttachment = {
   record_id?: string
 }
 
-export type AIChatModelOption = {
+export type AICopilotModelOption = {
   provider_id: string
   endpoint: string
   model_id: string
@@ -35,67 +35,67 @@ export type AIChatModelOption = {
   gateway_name?: string
 }
 
-export async function listAIChatSessions(): Promise<AIChatSession[]> {
-  const response = (await pb.send('/api/ai/chat/sessions', { method: 'GET' })) as {
-    items?: AIChatSession[]
+export async function listAICopilotSessions(): Promise<AICopilotSession[]> {
+  const response = (await pb.send('/api/ai/copilot/sessions', { method: 'GET' })) as {
+    items?: AICopilotSession[]
   }
   return Array.isArray(response.items) ? response.items : []
 }
 
-export async function createAIChatSession(title?: string): Promise<AIChatSession> {
-  return (await pb.send('/api/ai/chat/sessions', {
+export async function createAICopilotSession(title?: string): Promise<AICopilotSession> {
+  return (await pb.send('/api/ai/copilot/sessions', {
     method: 'POST',
     body: { title: title ?? '' },
-  })) as AIChatSession
+  })) as AICopilotSession
 }
 
-export async function updateAIChatSession(
+export async function updateAICopilotSession(
   sessionId: string,
   title: string
-): Promise<AIChatSession> {
-  return (await pb.send(`/api/ai/chat/sessions/${encodeURIComponent(sessionId)}`, {
+): Promise<AICopilotSession> {
+  return (await pb.send(`/api/ai/copilot/sessions/${encodeURIComponent(sessionId)}`, {
     method: 'PATCH',
     body: { title },
-  })) as AIChatSession
+  })) as AICopilotSession
 }
 
-export async function deleteAIChatSession(sessionId: string): Promise<void> {
-  await pb.send(`/api/ai/chat/sessions/${encodeURIComponent(sessionId)}`, {
+export async function deleteAICopilotSession(sessionId: string): Promise<void> {
+  await pb.send(`/api/ai/copilot/sessions/${encodeURIComponent(sessionId)}`, {
     method: 'DELETE',
   })
 }
 
-export async function listAIChatMessages(sessionId: string): Promise<AIChatMessage[]> {
+export async function listAICopilotMessages(sessionId: string): Promise<AICopilotMessage[]> {
   const response = (await pb.send(
-    `/api/ai/chat/sessions/${encodeURIComponent(sessionId)}/messages`,
+    `/api/ai/copilot/sessions/${encodeURIComponent(sessionId)}/messages`,
     {
       method: 'GET',
     }
-  )) as { items?: AIChatMessage[] }
+  )) as { items?: AICopilotMessage[] }
   return Array.isArray(response.items) ? response.items : []
 }
 
-export async function listAIChatModels(): Promise<AIChatModelOption[]> {
+export async function listAICopilotModels(): Promise<AICopilotModelOption[]> {
   const response = (await pb.send('/api/ai-providers/chat-models', {
     method: 'GET',
-  })) as { items?: AIChatModelOption[] }
+  })) as { items?: AICopilotModelOption[] }
   return Array.isArray(response.items) ? response.items : []
 }
 
 type StreamCallbacks = {
   onChunk: (content: string) => void
-  onDone?: (message: AIChatMessage) => void
+  onDone?: (message: AICopilotMessage) => void
 }
 
-export async function sendAIChatMessage(
+export async function sendAICopilotMessage(
   sessionId: string,
   content: string,
   providerId: string,
   model: string,
   callbacks: StreamCallbacks,
-  attachments: AIChatAttachment[] = []
+  attachments: AICopilotAttachment[] = []
 ): Promise<void> {
-  const response = await fetch(`/api/ai/chat/sessions/${encodeURIComponent(sessionId)}/messages`, {
+  const response = await fetch(`/api/ai/copilot/sessions/${encodeURIComponent(sessionId)}/messages`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -148,7 +148,7 @@ function handleSSEFrame(frame: string, callbacks: StreamCallbacks) {
     return
   }
   if (event === 'done' && payload.message && typeof payload.message === 'object') {
-    callbacks.onDone?.(payload.message as AIChatMessage)
+    callbacks.onDone?.(payload.message as AICopilotMessage)
     return
   }
   if (event === 'error') {

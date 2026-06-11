@@ -9,6 +9,7 @@ interface ReferenceSelectProps {
   value: string
   options: RelationOption[]
   onSelect: (value: string) => void
+  onOpenChange?: (open: boolean) => void
   placeholder?: string
   searchPlaceholder?: string
   emptyMessage?: string
@@ -21,6 +22,7 @@ interface ReferenceSelectProps {
   maxVisibleItems?: number
   editLabel?: string
   onEditSelected?: (value: string) => void
+  triggerClassName?: string
 }
 
 export function ReferenceSelect({
@@ -28,6 +30,7 @@ export function ReferenceSelect({
   value,
   options,
   onSelect,
+  onOpenChange,
   placeholder = 'Select a reference',
   searchPlaceholder = 'Search...',
   emptyMessage = 'No options available',
@@ -40,6 +43,7 @@ export function ReferenceSelect({
   maxVisibleItems = 6,
   editLabel,
   onEditSelected,
+  triggerClassName,
 }: ReferenceSelectProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -50,6 +54,10 @@ export function ReferenceSelect({
       setOpen(true)
     }
   }, [autoOpen])
+
+  useEffect(() => {
+    onOpenChange?.(open)
+  }, [onOpenChange, open])
 
   const selected = options.find(option => option.id === value)
   const filtered = useMemo(() => {
@@ -83,7 +91,7 @@ export function ReferenceSelect({
           <button
             id={id}
             type="button"
-            className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-left text-sm shadow-xs"
+            className={`flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-left text-sm shadow-xs ${triggerClassName ?? ''}`}
             onClick={() => setOpen(true)}
           >
             <span className={selected ? 'text-foreground' : 'text-muted-foreground'}>

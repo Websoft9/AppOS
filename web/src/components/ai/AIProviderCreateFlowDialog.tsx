@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { Check, Loader2, Pencil } from 'lucide-react'
+import { Check, ExternalLink, Loader2, Pencil } from 'lucide-react'
+import {
+  AIProviderModelSelector,
+  type AIProviderModelGroup,
+  type AIProviderModelOption,
+} from '@/components/ai/AIProviderModelSelector'
 import { SecretCredentialField } from '@/components/secrets/SecretCredentialField'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { ResourceDialogForm } from '@/components/resources/ResourceDialogForm'
@@ -65,11 +70,12 @@ function mapTemplateFieldToResourceField(
   if (field.id === 'endpoint') {
     return {
       key: field.id,
-      label: field.label,
+      label: 'API Endpoint',
       type: 'text',
       required: field.required,
       placeholder: field.placeholder,
       defaultValue: normalizeTemplateFieldDefault(field),
+      hideLabel: true,
       render: renderEndpointField,
     }
   }
@@ -129,12 +135,63 @@ async function fetchRelationOptions(field: FieldDef): Promise<RelationOption[]> 
   }))
 }
 
+function describeProviderModelsError(err: unknown) {
+  const message = err instanceof Error ? err.message : String(err ?? '')
+  const normalized = message.toLowerCase()
+  if (normalized.includes('401') || normalized.includes('403') || normalized.includes('unauthorized') || normalized.includes('forbidden')) {
+    return 'Authentication failed while loading models. Check the API key or secret and try again.'
+  }
+  if (normalized.includes('404')) {
+    return 'The model list endpoint was not found. Check the API endpoint and make sure this provider exposes a compatible models API.'
+  }
+  if (normalized.includes('timeout') || normalized.includes('deadline exceeded')) {
+    return 'Loading models timed out. Check network connectivity and confirm the provider endpoint is reachable.'
+  }
+  if (normalized.includes('x509') || normalized.includes('tls') || normalized.includes('certificate')) {
+    return 'TLS verification failed while loading models. Check the provider certificate or endpoint URL.'
+  }
+  if (normalized.includes('no such host') || normalized.includes('dial tcp') || normalized.includes('connection refused')) {
+    return 'Could not reach the provider endpoint. Check the API endpoint, DNS, proxy, or firewall settings.'
+  }
+  if (message.trim()) {
+    return message
+  }
+  return 'Could not load models. Verify the API endpoint, secret, and network connectivity, then try again.'
+}
+
 function filterVisibleFields(fields: FieldDef[], formData: Record<string, unknown>) {
   return fields.filter(field => {
     if (field.hidden) return false
     if (!field.showWhen) return true
     return field.showWhen.values.includes(String(formData[field.showWhen.field] ?? ''))
   })
+}
+
+/**
+ * Pure decision helper for the auto‑List‑Models behaviour inside
+ * handleSubmit.  Returns true when the submit should proceed to the
+ * save step; false when it was blocked (with an optional error message).
+ */
+export function shouldAutoListModels(params: {
+  lastFetchSucceeded: boolean
+  runFetchModels: () => Promise<{ success: boolean; selected: string[] }>
+  setError: (message: string) => void
+  setSaving: (saving: boolean) => void
+}): Promise<boolean> {
+  return (async () => {
+    if (params.lastFetchSucceeded) {
+      return true
+    }
+    const result = await params.runFetchModels()
+    if (!result.success || result.selected.length === 0) {
+      if (result.success) {
+        params.setError('Select at least one model after listing models.')
+      }
+      params.setSaving(false)
+      return false
+    }
+    return true
+  })()
 }
 
 export function AIProviderCreateFlowDialog({
@@ -158,10 +215,11 @@ export function AIProviderCreateFlowDialog({
   const [secretDialogOpen, setSecretDialogOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [existingProviderNames, setExistingProviderNames] = useState<string[]>([])
   const [endpointEditing, setEndpointEditing] = useState(false)
   const [selectedModels, setSelectedModels] = useState<string[]>([])
-  const [expandedVendor, setExpandedVendor] = useState('')
   const [lastFetchSucceeded, setLastFetchSucceeded] = useState(false)
+  const modelSelectorRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     setFetchModelsError('')
@@ -169,7 +227,6 @@ export function AIProviderCreateFlowDialog({
     setFetchingModels(false)
     setFetchedGroups([])
     setSelectedModels([])
-    setExpandedVendor('')
     setLastFetchSucceeded(false)
     setEndpointEditing(false)
 
@@ -195,6 +252,16 @@ export function AIProviderCreateFlowDialog({
       .then(data => setTemplates(Array.isArray(data) ? data : []))
       .catch(() => setTemplates([]))
       .finally(() => setLoadingTemplates(false))
+
+    void pb
+      .send<AIProviderRecord[]>('/api/ai-providers', { method: 'GET' })
+      .then(items => {
+        const names = Array.isArray(items)
+          ? items.map(item => String(item.name ?? '').trim().toLowerCase()).filter(Boolean)
+          : []
+        setExistingProviderNames(names)
+      })
+      .catch(() => setExistingProviderNames([]))
   }, [open])
 
   const templatesById = useMemo(
@@ -276,6 +343,7 @@ export function AIProviderCreateFlowDialog({
           showLabel={`Show ${String(field.label ?? 'API Key')}`}
           hideLabel={`Hide ${String(field.label ?? 'API Key')}`}
           allowGenerate={false}
+          referenceToggleMode="icon"
         />
       )
     },
@@ -286,64 +354,103 @@ export function AIProviderCreateFlowDialog({
     ({ inputId, formData: currentFormData, updateField }) => {
       const current = String(currentFormData.endpoint ?? '')
       const editing = endpointEditing
+      const helpUrl = String(selectedTemplate?.helpUrl ?? '').trim()
       if (!editing) {
         return (
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <label htmlFor={inputId} className="text-sm font-medium text-foreground">
+                API Endpoint
+              </label>
+              {helpUrl ? (
+                <a
+                  href={helpUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-muted-foreground transition-colors hover:text-foreground"
+                  aria-label="Open official API endpoint help"
+                  title="Open official API endpoint help"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              ) : null}
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                id={inputId}
+                type="text"
+                className="border-input bg-muted/40 text-muted-foreground h-10 w-full rounded-md border px-3 text-sm"
+                value={current}
+                readOnly
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 shrink-0"
+                title="Edit endpoint"
+                onClick={() => setEndpointEditing(true)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        )
+      }
+      return (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <label htmlFor={inputId} className="text-sm font-medium text-foreground">
+              API Endpoint
+            </label>
+            {helpUrl ? (
+              <a
+                href={helpUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-muted-foreground transition-colors hover:text-foreground"
+                aria-label="Open official API endpoint help"
+                title="Open official API endpoint help"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            ) : null}
+          </div>
           <div className="flex items-center gap-2">
             <input
               id={inputId}
               type="text"
-              className="border-input bg-muted/40 text-muted-foreground h-9 w-full rounded-md border px-3 text-sm"
+              className="border-input bg-background h-10 w-full rounded-md border px-3 text-sm"
               value={current}
-              readOnly
+              onChange={e => updateField('endpoint', e.target.value)}
+              autoFocus
             />
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              className="h-8 w-8 shrink-0"
-              title="Edit endpoint"
-              onClick={() => setEndpointEditing(true)}
+              className="h-10 w-10 shrink-0"
+              title="Done"
+              onClick={() => setEndpointEditing(false)}
             >
-              <Pencil className="h-3.5 w-3.5" />
+              <Check className="h-3.5 w-3.5" />
             </Button>
           </div>
-        )
-      }
-      return (
-        <div className="flex items-center gap-2">
-          <input
-            id={inputId}
-            type="text"
-            className="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
-            value={current}
-            onChange={e => updateField('endpoint', e.target.value)}
-            autoFocus
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 shrink-0"
-            title="Done"
-            onClick={() => setEndpointEditing(false)}
-          >
-            <Check className="h-3.5 w-3.5" />
-          </Button>
         </div>
       )
     },
-    [endpointEditing]
+    [endpointEditing, selectedTemplate]
   )
 
   const [fetchModelsError, setFetchModelsError] = useState('')
   const [fetchingModels, setFetchingModels] = useState(false)
-  const [fetchedModels, setFetchedModels] = useState<string[]>([])
-  const [fetchedGroups, setFetchedGroups] = useState<Array<{ vendor: string; models: Array<{ id: string }> }>>([])
+  const [fetchedModels, setFetchedModels] = useState<AIProviderModelOption[]>([])
+  const [fetchedGroups, setFetchedGroups] = useState<AIProviderModelGroup[]>([])
 
-  const runFetchModels = useCallback(async (): Promise<boolean> => {
+  const runFetchModels = useCallback(async (): Promise<{ success: boolean; selected: string[] }> => {
     const endpoint = String(formData.endpoint ?? '').trim()
     const apiKey = String(formData.api_key_value ?? '').trim()
-    if (!endpoint || !apiKey) return false
+    if (!endpoint || !apiKey) return { success: false, selected: [] }
 
     setFetchingModels(true)
     setFetchModelsError('')
@@ -355,25 +462,45 @@ export function AIProviderCreateFlowDialog({
         method: 'POST',
         body: { endpoint, api_key: apiKey, template_id: String(formData.template_id ?? '') },
       })
-      const models = (result?.models ?? []).map(m => m.id).filter(Boolean)
+      const models = (result?.models ?? []).filter(model => Boolean(model.id))
+      const groups = Array.isArray(result?.groups)
+        ? result.groups.map(group => ({
+            vendor: group.vendor,
+            label: group.vendor,
+            models: group.models.filter(model => Boolean(model.id)),
+          }))
+        : []
       setFetchedModels(models)
-      setFetchedGroups(Array.isArray(result?.groups) ? result.groups : [])
+      setFetchedGroups(groups)
       setLastFetchSucceeded(true)
+      const available = new Set(models.map(model => model.id))
+      const preferred =
+        selectedModels.length > 0
+          ? selectedModels
+          : models.filter(model => model.enabled_by_default).map(model => model.id)
+      const nextSelected = preferred.filter(model => available.has(model))
       setSelectedModels(current => {
-        const available = new Set(models)
-        const preferred = current.length > 0 ? current : (result?.models ?? []).filter(model => model.enabled_by_default).map(model => model.id)
-        const filtered = preferred.filter(model => available.has(model))
-        return filtered.length > 0 ? filtered : current
+        if (current.length > 0) {
+          const currentFiltered = current.filter(model => available.has(model))
+          return currentFiltered.length > 0 ? currentFiltered : nextSelected
+        }
+        return nextSelected
       })
-      return models.length > 0
+      return {
+        success: true,
+        selected:
+          selectedModels.length > 0
+            ? selectedModels.filter(model => available.has(model))
+            : nextSelected,
+      }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to fetch models'
+      const msg = describeProviderModelsError(err)
       setFetchModelsError(msg)
-      return false
+      return { success: false, selected: [] }
     } finally {
       setFetchingModels(false)
     }
-  }, [formData.endpoint, formData.api_key_value, formData.template_id])
+  }, [formData.endpoint, formData.api_key_value, formData.template_id, selectedModels])
 
   const handleTestConnection = useCallback(() => {
     void runFetchModels()
@@ -387,107 +514,43 @@ export function AIProviderCreateFlowDialog({
     )
   }, [])
 
-  const isGateway = isGatewayProviderTemplate(selectedTemplate)
-
-  const gatewayModelSelector = isGateway && (selectedTemplate?.defaultEnabledModels?.length || fetchedGroups.length > 0) ? (
-    <div className="space-y-3 rounded-lg border bg-muted/10 px-4 py-3">
-      <div className="space-y-1">
-        <div className="text-sm font-medium">Enabled models</div>
-        <div className="text-xs text-muted-foreground">
-          Save is allowed without a successful test, but only validated selections will be stored as enabled models.
-        </div>
-      </div>
-
-      {selectedTemplate?.defaultEnabledModels?.length ? (
-        <div className="flex flex-wrap gap-1.5">
-          {selectedTemplate.defaultEnabledModels.map(model => {
-            const checked = selectedModels.includes(model)
-            return (
-              <button
-                key={model}
-                type="button"
-                onClick={() => toggleSelectedModel(model)}
-                className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${checked ? 'border-primary bg-primary/10 text-primary' : 'bg-background text-foreground/80'}`}
-              >
-                {model}
-              </button>
-            )
-          })}
-        </div>
-      ) : null}
-
-      {fetchedGroups.length > 0 ? (
-        <div className="space-y-3">
-          <div className="flex flex-wrap gap-1.5">
-            {fetchedGroups.map(group => (
-              <button
-                key={group.vendor}
-                type="button"
-                onClick={() => setExpandedVendor(current => (current === group.vendor ? '' : group.vendor))}
-                className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${expandedVendor === group.vendor ? 'border-primary bg-primary/10 text-primary' : 'bg-background text-foreground/80'}`}
-              >
-                {group.vendor}
-              </button>
-            ))}
-          </div>
-          {expandedVendor ? (
-            <div className="grid max-h-48 gap-2 overflow-y-auto rounded-md border bg-background p-3 sm:grid-cols-2">
-              {(fetchedGroups.find(group => group.vendor === expandedVendor)?.models ?? []).map(model => {
-                const checked = selectedModels.includes(model.id)
-                return (
-                  <label key={model.id} className="flex items-start gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      className="mt-0.5"
-                      checked={checked}
-                      onChange={() => toggleSelectedModel(model.id)}
-                    />
-                    <span className="min-w-0 break-all">{model.id}</span>
-                  </label>
-                )
-              })}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
-  ) : null
-
-  const testSummary = fetchingModels ? (
-    <div className="rounded-lg border bg-muted/20 px-4 py-3">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        Testing connection...
-      </div>
-    </div>
-  ) : fetchModelsError ? (
-    <div className="rounded-lg border bg-destructive/10 px-4 py-3">
-      <div className="text-sm text-destructive">{fetchModelsError}</div>
-    </div>
-  ) : fetchedModels.length > 0 ? (
-    <div className="rounded-lg border bg-emerald-50/40 px-4 py-3 dark:bg-emerald-950/10">
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="font-medium text-emerald-700 dark:text-emerald-300">
-          {fetchedModels.length} model{fetchedModels.length === 1 ? '' : 's'} available
-        </span>
-      </div>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {fetchedModels.map(model => (
-          <span key={model} className="inline-flex items-center rounded-full border bg-muted/40 px-2.5 py-0.5 text-xs font-medium">
-            {model}
-          </span>
-        ))}
-      </div>
-    </div>
-  ) : null
-
   const baseProviderFields = useMemo<FieldDef[]>(
     () => [
       {
         key: 'is_enabled',
-        label: 'Enabled',
-        type: 'boolean',
+        label: 'Enable it',
+        type: 'text',
+        hideLabel: true,
         defaultValue: true,
+        advanced: true,
+        render: ({ formData: currentFormData, updateField }) => {
+          const enabled = Boolean(currentFormData.is_enabled ?? true)
+          return (
+            <div className="space-y-2">
+              <div className="text-sm font-medium text-foreground">Enable it</div>
+              <div className="flex flex-wrap gap-4 text-sm">
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="create-provider-enabled"
+                    checked={enabled}
+                    onChange={() => updateField('is_enabled', true)}
+                  />
+                  <span>Yes</span>
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="create-provider-enabled"
+                    checked={!enabled}
+                    onChange={() => updateField('is_enabled', false)}
+                  />
+                  <span>No</span>
+                </label>
+              </div>
+            </div>
+          )
+        },
       },
       {
         key: 'description',
@@ -539,18 +602,66 @@ export function AIProviderCreateFlowDialog({
   )
 
   const resolvedFields = useMemo(() => {
-    const dynamicFields = (selectedTemplate?.fields ?? []).map(field =>
-      mapTemplateFieldToResourceField(field, () => setSecretDialogOpen(true), openSecretEditor, renderCredentialField, renderEndpointField)
-    )
+    const dynamicFields = (selectedTemplate?.fields ?? []).flatMap(field => {
+      const mapped = mapTemplateFieldToResourceField(
+        field,
+        () => setSecretDialogOpen(true),
+        openSecretEditor,
+        renderCredentialField,
+        renderEndpointField
+      )
+
+      if (field.id !== 'credential') {
+        return [mapped]
+      }
+
+      return [
+        mapped,
+        {
+          key: 'select_models',
+          label: 'Select Models',
+          type: 'text',
+          hideLabel: true,
+          render: () => (
+            <AIProviderModelSelector
+              ref={modelSelectorRef}
+              selectedModels={selectedModels}
+              models={fetchedModels}
+              groups={fetchedGroups}
+              loading={fetchingModels}
+              error={fetchModelsError || undefined}
+              loaded={lastFetchSucceeded}
+              canLoad={Boolean(String(formData.endpoint ?? '').trim() && String(formData.api_key_value ?? '').trim())}
+              onListModels={handleTestConnection}
+              onToggleModel={toggleSelectedModel}
+            />
+          ),
+        } satisfies FieldDef,
+      ]
+    })
 
     return [
       baseProviderFields[1],
       ...baseProviderFields.slice(2, 5),
       ...dynamicFields,
-      baseProviderFields[0],
       ...baseProviderFields.slice(5),
+      baseProviderFields[0],
     ]
-  }, [baseProviderFields, openSecretEditor, renderCredentialField, renderEndpointField, selectedTemplate])
+  }, [
+    baseProviderFields,
+    fetchModelsError,
+    fetchedGroups,
+    fetchedModels,
+    fetchingModels,
+    handleTestConnection,
+    lastFetchSucceeded,
+    openSecretEditor,
+    renderCredentialField,
+    renderEndpointField,
+    selectedModels,
+    selectedTemplate,
+    toggleSelectedModel,
+  ])
 
   const activeFields = useMemo(() => filterVisibleFields(resolvedFields, formData), [resolvedFields, formData])
   const headerFields = activeFields.filter(field => field.header)
@@ -606,7 +717,6 @@ export function AIProviderCreateFlowDialog({
 
     setFormData(defaults)
     setSelectedModels(Array.isArray(template.defaultEnabledModels) ? [...template.defaultEnabledModels] : [])
-    setExpandedVendor('')
     setFetchedModels([])
     setFetchedGroups([])
     setLastFetchSucceeded(false)
@@ -619,6 +729,13 @@ export function AIProviderCreateFlowDialog({
   const updateField = (key: string, value: unknown) => {
     setFormData(current => ({ ...current, [key]: value }))
   }
+
+  const nameConflictMessage = useMemo(() => {
+    const normalized = String(formData.name ?? '').trim().toLowerCase()
+    if (!normalized) return ''
+    if (!existingProviderNames.includes(normalized)) return ''
+    return 'This AI Provider name already exists. Choose a different name.'
+  }, [existingProviderNames, formData.name])
 
   const handleChange = (field: FieldDef, raw: unknown) => {
     const value = field.type === 'number' ? Number(raw) : raw
@@ -656,8 +773,24 @@ export function AIProviderCreateFlowDialog({
       setError('Name is required')
       return
     }
+    if (nameConflictMessage) {
+      setSaving(false)
+      setError(nameConflictMessage)
+      return
+    }
 
     try {
+      const canSave = await shouldAutoListModels({
+        lastFetchSucceeded,
+        runFetchModels,
+        setError,
+        setSaving,
+      })
+      if (!canSave) {
+        modelSelectorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        return
+      }
+
       const body = await buildAIProviderPayload(
         {
           ...formData,
@@ -673,7 +806,12 @@ export function AIProviderCreateFlowDialog({
       setFormOpen(false)
       onOpenChange(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create AI provider')
+      const message = err instanceof Error ? err.message : 'Failed to create AI provider'
+      setError(
+        message.toLowerCase().includes('already exists')
+          ? 'This AI Provider name already exists. Choose a different name.'
+          : message
+      )
     } finally {
       setSaving(false)
     }
@@ -772,7 +910,7 @@ export function AIProviderCreateFlowDialog({
               </div>
             ) : (
               <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
-                {['LLM Gateway', 'Provider'].map(group => {
+                {['Provider', 'LLM Gateway'].map(group => {
                   const groupOptions = productOptions.filter(option => providerSelectionGroup(option) === group)
                   if (groupOptions.length === 0) return null
                   return (
@@ -788,9 +926,6 @@ export function AIProviderCreateFlowDialog({
                           <div className="flex items-center justify-between gap-3">
                             <div className="min-w-0">
                               <div className="text-sm font-medium text-foreground">{chooserTitle(option)}</div>
-                              {option.description ? (
-                                <div className="mt-1 text-xs text-muted-foreground">{option.description}</div>
-                              ) : null}
                             </div>
                             {option.helpUrl ? (
                               <a
@@ -840,16 +975,16 @@ export function AIProviderCreateFlowDialog({
         fileInputRef={fileInputRef}
         error={error}
         saving={saving}
-        selectedSummary={
-          <div className="space-y-3">
-            {testSummary}
-            {gatewayModelSelector}
-          </div>
+        dialogExtra={
+          nameConflictMessage && !error ? (
+            <p className="text-sm text-destructive">{nameConflictMessage}</p>
+          ) : null
         }
+        selectedSummary={null}
         submitLabel="Create Model"
-        cancelLabel="Test Connection"
+        cancelLabel="Cancel"
         resetAction={{
-          label: 'Test Connection',
+          label: 'Test it',
           onClick: handleTestConnection,
         }}
         onSubmit={handleSubmit}
@@ -864,10 +999,8 @@ export function AIProviderCreateFlowDialog({
         templateLabels={SECRET_TEMPLATE_LABELS}
         defaultTemplateId={AI_PROVIDER_CREDENTIAL_TEMPLATE_ID}
         defaultVisibleTo={['ai_provider']}
-        onCreated={({ id, name, templateId }) => {
-          const suffix = SECRET_TEMPLATE_LABELS[templateId]
-          const label = suffix ? `${name} (${suffix})` : name
-          addRelationOption('credential', id, label)
+        onCreated={({ id, name }) => {
+          addRelationOption('credential', id, name)
           updateField('credential_use_secret', true)
           updateField('credential', id)
         }}

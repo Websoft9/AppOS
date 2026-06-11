@@ -3,13 +3,17 @@ package routes
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"sync/atomic"
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/audit"
 	"github.com/websoft9/appos/backend/domain/secrets"
 )
+
+var routeSecretCounter uint64
 
 func ensureConnectorSecretRuntime(t *testing.T) {
 	t.Helper()
@@ -27,7 +31,7 @@ func createRouteSecret(t *testing.T, te *testEnv, scope, createdBy string) *core
 		t.Fatal(err)
 	}
 	rec := core.NewRecord(col)
-	rec.Set("name", "connector-secret")
+	rec.Set("name", fmt.Sprintf("connector-secret-%d", atomic.AddUint64(&routeSecretCounter, 1)))
 	rec.Set("template_id", "single_value")
 	rec.Set("scope", scope)
 	rec.Set("access_mode", "use_only")

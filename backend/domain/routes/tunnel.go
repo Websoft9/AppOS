@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"os"
 	"sync"
 
 	"github.com/pocketbase/pocketbase/apis"
@@ -9,6 +8,7 @@ import (
 
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
 	serversvc "github.com/websoft9/appos/backend/domain/resource/servers/service"
+	"github.com/websoft9/appos/backend/domain/runtimecfg"
 	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
 	tunnelpb "github.com/websoft9/appos/backend/infra/tunnelpb"
 )
@@ -61,13 +61,10 @@ func (a *tokenProviderAdapter) GetOrIssue(managedServerID string, wantRotate boo
 }
 
 // tunnelSSHPort returns the publicly reachable SSH port for the tunnel.
-// Defaults to "2222" (bare-metal). Set TUNNEL_SSH_PORT env var to override
+// Defaults to "2222" (bare-metal). Override with the runtime config
 // (e.g. "9222" when running behind Docker port mapping).
 func tunnelSSHPort() string {
-	if p := os.Getenv("TUNNEL_SSH_PORT"); p != "" {
-		return p
-	}
-	return "2222"
+	return runtimecfg.TunnelPort()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

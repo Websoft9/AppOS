@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -16,6 +15,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	monitormetrics "github.com/websoft9/appos/backend/domain/monitor/metrics"
 	monitorstatus "github.com/websoft9/appos/backend/domain/monitor/status"
+	"github.com/websoft9/appos/backend/domain/runtimecfg"
 )
 
 const maxMonitorWriteBodyBytes int64 = 100 << 20
@@ -180,7 +180,7 @@ func (r *monitorWriteLimitReadCloser) Close() error {
 }
 
 func monitorInfluxWriteEndpoint() (string, error) {
-	baseURL := strings.TrimRight(strings.TrimSpace(os.Getenv(monitormetrics.EnvVictoriaMetricsURL)), "/")
+	baseURL := strings.TrimRight(strings.TrimSpace(runtimecfg.TSDBURL()), "/")
 	if baseURL == "" {
 		return "", fmt.Errorf("%s is not configured", monitormetrics.EnvVictoriaMetricsURL)
 	}

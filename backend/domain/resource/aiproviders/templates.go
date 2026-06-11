@@ -123,6 +123,7 @@ type templateFile struct {
 	DefaultEnabledModels []string       `json:"defaultEnabledModels,omitempty"`
 	Capabilities    []string            `json:"capabilities,omitempty"`
 	Aliases         []string            `json:"aliases,omitempty"`
+	SkipTLSCertVerify *bool             `json:"skipTLSCertVerify,omitempty"`
 	Fields          []templateFieldFile `json:"fields,omitempty"`
 }
 
@@ -214,6 +215,9 @@ func applyTemplateOverlay(base Template, file templateFile) (Template, error) {
 	}
 	if file.Aliases != nil {
 		result.Aliases = append([]string(nil), file.Aliases...)
+	}
+	if file.SkipTLSCertVerify != nil {
+		result.SkipTLSCertVerify = *file.SkipTLSCertVerify
 	}
 	if file.Fields != nil {
 		fields, err := mergeTemplateFields(base.Fields, file.Fields)

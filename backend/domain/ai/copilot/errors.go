@@ -1,12 +1,12 @@
-package chat
+package copilot
 
 import "fmt"
 
 const (
 	CodeProviderSetupRequired = "ai_provider_setup_required"
 	CodeProviderInvalid       = "ai_provider_invalid"
-	CodeSessionNotFound       = "ai_chat_session_not_found"
-	CodeInvalidRequest        = "ai_chat_invalid_request"
+	CodeSessionNotFound       = "ai_copilot_session_not_found"
+	CodeInvalidRequest        = "ai_copilot_invalid_request"
 	CodeRuntimeFailed         = "ai_runtime_failed"
 )
 

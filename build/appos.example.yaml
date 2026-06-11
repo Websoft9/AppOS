@@ -1,0 +1,95 @@
+# =============================================================================
+# AppOS Runtime Configuration Template
+# =============================================================================
+# Usage:
+#   appos serve --config /path/to/appos.yaml
+#   appos serve --config /path/to/appos.yaml --redis-url redis://other:6379
+#
+# Priority: CLI flags > this file > built-in defaults
+# All keys are optional — omitted keys fall back to their default values.
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# AppOS data root and serve settings
+# ---------------------------------------------------------------------------
+
+# Root directory for AppOS-managed local data.
+# AppOS derives PocketBase data as <data_dir>/pb/pb_data.
+# In the all-in-one container this root also holds config/, redis/,
+# victoriametrics/, apps/, workflows/, and templates/.
+#data_dir: /var/lib/appos
+
+# HTTP listen address for the AppOS web server and API.
+# Default: PocketBase built-in (0.0.0.0:8090)
+#http: 0.0.0.0:8090
+
+# ---------------------------------------------------------------------------
+# Redis — background task queue (required for deploys, software ops, monitoring)
+# ---------------------------------------------------------------------------
+
+# Redis connection URL.  Supports:
+#   redis://[:password@]host:port[/db]
+#   redis://user:password@host:port/db        (Redis 6+ ACL)
+#   rediss://host:port                        (TLS)
+#   redis-socket://[:password@]/path/to/socket
+# Default: redis://127.0.0.1:6379
+#redis_url: redis://127.0.0.1:6379
+
+# ---------------------------------------------------------------------------
+# VictoriaMetrics / TSDB — metrics storage and query backend
+# ---------------------------------------------------------------------------
+
+# VictoriaMetrics base URL.  Supports:
+#   http://host:port
+#   https://host:port
+#   http://user:pass@host:port                (Basic Auth)
+# Set to "" (empty) to disable metrics writes (noop mode).
+# Default: http://127.0.0.1:8428
+#tsdb_url: http://127.0.0.1:8428
+
+# ---------------------------------------------------------------------------
+# Tunnel — SSH reverse tunnel for accessing managed servers
+# ---------------------------------------------------------------------------
+
+# Publicly reachable SSH port for tunnel clients.
+# For Docker deployments this is the host-mapped port (e.g. 9222).
+# For bare-metal this is the actual listen port (e.g. 2222).
+# Default: "2222"
+#tunnel_ssh_port: "2222"
+
+# ---------------------------------------------------------------------------
+# Initial setup
+# ---------------------------------------------------------------------------
+
+# Bootstrap mode for the first superuser account.
+#   auto  — create superuser from superuser_email/superuser_password below
+#   setup — skip; user creates superuser via the web Setup page
+# Default: auto
+#init_mode: auto
+
+# Superuser credentials used when init_mode=auto.
+# If either is empty, superuser bootstrap is skipped (no error).
+#superuser_email: admin@example.com
+#superuser_password: changeme123
+
+# =============================================================================
+# Examples
+# =============================================================================
+
+# --- All-in-one container (defaults cover everything) ---
+# No config file needed; all defaults point to the container's built-in services.
+
+# --- External Redis + VictoriaMetrics ---
+# redis_url: redis://:MySecret@redis.internal:6379/0
+# tsdb_url: https://metrics.internal:8428
+
+# --- Bare-metal binary, no TSDB ---
+# tsdb_url: ""
+
+# --- Full production example ---
+# data_dir: /srv/appos
+# http: 0.0.0.0:8090
+# redis_url: rediss://appos:SecurePass@redis-prod.internal:6380/0
+# tsdb_url: https://appos:MetricsToken@vm-prod.internal:8428
+# tunnel_ssh_port: "2222"
+# init_mode: setup

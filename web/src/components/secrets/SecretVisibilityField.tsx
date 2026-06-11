@@ -1,3 +1,5 @@
+import { useMemo, useState } from 'react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 
 export const RESOURCE_SECRET_VISIBLE_TO_VALUES = [
@@ -16,31 +18,31 @@ export const RESOURCE_SECRET_VISIBLE_TO_OPTIONS: Array<{
   label: string
   description: string
 }> = [
-  { value: 'server', label: 'Servers', description: 'Visible in server credential dialogs.' },
+  { value: 'server', label: 'Servers', description: 'Shown in server credential forms.' },
   {
     value: 'application',
     label: 'Applications',
-    description: 'Visible in application deployment and application credential dialogs.',
+    description: 'Shown in application credential forms.',
   },
   {
     value: 'service_instance',
     label: 'Service Instances',
-    description: 'Visible in service instance credential dialogs.',
+    description: 'Shown in service instance forms.',
   },
   {
     value: 'connector',
     label: 'Connectors',
-    description: 'Visible in connector credential dialogs.',
+    description: 'Shown in connector credential forms.',
   },
   {
     value: 'provider_account',
     label: 'Provider Accounts',
-    description: 'Visible in provider account dialogs.',
+    description: 'Shown in provider account forms.',
   },
   {
     value: 'ai_provider',
     label: 'AI Providers',
-    description: 'Visible in AI provider credential dialogs.',
+    description: 'Shown in AI provider forms.',
   },
 ]
 
@@ -78,11 +80,32 @@ export function buildResourceSecretRelationApiPath({
 export function SecretVisibilityField({
   value,
   onChange,
+  collapsible = false,
+  defaultOpen = true,
+  collapsedHint,
 }: {
   value: ResourceSecretVisibleTo[]
   onChange: (next: ResourceSecretVisibleTo[]) => void
+  collapsible?: boolean
+  defaultOpen?: boolean
+  collapsedHint?: string
 }) {
-  return (
+  const [open, setOpen] = useState(defaultOpen)
+  const selectedSummary = useMemo(() => {
+    const selected = RESOURCE_SECRET_VISIBLE_TO_OPTIONS.filter(option => value.includes(option.value))
+    if (selected.length === RESOURCE_SECRET_VISIBLE_TO_OPTIONS.length) {
+      return 'All supported dialogs'
+    }
+    if (selected.length === 0) {
+      return 'No dialogs selected'
+    }
+    if (selected.length <= 2) {
+      return selected.map(option => option.label).join(', ')
+    }
+    return `${selected.length} targets selected`
+  }, [value])
+
+  const content = (
     <div className="space-y-2">
       <div>
         <div className="text-sm font-medium text-foreground">Visible In</div>
@@ -121,6 +144,37 @@ export function SecretVisibilityField({
           )
         })}
       </div>
+    </div>
+  )
+
+  if (!collapsible) {
+    return content
+  }
+
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        className="flex w-full items-start justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 px-3 py-2.5 text-left transition-colors hover:bg-muted/35"
+        onClick={() => setOpen(current => !current)}
+        aria-expanded={open}
+      >
+        <span className="space-y-0.5">
+          <span className="block text-sm font-medium text-foreground">Visible In</span>
+          <span className="block text-xs text-muted-foreground">
+            {open ? 'Choose which resource dialogs can discover this secret.' : selectedSummary}
+          </span>
+          {!open && collapsedHint ? (
+            <span className="block text-[11px] text-muted-foreground/90">{collapsedHint}</span>
+          ) : null}
+        </span>
+        {open ? (
+          <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+        ) : (
+          <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+        )}
+      </button>
+      {open ? <div className="pt-1">{content}</div> : null}
     </div>
   )
 }

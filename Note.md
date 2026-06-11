@@ -198,3 +198,19 @@ activity metadata 区展开后会导致页面抖动
 Provider	endpoint + credential + kind	数据库
 模型列表	fetch-models 运行时拉取	不存
 默认偏好	上次用哪个 model	前端 localStorage 或用户偏好字段
+
+
+getconf 是唯一硬编码的 OS 命令，Linux 基本都有。其余命令由 catalog 模板定义，非后端硬编码。
+
+
+
+
+
+
+Resource > AI providers > Add ai provider 
+
+1. API Key 中的输入文本框旁的图标，请去掉边框
+
+Resource > AI providers > edit ai provider （编辑模式）
+
+1. Enable Models 区域，勾选了更多 model 后，保存报错：Invalid AI provider payload.

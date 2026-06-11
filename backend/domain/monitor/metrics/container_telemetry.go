@@ -3,13 +3,13 @@ package metrics
 import (
 	"context"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	monitortsdb "github.com/websoft9/appos/backend/domain/monitor/metrics/tsdb"
+	"github.com/websoft9/appos/backend/domain/runtimecfg"
 )
 
 type containerTelemetryQueryOverrideFunc func(context.Context, string, []ContainerTelemetryTarget, string) (*ContainerTelemetryResponse, error)
@@ -76,7 +76,7 @@ func queryContainerTelemetryVM(ctx context.Context, serverID string, targets []C
 			itemsByAlias[alias] = item
 		}
 	}
-	baseURL := strings.TrimSpace(os.Getenv(EnvVictoriaMetricsURL))
+	baseURL := strings.TrimSpace(runtimecfg.TSDBURL())
 	if baseURL == "" {
 		response.Items = flattenContainerTelemetryItems(itemsByID)
 		return response, nil

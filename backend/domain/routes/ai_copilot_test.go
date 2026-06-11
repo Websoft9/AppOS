@@ -10,37 +10,37 @@ import (
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/domain/ai/chat"
+	"github.com/websoft9/appos/backend/domain/ai/copilot"
 	"github.com/websoft9/appos/backend/domain/resource/aiproviders"
 	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/infra/collections"
 )
 
-type fakeAIChatFactory struct{}
+type fakeAICopilotFactory struct{}
 
-func (fakeAIChatFactory) NewStreamer(context.Context, *chat.ProviderConfig) (chat.ModelStreamer, error) {
-	return fakeAIChatStreamer{}, nil
+func (fakeAICopilotFactory) NewStreamer(context.Context, *copilot.ProviderConfig) (copilot.ModelStreamer, error) {
+	return fakeAICopilotStreamer{}, nil
 }
 
-type captureAIChatFactory struct {
-	seen **chat.ProviderConfig
+type captureAICopilotFactory struct {
+	seen **copilot.ProviderConfig
 }
 
-func (f captureAIChatFactory) NewStreamer(_ context.Context, provider *chat.ProviderConfig) (chat.ModelStreamer, error) {
+func (f captureAICopilotFactory) NewStreamer(_ context.Context, provider *copilot.ProviderConfig) (copilot.ModelStreamer, error) {
 	if f.seen != nil {
 		clone := *provider
 		*f.seen = &clone
 	}
-	return fakeAIChatStreamer{}, nil
+	return fakeAICopilotStreamer{}, nil
 }
 
-type fakeAIChatStreamer struct{}
+type fakeAICopilotStreamer struct{}
 
-func (fakeAIChatStreamer) Stream(_ context.Context, messages []*chat.Message, onChunk func(string) error) (string, error) {
+func (fakeAICopilotStreamer) Stream(_ context.Context, messages []*copilot.Message, onChunk func(string) error) (string, error) {
 	last := ""
 	for _, message := range messages {
-		if message.Role == chat.RoleUser {
+		if message.Role == copilot.RoleUser {
 			last = message.Content
 		}
 	}
@@ -53,17 +53,17 @@ func (fakeAIChatStreamer) Stream(_ context.Context, messages []*chat.Message, on
 	return strings.Join(parts, ""), nil
 }
 
-func TestAIChatRouteStreamsAndPersistsMessages(t *testing.T) {
-	oldFactory := aiChatModelFactory
-	aiChatModelFactory = fakeAIChatFactory{}
-	t.Cleanup(func() { aiChatModelFactory = oldFactory })
+func TestAICopilotRouteStreamsAndPersistsMessages(t *testing.T) {
+	oldFactory := aiCopilotModelFactory
+	aiCopilotModelFactory = fakeAICopilotFactory{}
+	t.Cleanup(func() { aiCopilotModelFactory = oldFactory })
 
 	te := newTestEnv(t)
 	defer te.cleanup()
 	ensureConnectorSecretRuntime(t)
-	seedAIChatProvider(t, te)
+	seedAICopilotProvider(t, te)
 
-	create := te.doAIChat(t, http.MethodPost, "/api/ai/chat/sessions", `{"title":""}`, true)
+	create := te.doAICopilot(t, http.MethodPost, "/api/ai/copilot/sessions", `{"title":""}`, true)
 	if create.Code != http.StatusCreated {
 		t.Fatalf("create session status %d body %s", create.Code, create.Body.String())
 	}
@@ -72,7 +72,7 @@ func TestAIChatRouteStreamsAndPersistsMessages(t *testing.T) {
 		t.Fatalf("missing session id in %s", create.Body.String())
 	}
 
-	stream := te.doAIChat(t, http.MethodPost, "/api/ai/chat/sessions/"+sessionID+"/messages", `{"content":"check nginx"}`, true)
+	stream := te.doAICopilot(t, http.MethodPost, "/api/ai/copilot/sessions/"+sessionID+"/messages", `{"content":"check nginx"}`, true)
 	if stream.Code != http.StatusOK {
 		t.Fatalf("stream status %d body %s", stream.Code, stream.Body.String())
 	}
@@ -81,7 +81,7 @@ func TestAIChatRouteStreamsAndPersistsMessages(t *testing.T) {
 		t.Fatalf("unexpected stream body: %s", body)
 	}
 
-	messages := te.doAIChat(t, http.MethodGet, "/api/ai/chat/sessions/"+sessionID+"/messages", "", true)
+	messages := te.doAICopilot(t, http.MethodGet, "/api/ai/copilot/sessions/"+sessionID+"/messages", "", true)
 	if messages.Code != http.StatusOK {
 		t.Fatalf("messages status %d body %s", messages.Code, messages.Body.String())
 	}
@@ -91,23 +91,23 @@ func TestAIChatRouteStreamsAndPersistsMessages(t *testing.T) {
 	}
 }
 
-func TestAIChatRouteSupportsAttachmentsAndSessionLifecycle(t *testing.T) {
-	oldFactory := aiChatModelFactory
-	aiChatModelFactory = fakeAIChatFactory{}
-	t.Cleanup(func() { aiChatModelFactory = oldFactory })
+func TestAICopilotRouteSupportsAttachmentsAndSessionLifecycle(t *testing.T) {
+	oldFactory := aiCopilotModelFactory
+	aiCopilotModelFactory = fakeAICopilotFactory{}
+	t.Cleanup(func() { aiCopilotModelFactory = oldFactory })
 
 	te := newTestEnv(t)
 	defer te.cleanup()
 	ensureConnectorSecretRuntime(t)
-	seedAIChatProvider(t, te)
+	seedAICopilotProvider(t, te)
 
-	create := te.doAIChat(t, http.MethodPost, "/api/ai/chat/sessions", `{"title":"Draft"}`, true)
+	create := te.doAICopilot(t, http.MethodPost, "/api/ai/copilot/sessions", `{"title":"Draft"}`, true)
 	if create.Code != http.StatusCreated {
 		t.Fatalf("create session status %d body %s", create.Code, create.Body.String())
 	}
 	sessionID := stringFromJSON(t, create.Body.Bytes(), "id")
 
-	update := te.doAIChat(t, http.MethodPatch, "/api/ai/chat/sessions/"+sessionID, `{"title":"Infra audit"}`, true)
+	update := te.doAICopilot(t, http.MethodPatch, "/api/ai/copilot/sessions/"+sessionID, `{"title":"Infra audit"}`, true)
 	if update.Code != http.StatusOK {
 		t.Fatalf("update session status %d body %s", update.Code, update.Body.String())
 	}
@@ -115,7 +115,7 @@ func TestAIChatRouteSupportsAttachmentsAndSessionLifecycle(t *testing.T) {
 		t.Fatalf("unexpected update body: %s", update.Body.String())
 	}
 
-	stream := te.doAIChat(t, http.MethodPost, "/api/ai/chat/sessions/"+sessionID+"/messages", `{"content":"review this file","attachments":[{"name":"nginx.conf","mime_type":"text/plain","size":18,"text_content":"worker_processes auto;"}]}`, true)
+	stream := te.doAICopilot(t, http.MethodPost, "/api/ai/copilot/sessions/"+sessionID+"/messages", `{"content":"review this file","attachments":[{"name":"nginx.conf","mime_type":"text/plain","size":18,"text_content":"worker_processes auto;"}]}`, true)
 	if stream.Code != http.StatusOK {
 		t.Fatalf("stream status %d body %s", stream.Code, stream.Body.String())
 	}
@@ -124,7 +124,7 @@ func TestAIChatRouteSupportsAttachmentsAndSessionLifecycle(t *testing.T) {
 		t.Fatalf("unexpected attachment stream body: %s", body)
 	}
 
-	messages := te.doAIChat(t, http.MethodGet, "/api/ai/chat/sessions/"+sessionID+"/messages", "", true)
+	messages := te.doAICopilot(t, http.MethodGet, "/api/ai/copilot/sessions/"+sessionID+"/messages", "", true)
 	if messages.Code != http.StatusOK {
 		t.Fatalf("messages status %d body %s", messages.Code, messages.Body.String())
 	}
@@ -133,12 +133,12 @@ func TestAIChatRouteSupportsAttachmentsAndSessionLifecycle(t *testing.T) {
 		t.Fatalf("unexpected messages body: %s", messageBody)
 	}
 
-	deleted := te.doAIChat(t, http.MethodDelete, "/api/ai/chat/sessions/"+sessionID, "", true)
+	deleted := te.doAICopilot(t, http.MethodDelete, "/api/ai/copilot/sessions/"+sessionID, "", true)
 	if deleted.Code != http.StatusNoContent {
 		t.Fatalf("delete session status %d body %s", deleted.Code, deleted.Body.String())
 	}
 
-	list := te.doAIChat(t, http.MethodGet, "/api/ai/chat/sessions", "", true)
+	list := te.doAICopilot(t, http.MethodGet, "/api/ai/copilot/sessions", "", true)
 	if list.Code != http.StatusOK {
 		t.Fatalf("list sessions status %d body %s", list.Code, list.Body.String())
 	}
@@ -147,45 +147,45 @@ func TestAIChatRouteSupportsAttachmentsAndSessionLifecycle(t *testing.T) {
 	}
 }
 
-func TestAIChatRouteReportsProviderSetupRequired(t *testing.T) {
+func TestAICopilotRouteReportsProviderSetupRequired(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	create := te.doAIChat(t, http.MethodPost, "/api/ai/chat/sessions", `{}`, true)
+	create := te.doAICopilot(t, http.MethodPost, "/api/ai/copilot/sessions", `{}`, true)
 	if create.Code != http.StatusCreated {
 		t.Fatalf("create session status %d body %s", create.Code, create.Body.String())
 	}
 	sessionID := stringFromJSON(t, create.Body.Bytes(), "id")
 
-	stream := te.doAIChat(t, http.MethodPost, "/api/ai/chat/sessions/"+sessionID+"/messages", `{"content":"hello"}`, true)
+	stream := te.doAICopilot(t, http.MethodPost, "/api/ai/copilot/sessions/"+sessionID+"/messages", `{"content":"hello"}`, true)
 	if stream.Code != http.StatusOK {
 		t.Fatalf("stream status %d body %s", stream.Code, stream.Body.String())
 	}
-	if !strings.Contains(stream.Body.String(), chat.CodeProviderSetupRequired) {
+	if !strings.Contains(stream.Body.String(), copilot.CodeProviderSetupRequired) {
 		t.Fatalf("expected provider setup error event, got %s", stream.Body.String())
 	}
 }
 
-func TestAIChatRouteUsesSelectedProviderAndModel(t *testing.T) {
-	var seen *chat.ProviderConfig
-	oldFactory := aiChatModelFactory
-	aiChatModelFactory = captureAIChatFactory{seen: &seen}
-	t.Cleanup(func() { aiChatModelFactory = oldFactory })
+func TestAICopilotRouteUsesSelectedProviderAndModel(t *testing.T) {
+	var seen *copilot.ProviderConfig
+	oldFactory := aiCopilotModelFactory
+	aiCopilotModelFactory = captureAICopilotFactory{seen: &seen}
+	t.Cleanup(func() { aiCopilotModelFactory = oldFactory })
 
 	te := newTestEnv(t)
 	defer te.cleanup()
 	ensureConnectorSecretRuntime(t)
-	seedAIChatProvider(t, te)
-	selectedProviderID := seedNamedAIChatProvider(t, te, "OpenRouter", false, "https://openrouter.ai/api/v1", "openai/gpt-4.1-mini")
+	seedAICopilotProvider(t, te)
+	selectedProviderID := seedNamedAICopilotProvider(t, te, "OpenRouter", false, "https://openrouter.ai/api/v1", "openai/gpt-4.1-mini")
 
-	create := te.doAIChat(t, http.MethodPost, "/api/ai/chat/sessions", `{"title":""}`, true)
+	create := te.doAICopilot(t, http.MethodPost, "/api/ai/copilot/sessions", `{"title":""}`, true)
 	if create.Code != http.StatusCreated {
 		t.Fatalf("create session status %d body %s", create.Code, create.Body.String())
 	}
 	sessionID := stringFromJSON(t, create.Body.Bytes(), "id")
 
 	body := `{"content":"route through selected provider","provider_id":"` + selectedProviderID + `","model":"anthropic/claude-3.5-sonnet"}`
-	stream := te.doAIChat(t, http.MethodPost, "/api/ai/chat/sessions/"+sessionID+"/messages", body, true)
+	stream := te.doAICopilot(t, http.MethodPost, "/api/ai/copilot/sessions/"+sessionID+"/messages", body, true)
 	if stream.Code != http.StatusOK {
 		t.Fatalf("stream status %d body %s", stream.Code, stream.Body.String())
 	}
@@ -203,13 +203,13 @@ func TestAIChatRouteUsesSelectedProviderAndModel(t *testing.T) {
 	}
 }
 
-func (te *testEnv) doAIChat(t *testing.T, method, url, body string, authenticated bool) *httptest.ResponseRecorder {
+func (te *testEnv) doAICopilot(t *testing.T, method, url, body string, authenticated bool) *httptest.ResponseRecorder {
 	t.Helper()
 	r, err := apis.NewRouter(te.app)
 	if err != nil {
 		t.Fatal(err)
 	}
-	registerAIChatRoutes(&core.ServeEvent{Router: r})
+	registerAICopilotRoutes(&core.ServeEvent{Router: r})
 	mux, err := r.BuildMux()
 	if err != nil {
 		t.Fatal(err)
@@ -224,12 +224,12 @@ func (te *testEnv) doAIChat(t *testing.T, method, url, body string, authenticate
 	return rec
 }
 
-func seedAIChatProvider(t *testing.T, te *testEnv) {
+func seedAICopilotProvider(t *testing.T, te *testEnv) {
 	t.Helper()
-	seedNamedAIChatProvider(t, te, "DeepSeek", true, "https://api.deepseek.com/v1", "deepseek-chat")
+	seedNamedAICopilotProvider(t, te, "DeepSeek", true, "https://api.deepseek.com/v1", "deepseek-chat")
 }
 
-func seedNamedAIChatProvider(t *testing.T, te *testEnv, name string, isDefault bool, endpoint string, model string) string {
+func seedNamedAICopilotProvider(t *testing.T, te *testEnv, name string, isDefault bool, endpoint string, model string) string {
 	t.Helper()
 	secretCol, err := te.app.FindCollectionByNameOrId("secrets")
 	if err != nil {

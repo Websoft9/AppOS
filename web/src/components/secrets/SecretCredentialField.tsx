@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Eye, EyeOff } from 'lucide-react'
+import { Link2, Unlink, Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -58,6 +58,7 @@ interface SecretCredentialFieldProps {
   generatorDescription?: string
   generatorLengthLabel?: string
   generatorConfirmLabel?: string
+  referenceToggleMode?: 'checkbox' | 'icon'
 }
 
 export function SecretCredentialField({
@@ -81,18 +82,58 @@ export function SecretCredentialField({
   generatorDescription = 'Choose the password length before filling the field.',
   generatorLengthLabel = 'Password Length',
   generatorConfirmLabel = 'Fill Password',
+  referenceToggleMode = 'checkbox',
 }: SecretCredentialFieldProps) {
   const [generatorOpen, setGeneratorOpen] = useState(false)
   const [length, setLength] = useState(24)
   const [revealed, setRevealed] = useState(false)
+  const [referencePickerOpen, setReferencePickerOpen] = useState(false)
   const showReferencePicker = editMode || useReference
+  const iconToggleMode = !editMode && referenceToggleMode === 'icon'
+
+  const toggleReferenceMode = () => {
+    const nextValue = !useReference
+    if (nextValue) {
+      setRevealed(false)
+    }
+    onUseReferenceChange(nextValue)
+  }
+
+  const referenceToggle = !editMode ? (
+    iconToggleMode ? (
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className="h-10 w-10 shrink-0"
+        title={useReference ? 'Use direct API key input' : 'Use a saved secret'}
+        onClick={toggleReferenceMode}
+      >
+        {useReference ? <Unlink className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
+      </Button>
+    ) : (
+      <label className="inline-flex h-10 shrink-0 items-center gap-2 self-start pt-0.5 text-sm">
+        <Checkbox
+          checked={useReference}
+          onCheckedChange={checked => {
+            const nextValue = Boolean(checked)
+            if (nextValue) {
+              setRevealed(false)
+            }
+            onUseReferenceChange(nextValue)
+          }}
+        />
+        <span>Select a Secret</span>
+      </label>
+    )
+  ) : null
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-start gap-3 rounded-xl border border-border/70 bg-muted/30 p-3">
+      <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-[220px] flex-1">
           {showReferencePicker ? (
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-start gap-3">
               <div className="min-w-[220px] flex-1">
                 <ReferenceSelect
                   id={`${inputId}-reference`}
@@ -106,11 +147,12 @@ export function SecretCredentialField({
                   onCreate={onCreateReference}
                   autoOpen={!editMode}
                   showNoneOption={false}
-                  showSelectedIndicator={false}
                   borderlessMenu
+                  onOpenChange={setReferencePickerOpen}
                 />
               </div>
-              {referenceValue && onEditReference && (
+              {iconToggleMode ? referenceToggle : null}
+              {referenceValue && onEditReference && !referencePickerOpen && (
                 <Button
                   type="button"
                   variant="outline"
@@ -122,7 +164,7 @@ export function SecretCredentialField({
               )}
             </div>
           ) : (
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-start gap-3">
               <div className="relative min-w-[220px] flex-1">
                 <Input
                   id={inputId}
@@ -141,6 +183,7 @@ export function SecretCredentialField({
                   {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+              {iconToggleMode ? referenceToggle : null}
               {allowGenerate ? (
                 <Button type="button" className="h-10" onClick={() => setGeneratorOpen(true)}>
                   Generate
@@ -149,21 +192,7 @@ export function SecretCredentialField({
             </div>
           )}
         </div>
-        {!editMode && (
-          <label className="inline-flex h-10 shrink-0 items-center gap-2 self-start pt-0.5 text-sm">
-            <Checkbox
-              checked={useReference}
-              onCheckedChange={checked => {
-                const nextValue = Boolean(checked)
-                if (nextValue) {
-                  setRevealed(false)
-                }
-                onUseReferenceChange(nextValue)
-              }}
-            />
-            <span>Select a Secret</span>
-          </label>
-        )}
+        {!iconToggleMode ? referenceToggle : null}
       </div>
 
       {allowGenerate ? (

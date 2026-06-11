@@ -88,6 +88,8 @@ describe('SecretsPage policy loading', () => {
     render(<SecretsPage />)
 
     await screen.findByText('Edit Secret')
+    expect(screen.getAllByText('Choose which resource dialogs can discover this secret.').length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: 'Save Visibility' })).toBeInTheDocument()
 
     expect(navigateMock).toHaveBeenCalledWith({
       to: '.',

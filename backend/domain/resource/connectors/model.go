@@ -223,6 +223,7 @@ type Template struct {
 	DefaultEnabledModels []string   `json:"defaultEnabledModels,omitempty"`
 	Capabilities    []string        `json:"capabilities,omitempty"`
 	Aliases         []string        `json:"aliases,omitempty"`
+	SkipTLSCertVerify bool         `json:"skipTLSCertVerify,omitempty"`
 	Fields          []TemplateField `json:"fields,omitempty"`
 }
 

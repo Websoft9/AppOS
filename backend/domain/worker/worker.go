@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -21,6 +20,7 @@ import (
 	"github.com/websoft9/appos/backend/domain/audit"
 	"github.com/websoft9/appos/backend/domain/deploy"
 	lifecycleruntime "github.com/websoft9/appos/backend/domain/lifecycle/runtime"
+	"github.com/websoft9/appos/backend/domain/runtimecfg"
 )
 
 const (
@@ -119,15 +119,13 @@ var deployServerLocks = struct {
 // New creates a Worker with Asynq server and shared client.
 // app is the PocketBase core.App used for audit writes inside task handlers.
 // Call Start() to begin processing and Shutdown() to stop.
-func New(app core.App) *Worker {
-	redisAddr := os.Getenv("REDIS_ADDR")
-	if redisAddr == "" {
-		redisAddr = "localhost:6379"
+func New(app core.App) (*Worker, error) {
+	redisConnOpt, err := asynq.ParseRedisURI(runtimecfg.RedisURL())
+	if err != nil {
+		return nil, fmt.Errorf("parse redis url: %w", err)
 	}
 
-	opt := asynq.RedisClientOpt{Addr: redisAddr}
-
-	srv := asynq.NewServer(opt, asynq.Config{
+	srv := asynq.NewServer(redisConnOpt, asynq.Config{
 		Concurrency: 10,
 		Queues: map[string]int{
 			"critical": 6,
@@ -136,13 +134,13 @@ func New(app core.App) *Worker {
 		},
 	})
 
-	client := asynq.NewClient(opt)
+	client := asynq.NewClient(redisConnOpt)
 
 	return &Worker{
 		server: srv,
 		client: client,
 		app:    app,
-	}
+	}, nil
 }
 
 // Start begins processing tasks in a background goroutine.

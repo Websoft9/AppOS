@@ -49,7 +49,7 @@ vi.mock('react-i18next', () => ({
         'items.deploy': 'Deploy',
         'items.actions': 'Activity',
         'items.terminal': 'Terminal',
-        'items.aiChat': 'AI Copilot',
+        'items.aiCopilot': 'AI Copilot',
         'items.collaboration': 'Collaboration',
         'items.groups': 'Groups',
         'items.topics': 'Topics',

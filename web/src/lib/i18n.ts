@@ -2,7 +2,7 @@ import { createInstance } from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
 type Locale = 'en' | 'zh'
-type Namespace = 'common' | 'store' | 'aiChat' | 'resources' | 'navigation'
+type Namespace = 'common' | 'store' | 'aiCopilot' | 'resources' | 'navigation'
 
 type ResourceModule = {
   default: Record<string, unknown>
@@ -10,7 +10,7 @@ type ResourceModule = {
 
 type LocaleResources = Record<Namespace, Record<string, unknown>>
 
-const NAMESPACES: Namespace[] = ['common', 'store', 'aiChat', 'resources', 'navigation']
+const NAMESPACES: Namespace[] = ['common', 'store', 'aiCopilot', 'resources', 'navigation']
 
 const i18n = createInstance()
 
@@ -18,14 +18,14 @@ const localeLoaders: Record<Locale, Record<Namespace, () => Promise<ResourceModu
   en: {
     common: () => import('../locales/en/common.json'),
     store: () => import('../locales/en/store.json'),
-    aiChat: () => import('../locales/en/aiChat.json'),
+    aiCopilot: () => import('../locales/en/aiCopilot.json'),
     resources: () => import('../locales/en/resources.json'),
     navigation: () => import('../locales/en/navigation.json'),
   },
   zh: {
     common: () => import('../locales/zh/common.json'),
     store: () => import('../locales/zh/store.json'),
-    aiChat: () => import('../locales/zh/aiChat.json'),
+    aiCopilot: () => import('../locales/zh/aiCopilot.json'),
     resources: () => import('../locales/zh/resources.json'),
     navigation: () => import('../locales/zh/navigation.json'),
   },

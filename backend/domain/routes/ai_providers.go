@@ -2,10 +2,12 @@ package routes
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"sort"
 	"strings"
@@ -202,7 +204,25 @@ func handleAIProviderDelete(e *core.RequestEvent) error {
 		return e.InternalServerError("failed to load AI provider", getErr)
 	}
 	beforeSnap := before.Snapshot()
-	err := aiproviders.DeleteExisting(repo, before)
+	credentialID := strings.TrimSpace(before.CredentialID())
+	err := e.App.RunInTransaction(func(txApp core.App) error {
+		txRepo := persistence.NewAIProviderRepository(txApp)
+		txBefore, err := txRepo.Get(before.ID())
+		if err != nil {
+			return err
+		}
+		if err := aiproviders.DeleteExisting(txRepo, txBefore); err != nil {
+			return err
+		}
+		if credentialID == "" {
+			return nil
+		}
+		secretRecord, findErr := txApp.FindRecordById("secrets", credentialID)
+		if findErr != nil {
+			return nil
+		}
+		return txApp.Delete(secretRecord)
+	})
 	if err != nil {
 		writeAIProviderAudit(e, "ai_provider.delete", &beforeSnap, aiproviders.SaveInput{}, nil, err)
 		return e.InternalServerError("failed to delete AI provider", err)
@@ -302,7 +322,7 @@ func handleFetchModels(e *core.RequestEvent) error {
 	}
 	result, err := fetchProviderModels(e.Request.Context(), endpoint, apiKey, body.TemplateID)
 	if err != nil {
-		return e.BadRequestError("failed to fetch provider models", err)
+		return e.BadRequestError(describeFetchModelsError(err), err)
 	}
 	return e.JSON(http.StatusOK, result)
 }
@@ -321,9 +341,37 @@ func handleAIProviderModels(e *core.RequestEvent) error {
 	}
 	result, fetchErr := fetchProviderModels(e.Request.Context(), strings.TrimSpace(item.Endpoint()), apiKey, strings.TrimSpace(item.TemplateID()))
 	if fetchErr != nil {
-		return e.BadRequestError("failed to fetch provider models", fetchErr)
+		return e.BadRequestError(describeFetchModelsError(fetchErr), fetchErr)
 	}
 	return e.JSON(http.StatusOK, result)
+}
+
+func describeFetchModelsError(err error) string {
+	if err == nil {
+		return "Could not load models. Verify the API endpoint, secret, and network connectivity, then try again."
+	}
+	message := strings.TrimSpace(err.Error())
+	lower := strings.ToLower(message)
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return "Loading models timed out. Check network connectivity and confirm the provider endpoint is reachable."
+	}
+	if strings.Contains(lower, "401") || strings.Contains(lower, "403") || strings.Contains(lower, "unauthorized") || strings.Contains(lower, "forbidden") {
+		return "Authentication failed while loading models. Check the API key or secret and try again."
+	}
+	if strings.Contains(lower, "404") {
+		return "The model list endpoint was not found. Check the API endpoint and make sure this provider exposes a compatible models API."
+	}
+	if strings.Contains(lower, "x509") || strings.Contains(lower, "tls") || strings.Contains(lower, "certificate") {
+		return "TLS verification failed while loading models. Check the provider certificate or endpoint URL."
+	}
+	if strings.Contains(lower, "no such host") || strings.Contains(lower, "dial tcp") || strings.Contains(lower, "connection refused") {
+		return "Could not reach the provider endpoint. Check the API endpoint, DNS, proxy, or firewall settings."
+	}
+	if message != "" {
+		return message
+	}
+	return "Could not load models. Verify the API endpoint, secret, and network connectivity, then try again."
 }
 
 func handleAIProviderReachability(e *core.RequestEvent) error {
@@ -407,14 +455,25 @@ func handleAIProviderChatModels(e *core.RequestEvent) error {
 	if err != nil {
 		return e.InternalServerError("failed to list AI providers", err)
 	}
+	e.App.Logger().Info("chat-models: total providers", "count", len(items))
 	filtered := make([]*aiproviders.AIProvider, 0, len(items))
 	for _, item := range items {
-		if strings.TrimSpace(item.Kind()) == aiproviders.KindLLM && aiProviderIsEnabled(item) {
+		kind := strings.TrimSpace(item.Kind())
+		enabled := aiProviderIsEnabled(item)
+		e.App.Logger().Info("chat-models: provider", "id", item.ID(), "kind", kind, "is_enabled", enabled)
+		if kind == aiproviders.KindLLM && enabled {
 			filtered = append(filtered, item)
 		}
 	}
+	e.App.Logger().Info("chat-models: after kind+enabled filter", "count", len(filtered))
+	for _, item := range filtered {
+		enabledModels := configStringSlice(item.Config(), "enabled_models")
+		fallback := firstConfigString(item.Config(), "defaultModel", "model")
+		e.App.Logger().Info("chat-models: provider model config", "id", item.ID(), "enabled_models", enabledModels, "defaultModel", fallback)
+	}
 	defaults := defaultProviderMap(e.App)
 	chatModels := buildAIProviderChatModels(filtered, defaults)
+	e.App.Logger().Info("chat-models: final result", "count", len(chatModels))
 	return e.JSON(http.StatusOK, aiProviderChatModelsResponse{Items: chatModels})
 }
 
@@ -425,13 +484,26 @@ func fetchProviderModels(ctx context.Context, endpoint string, apiKey string, te
 	}
 
 	modelsURL := strings.TrimRight(endpoint, "/") + "/models"
+	var tpl aiproviders.Template
+	var hasTemplate bool
 	if templateID != "" {
-		if template, ok := aiproviders.FindTemplate(templateID); ok && template.ModelsEndpoint != "" {
-			modelsURL = resolveModelsEndpoint(endpoint, template.ModelsEndpoint)
+		tpl, hasTemplate = aiproviders.FindTemplate(templateID)
+		if hasTemplate && tpl.ModelsEndpoint != "" {
+			modelsURL = resolveModelsEndpoint(endpoint, tpl.ModelsEndpoint)
 		}
 	}
 
-	client := &http.Client{Timeout: 8 * time.Second}
+	var client http.Client
+	if hasTemplate && tpl.SkipTLSCertVerify {
+		client = http.Client{
+			Timeout: 8 * time.Second,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
+		}
+	} else {
+		client = http.Client{Timeout: 8 * time.Second}
+	}
 	req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, modelsURL, nil)
 	if reqErr != nil {
 		return fetchModelsResponse{}, reqErr
@@ -462,8 +534,8 @@ func fetchProviderModels(ctx context.Context, endpoint string, apiKey string, te
 		return fetchModelsResponse{}, err
 	}
 	defaultEnabled := map[string]struct{}{}
-	if template, ok := aiproviders.FindTemplate(templateID); ok {
-		for _, model := range template.DefaultEnabledModels {
+	if hasTemplate {
+		for _, model := range tpl.DefaultEnabledModels {
 			trimmed := strings.TrimSpace(model)
 			if trimmed != "" {
 				defaultEnabled[trimmed] = struct{}{}

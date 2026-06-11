@@ -1,4 +1,4 @@
-package chat
+package copilot
 
 import (
 	"context"
@@ -14,6 +14,9 @@ import (
 type EinoModelFactory struct{}
 
 func (EinoModelFactory) NewStreamer(ctx context.Context, provider *ProviderConfig) (ModelStreamer, error) {
+	if strings.Contains(strings.ToLower(strings.TrimSpace(provider.Endpoint)), "generativelanguage.googleapis.com") {
+		return nil, coded(CodeRuntimeFailed, "Google Gemini direct endpoints are not OpenAI-compatible in the current AI Copilot runtime; use an OpenAI-compatible gateway or provider instead", nil)
+	}
 	model, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
 		APIKey:  provider.APIKey,
 		BaseURL: provider.Endpoint,

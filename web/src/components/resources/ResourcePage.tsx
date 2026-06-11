@@ -1,4 +1,5 @@
 import {
+  Children,
   Fragment,
   useState,
   useEffect,
@@ -1492,9 +1493,11 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                                         <DropdownMenuSeparator />
                                       </>
                                     )}
-                                  {config.extraActions?.(item, () => {
-                                    void fetchItems()
-                                  })}
+                                    {Children.toArray(
+                                      config.extraActions?.(item, () => {
+                                        void fetchItems()
+                                      }) ?? null
+                                    )}
                                   {favoriteActionPlacement === 'afterExtraActions' &&
                                     config.favoriteStorageKey && (
                                       <>
@@ -1645,9 +1648,11 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                                           <DropdownMenuSeparator />
                                         </>
                                       )}
-                                    {config.extraActions?.(item, () => {
-                                      void fetchItems()
-                                    })}
+                                    {Children.toArray(
+                                      config.extraActions?.(item, () => {
+                                        void fetchItems()
+                                      }) ?? null
+                                    )}
                                     {favoriteActionPlacement === 'afterExtraActions' &&
                                       config.favoriteStorageKey && (
                                         <>

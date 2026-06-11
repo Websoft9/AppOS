@@ -1,4 +1,4 @@
-package chat
+package copilot
 
 import (
 	"context"

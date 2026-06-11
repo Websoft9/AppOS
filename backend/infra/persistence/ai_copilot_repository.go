@@ -7,20 +7,20 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/domain/ai/chat"
+	"github.com/websoft9/appos/backend/domain/ai/copilot"
 	"github.com/websoft9/appos/backend/infra/collections"
 )
 
-type pocketBaseAIChatRepository struct {
+type pocketBaseAICopilotRepository struct {
 	app core.App
 }
 
-func NewAIChatRepository(app core.App) chat.Repository {
-	return &pocketBaseAIChatRepository{app: app}
+func NewAICopilotRepository(app core.App) copilot.Repository {
+	return &pocketBaseAICopilotRepository{app: app}
 }
 
-func (r *pocketBaseAIChatRepository) CreateSession(_ context.Context, ownerID, title string) (*chat.Session, error) {
-	collection, err := r.app.FindCollectionByNameOrId(collections.AIChatSessions)
+func (r *pocketBaseAICopilotRepository) CreateSession(_ context.Context, ownerID, title string) (*copilot.Session, error) {
+	collection, err := r.app.FindCollectionByNameOrId(collections.AICopilotSessions)
 	if err != nil {
 		return nil, err
 	}
@@ -35,19 +35,19 @@ func (r *pocketBaseAIChatRepository) CreateSession(_ context.Context, ownerID, t
 	return sessionFromRecord(record), nil
 }
 
-func (r *pocketBaseAIChatRepository) ListSessions(_ context.Context, ownerID string) ([]*chat.Session, error) {
-	records, err := r.app.FindRecordsByFilter(collections.AIChatSessions, "owner_id = {:ownerID}", "-last_message_at", 0, 0, map[string]any{"ownerID": ownerID})
+func (r *pocketBaseAICopilotRepository) ListSessions(_ context.Context, ownerID string) ([]*copilot.Session, error) {
+	records, err := r.app.FindRecordsByFilter(collections.AICopilotSessions, "owner_id = {:ownerID}", "-last_message_at", 0, 0, map[string]any{"ownerID": ownerID})
 	if err != nil {
 		return nil, err
 	}
-	items := make([]*chat.Session, 0, len(records))
+	items := make([]*copilot.Session, 0, len(records))
 	for _, record := range records {
 		items = append(items, sessionFromRecord(record))
 	}
 	return items, nil
 }
 
-func (r *pocketBaseAIChatRepository) GetSession(_ context.Context, sessionID, ownerID string) (*chat.Session, error) {
+func (r *pocketBaseAICopilotRepository) GetSession(_ context.Context, sessionID, ownerID string) (*copilot.Session, error) {
 	record, err := r.findOwnedSessionRecord(sessionID, ownerID)
 	if err != nil {
 		return nil, err
@@ -55,7 +55,7 @@ func (r *pocketBaseAIChatRepository) GetSession(_ context.Context, sessionID, ow
 	return sessionFromRecord(record), nil
 }
 
-func (r *pocketBaseAIChatRepository) UpdateSession(_ context.Context, sessionID, ownerID, title string) (*chat.Session, error) {
+func (r *pocketBaseAICopilotRepository) UpdateSession(_ context.Context, sessionID, ownerID, title string) (*copilot.Session, error) {
 	record, err := r.findOwnedSessionRecord(sessionID, ownerID)
 	if err != nil {
 		return nil, err
@@ -68,7 +68,7 @@ func (r *pocketBaseAIChatRepository) UpdateSession(_ context.Context, sessionID,
 	return sessionFromRecord(record), nil
 }
 
-func (r *pocketBaseAIChatRepository) DeleteSession(_ context.Context, sessionID, ownerID string) error {
+func (r *pocketBaseAICopilotRepository) DeleteSession(_ context.Context, sessionID, ownerID string) error {
 	record, err := r.findOwnedSessionRecord(sessionID, ownerID)
 	if err != nil {
 		return err
@@ -76,26 +76,26 @@ func (r *pocketBaseAIChatRepository) DeleteSession(_ context.Context, sessionID,
 	return r.app.Delete(record)
 }
 
-func (r *pocketBaseAIChatRepository) ListMessages(_ context.Context, sessionID string) ([]*chat.Message, error) {
-	records, err := r.app.FindRecordsByFilter(collections.AIChatMessages, "session = {:sessionID}", "created", 0, 0, map[string]any{"sessionID": sessionID})
+func (r *pocketBaseAICopilotRepository) ListMessages(_ context.Context, sessionID string) ([]*copilot.Message, error) {
+	records, err := r.app.FindRecordsByFilter(collections.AICopilotMessages, "session = {:sessionID}", "created", 0, 0, map[string]any{"sessionID": sessionID})
 	if err != nil {
 		return nil, err
 	}
-	items := make([]*chat.Message, 0, len(records))
+	items := make([]*copilot.Message, 0, len(records))
 	for _, record := range records {
 		items = append(items, messageFromRecord(record))
 	}
 	return items, nil
 }
 
-func (r *pocketBaseAIChatRepository) AppendMessage(_ context.Context, sessionID, role, content, status string) (*chat.Message, error) {
-	collection, err := r.app.FindCollectionByNameOrId(collections.AIChatMessages)
+func (r *pocketBaseAICopilotRepository) AppendMessage(_ context.Context, sessionID, role, content, status string) (*copilot.Message, error) {
+	collection, err := r.app.FindCollectionByNameOrId(collections.AICopilotMessages)
 	if err != nil {
 		return nil, err
 	}
 	record := core.NewRecord(collection)
 	record.Set("session", sessionID)
-	record.Set("role", chat.NormalizeRole(role))
+	record.Set("role", copilot.NormalizeRole(role))
 	record.Set("content", content)
 	record.Set("status", strings.TrimSpace(status))
 	if err := r.app.Save(record); err != nil {
@@ -104,8 +104,8 @@ func (r *pocketBaseAIChatRepository) AppendMessage(_ context.Context, sessionID,
 	return messageFromRecord(record), nil
 }
 
-func (r *pocketBaseAIChatRepository) TouchSession(_ context.Context, sessionID, title string) error {
-	record, err := r.app.FindRecordById(collections.AIChatSessions, sessionID)
+func (r *pocketBaseAICopilotRepository) TouchSession(_ context.Context, sessionID, title string) error {
+	record, err := r.app.FindRecordById(collections.AICopilotSessions, sessionID)
 	if err != nil {
 		return err
 	}
@@ -116,8 +116,8 @@ func (r *pocketBaseAIChatRepository) TouchSession(_ context.Context, sessionID, 
 	return r.app.Save(record)
 }
 
-func (r *pocketBaseAIChatRepository) findOwnedSessionRecord(sessionID, ownerID string) (*core.Record, error) {
-	records, err := r.app.FindRecordsByFilter(collections.AIChatSessions, "id = {:id} && owner_id = {:ownerID}", "", 1, 0, map[string]any{"id": sessionID, "ownerID": ownerID})
+func (r *pocketBaseAICopilotRepository) findOwnedSessionRecord(sessionID, ownerID string) (*core.Record, error) {
+	records, err := r.app.FindRecordsByFilter(collections.AICopilotSessions, "id = {:id} && owner_id = {:ownerID}", "", 1, 0, map[string]any{"id": sessionID, "ownerID": ownerID})
 	if err != nil {
 		return nil, err
 	}
@@ -127,8 +127,8 @@ func (r *pocketBaseAIChatRepository) findOwnedSessionRecord(sessionID, ownerID s
 	return records[0], nil
 }
 
-func sessionFromRecord(record *core.Record) *chat.Session {
-	return &chat.Session{
+func sessionFromRecord(record *core.Record) *copilot.Session {
+	return &copilot.Session{
 		ID:            record.Id,
 		Title:         record.GetString("title"),
 		OwnerID:       record.GetString("owner_id"),
@@ -138,8 +138,8 @@ func sessionFromRecord(record *core.Record) *chat.Session {
 	}
 }
 
-func messageFromRecord(record *core.Record) *chat.Message {
-	return &chat.Message{
+func messageFromRecord(record *core.Record) *copilot.Message {
+	return &copilot.Message{
 		ID:        record.Id,
 		SessionID: record.GetString("session"),
 		Role:      record.GetString("role"),

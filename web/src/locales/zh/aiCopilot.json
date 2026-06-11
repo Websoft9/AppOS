@@ -23,12 +23,16 @@
     "delete": "删除",
     "uploadFiles": "上传文件",
     "sendMessage": "发送消息",
-    "copyMarkdown": "复制 Markdown"
+    "copyMarkdown": "复制 Markdown",
+    "configureModels": "配置模型"
   },
   "fields": {
     "conversationTitle": "对话标题",
     "messagePlaceholder": "询问运维、诊断或 AppOS 相关知识",
-    "fileUpload": "聊天文件上传"
+    "fileUpload": "聊天文件上传",
+    "modelSearchPlaceholder": "搜索模型...",
+    "noModelsAvailable": "暂无可用 AI 模型",
+    "noModelsMatchSearch": "无匹配的模型"
   },
   "messages": {
     "loadError": "加载 AI 助手失败",

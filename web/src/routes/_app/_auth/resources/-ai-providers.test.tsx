@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AIProvidersPage, buildAIProviderPayload } from './ai-providers'
+import { shouldAutoListModels } from '@/components/ai/AIProviderCreateFlowDialog'
 
 const AI_PROVIDER_SECRET_PATH =
   "/api/collections/secrets/records?filter=(created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value')%26%26(visible_to:length=0||visible_to:each%3F='ai_provider')&sort=name"
@@ -286,9 +287,6 @@ describe('AIProvidersPage', () => {
     expect(getProductButton('OpenAI-Compatible')).toBeInTheDocument()
     expect(getProductButton('Ollama')).toBeInTheDocument()
     expect(getProductButton('xAI')).toBeInTheDocument()
-    expect(screen.getByText('Hosted OpenAI models')).toBeInTheDocument()
-    expect(screen.getByText('Local Ollama runtime')).toBeInTheDocument()
-    expect(screen.getByText('Custom OpenAI-compatible endpoint')).toBeInTheDocument()
     expect(document.querySelector('optgroup')).toBeNull()
 
     const productButtons = ['OpenAI', 'Ollama', 'xAI', 'OpenAI-Compatible'].filter(title =>
@@ -307,7 +305,7 @@ describe('AIProvidersPage', () => {
     fireEvent.click(getProductButton('OpenAI'))
 
     await waitFor(() => {
-      expect(screen.getByText('Base URL')).toBeInTheDocument()
+      expect(screen.getAllByText('API Endpoint').length).toBeGreaterThan(0)
     })
 
     await waitFor(() => {
@@ -320,6 +318,8 @@ describe('AIProvidersPage', () => {
     expect(screen.queryByLabelText('Runtime Default')).not.toBeInTheDocument()
     expect(screen.getByText('API Key')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Enter API Key')).toBeInTheDocument()
+    expect(screen.getByTitle('Use a saved secret')).toBeInTheDocument()
+    expect(screen.queryByText('Enable Models')).not.toBeInTheDocument()
     expect(screen.queryByText('API Version')).not.toBeInTheDocument()
     expect(screen.queryByText('Advanced Config (JSON)')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument()
@@ -327,6 +327,8 @@ describe('AIProvidersPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Advanced/i }))
 
     expect(screen.getByText('API Version')).toBeInTheDocument()
+    expect(screen.getByText('Enable it')).toBeInTheDocument()
+    expect(screen.getAllByText('API Endpoint').length).toBeGreaterThan(0)
   }, 15000)
 
   it('stores manual API keys as single-value secrets and keeps api_key auth', async () => {
@@ -446,8 +448,8 @@ describe('AIProvidersPage', () => {
     expect(screen.getByText('Updated')).toBeInTheDocument()
     expect(screen.queryByText('Type')).not.toBeInTheDocument()
     expect(screen.queryByText('Auth')).not.toBeInTheDocument()
-    expect(screen.getByText('Jan 05, 2025, 10:30 AM')).toBeInTheDocument()
-    expect(screen.getByText('Jan 06, 2025, 11:45 AM')).toBeInTheDocument()
+    expect(screen.getByText(/Jan 05, 2025, 10:30/)).toBeInTheDocument()
+    expect(screen.getByText(/Jan 06, 2025, 11:45/)).toBeInTheDocument()
     expect(screen.queryByText('api_key')).not.toBeInTheDocument()
   })
 
@@ -536,8 +538,8 @@ describe('AIProvidersPage', () => {
 
     expect(await screen.findByRole('button', { name: 'xai-main' })).toBeInTheDocument()
     expect(screen.getByText('Provider')).toBeInTheDocument()
-    expect(screen.getByText('Status')).toBeInTheDocument()
-    expect(screen.getByText('Disabled')).toBeInTheDocument()
+    expect(screen.getByText('Enabled')).toBeInTheDocument()
+    expect(screen.getByText('No')).toBeInTheDocument()
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(expect.stringContaining('/api/ai-providers/reachability?'), {
@@ -547,13 +549,11 @@ describe('AIProvidersPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'xai-main' }))
 
-    await waitFor(() => {
-      expect(screen.getByRole('dialog')).toBeInTheDocument()
-    })
-    expect(screen.getByText('Update xAI AI Provider')).toBeInTheDocument()
+    // Inline detail expands with List Models feedback
+    expect(await screen.findByText(/Loading models/)).toBeInTheDocument()
   })
 
-  it('renders Test Connection feedback inline under the selected row and lets the name toggle it', async () => {
+  it('renders List Models feedback inline under the selected row and lets the name toggle it', async () => {
     sendMock.mockImplementation((path: string) => {
       if (path === '/api/ai-providers/templates') {
         return Promise.resolve([
@@ -606,15 +606,157 @@ describe('AIProvidersPage', () => {
     expect(await screen.findByRole('button', { name: 'openrouter-main' })).toBeInTheDocument()
 
     fireEvent.pointerDown(screen.getByTitle('More actions'))
-    fireEvent.click(await screen.findByText('Test Connection'))
+    fireEvent.click(await screen.findByText('Test it'))
 
-    expect(await screen.findByText('1 model available')).toBeInTheDocument()
-    expect(screen.getByText('openai/gpt-4.1-mini')).toBeInTheDocument()
+    // Inline detail panel expands below the row
+    expect(await screen.findByText('Provider Detail')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'openrouter-main' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'openrouter-main' })[0])
+
+    // Clicking again collapses the inline detail
+    await waitFor(() => {
+      expect(screen.queryByText('Provider Detail')).not.toBeInTheDocument()
+    })
+  })
+
+  it('preserves saved enabled models in edit mode and keeps them checked after loading inventory', async () => {
+    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+      if (path === '/api/ai-providers/templates') {
+        return Promise.resolve([
+          {
+            id: 'bailian',
+            kind: 'llm',
+            title: 'Alibaba Cloud Bailian',
+            vendor: 'Alibaba Cloud',
+            defaultEndpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+            defaultAuthScheme: 'api_key',
+            fields: [
+              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+            ],
+          },
+        ])
+      }
+      if (path === '/api/ai-providers') {
+        return Promise.resolve([
+          {
+            id: 'alibaba-cloud-bailian-1494',
+            name: 'bailian-main',
+            template_id: 'bailian',
+            endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+            credential: 'secret-1',
+            is_enabled: true,
+            enabled_models: ['qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-vl-max'],
+            config: {},
+          },
+        ])
+      }
+      if (path.startsWith('/api/ai-providers/reachability?')) {
+        return Promise.resolve({ items: [{ id: 'alibaba-cloud-bailian-1494', status: 'reachable' }] })
+      }
+      if (path === '/api/ai-providers/models/alibaba-cloud-bailian-1494') {
+        return Promise.resolve({
+          models: [
+            { id: 'qwen-max' },
+            { id: 'qwen-plus' },
+            { id: 'qwen-turbo' },
+            { id: 'qwen-vl-max' },
+            { id: 'qwen-coder-plus' },
+          ],
+        })
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === AI_PROVIDER_SECRET_PATH) {
+        return Promise.resolve({
+          items: [{ id: 'secret-1', name: 'shared-secret', template_id: 'single_value' }],
+        })
+      }
+      if (path === '/api/collections/group_items/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      if (path.startsWith('/api/ai-providers/') && options?.method === 'PUT') {
+        return Promise.resolve({})
+      }
+      return Promise.resolve([])
+    })
+
+    render(<AIProvidersPage />)
+
+    expect(await screen.findByRole('button', { name: 'bailian-main' })).toBeInTheDocument()
+
+    fireEvent.pointerDown(screen.getByTitle('More actions'))
+    fireEvent.click(await screen.findByText('Edit'))
+
+    expect(await screen.findByText('qwen-max')).toBeInTheDocument()
+    expect(screen.getByText('qwen-plus')).toBeInTheDocument()
+    expect(screen.getByText('qwen-turbo')).toBeInTheDocument()
+    expect(screen.getByText('qwen-vl-max')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Load all available models/i }))
 
     await waitFor(() => {
-      expect(screen.queryByText('1 model available')).not.toBeInTheDocument()
+      expect(sendMock).toHaveBeenCalledWith('/api/ai-providers/models/alibaba-cloud-bailian-1494', {
+        method: 'GET',
+      })
     })
+
+    expect(screen.getByLabelText('qwen-max')).toBeChecked()
+    expect(screen.getByLabelText('qwen-plus')).toBeChecked()
+    expect(screen.getByLabelText('qwen-turbo')).toBeChecked()
+    expect(screen.getByLabelText('qwen-vl-max')).toBeChecked()
+    expect(screen.getByLabelText('qwen-coder-plus')).not.toBeChecked()
+  })
+
+  it('shouldAutoListModels: skips when already fetched, blocks on failure, proceeds with pre-selected models', async () => {
+    const setError = vi.fn()
+    const setSaving = vi.fn()
+
+    // Already fetched — no need to re-fetch
+    await expect(
+      shouldAutoListModels({
+        lastFetchSucceeded: true,
+        runFetchModels: vi.fn(),
+        setError,
+        setSaving,
+      })
+    ).resolves.toBe(true)
+
+    // Not yet fetched, but fetch fails (no API key) — blocked
+    await expect(
+      shouldAutoListModels({
+        lastFetchSucceeded: false,
+        runFetchModels: async () => ({ success: false, selected: [] }),
+        setError,
+        setSaving,
+      })
+    ).resolves.toBe(false)
+    expect(setSaving).toHaveBeenCalledWith(false)
+
+    // Not yet fetched, fetch succeeds with pre-selected models — proceeds
+    setSaving.mockReset()
+    await expect(
+      shouldAutoListModels({
+        lastFetchSucceeded: false,
+        runFetchModels: async () => ({ success: true, selected: ['llama3', 'mistral'] }),
+        setError,
+        setSaving,
+      })
+    ).resolves.toBe(true)
+    expect(setSaving).not.toHaveBeenCalled()
+
+    // Not yet fetched, fetch succeeds but zero models — blocked with error
+    setSaving.mockReset()
+    await expect(
+      shouldAutoListModels({
+        lastFetchSucceeded: false,
+        runFetchModels: async () => ({ success: true, selected: [] }),
+        setError,
+        setSaving,
+      })
+    ).resolves.toBe(false)
+    expect(setError).toHaveBeenCalledWith('Select at least one model after listing models.')
+    expect(setSaving).toHaveBeenCalledWith(false)
   })
 })

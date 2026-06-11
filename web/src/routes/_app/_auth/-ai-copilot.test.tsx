@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AIChatPage } from './ai-chat'
-import { sendAIChatMessage } from '@/lib/ai-chat-api'
+import { AICopilotPage } from './ai-copilot'
+import { sendAICopilotMessage } from '@/lib/ai-copilot-api'
 
 const listSessionsMock = vi.fn()
 const createSessionMock = vi.fn()
@@ -10,9 +10,11 @@ const deleteSessionMock = vi.fn()
 const listMessagesMock = vi.fn()
 const listModelsMock = vi.fn()
 const sendMessageMock = vi.fn()
+const navigateMock = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (config: Record<string, unknown>) => config,
+  useNavigate: () => navigateMock,
 }))
 
 vi.mock('react-i18next', () => ({
@@ -63,12 +65,20 @@ vi.mock('react-i18next', () => ({
           return 'Send message'
         case 'actions.copyMarkdown':
           return 'Copy markdown'
+        case 'actions.configureModels':
+          return 'Configure models'
         case 'fields.conversationTitle':
           return 'Conversation title'
         case 'fields.messagePlaceholder':
           return 'Ask about operations, diagnosis, or AppOS knowledge'
         case 'fields.fileUpload':
           return 'Chat file upload'
+        case 'fields.modelSearchPlaceholder':
+          return 'Search models...'
+        case 'fields.noModelsAvailable':
+          return 'No AI models available'
+        case 'fields.noModelsMatchSearch':
+          return 'No models match your search'
         case 'messages.loadError':
           return 'Failed to load AI Copilot'
         case 'messages.renameError':
@@ -105,14 +115,14 @@ vi.mock('react-i18next', () => ({
   }),
 }))
 
-vi.mock('@/lib/ai-chat-api', () => ({
-  listAIChatSessions: (...args: unknown[]) => listSessionsMock(...args),
-  createAIChatSession: (...args: unknown[]) => createSessionMock(...args),
-  updateAIChatSession: (...args: unknown[]) => updateSessionMock(...args),
-  deleteAIChatSession: (...args: unknown[]) => deleteSessionMock(...args),
-  listAIChatMessages: (...args: unknown[]) => listMessagesMock(...args),
-  listAIChatModels: (...args: unknown[]) => listModelsMock(...args),
-  sendAIChatMessage: (...args: unknown[]) => sendMessageMock(...args),
+vi.mock('@/lib/ai-copilot-api', () => ({
+  listAICopilotSessions: (...args: unknown[]) => listSessionsMock(...args),
+  createAICopilotSession: (...args: unknown[]) => createSessionMock(...args),
+  updateAICopilotSession: (...args: unknown[]) => updateSessionMock(...args),
+  deleteAICopilotSession: (...args: unknown[]) => deleteSessionMock(...args),
+  listAICopilotMessages: (...args: unknown[]) => listMessagesMock(...args),
+  listAICopilotModels: (...args: unknown[]) => listModelsMock(...args),
+  sendAICopilotMessage: (...args: unknown[]) => sendMessageMock(...args),
 }))
 
 afterEach(() => {
@@ -127,8 +137,9 @@ beforeAll(() => {
   })
 })
 
-describe('AIChatPage', () => {
+describe('AICopilotPage', () => {
   beforeEach(() => {
+    localStorage.clear()
     listSessionsMock.mockReset()
     createSessionMock.mockReset()
     updateSessionMock.mockReset()
@@ -136,6 +147,7 @@ describe('AIChatPage', () => {
     listMessagesMock.mockReset()
     listModelsMock.mockReset()
     sendMessageMock.mockReset()
+    navigateMock.mockReset()
     listSessionsMock.mockResolvedValue([{ id: 'session-1', title: 'Ops chat' }])
     listMessagesMock.mockResolvedValue([
       { id: 'msg-1', session_id: 'session-1', role: 'user', content: 'hello' },
@@ -163,7 +175,7 @@ describe('AIChatPage', () => {
   })
 
   it('loads sessions and message history', async () => {
-    render(<AIChatPage />)
+    render(<AICopilotPage />)
 
     expect(await screen.findByRole('heading', { name: 'Ops chat' })).toBeInTheDocument()
     expect(await screen.findByText('hello')).toBeInTheDocument()
@@ -172,7 +184,7 @@ describe('AIChatPage', () => {
   })
 
   it('disables empty sends and renders streamed assistant output', async () => {
-    render(<AIChatPage />)
+    render(<AICopilotPage />)
     const input = await screen.findByPlaceholderText(
       'Ask about operations, diagnosis, or AppOS knowledge'
     )
@@ -186,7 +198,7 @@ describe('AIChatPage', () => {
         _content: string,
         _providerId: string,
         _model: string,
-        callbacks: Parameters<typeof sendAIChatMessage>[4]
+        callbacks: Parameters<typeof sendAICopilotMessage>[4]
       ) => {
         callbacks.onChunk('received: ')
         callbacks.onChunk('check nginx')
@@ -217,13 +229,16 @@ describe('AIChatPage', () => {
   })
 
   it('lets the user switch to another provider-backed model before sending', async () => {
-    render(<AIChatPage />)
+    render(<AICopilotPage />)
 
     const input = await screen.findByPlaceholderText(
       'Ask about operations, diagnosis, or AppOS knowledge'
     )
-    const modelSelect = await screen.findByRole('combobox')
-    expect(screen.getByRole('option', { name: 'gpt-4.1' })).toBeInTheDocument()
+    const modelTrigger = await screen.findByText('openai/gpt-4.1-mini · OpenRouter')
+    fireEvent.click(modelTrigger)
+    const gptOption = await screen.findByText('gpt-4.1')
+    expect(gptOption).toBeInTheDocument()
+    fireEvent.click(gptOption)
 
     sendMessageMock.mockImplementation(
       async (
@@ -231,7 +246,7 @@ describe('AIChatPage', () => {
         _content: string,
         _providerId: string,
         _model: string,
-        callbacks: Parameters<typeof sendAIChatMessage>[4]
+        callbacks: Parameters<typeof sendAICopilotMessage>[4]
       ) => {
         callbacks.onDone?.({
           id: 'msg-3',
@@ -242,7 +257,6 @@ describe('AIChatPage', () => {
       }
     )
 
-    fireEvent.change(modelSelect, { target: { value: 'provider-2::gpt-4.1' } })
     fireEvent.change(input, { target: { value: 'use direct openai' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
@@ -258,8 +272,20 @@ describe('AIChatPage', () => {
     )
   })
 
+  it('navigates to AI providers when configuring models', async () => {
+    render(<AICopilotPage />)
+
+    const modelTrigger = await screen.findByText('openai/gpt-4.1-mini · OpenRouter')
+    fireEvent.click(modelTrigger)
+    fireEvent.click(await screen.findByRole('button', { name: 'Configure models' }))
+
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith({ to: '/resources/ai-providers', search: { create: undefined } })
+    })
+  })
+
   it('shows provider setup errors without erasing persisted history', async () => {
-    render(<AIChatPage />)
+    render(<AICopilotPage />)
     const input = await screen.findByPlaceholderText(
       'Ask about operations, diagnosis, or AppOS knowledge'
     )
@@ -274,7 +300,7 @@ describe('AIChatPage', () => {
   })
 
   it('renames and deletes saved conversations', async () => {
-    render(<AIChatPage />)
+    render(<AICopilotPage />)
 
     await screen.findByRole('heading', { name: 'Ops chat' })
     fireEvent.pointerDown(screen.getByRole('button', { name: 'Conversation actions for Ops chat' }))
@@ -299,7 +325,7 @@ describe('AIChatPage', () => {
   })
 
   it('attaches uploaded files when sending a message', async () => {
-    render(<AIChatPage />)
+    render(<AICopilotPage />)
     const input = await screen.findByPlaceholderText(
       'Ask about operations, diagnosis, or AppOS knowledge'
     )
@@ -319,7 +345,7 @@ describe('AIChatPage', () => {
         _content: string,
         _providerId: string,
         _model: string,
-        callbacks: Parameters<typeof sendAIChatMessage>[4]
+        callbacks: Parameters<typeof sendAICopilotMessage>[4]
       ) => {
         callbacks.onDone?.({
           id: 'msg-3',
@@ -338,8 +364,8 @@ describe('AIChatPage', () => {
       expect(sendMessageMock).toHaveBeenCalledWith(
         'session-1',
         'review attachment',
-        'provider-2',
-        'gpt-4.1',
+        'provider-1',
+        'openai/gpt-4.1-mini',
         expect.any(Object),
         [
           expect.objectContaining({
@@ -354,7 +380,7 @@ describe('AIChatPage', () => {
   })
 
   it('copies the assistant markdown raw content', async () => {
-    render(<AIChatPage />)
+    render(<AICopilotPage />)
 
     await screen.findByText('hi')
     fireEvent.click(screen.getByRole('button', { name: 'Copy markdown' }))
@@ -372,7 +398,7 @@ describe('AIChatPage', () => {
       },
     ])
 
-    render(<AIChatPage />)
+    render(<AICopilotPage />)
 
     expect(await screen.findByRole('table')).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: 'Name' })).toBeInTheDocument()
@@ -381,7 +407,7 @@ describe('AIChatPage', () => {
   })
 
   it('creates a new conversation from the conversations header plus button', async () => {
-    render(<AIChatPage />)
+    render(<AICopilotPage />)
 
     await screen.findByRole('heading', { name: 'Ops chat' })
     fireEvent.click(screen.getByRole('button', { name: 'Create conversation' }))
@@ -392,7 +418,7 @@ describe('AIChatPage', () => {
   it('keeps a true empty state when no conversations exist', async () => {
     listSessionsMock.mockResolvedValueOnce([])
 
-    render(<AIChatPage />)
+    render(<AICopilotPage />)
 
     expect(await screen.findByText('Start a conversation')).toBeInTheDocument()
     expect(createSessionMock).not.toHaveBeenCalled()
@@ -410,7 +436,7 @@ describe('AIChatPage', () => {
         _content: string,
         _providerId: string,
         _model: string,
-        callbacks: Parameters<typeof sendAIChatMessage>[4]
+        callbacks: Parameters<typeof sendAICopilotMessage>[4]
       ) => {
         callbacks.onDone?.({
           id: 'msg-3',
@@ -421,7 +447,7 @@ describe('AIChatPage', () => {
       }
     )
 
-    render(<AIChatPage />)
+    render(<AICopilotPage />)
 
     const input = await screen.findByPlaceholderText(
       'Ask about operations, diagnosis, or AppOS knowledge'
@@ -434,8 +460,8 @@ describe('AIChatPage', () => {
       expect(sendMessageMock).toHaveBeenCalledWith(
         'session-new',
         'hello from empty state',
-        'provider-2',
-        'gpt-4.1',
+        'provider-1',
+        'openai/gpt-4.1-mini',
         expect.any(Object),
         []
       )

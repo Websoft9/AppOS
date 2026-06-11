@@ -6,6 +6,7 @@
   "description": "Alibaba Cloud Bailian (Qwen) model gateway and model management platform.",
   "helpUrl": "https://www.alibabacloud.com/help/en/model-studio/",
   "defaultEndpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "skipTLSCertVerify": true,
   "defaultEnabledModels": [
     "qwen-turbo",
     "qwen-plus",

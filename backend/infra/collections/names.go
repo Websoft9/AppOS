@@ -4,9 +4,9 @@ const Connectors = "connectors"
 
 const AIProviders = "ai_providers"
 
-const AIChatSessions = "ai_chat_sessions"
+const AICopilotSessions = "ai_copilot_sessions"
 
-const AIChatMessages = "ai_chat_messages"
+const AICopilotMessages = "ai_copilot_messages"
 
 const Instances = "instances"
 

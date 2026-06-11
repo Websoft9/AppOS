@@ -66,7 +66,7 @@ type NavLabels = {
     deploy: string
     actions: string
     terminal: string
-    aiChat: string
+    aiCopilot: string
     collaboration: string
     groups: string
     topics: string
@@ -107,7 +107,7 @@ const DEFAULT_NAV_LABELS: NavLabels = {
     deploy: 'Deploy',
     actions: 'Activity',
     terminal: 'Terminal',
-    aiChat: 'AI Copilot',
+    aiCopilot: 'AI Copilot',
     collaboration: 'Collaboration',
     groups: 'Groups',
     topics: 'Topics',
@@ -167,10 +167,10 @@ function buildWorkspaceGroup(labels: NavLabels): NavGroup {
         href: '/terminal',
       },
       {
-        id: 'ai-chat',
-        label: labels.items.aiChat,
+        id: 'ai-copilot',
+        label: labels.items.aiCopilot,
         icon: <BotMessageSquare className="h-5 w-5" />,
-        href: '/ai-chat',
+        href: '/ai-copilot',
       },
       {
         id: 'collaboration',
@@ -512,7 +512,7 @@ export function Sidebar({ groups }: SidebarProps) {
         deploy: t('items.deploy'),
         actions: t('items.actions'),
         terminal: t('items.terminal'),
-        aiChat: t('items.aiChat'),
+        aiCopilot: t('items.aiCopilot'),
         collaboration: t('items.collaboration'),
         groups: t('items.groups'),
         topics: t('items.topics'),

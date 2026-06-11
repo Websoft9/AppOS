@@ -1,22 +1,23 @@
 services:
   appos:
-    image: websoft9dev/appos:${IMAGE_TAG:-latest}
-    container_name: ${CONTAINER_NAME:-appos}
-    restart: ${RESTART_POLICY:-unless-stopped}
+    image: websoft9dev/appos:${IMAGE_TAG}
+    container_name: ${CONTAINER_NAME}
+    restart: ${RESTART_POLICY}
     ports:
-      - "${HTTP_PORT:-9091}:80"
-      - "${TUNNEL_SSH_PORT:-9222}:2222"
-      #- "${TUNNEL_PORT_START:-40000}-${TUNNEL_PORT_END:-49999}:40000-49999"
+      - "${HTTP_PORT}:80"
+      - "${TUNNEL_SSH_PORT}:2222"
+      #- "${TUNNEL_PORT_START}-${TUNNEL_PORT_END}:40000-49999"
     volumes:
-      - appos_data:/appos/data
+      - appos_data:${DATA_DIR}
     environment:
       - TZ=UTC
-      - INIT_MODE=${INIT_MODE:-setup}
-      - SUPERUSER_EMAIL=${SUPERUSER_EMAIL:-admin@example.com}
-      - SUPERUSER_PASSWORD=${SUPERUSER_PASSWORD:-changeme123}
-      - TUNNEL_SSH_PORT=${TUNNEL_SSH_PORT:-9222}
-      - REDIS_ADDR=${REDIS_ADDR:-127.0.0.1:6379}
-      - TSDB_ADDR=${TSDB_ADDR:-http://127.0.0.1:8428}
+      - DATA_DIR=${DATA_DIR}
+      - INIT_MODE=${INIT_MODE}
+      - SUPERUSER_EMAIL=${SUPERUSER_EMAIL}
+      - SUPERUSER_PASSWORD=${SUPERUSER_PASSWORD}
+      - TUNNEL_SSH_PORT=${TUNNEL_SSH_PORT}
+      - REDIS_URL=${REDIS_URL}
+      - TSDB_URL=${TSDB_URL}
 
   # Optional: External reverse proxy for SSL and domain routing
   # reverse-proxy:

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import {
   Bot,
   Check,
+  ChevronDown,
   Copy,
   FileUp,
   Loader2,
@@ -14,7 +15,9 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  Search,
   Send,
+  Settings,
   Trash2,
   User,
   X,
@@ -38,20 +41,21 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { MarkdownView } from '@/components/ui/markdown'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
 import {
-  createAIChatSession,
-  deleteAIChatSession,
-  listAIChatModels,
-  listAIChatMessages,
-  listAIChatSessions,
-  sendAIChatMessage,
-  updateAIChatSession,
-  type AIChatAttachment,
-  type AIChatModelOption,
-  type AIChatMessage,
-  type AIChatSession,
-} from '@/lib/ai-chat-api'
+  createAICopilotSession,
+  deleteAICopilotSession,
+  listAICopilotModels,
+  listAICopilotMessages,
+  listAICopilotSessions,
+  sendAICopilotMessage,
+  updateAICopilotSession,
+  type AICopilotAttachment,
+  type AICopilotModelOption,
+  type AICopilotMessage,
+  type AICopilotSession,
+} from '@/lib/ai-copilot-api'
 import { getApiErrorMessage } from '@/lib/api-error'
 import { copyToClipboard } from '@/lib/clipboard'
 import { getLocale } from '@/lib/i18n'
@@ -73,10 +77,10 @@ type DraftAttachment = {
 
 type ParsedUserMessage = {
   text: string
-  attachments: AIChatAttachment[]
+  attachments: AICopilotAttachment[]
 }
 
-function modelSelectionValue(option: Pick<AIChatModelOption, 'provider_id' | 'model_id'>) {
+function modelSelectionValue(option: Pick<AICopilotModelOption, 'provider_id' | 'model_id'>) {
   return `${option.provider_id}::${option.model_id}`
 }
 
@@ -166,7 +170,7 @@ async function buildDraftAttachment(
   }
 }
 
-function parseUserMessageContent(message: AIChatMessage): ParsedUserMessage {
+function parseUserMessageContent(message: AICopilotMessage): ParsedUserMessage {
   if (message.role !== 'user') {
     return { text: message.content, attachments: [] }
   }
@@ -184,7 +188,7 @@ function parseUserMessageContent(message: AIChatMessage): ParsedUserMessage {
         USER_MESSAGE_ENVELOPE_START.length,
         trimmed.length - USER_MESSAGE_ENVELOPE_END.length
       )
-    ) as { text?: string; attachments?: AIChatAttachment[] }
+    ) as { text?: string; attachments?: AICopilotAttachment[] }
     return {
       text: payload.text?.trim() ?? '',
       attachments: Array.isArray(payload.attachments) ? payload.attachments : [],
@@ -194,59 +198,59 @@ function parseUserMessageContent(message: AIChatMessage): ParsedUserMessage {
   }
 }
 
-export function AIChatPage() {
-  const { t } = useTranslation('aiChat')
-  const [sessions, setSessions] = useState<AIChatSession[]>([])
+export function AICopilotPage() {
+  const navigate = useNavigate()
+  const { t } = useTranslation('aiCopilot')
+  const [sessions, setSessions] = useState<AICopilotSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState('')
-  const [messages, setMessages] = useState<AIChatMessage[]>([])
+  const [messages, setMessages] = useState<AICopilotMessage[]>([])
   const [draft, setDraft] = useState('')
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
-  const [selectedModel, setSelectedModel] = useState(() => localStorage.getItem('ai-chat-model') ?? '')
-  const [availableModels, setAvailableModels] = useState<AIChatModelOption[]>([])
+  const [selectedModel, setSelectedModel] = useState(() => localStorage.getItem('ai-copilot-model') ?? '')
+  const [availableModels, setAvailableModels] = useState<AICopilotModelOption[]>([])
   const [loadingModels, setLoadingModels] = useState(false)
+  const [modelSearchQuery, setModelSearchQuery] = useState('')
+  const [modelPopoverOpen, setModelPopoverOpen] = useState(false)
 
   useEffect(() => {
-    localStorage.setItem('ai-chat-model', selectedModel)
+    localStorage.setItem('ai-copilot-model', selectedModel)
   }, [selectedModel])
 
-  useEffect(() => {
-    let cancelled = false
+  const refreshModels = useCallback(async () => {
     setLoadingModels(true)
-    void listAIChatModels()
-      .then(models => {
-        if (cancelled) return
-        setAvailableModels(models)
-        if (models.length > 0) {
-          const stored = localStorage.getItem('ai-chat-model')
-          const fallback = modelSelectionValue(models[0])
-          if (stored && models.some(model => modelSelectionValue(model) === stored)) {
-            setSelectedModel(stored)
-          } else {
-            setSelectedModel(fallback)
-          }
+    try {
+      const models = await listAICopilotModels()
+      setAvailableModels(models)
+      if (models.length > 0) {
+        const stored = localStorage.getItem('ai-copilot-model')
+        const fallback = modelSelectionValue(models[0])
+        if (stored && models.some(m => modelSelectionValue(m) === stored)) {
+          setSelectedModel(stored)
         } else {
-          setSelectedModel('')
+          setSelectedModel(fallback)
         }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setAvailableModels([])
-          setSelectedModel('')
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingModels(false)
-      })
-    return () => { cancelled = true }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+      } else {
+        setSelectedModel('')
+      }
+    } catch {
+      setAvailableModels([])
+      setSelectedModel('')
+    } finally {
+      setLoadingModels(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void refreshModels()
+  }, [refreshModels])
   const [busySessionId, setBusySessionId] = useState('')
   const [renamingSessionId, setRenamingSessionId] = useState('')
   const [renameDraft, setRenameDraft] = useState('')
   const [attachments, setAttachments] = useState<DraftAttachment[]>([])
   const [conversationListWide, setConversationListWide] = useState(true)
-  const [deleteTarget, setDeleteTarget] = useState<AIChatSession | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<AICopilotSession | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -260,7 +264,7 @@ export function AIChatPage() {
   const attachmentsLoading = attachments.some(item => item.loading)
 
   const refreshSessions = useCallback(async () => {
-    const items = await listAIChatSessions()
+    const items = await listAICopilotSessions()
     setSessions(items)
     return items
   }, [])
@@ -270,16 +274,26 @@ export function AIChatPage() {
       setMessages([])
       return
     }
-    setMessages(await listAIChatMessages(sessionId))
+    setMessages(await listAICopilotMessages(sessionId))
   }, [])
 
   const createSession = useCallback(async () => {
     setError('')
-    const session = await createAIChatSession()
+    const session = await createAICopilotSession()
     setSessions(prev => [session, ...prev])
     setActiveSessionId(session.id)
     setMessages([])
   }, [])
+
+  const filteredModels = useMemo(() => {
+    const query = modelSearchQuery.trim().toLowerCase()
+    if (!query) return availableModels
+    return availableModels.filter(
+      m => m.label.toLowerCase().includes(query) ||
+        m.model_id.toLowerCase().includes(query) ||
+        (m.provider_name ?? '').toLowerCase().includes(query)
+    )
+  }, [availableModels, modelSearchQuery])
 
   useEffect(() => {
     let cancelled = false
@@ -317,7 +331,7 @@ export function AIChatPage() {
     await loadMessages(sessionId)
   }
 
-  const startRename = (session: AIChatSession) => {
+  const startRename = (session: AICopilotSession) => {
     setRenamingSessionId(session.id)
     setRenameDraft(session.title || defaultSessionTitle)
   }
@@ -328,7 +342,7 @@ export function AIChatPage() {
     setBusySessionId(sessionId)
     setError('')
     try {
-      const session = await updateAIChatSession(sessionId, nextTitle)
+      const session = await updateAICopilotSession(sessionId, nextTitle)
       setSessions(prev => prev.map(item => (item.id === sessionId ? session : item)))
       setRenamingSessionId('')
       setRenameDraft('')
@@ -339,11 +353,11 @@ export function AIChatPage() {
     }
   }
 
-  const removeSession = async (session: AIChatSession) => {
+  const removeSession = async (session: AICopilotSession) => {
     setBusySessionId(session.id)
     setError('')
     try {
-      await deleteAIChatSession(session.id)
+      await deleteAICopilotSession(session.id)
       const remaining = sessions.filter(item => item.id !== session.id)
       setSessions(remaining)
       setRenamingSessionId(prev => (prev === session.id ? '' : prev))
@@ -400,7 +414,7 @@ export function AIChatPage() {
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     const content = draft.trim()
-    const outgoingAttachments: AIChatAttachment[] = attachments.map(item => ({
+    const outgoingAttachments: AICopilotAttachment[] = attachments.map(item => ({
       name: item.name,
       mime_type: item.mimeType,
       size: item.size,
@@ -414,14 +428,14 @@ export function AIChatPage() {
 
     let sessionId = activeSessionId
     if (!sessionId) {
-      const created = await createAIChatSession()
+      const created = await createAICopilotSession()
       sessionId = created.id
       setSessions(prev => [created, ...prev])
       setActiveSessionId(created.id)
       setMessages([])
     }
 
-    const userMessage: AIChatMessage = {
+    const userMessage: AICopilotMessage = {
       id: `local-user-${Date.now()}`,
       session_id: sessionId,
       role: 'user',
@@ -431,7 +445,7 @@ export function AIChatPage() {
           : content,
     }
     const assistantId = `local-assistant-${Date.now()}`
-    const assistantMessage: AIChatMessage = {
+    const assistantMessage: AICopilotMessage = {
       id: assistantId,
       session_id: sessionId,
       role: 'assistant',
@@ -441,7 +455,7 @@ export function AIChatPage() {
 
     try {
       const targetModel = parseModelSelection(selectedModel)
-      await sendAIChatMessage(
+      await sendAICopilotMessage(
         sessionId,
         content,
         targetModel.providerId,
@@ -773,27 +787,77 @@ export function AIChatPage() {
                     >
                       <FileUp className="h-3 w-3" />
                     </Button>
-                    {availableModels.length > 0 ? (
-                      <select
-                        className="h-7 rounded-md border border-input bg-background px-2 text-xs text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                        value={selectedModel}
-                        onChange={e => setSelectedModel(e.target.value)}
-                        disabled={sending}
-                      >
-                        {availableModels.map(model => (
-                          <option
-                            key={modelSelectionValue(model)}
-                            value={modelSelectionValue(model)}
+                    <Popover open={modelPopoverOpen} onOpenChange={setModelPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex h-7 items-center gap-1 rounded-md border border-input bg-background px-2 text-xs text-muted-foreground hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                          disabled={sending || loadingModels}
+                        >
+                          {loadingModels ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : selectedModel ? (
+                            <span className="max-w-[120px] truncate">
+                              {availableModels.find(m => modelSelectionValue(m) === selectedModel)?.label ?? selectedModel}
+                            </span>
+                          ) : (
+                            <span>{t('fields.noModelsAvailable')}</span>
+                          )}
+                          <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64 p-0" align="start">
+                        <div className="flex items-center border-b px-3 py-2">
+                          <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                          <input
+                            className="flex h-8 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
+                            placeholder={t('fields.modelSearchPlaceholder')}
+                            value={modelSearchQuery}
+                            onChange={e => setModelSearchQuery(e.target.value)}
+                            autoFocus
+                          />
+                        </div>
+                        <div className="max-h-48 overflow-y-auto p-1">
+                          {filteredModels.length > 0 ? (
+                            filteredModels.map(model => (
+                              <button
+                                key={modelSelectionValue(model)}
+                                type="button"
+                                className={cn(
+                                  'flex w-full items-center rounded-sm px-2 py-1.5 text-xs hover:bg-accent hover:text-accent-foreground',
+                                  modelSelectionValue(model) === selectedModel && 'bg-accent/50 font-medium'
+                                )}
+                                onClick={() => {
+                                  setSelectedModel(modelSelectionValue(model))
+                                  setModelPopoverOpen(false)
+                                  setModelSearchQuery('')
+                                }}
+                              >
+                                <span className="truncate">{model.label}</span>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="px-2 py-4 text-center text-xs text-muted-foreground">
+                              {modelSearchQuery ? t('fields.noModelsMatchSearch') : t('fields.noModelsAvailable')}
+                            </div>
+                          )}
+                        </div>
+                        <div className="border-t p-1">
+                          <button
+                            type="button"
+                            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                            onClick={async () => {
+                              setModelPopoverOpen(false)
+                              setModelSearchQuery('')
+                              await navigate({ to: '/resources/ai-providers', search: { create: undefined } })
+                            }}
                           >
-                            {model.label}
-                          </option>
-                        ))}
-                      </select>
-                    ) : loadingModels ? (
-                      <span className="flex items-center gap-1 h-7 px-2 text-xs text-muted-foreground">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      </span>
-                    ) : null}
+                            <Settings className="h-3.5 w-3.5" />
+                            {t('actions.configureModels')}
+                          </button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                     <div className="flex-1" />
                     <Button
                       type="submit"
@@ -846,8 +910,8 @@ export function AIChatPage() {
   )
 }
 
-function MessageBubble({ message }: { message: AIChatMessage }) {
-  const { t } = useTranslation('aiChat')
+function MessageBubble({ message }: { message: AICopilotMessage }) {
+  const { t } = useTranslation('aiCopilot')
   const isUser = message.role === 'user'
   const parsed = parseUserMessageContent(message)
 
@@ -888,7 +952,7 @@ function MessageBubble({ message }: { message: AIChatMessage }) {
 }
 
 function AssistantMessageContent({ content }: { content: string }) {
-  const { t } = useTranslation('aiChat')
+  const { t } = useTranslation('aiCopilot')
   const [copied, setCopied] = useState(false)
 
   const handleCopy = async () => {
@@ -918,6 +982,6 @@ function AssistantMessageContent({ content }: { content: string }) {
   )
 }
 
-export const Route = createFileRoute('/_app/_auth/ai-chat')({
-  component: AIChatPage,
+export const Route = createFileRoute('/_app/_auth/ai-copilot')({
+  component: AICopilotPage,
 })

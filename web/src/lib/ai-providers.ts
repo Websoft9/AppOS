@@ -55,10 +55,7 @@ export const SECRET_TEMPLATE_LABELS: Record<string, string> = {
 export const AI_PROVIDER_CREDENTIAL_TEMPLATE_ID = 'single_value'
 
 export function formatSecretLabel(raw: Record<string, unknown>): string {
-  const name = String(raw.name ?? raw.id)
-  const templateId = String(raw.template_id ?? '')
-  const suffix = SECRET_TEMPLATE_LABELS[templateId]
-  return suffix ? `${name} (${suffix})` : name
+  return String(raw.name ?? raw.id)
 }
 
 function humanizeTemplateId(templateId: string) {
@@ -74,7 +71,7 @@ export function productTitle(template: AIProviderTemplate) {
 }
 
 export function chooserTitle(template: AIProviderTemplate) {
-  return String(template.vendor ?? '').trim() || productTitle(template)
+  return productTitle(template)
 }
 
 export function isGatewayProviderTemplate(template: AIProviderTemplate | null | undefined) {

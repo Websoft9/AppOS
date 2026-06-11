@@ -242,6 +242,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 	secret := createRouteSecret(t, te, "global", "")
+	otherSecret := createRouteSecret(t, te, "global", "")
 
 	rec := te.do(t, http.MethodPost, "/api/ai-providers",
 		`{"name":"workspace-openai","is_default":true,"template_id":"openai","credential":"`+secret.Id+`","config":{"defaultModel":"gpt-4.1-mini"}}`, true)
@@ -281,7 +282,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 	}
 
 	rec = te.do(t, http.MethodPost, "/api/ai-providers",
-		`{"name":"fallback-openai","is_default":true,"template_id":"openai","credential":"`+secret.Id+`"}`, true)
+		`{"name":"fallback-openai","is_default":true,"template_id":"openai","credential":"`+otherSecret.Id+`"}`, true)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create second default AI provider: expected 201, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -314,9 +315,18 @@ func TestAIProvidersCRUD(t *testing.T) {
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("delete AI provider: expected 204, got %d: %s", rec.Code, rec.Body.String())
 	}
+	if _, err := te.app.FindRecordById("secrets", secret.Id); err == nil {
+		t.Fatalf("expected deleted AI provider secret %s to be removed", secret.Id)
+	}
+	if _, err := te.app.FindRecordById("secrets", otherSecret.Id); err != nil {
+		t.Fatalf("expected second AI provider secret %s to remain before provider delete: %v", otherSecret.Id, err)
+	}
 	rec = te.do(t, http.MethodDelete, "/api/ai-providers/"+otherID, "", true)
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("delete second AI provider: expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if _, err := te.app.FindRecordById("secrets", otherSecret.Id); err == nil {
+		t.Fatalf("expected deleted second AI provider secret %s to be removed", otherSecret.Id)
 	}
 }
 

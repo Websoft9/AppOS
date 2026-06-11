@@ -1689,9 +1689,9 @@ paths:
             summary: Get ai providers templates by id
             tags:
                 - AI Providers
-    /api/ai/chat/sessions:
+    /api/ai/copilot/sessions:
         get:
-            operationId: get_api_ai_chat_sessions
+            operationId: get_api_ai_copilot_sessions
             responses:
                 "200":
                     content:
@@ -1707,11 +1707,11 @@ paths:
                     description: Unauthorized
             security:
                 - bearerAuth: []
-            summary: Get ai chat sessions
+            summary: Get ai copilot sessions
             tags:
                 - AI Chat
         post:
-            operationId: post_api_ai_chat_sessions
+            operationId: post_api_ai_copilot_sessions
             requestBody:
                 content:
                     application/json:
@@ -1733,12 +1733,12 @@ paths:
                     description: Unauthorized
             security:
                 - bearerAuth: []
-            summary: Create or execute ai chat sessions
+            summary: Create or execute ai copilot sessions
             tags:
                 - AI Chat
-    /api/ai/chat/sessions/{sessionId}:
+    /api/ai/copilot/sessions/{sessionId}:
         delete:
-            operationId: delete_api_ai_chat_sessions_sessionid
+            operationId: delete_api_ai_copilot_sessions_sessionid
             parameters:
                 - in: path
                   name: sessionId
@@ -1760,11 +1760,11 @@ paths:
                     description: Unauthorized
             security:
                 - bearerAuth: []
-            summary: Delete ai chat sessions by sessionId
+            summary: Delete ai copilot sessions by sessionId
             tags:
                 - AI Chat
         patch:
-            operationId: patch_api_ai_chat_sessions_sessionid
+            operationId: patch_api_ai_copilot_sessions_sessionid
             parameters:
                 - in: path
                   name: sessionId
@@ -1792,12 +1792,12 @@ paths:
                     description: Unauthorized
             security:
                 - bearerAuth: []
-            summary: Patch ai chat sessions by sessionId
+            summary: Patch ai copilot sessions by sessionId
             tags:
                 - AI Chat
-    /api/ai/chat/sessions/{sessionId}/messages:
+    /api/ai/copilot/sessions/{sessionId}/messages:
         get:
-            operationId: get_api_ai_chat_sessions_sessionid_messages
+            operationId: get_api_ai_copilot_sessions_sessionid_messages
             parameters:
                 - in: path
                   name: sessionId
@@ -1819,11 +1819,11 @@ paths:
                     description: Unauthorized
             security:
                 - bearerAuth: []
-            summary: Get ai chat sessions by sessionId messages
+            summary: Get ai copilot sessions by sessionId messages
             tags:
                 - AI Chat
         post:
-            operationId: post_api_ai_chat_sessions_sessionid_messages
+            operationId: post_api_ai_copilot_sessions_sessionid_messages
             parameters:
                 - in: path
                   name: sessionId
@@ -1851,7 +1851,7 @@ paths:
                     description: Unauthorized
             security:
                 - bearerAuth: []
-            summary: Create or execute ai chat sessions by sessionId messages
+            summary: Create or execute ai copilot sessions by sessionId messages
             tags:
                 - AI Chat
     /api/apps:

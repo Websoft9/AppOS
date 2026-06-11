@@ -11,7 +11,7 @@
     "deploy": "Deploy",
     "actions": "Activity",
     "terminal": "Terminal",
-    "aiChat": "AI Copilot",
+    "aiCopilot": "AI Copilot",
     "collaboration": "Collaboration",
     "groups": "Groups",
     "topics": "Topics",

@@ -23,12 +23,16 @@
     "delete": "Delete",
     "uploadFiles": "Upload files",
     "sendMessage": "Send message",
-    "copyMarkdown": "Copy markdown"
+    "copyMarkdown": "Copy markdown",
+    "configureModels": "Configure models"
   },
   "fields": {
     "conversationTitle": "Conversation title",
     "messagePlaceholder": "Ask about operations, diagnosis, or AppOS knowledge",
-    "fileUpload": "Chat file upload"
+    "fileUpload": "Chat file upload",
+    "modelSearchPlaceholder": "Search models...",
+    "noModelsAvailable": "No AI models available",
+    "noModelsMatchSearch": "No models match your search"
   },
   "messages": {
     "loadError": "Failed to load AI Copilot",

@@ -9,27 +9,27 @@ import (
 
 func init() {
 	m.Register(func(app core.App) error {
-		if err := ensureAIChatSessionsCollection(app); err != nil {
+		if err := ensureAICopilotSessionsCollection(app); err != nil {
 			return err
 		}
-		return ensureAIChatMessagesCollection(app)
+		return ensureAICopilotMessagesCollection(app)
 	}, func(app core.App) error {
-		if col, err := app.FindCollectionByNameOrId(collections.AIChatMessages); err == nil {
+		if col, err := app.FindCollectionByNameOrId(collections.AICopilotMessages); err == nil {
 			if err := app.Delete(col); err != nil {
 				return err
 			}
 		}
-		if col, err := app.FindCollectionByNameOrId(collections.AIChatSessions); err == nil {
+		if col, err := app.FindCollectionByNameOrId(collections.AICopilotSessions); err == nil {
 			return app.Delete(col)
 		}
 		return nil
 	})
 }
 
-func ensureAIChatSessionsCollection(app core.App) error {
-	col, err := app.FindCollectionByNameOrId(collections.AIChatSessions)
+func ensureAICopilotSessionsCollection(app core.App) error {
+	col, err := app.FindCollectionByNameOrId(collections.AICopilotSessions)
 	if err != nil {
-		col = core.NewBaseCollection(collections.AIChatSessions)
+		col = core.NewBaseCollection(collections.AICopilotSessions)
 	}
 	col.ListRule = types.Pointer("@request.auth.collectionName = '_superusers'")
 	col.ViewRule = types.Pointer("@request.auth.collectionName = '_superusers'")
@@ -41,18 +41,18 @@ func ensureAIChatSessionsCollection(app core.App) error {
 	addFieldIfMissing(col, &core.TextField{Name: "last_message_at", Max: 80})
 	addFieldIfMissing(col, &core.AutodateField{Name: "created", OnCreate: true})
 	addFieldIfMissing(col, &core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true})
-	col.AddIndex("idx_ai_chat_sessions_owner_last", false, "owner_id, last_message_at", "")
+	col.AddIndex("idx_ai_copilot_sessions_owner_last", false, "owner_id, last_message_at", "")
 	return app.Save(col)
 }
 
-func ensureAIChatMessagesCollection(app core.App) error {
-	sessionsCol, err := app.FindCollectionByNameOrId(collections.AIChatSessions)
+func ensureAICopilotMessagesCollection(app core.App) error {
+	sessionsCol, err := app.FindCollectionByNameOrId(collections.AICopilotSessions)
 	if err != nil {
 		return err
 	}
-	col, err := app.FindCollectionByNameOrId(collections.AIChatMessages)
+	col, err := app.FindCollectionByNameOrId(collections.AICopilotMessages)
 	if err != nil {
-		col = core.NewBaseCollection(collections.AIChatMessages)
+		col = core.NewBaseCollection(collections.AICopilotMessages)
 	}
 	col.ListRule = types.Pointer("@request.auth.collectionName = '_superusers'")
 	col.ViewRule = types.Pointer("@request.auth.collectionName = '_superusers'")
@@ -65,6 +65,6 @@ func ensureAIChatMessagesCollection(app core.App) error {
 	addFieldIfMissing(col, &core.SelectField{Name: "status", MaxSelect: 1, Values: []string{"completed", "failed"}})
 	addFieldIfMissing(col, &core.AutodateField{Name: "created", OnCreate: true})
 	addFieldIfMissing(col, &core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true})
-	col.AddIndex("idx_ai_chat_messages_session_created", false, "session, created", "")
+	col.AddIndex("idx_ai_copilot_messages_session_created", false, "session, created", "")
 	return app.Save(col)
 }
