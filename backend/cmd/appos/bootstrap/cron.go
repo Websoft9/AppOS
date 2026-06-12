@@ -4,15 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hibiken/asynq"
 	"github.com/websoft9/appos/backend/domain/feeds"
 	"github.com/websoft9/appos/backend/domain/monitor"
+	"github.com/websoft9/appos/backend/domain/resource/aiproviders"
+	"github.com/websoft9/appos/backend/domain/secrets"
 	swcatalog "github.com/websoft9/appos/backend/domain/software/catalog"
 	swinventory "github.com/websoft9/appos/backend/domain/software/inventory"
 	"github.com/websoft9/appos/backend/domain/worker"
 	"github.com/websoft9/appos/backend/infra/cronutil"
+	"github.com/websoft9/appos/backend/infra/persistence"
 
 	"github.com/pocketbase/pocketbase"
 )
@@ -27,6 +31,7 @@ const monitorCredentialCronJobID = "monitor_credential_checks"
 const monitorAppHealthCronJobID = "monitor_app_health_checks"
 const feedsPollCronJobID = "feeds_poll"
 const feedsRetentionCronJobID = "feeds_retention_sweep"
+const aiProviderEnabledModelsPruneCronJobID = "ai_provider_enabled_models_prune"
 
 func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 	app.Cron().MustAdd(
@@ -54,6 +59,16 @@ func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 		"0 * * * *",
 		cronutil.Wrap(app, feedsRetentionCronJobID, func() {
 			if _, err := feeds.RunRetentionSweep(app); err != nil {
+				panic(err)
+			}
+		}),
+	)
+
+	app.Cron().MustAdd(
+		aiProviderEnabledModelsPruneCronJobID,
+		"13 */6 * * *",
+		cronutil.Wrap(app, aiProviderEnabledModelsPruneCronJobID, func() {
+			if err := runAIProviderEnabledModelsPrune(app); err != nil {
 				panic(err)
 			}
 		}),
@@ -182,4 +197,38 @@ func runComponentsInventoryProbe(app *pocketbase.PocketBase) error {
 	}
 
 	return errors.Join(probeErrors...)
+}
+
+func runAIProviderEnabledModelsPrune(app *pocketbase.PocketBase) error {
+	repo := persistence.NewAIProviderRepository(app)
+	result, err := aiproviders.PruneUnavailableEnabledModels(
+		context.Background(),
+		repo,
+		func(ctx context.Context, provider *aiproviders.AIProvider) (string, error) {
+			credentialID := strings.TrimSpace(provider.CredentialID())
+			if credentialID == "" {
+				return "", nil
+			}
+			record, findErr := app.FindRecordById("secrets", credentialID)
+			if findErr != nil {
+				return "", findErr
+			}
+			ownerID := strings.TrimSpace(record.GetString("created_by"))
+			if ownerID == "" {
+				ownerID = secrets.CreatedSourceSystem
+			}
+			resolved, resolveErr := secrets.Resolve(app, credentialID, ownerID)
+			if resolveErr != nil {
+				return "", resolveErr
+			}
+			return secrets.FirstStringFromPayload(resolved.Payload, "apiKey", "api_key", "token", "value"), nil
+		},
+	)
+	app.Logger().Info(
+		"ai provider enabled model prune completed",
+		"providers_scanned", result.ProvidersScanned,
+		"providers_updated", result.ProvidersUpdated,
+		"models_removed", result.ModelsRemoved,
+	)
+	return err
 }

@@ -22,6 +22,7 @@ type AIProviderModelSelectorProps = {
   error?: string
   loaded?: boolean
   canLoad?: boolean
+  loadActionLabel?: string
   onListModels: () => void
   onToggleModel: (modelId: string) => void
 }
@@ -36,6 +37,7 @@ export const AIProviderModelSelector = forwardRef<HTMLDivElement, AIProviderMode
       error,
       loaded = false,
       canLoad = true,
+      loadActionLabel = 'Load all available models',
       onListModels,
       onToggleModel,
     },
@@ -44,20 +46,44 @@ export const AIProviderModelSelector = forwardRef<HTMLDivElement, AIProviderMode
     const [expanded, setExpanded] = useState(false)
     const hasInventory = groups.length > 0 || models.length > 0
 
+    const normalizeGroupLabel = (group: AIProviderModelGroup) =>
+      String(group.label ?? group.vendor ?? 'Other').trim() || 'Other'
+
+    const normalizeModelID = (model: AIProviderModelOption) => String(model.id ?? '').trim()
+
     // Filter out useless vendor labels like "System" and sort groups + models
     const visibleGroups = useMemo(() => {
       const filtered = groups.filter(
-        g => String(g.label ?? g.vendor ?? '').toLowerCase() !== 'system'
+        g => normalizeGroupLabel(g).toLowerCase() !== 'system'
       )
-      return [...filtered].sort((a, b) => a.label.localeCompare(b.label)).map(g => ({
-        ...g,
-        label: g.label || g.vendor || 'Other',
-        models: [...g.models].sort((a, b) => a.id.localeCompare(b.id)),
-      }))
+      return [...filtered]
+        .sort((a, b) =>
+          normalizeGroupLabel(a).localeCompare(normalizeGroupLabel(b), undefined, {
+            sensitivity: 'base',
+          })
+        )
+        .map(g => ({
+          ...g,
+          label: normalizeGroupLabel(g),
+          models: [...g.models]
+            .filter(model => normalizeModelID(model) !== '')
+            .sort((a, b) =>
+              normalizeModelID(a).localeCompare(normalizeModelID(b), undefined, {
+                sensitivity: 'base',
+              })
+            ),
+        }))
     }, [groups])
 
     const visibleModels = useMemo(
-      () => [...models].sort((a, b) => a.id.localeCompare(b.id)),
+      () =>
+        [...models]
+          .filter(model => normalizeModelID(model) !== '')
+          .sort((a, b) =>
+            normalizeModelID(a).localeCompare(normalizeModelID(b), undefined, {
+              sensitivity: 'base',
+            })
+          ),
       [models]
     )
     const totalAvailable =
@@ -116,7 +142,7 @@ export const AIProviderModelSelector = forwardRef<HTMLDivElement, AIProviderMode
         {/* Action prompt */}
         <button
           type="button"
-          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-left text-sm transition-colors disabled:pointer-events-none disabled:opacity-50 ${
+          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-left text-sm leading-none transition-colors disabled:pointer-events-none disabled:opacity-50 ${
             loaded && !error && totalAvailable > 0
               ? 'border-emerald-200 bg-emerald-50/70 font-medium text-emerald-700 hover:bg-emerald-100/70 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-300 dark:hover:bg-emerald-950/30'
               : 'border-sky-200 bg-sky-50/80 text-sky-700 hover:bg-sky-100/80 dark:border-sky-900 dark:bg-sky-950/20 dark:text-sky-300 dark:hover:bg-sky-950/30'
@@ -139,10 +165,12 @@ export const AIProviderModelSelector = forwardRef<HTMLDivElement, AIProviderMode
                 {totalAvailable} model{totalAvailable === 1 ? '' : 's'} available
               </>
             ) : (
-              <>
-                <span className="text-[11px] uppercase tracking-[0.14em] opacity-70">Discovery</span>
-                <span className="font-medium">Load all available models</span>
-              </>
+              <span className="inline-flex items-center gap-2 align-middle leading-none">
+                <span className="inline-flex h-4 items-center text-[11px] uppercase tracking-[0.14em] opacity-70 leading-none">
+                  Discovery
+                </span>
+                <span className="inline-flex h-4 items-center font-medium leading-none">{loadActionLabel}</span>
+              </span>
             )}
         </button>
 
@@ -174,6 +202,7 @@ export const AIProviderModelSelector = forwardRef<HTMLDivElement, AIProviderMode
                         >
                           <input
                             type="checkbox"
+                            aria-label={model.id}
                             className="mt-0.5 h-4 w-4 rounded border-input"
                             checked={checked}
                             onChange={() => onToggleModel(model.id)}
@@ -199,6 +228,7 @@ export const AIProviderModelSelector = forwardRef<HTMLDivElement, AIProviderMode
                   >
                     <input
                       type="checkbox"
+                      aria-label={model.id}
                       className="mt-0.5 h-4 w-4 rounded border-input"
                       checked={checked}
                       onChange={() => onToggleModel(model.id)}

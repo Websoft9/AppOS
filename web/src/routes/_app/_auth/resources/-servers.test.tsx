@@ -7,6 +7,7 @@ const navigateMock = vi.fn()
 const getFullListMock = vi.fn()
 const sendMock = vi.fn()
 const createServerMock = vi.fn()
+const updateServerMock = vi.fn()
 const getSecretMock = vi.fn()
 const updateSecretMock = vi.fn()
 const getSystemdStatusMock = vi.fn()
@@ -50,6 +51,7 @@ vi.mock('react-i18next', () => ({
         'servers.page.searchPlaceholder': 'Search server',
         'servers.page.detailDrawerTitle': 'Server Detail',
         'servers.fields.connectionType': 'Connection Type',
+        'servers.fields.enabled': 'Enabled',
         'servers.fields.name': 'Name',
         'servers.fields.host': 'Host',
         'servers.fields.useLocalHost': 'The same host with AppOS',
@@ -79,6 +81,7 @@ vi.mock('react-i18next', () => ({
         'servers.secret.errors.nameRequired': 'Name is required',
         'servers.secret.errors.update': 'Failed to update secret',
         'servers.columns.name': 'Name',
+        'servers.columns.enabled': 'Enabled',
         'servers.columns.mode': 'Mode',
         'servers.columns.connection': 'Connection',
         'servers.columns.monitor': 'Monitor',
@@ -98,8 +101,12 @@ vi.mock('react-i18next', () => ({
         'servers.actions.serverActions': 'Server actions',
         'servers.actions.openTerminal': 'Open Terminal',
         'servers.actions.testConnection': 'Test Connection',
+        'servers.actions.enable': 'Enable',
+        'servers.actions.disable': 'Disable',
         'servers.actions.tunnelSetup': 'Tunnel Setup',
         'servers.actions.duplicateServer': 'Duplicate Server',
+        'servers.enabled.yes': 'Yes',
+        'servers.enabled.no': 'No',
         'servers.detail.restoreWidth': 'Restore detail width',
         'servers.detail.expandWidth': 'Expand detail width',
         'servers.detail.unnamedServer': 'Unnamed Server',
@@ -608,7 +615,7 @@ vi.mock('@/lib/pb', () => ({
       if (name === 'servers') {
         return {
           create: (...args: unknown[]) => createServerMock(...args),
-          update: vi.fn(),
+          update: (...args: unknown[]) => updateServerMock(...args),
           delete: vi.fn(),
         }
       }
@@ -730,6 +737,7 @@ describe('ServersPage layout', () => {
     getFullListMock.mockReset()
     sendMock.mockReset()
     createServerMock.mockReset()
+    updateServerMock.mockReset()
     getSecretMock.mockReset()
     updateSecretMock.mockReset()
     windowOpenMock.mockReset()
@@ -749,6 +757,7 @@ describe('ServersPage layout', () => {
             {
               id: 'server-1',
               name: 'alpha',
+              is_enabled: true,
               connect_type: 'direct',
               host: '10.0.0.1',
               port: 22,
@@ -877,6 +886,25 @@ describe('ServersPage layout', () => {
       'text-left'
     )
     expect(screen.getByText('ubuntu 24.04 · amd64')).toBeInTheDocument()
+  })
+
+  it('toggles enabled state from the list column', async () => {
+    updateServerMock.mockResolvedValue({})
+
+    render(<ServersPage />)
+
+    const toggle = await screen.findByRole('button', { name: /yes/i })
+    fireEvent.click(toggle)
+
+    await waitFor(() => {
+      expect(updateServerMock).toHaveBeenCalledWith(
+        'server-1',
+        expect.objectContaining({
+          id: 'server-1',
+          is_enabled: false,
+        })
+      )
+    })
   })
 
   it('shows the minimal pager beside search when multiple pages exist', async () => {

@@ -28,9 +28,9 @@
       "createDescription": "Linux 主机、SSH 目标和部署节点。"
     },
     "serviceInstances": {
-      "title": "服务实例",
-      "description": "应用启动所需的运行时依赖，包括 MySQL、PostgreSQL、Redis、Kafka 和 S3 等数据库、中间件与存储实例。",
-      "createDescription": "MySQL、PostgreSQL、Redis、Kafka 和 S3 等应用依赖。",
+      "title": "运行时实例",
+      "description": "应用启动所需的运行时依赖，包括 Postgres、Kafka、S3 等数据库、中间件与存储实例。",
+      "createDescription": "Postgres、Kafka、S3 等运行时依赖服务。",
       "examples": {
         "database": "数据库",
         "cache": "缓存",
@@ -50,9 +50,9 @@
       }
     },
     "connectors": {
-      "title": "连接器",
-      "description": "SMTP、DNS、Webhook、MCP、代理、镜像仓库等可复用的外部能力连接。",
-      "createDescription": "SMTP、DNS、Webhook、MCP、代理、镜像仓库等可复用外部连接。",
+      "title": "外部服务",
+      "description": "SMTP、DNS、Webhook、MCP、代理、镜像仓库等可复用的外部服务连接。",
+      "createDescription": "SMTP、DNS、Webhook、MCP、代理、镜像仓库等可复用外部服务。",
       "examples": {
         "restApi": "REST API",
         "webhook": "Webhook",
@@ -87,6 +87,7 @@
     },
     "fields": {
       "connectionType": "连接类型",
+      "enabled": "启用",
       "name": "名称",
       "host": "主机",
       "useLocalHost": "与 AppOS 相同的主机",
@@ -149,6 +150,7 @@
     },
     "columns": {
       "name": "名称",
+      "enabled": "启用",
       "mode": "模式",
       "connection": "连接",
       "monitor": "监控",
@@ -172,8 +174,14 @@
       "serverActions": "服务器操作",
       "openTerminal": "打开终端",
       "testConnection": "测试连接",
+      "enable": "启用",
+      "disable": "禁用",
       "tunnelSetup": "隧道设置",
       "duplicateServer": "复制服务器"
+    },
+    "enabled": {
+      "yes": "是",
+      "no": "否"
     },
     "monitorTab": {
       "heading": "监控",
@@ -1157,11 +1165,17 @@
   },
   "connectors": {
     "page": {
-      "title": "连接器",
-      "description": "由分组连接器资料支撑的可复用 API、Webhook、MCP、代理、SMTP、镜像仓库和 DNS 连接器",
-      "addConnector": "添加连接器",
-      "searchPlaceholder": "搜索连接器",
+      "title": "外部服务",
+      "description": "由分组资料支撑的可复用 API、Webhook、MCP、代理、SMTP、镜像仓库和 DNS 外部服务",
+      "addConnector": "添加外部服务",
+      "searchPlaceholder": "搜索外部服务",
       "totalItems": "共 {{count}} 项"
+    },
+    "selection": {
+      "title": "选择外部服务类型",
+      "description": "先选择服务类型，再选择用于预填共享 schema 的厂商模板。",
+      "searchPlaceholder": "搜索 SMTP、DNS、代理、镜像仓库等服务类型...",
+      "emptyMessage": "未找到匹配的外部服务类型。"
     },
     "fields": {
       "name": "名称",
@@ -1208,13 +1222,26 @@
       "new": "新建密钥",
       "edit": "编辑密钥",
       "newTitle": "新建密钥",
-      "newDescription": "创建一个可复用密钥并将其附加到这个连接器。"
+      "newDescription": "创建一个可复用密钥并将其附加到这个外部服务。",
+      "generatedDescription": "{{name}} 的{{field}}",
+      "directPlaceholder": "直接输入密钥值",
+      "show": "显示密钥",
+      "hide": "隐藏密钥"
+    },
+    "dialog": {
+      "externalServiceTitle": "外部服务标题",
+      "applyTitle": "应用标题",
+      "newExternalService": "新建外部服务",
+      "editTitle": "编辑标题",
+      "createDescription": "添加 {{kind}} 服务{{profile}}",
+      "createDescriptionWithProfile": "使用 {{profile}} 模板添加 {{kind}} 服务"
     },
     "secretTemplates": {
       "single_value": "令牌 / 单值"
     },
     "errors": {
-      "profileRequired": "连接器资料不能为空"
+      "profileRequired": "连接器资料不能为空",
+      "fieldRequired": "{{field}}不能为空"
     }
   },
   "aiProviders": {

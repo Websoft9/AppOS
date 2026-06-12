@@ -4,26 +4,30 @@
   "vendor": "Amazon Web Services",
   "providerMode": "gateway",
   "description": "Amazon Bedrock gateway for foundation models from multiple vendors.",
-  "helpUrl": "https://docs.aws.amazon.com/bedrock/",
-  "defaultEndpoint": "https://bedrock-runtime.{region}.amazonaws.com/openai/v1",
+  "helpUrl": "https://docs.aws.amazon.com/bedrock/latest/userguide/endpoints.html",
+  "defaultEndpoint": "https://bedrock-mantle.{region}.api.aws/openai/v1",
   "defaultEnabledModels": [
     "anthropic.claude-3-5-sonnet-20240620-v1:0",
     "anthropic.claude-3-5-haiku-20241022-v1:0",
     "amazon.nova-pro-v1:0",
-    "meta.llama3-1-70b-instruct-v1:0"
+    "8888"
   ],
   "capabilities": ["chat", "routing", "streaming"],
   "aliases": ["aws bedrock", "bedrock", "aws-bedrock"],
   "fields": [
     {
       "id": "endpoint",
-      "placeholder": "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1"
+      "default": "https://bedrock-mantle.us-east-1.api.aws/openai/v1",
+      "placeholder": "https://bedrock-mantle.us-east-1.api.aws/openai/v1"
     },
     {
       "id": "region",
-      "label": "Region",
+      "label": "Region Code",
       "type": "string",
-      "placeholder": "us-east-1"
+      "default": "us-east-1",
+      "placeholder": "us-east-1",
+      "helpUrl": "https://docs.aws.amazon.com/global-infrastructure/latest/regions/aws-regions.html",
+      "helpText": "Use an AWS region code such as us-east-1."
     }
   ]
 }

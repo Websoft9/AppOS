@@ -24,7 +24,8 @@
     "uploadFiles": "上传文件",
     "sendMessage": "发送消息",
     "copyMarkdown": "复制 Markdown",
-    "configureModels": "配置模型"
+    "configureModels": "配置模型",
+    "stopGeneration": "停止生成"
   },
   "fields": {
     "conversationTitle": "对话标题",

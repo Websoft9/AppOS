@@ -3,6 +3,7 @@
   "title": "Anthropic",
   "vendor": "Anthropic",
   "description": "Anthropic hosted LLM access using an API key.",
+  "helpUrl": "https://docs.anthropic.com/en/api/overview",
   "defaultEndpoint": "https://api.anthropic.com",
   "capabilities": ["chat", "tools", "streaming"],
   "aliases": ["anthropic", "claude"],

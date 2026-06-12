@@ -1,11 +1,12 @@
 import type { ChangeEvent } from 'react'
-import { Upload } from 'lucide-react'
+import { ExternalLink, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ReferenceSelect } from './ReferenceSelect'
 import type { FieldDef, RelationOption, SelectOption } from './resource-page-types'
 
 const INPUT_CLASS =
   'w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground text-sm'
+const READ_ONLY_INPUT_CLASS = 'bg-muted/40 text-muted-foreground cursor-not-allowed'
 
 function renderSelectOptions(options: SelectOption[] | undefined) {
   if (!options || options.length === 0) {
@@ -80,10 +81,24 @@ export function ResourceFormField({
   return (
     <div key={field.key} className="space-y-1.5">
       {renderLabel && (
-        <label htmlFor={inputId} className="text-sm font-medium text-foreground">
-          {field.label}
-          {field.required && <span className="text-destructive ml-1">*</span>}
-        </label>
+        <div className="flex items-center gap-2">
+          <label htmlFor={inputId} className="text-sm font-medium text-foreground">
+            {field.label}
+            {field.required && <span className="text-destructive ml-1">*</span>}
+          </label>
+          {field.helpUrl ? (
+            <a
+              href={field.helpUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-muted-foreground transition-colors hover:text-foreground"
+              aria-label={`Open help for ${field.label}`}
+              title={`Open help for ${field.label}`}
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          ) : null}
+        </div>
       )}
 
       {field.render ? (
@@ -102,7 +117,7 @@ export function ResourceFormField({
       ) : effectiveType === 'select' ? (
         <select
           id={inputId}
-          className={INPUT_CLASS}
+          className={`${INPUT_CLASS} ${field.readOnly ? READ_ONLY_INPUT_CLASS : ''}`}
           value={String(formData[field.key] ?? '')}
           onChange={e => handleChange(field, e.target.value)}
           required={field.required}
@@ -214,7 +229,7 @@ export function ResourceFormField({
                 ? 'number'
                 : 'text'
           }
-          className={INPUT_CLASS}
+          className={`${INPUT_CLASS} ${field.readOnly ? READ_ONLY_INPUT_CLASS : ''}`}
           value={String(formData[field.key] ?? '')}
           onChange={e => handleChange(field, e.target.value)}
           placeholder={field.placeholder}

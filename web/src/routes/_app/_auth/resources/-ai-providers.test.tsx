@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AIProvidersPage, buildAIProviderPayload } from './ai-providers'
 import { shouldAutoListModels } from '@/components/ai/AIProviderCreateFlowDialog'
@@ -9,6 +9,7 @@ const AI_PROVIDER_SECRET_PATH =
 const sendMock = vi.fn()
 const getOneMock = vi.fn()
 const createMock = vi.fn()
+const updateMock = vi.fn()
 const navigateMock = vi.fn()
 
 function getProductButton(title: string) {
@@ -132,6 +133,7 @@ vi.mock('@/lib/pb', () => ({
     collection: () => ({
       getOne: (...args: unknown[]) => getOneMock(...args),
       create: (...args: unknown[]) => createMock(...args),
+      update: (...args: unknown[]) => updateMock(...args),
     }),
   },
 }))
@@ -141,6 +143,7 @@ describe('AIProvidersPage', () => {
     sendMock.mockReset()
     getOneMock.mockReset()
     createMock.mockReset()
+    updateMock.mockReset()
     navigateMock.mockReset()
 
     sendMock.mockImplementation(
@@ -596,7 +599,9 @@ describe('AIProvidersPage', () => {
         return Promise.resolve({ items: [] })
       }
       if (path === AI_PROVIDER_SECRET_PATH) {
-        return Promise.resolve({ items: [] })
+        return Promise.resolve({
+          items: [{ id: 'secret-1', name: 'shared-secret', template_id: 'single_value' }],
+        })
       }
       return Promise.resolve([])
     })
@@ -609,13 +614,14 @@ describe('AIProvidersPage', () => {
     fireEvent.click(await screen.findByText('Test it'))
 
     // Inline detail panel expands below the row
-    expect(await screen.findByText('Provider Detail')).toBeInTheDocument()
+    expect(screen.getByText('Secret')).toBeInTheDocument()
+    expect(screen.getByText('shared-secret')).toBeInTheDocument()
 
     fireEvent.click(screen.getAllByRole('button', { name: 'openrouter-main' })[0])
 
     // Clicking again collapses the inline detail
     await waitFor(() => {
-      expect(screen.queryByText('Provider Detail')).not.toBeInTheDocument()
+      expect(screen.queryByText('shared-secret')).not.toBeInTheDocument()
     })
   })
 
@@ -709,7 +715,356 @@ describe('AIProvidersPage', () => {
     expect(screen.getByLabelText('qwen-coder-plus')).not.toBeChecked()
   })
 
-  it('shouldAutoListModels: skips when already fetched, blocks on failure, proceeds with pre-selected models', async () => {
+  it('drops invalid saved models after loading inventory and tolerates group labels missing from the API', async () => {
+    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+      if (path === '/api/ai-providers/templates') {
+        return Promise.resolve([
+          {
+            id: 'aws-bedrock',
+            kind: 'llm',
+            title: 'AWS Bedrock',
+            vendor: 'Amazon Web Services',
+            defaultEndpoint: 'https://bedrock-mantle.us-east-1.api.aws/openai/v1',
+            defaultAuthScheme: 'api_key',
+            fields: [
+              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+              { id: 'region', label: 'Region Code', type: 'string' },
+              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+            ],
+          },
+        ])
+      }
+      if (path === '/api/ai-providers') {
+        return Promise.resolve([
+          {
+            id: 'provider-bedrock',
+            name: 'bedrock-main',
+            template_id: 'aws-bedrock',
+            endpoint: 'https://bedrock-mantle.us-east-1.api.aws/openai/v1',
+            credential: 'secret-1',
+            is_enabled: true,
+            enabled_models: ['anthropic.claude-3-5-sonnet-20240620-v1:0', 'stale-model-id'],
+            config: { region: 'us-east-1' },
+          },
+        ])
+      }
+      if (path.startsWith('/api/ai-providers/reachability?')) {
+        return Promise.resolve({ items: [{ id: 'provider-bedrock', status: 'reachable' }] })
+      }
+      if (path === '/api/ai-providers/models/provider-bedrock') {
+        return Promise.resolve({
+          models: [{ id: 'anthropic.claude-3-5-sonnet-20240620-v1:0' }],
+          groups: [
+            {
+              vendor: 'Anthropic',
+              models: [{ id: 'anthropic.claude-3-5-sonnet-20240620-v1:0' }],
+            },
+          ],
+        })
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === AI_PROVIDER_SECRET_PATH) {
+        return Promise.resolve({
+          items: [{ id: 'secret-1', name: 'bedrock-secret', template_id: 'single_value' }],
+        })
+      }
+      if (path.startsWith('/api/ai-providers/') && options?.method === 'PUT') {
+        return Promise.resolve({ ok: true, body: options.body })
+      }
+      return Promise.resolve([])
+    })
+
+    render(<AIProvidersPage />)
+
+    expect(await screen.findByRole('button', { name: 'bedrock-main' })).toBeInTheDocument()
+
+    fireEvent.pointerDown(screen.getByTitle('More actions'))
+    fireEvent.click(await screen.findByText('Edit'))
+
+    expect(screen.getByText('stale-model-id')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Load all available models/i }))
+
+    expect(await screen.findByLabelText('anthropic.claude-3-5-sonnet-20240620-v1:0')).toBeChecked()
+    await waitFor(() => {
+      expect(screen.queryByText('stale-model-id')).not.toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /^Save/i }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/ai-providers/provider-bedrock', {
+        method: 'PUT',
+        body: expect.objectContaining({
+          enabled_models: ['anthropic.claude-3-5-sonnet-20240620-v1:0'],
+        }),
+      })
+    })
+  })
+
+  it('updates enabled models and edits the current secret inline without opening a new page', async () => {
+    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+      if (path === '/api/ai-providers/templates') {
+        return Promise.resolve([
+          {
+            id: 'google-gemini',
+            kind: 'llm',
+            title: 'Google Gemini',
+            vendor: 'Google',
+            defaultEndpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
+            defaultAuthScheme: 'api_key',
+            fields: [
+              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+            ],
+          },
+        ])
+      }
+      if (path === '/api/ai-providers') {
+        return Promise.resolve([
+          {
+            id: 'provider-gemini',
+            name: 'gemini-main',
+            template_id: 'google-gemini',
+            endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
+            credential: 'secret-1',
+            is_enabled: true,
+            enabled_models: ['gemini-3.5-flash'],
+            config: {},
+          },
+        ])
+      }
+      if (path.startsWith('/api/ai-providers/reachability?')) {
+        return Promise.resolve({ items: [{ id: 'provider-gemini', status: 'reachable' }] })
+      }
+      if (path === '/api/ai-providers/models/provider-gemini') {
+        return Promise.resolve({
+          models: [{ id: 'gemini-3.5-flash' }, { id: 'gemini-3.1-pro-preview' }],
+        })
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === AI_PROVIDER_SECRET_PATH) {
+        return Promise.resolve({
+          items: [{ id: 'secret-1', name: 'gemini-secret', template_id: 'single_value' }],
+        })
+      }
+      if (path === '/api/secrets/secret-1/payload' && options?.method === 'PUT') {
+        return Promise.resolve({ ok: true, version: 2 })
+      }
+      if (path.startsWith('/api/ai-providers/') && options?.method === 'PUT') {
+        return Promise.resolve({ ok: true, body: options.body })
+      }
+      return Promise.resolve([])
+    })
+
+    render(<AIProvidersPage />)
+
+    expect(await screen.findByRole('button', { name: 'gemini-main' })).toBeInTheDocument()
+
+    fireEvent.pointerDown(screen.getByTitle('More actions'))
+    fireEvent.click(await screen.findByText('Edit'))
+
+    fireEvent.click(screen.getByRole('button', { name: /Load all available models/i }))
+
+    expect(await screen.findByLabelText('gemini-3.1-pro-preview')).toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('gemini-3.1-pro-preview'))
+
+    fireEvent.click(screen.getByTitle('Edit secret value'))
+    fireEvent.change(screen.getByPlaceholderText('Enter a new API key to update the current secret'), {
+      target: { value: 'replacement-secret-value' },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /^Save/i }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/secrets/secret-1/payload', {
+        method: 'PUT',
+        body: { payload: { value: 'replacement-secret-value' } },
+      })
+    })
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/ai-providers/provider-gemini', {
+        method: 'PUT',
+        body: expect.objectContaining({
+          enabled_models: ['gemini-3.5-flash', 'gemini-3.1-pro-preview'],
+          credential: 'secret-1',
+        }),
+      })
+    })
+    expect(navigateMock).not.toHaveBeenCalled()
+  })
+
+  it('uses the unsaved inline secret value when loading models in edit mode', async () => {
+    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+      if (path === '/api/ai-providers/templates') {
+        return Promise.resolve([
+          {
+            id: 'google-gemini',
+            kind: 'llm',
+            title: 'Google Gemini',
+            vendor: 'Google',
+            defaultEndpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
+            defaultAuthScheme: 'api_key',
+            fields: [
+              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+            ],
+          },
+        ])
+      }
+      if (path === '/api/ai-providers') {
+        return Promise.resolve([
+          {
+            id: 'provider-gemini',
+            name: 'gemini-main',
+            template_id: 'google-gemini',
+            endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
+            credential: 'secret-1',
+            is_enabled: true,
+            enabled_models: ['gemini-3.5-flash'],
+            config: {},
+          },
+        ])
+      }
+      if (path.startsWith('/api/ai-providers/reachability?')) {
+        return Promise.resolve({ items: [{ id: 'provider-gemini', status: 'reachable' }] })
+      }
+      if (path === '/api/ai-providers/fetch-models' && options?.method === 'POST') {
+        return Promise.resolve({
+          models: [{ id: 'gemini-3.5-flash' }, { id: 'gemini-3.1-pro-preview' }],
+        })
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === AI_PROVIDER_SECRET_PATH) {
+        return Promise.resolve({
+          items: [{ id: 'secret-1', name: 'gemini-secret', template_id: 'single_value' }],
+        })
+      }
+      if (path.startsWith('/api/ai-providers/') && options?.method === 'PUT') {
+        return Promise.resolve({ ok: true, body: options.body })
+      }
+      return Promise.resolve([])
+    })
+
+    render(<AIProvidersPage />)
+
+    expect(await screen.findByRole('button', { name: 'gemini-main' })).toBeInTheDocument()
+
+    fireEvent.pointerDown(screen.getByTitle('More actions'))
+    fireEvent.click(await screen.findByText('Edit'))
+
+    fireEvent.click(screen.getByTitle('Edit secret value'))
+    fireEvent.change(screen.getByPlaceholderText('Enter a new API key to update the current secret'), {
+      target: { value: 'replacement-secret-value' },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Load all available models/i }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/ai-providers/fetch-models', {
+        method: 'POST',
+        body: {
+          endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
+          api_key: 'replacement-secret-value',
+          template_id: 'google-gemini',
+        },
+      })
+    })
+    expect(sendMock).not.toHaveBeenCalledWith('/api/ai-providers/models/provider-gemini', {
+      method: 'GET',
+    })
+    expect(await screen.findByLabelText('gemini-3.1-pro-preview')).toBeInTheDocument()
+  })
+
+  it('keeps the provider name in edit mode so the title and update payload stay populated', async () => {
+    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+      if (path === '/api/ai-providers/templates') {
+        return Promise.resolve([
+          {
+            id: 'google-gemini',
+            kind: 'llm',
+            title: 'Google Gemini',
+            vendor: 'Google',
+            defaultEndpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
+            defaultAuthScheme: 'api_key',
+            fields: [
+              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+            ],
+          },
+        ])
+      }
+      if (path === '/api/ai-providers') {
+        return Promise.resolve([
+          {
+            id: 'provider-gemini',
+            name: 'gemini-main',
+            template_id: 'google-gemini',
+            endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
+            credential: 'secret-1',
+            is_enabled: true,
+            enabled_models: ['gemini-3.5-flash'],
+            config: {},
+          },
+        ])
+      }
+      if (path.startsWith('/api/ai-providers/reachability?')) {
+        return Promise.resolve({ items: [{ id: 'provider-gemini', status: 'reachable' }] })
+      }
+      if (path === '/api/ai-providers/models/provider-gemini') {
+        return Promise.resolve({
+          models: [{ id: 'gemini-3.5-flash' }, { id: 'gemini-3.1-pro-preview' }],
+        })
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === AI_PROVIDER_SECRET_PATH) {
+        return Promise.resolve({
+          items: [{ id: 'secret-1', name: 'gemini-secret', template_id: 'single_value' }],
+        })
+      }
+      if (path.startsWith('/api/ai-providers/') && options?.method === 'PUT') {
+        return Promise.resolve({ ok: true, body: options.body })
+      }
+      return Promise.resolve([])
+    })
+
+    render(<AIProvidersPage />)
+
+    expect(await screen.findByRole('button', { name: 'gemini-main' })).toBeInTheDocument()
+
+    fireEvent.pointerDown(screen.getByTitle('More actions'))
+    fireEvent.click(await screen.findByText('Edit'))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('gemini-main')).toBeInTheDocument()
+    expect(within(dialog).queryByText('New AI Provider')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Load all available models/i }))
+    expect(await screen.findByLabelText('gemini-3.1-pro-preview')).toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('gemini-3.1-pro-preview'))
+
+    fireEvent.click(screen.getByRole('button', { name: /^Save/i }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/ai-providers/provider-gemini', {
+        method: 'PUT',
+        body: expect.objectContaining({
+          name: 'gemini-main',
+          enabled_models: ['gemini-3.5-flash', 'gemini-3.1-pro-preview'],
+        }),
+      })
+    })
+  })
+
+  it('shouldAutoListModels: skips when already fetched, reports fetch failure, and proceeds with pre-selected models', async () => {
     const setError = vi.fn()
     const setSaving = vi.fn()
 
@@ -721,17 +1076,22 @@ describe('AIProvidersPage', () => {
         setError,
         setSaving,
       })
-    ).resolves.toBe(true)
+    ).resolves.toEqual({ canSave: true, selected: [], failedToLoad: false })
 
-    // Not yet fetched, but fetch fails (no API key) — blocked
+    // Not yet fetched, but fetch fails — caller can show a confirm dialog
     await expect(
       shouldAutoListModels({
         lastFetchSucceeded: false,
-        runFetchModels: async () => ({ success: false, selected: [] }),
+        runFetchModels: async () => ({ success: false, selected: [], error: 'Timed out' }),
         setError,
         setSaving,
       })
-    ).resolves.toBe(false)
+    ).resolves.toEqual({
+      canSave: false,
+      selected: [],
+      failedToLoad: true,
+      error: 'Timed out',
+    })
     expect(setSaving).toHaveBeenCalledWith(false)
 
     // Not yet fetched, fetch succeeds with pre-selected models — proceeds
@@ -743,10 +1103,14 @@ describe('AIProvidersPage', () => {
         setError,
         setSaving,
       })
-    ).resolves.toBe(true)
+    ).resolves.toEqual({
+      canSave: true,
+      selected: ['llama3', 'mistral'],
+      failedToLoad: false,
+    })
     expect(setSaving).not.toHaveBeenCalled()
 
-    // Not yet fetched, fetch succeeds but zero models — blocked with error
+    // Not yet fetched, fetch succeeds with zero models — save can still continue
     setSaving.mockReset()
     await expect(
       shouldAutoListModels({
@@ -755,8 +1119,7 @@ describe('AIProvidersPage', () => {
         setError,
         setSaving,
       })
-    ).resolves.toBe(false)
-    expect(setError).toHaveBeenCalledWith('Select at least one model after listing models.')
-    expect(setSaving).toHaveBeenCalledWith(false)
+    ).resolves.toEqual({ canSave: true, selected: [], failedToLoad: false })
+    expect(setSaving).not.toHaveBeenCalled()
   })
 })

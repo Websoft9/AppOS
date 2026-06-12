@@ -13,6 +13,16 @@ import type { FieldDef, RelationOption } from '@/components/resources/resource-p
 import { buildUserVisibleSecretRelationApiPath } from '@/components/secrets/resource-secret-relations'
 import { Button } from '@/components/ui/button'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -32,9 +42,13 @@ import {
   type AIProviderTemplateField,
   isGatewayProviderTemplate,
   isAdvancedProviderField,
+  reconcileProviderModelSelection,
   normalizeTemplateFieldDefault,
   providerSelectionGroup,
   productTitle,
+  resolveTemplateEndpoint,
+  sanitizeProviderModelGroups,
+  sanitizeProviderModelOptions,
 } from '@/lib/ai-providers'
 import { pb } from '@/lib/pb'
 
@@ -116,6 +130,7 @@ function mapTemplateFieldToResourceField(
     placeholder: field.placeholder,
     defaultValue: normalizeTemplateFieldDefault(field),
     advanced: isAdvancedProviderField(field),
+    helpUrl: field.helpUrl,
     helpText: field.helpText,
   }
 }
@@ -167,6 +182,18 @@ function filterVisibleFields(fields: FieldDef[], formData: Record<string, unknow
   })
 }
 
+function moveFieldBefore(fields: FieldDef[], fieldKey: string, beforeKey: string) {
+  const nextFields = [...fields]
+  const fieldIndex = nextFields.findIndex(field => field.key === fieldKey)
+  const beforeIndex = nextFields.findIndex(field => field.key === beforeKey)
+  if (fieldIndex === -1 || beforeIndex === -1 || fieldIndex < beforeIndex) {
+    return nextFields
+  }
+  const [field] = nextFields.splice(fieldIndex, 1)
+  nextFields.splice(beforeIndex, 0, field)
+  return nextFields
+}
+
 /**
  * Pure decision helper for the auto‑List‑Models behaviour inside
  * handleSubmit.  Returns true when the submit should proceed to the
@@ -174,23 +201,25 @@ function filterVisibleFields(fields: FieldDef[], formData: Record<string, unknow
  */
 export function shouldAutoListModels(params: {
   lastFetchSucceeded: boolean
-  runFetchModels: () => Promise<{ success: boolean; selected: string[] }>
+  runFetchModels: () => Promise<{ success: boolean; selected: string[]; error?: string }>
   setError: (message: string) => void
   setSaving: (saving: boolean) => void
-}): Promise<boolean> {
+}): Promise<{ canSave: boolean; selected: string[]; failedToLoad: boolean; error?: string }> {
   return (async () => {
     if (params.lastFetchSucceeded) {
-      return true
+      return { canSave: true, selected: [], failedToLoad: false }
     }
     const result = await params.runFetchModels()
-    if (!result.success || result.selected.length === 0) {
-      if (result.success) {
-        params.setError('Select at least one model after listing models.')
-      }
+    if (!result.success) {
       params.setSaving(false)
-      return false
+      return {
+        canSave: false,
+        selected: [],
+        failedToLoad: true,
+        error: result.error,
+      }
     }
-    return true
+    return { canSave: true, selected: result.selected, failedToLoad: false }
   })()
 }
 
@@ -219,6 +248,8 @@ export function AIProviderCreateFlowDialog({
   const [endpointEditing, setEndpointEditing] = useState(false)
   const [selectedModels, setSelectedModels] = useState<string[]>([])
   const [lastFetchSucceeded, setLastFetchSucceeded] = useState(false)
+  const [modelLoadConfirmOpen, setModelLoadConfirmOpen] = useState(false)
+  const [modelLoadConfirmMessage, setModelLoadConfirmMessage] = useState('')
   const modelSelectorRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -229,6 +260,8 @@ export function AIProviderCreateFlowDialog({
     setSelectedModels([])
     setLastFetchSucceeded(false)
     setEndpointEditing(false)
+    setModelLoadConfirmOpen(false)
+    setModelLoadConfirmMessage('')
 
     if (!open) {
       setSelectionOpen(false)
@@ -339,6 +372,7 @@ export function AIProviderCreateFlowDialog({
           onCreateReference={() => setSecretDialogOpen(true)}
           onEditReference={openSecretEditor}
           editMode={editMode}
+          editReferenceMode="icon"
           manualPlaceholder={`Enter ${String(field.label ?? 'API Key')}`}
           showLabel={`Show ${String(field.label ?? 'API Key')}`}
           hideLabel={`Hide ${String(field.label ?? 'API Key')}`}
@@ -447,10 +481,23 @@ export function AIProviderCreateFlowDialog({
   const [fetchedModels, setFetchedModels] = useState<AIProviderModelOption[]>([])
   const [fetchedGroups, setFetchedGroups] = useState<AIProviderModelGroup[]>([])
 
-  const runFetchModels = useCallback(async (): Promise<{ success: boolean; selected: string[] }> => {
+  const runFetchModels = useCallback(async (): Promise<{ success: boolean; selected: string[]; error?: string }> => {
     const endpoint = String(formData.endpoint ?? '').trim()
     const apiKey = String(formData.api_key_value ?? '').trim()
-    if (!endpoint || !apiKey) return { success: false, selected: [] }
+    const usingSavedSecret =
+      Boolean(formData.credential_use_secret) && String(formData.credential ?? '').trim() !== ''
+    if (!endpoint || (!apiKey && !usingSavedSecret)) {
+      const message =
+        'Load all available models requires an API endpoint and API key before testing this provider.'
+      setFetchModelsError(message)
+      return { success: false, selected: [], error: message }
+    }
+    if (!apiKey && usingSavedSecret) {
+      const message =
+        'Load all available models cannot use a saved secret during provider creation. Continue saving now, then load models in edit mode, or switch to direct API key input.'
+      setFetchModelsError(message)
+      return { success: false, selected: [], error: message }
+    }
 
     setFetchingModels(true)
     setFetchModelsError('')
@@ -458,18 +505,12 @@ export function AIProviderCreateFlowDialog({
     setFetchedGroups([])
     setLastFetchSucceeded(false)
     try {
-      const result = await pb.send<{ models: Array<{ id: string; enabled_by_default?: boolean }>; groups?: Array<{ vendor: string; models: Array<{ id: string }> }> }>('/api/ai-providers/fetch-models', {
+      const result = await pb.send<{ models: Array<{ id: string; enabled_by_default?: boolean }>; groups?: Array<{ vendor: string; label?: string; models: Array<{ id: string }> }> }>('/api/ai-providers/fetch-models', {
         method: 'POST',
         body: { endpoint, api_key: apiKey, template_id: String(formData.template_id ?? '') },
       })
-      const models = (result?.models ?? []).filter(model => Boolean(model.id))
-      const groups = Array.isArray(result?.groups)
-        ? result.groups.map(group => ({
-            vendor: group.vendor,
-            label: group.vendor,
-            models: group.models.filter(model => Boolean(model.id)),
-          }))
-        : []
+      const models = sanitizeProviderModelOptions(result?.models ?? [])
+      const groups = sanitizeProviderModelGroups(result?.groups ?? [])
       setFetchedModels(models)
       setFetchedGroups(groups)
       setLastFetchSucceeded(true)
@@ -478,25 +519,16 @@ export function AIProviderCreateFlowDialog({
         selectedModels.length > 0
           ? selectedModels
           : models.filter(model => model.enabled_by_default).map(model => model.id)
-      const nextSelected = preferred.filter(model => available.has(model))
-      setSelectedModels(current => {
-        if (current.length > 0) {
-          const currentFiltered = current.filter(model => available.has(model))
-          return currentFiltered.length > 0 ? currentFiltered : nextSelected
-        }
-        return nextSelected
-      })
+      const nextSelected = reconcileProviderModelSelection(preferred, available)
+      setSelectedModels(nextSelected)
       return {
         success: true,
-        selected:
-          selectedModels.length > 0
-            ? selectedModels.filter(model => available.has(model))
-            : nextSelected,
+        selected: nextSelected,
       }
     } catch (err) {
       const msg = describeProviderModelsError(err)
       setFetchModelsError(msg)
-      return { success: false, selected: [] }
+      return { success: false, selected: [], error: msg }
     } finally {
       setFetchingModels(false)
     }
@@ -602,7 +634,7 @@ export function AIProviderCreateFlowDialog({
   )
 
   const resolvedFields = useMemo(() => {
-    const dynamicFields = (selectedTemplate?.fields ?? []).flatMap(field => {
+    let dynamicFields = (selectedTemplate?.fields ?? []).flatMap(field => {
       const mapped = mapTemplateFieldToResourceField(
         field,
         () => setSecretDialogOpen(true),
@@ -610,6 +642,17 @@ export function AIProviderCreateFlowDialog({
         renderCredentialField,
         renderEndpointField
       )
+
+      if (selectedTemplate?.id === 'aws-bedrock' && field.id === 'region') {
+        return [
+          {
+            ...mapped,
+            onValueChange: (value: unknown, update: (key: string, value: unknown) => void) => {
+              update('endpoint', resolveTemplateEndpoint(selectedTemplate, { ...formData, region: value }))
+            },
+          },
+        ]
+      }
 
       if (field.id !== 'credential') {
         return [mapped]
@@ -632,6 +675,7 @@ export function AIProviderCreateFlowDialog({
               error={fetchModelsError || undefined}
               loaded={lastFetchSucceeded}
               canLoad={Boolean(String(formData.endpoint ?? '').trim() && String(formData.api_key_value ?? '').trim())}
+              loadActionLabel="Load all available models"
               onListModels={handleTestConnection}
               onToggleModel={toggleSelectedModel}
             />
@@ -639,6 +683,10 @@ export function AIProviderCreateFlowDialog({
         } satisfies FieldDef,
       ]
     })
+
+    if (selectedTemplate?.id === 'aws-bedrock') {
+      dynamicFields = moveFieldBefore(dynamicFields, 'region', 'endpoint')
+    }
 
     return [
       baseProviderFields[1],
@@ -704,7 +752,6 @@ export function AIProviderCreateFlowDialog({
       kind: template.kind,
       template_id: template.id,
       name: buildDefaultProviderName(template),
-      endpoint: template.defaultEndpoint ?? '',
       credential_use_secret: false,
       api_key_value: '',
       is_enabled: true,
@@ -714,6 +761,8 @@ export function AIProviderCreateFlowDialog({
     for (const field of template.fields ?? []) {
       defaults[field.id] = normalizeTemplateFieldDefault(field)
     }
+
+    defaults.endpoint = resolveTemplateEndpoint(template, defaults)
 
     setFormData(defaults)
     setSelectedModels(Array.isArray(template.defaultEnabledModels) ? [...template.defaultEnabledModels] : [])
@@ -763,8 +812,14 @@ export function AIProviderCreateFlowDialog({
     fileInputRefs.current[key] = element
   }
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
+  const submitProvider = async ({
+    event,
+    skipAutoModelLoad = false,
+  }: {
+    event?: FormEvent<HTMLFormElement>
+    skipAutoModelLoad?: boolean
+  } = {}) => {
+    event?.preventDefault()
     setSaving(true)
     setError('')
 
@@ -780,21 +835,35 @@ export function AIProviderCreateFlowDialog({
     }
 
     try {
-      const canSave = await shouldAutoListModels({
-        lastFetchSucceeded,
-        runFetchModels,
-        setError,
-        setSaving,
-      })
-      if (!canSave) {
-        modelSelectorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        return
+      let modelsForSave = selectedModels
+      if (!skipAutoModelLoad) {
+        const decision = await shouldAutoListModels({
+          lastFetchSucceeded,
+          runFetchModels,
+          setError,
+          setSaving,
+        })
+        if (!decision.canSave) {
+          if (decision.failedToLoad) {
+            setModelLoadConfirmMessage(
+              decision.error ||
+                'Could not load available models. You can still continue saving this provider.'
+            )
+            setModelLoadConfirmOpen(true)
+            return
+          }
+          modelSelectorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          return
+        }
+        if (!lastFetchSucceeded) {
+          modelsForSave = decision.selected
+        }
       }
 
       const body = await buildAIProviderPayload(
         {
           ...formData,
-          enabled_models: lastFetchSucceeded ? selectedModels : undefined,
+          enabled_models: modelsForSave,
         },
         templatesById
       )
@@ -815,6 +884,10 @@ export function AIProviderCreateFlowDialog({
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    await submitProvider({ event })
   }
 
   const providerName = String(formData.name ?? '').trim()
@@ -981,7 +1054,7 @@ export function AIProviderCreateFlowDialog({
           ) : null
         }
         selectedSummary={null}
-        submitLabel="Create Model"
+        submitLabel="Add Model"
         cancelLabel="Cancel"
         resetAction={{
           label: 'Test it',
@@ -989,6 +1062,28 @@ export function AIProviderCreateFlowDialog({
         }}
         onSubmit={handleSubmit}
       />
+
+      <AlertDialog open={modelLoadConfirmOpen} onOpenChange={setModelLoadConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Load models before saving?</AlertDialogTitle>
+            <AlertDialogDescription>{modelLoadConfirmMessage}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={saving}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={saving}
+              onClick={event => {
+                event.preventDefault()
+                setModelLoadConfirmOpen(false)
+                void submitProvider({ skipAutoModelLoad: true })
+              }}
+            >
+              Continue Saving
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <SecretCreateDialog
         open={secretDialogOpen}

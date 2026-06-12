@@ -3,6 +3,7 @@
   "title": "Mistral",
   "vendor": "Mistral AI",
   "description": "Mistral hosted LLM access using an API key.",
+  "helpUrl": "https://docs.mistral.ai/",
   "defaultEndpoint": "https://api.mistral.ai/v1",
   "capabilities": ["chat", "embeddings", "tools", "streaming"],
   "aliases": ["mistral"],

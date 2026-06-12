@@ -68,11 +68,11 @@ vi.mock('react-i18next', () => ({
         case 'resources.servers.createDescription':
           return 'Linux hosts, SSH targets, and deployment nodes.'
         case 'resources.serviceInstances.title':
-          return 'Service Instances'
+          return 'Runtime Instances'
         case 'resources.serviceInstances.description':
-          return 'Runtime dependencies required for application startup, including databases, middleware, and storage instances such as MySQL, PostgreSQL, Redis, Kafka, and S3.'
+          return 'Runtime dependencies required for application startup, including DB, middleware, and storage instances such as Postgres, Kafka, and S3.'
         case 'resources.serviceInstances.createDescription':
-          return 'MySQL, PostgreSQL, Redis, Kafka, and S3-backed application dependencies.'
+          return 'Runtime dependencies such as Postgres, Kafka, and S3-backed services.'
         case 'resources.serviceInstances.examples.database':
           return 'Database'
         case 'resources.serviceInstances.examples.cache':
@@ -96,11 +96,11 @@ vi.mock('react-i18next', () => ({
         case 'resources.aiProviders.examples.ollama':
           return 'Ollama'
         case 'resources.connectors.title':
-          return 'Connectors'
+          return 'External Services'
         case 'resources.connectors.description':
-          return 'SMTP, DNS, webhook, MCP, proxy, registry, and other reusable external capability connections.'
+          return 'SMTP, DNS, webhook, MCP, proxy, registry, and other reusable external service connections.'
         case 'resources.connectors.createDescription':
-          return 'SMTP, DNS, webhook, MCP, proxy, registry, and other reusable external connections.'
+          return 'SMTP, DNS, webhook, MCP, proxy, registry, and other reusable external services.'
         case 'resources.connectors.examples.restApi':
           return 'REST API'
         case 'resources.connectors.examples.webhook':
@@ -222,12 +222,12 @@ describe('ResourceHub', () => {
     expect(screen.getByRole('heading', { name: 'External Integrations' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Additional Resources' })).not.toBeInTheDocument()
 
-    expect(screen.getAllByText('Service Instances').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Runtime Instances').length).toBeGreaterThan(0)
     expect(screen.queryByText('Shared Envs')).not.toBeInTheDocument()
     expect(screen.queryByText('Supported Software')).not.toBeInTheDocument()
     expect(screen.getAllByText('AI Providers').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Platform Accounts').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Connectors').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('External Services').length).toBeGreaterThan(0)
     expect(
       screen.getByText('Linux hosts, SSH targets, and deployment nodes where workloads run.')
     ).toBeInTheDocument()
@@ -238,7 +238,7 @@ describe('ResourceHub', () => {
     ).toBeInTheDocument()
     expect(
       screen.getByText(
-        'Runtime dependencies required for application startup, including databases, middleware, and storage instances such as MySQL, PostgreSQL, Redis, Kafka, and S3.'
+        'Runtime dependencies required for application startup, including DB, middleware, and storage instances such as Postgres, Kafka, and S3.'
       )
     ).toBeInTheDocument()
     expect(
@@ -278,7 +278,7 @@ describe('ResourceHub', () => {
       'href',
       '/resources/servers'
     )
-    expect(screen.getByRole('link', { name: /Service Instances/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /Runtime Instances/i })).toHaveAttribute(
       'href',
       '/resources/service-instances'
     )
@@ -288,7 +288,7 @@ describe('ResourceHub', () => {
       'href',
       '/resources/ai-providers'
     )
-    expect(screen.getByRole('link', { name: /Connectors/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /External Services/i })).toHaveAttribute(
       'href',
       '/resources/connectors'
     )
@@ -325,19 +325,19 @@ describe('ResourceHub', () => {
     expect(within(dialog).queryByText('Software Delivery')).toBeNull()
     expect(within(dialog).getByText('External Integrations')).toBeInTheDocument()
     expect(within(dialog).getByText('Servers')).toBeInTheDocument()
-    expect(within(dialog).getByText('Service Instances')).toBeInTheDocument()
+    expect(within(dialog).getByText('Runtime Instances')).toBeInTheDocument()
     expect(within(dialog).queryByText('Shared Envs')).toBeNull()
     expect(within(dialog).queryByText('Scripts')).toBeNull()
     expect(within(dialog).queryByText('Supported Software')).toBeNull()
     expect(within(dialog).getByText('AI Providers')).toBeInTheDocument()
-    expect(within(dialog).getByText('Connectors')).toBeInTheDocument()
+    expect(within(dialog).getByText('External Services')).toBeInTheDocument()
     expect(within(dialog).getByText('Platform Accounts')).toBeInTheDocument()
     expect(
       within(dialog).getByText('Linux hosts, SSH targets, and deployment nodes.')
     ).toBeInTheDocument()
     expect(
       within(dialog).getByText(
-        'MySQL, PostgreSQL, Redis, Kafka, and S3-backed application dependencies.'
+        'Runtime dependencies such as Postgres, Kafka, and S3-backed services.'
       )
     ).toBeInTheDocument()
     expect(
@@ -358,7 +358,7 @@ describe('ResourceHub', () => {
     expect(within(dialog).queryByText('Health Check')).toBeNull()
     expect(within(dialog).queryByRole('button', { name: /Add Now/i })).toBeNull()
 
-    const serviceInstanceCard = within(dialog).getByText('Service Instances').closest('button')
+    const serviceInstanceCard = within(dialog).getByText('Runtime Instances').closest('button')
 
     expect(serviceInstanceCard).not.toBeNull()
 

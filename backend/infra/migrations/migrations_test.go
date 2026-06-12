@@ -7,6 +7,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	"github.com/websoft9/appos/backend/domain/feeds"
+	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	"github.com/websoft9/appos/backend/domain/secrets"
 
@@ -374,6 +375,7 @@ func TestServersCollectionFields(t *testing.T) {
 	assertFieldExists(t, col, "port", core.FieldTypeNumber, false)
 	assertFieldExists(t, col, "user", core.FieldTypeText, true)
 	assertFieldExists(t, col, "connect_type", core.FieldTypeText, false)
+	assertFieldExists(t, col, "is_enabled", core.FieldTypeBool, false)
 	assertFieldExists(t, col, "is_local", core.FieldTypeBool, false)
 	// auth_type removed in migration 1762700000 — credential type is inferred from secret.template_id
 	assertFieldExists(t, col, "credential", core.FieldTypeRelation, false)
@@ -911,6 +913,7 @@ func TestConnectorsCollectionHasProviderAccountRelation(t *testing.T) {
 		t.Fatal("connectors collection missing field \"provider_account\"")
 	}
 	assertRelationTarget(t, app, col, "provider_account", "provider_accounts")
+	assertSelectFieldValues(t, col, "kind", connectors.AllowedKinds())
 }
 
 func TestAIProvidersCollectionExistsAfterMigration(t *testing.T) {

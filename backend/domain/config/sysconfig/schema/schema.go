@@ -83,7 +83,7 @@ var entryCatalog = []EntrySchema{
 	{
 		ID:          "smtp",
 		Title:       "SMTP",
-		Description: "Reference-only entry. Create and manage SMTP connectors from Resources > Connectors.",
+		Description: "Reference-only entry. Create and manage SMTP services from Resources > External Services.",
 		Section:     SectionSystem,
 		Source:      SourceNative,
 		Actions:     []string{"test-email"},
@@ -256,8 +256,9 @@ var entryCatalog = []EntrySchema{
 		Key:     "network",
 		Fields: []FieldSchema{
 			{ID: "enabled", Label: "Enable Proxy", Type: "boolean", HelpText: "Enable outbound proxy resolution for platform Docker operations."},
-			{ID: "httpConnectorId", Label: "HTTP Proxy Connector", Type: "relation", HelpText: "Connector used for HTTP proxy traffic."},
-			{ID: "httpsConnectorId", Label: "HTTPS Proxy Connector", Type: "relation", HelpText: "Connector used for HTTPS proxy traffic."},
+			{ID: "socks5ConnectorId", Label: "SOCKS5 Proxy Service", Type: "relation", HelpText: "Service used for all outbound traffic when SOCKS5 is selected."},
+			{ID: "httpConnectorId", Label: "HTTP Proxy Service", Type: "relation", HelpText: "Service used for HTTP proxy traffic when SOCKS5 is not selected."},
+			{ID: "httpsConnectorId", Label: "HTTPS Proxy Service", Type: "relation", HelpText: "Service used for HTTPS proxy traffic when SOCKS5 is not selected."},
 		},
 	},
 	{
@@ -421,7 +422,7 @@ var customSettingDefaults = map[string]map[string]any{
 		"disallowedFolderNames": []string{},
 	},
 	"proxy/network": {
-		"enabled": false, "httpConnectorId": "", "httpsConnectorId": "",
+		"enabled": false, "socks5ConnectorId": "", "httpConnectorId": "", "httpsConnectorId": "",
 	},
 	"docker/mirror": {
 		"mirrors": []any{}, "allowInsecureRegistries": false,

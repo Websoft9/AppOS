@@ -200,6 +200,7 @@ type TemplateField struct {
 	Sensitive      bool   `json:"sensitive,omitempty"`
 	SecretTemplate string `json:"secretTemplate,omitempty"`
 	Placeholder    string `json:"placeholder,omitempty"`
+	HelpURL        string `json:"helpUrl,omitempty"`
 	HelpText       string `json:"helpText,omitempty"`
 	Default        any    `json:"default,omitempty"`
 }

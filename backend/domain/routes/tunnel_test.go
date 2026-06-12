@@ -90,6 +90,7 @@ func createTunnelServerRecord(t *testing.T, te *testEnv, name string) *core.Reco
 	record.Set("host", "127.0.0.1")
 	record.Set("port", 22)
 	record.Set("user", "root")
+	record.Set("is_enabled", true)
 	record.Set("auth_type", "password")
 	record.Set("connect_type", "tunnel")
 

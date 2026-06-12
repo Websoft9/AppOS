@@ -1,4 +1,8 @@
+import { createElement } from 'react'
+import { pb } from '@/lib/pb'
 import type { FieldDef, SelectOption } from '@/components/resources/ResourcePage'
+import { SecretCredentialField } from '@/components/secrets/SecretCredentialField'
+import { Button } from '@/components/ui/button'
 import {
   type ResourceSecretVisibleTo,
 } from '@/components/secrets/SecretVisibilityField'
@@ -32,7 +36,10 @@ export type ConnectorTemplate = {
   id: string
   kind: string
   title: string
+  vendor?: string
+  category?: string
   description?: string
+  helpUrl?: string
   defaultEndpoint?: string
   defaultAuthScheme?: string
   fields?: ConnectorTemplateField[]
@@ -69,6 +76,18 @@ export const CONNECTOR_KIND_QUERY = SUPPORTED_KINDS.join(',')
 
 export const SECRET_TEMPLATE_LABELS: Record<string, string> = {
   single_value: 'Token / Single Value',
+}
+
+function secretFieldUseSecretKey(fieldID: string) {
+  return `${fieldID}__use_secret`
+}
+
+function secretFieldManualValueKey(fieldID: string) {
+  return `${fieldID}__manual_value`
+}
+
+function secretFieldEditModeKey(fieldID: string) {
+  return `${fieldID}__editing`
 }
 
 function translateOrFallback(
@@ -123,11 +142,115 @@ export function buildDefaultConnectorName() {
   return `connector-${Date.now().toString().slice(-6)}`
 }
 
-export function formatSecretLabel(raw: Record<string, unknown>, t?: Translate): string {
-  const name = String(raw.name ?? raw.id)
-  const templateId = String(raw.template_id ?? '')
-  const suffix = getConnectorSecretTemplateLabel(templateId, t)
-  return suffix ? `${name} (${suffix})` : name
+function slugifyNamePart(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+export function isGenericConnectorTemplate(template: ConnectorTemplate) {
+  const vendor = String(template.vendor ?? '')
+    .trim()
+    .toLowerCase()
+  return (
+    template.id.startsWith('generic-') ||
+    vendor === 'generic' ||
+    template.title.trim().toLowerCase().startsWith('generic ')
+  )
+}
+
+export function listConnectorTemplatesForKind(
+  kind: string,
+  templates: ConnectorTemplate[]
+): ConnectorTemplate[] {
+  return templates
+    .filter(template => template.kind === kind)
+    .sort((left, right) => {
+      const leftIsGeneric = isGenericConnectorTemplate(left)
+      const rightIsGeneric = isGenericConnectorTemplate(right)
+      if (leftIsGeneric !== rightIsGeneric) {
+        return leftIsGeneric ? -1 : 1
+      }
+      return left.title.localeCompare(right.title, undefined, { sensitivity: 'base' })
+    })
+}
+
+export function getDefaultConnectorTemplate(
+  kind: string,
+  templates: ConnectorTemplate[]
+): ConnectorTemplate | null {
+  return listConnectorTemplatesForKind(kind, templates)[0] ?? null
+}
+
+function mergeConnectorField(
+  current: ConnectorTemplateField,
+  incoming: ConnectorTemplateField
+): ConnectorTemplateField {
+  return {
+    ...current,
+    label: current.label || incoming.label,
+    type: current.type || incoming.type,
+    secretTemplate: current.secretTemplate || incoming.secretTemplate,
+    placeholder: current.placeholder || incoming.placeholder,
+    helpText: current.helpText || incoming.helpText,
+    default: current.default !== undefined ? current.default : incoming.default,
+  }
+}
+
+export function buildConnectorKindSchema(
+  kind: string,
+  templates: ConnectorTemplate[]
+): ConnectorTemplateField[] {
+  const schema: ConnectorTemplateField[] = []
+  const fieldIndexByID = new Map<string, number>()
+
+  for (const template of listConnectorTemplatesForKind(kind, templates)) {
+    for (const field of template.fields ?? []) {
+      const existingIndex = fieldIndexByID.get(field.id)
+      if (existingIndex === undefined) {
+        fieldIndexByID.set(field.id, schema.length)
+        schema.push({ ...field, required: false })
+        continue
+      }
+      schema[existingIndex] = mergeConnectorField(schema[existingIndex], field)
+    }
+  }
+
+  return schema
+}
+
+export function applyConnectorTemplateDefaults(
+  template: ConnectorTemplate | null | undefined,
+  update: (key: string, value: unknown) => void
+) {
+  if (!template) {
+    return
+  }
+  if (template.defaultEndpoint) {
+    update('endpoint', template.defaultEndpoint)
+  }
+  for (const field of template.fields ?? []) {
+    if (field.default !== undefined) {
+      update(field.id, normalizeTemplateFieldDefault(field))
+    }
+  }
+}
+
+export function buildConnectorCreateHref(kind?: string, templateID?: string) {
+  const params = new URLSearchParams({ create: '1' })
+  if (kind) {
+    params.set('kind', kind)
+  }
+  if (templateID) {
+    params.set('template', templateID)
+  }
+  return `/resources/connectors?${params.toString()}`
+}
+
+export function formatSecretLabel(raw: Record<string, unknown>): string {
+  return String(raw.name ?? raw.id)
 }
 
 export function humanizeTemplateId(templateId: string) {
@@ -198,7 +321,6 @@ export function mapTemplateFieldToResourceField(
   template: ConnectorTemplate,
   field: ConnectorTemplateField,
   openSecretDialog: (callbacks: { addOption: (id: string, label: string) => void }) => void,
-  openSecretEditor: (secretId: string) => void,
   t?: Translate
 ): FieldDef {
   if (template.kind === 'proxy') {
@@ -214,6 +336,8 @@ export function mapTemplateFieldToResourceField(
           if (String(value ?? '') !== 'username_password') {
             update('username', '')
             update('credential', '')
+            update(secretFieldUseSecretKey('credential'), false)
+            update(secretFieldManualValueKey('credential'), '')
           }
         },
       }
@@ -239,19 +363,94 @@ export function mapTemplateFieldToResourceField(
       type: 'relation',
       required: field.required,
       relationApiPath: buildUserVisibleSecretRelationApiPath('connector', field.secretTemplate),
-      relationFormatLabel: raw => formatSecretLabel(raw, t),
-      relationCreateButton: {
-        label: translateOrFallback(t, 'connectors.secret.new', 'New Secret'),
-        onClick: openSecretDialog,
-      },
-      relationEditButton: {
-        label: translateOrFallback(t, 'connectors.secret.edit', 'Edit Secret'),
-        onClick: openSecretEditor,
-      },
+      relationFormatLabel: raw => formatSecretLabel(raw),
       showWhen:
         template.kind === 'proxy' && field.id === 'credential'
           ? { field: 'auth_mode', values: ['username_password'] }
           : undefined,
+      render: ({
+        inputId,
+        formData,
+        editingItem,
+        updateField,
+        relationOptions,
+        addRelationOption,
+      }) => {
+        const lockedForEdit =
+          Boolean(editingItem) && !Boolean(formData[secretFieldEditModeKey(field.id)])
+        const referenceValue = String(formData[field.id] ?? '')
+        const selectedLabel =
+          relationOptions.find(option => option.id === referenceValue)?.label ??
+          referenceValue ??
+          ''
+        const useSecretValue = formData[secretFieldUseSecretKey(field.id)]
+        const useSecret =
+          typeof useSecretValue === 'boolean' ? useSecretValue : referenceValue.trim() !== ''
+
+        if (lockedForEdit) {
+          return createElement(
+            'div',
+            { className: 'flex flex-wrap items-center gap-3' },
+            createElement(
+              'div',
+              { className: 'min-w-[220px] flex-1 rounded-md border border-input bg-muted/30 px-3 py-2 text-sm text-foreground' },
+              selectedLabel || translateOrFallback(t, 'connectors.secret.noneSelected', 'No secret selected')
+            ),
+            createElement(
+              Button,
+              {
+                type: 'button',
+                variant: 'outline',
+                className: 'h-10',
+                onClick: () => {
+                  updateField(secretFieldEditModeKey(field.id), true)
+                  updateField(secretFieldUseSecretKey(field.id), referenceValue.trim() !== '')
+                },
+                title: translateOrFallback(t, 'connectors.secret.editValue', 'Edit secret value'),
+              },
+              translateOrFallback(t, 'connectors.secret.edit', 'Edit Secret')
+            )
+          )
+        }
+
+        return createElement(SecretCredentialField, {
+          inputId,
+          manualValue: String(formData[secretFieldManualValueKey(field.id)] ?? ''),
+          onManualValueChange: value => updateField(secretFieldManualValueKey(field.id), value),
+          useReference: useSecret,
+          onUseReferenceChange: checked => {
+            updateField(secretFieldUseSecretKey(field.id), checked)
+            updateField(secretFieldEditModeKey(field.id), true)
+            if (!checked) {
+              updateField(field.id, '')
+            }
+          },
+          referenceValue,
+          onReferenceValueChange: value => updateField(field.id, value),
+          options: relationOptions,
+          onCreateReference: () => {
+            openSecretDialog({
+              addOption: (id, label) => {
+                addRelationOption(id, label)
+                updateField(secretFieldEditModeKey(field.id), true)
+                updateField(secretFieldUseSecretKey(field.id), true)
+                updateField(field.id, id)
+              },
+            })
+          },
+          editMode: false,
+          manualPlaceholder: translateOrFallback(
+            t,
+            'connectors.secret.directPlaceholder',
+            `Enter ${field.label}`
+          ),
+          showLabel: translateOrFallback(t, 'connectors.secret.show', 'Show secret'),
+          hideLabel: translateOrFallback(t, 'connectors.secret.hide', 'Hide secret'),
+          allowGenerate: false,
+          referenceToggleMode: 'icon',
+          editReferenceMode: 'icon',
+        })
+      },
     }
   }
 
@@ -273,6 +472,40 @@ export function mapTemplateFieldToResourceField(
   }
 }
 
+async function createSecretForConnectorField(
+  payload: Record<string, unknown>,
+  template: ConnectorTemplate,
+  field: ConnectorTemplateField,
+  t?: Translate
+) {
+  const manualValue = String(payload[secretFieldManualValueKey(field.id)] ?? '').trim()
+  const useReferenceValue = payload[secretFieldUseSecretKey(field.id)]
+  const useReference =
+    typeof useReferenceValue === 'boolean'
+      ? useReferenceValue
+      : String(payload[field.id] ?? '').trim() !== ''
+
+  if (!useReference && manualValue) {
+    const connectorName = String(payload.name ?? '').trim()
+    const secret = await pb.collection('secrets').create({
+      name: `${slugifyNamePart(connectorName || template.title || 'external-service') || 'external-service'}-${slugifyNamePart(field.id) || 'secret'}`,
+      description: t
+        ? t('connectors.secret.generatedDescription', {
+            name: connectorName || template.title,
+            field: field.label,
+          })
+        : `${field.label} for ${connectorName || template.title}`,
+      template_id: field.secretTemplate || 'single_value',
+      scope: 'global',
+      visible_to: ['connector'],
+      payload: { value: manualValue },
+    })
+    payload[field.id] = String(secret.id ?? '')
+  }
+
+  return String(payload[field.id] ?? '').trim()
+}
+
 export async function buildConnectorPayload(
   payload: Record<string, unknown>,
   templatesById: Map<string, ConnectorTemplate>,
@@ -287,7 +520,24 @@ export async function buildConnectorPayload(
     )
   }
 
-  const credentialId = String(body.credential ?? '')
+  for (const field of template.fields ?? []) {
+    if (field.type !== 'secret_ref') {
+      continue
+    }
+    const secretID = await createSecretForConnectorField(body, template, field, t)
+    if (field.required && !secretID) {
+      throw new Error(
+        translateOrFallback(
+          t,
+          'connectors.errors.fieldRequired',
+          `${field.label} is required`,
+          { field: field.label }
+        )
+      )
+    }
+  }
+
+  const credentialId = String(body.credential ?? '').trim()
   let authScheme = 'none'
   if (template.kind === 'proxy') {
     authScheme = String(body.auth_mode ?? '').trim() === 'username_password' ? 'basic' : 'none'
@@ -379,6 +629,7 @@ export function mapConnectorRow(
   return {
     id: item.id,
     name: String(item.name ?? ''),
+    kind,
     is_default: Boolean(item.is_default),
     template_id: String(item.template_id ?? ''),
     kind_label: getConnectorKindLabel(kind, t),
@@ -386,7 +637,10 @@ export function mapConnectorRow(
     endpoint: String(item.endpoint ?? ''),
     auth_type: String(item.auth_scheme ?? 'none'),
     credential: String(item.credential ?? ''),
+    [secretFieldUseSecretKey('credential')]: true,
+    [secretFieldManualValueKey('credential')]: '',
     description: String(item.description ?? ''),
+    [secretFieldEditModeKey('credential')]: false,
     advanced_config:
       Object.keys(advancedConfig).length > 0 ? JSON.stringify(advancedConfig, null, 2) : '',
     ...flattenedConfig,

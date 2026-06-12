@@ -438,8 +438,10 @@ func validateProxyNetwork(app core.App, v map[string]any) map[string]string {
 		v["enabled"] = enabled
 	}
 
+	socks5ConnectorID := strings.TrimSpace(sysconfig.String(v, "socks5ConnectorId", ""))
 	httpConnectorID := strings.TrimSpace(sysconfig.String(v, "httpConnectorId", ""))
 	httpsConnectorID := strings.TrimSpace(sysconfig.String(v, "httpsConnectorId", ""))
+	v["socks5ConnectorId"] = socks5ConnectorID
 	v["httpConnectorId"] = httpConnectorID
 	v["httpsConnectorId"] = httpsConnectorID
 
@@ -457,11 +459,12 @@ func validateProxyNetwork(app core.App, v map[string]any) map[string]string {
 			errors[field] = "must reference a proxy connector"
 		}
 	}
+	validateProxyConnectorID("socks5ConnectorId", socks5ConnectorID)
 	validateProxyConnectorID("httpConnectorId", httpConnectorID)
 	validateProxyConnectorID("httpsConnectorId", httpsConnectorID)
 
-	if len(errors) == 0 && enabled && httpConnectorID == "" && httpsConnectorID == "" {
-		errors["httpConnectorId"] = "select at least one proxy connector when proxy is enabled"
+	if len(errors) == 0 && enabled && socks5ConnectorID == "" && httpConnectorID == "" && httpsConnectorID == "" {
+		errors["socks5ConnectorId"] = "select at least one proxy option when proxy is enabled"
 	}
 
 	if len(errors) == 0 {

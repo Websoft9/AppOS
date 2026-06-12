@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -16,8 +17,8 @@ import (
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
-	sysconfig "github.com/websoft9/appos/backend/domain/config/sysconfig"
 	"github.com/websoft9/appos/backend/domain/audit"
+	sysconfig "github.com/websoft9/appos/backend/domain/config/sysconfig"
 	"github.com/websoft9/appos/backend/domain/resource/accounts"
 	"github.com/websoft9/appos/backend/domain/resource/aiproviders"
 	"github.com/websoft9/appos/backend/domain/secrets"
@@ -238,7 +239,12 @@ func bindAIProviderUpsertRequest(e *core.RequestEvent) (aiproviders.SaveInput, e
 	}
 	config := cloneStringAnyMap(body.Config)
 	if body.EnabledModels != nil {
-		config["enabled_models"] = normalizeStringSlice(body.EnabledModels)
+		enabledModels := normalizeStringSlice(body.EnabledModels)
+		if len(enabledModels) > 0 {
+			config["enabled_models"] = enabledModels
+		} else {
+			delete(config, "enabled_models")
+		}
 	}
 	return aiproviders.SaveInput{
 		Name:              body.Name,
@@ -484,6 +490,8 @@ func fetchProviderModels(ctx context.Context, endpoint string, apiKey string, te
 	}
 
 	modelsURL := strings.TrimRight(endpoint, "/") + "/models"
+	useBearerAuth := false
+	useQueryAPIKey := false
 	var tpl aiproviders.Template
 	var hasTemplate bool
 	if templateID != "" {
@@ -491,6 +499,20 @@ func fetchProviderModels(ctx context.Context, endpoint string, apiKey string, te
 		if hasTemplate && tpl.ModelsEndpoint != "" {
 			modelsURL = resolveModelsEndpoint(endpoint, tpl.ModelsEndpoint)
 		}
+	}
+	if isGoogleGeminiProvider(templateID, endpoint) {
+		modelsURL = resolveGoogleGeminiModelsURL(endpoint)
+		useBearerAuth = isGoogleGeminiOpenAIEndpoint(endpoint)
+		useQueryAPIKey = !useBearerAuth
+	} else if isAWSBedrockProvider(templateID, endpoint) {
+		var resolveErr error
+		modelsURL, resolveErr = resolveAWSBedrockModelsURL(endpoint)
+		if resolveErr != nil {
+			return fetchModelsResponse{}, resolveErr
+		}
+		useBearerAuth = true
+	} else if apiKey != "" {
+		useBearerAuth = true
 	}
 
 	var client http.Client
@@ -509,7 +531,13 @@ func fetchProviderModels(ctx context.Context, endpoint string, apiKey string, te
 		return fetchModelsResponse{}, reqErr
 	}
 	req.Header.Set("Accept", "application/json")
-	if apiKey != "" {
+	if useQueryAPIKey {
+		if apiKey != "" {
+			query := req.URL.Query()
+			query.Set("key", apiKey)
+			req.URL.RawQuery = query.Encode()
+		}
+	} else if useBearerAuth && apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 
@@ -542,11 +570,11 @@ func fetchProviderModels(ctx context.Context, endpoint string, apiKey string, te
 			}
 		}
 	}
-	return buildFetchModelsResponse(parsed, defaultEnabled), nil
+	return buildFetchModelsResponse(parsed, defaultEnabled, templateID), nil
 }
 
-func buildFetchModelsResponse(parsed any, defaultEnabled map[string]struct{}) fetchModelsResponse {
-	models := collectModelItems(parsed, defaultEnabled)
+func buildFetchModelsResponse(parsed any, defaultEnabled map[string]struct{}, templateID string) fetchModelsResponse {
+	models := collectModelItems(parsed, defaultEnabled, templateID)
 	groups := make([]fetchModelsGroup, 0)
 	if len(models) > 0 {
 		grouped := map[string][]fetchModelsItem{}
@@ -568,12 +596,18 @@ func buildFetchModelsResponse(parsed any, defaultEnabled map[string]struct{}) fe
 	return fetchModelsResponse{Models: models, Groups: groups}
 }
 
-func collectModelItems(parsed any, defaultEnabled map[string]struct{}) []fetchModelsItem {
+func collectModelItems(parsed any, defaultEnabled map[string]struct{}, templateID string) []fetchModelsItem {
 	items := make([]fetchModelsItem, 0)
 	seen := map[string]struct{}{}
-	appendItem := func(id string, vendor string) {
-		trimmedID := strings.TrimSpace(id)
+	appendItem := func(id string, vendor string, source map[string]any) {
+		trimmedID := normalizeFetchedModelID(id)
 		if trimmedID == "" {
+			return
+		}
+		if isGoogleGeminiProvider(templateID, "") && !supportsGenerativeModel(source) {
+			return
+		}
+		if isAWSBedrockProvider(templateID, "") && !supportsTextOutputModel(source) {
 			return
 		}
 		if _, ok := seen[trimmedID]; ok {
@@ -588,10 +622,10 @@ func collectModelItems(parsed any, defaultEnabled map[string]struct{}) []fetchMo
 	visit = func(node any) {
 		switch typed := node.(type) {
 		case map[string]any:
-			if id := firstMapString(typed, "id", "name", "model"); id != "" {
-				appendItem(id, inferModelVendor(id, typed))
+			if id := firstMapString(typed, "id", "name", "model", "modelId", "modelName"); id != "" {
+				appendItem(id, inferModelVendor(id, typed), typed)
 			}
-			for _, key := range []string{"data", "models", "items", "results"} {
+			for _, key := range []string{"data", "models", "items", "results", "modelSummaries"} {
 				if next, ok := typed[key]; ok {
 					visit(next)
 				}
@@ -606,11 +640,110 @@ func collectModelItems(parsed any, defaultEnabled map[string]struct{}) []fetchMo
 	return items
 }
 
+func normalizeFetchedModelID(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	trimmed = strings.TrimPrefix(trimmed, "models/")
+	return strings.TrimSpace(trimmed)
+}
+
+func supportsGenerativeModel(source map[string]any) bool {
+	raw, ok := source["supportedGenerationMethods"]
+	if !ok {
+		return true
+	}
+	methods, ok := raw.([]any)
+	if !ok {
+		return true
+	}
+	for _, method := range methods {
+		name := strings.TrimSpace(fmt.Sprint(method))
+		if name == "generateContent" || name == "streamGenerateContent" {
+			return true
+		}
+	}
+	return false
+}
+
+func supportsTextOutputModel(source map[string]any) bool {
+	raw, ok := source["outputModalities"]
+	if !ok {
+		return true
+	}
+	modalities, ok := raw.([]any)
+	if !ok {
+		return true
+	}
+	for _, modality := range modalities {
+		name := strings.TrimSpace(strings.ToUpper(fmt.Sprint(modality)))
+		if name == "TEXT" {
+			return true
+		}
+	}
+	return false
+}
+
+func isGoogleGeminiProvider(templateID string, endpoint string) bool {
+	if strings.EqualFold(strings.TrimSpace(templateID), "google-gemini") {
+		return true
+	}
+	return strings.Contains(strings.ToLower(strings.TrimSpace(endpoint)), "generativelanguage.googleapis.com")
+}
+
+func isGoogleGeminiOpenAIEndpoint(endpoint string) bool {
+	return strings.Contains(strings.ToLower(strings.TrimSpace(endpoint)), "/openai")
+}
+
+func resolveGoogleGeminiModelsURL(endpoint string) string {
+	base := strings.TrimRight(strings.TrimSpace(endpoint), "/")
+	if isGoogleGeminiOpenAIEndpoint(base) {
+		return base + "/models"
+	}
+	return resolveModelsEndpoint(base, "/models")
+}
+
+func isAWSBedrockProvider(templateID string, endpoint string) bool {
+	if strings.EqualFold(strings.TrimSpace(templateID), "aws-bedrock") {
+		return true
+	}
+	host := extractEndpointHostname(endpoint)
+	return strings.HasPrefix(host, "bedrock-runtime.") || strings.HasPrefix(host, "bedrock-mantle.") || strings.HasPrefix(host, "bedrock.")
+}
+
+func resolveAWSBedrockModelsURL(endpoint string) (string, error) {
+	region := extractAWSBedrockRegion(endpoint)
+	if region == "" {
+		return "", errors.New("could not determine AWS Bedrock region from endpoint")
+	}
+	return "https://bedrock." + region + ".amazonaws.com/foundation-models", nil
+}
+
+func extractEndpointHostname(rawEndpoint string) string {
+	parsed, err := url.Parse(strings.TrimSpace(rawEndpoint))
+	if err == nil && parsed.Hostname() != "" {
+		return strings.ToLower(parsed.Hostname())
+	}
+	return strings.ToLower(strings.TrimSpace(rawEndpoint))
+}
+
+func extractAWSBedrockRegion(endpoint string) string {
+	host := extractEndpointHostname(endpoint)
+	for _, prefix := range []string{"bedrock-mantle.", "bedrock-runtime.", "bedrock."} {
+		if strings.HasPrefix(host, prefix) {
+			remainder := strings.TrimPrefix(host, prefix)
+			parts := strings.Split(remainder, ".")
+			if len(parts) > 0 {
+				return strings.TrimSpace(parts[0])
+			}
+		}
+	}
+	return ""
+}
+
 func inferModelVendor(id string, source map[string]any) string {
-	if vendor := firstMapString(source, "vendor", "provider", "owned_by", "family"); vendor != "" {
+	if vendor := firstMapString(source, "vendor", "provider", "providerName", "owned_by", "family"); vendor != "" {
 		return humanizeVendor(vendor)
 	}
-	trimmedID := strings.TrimSpace(id)
+	trimmedID := normalizeFetchedModelID(id)
 	if strings.Contains(trimmedID, "/") {
 		return humanizeVendor(strings.SplitN(trimmedID, "/", 2)[0])
 	}

@@ -163,6 +163,24 @@ function getTargetLocationField() {
   return screen.getByLabelText(/^Target Location/)
 }
 
+async function selectTargetLocation(value: string) {
+  await waitFor(() => {
+    const field = getTargetLocationField() as HTMLSelectElement
+    expect(Array.from(field.options).some(option => option.value === value)).toBe(true)
+  })
+  fireEvent.change(getTargetLocationField(), { target: { value } })
+  await waitFor(() => {
+    expect((getTargetLocationField() as HTMLSelectElement).value).toBe(value)
+  })
+}
+
+async function clickEnabledButton(name: string) {
+  await waitFor(() => {
+    expect(screen.getByRole('button', { name })).toBeEnabled()
+  })
+  fireEvent.click(screen.getByRole('button', { name }))
+}
+
 async function enablePortAccess() {
   fireEvent.click(screen.getByRole('button', { name: /Port Access/i }))
   await waitFor(() => {
@@ -483,6 +501,40 @@ describe('CreateDeploymentPage', () => {
     )
   })
 
+  it('does not inject a local target when no docker-capable servers exist', async () => {
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/servers/docker-targets') {
+        return Promise.resolve([])
+      }
+      if (path === settingsEntryPath('deploy_checklist')) {
+        return Promise.resolve({
+          key: 'deploy_checklist',
+          value: { compose_acknowledged: true },
+        })
+      }
+      if (path === '/api/catalog/apps?locale=en&source=official&limit=1000&offset=0') {
+        return Promise.resolve({ items: [], total: 0 })
+      }
+      if (path === '/api/catalog/categories?locale=en') {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === '/api/deploy/intents') {
+        return Promise.resolve({ items: [], total: 0 })
+      }
+      return Promise.resolve([])
+    })
+
+    renderCreateDeploymentPage({ entryMode: 'compose' })
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/servers/docker-targets', { method: 'GET' })
+    })
+
+    const targetField = getTargetLocationField() as HTMLSelectElement
+    expect(Array.from(targetField.options).some(option => option.value === 'local')).toBe(false)
+    expect(targetField.value).toBe('')
+  })
+
   it('renders the full create page and submits a manual compose action', async () => {
     renderCreateDeploymentPage({ entryMode: 'compose' })
 
@@ -518,7 +570,7 @@ describe('CreateDeploymentPage', () => {
     expect(screen.queryByText('FAQ')).toBeNull()
 
     fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
-    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
+    await selectTargetLocation('local')
 
     const composeTextarea = screen.getByPlaceholderText(/services:/i)
     fireEvent.change(composeTextarea, {
@@ -614,7 +666,7 @@ describe('CreateDeploymentPage', () => {
     await enablePortAccess()
 
     fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
-    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
+    await selectTargetLocation('local')
     fireEvent.change(screen.getByPlaceholderText(/services:/i), {
       target: { value: 'services:\n  web:\n    image: nginx:alpine\n' },
     })
@@ -651,12 +703,12 @@ describe('CreateDeploymentPage', () => {
     expect(screen.queryByText('Pre-flight checks')).toBeNull()
 
     fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
-    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
+    await selectTargetLocation('local')
     fireEvent.change(screen.getByPlaceholderText(/services:/i), {
       target: { value: 'services:\n  web:\n    image: nginx:alpine\n' },
     })
     expect(screen.getByRole('button', { name: 'Check' })).toBeEnabled()
-    fireEvent.click(screen.getByRole('button', { name: 'Check' }))
+    await clickEnabledButton('Check')
 
     expect(screen.getByText('Pre-flight checks')).toBeInTheDocument()
 
@@ -738,7 +790,7 @@ describe('CreateDeploymentPage', () => {
     await enablePortAccess()
 
     fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
-    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
+    await selectTargetLocation('local')
     fireEvent.change(screen.getByPlaceholderText(/services:/i), {
       target: { value: 'services:\n  web:\n    image: nginx:alpine\n' },
     })
@@ -839,7 +891,7 @@ describe('CreateDeploymentPage', () => {
     })
 
     fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
-    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
+    await selectTargetLocation('local')
     fireEvent.change(screen.getByLabelText('Estimated App Disk (GiB)'), { target: { value: '2' } })
     fireEvent.change(screen.getByPlaceholderText(/services:/i), {
       target: { value: 'services:\n  web:\n    image: nginx:alpine\n' },
@@ -916,7 +968,7 @@ describe('CreateDeploymentPage', () => {
       await enablePortAccess()
 
       fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
-      fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
+      await selectTargetLocation('local')
       fireEvent.change(screen.getByPlaceholderText(/services:/i), {
         target: { value: 'services:\n  web:\n    image: nginx:alpine\n' },
       })
@@ -966,7 +1018,7 @@ describe('CreateDeploymentPage', () => {
     await enablePortAccess()
 
     fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
-    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
+    await selectTargetLocation('local')
     fireEvent.change(screen.getByPlaceholderText(/services:/i), {
       target: { value: 'services:\n  web:\n    image: nginx:alpine\n' },
     })
@@ -1096,7 +1148,7 @@ describe('CreateDeploymentPage', () => {
     await enablePortAccess()
 
     fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
-    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
+    await selectTargetLocation('local')
     fireEvent.change(screen.getByPlaceholderText(/services:/i), {
       target: {
         value: 'services:\n  web:\n    image: nginx:alpine\n  worker:\n    image: busybox\n',
@@ -1156,7 +1208,7 @@ describe('CreateDeploymentPage', () => {
     await enablePortAccess()
 
     fireEvent.change(getAppNameField(), { target: { value: 'git-wordpress' } })
-    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
+    await selectTargetLocation('local')
     fireEvent.change(screen.getByLabelText('Repository URL'), {
       target: { value: 'https://github.com/org/repo' },
     })
@@ -1213,7 +1265,7 @@ describe('CreateDeploymentPage', () => {
     await enablePortAccess()
 
     fireEvent.change(getAppNameField(), { target: { value: 'git-wordpress' } })
-    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
+    await selectTargetLocation('local')
     fireEvent.change(screen.getByLabelText('Repository URL'), {
       target: { value: 'https://github.com/org/repo' },
     })
@@ -1284,7 +1336,7 @@ describe('CreateDeploymentPage', () => {
     })
 
     fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
-    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
+    await selectTargetLocation('local')
     fireEvent.change(screen.getByLabelText('Admin Email *'), {
       target: { value: 'admin@example.com' },
     })
@@ -1292,7 +1344,7 @@ describe('CreateDeploymentPage', () => {
       target: { value: 'sup3r-secret' },
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Check' }))
+    await clickEnabledButton('Check')
 
     await waitFor(() => {
       expect(collectionCreateMock).toHaveBeenCalledWith({
@@ -1364,12 +1416,12 @@ describe('CreateDeploymentPage', () => {
     fireEvent.click(screen.getByLabelText('Disabled'))
 
     fireEvent.change(getAppNameField(), { target: { value: 'wordpress-private' } })
-    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
+    await selectTargetLocation('local')
     fireEvent.change(screen.getByLabelText('Admin Email *'), {
       target: { value: 'admin@example.com' },
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Check' }))
+    await clickEnabledButton('Check')
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/actions/install/template/check', {
@@ -1453,7 +1505,7 @@ describe('CreateDeploymentPage', () => {
     await enablePortAccess()
 
     fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
-    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
+    await selectTargetLocation('local')
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
@@ -1501,7 +1553,7 @@ describe('CreateDeploymentPage', () => {
     expect(screen.getByLabelText('Server Port primary')).toBeInTheDocument()
 
     fireEvent.change(getAppNameField(), { target: { value: 'internal-demo' } })
-    fireEvent.change(getTargetLocationField(), { target: { value: 'local' } })
+    await selectTargetLocation('local')
     fireEvent.change(screen.getByPlaceholderText(/services:/i), {
       target: { value: 'services:\n  web:\n    image: nginx:alpine\n' },
     })

@@ -281,12 +281,14 @@ func loadWorkerDockerProxyEnv(app core.App) map[string]string {
 	case string:
 		enabled = strings.EqualFold(strings.TrimSpace(raw), "true") || strings.TrimSpace(raw) == "1"
 	}
+	socks5ConnectorID := sysconfig.String(group, "socks5ConnectorId", "")
 	httpConnectorID := sysconfig.String(group, "httpConnectorId", "")
 	httpsConnectorID := sysconfig.String(group, "httpsConnectorId", "")
 	env, err := connectors.BuildProxyEnvWith(
 		persistence.NewConnectorRepository(app),
 		connectors.NewSecretResolver(app),
 		enabled,
+		socks5ConnectorID,
 		httpConnectorID,
 		httpsConnectorID,
 	)

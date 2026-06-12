@@ -282,9 +282,7 @@ export function useActionsController({
   const navigate = useNavigate()
   const locale = getLocale()
   const { data: userApps = [] } = useUserApps()
-  const [servers, setServers] = useState<ServerEntry[]>([
-    { id: 'local', label: 'local', host: 'local', status: 'online' },
-  ])
+  const [servers, setServers] = useState<ServerEntry[]>([])
   const [storeShortcuts, setStoreShortcuts] = useState<StoreShortcut[]>([])
   const [storeProducts, setStoreProducts] = useState<ProductWithCategories[]>([])
   const [storePrimaryCategories, setStorePrimaryCategories] = useState<PrimaryCategory[]>([])
@@ -777,14 +775,18 @@ export function useActionsController({
   async function fetchServers() {
     try {
       const response = await pb.send<ServerEntry[]>(dockerTargetsPath(), { method: 'GET' })
-      if (Array.isArray(response) && response.length > 0) {
-        setServers(response)
-        setServerId(current =>
-          current && response.some(item => item.id === current) ? current : ''
-        )
-      }
+      const nextServers = Array.isArray(response) ? response : []
+      setServers(nextServers)
+      setServerId(current =>
+        current && nextServers.some(item => item.id === current)
+          ? current
+          : nextServers.length === 1
+            ? nextServers[0].id
+            : ''
+      )
     } catch {
-      // Keep local fallback.
+      setServers([])
+      setServerId('')
     }
   }
 

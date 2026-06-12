@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { HelpCircle, Loader2 } from 'lucide-react'
-import { ProxyConnectorDialog } from '@/components/connectors/ProxyConnectorDialog'
 import { pb } from '@/lib/pb'
 import { type SettingsSchemaEntry } from '@/lib/settings-api'
 import type { SecretPolicy } from '@/lib/secrets-policy'
 import { SECRET_ACCESS_MODE_OPTIONS } from '@/lib/secrets-policy'
+import { buildConnectorCreateHref } from '@/components/connectors/shared'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -302,14 +302,16 @@ export function SpaceQuotaSection({
 export function ProxySection({
   proxyForm,
   proxySaving,
+  proxyErrors,
   setProxyForm,
   saveProxy,
   onOpenHelp,
 }: {
   proxyForm: ProxyNetwork
   proxySaving: boolean
+  proxyErrors: Partial<Record<'form' | keyof ProxyNetwork, string>>
   setProxyForm: React.Dispatch<React.SetStateAction<ProxyNetwork>>
-  saveProxy: () => void
+  saveProxy: (draft?: ProxyNetwork) => void
   onOpenHelp?: () => void
 }) {
   type ProxyConnectorOption = {
@@ -318,13 +320,9 @@ export function ProxySection({
     endpoint?: string
     config?: Record<string, unknown>
   }
-  const HTTP_ADD_OPTION = '__add_http_proxy__'
-  const HTTPS_ADD_OPTION = '__add_https_proxy__'
-  const OPTION_SEPARATOR = '__separator__'
 
   const [connectors, setConnectors] = useState<ProxyConnectorOption[]>([])
   const [connectorsLoading, setConnectorsLoading] = useState(false)
-  const [createTarget, setCreateTarget] = useState<'http' | 'https' | null>(null)
 
   const loadConnectors = useCallback(async () => {
     setConnectorsLoading(true)
@@ -354,6 +352,7 @@ export function ProxySection({
         const endpoint = typeof connector.endpoint === 'string' ? connector.endpoint : ''
         return {
           id: connector.id,
+          protocol,
           label: endpoint
             ? `${connector.name} · ${protocol} · ${endpoint}`
             : `${connector.name} · ${protocol}`,
@@ -362,8 +361,69 @@ export function ProxySection({
     [connectors]
   )
 
-  const openCreate = (target: 'http' | 'https') => {
-    setCreateTarget(target)
+  const addHTTPProxyHref = buildConnectorCreateHref('proxy', 'http-proxy')
+  const addSOCKS5ProxyHref = buildConnectorCreateHref('proxy', 'socks5-proxy')
+  const validConnectorIDs = useMemo(
+    () => new Set(connectorOptions.map(option => option.id)),
+    [connectorOptions]
+  )
+  const socks5Options = useMemo(
+    () => connectorOptions.filter(option => option.protocol === 'SOCKS5'),
+    [connectorOptions]
+  )
+  const httpOptions = useMemo(
+    () => connectorOptions.filter(option => option.protocol !== 'SOCKS5'),
+    [connectorOptions]
+  )
+  const httpsOptions = useMemo(
+    () => connectorOptions.filter(option => option.protocol !== 'SOCKS5'),
+    [connectorOptions]
+  )
+  const hasAnyAvailableProxy = connectorOptions.length > 0
+  const toggleDisabled = connectorsLoading || (!proxyForm.enabled && !hasAnyAvailableProxy)
+  const missingSelections = {
+    socks5ConnectorId:
+      proxyForm.socks5ConnectorId && !validConnectorIDs.has(proxyForm.socks5ConnectorId)
+        ? proxyForm.socks5ConnectorId
+        : '',
+    httpConnectorId:
+      proxyForm.httpConnectorId && !validConnectorIDs.has(proxyForm.httpConnectorId)
+        ? proxyForm.httpConnectorId
+        : '',
+    httpsConnectorId:
+      proxyForm.httpsConnectorId && !validConnectorIDs.has(proxyForm.httpsConnectorId)
+        ? proxyForm.httpsConnectorId
+        : '',
+  }
+  const hasMissingSelections = Object.values(missingSelections).some(Boolean)
+
+  const buildOptionsForValue = (
+    baseOptions: Array<{ id: string; label: string }>,
+    missingValue: string
+  ) => {
+    if (!missingValue) {
+      return baseOptions
+    }
+    return [
+      { id: missingValue, label: 'Previously selected resource was deleted' },
+      ...baseOptions,
+    ]
+  }
+
+  const saveCurrentProxy = () => {
+    const draft: ProxyNetwork = {
+      ...proxyForm,
+      socks5ConnectorId: validConnectorIDs.has(proxyForm.socks5ConnectorId)
+        ? proxyForm.socks5ConnectorId
+        : '',
+      httpConnectorId: validConnectorIDs.has(proxyForm.httpConnectorId)
+        ? proxyForm.httpConnectorId
+        : '',
+      httpsConnectorId: validConnectorIDs.has(proxyForm.httpsConnectorId)
+        ? proxyForm.httpsConnectorId
+        : '',
+    }
+    void saveProxy(draft)
   }
 
   return (
@@ -381,7 +441,9 @@ export function ProxySection({
             <HelpCircle className="h-4 w-4" />
           </Button>
         </div>
-        <CardDescription>Select HTTP and HTTPS proxy connectors.</CardDescription>
+        <CardDescription>
+          Choose SOCKS5, HTTP, and HTTPS proxy services for outbound platform traffic.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/30 px-4 py-3">
@@ -392,12 +454,59 @@ export function ProxySection({
             id="proxy-enabled"
             checked={proxyForm.enabled}
             onChange={checked => setProxyForm(current => ({ ...current, enabled: checked }))}
+            disabled={toggleDisabled}
           />
         </div>
 
+        {toggleDisabled ? (
+          <p className="text-xs text-muted-foreground">
+            Add at least one proxy resource before enabling outbound proxy routing.
+          </p>
+        ) : null}
+
         {proxyForm.enabled ? (
           <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
+            {proxyErrors.form ? (
+              <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                {proxyErrors.form}
+              </div>
+            ) : null}
+
+            {hasMissingSelections ? (
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
+                One or more saved proxy resources were deleted. Choose at least one available proxy option or disable proxy before saving.
+              </div>
+            ) : null}
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="socks5ConnectorId">SOCKS5 Proxy</Label>
+                <select
+                  id="socks5ConnectorId"
+                  className={selectClass}
+                  value={proxyForm.socks5ConnectorId}
+                  onChange={event => {
+                    setProxyForm(current => ({ ...current, socks5ConnectorId: event.target.value }))
+                  }}
+                  disabled={connectorsLoading || socks5Options.length === 0}
+                >
+                  <option value="">
+                    {socks5Options.length === 0 ? 'No SOCKS5 proxy' : 'No SOCKS5 proxy'}
+                  </option>
+                  {buildOptionsForValue(socks5Options, missingSelections.socks5ConnectorId).map(option => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  When set, all outbound traffic uses SOCKS5.
+                </p>
+                {proxyErrors.socks5ConnectorId ? (
+                  <p className="text-xs text-destructive">{proxyErrors.socks5ConnectorId}</p>
+                ) : null}
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="httpConnectorId">HTTP Proxy</Label>
                 <select
@@ -405,25 +514,20 @@ export function ProxySection({
                   className={selectClass}
                   value={proxyForm.httpConnectorId}
                   onChange={event => {
-                    if (event.target.value === HTTP_ADD_OPTION) {
-                      openCreate('http')
-                      return
-                    }
                     setProxyForm(current => ({ ...current, httpConnectorId: event.target.value }))
                   }}
-                  disabled={connectorsLoading}
+                  disabled={connectorsLoading || httpOptions.length === 0}
                 >
-                  <option value="">No HTTP proxy</option>
-                  {connectorOptions.map(option => (
+                  <option value="">{httpOptions.length === 0 ? 'No HTTP proxy' : 'No HTTP proxy'}</option>
+                  {buildOptionsForValue(httpOptions, missingSelections.httpConnectorId).map(option => (
                     <option key={option.id} value={option.id}>
                       {option.label}
                     </option>
                   ))}
-                  <option value={OPTION_SEPARATOR} disabled>
-                    ----------------
-                  </option>
-                  <option value={HTTP_ADD_OPTION}>+ Add HTTP proxy...</option>
                 </select>
+                {proxyErrors.httpConnectorId ? (
+                  <p className="text-xs text-destructive">{proxyErrors.httpConnectorId}</p>
+                ) : null}
               </div>
 
               <div className="space-y-2">
@@ -433,25 +537,20 @@ export function ProxySection({
                   className={selectClass}
                   value={proxyForm.httpsConnectorId}
                   onChange={event => {
-                    if (event.target.value === HTTPS_ADD_OPTION) {
-                      openCreate('https')
-                      return
-                    }
                     setProxyForm(current => ({ ...current, httpsConnectorId: event.target.value }))
                   }}
-                  disabled={connectorsLoading}
+                  disabled={connectorsLoading || httpsOptions.length === 0}
                 >
-                  <option value="">No HTTPS proxy</option>
-                  {connectorOptions.map(option => (
+                  <option value="">{httpsOptions.length === 0 ? 'No HTTPS proxy' : 'No HTTPS proxy'}</option>
+                  {buildOptionsForValue(httpsOptions, missingSelections.httpsConnectorId).map(option => (
                     <option key={option.id} value={option.id}>
                       {option.label}
                     </option>
                   ))}
-                  <option value={OPTION_SEPARATOR} disabled>
-                    ----------------
-                  </option>
-                  <option value={HTTPS_ADD_OPTION}>+ Add HTTPS proxy...</option>
                 </select>
+                {proxyErrors.httpsConnectorId ? (
+                  <p className="text-xs text-destructive">{proxyErrors.httpsConnectorId}</p>
+                ) : null}
               </div>
             </div>
 
@@ -462,40 +561,13 @@ export function ProxySection({
               </div>
             ) : connectorOptions.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-                No proxy connectors yet. Use the Add option in either selector.
+                No proxy connectors yet. <a href={addSOCKS5ProxyHref} className="font-medium text-foreground underline underline-offset-4">Add a SOCKS5 proxy</a> or <a href={addHTTPProxyHref} className="font-medium text-foreground underline underline-offset-4">add an HTTP proxy</a> from External Services.
               </div>
-            ) : null}
-
-            {createTarget ? (
-              <ProxyConnectorDialog
-                open={Boolean(createTarget)}
-                onOpenChange={open => {
-                  if (!open) {
-                    setCreateTarget(null)
-                  }
-                }}
-                initialProtocol={createTarget}
-                onCreated={created => {
-                  const createdID = String(created.id ?? '')
-                  if (createdID) {
-                    setProxyForm(current => ({
-                      ...current,
-                      enabled: true,
-                      httpConnectorId:
-                        createTarget === 'http' ? createdID : current.httpConnectorId,
-                      httpsConnectorId:
-                        createTarget === 'https' ? createdID : current.httpsConnectorId,
-                    }))
-                  }
-                  void loadConnectors()
-                  setCreateTarget(null)
-                }}
-              />
             ) : null}
           </div>
         ) : null}
 
-        <SaveButton onClick={saveProxy} saving={proxySaving} />
+        <SaveButton onClick={saveCurrentProxy} saving={proxySaving} />
       </CardContent>
     </Card>
   )

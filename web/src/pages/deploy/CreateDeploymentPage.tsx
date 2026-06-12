@@ -1,5 +1,5 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { CheckCircle2, ChevronDown, Eye, EyeOff, List, Loader2, ShieldAlert, X } from 'lucide-react'
+import { CheckCircle2, ChevronDown, Eye, EyeOff, List, Loader2, Search, ShieldAlert, X } from 'lucide-react'
 import { CircleHelp } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -351,6 +351,7 @@ export function CreateDeploymentPage({
   const [recommendedExposurePortHint, setRecommendedExposurePortHint] = useState<string | null>(
     null
   )
+  const [serverSearchQuery, setServerSearchQuery] = useState('')
   const [autoManagePrimaryExposurePort, setAutoManagePrimaryExposurePort] = useState(true)
   const exposureServiceItems = useMemo(
     () =>
@@ -1030,6 +1031,15 @@ export function CreateDeploymentPage({
     () => servers.find(item => item.id === serverId) || null,
     [serverId, servers]
   )
+  const filteredServers = useMemo(() => {
+    const query = serverSearchQuery.trim().toLowerCase()
+    if (!query) return servers
+    return servers.filter(server => {
+      const label = String(server.label ?? '').toLowerCase()
+      const host = String(server.host ?? '').toLowerCase()
+      return label.includes(query) || host.includes(query)
+    })
+  }, [serverSearchQuery, servers])
   const targetLabel = selectedServer ? selectedServer.label : serverId ? 'Selected target' : 'Not set'
   const exposureSummary = domainExposureEnabled
     ? 'Domain Access'
@@ -1165,66 +1175,98 @@ export function CreateDeploymentPage({
                 htmlFor="deploy-server"
                 required
                 helpText="The target server where containers will be created and managed."
+                hint={
+                  servers.length === 0 ? (
+                    <span>
+                      No servers are available.{' '}
+                      <a
+                        href="/resources/servers"
+                        className="font-medium text-primary underline underline-offset-2"
+                      >
+                        Add a server
+                      </a>
+                      .
+                    </span>
+                  ) : null
+                }
               >
-                <div className="flex items-center gap-2">
-                  <select
-                    id="deploy-server"
-                    className={`border-input bg-background h-9 rounded-md border px-3 text-sm ${FORM_CONTROL_CLASS}`}
-                    value={serverId}
-                    onChange={e => setServerId(e.target.value)}
-                    required
-                  >
-                    <option value="" disabled>
-                      Select a server…
-                    </option>
-                    {servers.map(s => (
-                      <option key={s.id} value={s.id}>
-                        {s.label} ({s.host})
+                <div className="space-y-2">
+                  {servers.length > 10 ? (
+                    <div className="relative w-[30rem] max-w-full">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={serverSearchQuery}
+                        onChange={e => setServerSearchQuery(e.target.value)}
+                        placeholder="Search servers by name or host"
+                        className="pl-8"
+                        aria-label="Search target servers"
+                      />
+                    </div>
+                  ) : null}
+                  <div className="flex items-center gap-2">
+                    <select
+                      id="deploy-server"
+                      className={`border-input bg-background h-9 rounded-md border px-3 text-sm ${FORM_CONTROL_CLASS}`}
+                      value={serverId}
+                      onChange={e => setServerId(e.target.value)}
+                      required
+                      disabled={servers.length === 0}
+                    >
+                      <option value="" disabled>
+                        {servers.length === 0 ? 'Add a server first…' : 'Select a server…'}
                       </option>
-                    ))}
-                  </select>
-                  {dockerReadinessState ? (
-                    <TooltipProvider delayDuration={200}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          {'href' in dockerReadinessState && dockerReadinessState.href ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-9 shrink-0 gap-1.5 px-3"
-                              asChild
-                            >
-                              <a href={dockerReadinessState.href}>
-                                <ShieldAlert className="h-3.5 w-3.5 text-amber-600" />
+                      {filteredServers.map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.label} ({s.host})
+                        </option>
+                      ))}
+                    </select>
+                    {dockerReadinessState ? (
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            {'href' in dockerReadinessState && dockerReadinessState.href ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-9 shrink-0 gap-1.5 px-3"
+                                asChild
+                              >
+                                <a href={dockerReadinessState.href}>
+                                  <ShieldAlert className="h-3.5 w-3.5 text-amber-600" />
+                                  {dockerReadinessState.label}
+                                </a>
+                              </Button>
+                            ) : (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-9 shrink-0 gap-1.5 px-3"
+                                disabled
+                                aria-label={dockerReadinessState.title}
+                              >
+                                {dockerReadinessState.tone === 'ready' ? (
+                                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                                ) : (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                )}
                                 {dockerReadinessState.label}
-                              </a>
-                            </Button>
-                          ) : (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-9 shrink-0 gap-1.5 px-3"
-                              disabled
-                              aria-label={dockerReadinessState.title}
-                            >
-                              {dockerReadinessState.tone === 'ready' ? (
-                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                              ) : (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              )}
-                              {dockerReadinessState.label}
-                            </Button>
-                          )}
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-xs text-xs">
-                          <div className="space-y-1">
-                            <div className="font-medium">{dockerReadinessState.title}</div>
-                            <div>{dockerReadinessState.description}</div>
-                          </div>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                              </Button>
+                            )}
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs text-xs">
+                            <div className="space-y-1">
+                              <div className="font-medium">{dockerReadinessState.title}</div>
+                              <div>{dockerReadinessState.description}</div>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : null}
+                  </div>
+                  {servers.length > 10 && filteredServers.length === 0 ? (
+                    <div className="text-xs text-muted-foreground">No servers match the current search.</div>
                   ) : null}
                 </div>
               </FormRow>

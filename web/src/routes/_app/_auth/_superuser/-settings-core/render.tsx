@@ -140,6 +140,7 @@ function renderProxySection(
     <ProxySection
       proxyForm={controller.proxyForm}
       proxySaving={controller.proxySaving}
+      proxyErrors={controller.proxyErrors}
       setProxyForm={controller.setProxyForm}
       saveProxy={controller.saveProxy}
       onOpenHelp={options?.onOpenHelp}
@@ -174,9 +175,9 @@ function renderSMTPSection(
       description={connectorSectionDescription(
         controller,
         'smtp',
-        'Outgoing email delivery is managed as reusable connectors.'
+        'Outgoing email delivery is managed as reusable external services.'
       )}
-      connectorKinds="SMTP connectors"
+      connectorKinds="SMTP services"
     />
   )
 }

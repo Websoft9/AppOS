@@ -130,6 +130,9 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
   const [proxyNetwork, setProxyNetwork] = useState<ProxyNetwork>(EMPTY_PROXY)
   const [proxyForm, setProxyForm] = useState<ProxyNetwork>(EMPTY_PROXY)
   const [proxySaving, setProxySaving] = useState(false)
+  const [proxyErrors, setProxyErrors] = useState<
+    Partial<Record<'form' | keyof ProxyNetwork, string>>
+  >({})
 
   const hydrateWorkspaceSimpleEntries = useCallback((entryMap: Map<string, unknown>) => {
     const quota = (entryMap.get('space-quota') as Partial<SpaceQuota>) ?? {}
@@ -314,6 +317,10 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
       ...EMPTY_PROXY,
       ...network,
       enabled: Boolean(network.enabled),
+      socks5ConnectorId:
+        typeof network.socks5ConnectorId === 'string'
+          ? network.socks5ConnectorId
+          : EMPTY_PROXY.socks5ConnectorId,
       httpConnectorId:
         typeof network.httpConnectorId === 'string'
           ? network.httpConnectorId
@@ -388,16 +395,69 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     } finally {
       setSpaceQuotaSaving(false)
     }
+    setProxyErrors({})
   }
 
-  const saveProxy = async () => {
+  const parseProxyApiErrors = (payload: unknown): Partial<Record<'form' | keyof ProxyNetwork, string>> => {
+    const parsed: Partial<Record<'form' | keyof ProxyNetwork, string>> = {}
+    if (!payload || typeof payload !== 'object') {
+      return parsed
+    }
+
+    const root = payload as Record<string, unknown>
+    const bag =
+      root.errors && typeof root.errors === 'object' ? (root.errors as Record<string, unknown>) : root
+
+    const formError =
+      extractFieldError(root.message) ??
+      extractFieldError(root.data)
+    if (formError) {
+      parsed.form = formError
+    }
+
+    const socks5Error = extractFieldError(bag.socks5ConnectorId)
+    if (socks5Error) {
+      parsed.socks5ConnectorId = socks5Error
+    }
+    const httpError = extractFieldError(bag.httpConnectorId)
+    if (httpError) {
+      parsed.httpConnectorId = httpError
+    }
+    const httpsError = extractFieldError(bag.httpsConnectorId)
+    if (httpsError) {
+      parsed.httpsConnectorId = httpsError
+    }
+
+    return parsed
+  }
+
+  const saveProxy = async (draft?: ProxyNetwork) => {
     setProxySaving(true)
+    setProxyErrors({})
     try {
+      const source = draft ?? proxyForm
       const payload: ProxyNetwork = {
-        enabled: Boolean(proxyForm.enabled),
-        httpConnectorId: proxyForm.httpConnectorId.trim(),
-        httpsConnectorId: proxyForm.httpsConnectorId.trim(),
+        enabled: Boolean(source.enabled),
+        socks5ConnectorId: source.socks5ConnectorId.trim(),
+        httpConnectorId: source.httpConnectorId.trim(),
+        httpsConnectorId: source.httpsConnectorId.trim(),
       }
+
+      if (
+        payload.enabled &&
+        payload.socks5ConnectorId === '' &&
+        payload.httpConnectorId === '' &&
+        payload.httpsConnectorId === ''
+      ) {
+        const errors = {
+          form: 'Choose at least one proxy option or disable proxy before saving.',
+          socks5ConnectorId: 'Select at least one proxy option when proxy is enabled.',
+        }
+        setProxyErrors(errors)
+        showToast('Please fix validation errors and try again.', false)
+        return
+      }
+
       const res = (await pb.send(settingsEntryPath('proxy-network'), {
         method: 'PATCH',
         body: payload,
@@ -406,13 +466,23 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
         ...payload,
         ...res.value,
         enabled: Boolean(res.value?.enabled ?? payload.enabled),
+        socks5ConnectorId: String(res.value?.socks5ConnectorId ?? payload.socks5ConnectorId),
         httpConnectorId: String(res.value?.httpConnectorId ?? payload.httpConnectorId),
         httpsConnectorId: String(res.value?.httpsConnectorId ?? payload.httpsConnectorId),
       }
       setProxyNetwork(saved)
       setProxyForm(saved)
+      setProxyErrors({})
       showToast('Proxy settings saved')
     } catch (err) {
+      if (err instanceof ClientResponseError && (err.status === 400 || err.status === 422)) {
+        const inlineErrors = parseProxyApiErrors(err.response)
+        if (Object.keys(inlineErrors).length > 0) {
+          setProxyErrors(inlineErrors)
+          showToast('Please fix validation errors and try again.', false)
+          return
+        }
+      }
       showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
     } finally {
       setProxySaving(false)
@@ -1120,6 +1190,7 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     proxyNetwork,
     proxyForm,
     proxySaving,
+    proxyErrors,
     setProxyForm,
     saveProxy,
     hydrateWorkspaceSimpleEntries,

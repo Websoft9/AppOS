@@ -28,9 +28,9 @@
       "createDescription": "Linux hosts, SSH targets, and deployment nodes."
     },
     "serviceInstances": {
-      "title": "Service Instances",
-      "description": "Runtime dependencies required for application startup, including databases, middleware, and storage instances such as MySQL, PostgreSQL, Redis, Kafka, and S3.",
-      "createDescription": "MySQL, PostgreSQL, Redis, Kafka, and S3-backed application dependencies.",
+      "title": "Runtime Instances",
+      "description": "Runtime dependencies required for application startup, including DB, middleware, and storage instances such as Postgres, Kafka, and S3.",
+      "createDescription": "Runtime dependencies such as Postgres, Kafka, and S3-backed services.",
       "examples": {
         "database": "Database",
         "cache": "Cache",
@@ -50,9 +50,9 @@
       }
     },
     "connectors": {
-      "title": "Connectors",
-      "description": "SMTP, DNS, webhook, MCP, proxy, registry, and other reusable external capability connections.",
-      "createDescription": "SMTP, DNS, webhook, MCP, proxy, registry, and other reusable external connections.",
+      "title": "External Services",
+      "description": "SMTP, DNS, webhook, MCP, proxy, registry, and other reusable external service connections.",
+      "createDescription": "SMTP, DNS, webhook, MCP, proxy, registry, and other reusable external services.",
       "examples": {
         "restApi": "REST API",
         "webhook": "Webhook",
@@ -81,8 +81,8 @@
   },
   "serviceInstances": {
     "page": {
-      "title": "Service Instances",
-      "description": "MySQL, PostgreSQL, Redis, Kafka, S3 storage, and model services with profile-based templates.",
+      "title": "Runtime Instances",
+      "description": "Runtime dependencies required for application startup, including DB, middleware, and storage instances such as Postgres, Kafka, and S3.",
       "favoritesOnly": "Favorites only",
       "addInstance": "Add Instance",
       "searchPlaceholder": "Search any instances",
@@ -188,7 +188,7 @@
       "editTitle": "Edit title",
       "create": "Create",
       "update": "Update",
-      "suffix": "Service Instance"
+      "suffix": "Runtime Instance"
     },
     "secret": {
       "singleValueTemplate": "Password / Single Value",
@@ -224,6 +224,7 @@
     },
     "fields": {
       "connectionType": "Connection Type",
+      "enabled": "Enabled",
       "name": "Name",
       "host": "Host",
       "useLocalHost": "The same host with AppOS",
@@ -267,6 +268,7 @@
     },
     "columns": {
       "name": "Name",
+      "enabled": "Enabled",
       "mode": "Mode",
       "connection": "Connection",
       "monitor": "Monitor",
@@ -291,8 +293,14 @@
       "serverActions": "Server actions",
       "openTerminal": "Open Terminal",
       "testConnection": "Test Connection",
+      "enable": "Enable",
+      "disable": "Disable",
       "tunnelSetup": "Tunnel Setup",
       "duplicateServer": "Duplicate Server"
+    },
+    "enabled": {
+      "yes": "Yes",
+      "no": "No"
     },
     "detail": {
       "restoreWidth": "Restore detail width",
@@ -1161,11 +1169,17 @@
   },
   "connectors": {
     "page": {
-      "title": "Connectors",
-      "description": "Reusable API, webhook, MCP, proxy, SMTP, registry, and DNS connectors backed by grouped connector profiles",
-      "addConnector": "Add Connector",
-      "searchPlaceholder": "Search connectors",
+      "title": "External Services",
+      "description": "Reusable API, webhook, MCP, proxy, SMTP, registry, and DNS services backed by grouped profiles",
+      "addConnector": "Add External Service",
+      "searchPlaceholder": "Search external services",
       "totalItems": "Total {{count}} items"
+    },
+    "selection": {
+      "title": "Choose an External Service Type",
+      "description": "Start with the service type, then choose a vendor profile to prefill the shared schema.",
+      "searchPlaceholder": "Search service types like SMTP, DNS, proxy, or registry...",
+      "emptyMessage": "No matching external service types found."
     },
     "fields": {
       "name": "Name",
@@ -1212,13 +1226,26 @@
       "new": "New Secret",
       "edit": "Edit Secret",
       "newTitle": "New Secret",
-      "newDescription": "Create a reusable secret and attach it to this connector."
+      "newDescription": "Create a reusable secret and attach it to this external service.",
+      "generatedDescription": "{{field}} for {{name}}",
+      "directPlaceholder": "Enter a secret value",
+      "show": "Show secret",
+      "hide": "Hide secret"
+    },
+    "dialog": {
+      "externalServiceTitle": "External service title",
+      "applyTitle": "Apply title",
+      "newExternalService": "New External Service",
+      "editTitle": "Edit title",
+      "createDescription": "Add a {{kind}} service{{profile}}",
+      "createDescriptionWithProfile": "Add a {{kind}} service using {{profile}}"
     },
     "secretTemplates": {
       "single_value": "Token / Single Value"
     },
     "errors": {
-      "profileRequired": "Connector profile is required"
+      "profileRequired": "Connector profile is required",
+      "fieldRequired": "{{field}} is required"
     }
   },
   "aiProviders": {

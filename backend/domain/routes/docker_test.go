@@ -693,6 +693,31 @@ func TestDockerTargetsIncludeLocalAndOfflineTunnelServer(t *testing.T) {
 	}
 }
 
+func TestDockerTargetsExcludeDisabledServers(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	enabled := createServerRecord(t, te, "direct-enabled", "127.0.0.1", 22, "root", "password")
+	disabled := createServerRecord(t, te, "direct-disabled", "127.0.0.2", 22, "root", "password")
+	disabled.Set("is_enabled", false)
+	if err := te.app.Save(disabled); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := doDocker(t, te, http.MethodGet, "/api/servers/docker-targets", "", te.token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for docker targets, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	items := parseJSONArray(t, rec)
+	if len(items) != 1 {
+		t.Fatalf("expected only enabled server in docker targets, got %d entries", len(items))
+	}
+	if items[0]["id"] != enabled.Id {
+		t.Fatalf("expected enabled server only, got %v", items[0]["id"])
+	}
+}
+
 func TestDockerLocalContainerMetadataUsesSingleInspectCall(t *testing.T) {
 	t.Skip("local Docker daemon access removed")
 	te := newTestEnv(t)
@@ -884,6 +909,7 @@ func TestLoadDockerProxyEnvIncludesCredentials(t *testing.T) {
 
 	if err := sysconfig.SetGroup(te.app, "proxy", "network", map[string]any{
 		"enabled":          true,
+		"socks5ConnectorId": "",
 		"httpConnectorId":  httpConnector.Id,
 		"httpsConnectorId": httpsConnector.Id,
 	}); err != nil {
@@ -902,6 +928,56 @@ func TestLoadDockerProxyEnvIncludesCredentials(t *testing.T) {
 	}
 	if env["http_proxy"] != env["HTTP_PROXY"] || env["https_proxy"] != env["HTTPS_PROXY"] {
 		t.Fatalf("expected lowercase proxy env aliases to mirror uppercase values: %#v", env)
+	}
+}
+
+func TestLoadDockerProxyEnvPrefersSocks5WhenConfigured(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	ensureDockerSecretRuntime(t)
+	secret := createDockerRouteSecret(t, te, "secret")
+	socks5Connector := createDockerRouteConnector(t, te, connectors.SaveInput{
+		Name:         "SOCKS5 Proxy",
+		Kind:         connectors.KindProxy,
+		TemplateID:   "socks5-proxy",
+		Endpoint:     "socks5://socks.example.com:1080",
+		AuthScheme:   connectors.AuthSchemeBasic,
+		CredentialID: secret.Id,
+		Config: map[string]any{
+			"protocol":  "socks5",
+			"username":  "alice",
+			"no_proxy":  "localhost,.svc",
+			"auth_mode": "username_password",
+		},
+	})
+	httpConnector := createDockerRouteConnector(t, te, connectors.SaveInput{
+		Name:       "HTTP Proxy",
+		Kind:       connectors.KindProxy,
+		TemplateID: "http-proxy",
+		Endpoint:   "http://proxy.example.com:3128",
+		Config:     map[string]any{"protocol": "http"},
+	})
+
+	if err := sysconfig.SetGroup(te.app, "proxy", "network", map[string]any{
+		"enabled":           true,
+		"socks5ConnectorId": socks5Connector.Id,
+		"httpConnectorId":   httpConnector.Id,
+		"httpsConnectorId":  "",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	env := loadDockerProxyEnv(te.app)
+	want := "socks5://alice:secret@socks.example.com:1080"
+	if env["ALL_PROXY"] != want {
+		t.Fatalf("unexpected ALL_PROXY: %q", env["ALL_PROXY"])
+	}
+	if env["HTTP_PROXY"] != want || env["HTTPS_PROXY"] != want {
+		t.Fatalf("expected HTTP/HTTPS proxy env to use SOCKS5, got %#v", env)
+	}
+	if env["NO_PROXY"] != "localhost,.svc" {
+		t.Fatalf("unexpected NO_PROXY: %q", env["NO_PROXY"])
 	}
 }
 

@@ -55,6 +55,7 @@ export interface FieldDef {
   hideLabel?: boolean
   header?: boolean
   advanced?: boolean
+  helpUrl?: string
   helpText?: string
   relationApiPath?: string
   relationLabelKey?: string

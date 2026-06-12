@@ -37,6 +37,7 @@ type ConnectionView struct {
 type ServerViewItem struct {
 	ID              string         `json:"id"`
 	Name            string         `json:"name"`
+	IsEnabled       bool           `json:"is_enabled"`
 	Host            string         `json:"host"`
 	Port            int            `json:"port"`
 	User            string         `json:"user"`
@@ -65,6 +66,7 @@ func BuildServerViewItem(record *core.Record, credentialType string, createdByNa
 	item := ServerViewItem{
 		ID:              record.Id,
 		Name:            managed.Name,
+		IsEnabled:       managed.IsEnabled,
 		Host:            managed.Host,
 		Port:            managed.Port,
 		User:            managed.User,

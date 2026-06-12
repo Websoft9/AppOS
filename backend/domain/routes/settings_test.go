@@ -186,7 +186,7 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 		case "tunnel-port-range":
 			foundTunnel = value != nil && int(value["start"].(float64)) == 40000 && int(value["end"].(float64)) == 49999
 		case "proxy-network":
-			foundProxy = value != nil && value["enabled"] == false && value["httpConnectorId"] == "" && value["httpsConnectorId"] == ""
+			foundProxy = value != nil && value["enabled"] == false && value["socks5ConnectorId"] == "" && value["httpConnectorId"] == "" && value["httpsConnectorId"] == ""
 		case "deploy-runtime":
 			foundDeployRuntime = value != nil && int(value["imagePullTimeoutSeconds"].(float64)) == 180 && int(value["composeUpTimeoutSeconds"].(float64)) == 600 && int(value["healthCheckTimeoutSeconds"].(float64)) == 120 && int(value["runtimePullIdleHeartbeatSeconds"].(float64)) == 20
 		case "deploy-git-defaults":
@@ -285,7 +285,7 @@ func TestSettingsEntryPatchValidation(t *testing.T) {
 		t.Fatalf("expected iac-files validation error, got %s", rec.Body.String())
 	}
 
-	badProxy := `{"enabled":true,"httpConnectorId":"missing-id","httpsConnectorId":""}`
+	badProxy := `{"enabled":true,"socks5ConnectorId":"","httpConnectorId":"missing-id","httpsConnectorId":""}`
 	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/proxy-network", badProxy, true)
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("expected 422 for invalid proxy-network, got %d: %s", rec.Code, rec.Body.String())
@@ -466,7 +466,7 @@ func TestSettingsEntryPatchPersistsUnifiedValues(t *testing.T) {
 		Endpoint:   "http://proxy.example.com:3128",
 		Config:     map[string]any{"protocol": "http"},
 	})
-	proxyBody := `{"enabled":true,"httpConnectorId":"` + proxyConnector.Id + `","httpsConnectorId":""}`
+	proxyBody := `{"enabled":true,"socks5ConnectorId":"","httpConnectorId":"` + proxyConnector.Id + `","httpsConnectorId":""}`
 	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/proxy-network", proxyBody, true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 for proxy-network patch, got %d: %s", rec.Code, rec.Body.String())
@@ -477,6 +477,9 @@ func TestSettingsEntryPatchPersistsUnifiedValues(t *testing.T) {
 	}
 	if got, ok := storedProxy["enabled"].(bool); !ok || !got {
 		t.Fatalf("expected enabled=true, got %#v", storedProxy["enabled"])
+	}
+	if got := sysconfig.String(storedProxy, "socks5ConnectorId", ""); got != "" {
+		t.Fatalf("expected empty socks5ConnectorId, got %q", got)
 	}
 	if got := sysconfig.String(storedProxy, "httpConnectorId", ""); got != proxyConnector.Id {
 		t.Fatalf("expected httpConnectorId %q, got %q", proxyConnector.Id, got)

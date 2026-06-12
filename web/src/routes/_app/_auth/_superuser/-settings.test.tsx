@@ -16,8 +16,8 @@ vi.mock('@tanstack/react-router', () => ({
   }),
   useNavigate: () => vi.fn(),
   Link: ({
-    to,
     children,
+    to,
     className,
   }: {
     to: string
@@ -51,7 +51,7 @@ describe('SettingsPage shared settings paths', () => {
               id: 'smtp',
               title: 'SMTP',
               description:
-                'Reference-only entry. Create and manage SMTP connectors from Resources > Connectors.',
+                'Reference-only entry. Create and manage SMTP services from Resources > External Services.',
               section: 'system',
               source: 'native',
               fields: [],
@@ -288,8 +288,9 @@ describe('SettingsPage shared settings paths', () => {
               source: 'custom',
               fields: [
                 { id: 'enabled', label: 'Enable Proxy', type: 'boolean' },
-                { id: 'httpConnectorId', label: 'HTTP Proxy Connector', type: 'relation' },
-                { id: 'httpsConnectorId', label: 'HTTPS Proxy Connector', type: 'relation' },
+                { id: 'socks5ConnectorId', label: 'SOCKS5 Proxy Service', type: 'relation' },
+                { id: 'httpConnectorId', label: 'HTTP Proxy Service', type: 'relation' },
+                { id: 'httpsConnectorId', label: 'HTTPS Proxy Service', type: 'relation' },
               ],
             },
             {
@@ -393,7 +394,7 @@ describe('SettingsPage shared settings paths', () => {
               id: 'docker-registries',
               title: 'Docker Registries',
               description:
-                'Reference-only entry. Create and manage registry connectors from Resources > Connectors.',
+                'Reference-only entry. Create and manage registry services from Resources > External Services.',
               section: 'workspace',
               source: 'custom',
               fields: [],
@@ -490,7 +491,7 @@ describe('SettingsPage shared settings paths', () => {
             { id: 'secrets-policy', value: {} },
             {
               id: 'proxy-network',
-              value: { enabled: false, httpConnectorId: '', httpsConnectorId: '' },
+              value: { enabled: false, socks5ConnectorId: '', httpConnectorId: '', httpsConnectorId: '' },
             },
             { id: 'docker-mirror', value: { mirrors: [], allowInsecureRegistries: false } },
             { id: 'docker-registries', value: {} },
@@ -1417,7 +1418,7 @@ describe('SettingsPage shared settings paths', () => {
     })
   })
 
-  it('creates and saves a proxy connector from the Proxy settings page', async () => {
+  it('links proxy creation out to External Services and saves the settings page state', async () => {
     const proxyConnectors: Array<{
       id: string
       name: string
@@ -1476,38 +1477,20 @@ describe('SettingsPage shared settings paths', () => {
     fireEvent.click(screen.getByRole('switch'))
 
     await waitFor(() => {
-      expect(screen.getByText(/Use the Add option in either selector/i)).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'Add HTTP Proxy' })).not.toBeInTheDocument()
+      expect(screen.getByText(/No proxy connectors yet/i)).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Add a SOCKS5 proxy' })).toHaveAttribute(
+        'href',
+        '/resources/connectors?create=1&kind=proxy&template=socks5-proxy'
+      )
+      expect(screen.getByRole('link', { name: 'Add an HTTP proxy' })).toHaveAttribute(
+        'href',
+        '/resources/connectors?create=1&kind=proxy&template=http-proxy'
+      )
     })
 
-    fireEvent.change(screen.getByLabelText('HTTP Proxy'), {
-      target: { value: '__add_http_proxy__' },
-    })
-
-    const dialog = await screen.findByRole('dialog')
-    await waitFor(() => {
-      const profile = within(dialog).getByLabelText(/^Profile/) as HTMLSelectElement
-      expect(profile.options.length).toBeGreaterThan(1)
-    })
-
-    fireEvent.change(within(dialog).getByRole('textbox', { name: /^Name/ }), {
-      target: { value: 'Office Proxy' },
-    })
-    fireEvent.change(await within(dialog).findByLabelText(/Endpoint/i), {
-      target: { value: 'proxy.example.com:3128' },
-    })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Create Proxy Connector' }))
-
-    await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith('/api/connectors', {
-        method: 'POST',
-        body: expect.objectContaining({
-          name: 'Office Proxy',
-          kind: 'proxy',
-          endpoint: 'http://proxy.example.com:3128',
-        }),
-      })
-    })
+    expect(screen.getByLabelText('SOCKS5 Proxy')).toBeDisabled()
+    expect(screen.getByLabelText('HTTP Proxy')).toBeDisabled()
+    expect(screen.getByLabelText('HTTPS Proxy')).toBeDisabled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
@@ -1516,11 +1499,59 @@ describe('SettingsPage shared settings paths', () => {
         method: 'PATCH',
         body: {
           enabled: true,
-          httpConnectorId: 'proxy-1',
+          socks5ConnectorId: '',
+          httpConnectorId: '',
           httpsConnectorId: '',
         },
       })
     })
+  })
+
+  it('warns when a saved proxy resource was deleted and blocks save until a valid option is chosen or proxy is disabled', async () => {
+    const defaultImpl = sendMock.getMockImplementation()
+    sendMock.mockImplementation((path: string, options?: { method?: string; body?: any }) => {
+      if (path === '/api/connectors?kind=proxy') {
+        return Promise.resolve([])
+      }
+      if (path === settingsEntryPath('proxy-network') && options?.method === 'PATCH') {
+        return Promise.resolve({ value: options.body })
+      }
+      return defaultImpl ? defaultImpl(path, options) : Promise.resolve({})
+    })
+
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      expect(within(nav as HTMLElement).getByRole('button', { name: 'Proxy' })).toBeInTheDocument()
+    })
+
+    const nav = container.querySelector('nav') as HTMLElement | null
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+
+    fireEvent.click(within(nav).getByRole('button', { name: 'Proxy' }))
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Enable Proxy')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('switch'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Choose at least one proxy option or disable proxy before saving/i)
+      ).toBeInTheDocument()
+    })
+
+    expect(
+      sendMock.mock.calls.some(([path, options]) =>
+        path === settingsEntryPath('proxy-network') && options?.method === 'PATCH'
+      )
+    ).toBe(false)
   })
 
   it('opens proxy help from the registered help aliases', async () => {
@@ -1581,10 +1612,10 @@ describe('SettingsPage shared settings paths', () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          /This section now references connectors\. Create and edit SMTP connectors/i
+          /This section now references external services\. Create and edit SMTP services/i
         )
       ).toBeInTheDocument()
-      const links = screen.getAllByRole('link', { name: 'Open Connectors' })
+      const links = screen.getAllByRole('link', { name: 'Open External Services' })
       expect(links[0]).toHaveAttribute('href', '/resources/connectors')
     })
 
@@ -1653,7 +1684,7 @@ describe('SettingsPage shared settings paths', () => {
               id: 'docker-registries',
               title: 'Docker Registries',
               description:
-                'Reference-only entry. Create and manage registry connectors from Resources > Connectors.',
+                'Reference-only entry. Create and manage registry services from Resources > External Services.',
               section: 'workspace',
               source: 'custom',
               fields: [],

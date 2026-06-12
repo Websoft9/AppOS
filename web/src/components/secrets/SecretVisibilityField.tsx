@@ -26,13 +26,13 @@ export const RESOURCE_SECRET_VISIBLE_TO_OPTIONS: Array<{
   },
   {
     value: 'service_instance',
-    label: 'Service Instances',
-    description: 'Shown in service instance forms.',
+    label: 'Runtime Instances',
+    description: 'Shown in runtime instance forms.',
   },
   {
     value: 'connector',
-    label: 'Connectors',
-    description: 'Shown in connector credential forms.',
+    label: 'External Services',
+    description: 'Shown in external service credential forms.',
   },
   {
     value: 'provider_account',

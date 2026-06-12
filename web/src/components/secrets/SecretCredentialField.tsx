@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link2, Unlink, Eye, EyeOff } from 'lucide-react'
+import { Link2, Unlink, Eye, EyeOff, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -59,6 +59,7 @@ interface SecretCredentialFieldProps {
   generatorLengthLabel?: string
   generatorConfirmLabel?: string
   referenceToggleMode?: 'checkbox' | 'icon'
+  editReferenceMode?: 'button' | 'icon'
 }
 
 export function SecretCredentialField({
@@ -83,6 +84,7 @@ export function SecretCredentialField({
   generatorLengthLabel = 'Password Length',
   generatorConfirmLabel = 'Fill Password',
   referenceToggleMode = 'checkbox',
+  editReferenceMode = 'button',
 }: SecretCredentialFieldProps) {
   const [generatorOpen, setGeneratorOpen] = useState(false)
   const [length, setLength] = useState(24)
@@ -90,6 +92,7 @@ export function SecretCredentialField({
   const [referencePickerOpen, setReferencePickerOpen] = useState(false)
   const showReferencePicker = editMode || useReference
   const iconToggleMode = !editMode && referenceToggleMode === 'icon'
+  const pickerActionAlignmentClass = referencePickerOpen ? 'self-start' : 'self-center'
 
   const toggleReferenceMode = () => {
     const nextValue = !useReference
@@ -103,16 +106,16 @@ export function SecretCredentialField({
     iconToggleMode ? (
       <Button
         type="button"
-        variant="outline"
+        variant="ghost"
         size="icon"
-        className="h-10 w-10 shrink-0"
+        className={`h-10 w-10 shrink-0 border-0 ${showReferencePicker ? pickerActionAlignmentClass : 'self-center'}`}
         title={useReference ? 'Use direct API key input' : 'Use a saved secret'}
         onClick={toggleReferenceMode}
       >
         {useReference ? <Unlink className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
       </Button>
     ) : (
-      <label className="inline-flex h-10 shrink-0 items-center gap-2 self-start pt-0.5 text-sm">
+      <label className="inline-flex h-10 items-center gap-2 text-sm text-muted-foreground">
         <Checkbox
           checked={useReference}
           onCheckedChange={checked => {
@@ -153,14 +156,27 @@ export function SecretCredentialField({
               </div>
               {iconToggleMode ? referenceToggle : null}
               {referenceValue && onEditReference && !referencePickerOpen && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-10"
-                  onClick={() => onEditReference(referenceValue)}
-                >
-                  Edit Secret
-                </Button>
+                editReferenceMode === 'icon' ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className={`h-10 w-10 shrink-0 ${pickerActionAlignmentClass}`}
+                    title="Edit secret"
+                    onClick={() => onEditReference(referenceValue)}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10"
+                    onClick={() => onEditReference(referenceValue)}
+                  >
+                    Edit Secret
+                  </Button>
+                )
               )}
             </div>
           ) : (

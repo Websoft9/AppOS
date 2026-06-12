@@ -19,11 +19,13 @@ export function Toggle({
   onChange,
   id,
   ariaLabel,
+  disabled = false,
 }: {
   checked: boolean
   onChange: (v: boolean) => void
   id?: string
   ariaLabel?: string
+  disabled?: boolean
 }) {
   return (
     <button
@@ -31,8 +33,14 @@ export function Toggle({
       role="switch"
       aria-checked={checked}
       aria-label={ariaLabel}
-      onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${checked ? 'bg-primary' : 'bg-input'}`}
+      aria-disabled={disabled}
+      disabled={disabled}
+      onClick={() => {
+        if (!disabled) {
+          onChange(!checked)
+        }
+      }}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${checked ? 'bg-primary' : 'bg-input'}`}
     >
       <span
         className={`pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`}
@@ -85,8 +93,8 @@ export function ConnectorReferenceSection({
   title,
   description,
   connectorKinds,
-  helperNoun = 'connectors',
-  ctaLabel = 'Open Connectors',
+  helperNoun = 'external services',
+  ctaLabel = 'Open External Services',
   ctaHref = '/resources/connectors',
 }: {
   title: string
@@ -105,7 +113,7 @@ export function ConnectorReferenceSection({
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
           This section now references {helperNoun}. Create and edit {connectorKinds} from Resources
-          so all connector profiles stay in one place.
+          &gt; External Services so all profiles stay in one place.
         </p>
         <Button asChild>
           <a href={ctaHref}>{ctaLabel}</a>

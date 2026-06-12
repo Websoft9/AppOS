@@ -87,13 +87,18 @@ type StreamCallbacks = {
   onDone?: (message: AICopilotMessage) => void
 }
 
+type SendAICopilotMessageOptions = {
+  signal?: AbortSignal
+}
+
 export async function sendAICopilotMessage(
   sessionId: string,
   content: string,
   providerId: string,
   model: string,
   callbacks: StreamCallbacks,
-  attachments: AICopilotAttachment[] = []
+  attachments: AICopilotAttachment[] = [],
+  options: SendAICopilotMessageOptions = {}
 ): Promise<void> {
   const response = await fetch(`/api/ai/copilot/sessions/${encodeURIComponent(sessionId)}/messages`, {
     method: 'POST',
@@ -102,6 +107,7 @@ export async function sendAICopilotMessage(
       Authorization: pb.authStore.token,
     },
     body: JSON.stringify({ content, provider_id: providerId, model, attachments }),
+    signal: options.signal,
   })
   if (!response.ok) {
     throw new Error(`Chat request failed with status ${response.status}`)

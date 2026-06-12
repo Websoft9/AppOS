@@ -19,6 +19,8 @@ import {
   type FieldDef,
   type SelectOption,
 } from '@/components/resources/ResourcePage'
+import { ReferenceSelect } from '@/components/resources/ReferenceSelect'
+import type { RelationOption } from '@/components/resources/resource-page-types'
 import { ResourcesBreadcrumb } from '@/components/resources/ResourcesBreadcrumb'
 import { buildApiKeyValue, SecretCredentialField } from '@/components/secrets/SecretCredentialField'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
@@ -27,15 +29,20 @@ import {
   AI_PROVIDER_CREDENTIAL_TEMPLATE_ID,
   buildAIProviderPayload,
   formatSecretLabel,
+  inferAWSRegionFromEndpoint,
   type AIProviderRecord,
   type AIProviderTemplate,
   type AIProviderTemplateField,
   isAdvancedProviderField,
+  reconcileProviderModelSelection,
   normalizeTemplateFieldDefault,
   normalizeEnabledModels,
   providerSelectionGroup,
   productTitle,
+  resolveTemplateEndpoint,
   resolveAIProviderEnabled,
+  sanitizeProviderModelGroups,
+  sanitizeProviderModelOptions,
 } from '@/lib/ai-providers'
 import { getLocale } from '@/lib/i18n'
 import { pb } from '@/lib/pb'
@@ -77,6 +84,106 @@ function renderEndpointFieldLabel(helpUrl: string) {
         >
           <ExternalLink className="h-3.5 w-3.5" />
         </a>
+      ) : null}
+    </div>
+  )
+}
+
+function moveFieldBefore(fields: FieldDef[], fieldKey: string, beforeKey: string) {
+  const nextFields = [...fields]
+  const fieldIndex = nextFields.findIndex(field => field.key === fieldKey)
+  const beforeIndex = nextFields.findIndex(field => field.key === beforeKey)
+  if (fieldIndex === -1 || beforeIndex === -1 || fieldIndex < beforeIndex) {
+    return nextFields
+  }
+  const [field] = nextFields.splice(fieldIndex, 1)
+  nextFields.splice(beforeIndex, 0, field)
+  return nextFields
+}
+
+function InlineSecretEditorField({
+  inputId,
+  referenceValue,
+  referenceOptions,
+  inlineEditing,
+  inlineValue,
+  onReferenceValueChange,
+  onStartInlineEdit,
+  onInlineValueChange,
+  onCancelInlineEdit,
+}: {
+  inputId: string
+  referenceValue: string
+  referenceOptions: RelationOption[]
+  inlineEditing: boolean
+  inlineValue: string
+  onReferenceValueChange: (value: string) => void
+  onStartInlineEdit: () => void
+  onInlineValueChange: (value: string) => void
+  onCancelInlineEdit: () => void
+}) {
+  const [referencePickerOpen, setReferencePickerOpen] = useState(false)
+
+  if (inlineEditing) {
+    return (
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2">
+          <Input
+            id={inputId}
+            type="password"
+            value={inlineValue}
+            onChange={event => onInlineValueChange(event.target.value)}
+            placeholder="Enter a new API key to update the current secret"
+            autoFocus
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10 shrink-0"
+            title="Cancel secret edit"
+            onClick={onCancelInlineEdit}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Saving this provider will update the current secret value in place.
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-wrap items-start gap-3">
+      <div className="min-w-[220px] flex-1">
+        <ReferenceSelect
+          id={`${inputId}-reference`}
+          value={referenceValue}
+          options={referenceOptions}
+          onSelect={value => {
+            onReferenceValueChange(value)
+            onCancelInlineEdit()
+          }}
+          placeholder="Select a Secret"
+          searchPlaceholder="Search secrets..."
+          emptyMessage="No matching secrets."
+          showNoneOption={false}
+          borderlessMenu
+          onOpenChange={setReferencePickerOpen}
+        />
+      </div>
+      {referenceValue ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className={`h-10 w-10 shrink-0 ${referencePickerOpen ? 'self-start' : 'self-center'}`}
+          title="Edit secret value"
+          onClick={onStartInlineEdit}
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
       ) : null}
     </div>
   )
@@ -215,6 +322,8 @@ function mapTemplateFieldToResourceField(
     placeholder: field.placeholder,
     defaultValue: normalizeTemplateFieldDefault(field),
     advanced: isAdvancedProviderField(field),
+    helpUrl: field.helpUrl,
+    helpText: field.helpText,
   }
 }
 
@@ -223,6 +332,7 @@ export { buildAIProviderPayload }
 function mapAIProviderRow(
   item: AIProviderRecord,
   templatesById: Map<string, AIProviderTemplate>,
+  secretNamesById: Map<string, string>,
   t: Translate,
   reachabilityOverrides?: Map<string, string>
 ): Record<string, unknown> {
@@ -248,6 +358,10 @@ function mapAIProviderRow(
   )
 
   const enabledModels = normalizeEnabledModels(item.enabled_models ?? item.config?.enabled_models)
+  const inferredRegion =
+    String(item.template_id ?? '') === 'aws-bedrock'
+      ? String(item.config?.region ?? '').trim() || inferAWSRegionFromEndpoint(String(item.endpoint ?? ''))
+      : ''
 
   return {
     id: item.id,
@@ -260,10 +374,15 @@ function mapAIProviderRow(
       reachabilityOverrides?.get(String(item.id ?? '')) ?? resolveReachability(item, t),
     endpoint: String(item.endpoint ?? ''),
     credential: String(item.credential ?? ''),
+    credential_name:
+      secretNamesById.get(String(item.credential ?? '').trim()) ?? String(item.credential ?? '').trim(),
     credential_use_secret: Boolean(String(item.credential ?? '').trim()),
     api_key_value: '',
     endpoint_editing: false,
     enabled_models: enabledModels,
+    credential_secret_editing: false,
+    credential_secret_value: '',
+    region: inferredRegion || String(item.config?.region ?? ''),
     description: String(item.description ?? ''),
     created: String(item.created ?? ''),
     updated: String(item.updated ?? ''),
@@ -447,19 +566,38 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
   return order.map(label => ({ label, models: groups[label] }))
 }
 
-  const handleEditTestConnection = useCallback(async (editingItem: Record<string, unknown> | null) => {
-    const providerId = String(editingItem?.id ?? '')
-    if (!providerId) return
+  const handleEditTestConnection = useCallback(async (
+    editingItem: Record<string, unknown> | null,
+    onPruneSelection?: (models: string[]) => void,
+    currentSelection?: unknown,
+    fetchInput?: { endpoint: string; apiKey: string; templateID: string }
+  ) => {
     setEditTestResult({ loading: true })
     setEditModelsValidated(false)
     try {
-      const result = await pb.send<ProviderModelsResponse>(
-        `/api/ai-providers/models/${providerId}`,
-        { method: 'GET' }
-      )
-      const models = (result?.models ?? []).filter(model => Boolean(model.id))
+      const providerId = String(editingItem?.id ?? '')
+      let result: ProviderModelsResponse
+      if (fetchInput) {
+        result = await pb.send<ProviderModelsResponse>('/api/ai-providers/fetch-models', {
+          method: 'POST',
+          body: {
+            endpoint: fetchInput.endpoint,
+            api_key: fetchInput.apiKey,
+            template_id: fetchInput.templateID,
+          },
+        })
+      } else {
+        if (!providerId) return
+        result = await pb.send<ProviderModelsResponse>(`/api/ai-providers/models/${providerId}`, {
+          method: 'GET',
+        })
+      }
+      const models = sanitizeProviderModelOptions(result?.models ?? [])
       setEditModelOptions(models)
-      setEditModelGroups(Array.isArray(result?.groups) ? result.groups : [])
+      setEditModelGroups(sanitizeProviderModelGroups(result?.groups ?? []))
+      if (onPruneSelection) {
+        onPruneSelection(reconcileProviderModelSelection(currentSelection, models.map(model => model.id)))
+      }
       setEditModelsValidated(true)
       setEditTestResult({ models: models.map(model => model.id) })
     } catch (err) {
@@ -479,13 +617,13 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
         `/api/ai-providers/models/${providerId}`,
         { method: 'GET' }
       )
-      const rawModels = (result?.models ?? []).filter(model => Boolean(model.id))
+      const rawModels = sanitizeProviderModelOptions(result?.models ?? [])
       const modelIds = rawModels.map(model => model.id)
-      const apiGroups = Array.isArray(result?.groups) ? result.groups : []
+      const apiGroups = sanitizeProviderModelGroups(result?.groups ?? [])
       const modelGroups =
         apiGroups.length > 1
           ? apiGroups.map(group => ({
-              label: group.label || group.vendor,
+              label: group.label,
               models: (group.models ?? []).map(m => m.id).filter(Boolean),
             }))
           : groupModelsByPrefix(modelIds)
@@ -676,6 +814,28 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
       const editMode = Boolean(editingItem)
       const useSecret = editMode ? true : Boolean(formData.credential_use_secret)
 
+      if (editMode) {
+        return (
+          <InlineSecretEditorField
+            inputId={inputId}
+            referenceValue={String(formData.credential ?? '')}
+            referenceOptions={relationOptions}
+            inlineEditing={Boolean(formData.credential_secret_editing)}
+            inlineValue={String(formData.credential_secret_value ?? '')}
+            onReferenceValueChange={value => updateField('credential', value)}
+            onStartInlineEdit={() => {
+              updateField('credential_secret_editing', true)
+              updateField('credential_secret_value', '')
+            }}
+            onInlineValueChange={value => updateField('credential_secret_value', value)}
+            onCancelInlineEdit={() => {
+              updateField('credential_secret_editing', false)
+              updateField('credential_secret_value', '')
+            }}
+          />
+        )
+      }
+
       return (
         <SecretCredentialField
           inputId={inputId}
@@ -717,6 +877,7 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
           generatorLengthLabel={t('aiProviders.credential.generateLengthLabel')}
           generatorConfirmLabel={t('aiProviders.credential.generateConfirmLabel')}
           referenceToggleMode="icon"
+          editReferenceMode="icon"
         />
       )
     },
@@ -762,6 +923,9 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
   const renderEnabledModelsField = useCallback<NonNullable<FieldDef['render']>>(
     ({ formData, updateField, editingItem }) => {
       const selectedModels = normalizeEnabledModels(formData.enabled_models)
+      const inlineSecretValue = String(formData.credential_secret_value ?? '').trim()
+      const shouldUseInlineSecret =
+        Boolean(formData.credential_secret_editing) && inlineSecretValue.length > 0
       return (
         <AIProviderModelSelector
           selectedModels={selectedModels}
@@ -772,7 +936,18 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
           loaded={editModelsValidated}
           canLoad={true}
           onListModels={() => {
-            void handleEditTestConnection(editingItem)
+            void handleEditTestConnection(
+              editingItem,
+              models => updateField('enabled_models', models),
+              selectedModels,
+              shouldUseInlineSecret
+                ? {
+                    endpoint: String(formData.endpoint ?? '').trim(),
+                    apiKey: inlineSecretValue,
+                    templateID: String(formData.template_id ?? '').trim(),
+                  }
+                : undefined
+            )
           }}
           onToggleModel={modelId => {
             updateField(
@@ -805,15 +980,16 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
         options: providerProfileOptions,
         onValueChange: (value, update) => {
           const template = providerTemplatesById.get(String(value ?? ''))
-          if (template?.defaultEndpoint) {
-            update('endpoint', template.defaultEndpoint)
-          }
-          update('enabled_models', normalizeEnabledModels(template?.defaultEnabledModels ?? []))
+          const nextDefaults: Record<string, unknown> = {}
           for (const field of template?.fields ?? []) {
             if (field.default !== undefined) {
-              update(field.id, normalizeTemplateFieldDefault(field))
+              const normalized = normalizeTemplateFieldDefault(field)
+              nextDefaults[field.id] = normalized
+              update(field.id, normalized)
             }
           }
+          update('endpoint', resolveTemplateEndpoint(template, nextDefaults))
+          update('enabled_models', normalizeEnabledModels(template?.defaultEnabledModels ?? []))
         },
       },
       {
@@ -875,6 +1051,20 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
       {
         key: 'api_key_value',
         label: t('aiProviders.fields.apiKeyValue'),
+        type: 'password',
+        hidden: true,
+        defaultValue: '',
+      },
+      {
+        key: 'credential_secret_editing',
+        label: 'Credential Secret Editing',
+        type: 'boolean',
+        hidden: true,
+        defaultValue: false,
+      },
+      {
+        key: 'credential_secret_value',
+        label: 'Credential Secret Value',
         type: 'password',
         hidden: true,
         defaultValue: '',
@@ -954,10 +1144,21 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
           ]
         }
 
-        return [mapTemplateFieldToResourceField(field, openSecretDialog, openSecretEditor, t)]
+        const mappedField = mapTemplateFieldToResourceField(field, openSecretDialog, openSecretEditor, t)
+        if (selectedTemplate?.id === 'aws-bedrock' && field.id === 'region') {
+          return [
+            {
+              ...mappedField,
+              onValueChange: (value: unknown, update: (key: string, value: unknown) => void) => {
+                update('endpoint', resolveTemplateEndpoint(selectedTemplate, { ...formData, region: value }))
+              },
+            },
+          ]
+        }
+        return [mappedField]
       })
 
-      const normalizedDynamicFields = dynamicFields.map(field => {
+      let normalizedDynamicFields = dynamicFields.map(field => {
         if (field.key !== 'endpoint') return field
         return {
           ...field,
@@ -967,8 +1168,13 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
         }
       })
 
+      if (selectedTemplate?.id === 'aws-bedrock') {
+        normalizedDynamicFields = moveFieldBefore(normalizedDynamicFields, 'region', 'endpoint')
+      }
+
       if (editingItem) {
         return [
+          { ...baseProviderFields[0], hidden: true },
           { ...baseProviderFields[1], readOnly: true },
           ...normalizedDynamicFields,
           baseProviderFields[3],
@@ -1042,6 +1248,9 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
             if (providerId === '' || expandedDetailId !== providerId) {
               return null
             }
+            const template = providerTemplatesById.get(String(item.template_id ?? ''))
+            const endpointHelpUrl =
+              template?.fields?.find(field => field.id === 'endpoint')?.helpUrl?.trim() ?? ''
             const enabled = resolveAIProviderEnabled(item.is_enabled)
             const reachability =
               reachabilityOverrides[providerId] ?? String(item.reachability ?? '')
@@ -1110,7 +1319,26 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
                   </button>
                 ),
               },
-              { label: 'Provider', value: String(item.provider ?? '—') },
+              {
+                label: 'Provider',
+                value: (
+                  <span className="inline-flex items-center gap-2">
+                    <span>{String(item.provider ?? '—')}</span>
+                    {String(template?.helpUrl ?? '').trim() ? (
+                      <a
+                        href={String(template?.helpUrl ?? '').trim()}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-muted-foreground transition-colors hover:text-foreground"
+                        aria-label="Open provider documentation"
+                        title="Open provider documentation"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    ) : null}
+                  </span>
+                ),
+              },
               {
                 label: 'Enabled',
                 value: (
@@ -1120,7 +1348,55 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
                 ),
               },
               { label: t('aiProviders.columns.reachability'), value: <Badge variant={reachVariant}>{reachability}</Badge> },
-              { label: t('aiProviders.columns.endpoint'), value: String(item.endpoint ?? '—') },
+              {
+                label: 'Secret',
+                value: String(item.credential ?? '').trim() ? (
+                  <span className="inline-flex items-center gap-2">
+                    <a
+                      href={`/secrets?id=${encodeURIComponent(String(item.credential ?? ''))}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="transition-colors hover:text-primary"
+                    >
+                      {String(item.credential_name ?? item.credential ?? '—')}
+                    </a>
+                    <a
+                      href={`/secrets?id=${encodeURIComponent(String(item.credential ?? ''))}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-muted-foreground transition-colors hover:text-foreground"
+                      aria-label="Open secret"
+                      title="Open secret"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  </span>
+                ) : (
+                  '—'
+                ),
+              },
+              {
+                label: t('aiProviders.columns.endpoint'),
+                value: String(item.endpoint ?? '').trim() ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span>{String(item.endpoint ?? '—')}</span>
+                    {endpointHelpUrl ? (
+                      <a
+                        href={endpointHelpUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-muted-foreground transition-colors hover:text-foreground"
+                        aria-label="Open official API endpoint help"
+                        title="Open official API endpoint help"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    ) : null}
+                  </span>
+                ) : (
+                  '—'
+                ),
+              },
             ]
             if (String(item.description ?? '').trim()) {
               fields.push({ label: 'Description', value: String(item.description ?? '') })
@@ -1132,7 +1408,6 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
 
             return (
               <div className="space-y-4 rounded-lg border bg-muted/10 px-4 py-3">
-                <span className="text-sm font-semibold">Provider Detail</span>
                 <div className="grid grid-cols-[100px_1fr] gap-x-4 gap-y-2 text-sm">
                   {fields.map(field => (
                     <Fragment key={field.label}>
@@ -1328,8 +1603,22 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
               ? items.map(item => String(item.id ?? '')).filter(Boolean)
               : []
             void fetchReachabilityStatuses(ids)
+            const secretResponse = await pb
+              .send<{ items?: Array<Record<string, unknown>> }>(
+                buildUserVisibleSecretRelationApiPath('ai_provider', {
+                  secretTemplate: AI_PROVIDER_CREDENTIAL_TEMPLATE_ID,
+                }),
+                { method: 'GET' }
+              )
+              .catch(() => ({ items: [] }))
+            const secretNamesById = new Map(
+              (secretResponse.items ?? []).map(secret => [
+                String(secret.id ?? '').trim(),
+                String(secret.name ?? secret.id ?? '').trim(),
+              ])
+            )
             const rows = Array.isArray(items)
-              ? items.map(item => mapAIProviderRow(item, providerTemplatesById, t))
+              ? items.map(item => mapAIProviderRow(item, providerTemplatesById, secretNamesById, t))
               : []
             fetchEnabledModelCounts(rows)
             return rows
@@ -1338,6 +1627,22 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
             const nextPayload = { ...payload }
             if (!nextPayload.template_id) {
               nextPayload.template_id = editingTemplateIdRef.current
+            }
+            const credentialID = String(nextPayload.credential ?? '').trim()
+            if (Boolean(nextPayload.credential_secret_editing)) {
+              const secretValue = String(nextPayload.credential_secret_value ?? '').trim()
+              if (!credentialID) {
+                throw new Error('Select an API key secret before editing it.')
+              }
+              if (!secretValue) {
+                throw new Error('API Key is required when editing the current secret.')
+              }
+              await pb.send(`/api/secrets/${credentialID}/payload`, {
+                method: 'PUT',
+                body: { payload: { value: secretValue } },
+              })
+              nextPayload.credential_secret_editing = false
+              nextPayload.credential_secret_value = ''
             }
             if (!editModelsValidated) {
               delete nextPayload.enabled_models

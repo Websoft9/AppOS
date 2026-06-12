@@ -78,6 +78,27 @@ func TestConnectorCreateReturnsCreatedAndAudits(t *testing.T) {
 	}
 }
 
+func TestConnectorCreateProxyReturnsCreatedAndAudits(t *testing.T) {
+	ensureConnectorSecretRuntime(t)
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.do(t, http.MethodPost, "/api/connectors",
+		`{"name":"office-proxy","kind":"proxy","template_id":"http-proxy","endpoint":"http://proxy.example.com:3128","config":{"protocol":"http"}}`,
+		true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	entries := auditEntriesByAction(t, te, "connector.create")
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 create audit entry, got %d", len(entries))
+	}
+	if entries[0].GetString("status") != audit.StatusSuccess {
+		t.Fatalf("expected successful create audit, got %q", entries[0].GetString("status"))
+	}
+}
+
 func TestConnectorRejectsBlankName(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()

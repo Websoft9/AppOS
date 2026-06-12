@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -369,6 +370,119 @@ func TestAIProvidersPersistEnabledModels(t *testing.T) {
 	enabledModels, ok = updated["enabled_models"].([]any)
 	if !ok || len(enabledModels) != 1 || enabledModels[0] != "openai/gpt-4.1-mini" {
 		t.Fatalf("expected enabled_models to update, got %#v", updated["enabled_models"])
+	}
+}
+
+func TestFetchProviderModelsGoogleGeminiDirectEndpointUsesAPIKeyQueryAndFiltersGenerativeModels(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1beta/models" {
+			t.Fatalf("expected path /v1beta/models, got %s", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("key"); got != "gemini-test-key" {
+			t.Fatalf("expected api key query param, got %q", got)
+		}
+		if got := r.Header.Get("Authorization"); got != "" {
+			t.Fatalf("expected no Authorization header for Gemini, got %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"models": [
+			  {"name": "models/gemini-3.5-flash", "supportedGenerationMethods": ["generateContent", "streamGenerateContent"]},
+			  {"name": "models/gemini-3.1-pro-preview", "supportedGenerationMethods": ["generateContent"]},
+			  {"name": "models/text-embedding-004", "supportedGenerationMethods": ["embedContent"]}
+			]
+		}`))
+	}))
+	defer server.Close()
+
+	result, err := fetchProviderModels(context.Background(), server.URL+"/v1beta", "gemini-test-key", "google-gemini")
+	if err != nil {
+		t.Fatalf("fetch gemini provider models: %v", err)
+	}
+	if len(result.Models) != 2 {
+		t.Fatalf("expected 2 generative Gemini models, got %d: %#v", len(result.Models), result.Models)
+	}
+	ids := map[string]bool{}
+	for _, model := range result.Models {
+		ids[model.ID] = model.EnabledByDefault
+	}
+	if !ids["gemini-3.1-pro-preview"] {
+		t.Fatalf("expected gemini-3.1-pro-preview enabled by default, got %#v", result.Models)
+	}
+	if !ids["gemini-3.5-flash"] {
+		t.Fatalf("expected gemini-3.5-flash enabled by default, got %#v", result.Models)
+	}
+}
+
+func TestFetchProviderModelsGoogleGeminiOpenAIEndpointUsesBearerAuth(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1beta/openai/models" {
+			t.Fatalf("expected path /v1beta/openai/models, got %s", r.URL.Path)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer gemini-test-key" {
+			t.Fatalf("expected bearer auth for Gemini OpenAI endpoint, got %q", got)
+		}
+		if got := r.URL.Query().Get("key"); got != "" {
+			t.Fatalf("expected no query api key for Gemini OpenAI endpoint, got %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"data": [
+			  {"id": "gemini-3.5-flash"},
+			  {"id": "gemini-3.1-pro-preview"}
+			]
+		}`))
+	}))
+	defer server.Close()
+
+	result, err := fetchProviderModels(context.Background(), server.URL+"/v1beta/openai", "gemini-test-key", "google-gemini")
+	if err != nil {
+		t.Fatalf("fetch Gemini OpenAI-compatible models: %v", err)
+	}
+	if len(result.Models) != 2 {
+		t.Fatalf("expected 2 Gemini OpenAI-compatible models, got %d: %#v", len(result.Models), result.Models)
+	}
+}
+
+func TestResolveAWSBedrockModelsURL(t *testing.T) {
+	url, err := resolveAWSBedrockModelsURL("https://bedrock-mantle.us-east-1.api.aws/openai/v1")
+	if err != nil {
+		t.Fatalf("resolve AWS Bedrock models URL: %v", err)
+	}
+	if url != "https://bedrock.us-east-1.amazonaws.com/foundation-models" {
+		t.Fatalf("unexpected AWS Bedrock models URL: %s", url)
+	}
+
+	url, err = resolveAWSBedrockModelsURL("https://bedrock-runtime.eu-west-1.amazonaws.com/openai/v1")
+	if err != nil {
+		t.Fatalf("resolve AWS Bedrock runtime models URL: %v", err)
+	}
+	if url != "https://bedrock.eu-west-1.amazonaws.com/foundation-models" {
+		t.Fatalf("unexpected AWS Bedrock runtime models URL: %s", url)
+	}
+}
+
+func TestBuildFetchModelsResponseAWSBedrockFiltersTextModels(t *testing.T) {
+	parsed := map[string]any{
+		"modelSummaries": []any{
+			map[string]any{"modelId": "anthropic.claude-3-5-sonnet-20240620-v1:0", "providerName": "Anthropic", "outputModalities": []any{"TEXT"}},
+			map[string]any{"modelId": "amazon.nova-pro-v1:0", "providerName": "Amazon", "outputModalities": []any{"TEXT", "IMAGE"}},
+			map[string]any{"modelId": "amazon.titan-image-v1", "providerName": "Amazon", "outputModalities": []any{"IMAGE"}},
+		},
+	}
+	defaultEnabled := map[string]struct{}{
+		"anthropic.claude-3-5-sonnet-20240620-v1:0": {},
+		"amazon.nova-pro-v1:0":                      {},
+	}
+	result := buildFetchModelsResponse(parsed, defaultEnabled, "aws-bedrock")
+	if len(result.Models) != 2 {
+		t.Fatalf("expected 2 text-output Bedrock models, got %d: %#v", len(result.Models), result.Models)
+	}
+	if result.Models[0].ID != "anthropic.claude-3-5-sonnet-20240620-v1:0" || !result.Models[0].EnabledByDefault {
+		t.Fatalf("expected anthropic.claude-3-5-sonnet-20240620-v1:0 enabled by default, got %#v", result.Models[0])
+	}
+	if result.Models[1].ID != "amazon.nova-pro-v1:0" || !result.Models[1].EnabledByDefault {
+		t.Fatalf("expected amazon.nova-pro-v1:0 enabled by default, got %#v", result.Models[1])
 	}
 }
 
@@ -1004,6 +1118,7 @@ func createServerRecord(t *testing.T, te *testEnv, name, host string, port int, 
 	record.Set("host", host)
 	record.Set("port", port)
 	record.Set("user", user)
+	record.Set("is_enabled", true)
 	record.Set("auth_type", authType)
 
 	if err := te.app.Save(record); err != nil {

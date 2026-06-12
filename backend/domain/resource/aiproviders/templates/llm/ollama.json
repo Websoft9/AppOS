@@ -3,6 +3,7 @@
   "title": "Ollama",
   "vendor": "Ollama",
   "description": "Self-hosted Ollama server exposed through an OpenAI-compatible local endpoint.",
+  "helpUrl": "https://ollama.com/blog/openai-compatibility",
   "modelsEndpoint": "/api/tags",
   "defaultEndpoint": "http://localhost:11434/v1",
   "defaultAuthScheme": "none",

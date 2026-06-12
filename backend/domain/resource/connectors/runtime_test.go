@@ -322,6 +322,7 @@ func TestBuildProxyEnvWithUsesSelectedProxyConnectors(t *testing.T) {
 		persistence.NewConnectorRepository(app),
 		connectors.NewSecretResolver(app),
 		true,
+		"",
 		httpConnector.Id,
 		httpsConnector.Id,
 	)
@@ -349,11 +350,62 @@ func TestBuildProxyEnvWithDisabledProxyReturnsNil(t *testing.T) {
 		false,
 		"",
 		"",
+		"",
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if env != nil {
 		t.Fatalf("expected nil env when proxy is disabled, got %#v", env)
+	}
+}
+
+func TestBuildProxyEnvWithPrefersSocks5Connector(t *testing.T) {
+	app := newRuntimeTestApp(t)
+	defer app.Cleanup()
+
+	secret := createSecretRecord(t, app, "single_value", map[string]any{"value": "proxy-secret"})
+	socks5Connector := createConnectorRecord(t, app, connectors.SaveInput{
+		Name:         "SOCKS5 Proxy",
+		Kind:         connectors.KindProxy,
+		TemplateID:   "socks5-proxy",
+		Endpoint:     "socks5://socks.example.com:1080",
+		AuthScheme:   connectors.AuthSchemeBasic,
+		CredentialID: secret.Id,
+		Config: map[string]any{
+			"protocol":  "socks5",
+			"username":  "alice",
+			"no_proxy":  "localhost,.svc",
+			"auth_mode": "username_password",
+		},
+	})
+	httpConnector := createConnectorRecord(t, app, connectors.SaveInput{
+		Name:       "HTTP Proxy",
+		Kind:       connectors.KindProxy,
+		TemplateID: "http-proxy",
+		Endpoint:   "http://proxy.example.com:3128",
+		Config:     map[string]any{"protocol": "http"},
+	})
+
+	env, err := connectors.BuildProxyEnvWith(
+		persistence.NewConnectorRepository(app),
+		connectors.NewSecretResolver(app),
+		true,
+		socks5Connector.Id,
+		httpConnector.Id,
+		"",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "socks5://alice:proxy-secret@socks.example.com:1080"
+	if env["ALL_PROXY"] != want {
+		t.Fatalf("unexpected ALL_PROXY: %q", env["ALL_PROXY"])
+	}
+	if env["HTTP_PROXY"] != want || env["HTTPS_PROXY"] != want {
+		t.Fatalf("expected HTTP/HTTPS env to use SOCKS5, got %#v", env)
+	}
+	if env["NO_PROXY"] != "localhost,.svc" {
+		t.Fatalf("unexpected NO_PROXY: %q", env["NO_PROXY"])
 	}
 }

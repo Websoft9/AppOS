@@ -24,7 +24,8 @@
     "uploadFiles": "Upload files",
     "sendMessage": "Send message",
     "copyMarkdown": "Copy markdown",
-    "configureModels": "Configure models"
+    "configureModels": "Configure models",
+    "stopGeneration": "Stop generation"
   },
   "fields": {
     "conversationTitle": "Conversation title",

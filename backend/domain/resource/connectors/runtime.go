@@ -137,13 +137,14 @@ func LoadProxyByIDWith(repo Repository, secrets SecretResolvePort, connectorID s
 	return proxyConfigFromConnector(secrets, item)
 }
 
-func BuildProxyEnvWith(repo Repository, secrets SecretResolvePort, enabled bool, httpConnectorID, httpsConnectorID string) (map[string]string, error) {
+func BuildProxyEnvWith(repo Repository, secrets SecretResolvePort, enabled bool, socks5ConnectorID, httpConnectorID, httpsConnectorID string) (map[string]string, error) {
 	if !enabled {
 		return nil, nil
 	}
+	socks5ConnectorID = strings.TrimSpace(socks5ConnectorID)
 	httpConnectorID = strings.TrimSpace(httpConnectorID)
 	httpsConnectorID = strings.TrimSpace(httpsConnectorID)
-	if httpConnectorID == "" && httpsConnectorID == "" {
+	if socks5ConnectorID == "" && httpConnectorID == "" && httpsConnectorID == "" {
 		return nil, nil
 	}
 
@@ -161,6 +162,34 @@ func BuildProxyEnvWith(repo Repository, secrets SecretResolvePort, enabled bool,
 		}
 		loaded[connectorID] = cfg
 		return cfg, nil
+	}
+
+	if socks5ConnectorID != "" {
+		socks5Cfg, err := load(socks5ConnectorID)
+		if err != nil {
+			return nil, err
+		}
+		if socks5Cfg == nil {
+			return nil, nil
+		}
+		socks5Proxy := ProxyURLWithCredentials(socks5Cfg.Endpoint, socks5Cfg.Username, socks5Cfg.Password)
+		if socks5Proxy == "" {
+			return nil, nil
+		}
+		env := map[string]string{
+			"ALL_PROXY":   socks5Proxy,
+			"all_proxy":   socks5Proxy,
+			"HTTP_PROXY":  socks5Proxy,
+			"http_proxy":  socks5Proxy,
+			"HTTPS_PROXY": socks5Proxy,
+			"https_proxy": socks5Proxy,
+		}
+		noProxy := mergeNoProxyValues(socks5Cfg)
+		if noProxy != "" {
+			env["NO_PROXY"] = noProxy
+			env["no_proxy"] = noProxy
+		}
+		return env, nil
 	}
 
 	httpCfg, err := load(httpConnectorID)

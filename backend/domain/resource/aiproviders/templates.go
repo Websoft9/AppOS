@@ -135,6 +135,7 @@ type templateFieldFile struct {
 	Sensitive      *bool           `json:"sensitive,omitempty"`
 	SecretTemplate *string         `json:"secretTemplate,omitempty"`
 	Placeholder    *string         `json:"placeholder,omitempty"`
+	HelpURL        *string         `json:"helpUrl,omitempty"`
 	HelpText       *string         `json:"helpText,omitempty"`
 	Default        json.RawMessage `json:"default,omitempty"`
 }
@@ -280,6 +281,9 @@ func applyFieldOverlay(base TemplateField, override templateFieldFile) (Template
 	}
 	if override.Placeholder != nil {
 		result.Placeholder = strings.TrimSpace(*override.Placeholder)
+	}
+	if override.HelpURL != nil {
+		result.HelpURL = strings.TrimSpace(*override.HelpURL)
 	}
 	if override.HelpText != nil {
 		result.HelpText = strings.TrimSpace(*override.HelpText)

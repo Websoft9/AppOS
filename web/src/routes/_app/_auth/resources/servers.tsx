@@ -12,6 +12,7 @@ import {
   ArrowLeft,
   RotateCcw,
   Power,
+  PowerOff,
   CircleHelp,
   PanelRight,
   Square,
@@ -206,6 +207,30 @@ function formatSecretLabel(raw: Record<string, unknown>): string {
   return alias ? `${name}  (${alias})` : name
 }
 
+function resolveServerEnabled(value: unknown): boolean {
+  if (value === null || value === undefined || value === '') {
+    return true
+  }
+  if (typeof value === 'boolean') {
+    return value
+  }
+  if (typeof value === 'number') {
+    return value !== 0
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (!normalized) {
+      return true
+    }
+    return !['0', 'false', 'no', 'off', 'disabled'].includes(normalized)
+  }
+  return true
+}
+
+function normalizeServerEnabledStatus(value: unknown): 'Enabled' | 'Disabled' {
+  return resolveServerEnabled(value) ? 'Enabled' : 'Disabled'
+}
+
 function hostSummary(item: Record<string, unknown>, t: Translate): string {
   if (String(item.connect_type ?? '') === 'tunnel') {
     return t('servers.summary.viaTunnel')
@@ -293,6 +318,8 @@ function mapServerListItem(
 
   return {
     ...item,
+    is_enabled: resolveServerEnabled(item.is_enabled),
+    enabled_status: normalizeServerEnabledStatus(item.is_enabled),
     created_by_display: createdByName || formatCreator(createdBy, currentUserId, currentUserEmail),
     connection_presentation: connectionPresentation,
     connection_state: connectionPresentation.state,
@@ -387,6 +414,12 @@ function buildServerBaseFields(t: Translate): FieldDef[] {
           </div>
         )
       },
+    },
+    {
+      key: 'is_enabled',
+      label: t('servers.fields.enabled'),
+      type: 'boolean',
+      defaultValue: true,
     },
     {
       key: 'name',
@@ -535,6 +568,7 @@ export function ServersPage() {
     const isLocal = isDirect && Boolean(next.use_local_host ?? next.is_local)
     const browserHostname = resolveCurrentBrowserHostname()
 
+    next.is_enabled = resolveServerEnabled(next.is_enabled)
     next.is_local = isLocal
     if (isLocal && browserHostname) {
       next.host = browserHostname
@@ -637,6 +671,22 @@ export function ServersPage() {
 
   const handleDuplicateServer = useCallback((item: Record<string, unknown>) => {
     setDuplicateDraft(buildDuplicateServerDraft(item))
+  }, [])
+
+  const handleToggleEnabled = useCallback(async (item: Record<string, unknown>) => {
+    const serverId = String(item.id ?? '')
+    if (!serverId) {
+      return
+    }
+
+    await pb.collection('servers').update(
+      serverId,
+      sanitizeServerPayload({
+        ...item,
+        is_enabled: !resolveServerEnabled(item.is_enabled),
+      })
+    )
+    setListRefreshKey(current => current + 1)
   }, [])
 
   const handleSecretEditSave = useCallback(async () => {
@@ -1117,6 +1167,33 @@ export function ServersPage() {
         ),
       },
       {
+        key: 'enabled_status',
+        label: t('servers.columns.enabled'),
+        sortable: true,
+        filterOptions: [
+          { label: t('servers.enabled.yes'), value: 'Enabled' },
+          { label: t('servers.enabled.no'), value: 'Disabled' },
+        ],
+        filterValue: row => String(row.enabled_status ?? ''),
+        render: (_value, row) => {
+          const enabled = resolveServerEnabled(row.is_enabled)
+          return (
+            <button
+              type="button"
+              className={enabled ? 'inline-flex cursor-pointer items-center gap-1 text-sm text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300' : 'inline-flex cursor-pointer items-center gap-1 text-sm text-muted-foreground hover:text-foreground'}
+              onClick={event => {
+                event.stopPropagation()
+                void handleToggleEnabled(row)
+              }}
+              title={enabled ? t('servers.actions.disable') : t('servers.actions.enable')}
+            >
+              {enabled ? <Power className="h-3.5 w-3.5" /> : <PowerOff className="h-3.5 w-3.5" />}
+              {enabled ? t('servers.enabled.yes') : t('servers.enabled.no')}
+            </button>
+          )
+        },
+      },
+      {
         key: 'connection',
         label: t('servers.columns.connection'),
         filterOptions: [
@@ -1255,7 +1332,7 @@ export function ServersPage() {
         },
       },
     ],
-    [getConnectionPresentation, handleOpenServer, pingResults, server, t]
+    [getConnectionPresentation, handleOpenServer, handleToggleEnabled, pingResults, server, t]
   )
 
   const columns = useMemo(
@@ -1761,12 +1838,17 @@ export function ServersPage() {
   const renderExtraActions = useCallback(
     (item: Record<string, unknown>) => {
       const presentation = getConnectionPresentation(item)
+      const enabled = resolveServerEnabled(item.is_enabled)
       return (
         <>
           {presentation.stateActions.map(action => renderConnectionActionItem(item, action))}
           {presentation.toolActions.length > 0 ? <DropdownMenuSeparator /> : null}
           {presentation.toolActions.map(action => renderConnectionActionItem(item, action))}
           <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => { void handleToggleEnabled(item) }}>
+            {enabled ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
+            {enabled ? t('servers.actions.disable') : t('servers.actions.enable')}
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => handleDuplicateServer(item)}>
             <Copy className="h-4 w-4" />
             {t('servers.actions.duplicateServer')}
@@ -1774,7 +1856,7 @@ export function ServersPage() {
         </>
       )
     },
-    [getConnectionPresentation, handleDuplicateServer, renderConnectionActionItem, t]
+    [getConnectionPresentation, handleDuplicateServer, handleToggleEnabled, renderConnectionActionItem, t]
   )
 
   const renderPrimaryAction = useCallback(

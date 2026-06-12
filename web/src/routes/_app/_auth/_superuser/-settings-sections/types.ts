@@ -13,8 +13,16 @@ export interface SpaceQuota {
 
 export interface ProxyNetwork {
   enabled: boolean
+  socks5ConnectorId: string
   httpConnectorId: string
   httpsConnectorId: string
+}
+
+export interface ProxyNetworkErrors {
+  form?: string
+  socks5ConnectorId?: string
+  httpConnectorId?: string
+  httpsConnectorId?: string
 }
 
 export interface DockerMirror {
@@ -88,6 +96,7 @@ export const DEFAULT_SPACE_QUOTA: SpaceQuota = {
 
 export const EMPTY_PROXY: ProxyNetwork = {
   enabled: false,
+  socks5ConnectorId: '',
   httpConnectorId: '',
   httpsConnectorId: '',
 }

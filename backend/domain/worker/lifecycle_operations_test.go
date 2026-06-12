@@ -167,6 +167,7 @@ func saveProxySettings(t *testing.T, app core.App, enabled bool, httpConnectorID
 	t.Helper()
 	return sysconfig.SetGroup(app, "proxy", "network", map[string]any{
 		"enabled":          enabled,
+		"socks5ConnectorId": "",
 		"httpConnectorId":  httpConnectorID,
 		"httpsConnectorId": httpsConnectorID,
 	})

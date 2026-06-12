@@ -39,7 +39,7 @@ func ensureConnectorsCollection(app core.App) error {
 	col.DeleteRule = nil
 
 	addFieldIfMissing(col, &core.TextField{Name: "name", Required: true, Max: 200})
-	addFieldIfMissing(col, &core.SelectField{Name: "kind", Required: true, MaxSelect: 1, Values: []string{connectors.KindLLM, connectors.KindRESTAPI, connectors.KindWebhook, connectors.KindMCP, connectors.KindSMTP, connectors.KindDNS, connectors.KindRegistry}})
+	addFieldIfMissing(col, &core.SelectField{Name: "kind", Required: true, MaxSelect: 1, Values: []string{connectors.KindLLM, connectors.KindRESTAPI, connectors.KindWebhook, connectors.KindMCP, connectors.KindSMTP, connectors.KindDNS, connectors.KindRegistry, connectors.KindProxy}})
 	addFieldIfMissing(col, &core.BoolField{Name: "is_default"})
 	addFieldIfMissing(col, &core.TextField{Name: "template_id", Max: 120})
 	addFieldIfMissing(col, &core.TextField{Name: "endpoint"})

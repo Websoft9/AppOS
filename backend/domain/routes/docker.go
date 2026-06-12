@@ -154,12 +154,14 @@ func loadDockerProxyEnv(app core.App) map[string]string {
 	case string:
 		enabled = strings.EqualFold(strings.TrimSpace(raw), "true") || strings.TrimSpace(raw) == "1"
 	}
+	socks5ConnectorID := sysconfig.String(group, "socks5ConnectorId", "")
 	httpConnectorID := sysconfig.String(group, "httpConnectorId", "")
 	httpsConnectorID := sysconfig.String(group, "httpsConnectorId", "")
 	env, err := connectors.BuildProxyEnvWith(
 		persistence.NewConnectorRepository(app),
 		connectors.NewSecretResolver(app),
 		enabled,
+		socks5ConnectorID,
 		httpConnectorID,
 		httpsConnectorID,
 	)
@@ -195,9 +197,19 @@ func handleDockerServers(e *core.RequestEvent) error {
 		return e.JSON(http.StatusOK, result)
 	}
 
-	entries := make([]serverEntry, len(managedServers))
+	enabledServers := make([]*servers.ManagedServer, 0, len(managedServers))
+	for _, server := range managedServers {
+		if server != nil && server.IsEnabled {
+			enabledServers = append(enabledServers, server)
+		}
+	}
+	if len(enabledServers) == 0 {
+		return e.JSON(http.StatusOK, result)
+	}
+
+	entries := make([]serverEntry, len(enabledServers))
 	var wg sync.WaitGroup
-	for i, s := range managedServers {
+	for i, s := range enabledServers {
 		wg.Add(1)
 		s := s
 		go func(idx int) {

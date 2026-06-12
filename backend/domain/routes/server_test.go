@@ -216,6 +216,7 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 		Items []struct {
 			ID              string         `json:"id"`
 			Name            string         `json:"name"`
+			IsEnabled       bool           `json:"is_enabled"`
 			Created         string         `json:"created"`
 			Updated         string         `json:"updated"`
 			CreatedByName   string         `json:"created_by_name"`
@@ -253,6 +254,7 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 
 	byName := make(map[string]struct {
 		ID               string
+		IsEnabled        bool
 		Created          string
 		Updated          string
 		CreatedByName    string
@@ -271,6 +273,7 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 	for _, item := range payload.Items {
 		entry := struct {
 			ID               string
+			IsEnabled        bool
 			Created          string
 			Updated          string
 			CreatedByName    string
@@ -287,6 +290,7 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 			TunnelWaiting    bool
 		}{
 			ID:               item.ID,
+			IsEnabled:        item.IsEnabled,
 			Created:          item.Created,
 			Updated:          item.Updated,
 			CreatedByName:    item.CreatedByName,
@@ -318,6 +322,9 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 	}
 	if got := byName["direct-a"]; got.CreatedByName != "admin@test.com" {
 		t.Fatalf("expected direct created_by_name admin@test.com, got %#v", got)
+	}
+	if got := byName["direct-a"]; !got.IsEnabled {
+		t.Fatalf("expected direct server enabled by default, got %#v", got)
 	}
 	if got := byName["direct-a"]; !got.IsLocal {
 		t.Fatalf("expected direct is_local true, got %#v", got)

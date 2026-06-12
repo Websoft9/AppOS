@@ -173,12 +173,7 @@ export function ProxyConnectorDialog({
     const selectedTemplate = templatesById.get(String(formData.template_id ?? ''))
     const dynamicFields = selectedTemplate
       ? (selectedTemplate.fields ?? []).map(field =>
-          mapTemplateFieldToResourceField(
-            selectedTemplate,
-            field,
-            openSecretDialog,
-            openSecretEditor
-          )
+          mapTemplateFieldToResourceField(selectedTemplate, field, openSecretDialog)
         )
       : []
     return [baseFields[0], baseFields[1], ...dynamicFields, ...baseFields.slice(2)]

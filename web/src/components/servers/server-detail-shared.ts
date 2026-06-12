@@ -12,6 +12,7 @@ export type ServerReadModelItem = {
   [key: string]: unknown
   id?: string
   name?: string
+  is_enabled?: boolean | string | number | null
   host?: string
   port?: number | string
   user?: string

@@ -203,14 +203,39 @@ Provider	endpoint + credential + kind	数据库
 getconf 是唯一硬编码的 OS 命令，Linux 基本都有。其余命令由 catalog 模板定义，非后端硬编码。
 
 
+proxy 的消费还没有测试
+proxy 开关设计
+
+改 Go 代码，给 fetchProviderModels 里的 http.Client 加上 SOCKS5 dialer，通过环境变量（如 SOCKS5_PROXY）控制
 
 
 
 
-Resource > AI providers > Add ai provider 
 
-1. API Key 中的输入文本框旁的图标，请去掉边框
 
-Resource > AI providers > edit ai provider （编辑模式）
 
-1. Enable Models 区域，勾选了更多 model 后，保存报错：Invalid AI provider payload.
+add  external service 流程优化
+
+1. Password Secret 项去掉或不显示 Generate，这个场景不需要
+2. 下拉清单中的 Secret 不要出现 (Token / Single Value) 这种类型说明，没有一样
+
+
+edit external service 流程优化
+1. Name 仍然作为标题栏重新，节省空间
+2. Password Secret 处
+-如果是新增，应该可直接填写值或选择已有
+-如果是修改，应该点击编辑按钮后天呢或选择已有
+
+
+
+
+
+认证方式，原数据化
+
+
+ai provider 元数据优化
+
+另外，google gemini 模型在拉取 models list 时报错：Loading models timed out. Check network connectivity and confirm the provider endpoint is reachable. 
+
+
+

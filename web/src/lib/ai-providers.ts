@@ -25,6 +25,7 @@ export type AIProviderTemplateField = {
   required?: boolean
   secretTemplate?: string
   placeholder?: string
+  helpUrl?: string
   helpText?: string
   default?: unknown
 }
@@ -44,6 +45,19 @@ export type AIProviderTemplate = {
   defaultEnabledModels?: string[]
   capabilities?: string[]
   fields?: AIProviderTemplateField[]
+}
+
+type ProviderModelLike = {
+  id?: unknown
+  label?: unknown
+  vendor?: unknown
+  enabled_by_default?: boolean
+}
+
+type ProviderModelGroupLike<TModel extends ProviderModelLike = ProviderModelLike> = {
+  label?: unknown
+  vendor?: unknown
+  models?: TModel[] | null
 }
 
 type Translate = (key: string, options?: Record<string, unknown>) => string
@@ -88,6 +102,66 @@ export function normalizeEnabledModels(value: unknown): string[] {
     .map(item => String(item ?? '').trim())
     .filter(Boolean)
     .filter((item, index, input) => input.indexOf(item) === index)
+}
+
+export function sanitizeProviderModelOptions<TModel extends ProviderModelLike>(
+  value: TModel[] | null | undefined
+): Array<TModel & { id: string }> {
+  if (!Array.isArray(value)) return []
+  const seen = new Set<string>()
+  const models: Array<TModel & { id: string }> = []
+  for (const item of value) {
+    const id = String(item?.id ?? '').trim()
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    models.push({ ...item, id })
+  }
+  return models
+}
+
+export function sanitizeProviderModelGroups<TModel extends ProviderModelLike>(
+  value: Array<ProviderModelGroupLike<TModel>> | null | undefined
+): Array<{ label: string; vendor: string; models: Array<TModel & { id: string }> }> {
+  if (!Array.isArray(value)) return []
+  return value
+    .map(group => {
+      const label = String(group?.label ?? group?.vendor ?? 'Other').trim() || 'Other'
+      const vendor = String(group?.vendor ?? group?.label ?? 'Other').trim() || 'Other'
+      const models = sanitizeProviderModelOptions(group?.models ?? [])
+      return { label, vendor, models }
+    })
+    .filter(group => group.models.length > 0)
+}
+
+export function reconcileProviderModelSelection(
+  selected: unknown,
+  availableModelIDs: Iterable<string>
+): string[] {
+  const available = new Set(
+    Array.from(availableModelIDs, value => String(value ?? '').trim()).filter(Boolean)
+  )
+  return normalizeEnabledModels(selected).filter(model => available.has(model))
+}
+
+export function resolveTemplateEndpoint(
+  template: AIProviderTemplate | null | undefined,
+  values: Record<string, unknown> = {}
+) {
+  const endpointTemplate = String(template?.defaultEndpoint ?? '').trim()
+  if (!endpointTemplate) return ''
+  return endpointTemplate.replaceAll(/\{([^}]+)\}/g, (_match, key: string) => {
+    const resolved = String(values[key] ?? '').trim()
+    if (resolved) return resolved
+    if (key === 'region') return 'us-east-1'
+    return ''
+  })
+}
+
+export function inferAWSRegionFromEndpoint(endpoint: string) {
+  const raw = endpoint.trim().toLowerCase()
+  if (!raw) return ''
+  const match = raw.match(/bedrock(?:-mantle|-runtime)?\.([a-z0-9-]+)\./)
+  return match?.[1] ?? ''
 }
 
 export function slugifyNamePart(value: string) {

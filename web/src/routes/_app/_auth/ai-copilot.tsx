@@ -18,6 +18,7 @@ import {
   Search,
   Send,
   Settings,
+  Square,
   Trash2,
   User,
   X,
@@ -253,6 +254,7 @@ export function AICopilotPage() {
   const [deleteTarget, setDeleteTarget] = useState<AICopilotSession | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const activeRequestRef = useRef<AbortController | null>(null)
 
   const activeSession = useMemo(
     () => sessions.find(session => session.id === activeSessionId) ?? null,
@@ -262,6 +264,10 @@ export function AICopilotPage() {
   const defaultSessionTitle = t('page.defaultSessionTitle')
 
   const attachmentsLoading = attachments.some(item => item.loading)
+
+  const stopStreaming = useCallback(() => {
+    activeRequestRef.current?.abort()
+  }, [])
 
   const refreshSessions = useCallback(async () => {
     const items = await listAICopilotSessions()
@@ -450,8 +456,11 @@ export function AICopilotPage() {
       session_id: sessionId,
       role: 'assistant',
       content: '',
+      status: 'streaming',
     }
     setMessages(prev => [...prev, userMessage, assistantMessage])
+    const controller = new AbortController()
+    activeRequestRef.current = controller
 
     try {
       const targetModel = parseModelSelection(selectedModel)
@@ -465,22 +474,38 @@ export function AICopilotPage() {
             setMessages(prev =>
               prev.map(message =>
                 message.id === assistantId
-                  ? { ...message, content: message.content + chunk }
+                  ? { ...message, content: message.content + chunk, status: 'streaming' }
                   : message
               )
             )
           },
           onDone: message => {
-            setMessages(prev => prev.map(item => (item.id === assistantId ? message : item)))
+            setMessages(prev =>
+              prev.map(item =>
+                item.id === assistantId ? { ...message, status: message.status ?? 'completed' } : item
+              )
+            )
           },
         },
-        outgoingAttachments
+        outgoingAttachments,
+        { signal: controller.signal }
       )
       await refreshSessions()
     } catch (err) {
-      setError(getApiErrorMessage(err, t('messages.sendError')))
-      await loadMessages(sessionId)
+      const aborted = err instanceof Error && err.name === 'AbortError'
+      if (aborted) {
+        setMessages(prev =>
+          prev.map(item =>
+            item.id === assistantId ? { ...item, status: 'stopped' } : item
+          )
+        )
+        await refreshSessions()
+      } else {
+        setError(getApiErrorMessage(err, t('messages.sendError')))
+        await loadMessages(sessionId)
+      }
     } finally {
+      activeRequestRef.current = null
       setSending(false)
     }
   }
@@ -678,7 +703,7 @@ export function AICopilotPage() {
             </div>
           </aside>
 
-          <section className="relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border bg-background">
+          <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border bg-background">
             <div className="px-5 py-3">
               <div className="flex items-center gap-2">
                 {!conversationListWide ? (
@@ -696,7 +721,7 @@ export function AICopilotPage() {
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 pb-36">
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
               {loading ? (
                 <div className="text-sm text-muted-foreground">{t('page.loading')}</div>
               ) : messages.length === 0 ? (
@@ -710,14 +735,14 @@ export function AICopilotPage() {
                   {messages.map(message => (
                     <MessageBubble key={message.id} message={message} />
                   ))}
-                  <div ref={messagesEndRef} />
+                  <div className="h-16" ref={messagesEndRef} />
                 </div>
               )}
             </div>
 
-            <form onSubmit={submit} className="absolute inset-x-0 bottom-0 z-10 px-5 pb-4 pt-5">
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background via-background/92 to-transparent" />
-              <div className="pointer-events-auto mx-auto max-w-4xl space-y-2 rounded-2xl border border-border/60 bg-background/94 p-2 shadow-[0_14px_30px_-22px_rgba(15,23,42,0.32)] backdrop-blur-md transition-colors focus-within:border-primary/30">
+            <div className="shrink-0 border-t bg-background/96 px-5 pb-4 pt-3 backdrop-blur-md">
+              <form onSubmit={submit} className="mx-auto max-w-4xl">
+                <div className="space-y-2 rounded-2xl border border-border/60 bg-background/94 p-2 shadow-[0_14px_30px_-22px_rgba(15,23,42,0.32)] transition-colors focus-within:border-primary/30">
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -859,22 +884,34 @@ export function AICopilotPage() {
                       </PopoverContent>
                     </Popover>
                     <div className="flex-1" />
-                    <Button
-                      type="submit"
-                      size="icon"
-                      variant="ghost"
-                      className="-mr-1 h-7 w-7 shrink-0 rounded-full text-muted-foreground hover:bg-background/70 hover:text-foreground"
-                      aria-label={t('actions.sendMessage')}
-                      disabled={
-                        sending || attachmentsLoading || (!draft.trim() && attachments.length === 0)
-                      }
-                    >
-                      <Send className="h-3 w-3" />
-                    </Button>
+                    {sending ? (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="-mr-1 h-7 w-7 shrink-0 rounded-full text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                        aria-label={t('actions.stopGeneration')}
+                        onClick={stopStreaming}
+                      >
+                        <Square className="h-3 w-3 fill-current" />
+                      </Button>
+                    ) : (
+                      <Button
+                        type="submit"
+                        size="icon"
+                        variant="ghost"
+                        className="-mr-1 h-7 w-7 shrink-0 rounded-full text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                        aria-label={t('actions.sendMessage')}
+                        disabled={attachmentsLoading || (!draft.trim() && attachments.length === 0)}
+                      >
+                        <Send className="h-3 w-3" />
+                      </Button>
+                    )}
                   </div>
                 </div>
-              </div>
-            </form>
+                </div>
+              </form>
+            </div>
           </section>
         </div>
       </main>
@@ -944,16 +981,20 @@ function MessageBubble({ message }: { message: AICopilotMessage }) {
             {parsed.text || (parsed.attachments.length > 0 ? t('messages.attachedFiles') : '')}
           </div>
         ) : (
-          <AssistantMessageContent content={message.content || t('messages.thinking')} />
+          <AssistantMessageContent
+            content={message.content || t('messages.thinking')}
+            status={String(message.status ?? '')}
+          />
         )}
       </div>
     </div>
   )
 }
 
-function AssistantMessageContent({ content }: { content: string }) {
+function AssistantMessageContent({ content, status }: { content: string; status: string }) {
   const { t } = useTranslation('aiCopilot')
   const [copied, setCopied] = useState(false)
+  const showActions = status !== 'streaming' && content.trim().length > 0
 
   const handleCopy = async () => {
     const ok = await copyToClipboard(content)
@@ -967,17 +1008,19 @@ function AssistantMessageContent({ content }: { content: string }) {
       <MarkdownView className="prose prose-sm max-w-none text-foreground dark:prose-invert [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 prose-headings:mb-2 prose-headings:mt-4 prose-p:my-2.5 prose-p:leading-7 prose-ul:my-2.5 prose-ul:pl-5 prose-ol:my-2.5 prose-ol:pl-5 prose-li:my-1 prose-li:marker:text-muted-foreground prose-pre:my-4 prose-pre:rounded-xl prose-pre:border prose-pre:border-border/60 prose-pre:bg-muted/28 prose-pre:px-4 prose-pre:py-3 prose-pre:shadow-sm prose-code:rounded prose-code:bg-muted/35 prose-code:px-1.5 prose-code:py-0.5 prose-code:text-[0.92em] prose-code:text-foreground prose-code:before:hidden prose-code:after:hidden prose-blockquote:my-4 prose-blockquote:border-l-border prose-blockquote:bg-muted/16 prose-blockquote:py-0.5 prose-blockquote:text-foreground/80">
         {content}
       </MarkdownView>
-      <div className="flex justify-start pt-0.5">
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          onClick={() => void handleCopy()}
-          aria-label={t('actions.copyMarkdown')}
-        >
-          {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-        </Button>
-      </div>
+      {showActions ? (
+        <div className="flex justify-start pt-0.5">
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={() => void handleCopy()}
+            aria-label={t('actions.copyMarkdown')}
+          >
+            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+          </Button>
+        </div>
+      ) : null}
     </div>
   )
 }
