@@ -14,6 +14,7 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
+	"github.com/websoft9/appos/backend/domain/proxy"
 	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
 	"github.com/websoft9/appos/backend/domain/secrets"
@@ -916,7 +917,10 @@ func TestLoadDockerProxyEnvIncludesCredentials(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	env := loadDockerProxyEnv(te.app)
+	env, err := proxy.ProxyEnv(te.app)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if env["HTTP_PROXY"] != "http://alice:secret@proxy.example.com:3128" {
 		t.Fatalf("unexpected HTTP_PROXY: %q", env["HTTP_PROXY"])
 	}
@@ -968,7 +972,10 @@ func TestLoadDockerProxyEnvPrefersSocks5WhenConfigured(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	env := loadDockerProxyEnv(te.app)
+	env, err := proxy.ProxyEnv(te.app)
+	if err != nil {
+		t.Fatal(err)
+	}
 	want := "socks5://alice:secret@socks.example.com:1080"
 	if env["ALL_PROXY"] != want {
 		t.Fatalf("unexpected ALL_PROXY: %q", env["ALL_PROXY"])

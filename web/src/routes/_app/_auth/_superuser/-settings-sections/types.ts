@@ -20,9 +20,38 @@ export interface ProxyNetwork {
 
 export interface ProxyNetworkErrors {
   form?: string
+  consumers?: string
   socks5ConnectorId?: string
   httpConnectorId?: string
   httpsConnectorId?: string
+}
+
+export type ProxyConsumerMode = 'disabled' | 'always' | 'fallback'
+
+export interface ProxyConsumerItem {
+  consumerKey: string
+  mode: ProxyConsumerMode
+}
+
+export interface ProxyConsumerDefinition {
+  key: string
+  title: string
+  description?: string
+  location: 'local' | 'remote'
+  moduleKey?: string
+  scope: string
+  adapter: string
+  trafficClass: string
+  support: string
+  defaultMode: ProxyConsumerMode
+  allowedModes: ProxyConsumerMode[]
+  enrollable: boolean
+  tags?: string[]
+}
+
+export interface ProxyConsumersSettings {
+  items: ProxyConsumerItem[]
+  definitions: ProxyConsumerDefinition[]
 }
 
 export interface DockerMirror {
@@ -99,6 +128,11 @@ export const EMPTY_PROXY: ProxyNetwork = {
   socks5ConnectorId: '',
   httpConnectorId: '',
   httpsConnectorId: '',
+}
+
+export const EMPTY_PROXY_CONSUMERS: ProxyConsumersSettings = {
+  items: [],
+  definitions: [],
 }
 
 export const DEFAULT_CONNECT_TERMINAL: ConnectTerminalGroup = {

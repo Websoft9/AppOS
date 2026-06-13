@@ -255,10 +255,21 @@ var entryCatalog = []EntrySchema{
 		Module:  "proxy",
 		Key:     "network",
 		Fields: []FieldSchema{
-			{ID: "enabled", Label: "Enable Proxy", Type: "boolean", HelpText: "Enable outbound proxy resolution for platform Docker operations."},
+			{ID: "enabled", Label: "Enable Proxy", Type: "boolean", HelpText: "Enable workspace-wide outbound proxy resolution for AppOS network operations."},
 			{ID: "socks5ConnectorId", Label: "SOCKS5 Proxy Service", Type: "relation", HelpText: "Service used for all outbound traffic when SOCKS5 is selected."},
 			{ID: "httpConnectorId", Label: "HTTP Proxy Service", Type: "relation", HelpText: "Service used for HTTP proxy traffic when SOCKS5 is not selected."},
 			{ID: "httpsConnectorId", Label: "HTTPS Proxy Service", Type: "relation", HelpText: "Service used for HTTPS proxy traffic when SOCKS5 is not selected."},
+		},
+	},
+	{
+		ID:      "proxy-consumers",
+		Title:   "Proxy Consumers",
+		Section: SectionWorkspace,
+		Source:  SourceCustom,
+		Module:  "proxy",
+		Key:     "consumers",
+		Fields: []FieldSchema{
+			{ID: "items", Label: "Consumer Enrollments", Type: "object-list", HelpText: "Proxy consumer enrollment rows plus mode selection."},
 		},
 	},
 	{
@@ -424,6 +435,7 @@ var customSettingDefaults = map[string]map[string]any{
 	"proxy/network": {
 		"enabled": false, "socks5ConnectorId": "", "httpConnectorId": "", "httpsConnectorId": "",
 	},
+	"proxy/consumers": defaultProxyConsumerSettingsMap(),
 	"docker/mirror": {
 		"mirrors": []any{}, "allowInsecureRegistries": false,
 	},
@@ -571,4 +583,8 @@ func cloneMap(input map[string]any) map[string]any {
 		return map[string]any{}
 	}
 	return out
+}
+
+func defaultProxyConsumerSettingsMap() map[string]any {
+	return map[string]any{"items": []map[string]any{}}
 }

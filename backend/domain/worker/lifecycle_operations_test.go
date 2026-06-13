@@ -209,7 +209,7 @@ func createHTTPConnectorFixtures(t *testing.T, app core.App, httpID string, http
 	return create(httpsID, "http://secure-proxy.example.com:8443")
 }
 
-func TestExecutorForAppliesWorkerDockerProxyEnv(t *testing.T) {
+func TestExecutorForLeavesWorkerDockerProxyEnvUnset(t *testing.T) {
 	app := newWorkerTestApp(t)
 	if err := saveProxySettings(t, app, true, "http-proxy-id-001", "https-proxy-id-001"); err != nil {
 		t.Fatal(err)
@@ -238,11 +238,8 @@ func TestExecutorForAppliesWorkerDockerProxyEnv(t *testing.T) {
 	if client == nil {
 		t.Fatal("expected docker client")
 	}
-	if captureExec.env["HTTP_PROXY"] != "http://proxy.example.com:8080" {
-		t.Fatalf("expected HTTP_PROXY from worker settings, got %q", captureExec.env["HTTP_PROXY"])
-	}
-	if captureExec.env["HTTPS_PROXY"] != "http://secure-proxy.example.com:8443" {
-		t.Fatalf("expected HTTPS_PROXY from worker settings, got %q", captureExec.env["HTTPS_PROXY"])
+	if len(captureExec.env) != 0 {
+		t.Fatalf("expected worker docker client env to stay empty, got %#v", captureExec.env)
 	}
 }
 

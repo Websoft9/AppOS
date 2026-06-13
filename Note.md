@@ -238,4 +238,18 @@ ai provider 元数据优化
 另外，google gemini 模型在拉取 models list 时报错：Loading models timed out. Check network connectivity and confirm the provider endpoint is reachable. 
 
 
+数据库增加 external json 结构，便于未来拓展？
 
+每一个chat 窗口，提供一个 token 统计
+
+settings > proxy 界面优化
+Proxy Providers: Proxy nodes and service instances
+Platform Proxy: Global proxy settings for platform modules
+Remote Proxy: Proxy configurations for remote servers
+
+每个区域一个独立的框，标题和说明放在框之外。
+所有的设置tab 今后都采用这种策略
+
+问题根因是后端更新接口复用了完整的 upsert 校验，编辑时不仅要求 name 和 url，也要求 format。前端 PATCH 之前只补了 url，但仍然没传 format，所以继续触发 Invalid feed source format。我已在编辑模式的请求体中补上 format: formFormat，现在编辑时会提交完整字段集：name、url、format、favicon_url、status。
+
+改动在 web/src/routes/_app/_auth/feeds.tsx。如果你愿意，下一步我可以顺手把这个编辑提交流程补一条前端测试，避免这类字段遗漏再次出现

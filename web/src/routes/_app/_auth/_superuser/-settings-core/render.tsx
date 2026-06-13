@@ -139,9 +139,12 @@ function renderProxySection(
   return (
     <ProxySection
       proxyForm={controller.proxyForm}
+      proxyConsumers={controller.proxyConsumers}
+      proxyConsumerDefinitions={controller.proxyConsumerDefinitions}
       proxySaving={controller.proxySaving}
       proxyErrors={controller.proxyErrors}
       setProxyForm={controller.setProxyForm}
+      setProxyConsumers={controller.setProxyConsumers}
       saveProxy={controller.saveProxy}
       onOpenHelp={options?.onOpenHelp}
     />

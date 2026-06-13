@@ -14,7 +14,7 @@ import (
 	"github.com/websoft9/appos/backend/infra/persistence"
 )
 
-var aiCopilotModelFactory copilot.ModelFactory = copilot.EinoModelFactory{}
+var aiCopilotModelFactory copilot.ModelFactory
 
 type routeSecretResolver struct {
 	app core.App
@@ -39,7 +39,14 @@ func newAICopilotService(app core.App) *copilot.Service {
 	repo := persistence.NewAICopilotRepository(app)
 	providers := persistence.NewAIProviderRepository(app)
 	resolver := copilot.NewDefaultProviderResolver(providers, routeSecretResolver{app: app})
-	return copilot.NewService(repo, resolver, aiCopilotModelFactory)
+	return copilot.NewService(repo, resolver, resolveAICopilotModelFactory(app))
+}
+
+func resolveAICopilotModelFactory(app core.App) copilot.ModelFactory {
+	if aiCopilotModelFactory != nil {
+		return aiCopilotModelFactory
+	}
+	return copilot.EinoModelFactory{App: app}
 }
 
 func handleAICopilotListSessions(e *core.RequestEvent) error {

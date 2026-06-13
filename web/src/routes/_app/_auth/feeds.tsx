@@ -378,17 +378,6 @@ function getDisplayBookmarkHost(rawURL: string): string {
   }
 }
 
-function isHTTPURL(rawURL: string): boolean {
-  const trimmed = rawURL.trim()
-  if (!/^https?:\/\//i.test(trimmed)) return false
-  try {
-    const parsed = new URL(trimmed)
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
-
 function legacyCopyText(value: string): boolean {
   if (typeof document === 'undefined') return false
 
@@ -1081,13 +1070,9 @@ function FeedsPage() {
   }
 
   async function handleAnalyzeBookmark() {
-    const url = bookmarkURL.trim()
+    const url = normalizeURL(bookmarkURL)
     if (!url) {
       setBookmarkError('Bookmark URL is required.')
-      return
-    }
-    if (!isHTTPURL(url)) {
-      setBookmarkError('Enter a URL starting with http:// or https://.')
       return
     }
 
@@ -1112,13 +1097,9 @@ function FeedsPage() {
   async function handleBookmarkSubmit(event: FormEvent) {
     event.preventDefault()
 
-    const url = bookmarkURL.trim()
+    const url = normalizeURL(bookmarkURL)
     if (!url) {
       setBookmarkError('Bookmark URL is required.')
-      return
-    }
-    if (!isHTTPURL(url)) {
-      setBookmarkError('Enter a URL starting with http:// or https://.')
       return
     }
 
@@ -1191,12 +1172,27 @@ function FeedsPage() {
     setDialogOpen(true)
   }
 
+  /** Ensure the URL has an http(s) protocol; if missing, default to https:// */
+  function normalizeURL(raw: string): string {
+    const trimmed = raw.trim()
+    if (!trimmed) return ''
+    // If it already has a scheme (contains :// anywhere), leave it as-is
+    if (/:\/\//.test(trimmed)) return trimmed
+    // Otherwise prepend https://
+    return `https://${trimmed}`
+  }
+
   async function handleAnalyzeSource() {
-    const url = analyzeURL.trim()
+    const url = normalizeURL(analyzeURL)
 
     if (!url) {
       setFormError('Feed URL is required.')
       return
+    }
+
+    // Immediately reflect the corrected URL in the input field
+    if (url !== analyzeURL) {
+      setAnalyzeURL(url)
     }
 
     setAnalyzing(true)
@@ -1250,6 +1246,8 @@ function FeedsPage() {
           method: 'PATCH',
           body: {
             name,
+            url,
+              format: formFormat,
             favicon_url: formFaviconURL.trim(),
             status: formStatus,
           },

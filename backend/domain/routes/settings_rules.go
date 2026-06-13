@@ -11,9 +11,11 @@ import (
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 	"github.com/websoft9/appos/backend/domain/monitor"
+	"github.com/websoft9/appos/backend/domain/proxy"
 	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	persistence "github.com/websoft9/appos/backend/infra/persistence"
+	proxyinfra "github.com/websoft9/appos/backend/infra/proxy"
 	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
 )
 
@@ -471,6 +473,73 @@ func validateProxyNetwork(app core.App, v map[string]any) map[string]string {
 		return nil
 	}
 	return errors
+}
+
+func validateProxyConsumers(v map[string]any) map[string]string {
+	registry, err := proxy.DefaultRegistry()
+	if err != nil {
+		return map[string]string{"items": "proxy consumer registry is unavailable"}
+	}
+	directUseDefinitions := map[string]proxyinfra.Definition{}
+	for _, definition := range registry.DirectUse() {
+		directUseDefinitions[definition.Key] = definition
+	}
+
+	rawItems, ok := v["items"]
+	if !ok || rawItems == nil {
+		v["items"] = []map[string]any{}
+		return nil
+	}
+
+	list, ok := rawItems.([]any)
+	if !ok {
+		return map[string]string{"items": "must be a list of proxy consumer settings"}
+	}
+
+	items := make([]proxy.ConsumerEnrollment, 0, len(list))
+	seen := map[string]struct{}{}
+	for idx, rawItem := range list {
+		item, ok := rawItem.(map[string]any)
+		if !ok {
+			return map[string]string{"items": fmt.Sprintf("item %d must be an object", idx+1)}
+		}
+		consumerKey := strings.TrimSpace(sysconfig.String(item, "consumerKey", ""))
+		if consumerKey == "" {
+			return map[string]string{"items": fmt.Sprintf("item %d requires consumerKey", idx+1)}
+		}
+		if _, exists := seen[consumerKey]; exists {
+			return map[string]string{"items": fmt.Sprintf("consumer %q is duplicated", consumerKey)}
+		}
+		seen[consumerKey] = struct{}{}
+
+		definition, ok := directUseDefinitions[consumerKey]
+		if !ok {
+			return map[string]string{"items": fmt.Sprintf("consumer %q is not a valid direct-use proxy consumer", consumerKey)}
+		}
+		mode := proxyinfra.Mode(strings.TrimSpace(sysconfig.String(item, "mode", "")))
+		if mode == "" {
+			return map[string]string{"items": fmt.Sprintf("consumer %q requires mode", consumerKey)}
+		}
+		enrollment := proxy.ConsumerEnrollment{ConsumerKey: definition.Key, Mode: mode}
+		if validateErr := proxy.ValidateConsumerEnrollment(definition, enrollment); validateErr != nil {
+			return map[string]string{"items": validateErr.Error()}
+		}
+		items = append(items, enrollment)
+	}
+
+	v["items"] = proxy.NormalizeConsumerSettingsValue(map[string]any{"items": itemsToMaps(items)})["items"]
+	return nil
+}
+
+func itemsToMaps(items []proxy.ConsumerEnrollment) []map[string]any {
+	out := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		out = append(out, map[string]any{
+			"consumerKey": item.ConsumerKey,
+			"mode":        string(item.Mode),
+		})
+	}
+	return out
 }
 
 func validateMonitorScheduling(v map[string]any) map[string]string {

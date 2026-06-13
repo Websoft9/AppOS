@@ -25,20 +25,20 @@ func routeSSHCommandAdapter(run routeSSHCommandRunner) func(context.Context, str
 	}
 }
 
-func directSSHCommandAdapter(cfg terminal.ConnectorConfig) func(context.Context, string, time.Duration) (string, error) {
+func directSSHCommandAdapter(cfg terminal.ConnectorConfig, env map[string]string) func(context.Context, string, time.Duration) (string, error) {
 	return func(ctx context.Context, command string, timeout time.Duration) (string, error) {
-		return terminal.ExecuteSSHCommand(ctx, cfg, command, timeout)
+		return terminal.ExecuteSSHCommand(ctx, cfg, terminal.WrapCommandWithEnv(command, env), timeout)
 	}
 }
 
-func reusableRouteSSHCommandRunner(ctx context.Context, cfg terminal.ConnectorConfig) (routeSSHCommandRunner, func(), error) {
+func reusableRouteSSHCommandRunner(ctx context.Context, cfg terminal.ConnectorConfig, env map[string]string) (routeSSHCommandRunner, func(), error) {
 	client, err := dialRouteSSHClient(ctx, cfg)
 	if err != nil {
 		return nil, nil, err
 	}
 	cleanup := func() { _ = client.Close() }
 	runner := func(runCtx context.Context, command string, timeout time.Duration) (string, error) {
-		return runRouteSSHSession(runCtx, client, command, timeout)
+		return runRouteSSHSession(runCtx, client, terminal.WrapCommandWithEnv(command, env), timeout)
 	}
 	return runner, cleanup, nil
 }

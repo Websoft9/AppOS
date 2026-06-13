@@ -25,7 +25,7 @@ func handleSystemdServices(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": "serverId required"})
 	}
 
-	cfg, err := resolveTerminalConfig(e.App, e.Auth, serverID)
+	cfg, proxyEnv, err := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
@@ -34,7 +34,7 @@ func handleSystemdServices(e *core.RequestEvent) error {
 		return e.JSON(http.StatusServiceUnavailable, map[string]any{"message": gateErr.Error()})
 	}
 	defer release()
-	run, cleanup, runnerErr := reusableRouteSSHCommandRunner(e.Request.Context(), cfg)
+	run, cleanup, runnerErr := reusableRouteSSHCommandRunner(e.Request.Context(), cfg, proxyEnv)
 	if runnerErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runnerErr.Error()})
 	}
@@ -79,7 +79,7 @@ func handleSystemdServiceStatus(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
+	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
@@ -88,7 +88,7 @@ func handleSystemdServiceStatus(e *core.RequestEvent) error {
 		return e.JSON(http.StatusServiceUnavailable, map[string]any{"message": gateErr.Error()})
 	}
 	defer release()
-	run, cleanup, runnerErr := reusableRouteSSHCommandRunner(e.Request.Context(), cfg)
+	run, cleanup, runnerErr := reusableRouteSSHCommandRunner(e.Request.Context(), cfg, proxyEnv)
 	if runnerErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runnerErr.Error()})
 	}
@@ -139,7 +139,7 @@ func handleSystemdServiceLogs(e *core.RequestEvent) error {
 		}
 	}
 
-	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
+	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
@@ -148,7 +148,7 @@ func handleSystemdServiceLogs(e *core.RequestEvent) error {
 		return e.JSON(http.StatusServiceUnavailable, map[string]any{"message": gateErr.Error()})
 	}
 	defer release()
-	run, cleanup, runnerErr := reusableRouteSSHCommandRunner(e.Request.Context(), cfg)
+	run, cleanup, runnerErr := reusableRouteSSHCommandRunner(e.Request.Context(), cfg, proxyEnv)
 	if runnerErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runnerErr.Error()})
 	}
@@ -187,7 +187,7 @@ func handleSystemdServiceContent(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
+	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
@@ -196,7 +196,7 @@ func handleSystemdServiceContent(e *core.RequestEvent) error {
 		return e.JSON(http.StatusServiceUnavailable, map[string]any{"message": gateErr.Error()})
 	}
 	defer release()
-	run, cleanup, runnerErr := reusableRouteSSHCommandRunner(e.Request.Context(), cfg)
+	run, cleanup, runnerErr := reusableRouteSSHCommandRunner(e.Request.Context(), cfg, proxyEnv)
 	if runnerErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runnerErr.Error()})
 	}
@@ -245,12 +245,12 @@ func handleSystemdServiceAction(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
+	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
 
-	result, runErr := newDirectSystemdRuntimeService(cfg).Action(e.Request.Context(), service, action)
+	result, runErr := newDirectSystemdRuntimeService(cfg, proxyEnv).Action(e.Request.Context(), service, action)
 
 	userID, _, ip, _ := clientInfo(e)
 	status := audit.StatusSuccess
@@ -287,7 +287,7 @@ func handleSystemdServiceUnitRead(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
+	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
@@ -296,7 +296,7 @@ func handleSystemdServiceUnitRead(e *core.RequestEvent) error {
 		return e.JSON(http.StatusServiceUnavailable, map[string]any{"message": gateErr.Error()})
 	}
 	defer release()
-	run, cleanup, runnerErr := reusableRouteSSHCommandRunner(e.Request.Context(), cfg)
+	run, cleanup, runnerErr := reusableRouteSSHCommandRunner(e.Request.Context(), cfg, proxyEnv)
 	if runnerErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runnerErr.Error()})
 	}
@@ -337,12 +337,12 @@ func handleSystemdServiceUnitWrite(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
+	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
 
-	result, writeErr := newDirectSystemdRuntimeService(cfg).WriteUnit(e.Request.Context(), service, body.Content)
+	result, writeErr := newDirectSystemdRuntimeService(cfg, proxyEnv).WriteUnit(e.Request.Context(), service, body.Content)
 	if writeErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": writeErr.Error(), "output": result.Output})
 	}
@@ -378,12 +378,12 @@ func handleSystemdServiceUnitVerify(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
+	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
 
-	result, verifyErr := newDirectSystemdRuntimeService(cfg).VerifyUnit(e.Request.Context(), service)
+	result, verifyErr := newDirectSystemdRuntimeService(cfg, proxyEnv).VerifyUnit(e.Request.Context(), service)
 
 	userID, _, ip, _ := clientInfo(e)
 	status := audit.StatusSuccess
@@ -424,12 +424,12 @@ func handleSystemdServiceUnitApply(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
+	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
 
-	result, applyErr := newDirectSystemdRuntimeService(cfg).ApplyUnit(e.Request.Context(), service)
+	result, applyErr := newDirectSystemdRuntimeService(cfg, proxyEnv).ApplyUnit(e.Request.Context(), service)
 
 	userID, _, ip, _ := clientInfo(e)
 	status := audit.StatusSuccess
@@ -473,8 +473,8 @@ func newSystemdRuntimeService(run routeSSHCommandRunner) serversvc.SystemdRuntim
 	}
 }
 
-func newDirectSystemdRuntimeService(cfg terminal.ConnectorConfig) serversvc.SystemdRuntimeService {
+func newDirectSystemdRuntimeService(cfg terminal.ConnectorConfig, env map[string]string) serversvc.SystemdRuntimeService {
 	return serversvc.SystemdRuntimeService{
-		Run: directSSHCommandAdapter(cfg),
+		Run: directSSHCommandAdapter(cfg, env),
 	}
 }

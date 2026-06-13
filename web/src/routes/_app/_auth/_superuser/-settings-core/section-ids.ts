@@ -15,7 +15,7 @@ export const TOPIC_SECTION_IDS = [
 ] as const
 export const TERMINAL_SECTION_IDS = ['terminal', 'connect-terminal', 'connect-sftp'] as const
 export const DOCKER_SECTION_IDS = ['docker-mirror', 'docker-registries'] as const
-export const PROXY_SECTION_IDS = ['proxy-network'] as const
+export const PROXY_SECTION_IDS = ['proxy-network', 'proxy-consumers'] as const
 export const AI_SECTION_IDS = ['ai'] as const
 export const SMTP_SECTION_IDS = ['smtp'] as const
 export const DEPLOY_SECTION_IDS = [

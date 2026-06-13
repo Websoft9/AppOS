@@ -44,7 +44,7 @@ func detectComposeProtocolPorts(ctx context.Context, cfg terminal.ConnectorConfi
 	if len(ports) == 0 {
 		return map[int]map[string]any{}, map[int]map[string]any{}, map[string]any{"available": true, "status": "ok"}, nil
 	}
-	runtime := newDirectPortRuntimeService(cfg)
+	runtime := newDirectPortRuntimeService(cfg, nil)
 	occupancyByPort, err := runtime.DetectAllPortOccupancy(ctx, protocol)
 	if err != nil {
 		return nil, nil, nil, err

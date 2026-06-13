@@ -30,7 +30,7 @@ func handleServerPortsList(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": paramErr.Error()})
 	}
 
-	cfg, err := resolveTerminalConfig(e.App, e.Auth, serverID)
+	cfg, proxyEnv, err := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
@@ -39,7 +39,7 @@ func handleServerPortsList(e *core.RequestEvent) error {
 		return e.JSON(http.StatusServiceUnavailable, map[string]any{"message": gateErr.Error()})
 	}
 	defer release()
-	run, cleanup, runnerErr := reusableRouteSSHCommandRunner(e.Request.Context(), cfg)
+	run, cleanup, runnerErr := reusableRouteSSHCommandRunner(e.Request.Context(), cfg, proxyEnv)
 	if runnerErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runnerErr.Error()})
 	}
@@ -158,11 +158,11 @@ func handleServerPortInspect(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": paramErr.Error()})
 	}
 
-	cfg, err := resolveTerminalConfig(e.App, e.Auth, serverID)
+	cfg, proxyEnv, err := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
-	runtime := newDirectPortRuntimeService(cfg)
+	runtime := newDirectPortRuntimeService(cfg, proxyEnv)
 
 	result := map[string]any{
 		"server_id":   serverID,
@@ -239,12 +239,12 @@ func handleServerPortRelease(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": modeErr.Error()})
 	}
 
-	cfg, err := resolveTerminalConfig(e.App, e.Auth, serverID)
+	cfg, proxyEnv, err := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	result, releaseErr := newDirectPortRuntimeService(cfg).ReleasePort(e.Request.Context(), port, protocol, mode)
+	result, releaseErr := newDirectPortRuntimeService(cfg, proxyEnv).ReleasePort(e.Request.Context(), port, protocol, mode)
 	if releaseErr != nil {
 		if errors.Is(releaseErr, serversvc.ErrPortNotOccupied) {
 			return e.JSON(http.StatusConflict, map[string]any{"message": "port is not occupied", "port": port, "protocol": protocol})
@@ -320,9 +320,9 @@ func newPortRuntimeService(run routeSSHCommandRunner) serversvc.PortRuntimeServi
 	}
 }
 
-func newDirectPortRuntimeService(cfg terminal.ConnectorConfig) serversvc.PortRuntimeService {
+func newDirectPortRuntimeService(cfg terminal.ConnectorConfig, env map[string]string) serversvc.PortRuntimeService {
 	return serversvc.PortRuntimeService{
-		Run:                        directSSHCommandAdapter(cfg),
+		Run:                        directSSHCommandAdapter(cfg, env),
 		SSUsersProcessPattern:      ssUsersProcessPattern.String(),
 		DockerPublishedPortPattern: dockerPublishedPortPattern.String(),
 	}

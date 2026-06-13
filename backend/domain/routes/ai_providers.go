@@ -19,6 +19,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/audit"
 	sysconfig "github.com/websoft9/appos/backend/domain/config/sysconfig"
+	"github.com/websoft9/appos/backend/domain/proxy"
 	"github.com/websoft9/appos/backend/domain/resource/accounts"
 	"github.com/websoft9/appos/backend/domain/resource/aiproviders"
 	"github.com/websoft9/appos/backend/domain/secrets"
@@ -326,7 +327,7 @@ func handleFetchModels(e *core.RequestEvent) error {
 	if endpoint == "" {
 		return e.BadRequestError("endpoint is required", nil)
 	}
-	result, err := fetchProviderModels(e.Request.Context(), endpoint, apiKey, body.TemplateID)
+	result, err := fetchProviderModels(e.App, e.Request.Context(), endpoint, apiKey, body.TemplateID)
 	if err != nil {
 		return e.BadRequestError(describeFetchModelsError(err), err)
 	}
@@ -345,7 +346,7 @@ func handleAIProviderModels(e *core.RequestEvent) error {
 	if resolveErr != nil {
 		return e.InternalServerError("failed to resolve provider credential", resolveErr)
 	}
-	result, fetchErr := fetchProviderModels(e.Request.Context(), strings.TrimSpace(item.Endpoint()), apiKey, strings.TrimSpace(item.TemplateID()))
+	result, fetchErr := fetchProviderModels(e.App, e.Request.Context(), strings.TrimSpace(item.Endpoint()), apiKey, strings.TrimSpace(item.TemplateID()))
 	if fetchErr != nil {
 		return e.BadRequestError(describeFetchModelsError(fetchErr), fetchErr)
 	}
@@ -424,7 +425,7 @@ func handleAIProviderReachability(e *core.RequestEvent) error {
 				results[index] = status
 				return
 			}
-			_, fetchErr := fetchProviderModels(e.Request.Context(), strings.TrimSpace(item.Endpoint()), apiKey, strings.TrimSpace(item.TemplateID()))
+			_, fetchErr := fetchProviderModels(e.App, e.Request.Context(), strings.TrimSpace(item.Endpoint()), apiKey, strings.TrimSpace(item.TemplateID()))
 			if fetchErr != nil {
 				status.Status = "unreachable"
 				status.Error = fetchErr.Error()
@@ -483,7 +484,7 @@ func handleAIProviderChatModels(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, aiProviderChatModelsResponse{Items: chatModels})
 }
 
-func fetchProviderModels(ctx context.Context, endpoint string, apiKey string, templateID string) (fetchModelsResponse, error) {
+func fetchProviderModels(app core.App, ctx context.Context, endpoint string, apiKey string, templateID string) (fetchModelsResponse, error) {
 	endpoint = strings.TrimSpace(endpoint)
 	if endpoint == "" {
 		return fetchModelsResponse{}, errors.New("endpoint is required")
@@ -515,17 +516,7 @@ func fetchProviderModels(ctx context.Context, endpoint string, apiKey string, te
 		useBearerAuth = true
 	}
 
-	var client http.Client
-	if hasTemplate && tpl.SkipTLSCertVerify {
-		client = http.Client{
-			Timeout: 8 * time.Second,
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			},
-		}
-	} else {
-		client = http.Client{Timeout: 8 * time.Second}
-	}
+	client := newAIProviderHTTPClient(app, hasTemplate && tpl.SkipTLSCertVerify)
 	req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, modelsURL, nil)
 	if reqErr != nil {
 		return fetchModelsResponse{}, reqErr
@@ -571,6 +562,18 @@ func fetchProviderModels(ctx context.Context, endpoint string, apiKey string, te
 		}
 	}
 	return buildFetchModelsResponse(parsed, defaultEnabled, templateID), nil
+}
+
+func newAIProviderHTTPClient(app core.App, skipTLSVerify bool) http.Client {
+	client, err := proxy.NewHTTPClient(app, "ai_providers.global", 8*time.Second, skipTLSVerify)
+	if err == nil {
+		return client
+	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if skipTLSVerify {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+	return http.Client{Timeout: 8 * time.Second, Transport: transport}
 }
 
 func buildFetchModelsResponse(parsed any, defaultEnabled map[string]struct{}, templateID string) fetchModelsResponse {

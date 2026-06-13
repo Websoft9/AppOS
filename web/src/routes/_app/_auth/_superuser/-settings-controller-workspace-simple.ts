@@ -21,12 +21,16 @@ import {
   DEFAULT_TOPIC_SHARE,
   DEFAULT_TUNNEL_PORT_RANGE,
   EMPTY_PROXY,
+  EMPTY_PROXY_CONSUMERS,
   type ConnectSftpGroup,
   type ConnectTerminalGroup,
   type DeployGitDefaultsGroup,
   type DeployPreflightGroup,
   type DeployRuntimeGroup,
   type IacFilesGroup,
+  type ProxyConsumerDefinition,
+  type ProxyConsumerItem,
+  type ProxyConsumersSettings,
   type ProxyNetwork,
   type SpaceQuota,
   type TopicCommentPolicy,
@@ -129,10 +133,61 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
 
   const [proxyNetwork, setProxyNetwork] = useState<ProxyNetwork>(EMPTY_PROXY)
   const [proxyForm, setProxyForm] = useState<ProxyNetwork>(EMPTY_PROXY)
+  const [proxyConsumers, setProxyConsumers] = useState<ProxyConsumerItem[]>(
+    EMPTY_PROXY_CONSUMERS.items
+  )
+  const [proxyConsumerDefinitions, setProxyConsumerDefinitions] = useState<
+    ProxyConsumerDefinition[]
+  >(EMPTY_PROXY_CONSUMERS.definitions)
   const [proxySaving, setProxySaving] = useState(false)
   const [proxyErrors, setProxyErrors] = useState<
-    Partial<Record<'form' | keyof ProxyNetwork, string>>
+    Partial<Record<'form' | 'consumers' | keyof ProxyNetwork, string>>
   >({})
+
+  const normalizeProxyConsumerItem = (value: unknown): ProxyConsumerItem | null => {
+    if (!value || typeof value !== 'object') return null
+    const item = value as Record<string, unknown>
+    const consumerKey = typeof item.consumerKey === 'string' ? item.consumerKey.trim() : ''
+    const mode = typeof item.mode === 'string' ? item.mode.trim() : ''
+    if (consumerKey === '' || (mode !== 'disabled' && mode !== 'always' && mode !== 'fallback')) {
+      return null
+    }
+    return { consumerKey, mode }
+  }
+
+  const normalizeProxyConsumerDefinition = (value: unknown): ProxyConsumerDefinition | null => {
+    if (!value || typeof value !== 'object') return null
+    const item = value as Record<string, unknown>
+    const key = typeof item.key === 'string' ? item.key.trim() : ''
+    const title = typeof item.title === 'string' ? item.title.trim() : ''
+    if (key === '' || title === '') return null
+    const allowedModes = Array.isArray(item.allowedModes)
+      ? item.allowedModes.filter(
+          (entry): entry is 'disabled' | 'always' | 'fallback' =>
+            entry === 'disabled' || entry === 'always' || entry === 'fallback'
+        )
+      : []
+    return {
+      key,
+      title,
+      description: typeof item.description === 'string' ? item.description : undefined,
+      location: item.location === 'remote' ? 'remote' : 'local',
+      moduleKey: typeof item.moduleKey === 'string' ? item.moduleKey : undefined,
+      scope: typeof item.scope === 'string' ? item.scope : 'action',
+      adapter: typeof item.adapter === 'string' ? item.adapter : 'http_client',
+      trafficClass: typeof item.trafficClass === 'string' ? item.trafficClass : 'public_egress',
+      support: typeof item.support === 'string' ? item.support : 'proxy_capable',
+      defaultMode:
+        item.defaultMode === 'disabled' || item.defaultMode === 'always' || item.defaultMode === 'fallback'
+          ? item.defaultMode
+          : 'disabled',
+      allowedModes,
+      enrollable: Boolean(item.enrollable),
+      tags: Array.isArray(item.tags)
+        ? item.tags.filter((tag): tag is string => typeof tag === 'string')
+        : undefined,
+    }
+  }
 
   const hydrateWorkspaceSimpleEntries = useCallback((entryMap: Map<string, unknown>) => {
     const quota = (entryMap.get('space-quota') as Partial<SpaceQuota>) ?? {}
@@ -332,6 +387,22 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     }
     setProxyNetwork(mergedProxy)
     setProxyForm(mergedProxy)
+
+    const consumersEntry =
+      (entryMap.get('proxy-consumers') as Partial<ProxyConsumersSettings> | undefined) ??
+      EMPTY_PROXY_CONSUMERS
+    const normalizedDefinitions = Array.isArray(consumersEntry.definitions)
+      ? consumersEntry.definitions
+          .map(normalizeProxyConsumerDefinition)
+          .filter((definition): definition is ProxyConsumerDefinition => definition !== null)
+      : []
+    const normalizedItems = Array.isArray(consumersEntry.items)
+      ? consumersEntry.items
+          .map(normalizeProxyConsumerItem)
+          .filter((item): item is ProxyConsumerItem => item !== null)
+      : []
+    setProxyConsumerDefinitions(normalizedDefinitions)
+    setProxyConsumers(normalizedItems)
   }, [])
 
   const validateSpaceQuota = (): boolean => {
@@ -398,8 +469,10 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     setProxyErrors({})
   }
 
-  const parseProxyApiErrors = (payload: unknown): Partial<Record<'form' | keyof ProxyNetwork, string>> => {
-    const parsed: Partial<Record<'form' | keyof ProxyNetwork, string>> = {}
+  const parseProxyApiErrors = (
+    payload: unknown
+  ): Partial<Record<'form' | 'consumers' | keyof ProxyNetwork, string>> => {
+    const parsed: Partial<Record<'form' | 'consumers' | keyof ProxyNetwork, string>> = {}
     if (!payload || typeof payload !== 'object') {
       return parsed
     }
@@ -426,6 +499,10 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     const httpsError = extractFieldError(bag.httpsConnectorId)
     if (httpsError) {
       parsed.httpsConnectorId = httpsError
+    }
+    const consumersError = extractFieldError(bag.items)
+    if (consumersError) {
+      parsed.consumers = consumersError
     }
 
     return parsed
@@ -462,7 +539,7 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
         method: 'PATCH',
         body: payload,
       })) as { value?: Partial<ProxyNetwork> }
-      const saved = {
+      const savedNetwork = {
         ...payload,
         ...res.value,
         enabled: Boolean(res.value?.enabled ?? payload.enabled),
@@ -470,8 +547,33 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
         httpConnectorId: String(res.value?.httpConnectorId ?? payload.httpConnectorId),
         httpsConnectorId: String(res.value?.httpsConnectorId ?? payload.httpsConnectorId),
       }
-      setProxyNetwork(saved)
-      setProxyForm(saved)
+
+      const consumerPayload = {
+        items: proxyConsumers.map(item => ({
+          consumerKey: item.consumerKey.trim(),
+          mode: item.mode,
+        })),
+      }
+      const consumerRes = (await pb.send(settingsEntryPath('proxy-consumers'), {
+        method: 'PATCH',
+        body: consumerPayload,
+      })) as { value?: Partial<ProxyConsumersSettings> }
+      const savedConsumers = Array.isArray(consumerRes.value?.items)
+        ? consumerRes.value.items
+            .map(normalizeProxyConsumerItem)
+            .filter((item): item is ProxyConsumerItem => item !== null)
+        : consumerPayload.items
+
+      setProxyNetwork(savedNetwork)
+      setProxyForm(savedNetwork)
+      setProxyConsumers(savedConsumers)
+      if (Array.isArray(consumerRes.value?.definitions)) {
+        setProxyConsumerDefinitions(
+          consumerRes.value.definitions
+            .map(normalizeProxyConsumerDefinition)
+            .filter((definition): definition is ProxyConsumerDefinition => definition !== null)
+        )
+      }
       setProxyErrors({})
       showToast('Proxy settings saved')
     } catch (err) {
@@ -1189,9 +1291,12 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     saveSecretPolicy,
     proxyNetwork,
     proxyForm,
+    proxyConsumers,
+    proxyConsumerDefinitions,
     proxySaving,
     proxyErrors,
     setProxyForm,
+    setProxyConsumers,
     saveProxy,
     hydrateWorkspaceSimpleEntries,
   }

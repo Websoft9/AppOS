@@ -17,6 +17,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
 	"github.com/websoft9/appos/backend/domain/config/sharedenv"
+	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	"github.com/websoft9/appos/backend/domain/resource/accounts"
 	"github.com/websoft9/appos/backend/domain/resource/aiproviders"
 	"github.com/websoft9/appos/backend/domain/resource/connectors"
@@ -395,7 +396,7 @@ func TestFetchProviderModelsGoogleGeminiDirectEndpointUsesAPIKeyQueryAndFiltersG
 	}))
 	defer server.Close()
 
-	result, err := fetchProviderModels(context.Background(), server.URL+"/v1beta", "gemini-test-key", "google-gemini")
+	result, err := fetchProviderModels(nil, context.Background(), server.URL+"/v1beta", "gemini-test-key", "google-gemini")
 	if err != nil {
 		t.Fatalf("fetch gemini provider models: %v", err)
 	}
@@ -435,12 +436,334 @@ func TestFetchProviderModelsGoogleGeminiOpenAIEndpointUsesBearerAuth(t *testing.
 	}))
 	defer server.Close()
 
-	result, err := fetchProviderModels(context.Background(), server.URL+"/v1beta/openai", "gemini-test-key", "google-gemini")
+	result, err := fetchProviderModels(nil, context.Background(), server.URL+"/v1beta/openai", "gemini-test-key", "google-gemini")
 	if err != nil {
 		t.Fatalf("fetch Gemini OpenAI-compatible models: %v", err)
 	}
 	if len(result.Models) != 2 {
 		t.Fatalf("expected 2 Gemini OpenAI-compatible models, got %d: %#v", len(result.Models), result.Models)
+	}
+}
+
+func TestFetchProviderModelsUsesConfiguredSocks5Proxy(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	ensureDockerSecretRuntime(t)
+
+	modelServerHits := 0
+	modelServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		modelServerHits++
+		if r.URL.Path != "/v1beta/models" {
+			t.Fatalf("expected path /v1beta/models, got %s", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("key"); got != "gemini-test-key" {
+			t.Fatalf("expected api key query param, got %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"models":[{"name":"models/gemini-3.5-flash","supportedGenerationMethods":["generateContent"]}]}`))
+	}))
+	defer modelServer.Close()
+	_, modelServerPort, err := net.SplitHostPort(strings.TrimPrefix(modelServer.URL, "http://"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	proxiedEndpoint := "http://model-through-proxy.test:" + modelServerPort + "/v1beta"
+
+	proxyHits := 0
+	proxiedTargets := make(chan string, 1)
+	proxyListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer proxyListener.Close()
+	go func() {
+		for {
+			conn, acceptErr := proxyListener.Accept()
+			if acceptErr != nil {
+				return
+			}
+			go func(conn net.Conn) {
+				defer conn.Close()
+				proxyHits++
+				head := make([]byte, 2)
+				if _, err := io.ReadFull(conn, head); err != nil {
+					return
+				}
+				if head[0] != 0x05 {
+					return
+				}
+				methods := make([]byte, int(head[1]))
+				if _, err := io.ReadFull(conn, methods); err != nil {
+					return
+				}
+				if _, err := conn.Write([]byte{0x05, 0x00}); err != nil {
+					return
+				}
+
+				requestHead := make([]byte, 4)
+				if _, err := io.ReadFull(conn, requestHead); err != nil {
+					return
+				}
+				if requestHead[0] != 0x05 || requestHead[1] != 0x01 {
+					return
+				}
+
+				var host string
+				switch requestHead[3] {
+				case 0x01:
+					addr := make([]byte, 4)
+					if _, err := io.ReadFull(conn, addr); err != nil {
+						return
+					}
+					host = net.IP(addr).String()
+				case 0x03:
+					length := make([]byte, 1)
+					if _, err := io.ReadFull(conn, length); err != nil {
+						return
+					}
+					name := make([]byte, int(length[0]))
+					if _, err := io.ReadFull(conn, name); err != nil {
+						return
+					}
+					host = string(name)
+				case 0x04:
+					addr := make([]byte, 16)
+					if _, err := io.ReadFull(conn, addr); err != nil {
+						return
+					}
+					host = net.IP(addr).String()
+				default:
+					return
+				}
+				portBytes := make([]byte, 2)
+				if _, err := io.ReadFull(conn, portBytes); err != nil {
+					return
+				}
+				port := int(portBytes[0])<<8 | int(portBytes[1])
+				target := net.JoinHostPort(host, fmt.Sprintf("%d", port))
+				select {
+				case proxiedTargets <- target:
+				default:
+				}
+
+				dialTarget := target
+				if host == "model-through-proxy.test" {
+					dialTarget = strings.TrimPrefix(modelServer.URL, "http://")
+				}
+				upstream, err := net.Dial("tcp", dialTarget)
+				if err != nil {
+					_, _ = conn.Write([]byte{0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
+					return
+				}
+				defer upstream.Close()
+				if _, err := conn.Write([]byte{0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0}); err != nil {
+					return
+				}
+
+				copyDone := make(chan struct{}, 1)
+				go func() {
+					_, _ = io.Copy(upstream, conn)
+					if tcpConn, ok := upstream.(*net.TCPConn); ok {
+						_ = tcpConn.CloseWrite()
+					}
+					copyDone <- struct{}{}
+				}()
+				_, _ = io.Copy(conn, upstream)
+				<-copyDone
+			}(conn)
+		}
+	}()
+
+	proxyConnector := createDockerRouteConnector(t, te, connectors.SaveInput{
+		Name:       "SOCKS5 Proxy",
+		Kind:       connectors.KindProxy,
+		TemplateID: "socks5-proxy",
+		Endpoint:   "socks5://" + proxyListener.Addr().String(),
+		Config:     map[string]any{"protocol": "socks5"},
+	})
+	if err := sysconfig.SetGroup(te.app, "proxy", "network", map[string]any{
+		"enabled":           true,
+		"socks5ConnectorId": proxyConnector.Id,
+		"httpConnectorId":   "",
+		"httpsConnectorId":  "",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sysconfig.SetGroup(te.app, "proxy", "consumers", map[string]any{
+		"items": []map[string]any{{
+			"consumerKey": "ai_providers.global",
+			"mode":        "always",
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := fetchProviderModels(te.app, context.Background(), proxiedEndpoint, "gemini-test-key", "google-gemini")
+	if err != nil {
+		t.Fatalf("fetch gemini provider models via socks5 proxy: %v", err)
+	}
+	if proxyHits == 0 {
+		t.Fatal("expected SOCKS5 proxy to receive the AI provider request")
+	}
+	if modelServerHits != 1 {
+		t.Fatalf("expected model server to receive exactly one request, got %d", modelServerHits)
+	}
+	select {
+	case target := <-proxiedTargets:
+		if target != net.JoinHostPort("model-through-proxy.test", modelServerPort) {
+			t.Fatalf("expected proxy target to include model server address, got %q", target)
+		}
+	default:
+		t.Fatal("expected SOCKS5 proxy to capture the upstream target")
+	}
+	if len(result.Models) != 1 || result.Models[0].ID != "gemini-3.5-flash" {
+		t.Fatalf("unexpected proxied fetch result: %#v", result.Models)
+	}
+}
+
+func TestGoogleGemini1926ProxyConsumerEnrollmentControlsProxyUsage(t *testing.T) {
+	ensureConnectorSecretRuntime(t)
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	modelServerHits := 0
+	modelServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		modelServerHits++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"models":[{"name":"models/gemini-3.5-flash","displayName":"Gemini 3.5 Flash","supportedGenerationMethods":["generateContent"]}]}`)
+	}))
+	defer modelServer.Close()
+
+	proxiedEndpoint := "http://model-through-proxy.test/v1beta"
+	proxyHits := 0
+	proxyListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer proxyListener.Close()
+
+	go func() {
+		for {
+			conn, acceptErr := proxyListener.Accept()
+			if acceptErr != nil {
+				return
+			}
+			go func(conn net.Conn) {
+				defer conn.Close()
+				proxyHits++
+				greeting := make([]byte, 2)
+				if _, err := io.ReadFull(conn, greeting); err != nil {
+					return
+				}
+				methods := make([]byte, int(greeting[1]))
+				if _, err := io.ReadFull(conn, methods); err != nil {
+					return
+				}
+				if _, err := conn.Write([]byte{0x05, 0x00}); err != nil {
+					return
+				}
+
+				header := make([]byte, 4)
+				if _, err := io.ReadFull(conn, header); err != nil {
+					return
+				}
+				if header[3] != 0x03 {
+					return
+				}
+				length := make([]byte, 1)
+				if _, err := io.ReadFull(conn, length); err != nil {
+					return
+				}
+				name := make([]byte, int(length[0]))
+				if _, err := io.ReadFull(conn, name); err != nil {
+					return
+				}
+				host := string(name)
+				portBytes := make([]byte, 2)
+				if _, err := io.ReadFull(conn, portBytes); err != nil {
+					return
+				}
+				port := int(portBytes[0])<<8 | int(portBytes[1])
+				dialTarget := net.JoinHostPort(host, fmt.Sprintf("%d", port))
+				if host == "model-through-proxy.test" {
+					dialTarget = strings.TrimPrefix(modelServer.URL, "http://")
+				}
+				upstream, err := net.Dial("tcp", dialTarget)
+				if err != nil {
+					_, _ = conn.Write([]byte{0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
+					return
+				}
+				defer upstream.Close()
+				if _, err := conn.Write([]byte{0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0}); err != nil {
+					return
+				}
+				copyDone := make(chan struct{}, 1)
+				go func() {
+					_, _ = io.Copy(upstream, conn)
+					if tcpConn, ok := upstream.(*net.TCPConn); ok {
+						_ = tcpConn.CloseWrite()
+					}
+					copyDone <- struct{}{}
+				}()
+				_, _ = io.Copy(conn, upstream)
+				<-copyDone
+			}(conn)
+		}
+	}()
+
+	proxyConnector := createDockerRouteConnector(t, te, connectors.SaveInput{
+		Name:       "SOCKS5 Proxy",
+		Kind:       connectors.KindProxy,
+		TemplateID: "socks5-proxy",
+		Endpoint:   "socks5://" + proxyListener.Addr().String(),
+		Config:     map[string]any{"protocol": "socks5"},
+	})
+	if err := sysconfig.SetGroup(te.app, "proxy", "network", map[string]any{
+		"enabled":           true,
+		"socks5ConnectorId": proxyConnector.Id,
+		"httpConnectorId":   "",
+		"httpsConnectorId":  "",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sysconfig.SetGroup(te.app, "proxy", "consumers", map[string]any{
+		"items": []map[string]any{{
+			"consumerKey": "ai_providers.global",
+			"mode":        "disabled",
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := fetchProviderModels(te.app, context.Background(), proxiedEndpoint, "gemini-test-key", "google-gemini"); err == nil {
+		t.Fatal("expected direct request without consumer enrollment to fail for proxy-only host")
+	}
+	if proxyHits != 0 {
+		t.Fatalf("expected no proxy traffic while ai_providers.global is disabled, got %d hits", proxyHits)
+	}
+
+	if err := sysconfig.SetGroup(te.app, "proxy", "consumers", map[string]any{
+		"items": []map[string]any{{
+			"consumerKey": "ai_providers.global",
+			"mode":        "always",
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := fetchProviderModels(te.app, context.Background(), proxiedEndpoint, "gemini-test-key", "google-gemini")
+	if err != nil {
+		t.Fatalf("expected proxied gemini fetch after enabling consumer enrollment: %v", err)
+	}
+	if proxyHits == 0 {
+		t.Fatal("expected proxy hit after enabling ai_providers.global consumer")
+	}
+	if modelServerHits != 1 {
+		t.Fatalf("expected exactly one successful model server hit, got %d", modelServerHits)
+	}
+	if len(result.Models) != 1 || result.Models[0].ID != "gemini-3.5-flash" {
+		t.Fatalf("unexpected gemini models payload: %#v", result.Models)
 	}
 }
 

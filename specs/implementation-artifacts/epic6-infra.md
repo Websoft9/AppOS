@@ -41,6 +41,7 @@ This document reuses Epic 6 for the infrastructure-module planning surface that 
 |-------|-------|--------|
 | [6.1](story6.1-files-service.md) | Files Service Foundation | ✅ Done |
 | [6.2](story6.2-system-media-service.md) | System Media Service | Planned |
+| [6.3](story6.3-network-proxy.md) | Unified Network Proxy Runtime | Planned |
 
 ## Notes
 

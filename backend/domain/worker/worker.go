@@ -318,7 +318,6 @@ func (w *Worker) handleDeployApp(_ context.Context, t *asynq.Task) error {
 		appendDeploymentLog(w.app, record, "failed to create docker client: "+err.Error())
 		return markDeploymentFailed(w.app, record, p, "failed to connect target docker host")
 	}
-	client.SetProxyEnv(loadWorkerDockerProxyEnv(w.app))
 	runtimePolicy := loadDeployRuntimePolicy(w.app)
 	if err := prepareDeploymentImages(context.Background(), w.app, client, spec.RenderedCompose, func(line string) {
 		appendDeploymentLog(w.app, record, line)

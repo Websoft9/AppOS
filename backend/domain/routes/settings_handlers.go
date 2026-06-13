@@ -9,6 +9,7 @@ import (
 	"github.com/pocketbase/pocketbase/forms"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
+	"github.com/websoft9/appos/backend/domain/proxy"
 	"github.com/websoft9/appos/backend/domain/secrets"
 )
 
@@ -241,6 +242,14 @@ func patchSettingsEntryValue(e *core.RequestEvent, entry settingsschema.EntrySch
 }
 
 func getCustomSettingsEntryValue(app core.App, module, key string) (map[string]any, error) {
+	if module == "proxy" && key == "consumers" {
+		value, err := proxy.SettingsEntryValue(app)
+		if err != nil {
+			return nil, err
+		}
+		return maskValue(value), nil
+	}
+
 	fallback := fallbackForKey(module, key)
 	value, err := sysconfig.GetGroup(app, module, key, fallback)
 	if err != nil {
@@ -287,6 +296,8 @@ func validateCustomSettingsEntry(e *core.RequestEvent, module, key string, value
 		return validateSpaceQuota(value)
 	case "proxy/network":
 		return validateProxyNetwork(e.App, value)
+	case "proxy/consumers":
+		return validateProxyConsumers(value)
 	case "monitor/scheduling":
 		return validateMonitorScheduling(value)
 	case "monitor/policy":

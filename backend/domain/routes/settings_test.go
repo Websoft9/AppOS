@@ -165,6 +165,7 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 	var foundTunnel bool
 	var foundSecrets bool
 	var foundProxy bool
+	var foundProxyConsumers bool
 	var foundDeployPreflight bool
 	var foundDeployRuntime bool
 	var foundDeployGitDefaults bool
@@ -187,6 +188,10 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 			foundTunnel = value != nil && int(value["start"].(float64)) == 40000 && int(value["end"].(float64)) == 49999
 		case "proxy-network":
 			foundProxy = value != nil && value["enabled"] == false && value["socks5ConnectorId"] == "" && value["httpConnectorId"] == "" && value["httpsConnectorId"] == ""
+		case "proxy-consumers":
+			items, _ := value["items"].([]any)
+			definitions, _ := value["definitions"].([]any)
+			foundProxyConsumers = len(items) > 0 && len(definitions) > 0
 		case "deploy-runtime":
 			foundDeployRuntime = value != nil && int(value["imagePullTimeoutSeconds"].(float64)) == 180 && int(value["composeUpTimeoutSeconds"].(float64)) == 600 && int(value["healthCheckTimeoutSeconds"].(float64)) == 120 && int(value["runtimePullIdleHeartbeatSeconds"].(float64)) == 20
 		case "deploy-git-defaults":
@@ -218,6 +223,9 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 	}
 	if !foundProxy {
 		t.Fatal("expected proxy-network fallback value")
+	}
+	if !foundProxyConsumers {
+		t.Fatal("expected proxy-consumers fallback value")
 	}
 	if !foundDeployPreflight {
 		t.Fatal("expected deploy-preflight fallback value")
@@ -292,6 +300,15 @@ func TestSettingsEntryPatchValidation(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "httpConnectorId") {
 		t.Fatalf("expected proxy-network validation error, got %s", rec.Body.String())
+	}
+
+	badProxyConsumers := `{"items":[{"consumerKey":"ai_providers.global","mode":"always"}]}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/proxy-consumers", badProxyConsumers, true)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 for invalid proxy-consumers, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "direct-use proxy consumer") {
+		t.Fatalf("expected proxy-consumers validation error, got %s", rec.Body.String())
 	}
 
 	badDeployRuntime := `{"imagePullTimeoutSeconds":0,"composeUpTimeoutSeconds":"slow","healthCheckTimeoutSeconds":-1,"runtimePullIdleHeartbeatSeconds":0}`
@@ -483,6 +500,20 @@ func TestSettingsEntryPatchPersistsUnifiedValues(t *testing.T) {
 	}
 	if got := sysconfig.String(storedProxy, "httpConnectorId", ""); got != proxyConnector.Id {
 		t.Fatalf("expected httpConnectorId %q, got %q", proxyConnector.Id, got)
+	}
+
+	proxyConsumersBody := `{"items":[{"consumerKey":"ai_providers.global","mode":"always"},{"consumerKey":"feeds.fetch_source","mode":"disabled"}]}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/proxy-consumers", proxyConsumersBody, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for proxy-consumers patch, got %d: %s", rec.Code, rec.Body.String())
+	}
+	storedProxyConsumers, err := sysconfig.GetGroup(te.app, "proxy", "consumers", nil)
+	if err != nil {
+		t.Fatalf("expected stored proxy-consumers, got error: %v", err)
+	}
+	items, ok := storedProxyConsumers["items"].([]any)
+	if !ok || len(items) != 2 {
+		t.Fatalf("expected two stored proxy consumer items, got %#v", storedProxyConsumers["items"])
 	}
 
 	deployRuntimeBody := `{"imagePullTimeoutSeconds":90,"composeUpTimeoutSeconds":480,"healthCheckTimeoutSeconds":75,"runtimePullIdleHeartbeatSeconds":15}`

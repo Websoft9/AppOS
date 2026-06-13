@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -18,6 +19,28 @@ func ShellQuote(value string) string {
 		return "''"
 	}
 	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
+}
+
+func WrapCommandWithEnv(command string, env map[string]string) string {
+	if strings.TrimSpace(command) == "" || len(env) == 0 {
+		return command
+	}
+	keys := make([]string, 0, len(env))
+	for key, value := range env {
+		if strings.TrimSpace(key) == "" || strings.TrimSpace(value) == "" {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	if len(keys) == 0 {
+		return command
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		parts = append(parts, key+"="+ShellQuote(env[key]))
+	}
+	return "env " + strings.Join(parts, " ") + " " + command
 }
 
 // DialSSH establishes an SSH client connection for the given config.

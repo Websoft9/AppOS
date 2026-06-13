@@ -10,14 +10,10 @@ import (
 
 	"github.com/hibiken/asynq"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 	"github.com/websoft9/appos/backend/domain/dockerops"
-	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
 	"github.com/websoft9/appos/backend/domain/software"
 	"github.com/websoft9/appos/backend/infra/collections"
-	persistence "github.com/websoft9/appos/backend/infra/persistence"
 )
 
 const TaskDockerImagePull = "docker:image-pull"
@@ -193,7 +189,6 @@ func (w *Worker) handleDockerImagePull(ctx context.Context, t *asynq.Task) error
 		_ = w.app.Save(record)
 		return nil
 	}
-	client.SetProxyEnv(loadWorkerDockerProxyEnv(w.app))
 
 	output, pullErr := client.ImagePull(ctx, payload.ImageName)
 	if pullErr != nil {
@@ -264,36 +259,3 @@ func appendDockerImagePullOutput(record *core.Record, line string) {
 	record.Set("output", current+"\n"+trimmed)
 }
 
-func loadWorkerDockerProxyEnv(app core.App) map[string]string {
-	group, _ := sysconfig.GetGroup(
-		app,
-		"proxy",
-		"network",
-		settingsschema.DefaultGroup("proxy", "network"),
-	)
-	if group == nil {
-		return nil
-	}
-	enabled := false
-	switch raw := group["enabled"].(type) {
-	case bool:
-		enabled = raw
-	case string:
-		enabled = strings.EqualFold(strings.TrimSpace(raw), "true") || strings.TrimSpace(raw) == "1"
-	}
-	socks5ConnectorID := sysconfig.String(group, "socks5ConnectorId", "")
-	httpConnectorID := sysconfig.String(group, "httpConnectorId", "")
-	httpsConnectorID := sysconfig.String(group, "httpsConnectorId", "")
-	env, err := connectors.BuildProxyEnvWith(
-		persistence.NewConnectorRepository(app),
-		connectors.NewSecretResolver(app),
-		enabled,
-		socks5ConnectorID,
-		httpConnectorID,
-		httpsConnectorID,
-	)
-	if err != nil {
-		return nil
-	}
-	return env
-}

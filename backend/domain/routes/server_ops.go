@@ -252,12 +252,12 @@ func handleServerPower(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": actionErr.Error()})
 	}
 
-	cfg, err := resolveTerminalConfig(e.App, e.Auth, serverID)
+	cfg, proxyEnv, err := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	result, runErr := serversvc.PowerRuntimeService{Run: directSSHCommandAdapter(cfg)}.Execute(e.Request.Context(), action)
+	result, runErr := serversvc.PowerRuntimeService{Run: directSSHCommandAdapter(cfg, proxyEnv)}.Execute(e.Request.Context(), action)
 	userID, _, ip, _ := clientInfo(e)
 	status := audit.StatusSuccess
 	if runErr != nil {

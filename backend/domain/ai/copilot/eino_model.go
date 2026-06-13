@@ -9,20 +9,28 @@ import (
 	"github.com/cloudwego/eino-ext/components/model/openai"
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
+	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/proxy"
 )
 
-type EinoModelFactory struct{}
+type EinoModelFactory struct {
+	App core.App
+}
 
-func (EinoModelFactory) NewStreamer(ctx context.Context, provider *ProviderConfig) (ModelStreamer, error) {
-	if strings.Contains(strings.ToLower(strings.TrimSpace(provider.Endpoint)), "generativelanguage.googleapis.com") {
-		return nil, coded(CodeRuntimeFailed, "Google Gemini direct endpoints are not OpenAI-compatible in the current AI Copilot runtime; use an OpenAI-compatible gateway or provider instead", nil)
-	}
-	model, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
+func (f EinoModelFactory) NewStreamer(ctx context.Context, provider *ProviderConfig) (ModelStreamer, error) {
+	config := &openai.ChatModelConfig{
 		APIKey:  provider.APIKey,
 		BaseURL: provider.Endpoint,
 		Model:   provider.Model,
 		Timeout: 90 * time.Second,
-	})
+	}
+	if f.App != nil {
+		client, err := proxy.NewHTTPClient(f.App, "ai_providers.global", 90*time.Second, false)
+		if err == nil {
+			config.HTTPClient = &client
+		}
+	}
+	model, err := openai.NewChatModel(ctx, config)
 	if err != nil {
 		return nil, err
 	}

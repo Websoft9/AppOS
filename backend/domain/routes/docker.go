@@ -14,8 +14,6 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/websoft9/appos/backend/domain/audit"
-	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 	"github.com/websoft9/appos/backend/domain/dockerops"
 	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
@@ -23,7 +21,6 @@ import (
 	"github.com/websoft9/appos/backend/domain/worker"
 	"github.com/websoft9/appos/backend/infra/collections"
 	"github.com/websoft9/appos/backend/infra/docker"
-	persistence "github.com/websoft9/appos/backend/infra/persistence"
 )
 
 var enqueueDockerImagePullTask = worker.EnqueueDockerImagePull
@@ -136,39 +133,7 @@ func getDockerClient(e *core.RequestEvent) (*docker.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	client.SetProxyEnv(loadDockerProxyEnv(e.App))
 	return client, nil
-}
-
-func loadDockerProxyEnv(app core.App) map[string]string {
-	group, _ := sysconfig.GetGroup(
-		app,
-		"proxy",
-		"network",
-		settingsschema.DefaultGroup("proxy", "network"),
-	)
-	enabled := false
-	switch raw := group["enabled"].(type) {
-	case bool:
-		enabled = raw
-	case string:
-		enabled = strings.EqualFold(strings.TrimSpace(raw), "true") || strings.TrimSpace(raw) == "1"
-	}
-	socks5ConnectorID := sysconfig.String(group, "socks5ConnectorId", "")
-	httpConnectorID := sysconfig.String(group, "httpConnectorId", "")
-	httpsConnectorID := sysconfig.String(group, "httpsConnectorId", "")
-	env, err := connectors.BuildProxyEnvWith(
-		persistence.NewConnectorRepository(app),
-		connectors.NewSecretResolver(app),
-		enabled,
-		socks5ConnectorID,
-		httpConnectorID,
-		httpsConnectorID,
-	)
-	if err != nil {
-		return nil
-	}
-	return env
 }
 
 func proxyURLWithCredentials(rawValue, username, password string) string {

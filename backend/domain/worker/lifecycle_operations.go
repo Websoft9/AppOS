@@ -37,35 +37,6 @@ type lifecycleExecutionContext struct {
 	docker   *docker.Client
 }
 
-type proxyAwareOperationExecutor struct {
-	app      core.App
-	base     lifecycleruntime.Executor
-	proxyEnv map[string]string
-}
-
-func (e proxyAwareOperationExecutor) PrepareWorkspace(projectDir string, compose string) error {
-	return e.base.PrepareWorkspace(projectDir, compose)
-}
-
-func (e proxyAwareOperationExecutor) DockerClient() (*docker.Client, error) {
-	client, err := e.base.DockerClient()
-	if err != nil {
-		return nil, err
-	}
-	if client != nil {
-		client.SetProxyEnv(e.proxyEnv)
-	}
-	return client, nil
-}
-
-func (e proxyAwareOperationExecutor) Name() string {
-	return e.base.Name()
-}
-
-func (e proxyAwareOperationExecutor) App() core.App {
-	return e.app
-}
-
 var errOperationCancelled = errors.New("operation cancelled")
 
 var operationExecutorFactory = func(app core.App, serverID string) lifecycleruntime.Executor {
@@ -1018,11 +989,7 @@ func (w *Worker) createReleaseBaseline(execCtx *lifecycleExecutionContext, now t
 
 func (w *Worker) executorFor(execCtx *lifecycleExecutionContext) lifecycleruntime.Executor {
 	if execCtx.executor == nil {
-		execCtx.executor = proxyAwareOperationExecutor{
-			app:      w.app,
-			base:     operationExecutorFactory(w.app, normalizeDeployServerID(execCtx.Operation.GetString("server_id"))),
-			proxyEnv: loadWorkerDockerProxyEnv(w.app),
-		}
+		execCtx.executor = operationExecutorFactory(w.app, normalizeDeployServerID(execCtx.Operation.GetString("server_id")))
 	}
 	return execCtx.executor
 }
