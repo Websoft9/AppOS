@@ -144,8 +144,9 @@ export function buildExposurePortCandidates(recommendedPort: string, limit = 5):
   const span = EXPOSURE_PORT_MAX - EXPOSURE_PORT_MIN + 1
   const attempts = Math.min(Math.max(limit, 1), span)
 
-  return Array.from({ length: attempts }, (_, offset) =>
-    EXPOSURE_PORT_MIN + ((base - EXPOSURE_PORT_MIN + offset) % span)
+  return Array.from(
+    { length: attempts },
+    (_, offset) => EXPOSURE_PORT_MIN + ((base - EXPOSURE_PORT_MIN + offset) % span)
   )
 }
 

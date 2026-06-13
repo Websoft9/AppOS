@@ -1187,15 +1187,22 @@ describe('FeedsPage', () => {
       target: { value: 'example.com/saved-link' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Fetch Details' }))
-    expect(screen.getByText('Enter a URL starting with http:// or https://.')).toBeInTheDocument()
-    expect(sendMock).not.toHaveBeenCalledWith('/api/feeds/bookmarks/analyze', expect.anything())
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/feeds/bookmarks/analyze', {
+        method: 'POST',
+        body: { url: 'https://example.com/saved-link' },
+      })
+    })
 
     fireEvent.click(screen.getByRole('button', { name: 'Save Bookmark' }))
-    expect(screen.getByText('Enter a URL starting with http:// or https://.')).toBeInTheDocument()
-    expect(sendMock).not.toHaveBeenCalledWith(
-      '/api/feeds/bookmarks',
-      expect.objectContaining({ method: 'POST' })
-    )
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/feeds/bookmarks', {
+        method: 'POST',
+        body: expect.objectContaining({ url: 'https://example.com/saved-link' }),
+      })
+    })
   })
 
   it('falls back to legacy copy when navigator.clipboard is unavailable', async () => {
@@ -1331,6 +1338,8 @@ describe('FeedsPage', () => {
           name: 'Vendor Security Releases',
           favicon_url: 'https://example.com/favicon.ico',
           status: 'active',
+          format: 'rss',
+          url: 'https://example.com/releases.xml',
         },
       })
     })

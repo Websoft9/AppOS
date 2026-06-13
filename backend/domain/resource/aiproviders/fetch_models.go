@@ -66,6 +66,7 @@ func FetchModels(ctx context.Context, endpoint string, apiKey string, templateID
 		client = http.Client{
 			Timeout: 8 * time.Second,
 			Transport: &http.Transport{
+				// #nosec G402 -- explicit template option for self-hosted providers with custom/self-signed certificates.
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			},
 		}

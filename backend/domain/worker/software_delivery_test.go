@@ -214,7 +214,10 @@ func TestPrepareSoftwareOperation_BlocksInstallWhenInstallInFlight(t *testing.T)
 func TestHandleSoftwareAction_SkipsRetryForTerminalOperation(t *testing.T) {
 	app := newWorkerTestApp(t)
 	ensureWorkerSecretRuntime(t)
-	w, err := New(app); if err != nil { t.Fatal(err) }
+	w, err := New(app)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	record, err := createSoftwareOperationRecord(app, SoftwareActionPayload{
 		ServerID:     "srv-terminal-1",

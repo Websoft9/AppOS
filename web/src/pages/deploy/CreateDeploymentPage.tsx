@@ -1,5 +1,15 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { CheckCircle2, ChevronDown, Eye, EyeOff, List, Loader2, Search, ShieldAlert, X } from 'lucide-react'
+import {
+  CheckCircle2,
+  ChevronDown,
+  Eye,
+  EyeOff,
+  List,
+  Loader2,
+  Search,
+  ShieldAlert,
+  X,
+} from 'lucide-react'
 import { CircleHelp } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -131,7 +141,9 @@ function FormRow({ label, htmlFor, helpText, required, children, hint }: FormRow
       </div>
       <div>
         {children}
-        {hint ? <div className="mt-1 text-[11px] leading-5 text-muted-foreground">{hint}</div> : null}
+        {hint ? (
+          <div className="mt-1 text-[11px] leading-5 text-muted-foreground">{hint}</div>
+        ) : null}
       </div>
     </div>
   )
@@ -426,8 +438,8 @@ export function CreateDeploymentPage({
           port: service.isPrimary
             ? autoManagePrimaryExposurePort
               ? effectiveRecommendedExposurePort
-              : previous?.port ?? effectiveRecommendedExposurePort
-            : previous?.port ?? '',
+              : (previous?.port ?? effectiveRecommendedExposurePort)
+            : (previous?.port ?? ''),
         }
       }
       return next
@@ -1040,7 +1052,11 @@ export function CreateDeploymentPage({
       return label.includes(query) || host.includes(query)
     })
   }, [serverSearchQuery, servers])
-  const targetLabel = selectedServer ? selectedServer.label : serverId ? 'Selected target' : 'Not set'
+  const targetLabel = selectedServer
+    ? selectedServer.label
+    : serverId
+      ? 'Selected target'
+      : 'Not set'
   const exposureSummary = domainExposureEnabled
     ? 'Domain Access'
     : portExposureEnabled
@@ -1139,138 +1155,142 @@ export function CreateDeploymentPage({
           {/* ── Section 1: Basic ── */}
           <div>
             <section className="px-1 py-1">
-            <div className={`grid gap-4 ${FORM_SECTION_CLASS}`}>
-              <FormRow
-                label="App Name"
-                htmlFor="deploy-name"
-                required
-                helpText="Must be unique across the server. Used as compose project name and the app data directory root."
-                hint={
-                  nameHint ? (
-                    <span className="text-amber-700 dark:text-amber-400">{nameHint}</span>
-                  ) : null
-                }
-              >
-                <Input
-                  id="deploy-name"
-                  className={FORM_CONTROL_CLASS}
-                  value={activeName}
-                  onChange={e => {
-                    if (isGit) {
-                      setGitProjectName(e.target.value)
-                    } else {
-                      setProjectName(e.target.value)
-                    }
-                  }}
-                  onBlur={() => {
-                    setNameTouched(true)
-                    void checkNameAvailability(activeName)
-                  }}
-                  placeholder={isGit ? 'Required, e.g. repo-app' : 'Required, e.g. wordpress-prod'}
+              <div className={`grid gap-4 ${FORM_SECTION_CLASS}`}>
+                <FormRow
+                  label="App Name"
+                  htmlFor="deploy-name"
                   required
-                />
-              </FormRow>
-              <FormRow
-                label="Target Location"
-                htmlFor="deploy-server"
-                required
-                helpText="The target server where containers will be created and managed."
-                hint={
-                  servers.length === 0 ? (
-                    <span>
-                      No servers are available.{' '}
-                      <a
-                        href="/resources/servers"
-                        className="font-medium text-primary underline underline-offset-2"
+                  helpText="Must be unique across the server. Used as compose project name and the app data directory root."
+                  hint={
+                    nameHint ? (
+                      <span className="text-amber-700 dark:text-amber-400">{nameHint}</span>
+                    ) : null
+                  }
+                >
+                  <Input
+                    id="deploy-name"
+                    className={FORM_CONTROL_CLASS}
+                    value={activeName}
+                    onChange={e => {
+                      if (isGit) {
+                        setGitProjectName(e.target.value)
+                      } else {
+                        setProjectName(e.target.value)
+                      }
+                    }}
+                    onBlur={() => {
+                      setNameTouched(true)
+                      void checkNameAvailability(activeName)
+                    }}
+                    placeholder={
+                      isGit ? 'Required, e.g. repo-app' : 'Required, e.g. wordpress-prod'
+                    }
+                    required
+                  />
+                </FormRow>
+                <FormRow
+                  label="Target Location"
+                  htmlFor="deploy-server"
+                  required
+                  helpText="The target server where containers will be created and managed."
+                  hint={
+                    servers.length === 0 ? (
+                      <span>
+                        No servers are available.{' '}
+                        <a
+                          href="/resources/servers"
+                          className="font-medium text-primary underline underline-offset-2"
+                        >
+                          Add a server
+                        </a>
+                        .
+                      </span>
+                    ) : null
+                  }
+                >
+                  <div className="space-y-2">
+                    {servers.length > 10 ? (
+                      <div className="relative w-[30rem] max-w-full">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          value={serverSearchQuery}
+                          onChange={e => setServerSearchQuery(e.target.value)}
+                          placeholder="Search servers by name or host"
+                          className="pl-8"
+                          aria-label="Search target servers"
+                        />
+                      </div>
+                    ) : null}
+                    <div className="flex items-center gap-2">
+                      <select
+                        id="deploy-server"
+                        className={`border-input bg-background h-9 rounded-md border px-3 text-sm ${FORM_CONTROL_CLASS}`}
+                        value={serverId}
+                        onChange={e => setServerId(e.target.value)}
+                        required
+                        disabled={servers.length === 0}
                       >
-                        Add a server
-                      </a>
-                      .
-                    </span>
-                  ) : null
-                }
-              >
-                <div className="space-y-2">
-                  {servers.length > 10 ? (
-                    <div className="relative w-[30rem] max-w-full">
-                      <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        value={serverSearchQuery}
-                        onChange={e => setServerSearchQuery(e.target.value)}
-                        placeholder="Search servers by name or host"
-                        className="pl-8"
-                        aria-label="Search target servers"
-                      />
-                    </div>
-                  ) : null}
-                  <div className="flex items-center gap-2">
-                    <select
-                      id="deploy-server"
-                      className={`border-input bg-background h-9 rounded-md border px-3 text-sm ${FORM_CONTROL_CLASS}`}
-                      value={serverId}
-                      onChange={e => setServerId(e.target.value)}
-                      required
-                      disabled={servers.length === 0}
-                    >
-                      <option value="" disabled>
-                        {servers.length === 0 ? 'Add a server first…' : 'Select a server…'}
-                      </option>
-                      {filteredServers.map(s => (
-                        <option key={s.id} value={s.id}>
-                          {s.label} ({s.host})
+                        <option value="" disabled>
+                          {servers.length === 0 ? 'Add a server first…' : 'Select a server…'}
                         </option>
-                      ))}
-                    </select>
-                    {dockerReadinessState ? (
-                      <TooltipProvider delayDuration={200}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            {'href' in dockerReadinessState && dockerReadinessState.href ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-9 shrink-0 gap-1.5 px-3"
-                                asChild
-                              >
-                                <a href={dockerReadinessState.href}>
-                                  <ShieldAlert className="h-3.5 w-3.5 text-amber-600" />
+                        {filteredServers.map(s => (
+                          <option key={s.id} value={s.id}>
+                            {s.label} ({s.host})
+                          </option>
+                        ))}
+                      </select>
+                      {dockerReadinessState ? (
+                        <TooltipProvider delayDuration={200}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              {'href' in dockerReadinessState && dockerReadinessState.href ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-9 shrink-0 gap-1.5 px-3"
+                                  asChild
+                                >
+                                  <a href={dockerReadinessState.href}>
+                                    <ShieldAlert className="h-3.5 w-3.5 text-amber-600" />
+                                    {dockerReadinessState.label}
+                                  </a>
+                                </Button>
+                              ) : (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-9 shrink-0 gap-1.5 px-3"
+                                  disabled
+                                  aria-label={dockerReadinessState.title}
+                                >
+                                  {dockerReadinessState.tone === 'ready' ? (
+                                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                                  ) : (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  )}
                                   {dockerReadinessState.label}
-                                </a>
-                              </Button>
-                            ) : (
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-9 shrink-0 gap-1.5 px-3"
-                                disabled
-                                aria-label={dockerReadinessState.title}
-                              >
-                                {dockerReadinessState.tone === 'ready' ? (
-                                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                                ) : (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                )}
-                                {dockerReadinessState.label}
-                              </Button>
-                            )}
-                          </TooltipTrigger>
-                          <TooltipContent side="top" className="max-w-xs text-xs">
-                            <div className="space-y-1">
-                              <div className="font-medium">{dockerReadinessState.title}</div>
-                              <div>{dockerReadinessState.description}</div>
-                            </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                                </Button>
+                              )}
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-xs text-xs">
+                              <div className="space-y-1">
+                                <div className="font-medium">{dockerReadinessState.title}</div>
+                                <div>{dockerReadinessState.description}</div>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : null}
+                    </div>
+                    {servers.length > 10 && filteredServers.length === 0 ? (
+                      <div className="text-xs text-muted-foreground">
+                        No servers match the current search.
+                      </div>
                     ) : null}
                   </div>
-                  {servers.length > 10 && filteredServers.length === 0 ? (
-                    <div className="text-xs text-muted-foreground">No servers match the current search.</div>
-                  ) : null}
-                </div>
-              </FormRow>
-            </div>
+                </FormRow>
+              </div>
             </section>
           </div>
 
@@ -1280,78 +1300,82 @@ export function CreateDeploymentPage({
               <div className="px-1 text-xs font-medium text-muted-foreground">App Settings</div>
               <Card className={`border-0 bg-transparent shadow-none ${FORM_SECTION_CLASS}`}>
                 <CardContent className="space-y-4 px-1 py-1">
-                {!templateKey ? (
-                  <div className="rounded-lg border border-dashed bg-muted/20 p-3 text-xs text-muted-foreground">
-                    Open the target application from App Store and start deployment there. This flow
-                    no longer supports switching apps inside the template form.
-                  </div>
-                ) : templateLoading ? (
-                  <div className="text-xs text-muted-foreground">Loading template contract...</div>
-                ) : templateDetail ? (
-                  <>
-                    <div className="grid gap-4">
-                      {templateVersionField ? (
-                        <FormRow
-                          label={templateVersionField.label || templateVersionField.key}
-                          htmlFor={`template-field-${templateVersionField.key}`}
-                          required={templateVersionField.required}
-                        >
-                          <div className={FORM_CONTROL_CLASS}>
-                            {renderTemplateFieldInput(
-                              templateVersionField,
-                              `template-field-${templateVersionField.key}`
-                            )}
-                          </div>
-                        </FormRow>
-                      ) : null}
-                      {hasTemplateDatabaseSource ? (
-                        <FormRow label="Database Source" htmlFor="template-db-source">
-                          <select
-                            id="template-db-source"
-                            className={`border-input bg-background h-9 rounded-md border px-3 text-sm ${FORM_CONTROL_CLASS}`}
-                            value="companion"
-                            onChange={() => undefined}
-                          >
-                            <option value="companion">
-                              {templateDatabaseService
-                                ? `Template DB (${templateDatabaseService.name})`
-                                : 'Template DB'}
-                            </option>
-                            <option value="service-instance" disabled>
-                              Service Instance DB (coming soon)
-                            </option>
-                          </select>
-                        </FormRow>
-                      ) : null}
-                      {templateRemainingBasicFields.map(field => (
-                        <FormRow
-                          key={field.key}
-                          label={field.label || field.key}
-                          htmlFor={`template-field-${field.key}`}
-                          required={field.required}
-                          hint={
-                            field.key.trim().toLowerCase() === 'version' ||
-                            String(field.label || '')
-                              .trim()
-                              .toLowerCase() === 'version'
-                              ? null
-                              : field.storage_mode === 'secret_backed'
-                                ? 'Secret-backed input'
-                                : field.storage_mode === 'system_managed'
-                                  ? 'Managed by the template runtime.'
-                                  : 'Template input'
-                          }
-                        >
-                          <div className={FORM_CONTROL_CLASS}>
-                            {renderTemplateFieldInput(field, `template-field-${field.key}`)}
-                          </div>
-                        </FormRow>
-                      ))}
+                  {!templateKey ? (
+                    <div className="rounded-lg border border-dashed bg-muted/20 p-3 text-xs text-muted-foreground">
+                      Open the target application from App Store and start deployment there. This
+                      flow no longer supports switching apps inside the template form.
                     </div>
-                  </>
-                ) : templateKey ? (
-                  <div className="text-xs text-muted-foreground">Template details unavailable.</div>
-                ) : null}
+                  ) : templateLoading ? (
+                    <div className="text-xs text-muted-foreground">
+                      Loading template contract...
+                    </div>
+                  ) : templateDetail ? (
+                    <>
+                      <div className="grid gap-4">
+                        {templateVersionField ? (
+                          <FormRow
+                            label={templateVersionField.label || templateVersionField.key}
+                            htmlFor={`template-field-${templateVersionField.key}`}
+                            required={templateVersionField.required}
+                          >
+                            <div className={FORM_CONTROL_CLASS}>
+                              {renderTemplateFieldInput(
+                                templateVersionField,
+                                `template-field-${templateVersionField.key}`
+                              )}
+                            </div>
+                          </FormRow>
+                        ) : null}
+                        {hasTemplateDatabaseSource ? (
+                          <FormRow label="Database Source" htmlFor="template-db-source">
+                            <select
+                              id="template-db-source"
+                              className={`border-input bg-background h-9 rounded-md border px-3 text-sm ${FORM_CONTROL_CLASS}`}
+                              value="companion"
+                              onChange={() => undefined}
+                            >
+                              <option value="companion">
+                                {templateDatabaseService
+                                  ? `Template DB (${templateDatabaseService.name})`
+                                  : 'Template DB'}
+                              </option>
+                              <option value="service-instance" disabled>
+                                Service Instance DB (coming soon)
+                              </option>
+                            </select>
+                          </FormRow>
+                        ) : null}
+                        {templateRemainingBasicFields.map(field => (
+                          <FormRow
+                            key={field.key}
+                            label={field.label || field.key}
+                            htmlFor={`template-field-${field.key}`}
+                            required={field.required}
+                            hint={
+                              field.key.trim().toLowerCase() === 'version' ||
+                              String(field.label || '')
+                                .trim()
+                                .toLowerCase() === 'version'
+                                ? null
+                                : field.storage_mode === 'secret_backed'
+                                  ? 'Secret-backed input'
+                                  : field.storage_mode === 'system_managed'
+                                    ? 'Managed by the template runtime.'
+                                    : 'Template input'
+                            }
+                          >
+                            <div className={FORM_CONTROL_CLASS}>
+                              {renderTemplateFieldInput(field, `template-field-${field.key}`)}
+                            </div>
+                          </FormRow>
+                        ))}
+                      </div>
+                    </>
+                  ) : templateKey ? (
+                    <div className="text-xs text-muted-foreground">
+                      Template details unavailable.
+                    </div>
+                  ) : null}
                 </CardContent>
               </Card>
             </div>
@@ -1526,121 +1550,143 @@ export function CreateDeploymentPage({
               description="Optional settings"
               helpText="Additional deployment parameters resolved and normalized by the backend before execution."
             />
-            <details className={`group ${FORM_SECTION_CLASS} rounded-xl border border-border/60 bg-card/40 px-3 py-2`}>
+            <details
+              className={`group ${FORM_SECTION_CLASS} rounded-xl border border-border/60 bg-card/40 px-3 py-2`}
+            >
               <summary className="flex cursor-pointer list-none items-center justify-end gap-3 py-1 text-sm font-medium text-muted-foreground [&::-webkit-details-marker]:hidden">
                 <span className="sr-only">Toggle advanced settings</span>
                 <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
               </summary>
-            <div className="grid gap-4 px-1 pb-2 pt-3">
-              {isTemplate ? (
-                <>
-                  <FormRow
-                    label="Estimated App Disk"
-                    htmlFor="required-disk"
-                    helpText="Optional for manual inputs. Template mode prefills this from the app metadata and still allows an override before preflight."
-                  >
-                    <div className={`flex items-center gap-2 ${FORM_CONTROL_CLASS}`}>
-                      <Input
-                        id="required-disk"
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        value={appRequiredDiskGiB}
-                        onChange={e => setAppRequiredDiskGiB(e.target.value)}
-                        placeholder={
-                          isTemplate && templateRequirementDiskGiB
-                            ? `Default ${templateRequirementDiskGiB}`
-                            : 'Optional, e.g. 2'
-                        }
-                      />
-                      <span className="shrink-0 text-sm text-muted-foreground">GiB</span>
-                    </div>
-                  </FormRow>
-                  {templateAdvancedFields.length === 0 ? (
-                    <div className="px-1 text-xs text-muted-foreground">
-                      No advanced inputs for this template.
-                    </div>
-                  ) : (
-                    templateAdvancedFields.map(field => (
-                      <FormRow
-                        key={field.key}
-                        label={isDatabasePasswordTemplateField(field) ? 'Database Password' : field.label || field.key}
-                        htmlFor={`template-advanced-${field.key}`}
-                        required={field.required}
-                        hint={
-                          isDatabasePasswordTemplateField(field)
-                            ? 'Auto-generated by default; change only if you need a fixed credential.'
-                            : undefined
-                        }
+              <div className="grid gap-4 px-1 pb-2 pt-3">
+                {isTemplate ? (
+                  <>
+                    <FormRow
+                      label="Estimated App Disk"
+                      htmlFor="required-disk"
+                      helpText="Optional for manual inputs. Template mode prefills this from the app metadata and still allows an override before preflight."
+                    >
+                      <div className={`flex items-center gap-2 ${FORM_CONTROL_CLASS}`}>
+                        <Input
+                          id="required-disk"
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          value={appRequiredDiskGiB}
+                          onChange={e => setAppRequiredDiskGiB(e.target.value)}
+                          placeholder={
+                            isTemplate && templateRequirementDiskGiB
+                              ? `Default ${templateRequirementDiskGiB}`
+                              : 'Optional, e.g. 2'
+                          }
+                        />
+                        <span className="shrink-0 text-sm text-muted-foreground">GiB</span>
+                      </div>
+                    </FormRow>
+                    {templateAdvancedFields.length === 0 ? (
+                      <div className="px-1 text-xs text-muted-foreground">
+                        No advanced inputs for this template.
+                      </div>
+                    ) : (
+                      templateAdvancedFields.map(field => (
+                        <FormRow
+                          key={field.key}
+                          label={
+                            isDatabasePasswordTemplateField(field)
+                              ? 'Database Password'
+                              : field.label || field.key
+                          }
+                          htmlFor={`template-advanced-${field.key}`}
+                          required={field.required}
+                          hint={
+                            isDatabasePasswordTemplateField(field)
+                              ? 'Auto-generated by default; change only if you need a fixed credential.'
+                              : undefined
+                          }
+                        >
+                          <div className={FORM_CONTROL_CLASS}>
+                            {renderTemplateFieldInput(field, `template-advanced-${field.key}`)}
+                          </div>
+                        </FormRow>
+                      ))
+                    )}
+                    <FormRow label="Primary Service" htmlFor="advanced-primary-service">
+                      <div
+                        id="advanced-primary-service"
+                        className="pt-2 text-sm text-muted-foreground"
                       >
-                        <div className={FORM_CONTROL_CLASS}>
-                          {renderTemplateFieldInput(field, `template-advanced-${field.key}`)}
-                        </div>
-                      </FormRow>
-                    ))
-                  )}
-                  <FormRow label="Primary Service" htmlFor="advanced-primary-service">
-                    <div id="advanced-primary-service" className="pt-2 text-sm text-muted-foreground">
-                      {templatePrimaryService?.name || 'template-defined'}
-                    </div>
-                  </FormRow>
-                  <FormRow label="Hidden Inputs" htmlFor="advanced-hidden-inputs">
-                    <div id="advanced-hidden-inputs" className="pt-2 text-sm text-muted-foreground">
-                      {templateHiddenFields.length > 0
-                        ? templateHiddenFields.map(field => field.key).join(', ')
-                        : 'none'}
-                    </div>
-                  </FormRow>
-                  <FormRow label="Default Disk" htmlFor="advanced-default-disk">
-                    <div id="advanced-default-disk" className="pt-2 text-sm text-muted-foreground">
-                      {templateRequirementDiskGiB ? `${templateRequirementDiskGiB} GiB` : 'not declared'}
-                    </div>
-                  </FormRow>
-                </>
-              ) : (
-                <>
-                  <FormRow
-                    label="Estimated App Disk"
-                    htmlFor="required-disk"
-                    helpText="Optional estimate used by preflight when checking whether the selected target has enough free space."
-                  >
-                    <div className={`flex items-center gap-2 ${FORM_CONTROL_CLASS}`}>
-                      <Input
-                        id="required-disk"
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        value={appRequiredDiskGiB}
-                        onChange={e => setAppRequiredDiskGiB(e.target.value)}
-                        placeholder="Optional, e.g. 2"
-                      />
-                      <span className="shrink-0 text-sm text-muted-foreground">GiB</span>
-                    </div>
-                  </FormRow>
-                  <FormRow
-                    label="Exposure Rules"
-                    htmlFor="advanced-exposure-rules"
-                    helpText="Domain, path, or port publication intent for reverse-proxy configuration."
-                  >
-                    <div id="advanced-exposure-rules" className="pt-2 text-sm text-muted-foreground">
-                      Coming soon
-                    </div>
-                  </FormRow>
-                  <FormRow
-                    label="Secret-backed Inputs"
-                    htmlFor="advanced-secret-inputs"
-                    helpText="Sensitive values managed through the backend secret store, never exposed in plain text."
-                  >
-                    <div id="advanced-secret-inputs" className="pt-2 text-sm text-muted-foreground">
-                      Coming soon
-                    </div>
-                  </FormRow>
-                </>
-              )}
-            </div>
-          </details>
-        </div>
-
+                        {templatePrimaryService?.name || 'template-defined'}
+                      </div>
+                    </FormRow>
+                    <FormRow label="Hidden Inputs" htmlFor="advanced-hidden-inputs">
+                      <div
+                        id="advanced-hidden-inputs"
+                        className="pt-2 text-sm text-muted-foreground"
+                      >
+                        {templateHiddenFields.length > 0
+                          ? templateHiddenFields.map(field => field.key).join(', ')
+                          : 'none'}
+                      </div>
+                    </FormRow>
+                    <FormRow label="Default Disk" htmlFor="advanced-default-disk">
+                      <div
+                        id="advanced-default-disk"
+                        className="pt-2 text-sm text-muted-foreground"
+                      >
+                        {templateRequirementDiskGiB
+                          ? `${templateRequirementDiskGiB} GiB`
+                          : 'not declared'}
+                      </div>
+                    </FormRow>
+                  </>
+                ) : (
+                  <>
+                    <FormRow
+                      label="Estimated App Disk"
+                      htmlFor="required-disk"
+                      helpText="Optional estimate used by preflight when checking whether the selected target has enough free space."
+                    >
+                      <div className={`flex items-center gap-2 ${FORM_CONTROL_CLASS}`}>
+                        <Input
+                          id="required-disk"
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          value={appRequiredDiskGiB}
+                          onChange={e => setAppRequiredDiskGiB(e.target.value)}
+                          placeholder="Optional, e.g. 2"
+                        />
+                        <span className="shrink-0 text-sm text-muted-foreground">GiB</span>
+                      </div>
+                    </FormRow>
+                    <FormRow
+                      label="Exposure Rules"
+                      htmlFor="advanced-exposure-rules"
+                      helpText="Domain, path, or port publication intent for reverse-proxy configuration."
+                    >
+                      <div
+                        id="advanced-exposure-rules"
+                        className="pt-2 text-sm text-muted-foreground"
+                      >
+                        Coming soon
+                      </div>
+                    </FormRow>
+                    <FormRow
+                      label="Secret-backed Inputs"
+                      htmlFor="advanced-secret-inputs"
+                      helpText="Sensitive values managed through the backend secret store, never exposed in plain text."
+                    >
+                      <div
+                        id="advanced-secret-inputs"
+                        className="pt-2 text-sm text-muted-foreground"
+                      >
+                        Coming soon
+                      </div>
+                    </FormRow>
+                  </>
+                )}
+              </div>
+            </details>
+          </div>
         </div>
 
         {/* ──── Right: Review panel ──── */}

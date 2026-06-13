@@ -3,9 +3,7 @@ import { pb } from '@/lib/pb'
 import type { FieldDef, SelectOption } from '@/components/resources/ResourcePage'
 import { SecretCredentialField } from '@/components/secrets/SecretCredentialField'
 import { Button } from '@/components/ui/button'
-import {
-  type ResourceSecretVisibleTo,
-} from '@/components/secrets/SecretVisibilityField'
+import { type ResourceSecretVisibleTo } from '@/components/secrets/SecretVisibilityField'
 import { buildUserVisibleSecretRelationApiPath as buildSharedUserVisibleSecretRelationApiPath } from '@/components/secrets/resource-secret-relations'
 
 export type ConnectorRecord = {
@@ -393,8 +391,12 @@ export function mapTemplateFieldToResourceField(
             { className: 'flex flex-wrap items-center gap-3' },
             createElement(
               'div',
-              { className: 'min-w-[220px] flex-1 rounded-md border border-input bg-muted/30 px-3 py-2 text-sm text-foreground' },
-              selectedLabel || translateOrFallback(t, 'connectors.secret.noneSelected', 'No secret selected')
+              {
+                className:
+                  'min-w-[220px] flex-1 rounded-md border border-input bg-muted/30 px-3 py-2 text-sm text-foreground',
+              },
+              selectedLabel ||
+                translateOrFallback(t, 'connectors.secret.noneSelected', 'No secret selected')
             ),
             createElement(
               Button,
@@ -527,12 +529,9 @@ export async function buildConnectorPayload(
     const secretID = await createSecretForConnectorField(body, template, field, t)
     if (field.required && !secretID) {
       throw new Error(
-        translateOrFallback(
-          t,
-          'connectors.errors.fieldRequired',
-          `${field.label} is required`,
-          { field: field.label }
-        )
+        translateOrFallback(t, 'connectors.errors.fieldRequired', `${field.label} is required`, {
+          field: field.label,
+        })
       )
     }
   }

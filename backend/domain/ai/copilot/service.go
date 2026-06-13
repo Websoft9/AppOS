@@ -4,13 +4,27 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 )
 
 const (
-	userMessageEnvelopeStart = "[[APPOS_CHAT_V1]]"
-	userMessageEnvelopeEnd   = "[[/APPOS_CHAT_V1]]"
+	userMessageEnvelopeStart      = "[[APPOS_CHAT_V1]]"
+	userMessageEnvelopeEnd        = "[[/APPOS_CHAT_V1]]"
+	defaultChatWindowMessages     = 20
+	defaultInputTokenBudget       = 24000
+	maxInputTokenBudget           = 48000
+	minInputTokenBudget           = 2048
+	defaultCompletionTokenReserve = 4096
+	chatTokenSafetyMargin         = 1024
+	conversationSummaryIntro      = "Conversation summary from earlier turns:"
+	conversationSummaryMaxItems   = 12
+	conversationSummaryMaxChars   = 2400
+	openRouterRetryTokenMargin    = 64
 )
+
+var openRouterAffordRegex = regexp.MustCompile(`can only afford ([0-9]+)`) 
 
 type Repository interface {
 	CreateSession(ctx context.Context, ownerID, title string) (*Session, error)
@@ -112,7 +126,6 @@ func (s *Service) SendMessage(ctx context.Context, sessionID, ownerID, content, 
 	if err != nil {
 		return nil, err
 	}
-	messages = prepareMessagesForModel(messages)
 	var provider *ProviderConfig
 	if strings.TrimSpace(providerID) != "" {
 		provider, err = s.resolver.ResolveSelection(ctx, ownerID, providerID)
@@ -128,11 +141,8 @@ func (s *Service) SendMessage(ctx context.Context, sessionID, ownerID, content, 
 	if strings.TrimSpace(provider.Model) == "" {
 		return nil, coded(CodeInvalidRequest, "model is required — specify one in the request or configure a default on the provider", nil)
 	}
-	streamer, err := s.factory.NewStreamer(ctx, provider)
-	if err != nil {
-		return nil, coded(CodeRuntimeFailed, "failed to initialize AI runtime", err)
-	}
-	assistantContent, err := streamer.Stream(ctx, messages, onChunk)
+	messages = prepareMessagesForModel(messages, provider)
+	assistantContent, err := s.streamAssistantMessage(ctx, provider, messages, onChunk)
 	if err != nil {
 		return nil, coded(CodeRuntimeFailed, "AI runtime request failed", err)
 	}
@@ -148,6 +158,68 @@ func (s *Service) SendMessage(ctx context.Context, sessionID, ownerID, content, 
 		return nil, err
 	}
 	return assistant, nil
+}
+
+func (s *Service) streamAssistantMessage(ctx context.Context, provider *ProviderConfig, messages []*Message, onChunk func(string) error) (string, error) {
+	streamer, err := s.factory.NewStreamer(ctx, provider)
+	if err != nil {
+		return "", coded(CodeRuntimeFailed, "failed to initialize AI runtime", err)
+	}
+	chunkCount := 0
+	countingOnChunk := func(chunk string) error {
+		chunkCount++
+		if onChunk != nil {
+			return onChunk(chunk)
+		}
+		return nil
+	}
+	assistantContent, streamErr := streamer.Stream(ctx, messages, countingOnChunk)
+	if streamErr == nil {
+		return assistantContent, nil
+	}
+	if chunkCount == 0 {
+		if retryProvider, ok := reducedOpenRouterProvider(provider, streamErr); ok {
+			retryStreamer, retryInitErr := s.factory.NewStreamer(ctx, retryProvider)
+			if retryInitErr != nil {
+				return "", retryInitErr
+			}
+			return retryStreamer.Stream(ctx, messages, onChunk)
+		}
+	}
+	return "", streamErr
+}
+
+func reducedOpenRouterProvider(provider *ProviderConfig, err error) (*ProviderConfig, bool) {
+	if provider == nil || err == nil {
+		return nil, false
+	}
+	endpoint := strings.ToLower(strings.TrimSpace(provider.Endpoint))
+	message := err.Error()
+	match := openRouterAffordRegex.FindStringSubmatch(message)
+	if len(match) != 2 || (!strings.Contains(endpoint, "openrouter.ai") && !strings.Contains(strings.ToLower(message), "payment required")) {
+		return nil, false
+	}
+	affordable, parseErr := strconv.Atoi(match[1])
+	if parseErr != nil || affordable <= 0 {
+		return nil, false
+	}
+	retryLimit := affordable - openRouterRetryTokenMargin
+	if retryLimit <= 0 {
+		retryLimit = affordable
+	}
+	if retryLimit <= 0 {
+		return nil, false
+	}
+	if provider.MaxCompletionTokens != nil && *provider.MaxCompletionTokens <= retryLimit {
+		return nil, false
+	}
+	clone := *provider
+	clone.MaxCompletionTokens = intValuePtr(retryLimit)
+	return &clone, true
+}
+
+func intValuePtr(value int) *int {
+	return &value
 }
 
 func titleFromSession(current, content string, attachments []MessageAttachment) string {
@@ -215,7 +287,7 @@ func decodeUserMessage(content string) (userMessageEnvelope, bool) {
 	return envelope, true
 }
 
-func prepareMessagesForModel(messages []*Message) []*Message {
+func prepareMessagesForModel(messages []*Message, provider *ProviderConfig) []*Message {
 	prepared := make([]*Message, 0, len(messages))
 	for _, message := range messages {
 		if message == nil || message.Role != RoleUser {
@@ -231,7 +303,144 @@ func prepareMessagesForModel(messages []*Message) []*Message {
 		clone.Content = renderUserMessageForModel(envelope)
 		prepared = append(prepared, &clone)
 	}
-	return prepared
+	return trimMessagesForModel(prepared, provider)
+}
+
+func trimMessagesForModel(messages []*Message, provider *ProviderConfig) []*Message {
+	if len(messages) <= defaultChatWindowMessages {
+		if estimateMessagesTokens(messages) <= inputTokenBudget(provider) {
+			return messages
+		}
+	}
+
+	systemMessages := make([]*Message, 0, 1)
+	conversation := make([]*Message, 0, len(messages))
+	for _, message := range messages {
+		if message == nil || strings.TrimSpace(message.Content) == "" {
+			continue
+		}
+		if NormalizeRole(message.Role) == RoleSystem {
+			systemMessages = append(systemMessages, message)
+			continue
+		}
+		conversation = append(conversation, message)
+	}
+
+	budget := inputTokenBudget(provider)
+	trimmed := make([]*Message, 0, len(systemMessages)+defaultChatWindowMessages)
+	trimmed = append(trimmed, systemMessages...)
+	remaining := budget - estimateMessagesTokens(systemMessages)
+	if remaining < minInputTokenBudget {
+		remaining = minInputTokenBudget
+	}
+
+	selected := make([]*Message, 0, defaultChatWindowMessages)
+	used := 0
+	cutIndex := len(conversation)
+	for index := len(conversation) - 1; index >= 0; index-- {
+		message := conversation[index]
+		tokens := estimateMessageTokens(message)
+		if len(selected) >= defaultChatWindowMessages || (used+tokens > remaining && len(selected) > 0) {
+			cutIndex = index + 1
+			break
+		}
+		selected = append(selected, message)
+		used += tokens
+		cutIndex = index
+	}
+	if cutIndex > 0 {
+		summary := summarizeMessages(conversation[:cutIndex])
+		if summary != nil {
+			trimmed = append(trimmed, summary)
+		}
+	}
+	for index := len(selected) - 1; index >= 0; index-- {
+		trimmed = append(trimmed, selected[index])
+	}
+	if len(trimmed) == 0 {
+		return messages
+	}
+	return trimmed
+}
+
+func inputTokenBudget(provider *ProviderConfig) int {
+	budget := defaultInputTokenBudget
+	if provider != nil && provider.ContextSize > 0 {
+		reserve := defaultCompletionTokenReserve
+		if provider.MaxCompletionTokens != nil && *provider.MaxCompletionTokens > 0 {
+			reserve = *provider.MaxCompletionTokens
+		}
+		calculated := provider.ContextSize - reserve - chatTokenSafetyMargin
+		if calculated > 0 {
+			budget = calculated
+		}
+	}
+	if budget < minInputTokenBudget {
+		return minInputTokenBudget
+	}
+	if budget > maxInputTokenBudget {
+		return maxInputTokenBudget
+	}
+	return budget
+}
+
+func estimateMessagesTokens(messages []*Message) int {
+	total := 0
+	for _, message := range messages {
+		total += estimateMessageTokens(message)
+	}
+	return total
+}
+
+func estimateMessageTokens(message *Message) int {
+	if message == nil {
+		return 0
+	}
+	content := strings.TrimSpace(message.Content)
+	if content == "" {
+		return 0
+	}
+	return len([]rune(content))/4 + 32
+}
+
+func summarizeMessages(messages []*Message) *Message {
+	if len(messages) == 0 {
+		return nil
+	}
+	entries := make([]string, 0, conversationSummaryMaxItems)
+	charBudget := conversationSummaryMaxChars
+	for _, message := range messages {
+		if message == nil {
+			continue
+		}
+		role := NormalizeRole(message.Role)
+		if role == RoleSystem {
+			continue
+		}
+		content := strings.Join(strings.Fields(strings.TrimSpace(message.Content)), " ")
+		if content == "" {
+			continue
+		}
+		if len([]rune(content)) > 180 {
+			contentRunes := []rune(content)
+			content = string(contentRunes[:180]) + "..."
+		}
+		entry := fmt.Sprintf("- %s: %s", role, content)
+		entryLen := len([]rune(entry))
+		if len(entries) >= conversationSummaryMaxItems || (charBudget-entryLen < 0 && len(entries) > 0) {
+			break
+		}
+		entries = append(entries, entry)
+		charBudget -= entryLen
+	}
+	if len(entries) == 0 {
+		return nil
+	}
+	return &Message{
+		Role:    RoleSystem,
+		Content: conversationSummaryIntro + "\n" + strings.Join(entries, "\n"),
+		Status:  "completed",
+	}
 }
 
 func renderUserMessageForModel(envelope userMessageEnvelope) string {

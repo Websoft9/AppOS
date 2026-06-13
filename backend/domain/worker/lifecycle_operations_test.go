@@ -166,10 +166,10 @@ func (e *envCaptureDockerExecutor) SetEnv(env map[string]string) { e.env = env }
 func saveProxySettings(t *testing.T, app core.App, enabled bool, httpConnectorID string, httpsConnectorID string) error {
 	t.Helper()
 	return sysconfig.SetGroup(app, "proxy", "network", map[string]any{
-		"enabled":          enabled,
+		"enabled":           enabled,
 		"socks5ConnectorId": "",
-		"httpConnectorId":  httpConnectorID,
-		"httpsConnectorId": httpsConnectorID,
+		"httpConnectorId":   httpConnectorID,
+		"httpsConnectorId":  httpsConnectorID,
 	})
 }
 

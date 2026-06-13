@@ -168,7 +168,9 @@ export function BrandingSection({
         <div className="space-y-3">
           <div className="space-y-1">
             <Label htmlFor="faviconUrl">Favicon</Label>
-            <p className="text-sm text-muted-foreground">Enter an online URL, or upload an image, or use logo</p>
+            <p className="text-sm text-muted-foreground">
+              Enter an online URL, or upload an image, or use logo
+            </p>
           </div>
           <div className="flex items-center gap-3">
             <Toggle

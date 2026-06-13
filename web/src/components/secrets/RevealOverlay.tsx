@@ -113,7 +113,12 @@ export function RevealOverlay({
         </DialogHeader>
 
         {fieldLabels && payload ? (
-          <div ref={el => { contentRef.current = el }} className="max-h-80 overflow-auto space-y-3 rounded-md border bg-muted p-3">
+          <div
+            ref={el => {
+              contentRef.current = el
+            }}
+            className="max-h-80 overflow-auto space-y-3 rounded-md border bg-muted p-3"
+          >
             {Object.entries(payload).map(([key, value]) => (
               <div key={key} className="space-y-0.5">
                 <span className="text-xs font-medium text-muted-foreground">
@@ -124,7 +129,12 @@ export function RevealOverlay({
             ))}
           </div>
         ) : (
-          <pre ref={el => { contentRef.current = el }} className="max-h-80 overflow-auto rounded-md border bg-muted p-3 text-xs">
+          <pre
+            ref={el => {
+              contentRef.current = el
+            }}
+            className="max-h-80 overflow-auto rounded-md border bg-muted p-3 text-xs"
+          >
             {content}
           </pre>
         )}

@@ -24,6 +24,10 @@ func (f EinoModelFactory) NewStreamer(ctx context.Context, provider *ProviderCon
 		Model:   provider.Model,
 		Timeout: 90 * time.Second,
 	}
+	if provider.MaxCompletionTokens != nil && *provider.MaxCompletionTokens > 0 {
+		config.MaxTokens = provider.MaxCompletionTokens
+		config.MaxCompletionTokens = provider.MaxCompletionTokens
+	}
 	if f.App != nil {
 		client, err := proxy.NewHTTPClient(f.App, "ai_providers.global", 90*time.Second, false)
 		if err == nil {

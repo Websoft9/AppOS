@@ -33,8 +33,8 @@ const (
 type TrafficClass string
 
 const (
-	TrafficClassPublicEgress  TrafficClass = "public_egress"
-	TrafficClassControlPlane  TrafficClass = "control_plane"
+	TrafficClassPublicEgress   TrafficClass = "public_egress"
+	TrafficClassControlPlane   TrafficClass = "control_plane"
 	TrafficClassLocalOrPrivate TrafficClass = "local_or_private"
 )
 

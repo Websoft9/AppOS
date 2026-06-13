@@ -929,6 +929,8 @@ describe('AppDetailPage', () => {
     render(<AppDetailPage appId="app-1" />)
 
     expect(await screen.findByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Open Access tab' }))
+
     const accessLink = screen.getByRole('link', { name: /http:\/\/demo\.example\.com:9000/i })
     expect(accessLink).toHaveAttribute('href', 'http://demo.example.com:9000')
   })

@@ -35,10 +35,12 @@ type MessageAttachment struct {
 }
 
 type ProviderConfig struct {
-	Name     string
-	Endpoint string
-	Model    string
-	APIKey   string
+	Name                string
+	Endpoint            string
+	Model               string
+	APIKey              string
+	MaxCompletionTokens *int
+	ContextSize         int
 }
 
 func NormalizeRole(role string) string {

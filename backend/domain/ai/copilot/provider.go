@@ -3,6 +3,7 @@ package copilot
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/websoft9/appos/backend/domain/resource/aiproviders"
@@ -69,6 +70,7 @@ func (r *DefaultProviderResolver) providerConfig(ctx context.Context, actorID st
 	endpoint := strings.TrimSpace(selected.Endpoint())
 	credentialID := strings.TrimSpace(selected.CredentialID())
 	model := firstConfigString(selected.Config(), "defaultModel", "model")
+	maxCompletionTokens := firstConfigInt(selected.Config(), "max_completion_tokens", "maxCompletionTokens")
 	if endpoint == "" || credentialID == "" {
 		return nil, coded(CodeProviderInvalid, "default LLM provider requires endpoint and credential", nil)
 	}
@@ -81,8 +83,19 @@ func (r *DefaultProviderResolver) providerConfig(ctx context.Context, actorID st
 	if strings.TrimSpace(apiKey) == "" {
 		return nil, coded(CodeProviderInvalid, "LLM provider credential does not contain an API key", nil)
 	}
+	tpl, _ := aiproviders.FindTemplate(selected.TemplateID())
+	if maxCompletionTokens == nil {
+		maxCompletionTokens = templateFieldDefaultInt(tpl, "max_completion_tokens")
+	}
 
-	return &ProviderConfig{Name: selected.Name(), Endpoint: strings.TrimRight(endpoint, "/"), Model: model, APIKey: apiKey}, nil
+	return &ProviderConfig{
+		Name:                selected.Name(),
+		Endpoint:            strings.TrimRight(endpoint, "/"),
+		Model:               model,
+		APIKey:              apiKey,
+		MaxCompletionTokens: maxCompletionTokens,
+		ContextSize:         tpl.ContextSize,
+	}, nil
 }
 
 func firstConfigString(config map[string]any, keys ...string) string {
@@ -104,4 +117,89 @@ func firstConfigString(config map[string]any, keys ...string) string {
 		}
 	}
 	return ""
+}
+
+func firstConfigInt(config map[string]any, keys ...string) *int {
+	for _, key := range keys {
+		value, ok := config[key]
+		if !ok || value == nil {
+			continue
+		}
+		switch typed := value.(type) {
+		case int:
+			if typed > 0 {
+				result := typed
+				return &result
+			}
+		case int32:
+			if typed > 0 {
+				result := int(typed)
+				return &result
+			}
+		case int64:
+			if typed > 0 {
+				result := int(typed)
+				return &result
+			}
+		case float64:
+			if typed > 0 {
+				result := int(typed)
+				return &result
+			}
+		case string:
+			text := strings.TrimSpace(typed)
+			if text == "" {
+				continue
+			}
+			parsed, err := strconv.Atoi(text)
+			if err == nil && parsed > 0 {
+				return &parsed
+			}
+		}
+	}
+	return nil
+}
+
+func templateFieldDefaultInt(template aiproviders.Template, fieldID string) *int {
+	fieldID = strings.TrimSpace(fieldID)
+	if fieldID == "" {
+		return nil
+	}
+	for _, field := range template.Fields {
+		if strings.TrimSpace(field.ID) != fieldID || field.Default == nil {
+			continue
+		}
+		switch typed := field.Default.(type) {
+		case int:
+			if typed > 0 {
+				result := typed
+				return &result
+			}
+		case int32:
+			if typed > 0 {
+				result := int(typed)
+				return &result
+			}
+		case int64:
+			if typed > 0 {
+				result := int(typed)
+				return &result
+			}
+		case float64:
+			if typed > 0 {
+				result := int(typed)
+				return &result
+			}
+		case string:
+			text := strings.TrimSpace(typed)
+			if text == "" {
+				return nil
+			}
+			parsed, err := strconv.Atoi(text)
+			if err == nil && parsed > 0 {
+				return &parsed
+			}
+		}
+	}
+	return nil
 }

@@ -33,6 +33,8 @@ export type AICopilotModelOption = {
   provider_name?: string
   provider_mode?: string
   gateway_name?: string
+  context_size?: number
+  max_completion_tokens?: number
 }
 
 export async function listAICopilotSessions(): Promise<AICopilotSession[]> {
@@ -100,15 +102,18 @@ export async function sendAICopilotMessage(
   attachments: AICopilotAttachment[] = [],
   options: SendAICopilotMessageOptions = {}
 ): Promise<void> {
-  const response = await fetch(`/api/ai/copilot/sessions/${encodeURIComponent(sessionId)}/messages`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: pb.authStore.token,
-    },
-    body: JSON.stringify({ content, provider_id: providerId, model, attachments }),
-    signal: options.signal,
-  })
+  const response = await fetch(
+    `/api/ai/copilot/sessions/${encodeURIComponent(sessionId)}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: pb.authStore.token,
+      },
+      body: JSON.stringify({ content, provider_id: providerId, model, attachments }),
+      signal: options.signal,
+    }
+  )
   if (!response.ok) {
     throw new Error(`Chat request failed with status ${response.status}`)
   }

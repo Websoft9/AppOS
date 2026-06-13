@@ -214,10 +214,19 @@ export function CreateDeploymentReviewPanel({
             </div>
 
             <div className="space-y-2 border-t pt-3">
-              <Button variant="outline" onClick={onCheck} disabled={checkDisabled} className="h-10 w-full">
+              <Button
+                variant="outline"
+                onClick={onCheck}
+                disabled={checkDisabled}
+                className="h-10 w-full"
+              >
                 {activeChecking ? 'Checking...' : 'Check'}
               </Button>
-              <Button onClick={onSubmit} disabled={createDisabled || srcUploading} className="h-10 w-full">
+              <Button
+                onClick={onSubmit}
+                disabled={createDisabled || srcUploading}
+                className="h-10 w-full"
+              >
                 {activeSubmitting || srcUploading ? 'Creating...' : 'Create Deployment'}
               </Button>
             </div>
@@ -242,8 +251,8 @@ export function CreateDeploymentReviewPanel({
                   <div>
                     <div className="font-medium text-foreground">Why run Check first?</div>
                     <div className="mt-1">
-                      Check runs backend pre-flight validation and can surface blocking issues before
-                      an action is created.
+                      Check runs backend pre-flight validation and can surface blocking issues
+                      before an action is created.
                     </div>
                   </div>
                   <div>

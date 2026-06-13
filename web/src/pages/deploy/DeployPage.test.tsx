@@ -250,7 +250,7 @@ describe('DeployPage homepage', () => {
   it('renders the deploy homepage and routes custom deployment entries to the create page', async () => {
     render(
       <TooltipProvider>
-        <DeployPage />
+        <DeployPage view="home" />
       </TooltipProvider>
     )
 
@@ -259,7 +259,7 @@ describe('DeployPage homepage', () => {
       expect(screen.getByText('Install from Store')).toBeInTheDocument()
       expect(screen.getByText('Custom Deployment')).toBeInTheDocument()
       expect(screen.getByText('Latest Activity Summary')).toBeInTheDocument()
-      expect(screen.getByText('Need more templates?')).toBeInTheDocument()
+      expect(screen.getByText('Need more applications?')).toBeInTheDocument()
     })
 
     expect(screen.getByText('Compose File')).toBeInTheDocument()
@@ -521,7 +521,7 @@ describe('DeployPage homepage', () => {
     expect(screen.getByText('Executing')).toBeInTheDocument()
 
     fireEvent.click(screen.getByLabelText('Select mysql-prod'))
-    expect(screen.getByText('Executing actions cannot be deleted.')).toBeInTheDocument()
+    expect(screen.getByText('Executing activity items cannot be deleted.')).toBeInTheDocument()
 
     const settingsTrigger = screen.getByRole('button', { name: 'List settings' })
     fireEvent.pointerDown(settingsTrigger)

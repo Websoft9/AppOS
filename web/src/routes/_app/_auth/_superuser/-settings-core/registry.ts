@@ -109,7 +109,8 @@ export const settingsNavigationAliases: SettingsNavigationAlias[] = [
     matchesActiveSection: activeSection => matchesSectionIds(activeSection, PROXY_SECTION_IDS),
     help: {
       title: 'Proxy',
-      description: 'SOCKS5 overrides all outbound traffic; otherwise HTTP and HTTPS can be assigned independently.',
+      description:
+        'SOCKS5 overrides all outbound traffic; otherwise HTTP and HTTPS can be assigned independently.',
     },
   },
   {

@@ -909,10 +909,10 @@ func TestLoadDockerProxyEnvIncludesCredentials(t *testing.T) {
 	})
 
 	if err := sysconfig.SetGroup(te.app, "proxy", "network", map[string]any{
-		"enabled":          true,
+		"enabled":           true,
 		"socks5ConnectorId": "",
-		"httpConnectorId":  httpConnector.Id,
-		"httpsConnectorId": httpsConnector.Id,
+		"httpConnectorId":   httpConnector.Id,
+		"httpsConnectorId":  httpsConnector.Id,
 	}); err != nil {
 		t.Fatal(err)
 	}

@@ -850,6 +850,9 @@ func TestAIProviderDefaultsAndChatModels(t *testing.T) {
 	if firstItem["label"] != "openai/gpt-4.1-mini · OpenRouter" {
 		t.Fatalf("expected gateway label, got %v", firstItem["label"])
 	}
+	if firstItem["max_completion_tokens"] != float64(31100) {
+		t.Fatalf("expected max_completion_tokens 31100, got %#v", firstItem["max_completion_tokens"])
+	}
 
 	rec = te.do(t, http.MethodPut, "/api/ai-providers/defaults", `{"items":[{"endpoint":"https://openrouter.ai/api/v1","provider_id":"`+secondID+`"}]}`, true)
 	if rec.Code != http.StatusOK {

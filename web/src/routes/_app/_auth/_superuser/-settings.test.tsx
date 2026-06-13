@@ -491,7 +491,12 @@ describe('SettingsPage shared settings paths', () => {
             { id: 'secrets-policy', value: {} },
             {
               id: 'proxy-network',
-              value: { enabled: false, socks5ConnectorId: '', httpConnectorId: '', httpsConnectorId: '' },
+              value: {
+                enabled: false,
+                socks5ConnectorId: '',
+                httpConnectorId: '',
+                httpsConnectorId: '',
+              },
             },
             { id: 'docker-mirror', value: { mirrors: [], allowInsecureRegistries: false } },
             { id: 'docker-registries', value: {} },
@@ -1418,7 +1423,7 @@ describe('SettingsPage shared settings paths', () => {
     })
   })
 
-  it('links proxy creation out to External Services and saves the settings page state', async () => {
+  it('shows proxy prerequisites when no external proxy resources exist', async () => {
     const proxyConnectors: Array<{
       id: string
       name: string
@@ -1469,47 +1474,127 @@ describe('SettingsPage shared settings paths', () => {
     fireEvent.click(within(nav).getByRole('button', { name: 'Proxy' }))
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Enable Proxy')).toBeInTheDocument()
+      expect(screen.getByLabelText('External Proxy Resources')).toBeInTheDocument()
     })
 
     expect(screen.getByRole('button', { name: 'Open Proxy help' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('switch'))
-
     await waitFor(() => {
-      expect(screen.getByText(/No proxy connectors yet/i)).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: 'Add a SOCKS5 proxy' })).toHaveAttribute(
-        'href',
-        '/resources/connectors?create=1&kind=proxy&template=socks5-proxy'
-      )
-      expect(screen.getByRole('link', { name: 'Add an HTTP proxy' })).toHaveAttribute(
-        'href',
-        '/resources/connectors?create=1&kind=proxy&template=http-proxy'
-      )
-    })
-
-    expect(screen.getByLabelText('SOCKS5 Proxy')).toBeDisabled()
-    expect(screen.getByLabelText('HTTP Proxy')).toBeDisabled()
-    expect(screen.getByLabelText('HTTPS Proxy')).toBeDisabled()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-
-    await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith(settingsEntryPath('proxy-network'), {
-        method: 'PATCH',
-        body: {
-          enabled: true,
-          socks5ConnectorId: '',
-          httpConnectorId: '',
-          httpsConnectorId: '',
-        },
-      })
+      expect(
+        screen.getByText(/Add at least one proxy resource before enabling outbound proxy routing/i)
+      ).toBeInTheDocument()
+      expect(screen.getByRole('switch')).toBeDisabled()
+      expect(screen.queryByRole('link', { name: 'Add a SOCKS5 proxy' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: 'Add an HTTP proxy' })).not.toBeInTheDocument()
+      expect(
+        screen.getByText(
+          /Configure the external proxy resources first, then enroll the outbound consumers/i
+        )
+      ).toBeInTheDocument()
     })
   })
 
   it('warns when a saved proxy resource was deleted and blocks save until a valid option is chosen or proxy is disabled', async () => {
     const defaultImpl = sendMock.getMockImplementation()
     sendMock.mockImplementation((path: string, options?: { method?: string; body?: any }) => {
+      if (path === SETTINGS_ENTRIES_API_PATH) {
+        return Promise.resolve({
+          items: [
+            { id: 'basic', value: { appName: 'AppOS', appURL: 'https://appos.test' } },
+            { id: 'smtp', value: {} },
+            {
+              id: 's3',
+              value: {
+                enabled: false,
+                bucket: '',
+                region: '',
+                endpoint: '',
+                accessKey: '',
+                secret: '',
+                forcePathStyle: false,
+              },
+            },
+            { id: 'logs', value: { maxDays: 7, minLevel: 5, logIP: false, logAuthId: false } },
+            { id: 'monitor-scheduling', value: { reachabilityIntervalMinutes: 1 } },
+            { id: 'monitor-policy', value: { metricsFreshnessLookbackSeconds: 300 } },
+            {
+              id: 'monitor-platform-self-observation',
+              value: {
+                platformObserverIntervalSeconds: 30,
+                platformSchedulerStaleThresholdSeconds: 10,
+                enableHostTelemetry: false,
+                enableContainerTelemetry: false,
+              },
+            },
+            {
+              id: 'monitor-managed-collector-policy',
+              value: {
+                collectionIntervalSeconds: 10,
+                flushIntervalSeconds: 10,
+                metricBatchSize: 1000,
+                metricBufferLimit: 5000,
+                collectionJitterSeconds: 1,
+                flushJitterSeconds: 1,
+              },
+            },
+            {
+              id: 'feeds-policy',
+              value: {
+                pollIntervalHours: 3,
+                failureBackoffMaxHours: 24,
+                perSourceRetentionCap: 100,
+                globalRetentionCap: 10000,
+              },
+            },
+            { id: 'space-quota', value: {} },
+            { id: 'topic-share', value: { shareMaxMinutes: 60, shareDefaultMinutes: 30 } },
+            {
+              id: 'topic-comment-policy',
+              value: {
+                allowGuestComments: true,
+                defaultGuestName: 'Guest',
+                maxGuestNameLength: 100,
+                maxCommentBodyLength: 10000,
+              },
+            },
+            { id: 'topic-import-policy', value: { maxDescriptionImportKB: 2, textOnly: true } },
+            { id: 'connect-terminal', value: {} },
+            { id: 'connect-sftp', value: { maxUploadFiles: 10 } },
+            { id: 'deploy-preflight', value: { minFreeDiskGiB: 1 } },
+            {
+              id: 'deploy-runtime',
+              value: {
+                imagePullTimeoutSeconds: 180,
+                composeUpTimeoutSeconds: 600,
+                healthCheckTimeoutSeconds: 120,
+                runtimePullIdleHeartbeatSeconds: 20,
+              },
+            },
+            {
+              id: 'deploy-git-defaults',
+              value: { defaultRef: 'main', defaultComposePath: 'docker-compose.yml' },
+            },
+            { id: 'iac-files', value: { maxSizeMB: 10, maxZipSizeMB: 50 } },
+            { id: 'tunnel-port-range', value: {} },
+            { id: 'secrets-policy', value: {} },
+            {
+              id: 'proxy-network',
+              value: {
+                enabled: true,
+                socks5ConnectorId: 'deleted-proxy',
+                httpConnectorId: '',
+                httpsConnectorId: '',
+              },
+            },
+            {
+              id: 'proxy-consumers',
+              value: { items: [], definitions: [] },
+            },
+            { id: 'docker-mirror', value: { mirrors: [], allowInsecureRegistries: false } },
+            { id: 'docker-registries', value: {} },
+          ],
+        })
+      }
       if (path === '/api/connectors?kind=proxy') {
         return Promise.resolve([])
       }
@@ -1535,10 +1620,15 @@ describe('SettingsPage shared settings paths', () => {
     fireEvent.click(within(nav).getByRole('button', { name: 'Proxy' }))
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Enable Proxy')).toBeInTheDocument()
+      expect(screen.getByLabelText('External Proxy Resources')).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByRole('switch'))
+    await waitFor(() => {
+      expect(
+        screen.getByText(/One or more saved proxy resources were deleted/i)
+      ).toBeInTheDocument()
+    })
+
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {
@@ -1548,8 +1638,9 @@ describe('SettingsPage shared settings paths', () => {
     })
 
     expect(
-      sendMock.mock.calls.some(([path, options]) =>
-        path === settingsEntryPath('proxy-network') && options?.method === 'PATCH'
+      sendMock.mock.calls.some(
+        ([path, options]) =>
+          path === settingsEntryPath('proxy-network') && options?.method === 'PATCH'
       )
     ).toBe(false)
   })
@@ -1580,7 +1671,7 @@ describe('SettingsPage shared settings paths', () => {
       expect(screen.getByText('Help for:')).toBeInTheDocument()
       expect(
         screen.getByText(
-          'Select reusable HTTP and HTTPS proxy connectors for platform outbound traffic.'
+          'SOCKS5 overrides all outbound traffic; otherwise HTTP and HTTPS can be assigned independently.'
         )
       ).toBeInTheDocument()
     })

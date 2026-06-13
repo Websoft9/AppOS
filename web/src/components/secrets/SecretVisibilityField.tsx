@@ -92,7 +92,9 @@ export function SecretVisibilityField({
 }) {
   const [open, setOpen] = useState(defaultOpen)
   const selectedSummary = useMemo(() => {
-    const selected = RESOURCE_SECRET_VISIBLE_TO_OPTIONS.filter(option => value.includes(option.value))
+    const selected = RESOURCE_SECRET_VISIBLE_TO_OPTIONS.filter(option =>
+      value.includes(option.value)
+    )
     if (selected.length === RESOURCE_SECRET_VISIBLE_TO_OPTIONS.length) {
       return 'All supported dialogs'
     }

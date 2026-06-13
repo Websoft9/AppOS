@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestDefaultConfigUsesUnixSocketByDefault(t *testing.T) {
@@ -59,6 +60,7 @@ func TestClientGetAllProcessInfoOverUnixSocket(t *testing.T) {
 	})
 
 	server := &http.Server{
+		ReadHeaderTimeout: 5 * time.Second,
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path != "/RPC2" {
 				t.Errorf("expected /RPC2 path, got %q", r.URL.Path)

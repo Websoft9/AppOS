@@ -19,6 +19,7 @@ import (
 	"github.com/websoft9/appos/backend/domain/monitor"
 	monitormetrics "github.com/websoft9/appos/backend/domain/monitor/metrics"
 	"github.com/websoft9/appos/backend/domain/monitor/status/store"
+	"github.com/websoft9/appos/backend/domain/runtimecfg"
 )
 
 func newMonitorTestEnv(t *testing.T) *testEnv {
@@ -117,7 +118,9 @@ func TestMonitorWriteForwardsAuthenticatedInfluxPayload(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer tsdb.Close()
-	t.Setenv(monitormetrics.EnvVictoriaMetricsURL, tsdb.URL)
+	previous := runtimecfg.Get()
+	runtimecfg.Set(runtimecfg.Config{TSDBURL: tsdb.URL})
+	t.Cleanup(func() { runtimecfg.Set(previous) })
 
 	r, err := apis.NewRouter(te.app)
 	if err != nil {
@@ -168,7 +171,9 @@ func TestMonitorWriteAlsoProjectsCanonicalMetrics(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer tsdb.Close()
-	t.Setenv(monitormetrics.EnvVictoriaMetricsURL, tsdb.URL)
+	previous := runtimecfg.Get()
+	runtimecfg.Set(runtimecfg.Config{TSDBURL: tsdb.URL})
+	t.Cleanup(func() { runtimecfg.Set(previous) })
 
 	baseTimestamp := int64(1776168000)
 	payload := strings.Join([]string{

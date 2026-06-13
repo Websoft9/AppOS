@@ -27,7 +27,11 @@ import {
   parseReleaseAttribution,
 } from '@/pages/apps/app-detail-utils'
 import { formatTime, formatUptime } from '@/pages/apps/types'
-import { actionStatusLabel, formatDurationCompact, statusVariant } from '@/pages/deploy/actions/action-utils'
+import {
+  actionStatusLabel,
+  formatDurationCompact,
+  statusVariant,
+} from '@/pages/deploy/actions/action-utils'
 import type {
   AccessTabProps,
   ActionsTabProps,
@@ -251,7 +255,9 @@ export function AppDetailOverviewTab({
                 <div>When</div>
               </div>
               {recentActivity.map(item => {
-                const actionLabel = actionNameFromKey(item.pipeline_definition_key || item.pipeline?.definition_key || '')
+                const actionLabel = actionNameFromKey(
+                  item.pipeline_definition_key || item.pipeline?.definition_key || ''
+                )
                 return (
                   <button
                     key={item.id}
@@ -259,7 +265,10 @@ export function AppDetailOverviewTab({
                     className="grid w-full grid-cols-[minmax(56px,1fr)_minmax(64px,2fr)_minmax(72px,1fr)_minmax(88px,1fr)] items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50"
                     onClick={() => setTab('actions')}
                   >
-                    <Badge variant={statusVariant(item.status)} className="w-fit shrink-0 text-[10px]">
+                    <Badge
+                      variant={statusVariant(item.status)}
+                      className="w-fit shrink-0 text-[10px]"
+                    >
                       {actionStatusLabel(item.status)}
                     </Badge>
                     <span className="truncate text-xs">{actionLabel}</span>

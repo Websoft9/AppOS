@@ -58,3 +58,23 @@ func TestFindTemplateLoadsEmbeddedXAI(t *testing.T) {
 		t.Fatalf("unexpected xAI context size %d", template.ContextSize)
 	}
 }
+
+func TestOpenRouterTemplateHasMaxCompletionTokensDefault(t *testing.T) {
+	template, ok := FindTemplate("openrouter")
+	if !ok {
+		t.Fatalf("expected embedded OpenRouter template to be loaded")
+	}
+	for _, field := range template.Fields {
+		if field.ID != "max_completion_tokens" {
+			continue
+		}
+		if field.Type != "number" {
+			t.Fatalf("expected max_completion_tokens type number, got %q", field.Type)
+		}
+		if field.Default != float64(31100) {
+			t.Fatalf("expected openrouter max_completion_tokens default 31100, got %#v", field.Default)
+		}
+		return
+	}
+	t.Fatal("expected openrouter template to expose max_completion_tokens field")
+}

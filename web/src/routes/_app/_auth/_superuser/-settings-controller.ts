@@ -41,7 +41,12 @@ export function useSettingsPageController() {
         pb.send<SettingsEntriesListResponse>(SETTINGS_ENTRIES_API_PATH, { method: 'GET' }),
       ])
 
-      const movedToSystemIds = new Set(['tunnel-port-range', 'proxy-network', 'proxy-consumers', 'docker-mirror'])
+      const movedToSystemIds = new Set([
+        'tunnel-port-range',
+        'proxy-network',
+        'proxy-consumers',
+        'docker-mirror',
+      ])
       const monitorTailIndex = schemaResult.entries.reduce((lastIndex, entry, index) => {
         return entry.id.startsWith('monitor-') ? index : lastIndex
       }, -1)

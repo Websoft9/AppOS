@@ -367,9 +367,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
       )
         .sort((left, right) => left[1].localeCompare(right[1]))
         .map(([value, label]) => {
-          const count = apps.filter(
-            item => (item.server_id || 'local') === value
-          ).length
+          const count = apps.filter(item => (item.server_id || 'local') === value).length
           return { value, label, count }
         }),
       template: Object.entries(templateCounts)

@@ -8,7 +8,18 @@ import {
   type AIProviderModelOption as ProviderModelOption,
 } from '@/components/ai/AIProviderModelSelector'
 import { useOptionalLayout } from '@/contexts/LayoutContext'
-import { Activity, Check, ChevronDown, ChevronRight, ExternalLink, Loader2, Pencil, Power, PowerOff, X } from 'lucide-react'
+import {
+  Activity,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  ExternalLink,
+  Loader2,
+  Pencil,
+  Power,
+  PowerOff,
+  X,
+} from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -192,7 +203,12 @@ function InlineSecretEditorField({
 function describeProviderModelsError(err: unknown) {
   const message = err instanceof Error ? err.message : String(err ?? '')
   const normalized = message.toLowerCase()
-  if (normalized.includes('401') || normalized.includes('403') || normalized.includes('unauthorized') || normalized.includes('forbidden')) {
+  if (
+    normalized.includes('401') ||
+    normalized.includes('403') ||
+    normalized.includes('unauthorized') ||
+    normalized.includes('forbidden')
+  ) {
     return 'Authentication failed while loading models. Check the API key or secret and try again.'
   }
   if (normalized.includes('404')) {
@@ -201,10 +217,18 @@ function describeProviderModelsError(err: unknown) {
   if (normalized.includes('timeout') || normalized.includes('deadline exceeded')) {
     return 'Loading models timed out. Check network connectivity and confirm the provider endpoint is reachable.'
   }
-  if (normalized.includes('x509') || normalized.includes('tls') || normalized.includes('certificate')) {
+  if (
+    normalized.includes('x509') ||
+    normalized.includes('tls') ||
+    normalized.includes('certificate')
+  ) {
     return 'TLS verification failed while loading models. Check the provider certificate or endpoint URL.'
   }
-  if (normalized.includes('no such host') || normalized.includes('dial tcp') || normalized.includes('connection refused')) {
+  if (
+    normalized.includes('no such host') ||
+    normalized.includes('dial tcp') ||
+    normalized.includes('connection refused')
+  ) {
     return 'Could not reach the provider endpoint. Check the API endpoint, DNS, proxy, or firewall settings.'
   }
   if (message.trim()) {
@@ -212,7 +236,6 @@ function describeProviderModelsError(err: unknown) {
   }
   return 'Could not load models. Verify the API endpoint, secret, and network connectivity, then try again.'
 }
-
 
 function inferModelGroupLabel(modelId: string): string {
   const trimmed = modelId.trim()
@@ -360,7 +383,8 @@ function mapAIProviderRow(
   const enabledModels = normalizeEnabledModels(item.enabled_models ?? item.config?.enabled_models)
   const inferredRegion =
     String(item.template_id ?? '') === 'aws-bedrock'
-      ? String(item.config?.region ?? '').trim() || inferAWSRegionFromEndpoint(String(item.endpoint ?? ''))
+      ? String(item.config?.region ?? '').trim() ||
+        inferAWSRegionFromEndpoint(String(item.endpoint ?? ''))
       : ''
 
   return {
@@ -370,12 +394,12 @@ function mapAIProviderRow(
     provider: template?.title ?? humanizeTemplateId(String(item.template_id ?? '')),
     is_enabled: resolveAIProviderEnabled(item.is_enabled ?? item.config?.is_enabled),
     enabled_status: normalizeEnabledStatus(item.is_enabled ?? item.config?.is_enabled),
-    reachability:
-      reachabilityOverrides?.get(String(item.id ?? '')) ?? resolveReachability(item, t),
+    reachability: reachabilityOverrides?.get(String(item.id ?? '')) ?? resolveReachability(item, t),
     endpoint: String(item.endpoint ?? ''),
     credential: String(item.credential ?? ''),
     credential_name:
-      secretNamesById.get(String(item.credential ?? '').trim()) ?? String(item.credential ?? '').trim(),
+      secretNamesById.get(String(item.credential ?? '').trim()) ??
+      String(item.credential ?? '').trim(),
     credential_use_secret: Boolean(String(item.credential ?? '').trim()),
     api_key_value: '',
     endpoint_editing: false,
@@ -399,7 +423,7 @@ function buildColumns(
   onToggleEnabled: (item: Record<string, unknown>) => void,
   onShowModels: (id: string, row: Record<string, unknown>) => void,
   reachabilityOverrides: Record<string, string>,
-  enabledModelsCount: Record<string, number>,
+  enabledModelsCount: Record<string, number>
 ): Column[] {
   return [
     {
@@ -442,7 +466,11 @@ function buildColumns(
         return (
           <button
             type="button"
-            className={enabled ? 'inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 cursor-pointer' : 'inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground cursor-pointer'}
+            className={
+              enabled
+                ? 'inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 cursor-pointer'
+                : 'inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground cursor-pointer'
+            }
             onClick={() => onToggleEnabled(row)}
             title={enabled ? 'Click to disable' : 'Click to enable'}
           >
@@ -482,7 +510,8 @@ function buildColumns(
         const id = String(row.id ?? '')
         const count = enabledModelsCount[id]
         if (count === undefined) return <span className="text-muted-foreground">—</span>
-        if (count === 0) return <span className="text-left tabular-nums text-muted-foreground">0 models</span>
+        if (count === 0)
+          return <span className="text-left tabular-nums text-muted-foreground">0 models</span>
         return (
           <button
             type="button"
@@ -551,61 +580,69 @@ export function AIProvidersPage() {
   const enabledModelsCountRef = useRef<Record<string, number>>({})
   const reachabilityRequestVersionRef = useRef(0)
 
-function groupModelsByPrefix(modelIds: string[]): { label: string; models: string[] }[] {
-  const groups: Record<string, string[]> = {}
-  const order: string[] = []
-  for (const id of modelIds) {
-    const label = inferModelGroupLabel(id)
-    if (!groups[label]) {
-      groups[label] = []
-      order.push(label)
+  function groupModelsByPrefix(modelIds: string[]): { label: string; models: string[] }[] {
+    const groups: Record<string, string[]> = {}
+    const order: string[] = []
+    for (const id of modelIds) {
+      const label = inferModelGroupLabel(id)
+      if (!groups[label]) {
+        groups[label] = []
+        order.push(label)
+      }
+      groups[label].push(id)
     }
-    groups[label].push(id)
+    if (order.length <= 1) return []
+    return order.map(label => ({ label, models: groups[label] }))
   }
-  if (order.length <= 1) return []
-  return order.map(label => ({ label, models: groups[label] }))
-}
 
-  const handleEditTestConnection = useCallback(async (
-    editingItem: Record<string, unknown> | null,
-    onPruneSelection?: (models: string[]) => void,
-    currentSelection?: unknown,
-    fetchInput?: { endpoint: string; apiKey: string; templateID: string }
-  ) => {
-    setEditTestResult({ loading: true })
-    setEditModelsValidated(false)
-    try {
-      const providerId = String(editingItem?.id ?? '')
-      let result: ProviderModelsResponse
-      if (fetchInput) {
-        result = await pb.send<ProviderModelsResponse>('/api/ai-providers/fetch-models', {
-          method: 'POST',
-          body: {
-            endpoint: fetchInput.endpoint,
-            api_key: fetchInput.apiKey,
-            template_id: fetchInput.templateID,
-          },
-        })
-      } else {
-        if (!providerId) return
-        result = await pb.send<ProviderModelsResponse>(`/api/ai-providers/models/${providerId}`, {
-          method: 'GET',
-        })
+  const handleEditTestConnection = useCallback(
+    async (
+      editingItem: Record<string, unknown> | null,
+      onPruneSelection?: (models: string[]) => void,
+      currentSelection?: unknown,
+      fetchInput?: { endpoint: string; apiKey: string; templateID: string }
+    ) => {
+      setEditTestResult({ loading: true })
+      setEditModelsValidated(false)
+      try {
+        const providerId = String(editingItem?.id ?? '')
+        let result: ProviderModelsResponse
+        if (fetchInput) {
+          result = await pb.send<ProviderModelsResponse>('/api/ai-providers/fetch-models', {
+            method: 'POST',
+            body: {
+              endpoint: fetchInput.endpoint,
+              api_key: fetchInput.apiKey,
+              template_id: fetchInput.templateID,
+            },
+          })
+        } else {
+          if (!providerId) return
+          result = await pb.send<ProviderModelsResponse>(`/api/ai-providers/models/${providerId}`, {
+            method: 'GET',
+          })
+        }
+        const models = sanitizeProviderModelOptions(result?.models ?? [])
+        setEditModelOptions(models)
+        setEditModelGroups(sanitizeProviderModelGroups(result?.groups ?? []))
+        if (onPruneSelection) {
+          onPruneSelection(
+            reconcileProviderModelSelection(
+              currentSelection,
+              models.map(model => model.id)
+            )
+          )
+        }
+        setEditModelsValidated(true)
+        setEditTestResult({ models: models.map(model => model.id) })
+      } catch (err) {
+        setEditModelOptions([])
+        setEditModelGroups([])
+        setEditTestResult({ error: describeProviderModelsError(err) })
       }
-      const models = sanitizeProviderModelOptions(result?.models ?? [])
-      setEditModelOptions(models)
-      setEditModelGroups(sanitizeProviderModelGroups(result?.groups ?? []))
-      if (onPruneSelection) {
-        onPruneSelection(reconcileProviderModelSelection(currentSelection, models.map(model => model.id)))
-      }
-      setEditModelsValidated(true)
-      setEditTestResult({ models: models.map(model => model.id) })
-    } catch (err) {
-      setEditModelOptions([])
-      setEditModelGroups([])
-      setEditTestResult({ error: describeProviderModelsError(err) })
-    }
-  }, [])
+    },
+    []
+  )
 
   const handleListTestConnection = useCallback(async (item: Record<string, unknown>) => {
     const providerId = String(item.id ?? '')
@@ -636,18 +673,21 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
     }
   }, [])
 
-  const handleShowModels = useCallback((id: string, row: Record<string, unknown>) => {
-    if (expandedDetailId === id) {
-      setExpandedDetailId(null)
+  const handleShowModels = useCallback(
+    (id: string, row: Record<string, unknown>) => {
+      if (expandedDetailId === id) {
+        setExpandedDetailId(null)
+        setExpandedModelsId(null)
+        return
+      }
+      setExpandedDetailId(id)
       setExpandedModelsId(null)
-      return
-    }
-    setExpandedDetailId(id)
-    setExpandedModelsId(null)
-    if (listTestState?.providerId !== id) {
-      void handleListTestConnection(row)
-    }
-  }, [expandedDetailId, listTestState?.providerId, handleListTestConnection])
+      if (listTestState?.providerId !== id) {
+        void handleListTestConnection(row)
+      }
+    },
+    [expandedDetailId, listTestState?.providerId, handleListTestConnection]
+  )
 
   const fetchEnabledModelCounts = useCallback((items: Record<string, unknown>[]) => {
     const counts: Record<string, number> = {}
@@ -716,10 +756,7 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
   useEffect(() => {
     if (!setHeaderRightStartContent) return undefined
     setHeaderRightStartContent(
-      <ResourcesBreadcrumb
-        parentLabel={t('hub.title')}
-        currentPage={t('aiProviders.page.title')}
-      />
+      <ResourcesBreadcrumb parentLabel={t('hub.title')} currentPage={t('aiProviders.page.title')} />
     )
     return () => setHeaderRightStartContent(null)
   }, [setHeaderRightStartContent, t])
@@ -960,7 +997,13 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
         />
       )
     },
-    [editModelGroups, editModelOptions, editModelsValidated, editTestResult, handleEditTestConnection]
+    [
+      editModelGroups,
+      editModelOptions,
+      editModelsValidated,
+      editTestResult,
+      handleEditTestConnection,
+    ]
   )
 
   const baseProviderFields = useMemo<FieldDef[]>(
@@ -1144,13 +1187,21 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
           ]
         }
 
-        const mappedField = mapTemplateFieldToResourceField(field, openSecretDialog, openSecretEditor, t)
+        const mappedField = mapTemplateFieldToResourceField(
+          field,
+          openSecretDialog,
+          openSecretEditor,
+          t
+        )
         if (selectedTemplate?.id === 'aws-bedrock' && field.id === 'region') {
           return [
             {
               ...mappedField,
               onValueChange: (value: unknown, update: (key: string, value: unknown) => void) => {
-                update('endpoint', resolveTemplateEndpoint(selectedTemplate, { ...formData, region: value }))
+                update(
+                  'endpoint',
+                  resolveTemplateEndpoint(selectedTemplate, { ...formData, region: value })
+                )
               },
             },
           ]
@@ -1203,15 +1254,16 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
   )
 
   const columns = useMemo(
-    () => buildColumns(
-      t,
-      providerFilterOptions,
-      handleNameClick,
-      handleToggleEnabled,
-      handleShowModels,
-      reachabilityOverrides,
-      enabledModelsCount
-    ),
+    () =>
+      buildColumns(
+        t,
+        providerFilterOptions,
+        handleNameClick,
+        handleToggleEnabled,
+        handleShowModels,
+        reachabilityOverrides,
+        enabledModelsCount
+      ),
     [
       handleNameClick,
       handleToggleEnabled,
@@ -1261,7 +1313,8 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
                   ? 'destructive'
                   : 'secondary'
             const enabledModels = normalizeEnabledModels(item.enabled_models)
-            const modelsState = listTestState?.providerId === providerId ? listTestState.summary : null
+            const modelsState =
+              listTestState?.providerId === providerId ? listTestState.summary : null
             const modelsLoaded = modelsState?.models != null
             const modelsFetching = modelsState?.loading === true
             const modelsError = modelsState?.error
@@ -1272,52 +1325,59 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
               { label: 'ID', value: providerId },
               {
                 label: t('aiProviders.columns.name'),
-                value: editingDetailName === providerId ? (
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      className="h-7 w-full max-w-[200px] rounded border border-input bg-background px-2 text-sm"
-                      value={detailNameDraft}
-                      onChange={e => setDetailNameDraft(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          const newName = detailNameDraft.trim()
-                          if (newName) {
-                            const updated = { ...item, name: newName }
-                            void buildAIProviderPayload(updated, providerTemplatesById, t).then(body =>
-                              pb.send(`/api/ai-providers/${providerId}`, { method: 'PUT', body })
-                            ).then(() => {
-                              setEditingDetailName(null)
-                              setRefreshKey(k => k + 1)
-                            }).catch(() => {})
+                value:
+                  editingDetailName === providerId ? (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        className="h-7 w-full max-w-[200px] rounded border border-input bg-background px-2 text-sm"
+                        value={detailNameDraft}
+                        onChange={e => setDetailNameDraft(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            const newName = detailNameDraft.trim()
+                            if (newName) {
+                              const updated = { ...item, name: newName }
+                              void buildAIProviderPayload(updated, providerTemplatesById, t)
+                                .then(body =>
+                                  pb.send(`/api/ai-providers/${providerId}`, {
+                                    method: 'PUT',
+                                    body,
+                                  })
+                                )
+                                .then(() => {
+                                  setEditingDetailName(null)
+                                  setRefreshKey(k => k + 1)
+                                })
+                                .catch(() => {})
+                            }
                           }
-                        }
-                        if (e.key === 'Escape') {
-                          setEditingDetailName(null)
-                        }
-                      }}
-                      autoFocus
-                    />
+                          if (e.key === 'Escape') {
+                            setEditingDetailName(null)
+                          }
+                        }}
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                        onClick={() => setEditingDetailName(null)}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
                     <button
                       type="button"
-                      className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
-                      onClick={() => setEditingDetailName(null)}
+                      className="text-left transition-colors hover:text-primary"
+                      onClick={() => {
+                        setDetailNameDraft(String(item.name ?? ''))
+                        setEditingDetailName(providerId)
+                      }}
                     >
-                      <X className="h-3.5 w-3.5" />
+                      {String(item.name ?? '—')}
                     </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    className="text-left transition-colors hover:text-primary"
-                    onClick={() => {
-                      setDetailNameDraft(String(item.name ?? ''))
-                      setEditingDetailName(providerId)
-                    }}
-                  >
-                    {String(item.name ?? '—')}
-                  </button>
-                ),
+                  ),
               },
               {
                 label: 'Provider',
@@ -1342,12 +1402,19 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
               {
                 label: 'Enabled',
                 value: (
-                  <span className={enabled ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}>
+                  <span
+                    className={
+                      enabled ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'
+                    }
+                  >
                     {enabled ? 'Yes' : 'No'}
                   </span>
                 ),
               },
-              { label: t('aiProviders.columns.reachability'), value: <Badge variant={reachVariant}>{reachability}</Badge> },
+              {
+                label: t('aiProviders.columns.reachability'),
+                value: <Badge variant={reachVariant}>{reachability}</Badge>,
+              },
               {
                 label: 'Secret',
                 value: String(item.credential ?? '').trim() ? (
@@ -1403,7 +1470,7 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
             }
             fields.push(
               { label: t('aiProviders.columns.created'), value: formatDateTime(item.created) },
-              { label: t('aiProviders.columns.updated'), value: formatDateTime(item.updated) },
+              { label: t('aiProviders.columns.updated'), value: formatDateTime(item.updated) }
             )
 
             return (
@@ -1446,7 +1513,9 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
                       Loading models...
                     </div>
                   ) : modelsError ? (
-                    <div className="mt-2 rounded-md border bg-destructive/10 px-3 py-2 text-sm text-destructive">{modelsError}</div>
+                    <div className="mt-2 rounded-md border bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                      {modelsError}
+                    </div>
                   ) : modelsLoaded ? (
                     <div className="mt-2">
                       <button
@@ -1467,8 +1536,13 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
                         <div className="mt-2 space-y-2">
                           {modelsState.modelGroups && modelsState.modelGroups.length > 0 ? (
                             modelsState.modelGroups.map(group => (
-                              <div key={group.label} className="space-y-1.5 rounded-md border bg-background p-2.5">
-                                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{group.label}</div>
+                              <div
+                                key={group.label}
+                                className="space-y-1.5 rounded-md border bg-background p-2.5"
+                              >
+                                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                  {group.label}
+                                </div>
                                 <div className="flex flex-wrap gap-1.5">
                                   {group.models.map(model => (
                                     <span
@@ -1503,8 +1577,10 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
           },
           cancelLabel: 'Test it',
           selectedSummary: null,
-          onCancel: editingItem => { void handleEditTestConnection(editingItem) },
-          onEditOpen: (editingItem) => {
+          onCancel: editingItem => {
+            void handleEditTestConnection(editingItem)
+          },
+          onEditOpen: editingItem => {
             editingTemplateIdRef.current = String(editingItem?.template_id ?? '')
             setEditTestResult(null)
             setEditModelOptions([])
@@ -1654,7 +1730,12 @@ function groupModelsByPrefix(modelIds: string[]): { label: string; models: strin
             const providerId = String(item.id ?? '')
             const enabled = resolveAIProviderEnabled(item.is_enabled)
             return [
-              <DropdownMenuItem key="test" onClick={() => { void handleListTestConnection(item) }}>
+              <DropdownMenuItem
+                key="test"
+                onClick={() => {
+                  void handleListTestConnection(item)
+                }}
+              >
                 <Activity className="h-4 w-4" />
                 Test it
               </DropdownMenuItem>,

@@ -25,7 +25,8 @@
     "sendMessage": "Send message",
     "copyMarkdown": "Copy markdown",
     "configureModels": "Configure models",
-    "stopGeneration": "Stop generation"
+    "stopGeneration": "Stop generation",
+    "tokenUsage": "Token usage"
   },
   "fields": {
     "conversationTitle": "Conversation title",
@@ -50,6 +51,19 @@
     "deleteTitle": "Delete conversation?",
     "deleteDescriptionPrefix": "This will permanently delete",
     "deleteDescriptionSuffix": "and its message history. This action cannot be undone."
+  },
+  "tokens": {
+    "title": "Token usage estimate",
+    "description": "Approximate budget for the next request with the selected model.",
+    "currentModel": "Current model",
+    "contextWindow": "Context window",
+    "maxOutput": "Max output",
+    "inputBudget": "Input budget",
+    "visibleConversation": "Visible conversation",
+    "currentDraft": "Current draft",
+    "nextRequestEstimate": "Next request estimate",
+    "remainingInput": "Remaining input",
+    "note": "This is an estimate based on visible chat content and attachments. The server may further summarize or trim history before sending the final request."
   },
   "aria": {
     "conversationActions": "Conversation actions for {{title}}",

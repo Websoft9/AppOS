@@ -317,7 +317,9 @@ describe('ConnectorsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add External Service' }))
 
     const chooser = await screen.findByRole('dialog')
-    expect(within(chooser).getByRole('heading', { name: 'Choose an External Service Type' })).toBeInTheDocument()
+    expect(
+      within(chooser).getByRole('heading', { name: 'Choose an External Service Type' })
+    ).toBeInTheDocument()
     expect(within(chooser).getByText('REST API')).toBeInTheDocument()
     expect(within(chooser).getByText('SMTP')).toBeInTheDocument()
 
@@ -510,7 +512,8 @@ describe('ConnectorsPage', () => {
     render(<ConnectorsPage />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'ses-main' })).toBeInTheDocument()
+      expect(screen.getByText('ses-main')).toBeInTheDocument()
+      expect(screen.getByTitle('More actions')).toBeInTheDocument()
     })
 
     fireEvent.pointerDown(screen.getByTitle('More actions'))
@@ -521,8 +524,10 @@ describe('ConnectorsPage', () => {
     expect(screen.getByText('smtp-password')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Edit Secret' }))
 
+    const directInputToggle = await screen.findByTitle('Use direct API key input')
+    fireEvent.click(directInputToggle)
+
     expect(await screen.findByPlaceholderText('Enter a secret value')).toBeInTheDocument()
-    expect(screen.getByTitle('Use direct API key input')).toBeInTheDocument()
   })
 
   it('opens the settings-generated proxy deep link directly in the External Services form', async () => {
@@ -531,7 +536,9 @@ describe('ConnectorsPage', () => {
     render(<ConnectorsPage />)
 
     const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).queryByRole('heading', { name: 'Choose an External Service Type' })).not.toBeInTheDocument()
+    expect(
+      within(dialog).queryByRole('heading', { name: 'Choose an External Service Type' })
+    ).not.toBeInTheDocument()
     const select = dialog.querySelector('select') as HTMLSelectElement | null
     if (!select) {
       throw new Error('expected profile select to be rendered')

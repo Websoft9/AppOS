@@ -35,7 +35,7 @@ describe('RevealOverlay', () => {
       await Promise.resolve()
     })
 
-    expect(writeText).toHaveBeenCalledWith('{\n  "value": "secret-value"\n}')
+    expect(writeText).toHaveBeenCalledWith('secret-value')
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3000)

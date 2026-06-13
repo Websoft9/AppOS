@@ -28,7 +28,10 @@ func TestWorkerServeMuxRegistersSoftwareRuntimeActions(t *testing.T) {
 
 func TestRecoverOrphanedDeploymentsMarksFailed(t *testing.T) {
 	app := newWorkerTestApp(t)
-	w, err := New(app); if err != nil { t.Fatal(err) }
+	w, err := New(app)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err := app.FindCollectionByNameOrId("deployments"); err != nil {
 		if err := w.recoverOrphanedDeployments(); err != nil {
@@ -57,7 +60,10 @@ func TestRecoverOrphanedDeploymentsMarksFailed(t *testing.T) {
 
 func TestRecoverOrphanedDeploymentsEscalatesSnapshotToManualIntervention(t *testing.T) {
 	app := newWorkerTestApp(t)
-	w, err := New(app); if err != nil { t.Fatal(err) }
+	w, err := New(app)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err := app.FindCollectionByNameOrId("deployments"); err != nil {
 		if err := w.recoverOrphanedDeployments(); err != nil {
@@ -86,7 +92,10 @@ func TestRecoverOrphanedDeploymentsEscalatesSnapshotToManualIntervention(t *test
 
 func TestClaimQueuedDeploymentRejectsActivePeer(t *testing.T) {
 	app := newWorkerTestApp(t)
-	w, err := New(app); if err != nil { t.Fatal(err) }
+	w, err := New(app)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err := app.FindCollectionByNameOrId("deployments"); err != nil {
 		claimed, claimErr := w.claimQueuedDeployment("legacy-id")

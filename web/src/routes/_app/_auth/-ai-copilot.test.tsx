@@ -67,6 +67,8 @@ vi.mock('react-i18next', () => ({
           return 'Copy markdown'
         case 'actions.configureModels':
           return 'Configure models'
+        case 'actions.tokenUsage':
+          return 'Token usage'
         case 'fields.conversationTitle':
           return 'Conversation title'
         case 'fields.messagePlaceholder':
@@ -103,6 +105,28 @@ vi.mock('react-i18next', () => ({
           return 'This will permanently delete'
         case 'dialog.deleteDescriptionSuffix':
           return 'and its message history. This action cannot be undone.'
+        case 'tokens.title':
+          return 'Token usage estimate'
+        case 'tokens.description':
+          return 'Approximate budget for the next request with the selected model.'
+        case 'tokens.currentModel':
+          return 'Current model'
+        case 'tokens.contextWindow':
+          return 'Context window'
+        case 'tokens.maxOutput':
+          return 'Max output'
+        case 'tokens.inputBudget':
+          return 'Input budget'
+        case 'tokens.visibleConversation':
+          return 'Visible conversation'
+        case 'tokens.currentDraft':
+          return 'Current draft'
+        case 'tokens.nextRequestEstimate':
+          return 'Next request estimate'
+        case 'tokens.remainingInput':
+          return 'Remaining input'
+        case 'tokens.note':
+          return 'This is an estimate based on visible chat content and attachments. The server may further summarize or trim history before sending the final request.'
         case 'aria.conversationActions':
           return `Conversation actions for ${options?.title ?? ''}`
         case 'aria.removeAttachment':
@@ -159,12 +183,16 @@ describe('AICopilotPage', () => {
         endpoint: 'https://openrouter.ai/api/v1',
         model_id: 'openai/gpt-4.1-mini',
         label: 'openai/gpt-4.1-mini · OpenRouter',
+        context_size: 131072,
+        max_completion_tokens: 31100,
       },
       {
         provider_id: 'provider-2',
         endpoint: 'https://api.openai.com/v1',
         model_id: 'gpt-4.1',
         label: 'gpt-4.1',
+        context_size: 128000,
+        max_completion_tokens: 16384,
       },
     ])
     createSessionMock.mockResolvedValue({ id: 'session-new', title: 'New chat' })
@@ -223,7 +251,8 @@ describe('AICopilotPage', () => {
         'provider-1',
         'openai/gpt-4.1-mini',
         expect.any(Object),
-        []
+        [],
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
       )
     )
   })
@@ -267,7 +296,8 @@ describe('AICopilotPage', () => {
         'provider-2',
         'gpt-4.1',
         expect.any(Object),
-        []
+        [],
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
       )
     )
   })
@@ -280,8 +310,26 @@ describe('AICopilotPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Configure models' }))
 
     await waitFor(() => {
-      expect(navigateMock).toHaveBeenCalledWith({ to: '/resources/ai-providers', search: { create: undefined } })
+      expect(navigateMock).toHaveBeenCalledWith({
+        to: '/resources/ai-providers',
+        search: { create: undefined },
+      })
     })
+  })
+
+  it('shows estimated token usage details for the selected model', async () => {
+    render(<AICopilotPage />)
+
+    await screen.findByRole('heading', { name: 'Ops chat' })
+    fireEvent.change(screen.getByPlaceholderText('Ask about operations, diagnosis, or AppOS knowledge'), {
+      target: { value: 'Check nginx logs and summarize the findings' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Token usage' }))
+
+    expect(await screen.findByText('Token usage estimate')).toBeInTheDocument()
+    expect(screen.getByText('Current model')).toBeInTheDocument()
+    expect(screen.getByText('Input budget')).toBeInTheDocument()
+    expect(screen.getByText('31,100')).toBeInTheDocument()
   })
 
   it('shows provider setup errors without erasing persisted history', async () => {
@@ -373,7 +421,8 @@ describe('AICopilotPage', () => {
             mime_type: 'text/plain',
             text_content: 'worker_processes auto;',
           }),
-        ]
+        ],
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
       )
     )
     expect(await screen.findByText('received attachment')).toBeInTheDocument()
@@ -463,7 +512,8 @@ describe('AICopilotPage', () => {
         'provider-1',
         'openai/gpt-4.1-mini',
         expect.any(Object),
-        []
+        [],
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
       )
     )
     expect(await screen.findByText('created on demand')).toBeInTheDocument()

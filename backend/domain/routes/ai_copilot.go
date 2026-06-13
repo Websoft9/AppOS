@@ -107,9 +107,9 @@ func handleAICopilotDeleteSession(e *core.RequestEvent) error {
 
 func handleAICopilotSendMessage(e *core.RequestEvent) error {
 	var body struct {
-		Content     string                   `json:"content"`
-		ProviderID  string                   `json:"provider_id,omitempty"`
-		Model       string                   `json:"model,omitempty"`
+		Content     string                      `json:"content"`
+		ProviderID  string                      `json:"provider_id,omitempty"`
+		Model       string                      `json:"model,omitempty"`
 		Attachments []copilot.MessageAttachment `json:"attachments"`
 	}
 	if err := e.BindBody(&body); err != nil {

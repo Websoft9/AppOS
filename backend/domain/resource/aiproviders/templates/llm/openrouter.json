@@ -24,6 +24,10 @@
       "label": "HTTP Referer",
       "type": "string",
       "placeholder": "https://your-app.example.com"
+    },
+    {
+      "id": "max_completion_tokens",
+      "default": 31100
     }
   ]
 }

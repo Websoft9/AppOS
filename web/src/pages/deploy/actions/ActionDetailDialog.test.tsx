@@ -91,8 +91,12 @@ describe('ActionDetailContent', () => {
 
     expect(screen.getByText('Failed')).toBeInTheDocument()
     expect(screen.getByText(/Total duration 7m 0s/i)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /more metadata/i }))
     expect(screen.getByText('Operation ID')).toBeInTheDocument()
     expect(screen.getByText('Server Target')).toBeInTheDocument()
+    expect(screen.getByText('act_1')).toBeInTheDocument()
+    expect(screen.getAllByText('Demo Server').length).toBeGreaterThan(0)
 
     fireEvent.click(screen.getByRole('button', { name: /explain error/i }))
     expect(screen.getByRole('tab', { name: 'Steps' })).toBeInTheDocument()

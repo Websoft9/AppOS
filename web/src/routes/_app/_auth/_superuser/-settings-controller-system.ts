@@ -111,7 +111,15 @@ export function useSystemSettingsController(showToast: ShowToast) {
     try {
       await pb.send(settingsEntryPath('branding'), {
         method: 'PATCH',
-        body: { logoMediaId, logoUrl, wordmark, description, useLogoAsFavicon, faviconMediaId, faviconUrl },
+        body: {
+          logoMediaId,
+          logoUrl,
+          wordmark,
+          description,
+          useLogoAsFavicon,
+          faviconMediaId,
+          faviconUrl,
+        },
       })
       dispatchBrandingUpdated({
         logoMediaId,

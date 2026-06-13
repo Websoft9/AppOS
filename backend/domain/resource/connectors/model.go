@@ -209,23 +209,23 @@ type TemplateField struct {
 // ID is a profile identifier within a kind. It may be vendor-specific (for example openai)
 // or generic (for example generic-smtp), depending on how much differentiation the kind needs.
 type Template struct {
-	ID              string          `json:"id"`
-	Kind            string          `json:"kind"`
-	Title           string          `json:"title"`
-	Vendor          string          `json:"vendor,omitempty"`
-	Category        string          `json:"category,omitempty"`
-	ProviderMode    string          `json:"providerMode,omitempty"`
-	Description     string          `json:"description,omitempty"`
-	HelpURL         string          `json:"helpUrl,omitempty"`
-	ContextSize     int             `json:"contextSize,omitempty"`
-	ModelsEndpoint  string          `json:"modelsEndpoint,omitempty"`
-	DefaultEndpoint string          `json:"defaultEndpoint,omitempty"`
-	DefaultAuth     string          `json:"defaultAuthScheme,omitempty"`
-	DefaultEnabledModels []string   `json:"defaultEnabledModels,omitempty"`
-	Capabilities    []string        `json:"capabilities,omitempty"`
-	Aliases         []string        `json:"aliases,omitempty"`
-	SkipTLSCertVerify bool         `json:"skipTLSCertVerify,omitempty"`
-	Fields          []TemplateField `json:"fields,omitempty"`
+	ID                   string          `json:"id"`
+	Kind                 string          `json:"kind"`
+	Title                string          `json:"title"`
+	Vendor               string          `json:"vendor,omitempty"`
+	Category             string          `json:"category,omitempty"`
+	ProviderMode         string          `json:"providerMode,omitempty"`
+	Description          string          `json:"description,omitempty"`
+	HelpURL              string          `json:"helpUrl,omitempty"`
+	ContextSize          int             `json:"contextSize,omitempty"`
+	ModelsEndpoint       string          `json:"modelsEndpoint,omitempty"`
+	DefaultEndpoint      string          `json:"defaultEndpoint,omitempty"`
+	DefaultAuth          string          `json:"defaultAuthScheme,omitempty"`
+	DefaultEnabledModels []string        `json:"defaultEnabledModels,omitempty"`
+	Capabilities         []string        `json:"capabilities,omitempty"`
+	Aliases              []string        `json:"aliases,omitempty"`
+	SkipTLSCertVerify    bool            `json:"skipTLSCertVerify,omitempty"`
+	Fields               []TemplateField `json:"fields,omitempty"`
 }
 
 func NormalizeTemplateID(raw string) string {

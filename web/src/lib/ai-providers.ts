@@ -89,7 +89,11 @@ export function chooserTitle(template: AIProviderTemplate) {
 }
 
 export function isGatewayProviderTemplate(template: AIProviderTemplate | null | undefined) {
-  return String(template?.providerMode ?? '').trim().toLowerCase() === 'gateway'
+  return (
+    String(template?.providerMode ?? '')
+      .trim()
+      .toLowerCase() === 'gateway'
+  )
 }
 
 export function providerSelectionGroup(template: AIProviderTemplate) {
@@ -185,6 +189,8 @@ export function isAdvancedProviderField(field: AIProviderTemplateField) {
   return (
     normalizedId === 'apiversion' ||
     normalizedId === 'api_version' ||
+    normalizedId === 'max_completion_tokens' ||
+    normalizedId === 'maxcompletiontokens' ||
     normalizedLabel === 'api version'
   )
 }

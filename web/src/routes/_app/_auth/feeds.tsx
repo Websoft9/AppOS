@@ -1247,7 +1247,7 @@ function FeedsPage() {
           body: {
             name,
             url,
-              format: formFormat,
+            format: formFormat,
             favicon_url: formFaviconURL.trim(),
             status: formStatus,
           },

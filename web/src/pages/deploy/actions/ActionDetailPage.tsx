@@ -13,7 +13,11 @@ function getUserLabel(item: { user_email?: string; user_id?: string }): string {
   return item.user_email || item.user_id || '-'
 }
 
-function getServerLabel(item: { server_name?: string; server_label?: string; server_id: string }): string {
+function getServerLabel(item: {
+  server_name?: string
+  server_label?: string
+  server_id: string
+}): string {
   return item.server_name || item.server_label || item.server_id || 'local'
 }
 

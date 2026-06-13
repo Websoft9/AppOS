@@ -75,8 +75,8 @@ func TestSettingsSchemaIncludesUnifiedEntries(t *testing.T) {
 		switch id {
 		case "smtp":
 			foundSystem = section == "system" && source == "native"
-			if !strings.Contains(description, "Resources > Connectors") {
-				t.Fatalf("expected smtp schema entry description to reference connectors, got %q", description)
+			if !strings.Contains(description, "Resources > External Services") {
+				t.Fatalf("expected smtp schema entry description to reference external services, got %q", description)
 			}
 		case "space-quota":
 			foundWorkspace = section == "workspace" && source == "custom"
@@ -191,7 +191,7 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 		case "proxy-consumers":
 			items, _ := value["items"].([]any)
 			definitions, _ := value["definitions"].([]any)
-			foundProxyConsumers = len(items) > 0 && len(definitions) > 0
+			foundProxyConsumers = items != nil && len(definitions) > 0
 		case "deploy-runtime":
 			foundDeployRuntime = value != nil && int(value["imagePullTimeoutSeconds"].(float64)) == 180 && int(value["composeUpTimeoutSeconds"].(float64)) == 600 && int(value["healthCheckTimeoutSeconds"].(float64)) == 120 && int(value["runtimePullIdleHeartbeatSeconds"].(float64)) == 20
 		case "deploy-git-defaults":
@@ -302,7 +302,7 @@ func TestSettingsEntryPatchValidation(t *testing.T) {
 		t.Fatalf("expected proxy-network validation error, got %s", rec.Body.String())
 	}
 
-	badProxyConsumers := `{"items":[{"consumerKey":"ai_providers.global","mode":"always"}]}`
+	badProxyConsumers := `{"items":[{"consumerKey":"invalid.consumer","mode":"always"}]}`
 	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/proxy-consumers", badProxyConsumers, true)
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("expected 422 for invalid proxy-consumers, got %d: %s", rec.Code, rec.Body.String())

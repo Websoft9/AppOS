@@ -148,7 +148,11 @@ export function ResourceDialogForm({
                 {resetAction.label}
               </Button>
             ) : (
-              <Button type="button" variant="outline" onClick={() => (onCancel ? onCancel() : onOpenChange(false))}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => (onCancel ? onCancel() : onOpenChange(false))}
+              >
                 {cancelLabel}
               </Button>
             )}

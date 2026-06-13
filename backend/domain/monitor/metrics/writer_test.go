@@ -3,6 +3,7 @@ package metrics_test
 import (
 	"context"
 	metrics "github.com/websoft9/appos/backend/domain/monitor/metrics"
+	"github.com/websoft9/appos/backend/domain/runtimecfg"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -22,7 +23,9 @@ func TestWriteMetricPointsWritesVictoriaMetricsPrometheusImport(t *testing.T) {
 	}))
 	defer server.Close()
 
-	t.Setenv(metrics.EnvVictoriaMetricsURL, server.URL)
+	previous := runtimecfg.Get()
+	runtimecfg.Set(runtimecfg.Config{TSDBURL: server.URL})
+	t.Cleanup(func() { runtimecfg.Set(previous) })
 	if err := metrics.WriteMetricPoints(context.Background(), []metrics.MetricPoint{{
 		Series:     "appos_host_cpu_usage",
 		Value:      0.42,

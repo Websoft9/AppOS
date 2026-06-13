@@ -449,24 +449,44 @@ export function ActionDetailContent({
                     Source Build
                   </div>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    <OverviewField label="Source Kind" value={sourceBuildAttribution.sourceKind || '-'} />
-                    <OverviewField label="Builder" value={sourceBuildAttribution.builderStrategy || '-'} />
-                    <OverviewField label="Publication Mode" value={sourceBuildAttribution.publicationMode || '-'} />
+                    <OverviewField
+                      label="Source Kind"
+                      value={sourceBuildAttribution.sourceKind || '-'}
+                    />
+                    <OverviewField
+                      label="Builder"
+                      value={sourceBuildAttribution.builderStrategy || '-'}
+                    />
+                    <OverviewField
+                      label="Publication Mode"
+                      value={sourceBuildAttribution.publicationMode || '-'}
+                    />
                     <OverviewField
                       label="Source Ref"
-                      value={<span className="break-all">{sourceBuildAttribution.sourceRef || '-'}</span>}
+                      value={
+                        <span className="break-all">{sourceBuildAttribution.sourceRef || '-'}</span>
+                      }
                       className="sm:col-span-2 xl:col-span-3"
                     />
                     <OverviewField
                       label="Local Image"
-                      value={<span className="break-all">{sourceBuildAttribution.localImageRef || '-'}</span>}
+                      value={
+                        <span className="break-all">
+                          {sourceBuildAttribution.localImageRef || '-'}
+                        </span>
+                      }
                       className="sm:col-span-2"
                     />
-                    <OverviewField label="Target Service" value={sourceBuildAttribution.targetService || '-'} />
+                    <OverviewField
+                      label="Target Service"
+                      value={sourceBuildAttribution.targetService || '-'}
+                    />
                     {sourceBuildAttribution.targetRef ? (
                       <OverviewField
                         label="Publish Target"
-                        value={<span className="break-all">{sourceBuildAttribution.targetRef}</span>}
+                        value={
+                          <span className="break-all">{sourceBuildAttribution.targetRef}</span>
+                        }
                         className="sm:col-span-2 xl:col-span-3"
                       />
                     ) : null}
@@ -480,8 +500,12 @@ export function ActionDetailContent({
           <Tabs value={tab} onValueChange={v => setTab(v as 'steps' | 'logs')} className="my-6">
             <div className="border-b">
               <TabsList variant="line" className="rounded-none bg-transparent">
-                <TabsTrigger value="steps" className="flex-none">Steps</TabsTrigger>
-                <TabsTrigger value="logs" className="flex-none">All Logs</TabsTrigger>
+                <TabsTrigger value="steps" className="flex-none">
+                  Steps
+                </TabsTrigger>
+                <TabsTrigger value="logs" className="flex-none">
+                  All Logs
+                </TabsTrigger>
               </TabsList>
             </div>
 
@@ -489,7 +513,9 @@ export function ActionDetailContent({
               <Card className="border-border/70 shadow-none">
                 <CardContent className="pt-4">
                   {stageItems.length === 0 ? (
-                    <div className="text-xs text-muted-foreground">No execution stage details available yet.</div>
+                    <div className="text-xs text-muted-foreground">
+                      No execution stage details available yet.
+                    </div>
                   ) : (
                     <div className="space-y-3">
                       {stageItems.map((step, index) => {
@@ -502,14 +528,19 @@ export function ActionDetailContent({
                         const pullProgress = parsePullProgressSnapshot(stageLog)
                         const progressPercent =
                           pullProgress && pullProgress.totalLayerCount > 0
-                            ? Math.round((pullProgress.completedLayerCount / pullProgress.totalLayerCount) * 100)
+                            ? Math.round(
+                                (pullProgress.completedLayerCount / pullProgress.totalLayerCount) *
+                                  100
+                              )
                             : 0
 
                         return (
                           <div key={`${step.key}-detail`} className="flex gap-3">
                             <div className="flex w-6 flex-col items-center pt-2">
                               {stageMarker(step.status)}
-                              {index < stageItems.length - 1 ? <span className="mt-1 h-full w-px bg-border" /> : null}
+                              {index < stageItems.length - 1 ? (
+                                <span className="mt-1 h-full w-px bg-border" />
+                              ) : null}
                             </div>
                             <div
                               className={cn(
@@ -535,9 +566,17 @@ export function ActionDetailContent({
                                             ? 'text-sky-700 dark:text-sky-300'
                                             : 'text-foreground'
                                     )}
-                                    onClick={() => setExpandedStageKey(current => (current === step.key ? null : step.key))}
+                                    onClick={() =>
+                                      setExpandedStageKey(current =>
+                                        current === step.key ? null : step.key
+                                      )
+                                    }
                                   >
-                                    {expanded ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+                                    {expanded ? (
+                                      <ChevronDown className="h-4 w-4 shrink-0" />
+                                    ) : (
+                                      <ChevronRight className="h-4 w-4 shrink-0" />
+                                    )}
                                     <span className="truncate">{step.label}</span>
                                   </button>
                                 </div>
@@ -547,7 +586,8 @@ export function ActionDetailContent({
                                       type="button"
                                       className="shrink-0 rounded-md border border-dashed px-2 py-0.5 text-xs text-muted-foreground hover:border-border hover:text-foreground"
                                     >
-                                      Duration {formatDurationCompact(step.started_at, step.finished_at)}
+                                      Duration{' '}
+                                      {formatDurationCompact(step.started_at, step.finished_at)}
                                     </button>
                                   </TooltipTrigger>
                                   <TooltipContent side="top" sideOffset={8}>
@@ -572,44 +612,79 @@ export function ActionDetailContent({
                                   {pullProgress ? (
                                     <div className="rounded-xl border bg-muted/30 p-3">
                                       <div className="flex flex-wrap items-center gap-2">
-                                        <span className="text-xs font-medium text-foreground">Pull progress</span>
-                                        <Badge variant="outline">{pullProgress.completedLayerCount}/{pullProgress.totalLayerCount} layers complete</Badge>
-                                        <Badge variant="outline">{pullProgress.activeLayerCount} active</Badge>
+                                        <span className="text-xs font-medium text-foreground">
+                                          Pull progress
+                                        </span>
+                                        <Badge variant="outline">
+                                          {pullProgress.completedLayerCount}/
+                                          {pullProgress.totalLayerCount} layers complete
+                                        </Badge>
+                                        <Badge variant="outline">
+                                          {pullProgress.activeLayerCount} active
+                                        </Badge>
                                       </div>
                                       <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
-                                        <div className="h-full rounded-full bg-sky-500 transition-all" style={{ width: `${progressPercent}%` }} />
+                                        <div
+                                          className="h-full rounded-full bg-sky-500 transition-all"
+                                          style={{ width: `${progressPercent}%` }}
+                                        />
                                       </div>
                                       {pullProgress.images.length > 0 ? (
                                         <div className="mt-3 flex flex-wrap gap-2">
                                           {pullProgress.images.map(image => (
-                                            <Badge key={image.name} variant={pullStatusTone(image.status)}>{image.name}: {image.status}</Badge>
+                                            <Badge
+                                              key={image.name}
+                                              variant={pullStatusTone(image.status)}
+                                            >
+                                              {image.name}: {image.status}
+                                            </Badge>
                                           ))}
                                         </div>
                                       ) : null}
                                       {pullProgress.layers.length > 0 ? (
                                         <div className="mt-3 space-y-2">
-                                          {pullProgress.layers.slice(-6).reverse().map(layer => (
-                                            <div key={layer.id} className="flex items-center justify-between gap-3 rounded-lg border bg-background/70 px-3 py-2">
-                                              <div className="min-w-0">
-                                                <div className="font-mono text-xs text-foreground">{layer.id}</div>
-                                                <div className="text-xs text-muted-foreground">{layer.detail || 'waiting for next progress update'}</div>
+                                          {pullProgress.layers
+                                            .slice(-6)
+                                            .reverse()
+                                            .map(layer => (
+                                              <div
+                                                key={layer.id}
+                                                className="flex items-center justify-between gap-3 rounded-lg border bg-background/70 px-3 py-2"
+                                              >
+                                                <div className="min-w-0">
+                                                  <div className="font-mono text-xs text-foreground">
+                                                    {layer.id}
+                                                  </div>
+                                                  <div className="text-xs text-muted-foreground">
+                                                    {layer.detail ||
+                                                      'waiting for next progress update'}
+                                                  </div>
+                                                </div>
+                                                <Badge variant={pullStatusTone(layer.status)}>
+                                                  {layer.status}
+                                                </Badge>
                                               </div>
-                                              <Badge variant={pullStatusTone(layer.status)}>{layer.status}</Badge>
-                                            </div>
-                                          ))}
+                                            ))}
                                         </div>
                                       ) : null}
                                       {pullProgress.recentEvents.length > 0 ? (
                                         <div className="mt-3 space-y-1 text-xs text-muted-foreground">
                                           {pullProgress.recentEvents.slice(0, 4).map(event => (
-                                            <div key={event} className="truncate">{event}</div>
+                                            <div key={event} className="truncate">
+                                              {event}
+                                            </div>
                                           ))}
                                         </div>
                                       ) : null}
                                     </div>
                                   ) : null}
                                   <div className="max-h-[280px] overflow-auto rounded-xl bg-black px-3 py-2 font-mono text-[11px] leading-5 text-slate-100">
-                                    <pre className={cn('whitespace-pre-wrap break-words', !stageLog && 'text-slate-500')}>
+                                    <pre
+                                      className={cn(
+                                        'whitespace-pre-wrap break-words',
+                                        !stageLog && 'text-slate-500'
+                                      )}
+                                    >
                                       {stageLog || 'No node log captured yet.'}
                                     </pre>
                                   </div>
@@ -637,7 +712,11 @@ export function ActionDetailContent({
                       <div className="flex flex-wrap items-center gap-2">
                         <Button variant="outline" size="sm" onClick={() => void copyLogs()}>
                           <Copy className="h-3.5 w-3.5" />
-                          {copyState === 'done' ? 'Copied' : copyState === 'failed' ? 'Copy failed' : 'Copy logs'}
+                          {copyState === 'done'
+                            ? 'Copied'
+                            : copyState === 'failed'
+                              ? 'Copy failed'
+                              : 'Copy logs'}
                         </Button>
                         <Button
                           variant={autoScrollEnabled ? 'default' : 'outline'}
@@ -658,7 +737,11 @@ export function ActionDetailContent({
                           {logText.split('\n').map((line, i) => (
                             <div
                               key={i}
-                              className={/error|failed|panic|fatal|exception|denied/i.test(line) ? 'bg-rose-950/60 text-rose-200' : ''}
+                              className={
+                                /error|failed|panic|fatal|exception|denied/i.test(line)
+                                  ? 'bg-rose-950/60 text-rose-200'
+                                  : ''
+                              }
                             >
                               {line || '\u00A0'}
                             </div>

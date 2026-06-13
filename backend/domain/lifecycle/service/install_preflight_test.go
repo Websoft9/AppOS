@@ -41,11 +41,11 @@ func (p *installPreflightProbeStub) CheckPorts(_ context.Context, _ string, port
 			hasConflict = true
 		}
 		items = append(items, InstallPreflightPortItem{
-			Port:       port.Port,
-			Protocol:   port.Protocol,
-			Conflict:   conflict,
-			Occupied:   conflict,
-			Occupancy:  map[string]any{"occupied": conflict},
+			Port:      port.Port,
+			Protocol:  port.Protocol,
+			Conflict:  conflict,
+			Occupied:  conflict,
+			Occupancy: map[string]any{"occupied": conflict},
 			Reservation: map[string]any{
 				"reserved": false,
 				"sources":  []map[string]any{},

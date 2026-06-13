@@ -985,10 +985,7 @@ export function ServersPage() {
   useEffect(() => {
     if (!setHeaderRightStartContent) return undefined
     setHeaderRightStartContent(
-      <ResourcesBreadcrumb
-        parentLabel={t('hub.title')}
-        currentPage={t('servers.page.title')}
-      />
+      <ResourcesBreadcrumb parentLabel={t('hub.title')} currentPage={t('servers.page.title')} />
     )
     return () => setHeaderRightStartContent(null)
   }, [setHeaderRightStartContent, t])
@@ -1180,7 +1177,11 @@ export function ServersPage() {
           return (
             <button
               type="button"
-              className={enabled ? 'inline-flex cursor-pointer items-center gap-1 text-sm text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300' : 'inline-flex cursor-pointer items-center gap-1 text-sm text-muted-foreground hover:text-foreground'}
+              className={
+                enabled
+                  ? 'inline-flex cursor-pointer items-center gap-1 text-sm text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300'
+                  : 'inline-flex cursor-pointer items-center gap-1 text-sm text-muted-foreground hover:text-foreground'
+              }
               onClick={event => {
                 event.stopPropagation()
                 void handleToggleEnabled(row)
@@ -1845,7 +1846,11 @@ export function ServersPage() {
           {presentation.toolActions.length > 0 ? <DropdownMenuSeparator /> : null}
           {presentation.toolActions.map(action => renderConnectionActionItem(item, action))}
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => { void handleToggleEnabled(item) }}>
+          <DropdownMenuItem
+            onClick={() => {
+              void handleToggleEnabled(item)
+            }}
+          >
             {enabled ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
             {enabled ? t('servers.actions.disable') : t('servers.actions.enable')}
           </DropdownMenuItem>
@@ -1856,7 +1861,13 @@ export function ServersPage() {
         </>
       )
     },
-    [getConnectionPresentation, handleDuplicateServer, handleToggleEnabled, renderConnectionActionItem, t]
+    [
+      getConnectionPresentation,
+      handleDuplicateServer,
+      handleToggleEnabled,
+      renderConnectionActionItem,
+      t,
+    ]
   )
 
   const renderPrimaryAction = useCallback(

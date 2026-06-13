@@ -416,10 +416,7 @@ export function ProxySection({
     if (!missingValue) {
       return baseOptions
     }
-    return [
-      { id: missingValue, label: 'Previously selected resource was deleted' },
-      ...baseOptions,
-    ]
+    return [{ id: missingValue, label: 'Previously selected resource was deleted' }, ...baseOptions]
   }
 
   const saveCurrentProxy = () => {
@@ -459,7 +456,7 @@ export function ProxySection({
       case 'always':
         return 'Always use proxy'
       case 'fallback':
-		return 'Try direct then proxy'
+        return 'Try direct then proxy'
       default:
         return 'Disabled'
     }
@@ -481,7 +478,8 @@ export function ProxySection({
           </Button>
         </div>
         <CardDescription>
-          Configure the external proxy resources first, then enroll the outbound consumers that may use them.
+          Configure the external proxy resources first, then enroll the outbound consumers that may
+          use them.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -490,7 +488,8 @@ export function ProxySection({
             <div className="space-y-1">
               <Label htmlFor="proxy-enabled">External Proxy Resources</Label>
               <p className="text-xs text-muted-foreground">
-                Choose the SOCKS5, HTTP, and HTTPS services the platform may use for outbound egress.
+                Choose the SOCKS5, HTTP, and HTTPS services the platform may use for outbound
+                egress.
               </p>
             </div>
             <Toggle
@@ -517,7 +516,8 @@ export function ProxySection({
 
               {hasMissingSelections ? (
                 <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
-                  One or more saved proxy resources were deleted. Choose at least one available proxy option or disable proxy before saving.
+                  One or more saved proxy resources were deleted. Choose at least one available
+                  proxy option or disable proxy before saving.
                 </div>
               ) : null}
 
@@ -529,16 +529,21 @@ export function ProxySection({
                     className={selectClass}
                     value={proxyForm.socks5ConnectorId}
                     onChange={event => {
-                      setProxyForm(current => ({ ...current, socks5ConnectorId: event.target.value }))
+                      setProxyForm(current => ({
+                        ...current,
+                        socks5ConnectorId: event.target.value,
+                      }))
                     }}
                     disabled={connectorsLoading || socks5Options.length === 0}
                   >
                     <option value="">No SOCKS5 proxy</option>
-                    {buildOptionsForValue(socks5Options, missingSelections.socks5ConnectorId).map(option => (
-                      <option key={option.id} value={option.id}>
-                        {option.label}
-                      </option>
-                    ))}
+                    {buildOptionsForValue(socks5Options, missingSelections.socks5ConnectorId).map(
+                      option => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      )
+                    )}
                   </select>
                   <p className="text-xs text-muted-foreground">
                     When set, all outbound traffic uses SOCKS5 before any per-protocol proxy choice.
@@ -560,11 +565,13 @@ export function ProxySection({
                     disabled={connectorsLoading || httpOptions.length === 0}
                   >
                     <option value="">No HTTP proxy</option>
-                    {buildOptionsForValue(httpOptions, missingSelections.httpConnectorId).map(option => (
-                      <option key={option.id} value={option.id}>
-                        {option.label}
-                      </option>
-                    ))}
+                    {buildOptionsForValue(httpOptions, missingSelections.httpConnectorId).map(
+                      option => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      )
+                    )}
                   </select>
                   {proxyErrors.httpConnectorId ? (
                     <p className="text-xs text-destructive">{proxyErrors.httpConnectorId}</p>
@@ -578,16 +585,21 @@ export function ProxySection({
                     className={selectClass}
                     value={proxyForm.httpsConnectorId}
                     onChange={event => {
-                      setProxyForm(current => ({ ...current, httpsConnectorId: event.target.value }))
+                      setProxyForm(current => ({
+                        ...current,
+                        httpsConnectorId: event.target.value,
+                      }))
                     }}
                     disabled={connectorsLoading || httpsOptions.length === 0}
                   >
                     <option value="">No HTTPS proxy</option>
-                    {buildOptionsForValue(httpsOptions, missingSelections.httpsConnectorId).map(option => (
-                      <option key={option.id} value={option.id}>
-                        {option.label}
-                      </option>
-                    ))}
+                    {buildOptionsForValue(httpsOptions, missingSelections.httpsConnectorId).map(
+                      option => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      )
+                    )}
                   </select>
                   {proxyErrors.httpsConnectorId ? (
                     <p className="text-xs text-destructive">{proxyErrors.httpsConnectorId}</p>
@@ -602,7 +614,21 @@ export function ProxySection({
                 </div>
               ) : connectorOptions.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-                  No proxy connectors yet. <a href={addSOCKS5ProxyHref} className="font-medium text-foreground underline underline-offset-4">Add a SOCKS5 proxy</a> or <a href={addHTTPProxyHref} className="font-medium text-foreground underline underline-offset-4">add an HTTP proxy</a> from External Services.
+                  No proxy connectors yet.{' '}
+                  <a
+                    href={addSOCKS5ProxyHref}
+                    className="font-medium text-foreground underline underline-offset-4"
+                  >
+                    Add a SOCKS5 proxy
+                  </a>{' '}
+                  or{' '}
+                  <a
+                    href={addHTTPProxyHref}
+                    className="font-medium text-foreground underline underline-offset-4"
+                  >
+                    add an HTTP proxy
+                  </a>{' '}
+                  from External Services.
                 </div>
               ) : null}
             </div>
@@ -613,7 +639,8 @@ export function ProxySection({
           <div className="space-y-1">
             <Label>Consumer Enrollment</Label>
             <p className="text-xs text-muted-foreground">
-              Decide which outbound consumers may use the configured proxy and whether they always proxy, fall back from direct, or stay direct.
+              Decide which outbound consumers may use the configured proxy and whether they always
+              proxy, fall back from direct, or stay direct.
             </p>
           </div>
           {proxyErrors.consumers ? (
@@ -626,7 +653,10 @@ export function ProxySection({
             {configurableProxyConsumerDefinitions.map(definition => {
               const currentMode = consumerModeMap.get(definition.key) ?? 'disabled'
               return (
-                <div key={definition.key} className="rounded-lg border border-border/60 bg-muted/20 px-4 py-3">
+                <div
+                  key={definition.key}
+                  className="rounded-lg border border-border/60 bg-muted/20 px-4 py-3"
+                >
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div className="space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
@@ -648,7 +678,10 @@ export function ProxySection({
                         className={selectClass}
                         value={currentMode}
                         onChange={event =>
-                          setConsumerMode(definition.key, event.target.value as ProxyConsumerItem['mode'])
+                          setConsumerMode(
+                            definition.key,
+                            event.target.value as ProxyConsumerItem['mode']
+                          )
                         }
                       >
                         {definition.allowedModes.map(mode => (
@@ -667,25 +700,28 @@ export function ProxySection({
             })}
           </div>
 
-      {hardBypassDefinitions.length > 0 ? (
-      <details className="rounded-lg border border-dashed border-border/70 bg-muted/10 px-4 py-3">
-        <summary className="cursor-pointer text-sm font-medium text-foreground">
-        Bypass-only consumers
-        </summary>
-        <div className="mt-3 space-y-3">
-        <p className="text-xs text-muted-foreground">
-          These consumers stay direct by policy and are shown here for reference only.
-        </p>
-        {hardBypassDefinitions.map(definition => (
-          <div key={definition.key} className="rounded-lg border border-border/60 bg-background/80 px-4 py-3">
-          <p className="text-sm font-medium text-foreground">{definition.title}</p>
-          <p className="text-xs text-muted-foreground">{definition.description}</p>
-          <p className="mt-1 text-[11px] text-muted-foreground">{definition.key}</p>
-          </div>
-        ))}
-        </div>
-      </details>
-      ) : null}
+          {hardBypassDefinitions.length > 0 ? (
+            <details className="rounded-lg border border-dashed border-border/70 bg-muted/10 px-4 py-3">
+              <summary className="cursor-pointer text-sm font-medium text-foreground">
+                Bypass-only consumers
+              </summary>
+              <div className="mt-3 space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  These consumers stay direct by policy and are shown here for reference only.
+                </p>
+                {hardBypassDefinitions.map(definition => (
+                  <div
+                    key={definition.key}
+                    className="rounded-lg border border-border/60 bg-background/80 px-4 py-3"
+                  >
+                    <p className="text-sm font-medium text-foreground">{definition.title}</p>
+                    <p className="text-xs text-muted-foreground">{definition.description}</p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">{definition.key}</p>
+                  </div>
+                ))}
+              </div>
+            </details>
+          ) : null}
         </div>
 
         <SaveButton onClick={saveCurrentProxy} saving={proxySaving} />

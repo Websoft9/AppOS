@@ -40,7 +40,10 @@ func TestHandleMonitorReachabilitySweepProjectsInstanceStatuses(t *testing.T) {
 	offline := seedInstanceRecord(t, app, "offline-redis", "redis", closedAddr)
 	skipped := seedInstanceRecord(t, app, "bucket-s3", "s3", "https://s3.example.com")
 
-	w, err := New(app); if err != nil { t.Fatal(err) }
+	w, err := New(app)
+	if err != nil {
+		t.Fatal(err)
+	}
 	task, err := NewMonitorReachabilitySweepTask()
 	if err != nil {
 		t.Fatal(err)
@@ -118,7 +121,10 @@ func TestHandleMonitorMetricsFreshnessProjectsCollectorFreshStatus(t *testing.T)
 	})
 	defer restore()
 
-	w, err := New(app); if err != nil { t.Fatal(err) }
+	w, err := New(app)
+	if err != nil {
+		t.Fatal(err)
+	}
 	task, err := NewMonitorMetricsFreshnessTask()
 	if err != nil {
 		t.Fatal(err)
@@ -198,7 +204,10 @@ func TestHandleMonitorControlReachabilityProjectsServerStatuses(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	w, err := New(app); if err != nil { t.Fatal(err) }
+	w, err := New(app)
+	if err != nil {
+		t.Fatal(err)
+	}
 	task, err := NewMonitorControlReachabilityTask()
 	if err != nil {
 		t.Fatal(err)
@@ -316,7 +325,10 @@ func TestHandleMonitorFactsPullWritesServerFactsSnapshot(t *testing.T) {
 	})
 	defer restore()
 
-	w, err := New(app); if err != nil { t.Fatal(err) }
+	w, err := New(app)
+	if err != nil {
+		t.Fatal(err)
+	}
 	task, err := NewMonitorFactsPullTask()
 	if err != nil {
 		t.Fatal(err)
@@ -372,7 +384,10 @@ func TestHandleMonitorRuntimeSnapshotPullProjectsServerRuntime(t *testing.T) {
 	})
 	defer restore()
 
-	w, err := New(app); if err != nil { t.Fatal(err) }
+	w, err := New(app)
+	if err != nil {
+		t.Fatal(err)
+	}
 	task, err := NewMonitorRuntimeSnapshotPullTask()
 	if err != nil {
 		t.Fatal(err)
@@ -429,7 +444,10 @@ func TestHandleMonitorCredentialSweepProjectsCredentialInvalidWhenSecretMissing(
 		t.Fatal(err)
 	}
 
-	w, err := New(app); if err != nil { t.Fatal(err) }
+	w, err := New(app)
+	if err != nil {
+		t.Fatal(err)
+	}
 	task, err := NewMonitorCredentialSweepTask()
 	if err != nil {
 		t.Fatal(err)
@@ -467,7 +485,10 @@ func TestHandleMonitorAppHealthSweepProjectsAppStatuses(t *testing.T) {
 	degraded := seedAppInstanceRecord(t, app, "degraded-app", "running", "degraded")
 	offline := seedAppInstanceRecord(t, app, "offline-app", "stopped", "stopped")
 
-	w, err := New(app); if err != nil { t.Fatal(err) }
+	w, err := New(app)
+	if err != nil {
+		t.Fatal(err)
+	}
 	task, err := NewMonitorAppHealthSweepTask()
 	if err != nil {
 		t.Fatal(err)

@@ -56,7 +56,7 @@ type Client struct {
 // NewClient creates a new supervisord client.
 func NewClient(cfg Config) *Client {
 	return &Client{
-		cfg: cfg,
+		cfg:  cfg,
 		http: newHTTPClient(cfg),
 	}
 }

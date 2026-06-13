@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -102,6 +103,8 @@ type aiProviderChatModelItem struct {
 	ProviderName string `json:"provider_name,omitempty"`
 	ProviderMode string `json:"provider_mode,omitempty"`
 	GatewayName  string `json:"gateway_name,omitempty"`
+	ContextSize  int    `json:"context_size,omitempty"`
+	MaxTokens    int    `json:"max_completion_tokens,omitempty"`
 }
 
 type aiProviderChatModelsResponse struct {
@@ -571,6 +574,7 @@ func newAIProviderHTTPClient(app core.App, skipTLSVerify bool) http.Client {
 	}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	if skipTLSVerify {
+		// #nosec G402 -- explicit user/provider setting for self-hosted endpoints with custom/self-signed certificates.
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 	return http.Client{Timeout: 8 * time.Second, Transport: transport}
@@ -937,9 +941,18 @@ func buildAIProviderChatModels(items []*aiproviders.AIProvider, defaults map[str
 		endpoint := strings.TrimSpace(preferred.provider.Endpoint())
 		providerMode := strings.TrimSpace(preferred.template.ProviderMode)
 		gatewayName := strings.TrimSpace(preferred.template.Title)
+		maxTokens := firstConfigInt(preferred.provider.Config(), "max_completion_tokens", "maxCompletionTokens")
+		if maxTokens == nil {
+			maxTokens = templateFieldDefaultInt(preferred.template, "max_completion_tokens")
+		}
 		label := preferred.modelID
 		if providerMode == "gateway" && gatewayName != "" {
 			label = preferred.modelID + " · " + gatewayName
+		}
+		contextSize := preferred.template.ContextSize
+		resolvedMaxTokens := 0
+		if maxTokens != nil && *maxTokens > 0 {
+			resolvedMaxTokens = *maxTokens
 		}
 		result = append(result, aiProviderChatModelItem{
 			ProviderID:   preferred.provider.ID(),
@@ -949,9 +962,96 @@ func buildAIProviderChatModels(items []*aiproviders.AIProvider, defaults map[str
 			ProviderName: preferred.provider.Name(),
 			ProviderMode: providerMode,
 			GatewayName:  gatewayName,
+			ContextSize:  contextSize,
+			MaxTokens:    resolvedMaxTokens,
 		})
 	}
 	return result
+}
+
+func firstConfigInt(config map[string]any, keys ...string) *int {
+	for _, key := range keys {
+		value, ok := config[key]
+		if !ok || value == nil {
+			continue
+		}
+		switch typed := value.(type) {
+		case int:
+			if typed > 0 {
+				result := typed
+				return &result
+			}
+		case int32:
+			if typed > 0 {
+				result := int(typed)
+				return &result
+			}
+		case int64:
+			if typed > 0 {
+				result := int(typed)
+				return &result
+			}
+		case float64:
+			if typed > 0 {
+				result := int(typed)
+				return &result
+			}
+		case string:
+			text := strings.TrimSpace(typed)
+			if text == "" {
+				continue
+			}
+			parsed, err := strconv.Atoi(text)
+			if err == nil && parsed > 0 {
+				return &parsed
+			}
+		}
+	}
+	return nil
+}
+
+func templateFieldDefaultInt(template aiproviders.Template, fieldID string) *int {
+	fieldID = strings.TrimSpace(fieldID)
+	if fieldID == "" {
+		return nil
+	}
+	for _, field := range template.Fields {
+		if strings.TrimSpace(field.ID) != fieldID || field.Default == nil {
+			continue
+		}
+		switch typed := field.Default.(type) {
+		case int:
+			if typed > 0 {
+				result := typed
+				return &result
+			}
+		case int32:
+			if typed > 0 {
+				result := int(typed)
+				return &result
+			}
+		case int64:
+			if typed > 0 {
+				result := int(typed)
+				return &result
+			}
+		case float64:
+			if typed > 0 {
+				result := int(typed)
+				return &result
+			}
+		case string:
+			text := strings.TrimSpace(typed)
+			if text == "" {
+				return nil
+			}
+			parsed, err := strconv.Atoi(text)
+			if err == nil && parsed > 0 {
+				return &parsed
+			}
+		}
+	}
+	return nil
 }
 
 func preferredProviderForEndpoint(candidates []aiProviderModelCandidate, defaults map[string]string) aiProviderModelCandidate {

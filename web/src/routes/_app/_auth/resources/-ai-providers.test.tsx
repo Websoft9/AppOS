@@ -181,6 +181,12 @@ describe('AIProvidersPage', () => {
                   placeholder: '2024-10-21',
                 },
                 {
+                  id: 'max_completion_tokens',
+                  label: 'Max Completion Tokens',
+                  type: 'number',
+                  default: 4096,
+                },
+                {
                   id: 'credential',
                   label: 'API Key',
                   type: 'secret_ref',
@@ -324,12 +330,14 @@ describe('AIProvidersPage', () => {
     expect(screen.getByTitle('Use a saved secret')).toBeInTheDocument()
     expect(screen.queryByText('Enable Models')).not.toBeInTheDocument()
     expect(screen.queryByText('API Version')).not.toBeInTheDocument()
+    expect(screen.queryByText('Max Completion Tokens')).not.toBeInTheDocument()
     expect(screen.queryByText('Advanced Config (JSON)')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Advanced/i }))
 
     expect(screen.getByText('API Version')).toBeInTheDocument()
+    expect(screen.getByText('Max Completion Tokens')).toBeInTheDocument()
     expect(screen.getByText('Enable it')).toBeInTheDocument()
     expect(screen.getAllByText('API Endpoint').length).toBeGreaterThan(0)
   }, 15000)
@@ -380,6 +388,57 @@ describe('AIProvidersPage', () => {
       expect.objectContaining({
         auth_scheme: 'api_key',
         credential: 'secret-1',
+      })
+    )
+  })
+
+  it('keeps max completion tokens in provider config payload', async () => {
+    const templatesById = new Map([
+      [
+        'openrouter',
+        {
+          id: 'openrouter',
+          kind: 'llm',
+          title: 'OpenRouter',
+          defaultAuthScheme: 'api_key',
+          fields: [
+            { id: 'endpoint', label: 'Endpoint', type: 'url', required: true },
+            {
+              id: 'credential',
+              label: 'API Key',
+              type: 'secret_ref',
+              required: true,
+              secretTemplate: 'single_value',
+            },
+            {
+              id: 'max_completion_tokens',
+              label: 'Max Completion Tokens',
+              type: 'number',
+              default: 31100,
+            },
+          ],
+        },
+      ],
+    ])
+
+    getOneMock.mockResolvedValue({ id: 'secret-1', template_id: 'single_value' })
+    const payload = await buildAIProviderPayload(
+      {
+        name: 'openrouter-main',
+        template_id: 'openrouter',
+        endpoint: 'https://openrouter.ai/api/v1',
+        credential: 'secret-1',
+        credential_use_secret: true,
+        max_completion_tokens: '31100',
+      },
+      templatesById
+    )
+
+    expect(payload).toEqual(
+      expect.objectContaining({
+        config: expect.objectContaining({
+          max_completion_tokens: 31100,
+        }),
       })
     )
   })
@@ -545,9 +604,12 @@ describe('AIProvidersPage', () => {
     expect(screen.getByText('No')).toBeInTheDocument()
 
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith(expect.stringContaining('/api/ai-providers/reachability?'), {
-        method: 'GET',
-      })
+      expect(sendMock).toHaveBeenCalledWith(
+        expect.stringContaining('/api/ai-providers/reachability?'),
+        {
+          method: 'GET',
+        }
+      )
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'xai-main' }))
@@ -626,67 +688,71 @@ describe('AIProvidersPage', () => {
   })
 
   it('preserves saved enabled models in edit mode and keeps them checked after loading inventory', async () => {
-    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
-      if (path === '/api/ai-providers/templates') {
-        return Promise.resolve([
-          {
-            id: 'bailian',
-            kind: 'llm',
-            title: 'Alibaba Cloud Bailian',
-            vendor: 'Alibaba Cloud',
-            defaultEndpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-            defaultAuthScheme: 'api_key',
-            fields: [
-              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
-              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+        if (path === '/api/ai-providers/templates') {
+          return Promise.resolve([
+            {
+              id: 'bailian',
+              kind: 'llm',
+              title: 'Alibaba Cloud Bailian',
+              vendor: 'Alibaba Cloud',
+              defaultEndpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+              defaultAuthScheme: 'api_key',
+              fields: [
+                { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+                { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+              ],
+            },
+          ])
+        }
+        if (path === '/api/ai-providers') {
+          return Promise.resolve([
+            {
+              id: 'alibaba-cloud-bailian-1494',
+              name: 'bailian-main',
+              template_id: 'bailian',
+              endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+              credential: 'secret-1',
+              is_enabled: true,
+              enabled_models: ['qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-vl-max'],
+              config: {},
+            },
+          ])
+        }
+        if (path.startsWith('/api/ai-providers/reachability?')) {
+          return Promise.resolve({
+            items: [{ id: 'alibaba-cloud-bailian-1494', status: 'reachable' }],
+          })
+        }
+        if (path === '/api/ai-providers/models/alibaba-cloud-bailian-1494') {
+          return Promise.resolve({
+            models: [
+              { id: 'qwen-max' },
+              { id: 'qwen-plus' },
+              { id: 'qwen-turbo' },
+              { id: 'qwen-vl-max' },
+              { id: 'qwen-coder-plus' },
             ],
-          },
-        ])
+          })
+        }
+        if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === AI_PROVIDER_SECRET_PATH) {
+          return Promise.resolve({
+            items: [{ id: 'secret-1', name: 'shared-secret', template_id: 'single_value' }],
+          })
+        }
+        if (path === '/api/collections/group_items/records?perPage=500&sort=name') {
+          return Promise.resolve({ items: [] })
+        }
+        if (path.startsWith('/api/ai-providers/') && options?.method === 'PUT') {
+          return Promise.resolve({})
+        }
+        return Promise.resolve([])
       }
-      if (path === '/api/ai-providers') {
-        return Promise.resolve([
-          {
-            id: 'alibaba-cloud-bailian-1494',
-            name: 'bailian-main',
-            template_id: 'bailian',
-            endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-            credential: 'secret-1',
-            is_enabled: true,
-            enabled_models: ['qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-vl-max'],
-            config: {},
-          },
-        ])
-      }
-      if (path.startsWith('/api/ai-providers/reachability?')) {
-        return Promise.resolve({ items: [{ id: 'alibaba-cloud-bailian-1494', status: 'reachable' }] })
-      }
-      if (path === '/api/ai-providers/models/alibaba-cloud-bailian-1494') {
-        return Promise.resolve({
-          models: [
-            { id: 'qwen-max' },
-            { id: 'qwen-plus' },
-            { id: 'qwen-turbo' },
-            { id: 'qwen-vl-max' },
-            { id: 'qwen-coder-plus' },
-          ],
-        })
-      }
-      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
-        return Promise.resolve({ items: [] })
-      }
-      if (path === AI_PROVIDER_SECRET_PATH) {
-        return Promise.resolve({
-          items: [{ id: 'secret-1', name: 'shared-secret', template_id: 'single_value' }],
-        })
-      }
-      if (path === '/api/collections/group_items/records?perPage=500&sort=name') {
-        return Promise.resolve({ items: [] })
-      }
-      if (path.startsWith('/api/ai-providers/') && options?.method === 'PUT') {
-        return Promise.resolve({})
-      }
-      return Promise.resolve([])
-    })
+    )
 
     render(<AIProvidersPage />)
 
@@ -716,65 +782,67 @@ describe('AIProvidersPage', () => {
   })
 
   it('drops invalid saved models after loading inventory and tolerates group labels missing from the API', async () => {
-    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
-      if (path === '/api/ai-providers/templates') {
-        return Promise.resolve([
-          {
-            id: 'aws-bedrock',
-            kind: 'llm',
-            title: 'AWS Bedrock',
-            vendor: 'Amazon Web Services',
-            defaultEndpoint: 'https://bedrock-mantle.us-east-1.api.aws/openai/v1',
-            defaultAuthScheme: 'api_key',
-            fields: [
-              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
-              { id: 'region', label: 'Region Code', type: 'string' },
-              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
-            ],
-          },
-        ])
-      }
-      if (path === '/api/ai-providers') {
-        return Promise.resolve([
-          {
-            id: 'provider-bedrock',
-            name: 'bedrock-main',
-            template_id: 'aws-bedrock',
-            endpoint: 'https://bedrock-mantle.us-east-1.api.aws/openai/v1',
-            credential: 'secret-1',
-            is_enabled: true,
-            enabled_models: ['anthropic.claude-3-5-sonnet-20240620-v1:0', 'stale-model-id'],
-            config: { region: 'us-east-1' },
-          },
-        ])
-      }
-      if (path.startsWith('/api/ai-providers/reachability?')) {
-        return Promise.resolve({ items: [{ id: 'provider-bedrock', status: 'reachable' }] })
-      }
-      if (path === '/api/ai-providers/models/provider-bedrock') {
-        return Promise.resolve({
-          models: [{ id: 'anthropic.claude-3-5-sonnet-20240620-v1:0' }],
-          groups: [
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+        if (path === '/api/ai-providers/templates') {
+          return Promise.resolve([
             {
-              vendor: 'Anthropic',
-              models: [{ id: 'anthropic.claude-3-5-sonnet-20240620-v1:0' }],
+              id: 'aws-bedrock',
+              kind: 'llm',
+              title: 'AWS Bedrock',
+              vendor: 'Amazon Web Services',
+              defaultEndpoint: 'https://bedrock-mantle.us-east-1.api.aws/openai/v1',
+              defaultAuthScheme: 'api_key',
+              fields: [
+                { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+                { id: 'region', label: 'Region Code', type: 'string' },
+                { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+              ],
             },
-          ],
-        })
+          ])
+        }
+        if (path === '/api/ai-providers') {
+          return Promise.resolve([
+            {
+              id: 'provider-bedrock',
+              name: 'bedrock-main',
+              template_id: 'aws-bedrock',
+              endpoint: 'https://bedrock-mantle.us-east-1.api.aws/openai/v1',
+              credential: 'secret-1',
+              is_enabled: true,
+              enabled_models: ['anthropic.claude-3-5-sonnet-20240620-v1:0', 'stale-model-id'],
+              config: { region: 'us-east-1' },
+            },
+          ])
+        }
+        if (path.startsWith('/api/ai-providers/reachability?')) {
+          return Promise.resolve({ items: [{ id: 'provider-bedrock', status: 'reachable' }] })
+        }
+        if (path === '/api/ai-providers/models/provider-bedrock') {
+          return Promise.resolve({
+            models: [{ id: 'anthropic.claude-3-5-sonnet-20240620-v1:0' }],
+            groups: [
+              {
+                vendor: 'Anthropic',
+                models: [{ id: 'anthropic.claude-3-5-sonnet-20240620-v1:0' }],
+              },
+            ],
+          })
+        }
+        if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === AI_PROVIDER_SECRET_PATH) {
+          return Promise.resolve({
+            items: [{ id: 'secret-1', name: 'bedrock-secret', template_id: 'single_value' }],
+          })
+        }
+        if (path.startsWith('/api/ai-providers/') && options?.method === 'PUT') {
+          return Promise.resolve({ ok: true, body: options.body })
+        }
+        return Promise.resolve([])
       }
-      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
-        return Promise.resolve({ items: [] })
-      }
-      if (path === AI_PROVIDER_SECRET_PATH) {
-        return Promise.resolve({
-          items: [{ id: 'secret-1', name: 'bedrock-secret', template_id: 'single_value' }],
-        })
-      }
-      if (path.startsWith('/api/ai-providers/') && options?.method === 'PUT') {
-        return Promise.resolve({ ok: true, body: options.body })
-      }
-      return Promise.resolve([])
-    })
+    )
 
     render(<AIProvidersPage />)
 
@@ -805,61 +873,63 @@ describe('AIProvidersPage', () => {
   })
 
   it('updates enabled models and edits the current secret inline without opening a new page', async () => {
-    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
-      if (path === '/api/ai-providers/templates') {
-        return Promise.resolve([
-          {
-            id: 'google-gemini',
-            kind: 'llm',
-            title: 'Google Gemini',
-            vendor: 'Google',
-            defaultEndpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
-            defaultAuthScheme: 'api_key',
-            fields: [
-              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
-              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
-            ],
-          },
-        ])
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+        if (path === '/api/ai-providers/templates') {
+          return Promise.resolve([
+            {
+              id: 'google-gemini',
+              kind: 'llm',
+              title: 'Google Gemini',
+              vendor: 'Google',
+              defaultEndpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
+              defaultAuthScheme: 'api_key',
+              fields: [
+                { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+                { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+              ],
+            },
+          ])
+        }
+        if (path === '/api/ai-providers') {
+          return Promise.resolve([
+            {
+              id: 'provider-gemini',
+              name: 'gemini-main',
+              template_id: 'google-gemini',
+              endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
+              credential: 'secret-1',
+              is_enabled: true,
+              enabled_models: ['gemini-3.5-flash'],
+              config: {},
+            },
+          ])
+        }
+        if (path.startsWith('/api/ai-providers/reachability?')) {
+          return Promise.resolve({ items: [{ id: 'provider-gemini', status: 'reachable' }] })
+        }
+        if (path === '/api/ai-providers/models/provider-gemini') {
+          return Promise.resolve({
+            models: [{ id: 'gemini-3.5-flash' }, { id: 'gemini-3.1-pro-preview' }],
+          })
+        }
+        if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === AI_PROVIDER_SECRET_PATH) {
+          return Promise.resolve({
+            items: [{ id: 'secret-1', name: 'gemini-secret', template_id: 'single_value' }],
+          })
+        }
+        if (path === '/api/secrets/secret-1/payload' && options?.method === 'PUT') {
+          return Promise.resolve({ ok: true, version: 2 })
+        }
+        if (path.startsWith('/api/ai-providers/') && options?.method === 'PUT') {
+          return Promise.resolve({ ok: true, body: options.body })
+        }
+        return Promise.resolve([])
       }
-      if (path === '/api/ai-providers') {
-        return Promise.resolve([
-          {
-            id: 'provider-gemini',
-            name: 'gemini-main',
-            template_id: 'google-gemini',
-            endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
-            credential: 'secret-1',
-            is_enabled: true,
-            enabled_models: ['gemini-3.5-flash'],
-            config: {},
-          },
-        ])
-      }
-      if (path.startsWith('/api/ai-providers/reachability?')) {
-        return Promise.resolve({ items: [{ id: 'provider-gemini', status: 'reachable' }] })
-      }
-      if (path === '/api/ai-providers/models/provider-gemini') {
-        return Promise.resolve({
-          models: [{ id: 'gemini-3.5-flash' }, { id: 'gemini-3.1-pro-preview' }],
-        })
-      }
-      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
-        return Promise.resolve({ items: [] })
-      }
-      if (path === AI_PROVIDER_SECRET_PATH) {
-        return Promise.resolve({
-          items: [{ id: 'secret-1', name: 'gemini-secret', template_id: 'single_value' }],
-        })
-      }
-      if (path === '/api/secrets/secret-1/payload' && options?.method === 'PUT') {
-        return Promise.resolve({ ok: true, version: 2 })
-      }
-      if (path.startsWith('/api/ai-providers/') && options?.method === 'PUT') {
-        return Promise.resolve({ ok: true, body: options.body })
-      }
-      return Promise.resolve([])
-    })
+    )
 
     render(<AIProvidersPage />)
 
@@ -874,9 +944,12 @@ describe('AIProvidersPage', () => {
     fireEvent.click(screen.getByLabelText('gemini-3.1-pro-preview'))
 
     fireEvent.click(screen.getByTitle('Edit secret value'))
-    fireEvent.change(screen.getByPlaceholderText('Enter a new API key to update the current secret'), {
-      target: { value: 'replacement-secret-value' },
-    })
+    fireEvent.change(
+      screen.getByPlaceholderText('Enter a new API key to update the current secret'),
+      {
+        target: { value: 'replacement-secret-value' },
+      }
+    )
 
     fireEvent.click(screen.getByRole('button', { name: /^Save/i }))
 
@@ -899,58 +972,60 @@ describe('AIProvidersPage', () => {
   })
 
   it('uses the unsaved inline secret value when loading models in edit mode', async () => {
-    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
-      if (path === '/api/ai-providers/templates') {
-        return Promise.resolve([
-          {
-            id: 'google-gemini',
-            kind: 'llm',
-            title: 'Google Gemini',
-            vendor: 'Google',
-            defaultEndpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
-            defaultAuthScheme: 'api_key',
-            fields: [
-              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
-              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
-            ],
-          },
-        ])
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+        if (path === '/api/ai-providers/templates') {
+          return Promise.resolve([
+            {
+              id: 'google-gemini',
+              kind: 'llm',
+              title: 'Google Gemini',
+              vendor: 'Google',
+              defaultEndpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
+              defaultAuthScheme: 'api_key',
+              fields: [
+                { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+                { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+              ],
+            },
+          ])
+        }
+        if (path === '/api/ai-providers') {
+          return Promise.resolve([
+            {
+              id: 'provider-gemini',
+              name: 'gemini-main',
+              template_id: 'google-gemini',
+              endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
+              credential: 'secret-1',
+              is_enabled: true,
+              enabled_models: ['gemini-3.5-flash'],
+              config: {},
+            },
+          ])
+        }
+        if (path.startsWith('/api/ai-providers/reachability?')) {
+          return Promise.resolve({ items: [{ id: 'provider-gemini', status: 'reachable' }] })
+        }
+        if (path === '/api/ai-providers/fetch-models' && options?.method === 'POST') {
+          return Promise.resolve({
+            models: [{ id: 'gemini-3.5-flash' }, { id: 'gemini-3.1-pro-preview' }],
+          })
+        }
+        if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === AI_PROVIDER_SECRET_PATH) {
+          return Promise.resolve({
+            items: [{ id: 'secret-1', name: 'gemini-secret', template_id: 'single_value' }],
+          })
+        }
+        if (path.startsWith('/api/ai-providers/') && options?.method === 'PUT') {
+          return Promise.resolve({ ok: true, body: options.body })
+        }
+        return Promise.resolve([])
       }
-      if (path === '/api/ai-providers') {
-        return Promise.resolve([
-          {
-            id: 'provider-gemini',
-            name: 'gemini-main',
-            template_id: 'google-gemini',
-            endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
-            credential: 'secret-1',
-            is_enabled: true,
-            enabled_models: ['gemini-3.5-flash'],
-            config: {},
-          },
-        ])
-      }
-      if (path.startsWith('/api/ai-providers/reachability?')) {
-        return Promise.resolve({ items: [{ id: 'provider-gemini', status: 'reachable' }] })
-      }
-      if (path === '/api/ai-providers/fetch-models' && options?.method === 'POST') {
-        return Promise.resolve({
-          models: [{ id: 'gemini-3.5-flash' }, { id: 'gemini-3.1-pro-preview' }],
-        })
-      }
-      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
-        return Promise.resolve({ items: [] })
-      }
-      if (path === AI_PROVIDER_SECRET_PATH) {
-        return Promise.resolve({
-          items: [{ id: 'secret-1', name: 'gemini-secret', template_id: 'single_value' }],
-        })
-      }
-      if (path.startsWith('/api/ai-providers/') && options?.method === 'PUT') {
-        return Promise.resolve({ ok: true, body: options.body })
-      }
-      return Promise.resolve([])
-    })
+    )
 
     render(<AIProvidersPage />)
 
@@ -960,9 +1035,12 @@ describe('AIProvidersPage', () => {
     fireEvent.click(await screen.findByText('Edit'))
 
     fireEvent.click(screen.getByTitle('Edit secret value'))
-    fireEvent.change(screen.getByPlaceholderText('Enter a new API key to update the current secret'), {
-      target: { value: 'replacement-secret-value' },
-    })
+    fireEvent.change(
+      screen.getByPlaceholderText('Enter a new API key to update the current secret'),
+      {
+        target: { value: 'replacement-secret-value' },
+      }
+    )
 
     fireEvent.click(screen.getByRole('button', { name: /Load all available models/i }))
 
@@ -983,58 +1061,60 @@ describe('AIProvidersPage', () => {
   })
 
   it('keeps the provider name in edit mode so the title and update payload stay populated', async () => {
-    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
-      if (path === '/api/ai-providers/templates') {
-        return Promise.resolve([
-          {
-            id: 'google-gemini',
-            kind: 'llm',
-            title: 'Google Gemini',
-            vendor: 'Google',
-            defaultEndpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
-            defaultAuthScheme: 'api_key',
-            fields: [
-              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
-              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
-            ],
-          },
-        ])
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+        if (path === '/api/ai-providers/templates') {
+          return Promise.resolve([
+            {
+              id: 'google-gemini',
+              kind: 'llm',
+              title: 'Google Gemini',
+              vendor: 'Google',
+              defaultEndpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
+              defaultAuthScheme: 'api_key',
+              fields: [
+                { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+                { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+              ],
+            },
+          ])
+        }
+        if (path === '/api/ai-providers') {
+          return Promise.resolve([
+            {
+              id: 'provider-gemini',
+              name: 'gemini-main',
+              template_id: 'google-gemini',
+              endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
+              credential: 'secret-1',
+              is_enabled: true,
+              enabled_models: ['gemini-3.5-flash'],
+              config: {},
+            },
+          ])
+        }
+        if (path.startsWith('/api/ai-providers/reachability?')) {
+          return Promise.resolve({ items: [{ id: 'provider-gemini', status: 'reachable' }] })
+        }
+        if (path === '/api/ai-providers/models/provider-gemini') {
+          return Promise.resolve({
+            models: [{ id: 'gemini-3.5-flash' }, { id: 'gemini-3.1-pro-preview' }],
+          })
+        }
+        if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === AI_PROVIDER_SECRET_PATH) {
+          return Promise.resolve({
+            items: [{ id: 'secret-1', name: 'gemini-secret', template_id: 'single_value' }],
+          })
+        }
+        if (path.startsWith('/api/ai-providers/') && options?.method === 'PUT') {
+          return Promise.resolve({ ok: true, body: options.body })
+        }
+        return Promise.resolve([])
       }
-      if (path === '/api/ai-providers') {
-        return Promise.resolve([
-          {
-            id: 'provider-gemini',
-            name: 'gemini-main',
-            template_id: 'google-gemini',
-            endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
-            credential: 'secret-1',
-            is_enabled: true,
-            enabled_models: ['gemini-3.5-flash'],
-            config: {},
-          },
-        ])
-      }
-      if (path.startsWith('/api/ai-providers/reachability?')) {
-        return Promise.resolve({ items: [{ id: 'provider-gemini', status: 'reachable' }] })
-      }
-      if (path === '/api/ai-providers/models/provider-gemini') {
-        return Promise.resolve({
-          models: [{ id: 'gemini-3.5-flash' }, { id: 'gemini-3.1-pro-preview' }],
-        })
-      }
-      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
-        return Promise.resolve({ items: [] })
-      }
-      if (path === AI_PROVIDER_SECRET_PATH) {
-        return Promise.resolve({
-          items: [{ id: 'secret-1', name: 'gemini-secret', template_id: 'single_value' }],
-        })
-      }
-      if (path.startsWith('/api/ai-providers/') && options?.method === 'PUT') {
-        return Promise.resolve({ ok: true, body: options.body })
-      }
-      return Promise.resolve([])
-    })
+    )
 
     render(<AIProvidersPage />)
 

@@ -14,7 +14,13 @@ interface AppCardProps {
   userApps?: UserApp[]
 }
 
-export function AppCard({ product, primaryCategories, onSelectApp, onDeploy, userApps = [] }: AppCardProps) {
+export function AppCard({
+  product,
+  primaryCategories,
+  onSelectApp,
+  onDeploy,
+  userApps = [],
+}: AppCardProps) {
   const { t } = useTranslation('store')
 
   const primaryCat = primaryCategories.find(c => c.key === product.primaryCategoryKey)

@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { Check, ExternalLink, Loader2, Pencil } from 'lucide-react'
 import {
@@ -57,7 +65,7 @@ function mapTemplateFieldToResourceField(
   openSecretDialog: (callbacks: { addOption: (id: string, label: string) => void }) => void,
   openSecretEditor: (secretId: string) => void,
   renderCredentialField: NonNullable<FieldDef['render']>,
-  renderEndpointField: NonNullable<FieldDef['render']>,
+  renderEndpointField: NonNullable<FieldDef['render']>
 ): FieldDef {
   if (field.id === 'credential') {
     return {
@@ -137,9 +145,12 @@ function mapTemplateFieldToResourceField(
 
 async function fetchRelationOptions(field: FieldDef): Promise<RelationOption[]> {
   if (!field.relationApiPath) return []
-  const response = await pb.send<{ items?: Array<Record<string, unknown>> }>(field.relationApiPath, {
-    method: 'GET',
-  })
+  const response = await pb.send<{ items?: Array<Record<string, unknown>> }>(
+    field.relationApiPath,
+    {
+      method: 'GET',
+    }
+  )
   const items = Array.isArray(response?.items) ? response.items : []
   return items.map(item => ({
     id: String(item.id ?? ''),
@@ -153,7 +164,12 @@ async function fetchRelationOptions(field: FieldDef): Promise<RelationOption[]> 
 function describeProviderModelsError(err: unknown) {
   const message = err instanceof Error ? err.message : String(err ?? '')
   const normalized = message.toLowerCase()
-  if (normalized.includes('401') || normalized.includes('403') || normalized.includes('unauthorized') || normalized.includes('forbidden')) {
+  if (
+    normalized.includes('401') ||
+    normalized.includes('403') ||
+    normalized.includes('unauthorized') ||
+    normalized.includes('forbidden')
+  ) {
     return 'Authentication failed while loading models. Check the API key or secret and try again.'
   }
   if (normalized.includes('404')) {
@@ -162,10 +178,18 @@ function describeProviderModelsError(err: unknown) {
   if (normalized.includes('timeout') || normalized.includes('deadline exceeded')) {
     return 'Loading models timed out. Check network connectivity and confirm the provider endpoint is reachable.'
   }
-  if (normalized.includes('x509') || normalized.includes('tls') || normalized.includes('certificate')) {
+  if (
+    normalized.includes('x509') ||
+    normalized.includes('tls') ||
+    normalized.includes('certificate')
+  ) {
     return 'TLS verification failed while loading models. Check the provider certificate or endpoint URL.'
   }
-  if (normalized.includes('no such host') || normalized.includes('dial tcp') || normalized.includes('connection refused')) {
+  if (
+    normalized.includes('no such host') ||
+    normalized.includes('dial tcp') ||
+    normalized.includes('connection refused')
+  ) {
     return 'Could not reach the provider endpoint. Check the API endpoint, DNS, proxy, or firewall settings.'
   }
   if (message.trim()) {
@@ -290,7 +314,13 @@ export function AIProviderCreateFlowDialog({
       .send<AIProviderRecord[]>('/api/ai-providers', { method: 'GET' })
       .then(items => {
         const names = Array.isArray(items)
-          ? items.map(item => String(item.name ?? '').trim().toLowerCase()).filter(Boolean)
+          ? items
+              .map(item =>
+                String(item.name ?? '')
+                  .trim()
+                  .toLowerCase()
+              )
+              .filter(Boolean)
           : []
         setExistingProviderNames(names)
       })
@@ -350,7 +380,14 @@ export function AIProviderCreateFlowDialog({
   )
 
   const renderCredentialField = useCallback<NonNullable<FieldDef['render']>>(
-    ({ field, inputId, formData: currentFormData, editingItem, updateField, relationOptions: options }) => {
+    ({
+      field,
+      inputId,
+      formData: currentFormData,
+      editingItem,
+      updateField,
+      relationOptions: options,
+    }) => {
       const editMode = Boolean(editingItem)
       const useSecret = editMode ? true : Boolean(currentFormData.credential_use_secret)
 
@@ -481,7 +518,11 @@ export function AIProviderCreateFlowDialog({
   const [fetchedModels, setFetchedModels] = useState<AIProviderModelOption[]>([])
   const [fetchedGroups, setFetchedGroups] = useState<AIProviderModelGroup[]>([])
 
-  const runFetchModels = useCallback(async (): Promise<{ success: boolean; selected: string[]; error?: string }> => {
+  const runFetchModels = useCallback(async (): Promise<{
+    success: boolean
+    selected: string[]
+    error?: string
+  }> => {
     const endpoint = String(formData.endpoint ?? '').trim()
     const apiKey = String(formData.api_key_value ?? '').trim()
     const usingSavedSecret =
@@ -505,7 +546,10 @@ export function AIProviderCreateFlowDialog({
     setFetchedGroups([])
     setLastFetchSucceeded(false)
     try {
-      const result = await pb.send<{ models: Array<{ id: string; enabled_by_default?: boolean }>; groups?: Array<{ vendor: string; label?: string; models: Array<{ id: string }> }> }>('/api/ai-providers/fetch-models', {
+      const result = await pb.send<{
+        models: Array<{ id: string; enabled_by_default?: boolean }>
+        groups?: Array<{ vendor: string; label?: string; models: Array<{ id: string }> }>
+      }>('/api/ai-providers/fetch-models', {
         method: 'POST',
         body: { endpoint, api_key: apiKey, template_id: String(formData.template_id ?? '') },
       })
@@ -540,9 +584,7 @@ export function AIProviderCreateFlowDialog({
 
   const toggleSelectedModel = useCallback((modelID: string) => {
     setSelectedModels(current =>
-      current.includes(modelID)
-        ? current.filter(item => item !== modelID)
-        : [...current, modelID]
+      current.includes(modelID) ? current.filter(item => item !== modelID) : [...current, modelID]
     )
   }, [])
 
@@ -648,7 +690,10 @@ export function AIProviderCreateFlowDialog({
           {
             ...mapped,
             onValueChange: (value: unknown, update: (key: string, value: unknown) => void) => {
-              update('endpoint', resolveTemplateEndpoint(selectedTemplate, { ...formData, region: value }))
+              update(
+                'endpoint',
+                resolveTemplateEndpoint(selectedTemplate, { ...formData, region: value })
+              )
             },
           },
         ]
@@ -674,7 +719,10 @@ export function AIProviderCreateFlowDialog({
               loading={fetchingModels}
               error={fetchModelsError || undefined}
               loaded={lastFetchSucceeded}
-              canLoad={Boolean(String(formData.endpoint ?? '').trim() && String(formData.api_key_value ?? '').trim())}
+              canLoad={Boolean(
+                String(formData.endpoint ?? '').trim() &&
+                String(formData.api_key_value ?? '').trim()
+              )}
               loadActionLabel="Load all available models"
               onListModels={handleTestConnection}
               onToggleModel={toggleSelectedModel}
@@ -711,14 +759,19 @@ export function AIProviderCreateFlowDialog({
     toggleSelectedModel,
   ])
 
-  const activeFields = useMemo(() => filterVisibleFields(resolvedFields, formData), [resolvedFields, formData])
+  const activeFields = useMemo(
+    () => filterVisibleFields(resolvedFields, formData),
+    [resolvedFields, formData]
+  )
   const headerFields = activeFields.filter(field => field.header)
   const primaryFields = activeFields.filter(field => !field.header && !field.advanced)
   const advancedFields = activeFields.filter(field => field.advanced)
 
   useEffect(() => {
     if (!formOpen) return
-    const relationFields = activeFields.filter(field => field.type === 'relation' && field.relationApiPath)
+    const relationFields = activeFields.filter(
+      field => field.type === 'relation' && field.relationApiPath
+    )
     if (relationFields.length === 0) {
       setRelationOptions({})
       return
@@ -765,7 +818,9 @@ export function AIProviderCreateFlowDialog({
     defaults.endpoint = resolveTemplateEndpoint(template, defaults)
 
     setFormData(defaults)
-    setSelectedModels(Array.isArray(template.defaultEnabledModels) ? [...template.defaultEnabledModels] : [])
+    setSelectedModels(
+      Array.isArray(template.defaultEnabledModels) ? [...template.defaultEnabledModels] : []
+    )
     setFetchedModels([])
     setFetchedGroups([])
     setLastFetchSucceeded(false)
@@ -780,7 +835,9 @@ export function AIProviderCreateFlowDialog({
   }
 
   const nameConflictMessage = useMemo(() => {
-    const normalized = String(formData.name ?? '').trim().toLowerCase()
+    const normalized = String(formData.name ?? '')
+      .trim()
+      .toLowerCase()
     if (!normalized) return ''
     if (!existingProviderNames.includes(normalized)) return ''
     return 'This AI Provider name already exists. Choose a different name.'
@@ -792,7 +849,12 @@ export function AIProviderCreateFlowDialog({
     field.onValueChange?.(value, updateField)
   }
 
-  const addRelationOption = (fieldKey: string, id: string, label: string, raw?: Record<string, unknown>) => {
+  const addRelationOption = (
+    fieldKey: string,
+    id: string,
+    label: string,
+    raw?: Record<string, unknown>
+  ) => {
     setRelationOptions(current => ({
       ...current,
       [fieldKey]: [...(current[fieldKey] ?? []), { id, label, raw }],
@@ -938,7 +1000,9 @@ export function AIProviderCreateFlowDialog({
         </>
       )}
     </div>
-  ) : 'New AI Provider'
+  ) : (
+    'New AI Provider'
+  )
 
   const dialogDescription = selectedTemplate
     ? `Add ${productTitle(selectedTemplate)} AI Provider`
@@ -984,11 +1048,15 @@ export function AIProviderCreateFlowDialog({
             ) : (
               <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
                 {['Provider', 'LLM Gateway'].map(group => {
-                  const groupOptions = productOptions.filter(option => providerSelectionGroup(option) === group)
+                  const groupOptions = productOptions.filter(
+                    option => providerSelectionGroup(option) === group
+                  )
                   if (groupOptions.length === 0) return null
                   return (
                     <div key={group} className="space-y-2">
-                      <div className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group}</div>
+                      <div className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {group}
+                      </div>
                       {groupOptions.map(option => (
                         <button
                           key={option.id}
@@ -998,7 +1066,9 @@ export function AIProviderCreateFlowDialog({
                         >
                           <div className="flex items-center justify-between gap-3">
                             <div className="min-w-0">
-                              <div className="text-sm font-medium text-foreground">{chooserTitle(option)}</div>
+                              <div className="text-sm font-medium text-foreground">
+                                {chooserTitle(option)}
+                              </div>
                             </div>
                             {option.helpUrl ? (
                               <a

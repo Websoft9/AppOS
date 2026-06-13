@@ -20,6 +20,13 @@
       "sensitive": true,
       "secretTemplate": "single_value",
       "placeholder": "secretRef:..."
+    },
+    {
+      "id": "max_completion_tokens",
+      "label": "Max Completion Tokens",
+      "type": "number",
+      "placeholder": "4096",
+      "helpText": "Optional upper bound for generated output tokens per response. Lower values reduce cost and avoid credit overrun."
     }
   ]
 }

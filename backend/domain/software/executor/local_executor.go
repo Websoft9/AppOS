@@ -151,7 +151,3 @@ func executeLocalCommand(ctx context.Context, command string, timeout time.Durat
 	}
 	return string(out), nil
 }
-
-func shellQuoteLocal(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
-}

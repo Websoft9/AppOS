@@ -25,7 +25,8 @@
     "sendMessage": "发送消息",
     "copyMarkdown": "复制 Markdown",
     "configureModels": "配置模型",
-    "stopGeneration": "停止生成"
+    "stopGeneration": "停止生成",
+    "tokenUsage": "Token 使用情况"
   },
   "fields": {
     "conversationTitle": "对话标题",
@@ -50,6 +51,19 @@
     "deleteTitle": "删除这段对话？",
     "deleteDescriptionPrefix": "这将永久删除",
     "deleteDescriptionSuffix": "及其消息历史，此操作无法撤销。"
+  },
+  "tokens": {
+    "title": "Token 使用估算",
+    "description": "基于当前所选模型，对下一次请求预算做近似估算。",
+    "currentModel": "当前模型",
+    "contextWindow": "上下文窗口",
+    "maxOutput": "最大输出",
+    "inputBudget": "输入预算",
+    "visibleConversation": "当前可见对话",
+    "currentDraft": "当前草稿",
+    "nextRequestEstimate": "下次请求估算",
+    "remainingInput": "剩余输入预算",
+    "note": "这是基于当前可见消息与附件的估算值。服务端在真正请求模型前，仍可能继续摘要或裁剪历史消息。"
   },
   "aria": {
     "conversationActions": "{{title}} 的对话操作",

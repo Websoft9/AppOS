@@ -398,8 +398,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   const showListControlsReset = config.listControlsShowReset ?? true
   const favoriteActionPlacement = config.favoriteActionPlacement ?? 'beforeExtraActions'
   const emptyStateLabel = config.emptyStateLabel ?? `No ${config.title.toLowerCase()} found`
-  const tableColumnCount =
-    config.columns.length + 1 + (config.enableGroupAssign ? 1 : 0)
+  const tableColumnCount = config.columns.length + 1 + (config.enableGroupAssign ? 1 : 0)
 
   const filteredCreateSelectionOptions = useMemo(() => {
     const selection = config.createSelection
@@ -1460,7 +1459,9 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                         )}
                         {config.columns.map(col => (
                           <TableCell key={col.key}>
-                            {col.render ? col.render(item[col.key], item) : String(item[col.key] ?? '')}
+                            {col.render
+                              ? col.render(item[col.key], item)
+                              : String(item[col.key] ?? '')}
                           </TableCell>
                         ))}
                         <TableCell className={actionsCellClassName}>
@@ -1493,11 +1494,11 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                                         <DropdownMenuSeparator />
                                       </>
                                     )}
-                                    {Children.toArray(
-                                      config.extraActions?.(item, () => {
-                                        void fetchItems()
-                                      }) ?? null
-                                    )}
+                                  {Children.toArray(
+                                    config.extraActions?.(item, () => {
+                                      void fetchItems()
+                                    }) ?? null
+                                  )}
                                   {favoriteActionPlacement === 'afterExtraActions' &&
                                     config.favoriteStorageKey && (
                                       <>
@@ -1615,7 +1616,9 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                           )}
                           {config.columns.map(col => (
                             <TableCell key={col.key}>
-                              {col.render ? col.render(item[col.key], item) : String(item[col.key] ?? '')}
+                              {col.render
+                                ? col.render(item[col.key], item)
+                                : String(item[col.key] ?? '')}
                             </TableCell>
                           ))}
                           <TableCell className={actionsCellClassName}>
@@ -1639,7 +1642,9 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                                           <DropdownMenuItem onClick={() => toggleFavorite(itemID)}>
                                             <Star
                                               className="h-4 w-4"
-                                              fill={favoriteIds.has(itemID) ? 'currentColor' : 'none'}
+                                              fill={
+                                                favoriteIds.has(itemID) ? 'currentColor' : 'none'
+                                              }
                                             />
                                             {favoriteIds.has(itemID)
                                               ? 'Remove Favorite'
@@ -1660,7 +1665,9 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                                           <DropdownMenuItem onClick={() => toggleFavorite(itemID)}>
                                             <Star
                                               className="h-4 w-4"
-                                              fill={favoriteIds.has(itemID) ? 'currentColor' : 'none'}
+                                              fill={
+                                                favoriteIds.has(itemID) ? 'currentColor' : 'none'
+                                              }
                                             />
                                             {favoriteIds.has(itemID)
                                               ? 'Remove Favorite'

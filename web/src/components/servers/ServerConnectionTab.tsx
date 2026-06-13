@@ -294,46 +294,46 @@ export function ServerConnectionTab({
       </Card>
 
       <div className="space-y-4">
-    <section className="space-y-3 rounded-xl border border-border/60 bg-background/90 p-4 sm:p-5">
-      <div className="border-b border-border/50 pb-3">
-      <h3 className="text-sm font-semibold text-foreground">
-        {t('servers.connectionTab.activityLog.title')}
-      </h3>
-      </div>
-      <div>
-      {recentActivity.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border/60 bg-muted/10 px-4 py-6 text-sm text-muted-foreground">
-        {t('servers.connectionTab.activityLog.empty')}
-        </div>
-      ) : (
-        <div className="rounded-lg border border-border/60 bg-background/95">
-        <div className="divide-y divide-border/50">
-          {recentActivity.map((event, index) => (
-          <div
-            key={`${event.label}:${event.at}`}
-            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-3 text-sm"
-          >
-            <div className="min-w-0 space-y-0.5">
-            <div className="truncate font-medium text-foreground">
-              {compactActivityLabel(event.label, isTunnel, t)}
-            </div>
-            {index === 0 ? (
-              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              {t('servers.connectionTab.activityLog.mostRecent')}
-              </div>
-            ) : null}
-            </div>
-            <div className="font-mono text-xs text-muted-foreground sm:text-sm">
-            {event.at}
-            </div>
+        <section className="space-y-3 rounded-xl border border-border/60 bg-background/90 p-4 sm:p-5">
+          <div className="border-b border-border/50 pb-3">
+            <h3 className="text-sm font-semibold text-foreground">
+              {t('servers.connectionTab.activityLog.title')}
+            </h3>
           </div>
-          ))}
-        </div>
-        </div>
-      )}
+          <div>
+            {recentActivity.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border/60 bg-muted/10 px-4 py-6 text-sm text-muted-foreground">
+                {t('servers.connectionTab.activityLog.empty')}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-border/60 bg-background/95">
+                <div className="divide-y divide-border/50">
+                  {recentActivity.map((event, index) => (
+                    <div
+                      key={`${event.label}:${event.at}`}
+                      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-3 text-sm"
+                    >
+                      <div className="min-w-0 space-y-0.5">
+                        <div className="truncate font-medium text-foreground">
+                          {compactActivityLabel(event.label, isTunnel, t)}
+                        </div>
+                        {index === 0 ? (
+                          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                            {t('servers.connectionTab.activityLog.mostRecent')}
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="font-mono text-xs text-muted-foreground sm:text-sm">
+                        {event.at}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
       </div>
-    </section>
-    </div>
     </div>
   )
 }

@@ -258,4 +258,3 @@ func appendDockerImagePullOutput(record *core.Record, line string) {
 	}
 	record.Set("output", current+"\n"+trimmed)
 }
-

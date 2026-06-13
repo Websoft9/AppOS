@@ -178,7 +178,9 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
       trafficClass: typeof item.trafficClass === 'string' ? item.trafficClass : 'public_egress',
       support: typeof item.support === 'string' ? item.support : 'proxy_capable',
       defaultMode:
-        item.defaultMode === 'disabled' || item.defaultMode === 'always' || item.defaultMode === 'fallback'
+        item.defaultMode === 'disabled' ||
+        item.defaultMode === 'always' ||
+        item.defaultMode === 'fallback'
           ? item.defaultMode
           : 'disabled',
       allowedModes,
@@ -479,11 +481,11 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
 
     const root = payload as Record<string, unknown>
     const bag =
-      root.errors && typeof root.errors === 'object' ? (root.errors as Record<string, unknown>) : root
+      root.errors && typeof root.errors === 'object'
+        ? (root.errors as Record<string, unknown>)
+        : root
 
-    const formError =
-      extractFieldError(root.message) ??
-      extractFieldError(root.data)
+    const formError = extractFieldError(root.message) ?? extractFieldError(root.data)
     if (formError) {
       parsed.form = formError
     }

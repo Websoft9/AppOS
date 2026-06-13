@@ -26,13 +26,6 @@
 
 由文件管理机制机制，迁移至后端提供
 
-## 部署
-
-- docker 部署
-- 模板部署
-- 源码部署
-
-## 镜像加速
 
 ## 发布
 
@@ -63,7 +56,6 @@ Settings（配置层）
 
 ## 监控
 
-- metric
 - 在线用户
 - 隧道连接
 - 网关转发...
@@ -81,9 +73,7 @@ Settings（配置层）
 
 
 
-
 给 App detail 再接一层 compose 校验与 diff 预览，避免直接保存时改坏配置。
-
 
 
 手工部署应该有一个完整的体验过程：
@@ -235,8 +225,7 @@ edit external service 流程优化
 
 ai provider 元数据优化
 
-另外，google gemini 模型在拉取 models list 时报错：Loading models timed out. Check network connectivity and confirm the provider endpoint is reachable. 
-
+try direct then proxy 没有起作用
 
 数据库增加 external json 结构，便于未来拓展？
 
@@ -253,3 +242,7 @@ Remote Proxy: Proxy configurations for remote servers
 问题根因是后端更新接口复用了完整的 upsert 校验，编辑时不仅要求 name 和 url，也要求 format。前端 PATCH 之前只补了 url，但仍然没传 format，所以继续触发 Invalid feed source format。我已在编辑模式的请求体中补上 format: formFormat，现在编辑时会提交完整字段集：name、url、format、favicon_url、status。
 
 改动在 web/src/routes/_app/_auth/feeds.tsx。如果你愿意，下一步我可以顺手把这个编辑提交流程补一条前端测试，避免这类字段遗漏再次出现
+
+token 超标
+限制历史消息数量，每次8轮
+捕捉token 超标的错误后，删除最早的2条消息

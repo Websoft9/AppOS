@@ -201,6 +201,39 @@ func TestAICopilotRouteUsesSelectedProviderAndModel(t *testing.T) {
 	if seen.Model != "anthropic/claude-3.5-sonnet" {
 		t.Fatalf("expected request model override, got %s", seen.Model)
 	}
+	if seen.MaxCompletionTokens == nil || *seen.MaxCompletionTokens != 31100 {
+		t.Fatalf("expected selected provider max completion tokens 31100, got %#v", seen.MaxCompletionTokens)
+	}
+}
+
+func TestAICopilotRouteFallsBackToTemplateMaxCompletionTokens(t *testing.T) {
+	var seen *copilot.ProviderConfig
+	oldFactory := aiCopilotModelFactory
+	aiCopilotModelFactory = captureAICopilotFactory{seen: &seen}
+	t.Cleanup(func() { aiCopilotModelFactory = oldFactory })
+
+	te := newTestEnv(t)
+	defer te.cleanup()
+	ensureConnectorSecretRuntime(t)
+	providerID := seedNamedAICopilotProviderWithoutMaxTokens(t, te, "OpenRouter Legacy", false, "https://openrouter.ai/api/v1", "qwen/qwen3.7-plus")
+
+	create := te.doAICopilot(t, http.MethodPost, "/api/ai/copilot/sessions", `{"title":""}`, true)
+	if create.Code != http.StatusCreated {
+		t.Fatalf("create session status %d body %s", create.Code, create.Body.String())
+	}
+	sessionID := stringFromJSON(t, create.Body.Bytes(), "id")
+
+	body := `{"content":"use legacy provider","provider_id":"` + providerID + `"}`
+	stream := te.doAICopilot(t, http.MethodPost, "/api/ai/copilot/sessions/"+sessionID+"/messages", body, true)
+	if stream.Code != http.StatusOK {
+		t.Fatalf("stream status %d body %s", stream.Code, stream.Body.String())
+	}
+	if seen == nil {
+		t.Fatalf("expected factory to capture provider config")
+	}
+	if seen.MaxCompletionTokens == nil || *seen.MaxCompletionTokens != 31100 {
+		t.Fatalf("expected template default max completion tokens 31100, got %#v", seen.MaxCompletionTokens)
+	}
 }
 
 func (te *testEnv) doAICopilot(t *testing.T, method, url, body string, authenticated bool) *httptest.ResponseRecorder {
@@ -260,7 +293,53 @@ func seedNamedAICopilotProvider(t *testing.T, te *testEnv, name string, isDefaul
 	provider.Set("name", name)
 	provider.Set("kind", aiproviders.KindLLM)
 	provider.Set("is_default", isDefault)
-	provider.Set("template_id", "deepseek")
+	provider.Set("template_id", strings.ToLower(strings.ReplaceAll(name, " ", "-")))
+	provider.Set("endpoint", endpoint)
+	provider.Set("auth_scheme", connectors.AuthSchemeBearer)
+	provider.Set("credential", secret.Id)
+	config := map[string]any{"defaultModel": model}
+	if strings.EqualFold(name, "OpenRouter") {
+		config["max_completion_tokens"] = 31100
+	}
+	provider.Set("config", config)
+	if err := te.app.Save(provider); err != nil {
+		t.Fatal(err)
+	}
+	return provider.Id
+}
+
+func seedNamedAICopilotProviderWithoutMaxTokens(t *testing.T, te *testEnv, name string, isDefault bool, endpoint string, model string) string {
+	t.Helper()
+	secretCol, err := te.app.FindCollectionByNameOrId("secrets")
+	if err != nil {
+		t.Fatal(err)
+	}
+	enc, err := secrets.EncryptPayload(map[string]any{"apiKey": "test-key"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret := core.NewRecord(secretCol)
+	secret.Set("name", strings.ToLower(strings.ReplaceAll(name, " ", "-"))+"-secret")
+	secret.Set("type", "api_key")
+	secret.Set("template_id", secrets.TemplateSingleValue)
+	secret.Set("scope", "global")
+	secret.Set("access_mode", "use_only")
+	secret.Set("status", "active")
+	secret.Set("version", 1)
+	secret.Set("payload_encrypted", enc)
+	if err := te.app.Save(secret); err != nil {
+		t.Fatal(err)
+	}
+
+	providerCol, err := te.app.FindCollectionByNameOrId(collections.AIProviders)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider := core.NewRecord(providerCol)
+	provider.Set("name", name)
+	provider.Set("kind", aiproviders.KindLLM)
+	provider.Set("is_default", isDefault)
+	provider.Set("template_id", "openrouter")
 	provider.Set("endpoint", endpoint)
 	provider.Set("auth_scheme", connectors.AuthSchemeBearer)
 	provider.Set("credential", secret.Id)

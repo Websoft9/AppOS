@@ -108,23 +108,23 @@ func loadTemplates() error {
 }
 
 type templateFile struct {
-	ID              *string             `json:"id,omitempty"`
-	Kind            *string             `json:"kind,omitempty"`
-	Title           *string             `json:"title,omitempty"`
-	Vendor          *string             `json:"vendor,omitempty"`
-	Category        *string             `json:"category,omitempty"`
-	ProviderMode    *string             `json:"providerMode,omitempty"`
-	Description     *string             `json:"description,omitempty"`
-	HelpURL         *string             `json:"helpUrl,omitempty"`
-	ContextSize     *int                `json:"contextSize,omitempty"`
-	ModelsEndpoint  *string             `json:"modelsEndpoint,omitempty"`
-	DefaultEndpoint *string             `json:"defaultEndpoint,omitempty"`
-	DefaultAuth     *string             `json:"defaultAuthScheme,omitempty"`
-	DefaultEnabledModels []string       `json:"defaultEnabledModels,omitempty"`
-	Capabilities    []string            `json:"capabilities,omitempty"`
-	Aliases         []string            `json:"aliases,omitempty"`
-	SkipTLSCertVerify *bool             `json:"skipTLSCertVerify,omitempty"`
-	Fields          []templateFieldFile `json:"fields,omitempty"`
+	ID                   *string             `json:"id,omitempty"`
+	Kind                 *string             `json:"kind,omitempty"`
+	Title                *string             `json:"title,omitempty"`
+	Vendor               *string             `json:"vendor,omitempty"`
+	Category             *string             `json:"category,omitempty"`
+	ProviderMode         *string             `json:"providerMode,omitempty"`
+	Description          *string             `json:"description,omitempty"`
+	HelpURL              *string             `json:"helpUrl,omitempty"`
+	ContextSize          *int                `json:"contextSize,omitempty"`
+	ModelsEndpoint       *string             `json:"modelsEndpoint,omitempty"`
+	DefaultEndpoint      *string             `json:"defaultEndpoint,omitempty"`
+	DefaultAuth          *string             `json:"defaultAuthScheme,omitempty"`
+	DefaultEnabledModels []string            `json:"defaultEnabledModels,omitempty"`
+	Capabilities         []string            `json:"capabilities,omitempty"`
+	Aliases              []string            `json:"aliases,omitempty"`
+	SkipTLSCertVerify    *bool               `json:"skipTLSCertVerify,omitempty"`
+	Fields               []templateFieldFile `json:"fields,omitempty"`
 }
 
 type templateFieldFile struct {

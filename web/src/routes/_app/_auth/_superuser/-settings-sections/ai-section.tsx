@@ -262,7 +262,11 @@ export function AISettingsSection({
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <Button type="button" onClick={handleSave} disabled={saving || endpointGroups.length === 0}>
+                <Button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving || endpointGroups.length === 0}
+                >
                   {saving ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />

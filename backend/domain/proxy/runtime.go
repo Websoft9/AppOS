@@ -165,6 +165,7 @@ func ProxyEnv(app core.App) (map[string]string, error) {
 func NewHTTPClient(app core.App, consumerKey string, timeout time.Duration, skipTLSVerify bool) (http.Client, error) {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	if skipTLSVerify {
+		// #nosec G402 -- caller explicitly opts into skipping TLS verification for trusted/self-hosted endpoints.
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 	directTransport := transport.Clone()

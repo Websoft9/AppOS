@@ -190,7 +190,7 @@ async function enablePortAccess() {
 }
 
 function openAdvancedOptions() {
-  const summary = screen.getByText('Advanced Options').closest('summary')
+  const summary = screen.getByText('Toggle advanced settings').closest('summary')
   expect(summary).not.toBeNull()
   const details = summary?.closest('details') as HTMLDetailsElement | null
   expect(details).not.toBeNull()
@@ -204,13 +204,6 @@ function expectPortExposure() {
     exposure_type: 'port',
     is_primary: true,
     target_port: expect.any(Number),
-  })
-}
-
-function expectInternalOnlyExposure() {
-  return expect.objectContaining({
-    exposure_type: 'internal_only',
-    is_primary: true,
   })
 }
 
@@ -543,8 +536,8 @@ describe('CreateDeploymentPage', () => {
 
     await enablePortAccess()
 
-    expect(screen.getByText('Basic')).toBeInTheDocument()
-    expect(screen.getByText('Action')).toBeInTheDocument()
+    expect(screen.getByText('Summary')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Check' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Toggle deployment help' })).toBeInTheDocument()
     expect(screen.queryByText('Help')).toBeNull()
     expect(screen.queryByText('FAQ')).toBeNull()
@@ -700,7 +693,7 @@ describe('CreateDeploymentPage', () => {
     await waitFor(() => {
       expect(getAppNameField()).toBeInTheDocument()
     })
-    expect(screen.queryByText('Pre-flight checks')).toBeNull()
+    expect(screen.getByText('Not checked yet')).toBeInTheDocument()
 
     fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
     await selectTargetLocation('local')
@@ -710,7 +703,9 @@ describe('CreateDeploymentPage', () => {
     expect(screen.getByRole('button', { name: 'Check' })).toBeEnabled()
     await clickEnabledButton('Check')
 
-    expect(screen.getByText('Pre-flight checks')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText('Ready to deploy')).toBeInTheDocument()
+    })
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/actions/install/manual-compose/check', {
@@ -727,7 +722,7 @@ describe('CreateDeploymentPage', () => {
       })
     })
 
-    expect(screen.getAllByText('Preflight passed').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Ready to deploy').length).toBeGreaterThan(0)
     expect(screen.queryByText('application name is available')).not.toBeInTheDocument()
     expect(sendMock).not.toHaveBeenCalledWith(
       '/api/actions/install/manual-compose',
@@ -887,12 +882,12 @@ describe('CreateDeploymentPage', () => {
     openAdvancedOptions()
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Estimated App Disk (GiB)')).toBeInTheDocument()
+      expect(screen.getByLabelText('Estimated App Disk')).toBeInTheDocument()
     })
 
     fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
     await selectTargetLocation('local')
-    fireEvent.change(screen.getByLabelText('Estimated App Disk (GiB)'), { target: { value: '2' } })
+    fireEvent.change(screen.getByLabelText('Estimated App Disk'), { target: { value: '2' } })
     fireEvent.change(screen.getByPlaceholderText(/services:/i), {
       target: { value: 'services:\n  web:\n    image: nginx:alpine\n' },
     })
@@ -1299,19 +1294,19 @@ describe('CreateDeploymentPage', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText('Template Selection')).toBeInTheDocument()
+      expect(screen.getByText('App Settings')).toBeInTheDocument()
     })
 
     expect(screen.queryByLabelText('Search Template')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('App Template')).not.toBeInTheDocument()
-    expect(screen.getByText('Template Selection')).toBeInTheDocument()
+    expect(screen.getByText('App Settings')).toBeInTheDocument()
     expect(screen.queryByText('Template key: wordpress · CMS')).toBeNull()
     expect(screen.getByAltText('WordPress logo')).toBeInTheDocument()
     expect(screen.getByLabelText('Database Source')).toHaveValue('companion')
     expect(screen.getByText('Template DB (mysql)')).toBeInTheDocument()
     expect((getAppNameField() as HTMLInputElement).value).toMatch(/^wordpress-\d{4}$/)
     openAdvancedOptions()
-    expect(screen.getByLabelText('Estimated App Disk (GiB)')).toHaveValue(1)
+    expect(screen.getByLabelText('Estimated App Disk')).toHaveValue(1)
     expect(screen.queryByLabelText('HTTP Port *')).not.toBeInTheDocument()
   })
 
@@ -1424,37 +1419,39 @@ describe('CreateDeploymentPage', () => {
     await clickEnabledButton('Check')
 
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith('/api/actions/install/template/check', {
-        method: 'POST',
-        body: expect.objectContaining({
-          server_id: 'local',
-          project_name: 'wordpress-private',
-          template_key: 'wordpress',
-          input_values: {
-            admin_email: 'admin@example.com',
-          },
-          exposure: expectInternalOnlyExposure(),
-          app_required_disk_gib: '1',
-        }),
-      })
+      expect(
+        sendMock.mock.calls.some(
+          ([path, options]) =>
+            path === '/api/actions/install/template/check' &&
+            options?.method === 'POST' &&
+            options?.body?.server_id === 'local' &&
+            options?.body?.project_name === 'wordpress-private' &&
+            options?.body?.template_key === 'wordpress' &&
+            options?.body?.input_values?.admin_email === 'admin@example.com' &&
+            options?.body?.app_required_disk_gib === '1' &&
+            options?.body?.exposure?.exposure_type === 'internal_only' &&
+            options?.body?.exposure?.is_primary === true
+        )
+      ).toBe(true)
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Create Deployment' }))
 
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith('/api/actions/install/template', {
-        method: 'POST',
-        body: expect.objectContaining({
-          server_id: 'local',
-          project_name: 'wordpress-private',
-          template_key: 'wordpress',
-          input_values: {
-            admin_email: 'admin@example.com',
-          },
-          exposure: expectInternalOnlyExposure(),
-          app_required_disk_gib: '1',
-        }),
-      })
+      expect(
+        sendMock.mock.calls.some(
+          ([path, options]) =>
+            path === '/api/actions/install/template' &&
+            options?.method === 'POST' &&
+            options?.body?.server_id === 'local' &&
+            options?.body?.project_name === 'wordpress-private' &&
+            options?.body?.template_key === 'wordpress' &&
+            options?.body?.input_values?.admin_email === 'admin@example.com' &&
+            options?.body?.app_required_disk_gib === '1' &&
+            options?.body?.exposure?.exposure_type === 'internal_only' &&
+            options?.body?.exposure?.is_primary === true
+        )
+      ).toBe(true)
     })
   })
 

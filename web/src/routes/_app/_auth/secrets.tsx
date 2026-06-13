@@ -1196,7 +1196,10 @@ export function SecretsPage() {
               onPayloadChange={(key, value) => setEditPayload(prev => ({ ...prev, [key]: value }))}
             />
             <div className="flex justify-end">
-              <Button type="submit" disabled={editSavingPayload || !editId || !editPayloadHasValues}>
+              <Button
+                type="submit"
+                disabled={editSavingPayload || !editId || !editPayloadHasValues}
+              >
                 {editSavingPayload ? 'Updating...' : 'Update Values'}
               </Button>
             </div>

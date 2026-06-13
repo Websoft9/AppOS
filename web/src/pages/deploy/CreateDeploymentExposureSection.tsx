@@ -200,96 +200,92 @@ export function CreateDeploymentExposureSection({
 
         {!publicAccessDisabled && portExposureEnabled ? (
           <div className="mt-3 rounded-lg border bg-muted/10 px-3.5 py-3">
-                <div className="grid grid-cols-[minmax(0,1.35fr)_110px_88px_116px] gap-2.5 border-b pb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  <div>Service Name</div>
-                  <div>Container Port</div>
-                  <div>Open Port</div>
-                  <div>Server Port</div>
-                </div>
-                <div className="space-y-2 pt-2.5">
-                  {serviceItems.map(service => {
-                    const mapping = servicePortMappings[service.name]
-                    return (
-                      <div
-                        key={service.name}
-                        className="grid grid-cols-[minmax(0,1.35fr)_110px_88px_116px] items-center gap-2.5"
-                      >
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-medium">{service.name}</div>
-                          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                            {service.role}
-                          </div>
-                        </div>
-                        <div className="text-sm">{service.containerPort || '—'}</div>
-                        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <input
-                            type="checkbox"
-                            aria-label={`Open Port ${service.name}`}
-                            checked={mapping?.enabled ?? service.isPrimary}
-                            onChange={e =>
-                              updateServiceMapping(service.name, {
-                                enabled: e.target.checked,
-                                port:
-                                  mapping?.port ||
-                                  (service.name === primaryServiceName
-                                    ? recommendedExposurePort
-                                    : ''),
-                              })
-                            }
-                          />
-                          <span>{(mapping?.enabled ?? service.isPrimary) ? 'On' : 'Off'}</span>
-                        </label>
-                        <Input
-                          id={`exposure-port-${service.name}`}
-                          aria-label={`Server Port ${service.name}`}
-                          type="number"
-                          min={1}
-                          max={65535}
-                          value={
-                            mapping?.port ??
-                            (service.name === primaryServiceName ? recommendedExposurePort : '')
-                          }
-                          onChange={e =>
-                            {
-                              if (service.name === primaryServiceName) {
-                                onPrimaryPortManualChange()
-                              }
-                              updateServiceMapping(service.name, {
-                                enabled: true,
-                                port: e.target.value,
-                              })
-                            }
-                          }
-                          placeholder={
-                            service.name === primaryServiceName ? recommendedExposurePort : '—'
-                          }
-                          disabled={!(mapping?.enabled ?? service.isPrimary)}
-                          className="h-8 px-2.5"
-                        />
+            <div className="grid grid-cols-[minmax(0,1.35fr)_110px_88px_116px] gap-2.5 border-b pb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <div>Service Name</div>
+              <div>Container Port</div>
+              <div>Open Port</div>
+              <div>Server Port</div>
+            </div>
+            <div className="space-y-2 pt-2.5">
+              {serviceItems.map(service => {
+                const mapping = servicePortMappings[service.name]
+                return (
+                  <div
+                    key={service.name}
+                    className="grid grid-cols-[minmax(0,1.35fr)_110px_88px_116px] items-center gap-2.5"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium">{service.name}</div>
+                      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        {service.role}
                       </div>
-                    )
-                  })}
-                </div>
-                {exposurePortError ? (
-                  <div className="pt-2 text-[11px] text-amber-700 dark:text-amber-400">
-                    {exposurePortError}
+                    </div>
+                    <div className="text-sm">{service.containerPort || '—'}</div>
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <input
+                        type="checkbox"
+                        aria-label={`Open Port ${service.name}`}
+                        checked={mapping?.enabled ?? service.isPrimary}
+                        onChange={e =>
+                          updateServiceMapping(service.name, {
+                            enabled: e.target.checked,
+                            port:
+                              mapping?.port ||
+                              (service.name === primaryServiceName ? recommendedExposurePort : ''),
+                          })
+                        }
+                      />
+                      <span>{(mapping?.enabled ?? service.isPrimary) ? 'On' : 'Off'}</span>
+                    </label>
+                    <Input
+                      id={`exposure-port-${service.name}`}
+                      aria-label={`Server Port ${service.name}`}
+                      type="number"
+                      min={1}
+                      max={65535}
+                      value={
+                        mapping?.port ??
+                        (service.name === primaryServiceName ? recommendedExposurePort : '')
+                      }
+                      onChange={e => {
+                        if (service.name === primaryServiceName) {
+                          onPrimaryPortManualChange()
+                        }
+                        updateServiceMapping(service.name, {
+                          enabled: true,
+                          port: e.target.value,
+                        })
+                      }}
+                      placeholder={
+                        service.name === primaryServiceName ? recommendedExposurePort : '—'
+                      }
+                      disabled={!(mapping?.enabled ?? service.isPrimary)}
+                      className="h-8 px-2.5"
+                    />
                   </div>
-                ) : null}
-                {exposureSelectionError ? (
-                  <div className="pt-2 text-[11px] text-amber-700 dark:text-amber-400">
-                    {exposureSelectionError}
-                  </div>
-                ) : null}
-                {recommendedExposurePortHint ? (
-                  <div className="pt-2 text-[11px] text-amber-700 dark:text-amber-400">
-                    {recommendedExposurePortHint}
-                  </div>
-                ) : null}
-                {extraServiceMappingMessage ? (
-                  <div className="pt-2 text-[11px] text-muted-foreground">
-                    {extraServiceMappingMessage}
-                  </div>
-                ) : null}
+                )
+              })}
+            </div>
+            {exposurePortError ? (
+              <div className="pt-2 text-[11px] text-amber-700 dark:text-amber-400">
+                {exposurePortError}
+              </div>
+            ) : null}
+            {exposureSelectionError ? (
+              <div className="pt-2 text-[11px] text-amber-700 dark:text-amber-400">
+                {exposureSelectionError}
+              </div>
+            ) : null}
+            {recommendedExposurePortHint ? (
+              <div className="pt-2 text-[11px] text-amber-700 dark:text-amber-400">
+                {recommendedExposurePortHint}
+              </div>
+            ) : null}
+            {extraServiceMappingMessage ? (
+              <div className="pt-2 text-[11px] text-muted-foreground">
+                {extraServiceMappingMessage}
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>

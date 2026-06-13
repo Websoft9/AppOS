@@ -53,9 +53,7 @@ export const AIProviderModelSelector = forwardRef<HTMLDivElement, AIProviderMode
 
     // Filter out useless vendor labels like "System" and sort groups + models
     const visibleGroups = useMemo(() => {
-      const filtered = groups.filter(
-        g => normalizeGroupLabel(g).toLowerCase() !== 'system'
-      )
+      const filtered = groups.filter(g => normalizeGroupLabel(g).toLowerCase() !== 'system')
       return [...filtered]
         .sort((a, b) =>
           normalizeGroupLabel(a).localeCompare(normalizeGroupLabel(b), undefined, {
@@ -150,28 +148,30 @@ export const AIProviderModelSelector = forwardRef<HTMLDivElement, AIProviderMode
           onClick={handleActionClick}
           disabled={loading}
         >
-            {loading ? (
-              <>
-                <Loader2 className="mr-1.5 inline h-3.5 w-3.5 animate-spin" />
-                Loading models...
-              </>
-            ) : loaded && !error && totalAvailable > 0 ? (
-              <>
-                {expanded ? (
-                  <ChevronDown className="mr-1 inline h-3.5 w-3.5" />
-                ) : (
-                  <ChevronRight className="mr-1 inline h-3.5 w-3.5" />
-                )}
-                {totalAvailable} model{totalAvailable === 1 ? '' : 's'} available
-              </>
-            ) : (
-              <span className="inline-flex items-center gap-2 align-middle leading-none">
-                <span className="inline-flex h-4 items-center text-[11px] uppercase tracking-[0.14em] opacity-70 leading-none">
-                  Discovery
-                </span>
-                <span className="inline-flex h-4 items-center font-medium leading-none">{loadActionLabel}</span>
+          {loading ? (
+            <>
+              <Loader2 className="mr-1.5 inline h-3.5 w-3.5 animate-spin" />
+              Loading models...
+            </>
+          ) : loaded && !error && totalAvailable > 0 ? (
+            <>
+              {expanded ? (
+                <ChevronDown className="mr-1 inline h-3.5 w-3.5" />
+              ) : (
+                <ChevronRight className="mr-1 inline h-3.5 w-3.5" />
+              )}
+              {totalAvailable} model{totalAvailable === 1 ? '' : 's'} available
+            </>
+          ) : (
+            <span className="inline-flex items-center gap-2 align-middle leading-none">
+              <span className="inline-flex h-4 items-center text-[11px] uppercase tracking-[0.14em] opacity-70 leading-none">
+                Discovery
               </span>
-            )}
+              <span className="inline-flex h-4 items-center font-medium leading-none">
+                {loadActionLabel}
+              </span>
+            </span>
+          )}
         </button>
 
         {/* Error */}

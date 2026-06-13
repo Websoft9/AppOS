@@ -90,10 +90,7 @@ export function ConnectorsPage() {
   useEffect(() => {
     if (!setHeaderRightStartContent) return undefined
     setHeaderRightStartContent(
-      <ResourcesBreadcrumb
-        parentLabel={t('hub.title')}
-        currentPage={t('connectors.page.title')}
-      />
+      <ResourcesBreadcrumb parentLabel={t('hub.title')} currentPage={t('connectors.page.title')} />
     )
     return () => setHeaderRightStartContent(null)
   }, [setHeaderRightStartContent, t])
@@ -122,9 +119,7 @@ export function ConnectorsPage() {
 
   const connectorKinds = useMemo(
     () =>
-      SUPPORTED_KINDS.filter(kind =>
-        connectorTemplates.some(template => template.kind === kind)
-      ),
+      SUPPORTED_KINDS.filter(kind => connectorTemplates.some(template => template.kind === kind)),
     [connectorTemplates]
   )
 
@@ -258,11 +253,18 @@ export function ConnectorsPage() {
   )
 
   const resolveConnectorFields = useCallback(
-    ({ formData, editingItem }: { formData: Record<string, unknown>; editingItem: Record<string, unknown> | null }) => {
+    ({
+      formData,
+      editingItem,
+    }: {
+      formData: Record<string, unknown>
+      editingItem: Record<string, unknown> | null
+    }) => {
       const kind = resolveFormKind(formData, editingItem)
       const selectedTemplate =
-        connectorTemplatesById.get(String(formData.template_id ?? editingItem?.template_id ?? '')) ??
-        getDefaultConnectorTemplate(kind, connectorTemplates)
+        connectorTemplatesById.get(
+          String(formData.template_id ?? editingItem?.template_id ?? '')
+        ) ?? getDefaultConnectorTemplate(kind, connectorTemplates)
       const schemaFields = kind ? buildConnectorKindSchema(kind, connectorTemplates) : []
       return buildConnectorFields(kind, selectedTemplate, schemaFields)
     },
@@ -272,7 +274,13 @@ export function ConnectorsPage() {
   const columns = useMemo(() => buildColumns(t), [t])
 
   const validateConnectorForm = useCallback(
-    ({ formData, activeFields }: { formData: Record<string, unknown>; activeFields: FieldDef[] }) => {
+    ({
+      formData,
+      activeFields,
+    }: {
+      formData: Record<string, unknown>
+      activeFields: FieldDef[]
+    }) => {
       const selectedTemplate = connectorTemplatesById.get(String(formData.template_id ?? ''))
       if (!selectedTemplate) {
         return t('connectors.errors.profileRequired')

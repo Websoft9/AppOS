@@ -155,8 +155,10 @@ export function SecretCredentialField({
                 />
               </div>
               {iconToggleMode ? referenceToggle : null}
-              {referenceValue && onEditReference && !referencePickerOpen && (
-                editReferenceMode === 'icon' ? (
+              {referenceValue &&
+                onEditReference &&
+                !referencePickerOpen &&
+                (editReferenceMode === 'icon' ? (
                   <Button
                     type="button"
                     variant="ghost"
@@ -176,8 +178,7 @@ export function SecretCredentialField({
                   >
                     Edit Secret
                   </Button>
-                )
-              )}
+                ))}
             </div>
           ) : (
             <div className="flex flex-wrap items-start gap-3">

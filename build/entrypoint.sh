@@ -6,6 +6,8 @@ SECRET_KEY_FILE=$DATA_DIR/.appos_secret_key
 APPOS_CONFIG_DIR=$DATA_DIR/config
 APPOS_CONFIG_FILE=$APPOS_CONFIG_DIR/appos.yaml
 
+export DATA_DIR
+
 yaml_quote() {
   printf "%s" "$1" | sed "s/'/''/g"
 }

@@ -4,6 +4,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import {
   Bot,
+  ChartPie,
   Check,
   ChevronDown,
   Copy,
@@ -65,6 +66,11 @@ import { cn } from '@/lib/utils'
 const USER_MESSAGE_ENVELOPE_START = '[[APPOS_CHAT_V1]]'
 const USER_MESSAGE_ENVELOPE_END = '[[/APPOS_CHAT_V1]]'
 const TEXT_ATTACHMENT_BYTES_LIMIT = 120_000
+const DEFAULT_INPUT_TOKEN_BUDGET = 24_000
+const MAX_INPUT_TOKEN_BUDGET = 48_000
+const MIN_INPUT_TOKEN_BUDGET = 2_048
+const DEFAULT_COMPLETION_TOKEN_RESERVE = 4_096
+const CHAT_TOKEN_SAFETY_MARGIN = 1_024
 
 type DraftAttachment = {
   id: string
@@ -102,6 +108,62 @@ function formatAttachmentSize(size: number) {
   if (size < 1024) return `${size} B`
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
   return `${(size / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function estimateTextTokens(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed) return 0
+  let score = 0
+  for (const char of trimmed) {
+    if (/\s/.test(char)) {
+      score += 0.15
+      continue
+    }
+    if (char.charCodeAt(0) <= 0x7f) {
+      score += 0.28
+      continue
+    }
+    score += 0.9
+  }
+  return Math.max(1, Math.ceil(score))
+}
+
+function estimateAttachmentTokens(attachment: Pick<DraftAttachment, 'name' | 'textContent'>) {
+  return estimateTextTokens(attachment.name) + estimateTextTokens(attachment.textContent ?? '')
+}
+
+function estimatePersistedAttachmentTokens(attachment: AICopilotAttachment) {
+  return estimateTextTokens(attachment.name) + estimateTextTokens(attachment.text_content ?? '')
+}
+
+function estimateMessageTokens(message: AICopilotMessage) {
+  if (message.role === 'user') {
+    const parsed = parseUserMessageContent(message)
+    return (
+      estimateTextTokens(parsed.text) +
+      parsed.attachments.reduce(
+        (total, attachment) => total + estimatePersistedAttachmentTokens(attachment),
+        0
+      )
+    )
+  }
+  return estimateTextTokens(message.content)
+}
+
+function clampTokenBudget(value: number) {
+  return Math.min(MAX_INPUT_TOKEN_BUDGET, Math.max(MIN_INPUT_TOKEN_BUDGET, value))
+}
+
+function inputTokenBudgetForModel(model: AICopilotModelOption | undefined) {
+  const contextSize = Number(model?.context_size ?? 0)
+  if (!Number.isFinite(contextSize) || contextSize <= 0) {
+    return DEFAULT_INPUT_TOKEN_BUDGET
+  }
+  const completionReserve =
+    Number(model?.max_completion_tokens ?? 0) > 0
+      ? Number(model?.max_completion_tokens)
+      : DEFAULT_COMPLETION_TOKEN_RESERVE
+  return clampTokenBudget(contextSize - completionReserve - CHAT_TOKEN_SAFETY_MARGIN)
 }
 
 function formatRelativeTime(locale: 'en' | 'zh', value: string | undefined, justNowLabel: string) {
@@ -209,7 +271,9 @@ export function AICopilotPage() {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
-  const [selectedModel, setSelectedModel] = useState(() => localStorage.getItem('ai-copilot-model') ?? '')
+  const [selectedModel, setSelectedModel] = useState(
+    () => localStorage.getItem('ai-copilot-model') ?? ''
+  )
   const [availableModels, setAvailableModels] = useState<AICopilotModelOption[]>([])
   const [loadingModels, setLoadingModels] = useState(false)
   const [modelSearchQuery, setModelSearchQuery] = useState('')
@@ -295,11 +359,40 @@ export function AICopilotPage() {
     const query = modelSearchQuery.trim().toLowerCase()
     if (!query) return availableModels
     return availableModels.filter(
-      m => m.label.toLowerCase().includes(query) ||
+      m =>
+        m.label.toLowerCase().includes(query) ||
         m.model_id.toLowerCase().includes(query) ||
         (m.provider_name ?? '').toLowerCase().includes(query)
     )
   }, [availableModels, modelSearchQuery])
+
+  const selectedModelMeta = useMemo(
+    () => availableModels.find(model => modelSelectionValue(model) === selectedModel),
+    [availableModels, selectedModel]
+  )
+
+  const draftTokenEstimate = useMemo(
+    () => estimateTextTokens(draft) + attachments.reduce((total, item) => total + estimateAttachmentTokens(item), 0),
+    [draft, attachments]
+  )
+
+  const conversationTokenEstimate = useMemo(
+    () => messages.reduce((total, message) => total + estimateMessageTokens(message), 0),
+    [messages]
+  )
+
+  const currentInputBudget = useMemo(
+    () => inputTokenBudgetForModel(selectedModelMeta),
+    [selectedModelMeta]
+  )
+
+  const currentCompletionCap = Number(selectedModelMeta?.max_completion_tokens ?? 0)
+  const currentContextSize = Number(selectedModelMeta?.context_size ?? 0)
+  const estimatedNextRequestTokens = conversationTokenEstimate + draftTokenEstimate
+  const estimatedRemainingInput = Math.max(0, currentInputBudget - estimatedNextRequestTokens)
+  const tokenUsagePercent = currentInputBudget > 0
+    ? Math.min(999, Math.max(0, Math.round((estimatedNextRequestTokens / currentInputBudget) * 100)))
+    : 0
 
   useEffect(() => {
     let cancelled = false
@@ -482,7 +575,9 @@ export function AICopilotPage() {
           onDone: message => {
             setMessages(prev =>
               prev.map(item =>
-                item.id === assistantId ? { ...message, status: message.status ?? 'completed' } : item
+                item.id === assistantId
+                  ? { ...message, status: message.status ?? 'completed' }
+                  : item
               )
             )
           },
@@ -495,9 +590,7 @@ export function AICopilotPage() {
       const aborted = err instanceof Error && err.name === 'AbortError'
       if (aborted) {
         setMessages(prev =>
-          prev.map(item =>
-            item.id === assistantId ? { ...item, status: 'stopped' } : item
-          )
+          prev.map(item => (item.id === assistantId ? { ...item, status: 'stopped' } : item))
         )
         await refreshSessions()
       } else {
@@ -743,172 +836,238 @@ export function AICopilotPage() {
             <div className="shrink-0 border-t bg-background/96 px-5 pb-4 pt-3 backdrop-blur-md">
               <form onSubmit={submit} className="mx-auto max-w-4xl">
                 <div className="space-y-2 rounded-2xl border border-border/60 bg-background/94 p-2 shadow-[0_14px_30px_-22px_rgba(15,23,42,0.32)] transition-colors focus-within:border-primary/30">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  className="hidden"
-                  aria-label={t('fields.fileUpload')}
-                  onChange={event => void addFiles(event.target.files)}
-                />
-
-                {attachments.length > 0 ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {attachments.map(attachment => (
-                      <div
-                        key={attachment.id}
-                        className="rounded-full border border-border/40 bg-muted/15 px-2 py-1 text-[11px]"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-foreground/85">{attachment.name}</span>
-                          <span className="text-muted-foreground">
-                            {formatAttachmentSize(attachment.size)}
-                          </span>
-                          {attachment.loading ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : null}
-                          <button
-                            type="button"
-                            onClick={() => removeAttachment(attachment.id)}
-                            aria-label={t('aria.removeAttachment', { name: attachment.name })}
-                            className="text-muted-foreground transition-colors hover:text-foreground"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                        {attachment.error ? (
-                          <div className="mt-1 text-[11px] text-muted-foreground">
-                            {attachment.error}
-                          </div>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-
-                <div className="rounded-xl bg-muted/15 px-3 pt-1.5">
-                  <Textarea
-                    value={draft}
-                    onChange={event => setDraft(event.target.value)}
-                    onKeyDown={event => {
-                      if (event.key === 'Enter' && !event.shiftKey) {
-                        event.preventDefault()
-                        event.currentTarget.form?.requestSubmit()
-                      }
-                    }}
-                    placeholder={t('fields.messagePlaceholder')}
-                    className="min-h-10 max-h-28 resize-none rounded-none border-0 bg-transparent px-0.5 py-0 leading-5 shadow-none focus-visible:border-0 focus-visible:ring-0"
-                    disabled={sending}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    aria-label={t('fields.fileUpload')}
+                    onChange={event => void addFiles(event.target.files)}
                   />
-                  <div className="flex items-center gap-1.5 px-0.5 pb-1 pt-0.5">
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="-ml-1 h-7 w-7 shrink-0 rounded-full text-muted-foreground hover:bg-background/70 hover:text-foreground"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={sending}
-                      aria-label={t('actions.uploadFiles')}
-                    >
-                      <FileUp className="h-3 w-3" />
-                    </Button>
-                    <Popover open={modelPopoverOpen} onOpenChange={setModelPopoverOpen}>
-                      <PopoverTrigger asChild>
-                        <button
-                          type="button"
-                          className="inline-flex h-7 items-center gap-1 rounded-md border border-input bg-background px-2 text-xs text-muted-foreground hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
-                          disabled={sending || loadingModels}
+
+                  {attachments.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {attachments.map(attachment => (
+                        <div
+                          key={attachment.id}
+                          className="rounded-full border border-border/40 bg-muted/15 px-2 py-1 text-[11px]"
                         >
-                          {loadingModels ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : selectedModel ? (
-                            <span className="max-w-[120px] truncate">
-                              {availableModels.find(m => modelSelectionValue(m) === selectedModel)?.label ?? selectedModel}
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-foreground/85">
+                              {attachment.name}
                             </span>
-                          ) : (
-                            <span>{t('fields.noModelsAvailable')}</span>
-                          )}
-                          <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-64 p-0" align="start">
-                        <div className="flex items-center border-b px-3 py-2">
-                          <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-                          <input
-                            className="flex h-8 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
-                            placeholder={t('fields.modelSearchPlaceholder')}
-                            value={modelSearchQuery}
-                            onChange={e => setModelSearchQuery(e.target.value)}
-                            autoFocus
-                          />
-                        </div>
-                        <div className="max-h-48 overflow-y-auto p-1">
-                          {filteredModels.length > 0 ? (
-                            filteredModels.map(model => (
-                              <button
-                                key={modelSelectionValue(model)}
-                                type="button"
-                                className={cn(
-                                  'flex w-full items-center rounded-sm px-2 py-1.5 text-xs hover:bg-accent hover:text-accent-foreground',
-                                  modelSelectionValue(model) === selectedModel && 'bg-accent/50 font-medium'
-                                )}
-                                onClick={() => {
-                                  setSelectedModel(modelSelectionValue(model))
-                                  setModelPopoverOpen(false)
-                                  setModelSearchQuery('')
-                                }}
-                              >
-                                <span className="truncate">{model.label}</span>
-                              </button>
-                            ))
-                          ) : (
-                            <div className="px-2 py-4 text-center text-xs text-muted-foreground">
-                              {modelSearchQuery ? t('fields.noModelsMatchSearch') : t('fields.noModelsAvailable')}
+                            <span className="text-muted-foreground">
+                              {formatAttachmentSize(attachment.size)}
+                            </span>
+                            {attachment.loading ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => removeAttachment(attachment.id)}
+                              aria-label={t('aria.removeAttachment', { name: attachment.name })}
+                              className="text-muted-foreground transition-colors hover:text-foreground"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                          {attachment.error ? (
+                            <div className="mt-1 text-[11px] text-muted-foreground">
+                              {attachment.error}
                             </div>
-                          )}
+                          ) : null}
                         </div>
-                        <div className="border-t p-1">
-                          <button
-                            type="button"
-                            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                            onClick={async () => {
-                              setModelPopoverOpen(false)
-                              setModelSearchQuery('')
-                              await navigate({ to: '/resources/ai-providers', search: { create: undefined } })
-                            }}
-                          >
-                            <Settings className="h-3.5 w-3.5" />
-                            {t('actions.configureModels')}
-                          </button>
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                    <div className="flex-1" />
-                    {sending ? (
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <div className="rounded-xl bg-muted/15 px-3 pt-1.5">
+                    <Textarea
+                      value={draft}
+                      onChange={event => setDraft(event.target.value)}
+                      onKeyDown={event => {
+                        if (event.key === 'Enter' && !event.shiftKey) {
+                          event.preventDefault()
+                          event.currentTarget.form?.requestSubmit()
+                        }
+                      }}
+                      placeholder={t('fields.messagePlaceholder')}
+                      className="min-h-10 max-h-28 resize-none rounded-none border-0 bg-transparent px-0.5 py-0 leading-5 shadow-none focus-visible:border-0 focus-visible:ring-0"
+                      disabled={sending}
+                    />
+                    <div className="flex items-center gap-1.5 px-0.5 pb-1 pt-0.5">
                       <Button
                         type="button"
                         size="icon"
                         variant="ghost"
-                        className="-mr-1 h-7 w-7 shrink-0 rounded-full text-muted-foreground hover:bg-background/70 hover:text-foreground"
-                        aria-label={t('actions.stopGeneration')}
-                        onClick={stopStreaming}
+                        className="-ml-1 h-7 w-7 shrink-0 rounded-full text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={sending}
+                        aria-label={t('actions.uploadFiles')}
                       >
-                        <Square className="h-3 w-3 fill-current" />
+                        <FileUp className="h-3 w-3" />
                       </Button>
-                    ) : (
-                      <Button
-                        type="submit"
-                        size="icon"
-                        variant="ghost"
-                        className="-mr-1 h-7 w-7 shrink-0 rounded-full text-muted-foreground hover:bg-background/70 hover:text-foreground"
-                        aria-label={t('actions.sendMessage')}
-                        disabled={attachmentsLoading || (!draft.trim() && attachments.length === 0)}
-                      >
-                        <Send className="h-3 w-3" />
-                      </Button>
-                    )}
+                      <Popover open={modelPopoverOpen} onOpenChange={setModelPopoverOpen}>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex h-7 items-center gap-1 rounded-md border border-input bg-background px-2 text-xs text-muted-foreground hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                            disabled={sending || loadingModels}
+                          >
+                            {loadingModels ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : selectedModel ? (
+                              <span className="max-w-[120px] truncate">
+                                {availableModels.find(m => modelSelectionValue(m) === selectedModel)
+                                  ?.label ?? selectedModel}
+                              </span>
+                            ) : (
+                              <span>{t('fields.noModelsAvailable')}</span>
+                            )}
+                            <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64 p-0" align="start">
+                          <div className="flex items-center border-b px-3 py-2">
+                            <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                            <input
+                              className="flex h-8 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
+                              placeholder={t('fields.modelSearchPlaceholder')}
+                              value={modelSearchQuery}
+                              onChange={e => setModelSearchQuery(e.target.value)}
+                              autoFocus
+                            />
+                          </div>
+                          <div className="max-h-48 overflow-y-auto p-1">
+                            {filteredModels.length > 0 ? (
+                              filteredModels.map(model => (
+                                <button
+                                  key={modelSelectionValue(model)}
+                                  type="button"
+                                  className={cn(
+                                    'flex w-full items-center rounded-sm px-2 py-1.5 text-xs hover:bg-accent hover:text-accent-foreground',
+                                    modelSelectionValue(model) === selectedModel &&
+                                      'bg-accent/50 font-medium'
+                                  )}
+                                  onClick={() => {
+                                    setSelectedModel(modelSelectionValue(model))
+                                    setModelPopoverOpen(false)
+                                    setModelSearchQuery('')
+                                  }}
+                                >
+                                  <span className="truncate">{model.label}</span>
+                                </button>
+                              ))
+                            ) : (
+                              <div className="px-2 py-4 text-center text-xs text-muted-foreground">
+                                {modelSearchQuery
+                                  ? t('fields.noModelsMatchSearch')
+                                  : t('fields.noModelsAvailable')}
+                              </div>
+                            )}
+                          </div>
+                          <div className="border-t p-1">
+                            <button
+                              type="button"
+                              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                              onClick={async () => {
+                                setModelPopoverOpen(false)
+                                setModelSearchQuery('')
+                                await navigate({
+                                  to: '/resources/ai-providers',
+                                  search: { create: undefined },
+                                })
+                              }}
+                            >
+                              <Settings className="h-3.5 w-3.5" />
+                              {t('actions.configureModels')}
+                            </button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                      <div className="flex-1" />
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex h-7 items-center gap-1 rounded-md border border-input bg-background px-2 text-xs text-muted-foreground hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            aria-label={t('actions.tokenUsage')}
+                            disabled={!selectedModelMeta}
+                          >
+                            <ChartPie className="h-3 w-3 shrink-0" />
+                            <span>{tokenUsagePercent}%</span>
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-72 p-3" align="end">
+                          <div className="space-y-3 text-xs">
+                            <div>
+                              <div className="font-medium text-foreground">{t('tokens.title')}</div>
+                              <div className="mt-1 text-muted-foreground">{t('tokens.description')}</div>
+                            </div>
+                            <div className="h-2 overflow-hidden rounded-full bg-muted">
+                              <div
+                                className={cn(
+                                  'h-full rounded-full transition-[width]',
+                                  tokenUsagePercent >= 100
+                                    ? 'bg-destructive'
+                                    : tokenUsagePercent >= 80
+                                      ? 'bg-amber-500'
+                                      : 'bg-primary'
+                                )}
+                                style={{ width: `${Math.min(tokenUsagePercent, 100)}%` }}
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                              <div className="text-muted-foreground">{t('tokens.currentModel')}</div>
+                              <div className="text-right text-foreground">{selectedModelMeta?.label ?? '-'}</div>
+                              <div className="text-muted-foreground">{t('tokens.contextWindow')}</div>
+                              <div className="text-right text-foreground">{currentContextSize > 0 ? currentContextSize.toLocaleString() : '-'}</div>
+                              <div className="text-muted-foreground">{t('tokens.maxOutput')}</div>
+                              <div className="text-right text-foreground">{currentCompletionCap > 0 ? currentCompletionCap.toLocaleString() : '-'}</div>
+                              <div className="text-muted-foreground">{t('tokens.inputBudget')}</div>
+                              <div className="text-right text-foreground">{currentInputBudget.toLocaleString()}</div>
+                              <div className="text-muted-foreground">{t('tokens.visibleConversation')}</div>
+                              <div className="text-right text-foreground">{conversationTokenEstimate.toLocaleString()}</div>
+                              <div className="text-muted-foreground">{t('tokens.currentDraft')}</div>
+                              <div className="text-right text-foreground">{draftTokenEstimate.toLocaleString()}</div>
+                              <div className="text-muted-foreground">{t('tokens.nextRequestEstimate')}</div>
+                              <div className="text-right text-foreground">{estimatedNextRequestTokens.toLocaleString()}</div>
+                              <div className="text-muted-foreground">{t('tokens.remainingInput')}</div>
+                              <div className="text-right text-foreground">{estimatedRemainingInput.toLocaleString()}</div>
+                            </div>
+                            <div className="rounded-md border border-border/60 bg-muted/20 px-2.5 py-2 text-muted-foreground">
+                              {t('tokens.note')}
+                            </div>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                      {sending ? (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="-mr-1 h-7 w-7 shrink-0 rounded-full text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                          aria-label={t('actions.stopGeneration')}
+                          onClick={stopStreaming}
+                        >
+                          <Square className="h-3 w-3 fill-current" />
+                        </Button>
+                      ) : (
+                        <Button
+                          type="submit"
+                          size="icon"
+                          variant="ghost"
+                          className="-mr-1 h-7 w-7 shrink-0 rounded-full text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                          aria-label={t('actions.sendMessage')}
+                          disabled={
+                            attachmentsLoading || (!draft.trim() && attachments.length === 0)
+                          }
+                        >
+                          <Send className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
                 </div>
               </form>
             </div>
