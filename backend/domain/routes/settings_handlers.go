@@ -249,6 +249,13 @@ func getCustomSettingsEntryValue(app core.App, module, key string) (map[string]a
 		}
 		return maskValue(value), nil
 	}
+	if module == "proxy" && key == "servers" {
+		value, err := sysconfig.GetGroup(app, module, key, proxy.DefaultRemoteShellSettingsMap())
+		if err != nil {
+			app.Logger().Debug("settings fallback used", "module", module, "key", key, "error", err)
+		}
+		return maskValue(proxy.NormalizeRemoteShellSettingsValue(value)), nil
+	}
 
 	fallback := fallbackForKey(module, key)
 	value, err := sysconfig.GetGroup(app, module, key, fallback)
@@ -263,6 +270,10 @@ func getCustomSettingsEntryValue(app core.App, module, key string) (map[string]a
 
 func patchCustomSettingsEntry(e *core.RequestEvent, module, key string, value map[string]any) (map[string]any, error) {
 	fallback := fallbackForKey(module, key)
+	if module == "proxy" && key == "servers" {
+		fallback = proxy.DefaultRemoteShellSettingsMap()
+		value = proxy.NormalizeRemoteShellSettingsValue(value)
+	}
 	existing, _ := sysconfig.GetGroup(e.App, module, key, fallback)
 	merged := preserveSensitive(value, existing)
 
@@ -272,6 +283,9 @@ func patchCustomSettingsEntry(e *core.RequestEvent, module, key string, value ma
 
 	if err := sysconfig.SetGroup(e.App, module, key, merged); err != nil {
 		return nil, err
+	}
+	if module == "proxy" && key == "servers" {
+		return maskValue(proxy.NormalizeRemoteShellSettingsValue(merged)), nil
 	}
 
 	stored, _ := getCustomSettingsEntryValue(e.App, module, key)
@@ -298,6 +312,8 @@ func validateCustomSettingsEntry(e *core.RequestEvent, module, key string, value
 		return validateProxyNetwork(e.App, value)
 	case "proxy/consumers":
 		return validateProxyConsumers(value)
+	case "proxy/servers":
+		return validateProxyRemoteShellServers(e.App, value)
 	case "monitor/scheduling":
 		return validateMonitorScheduling(value)
 	case "monitor/policy":

@@ -4,7 +4,6 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import {
   Bot,
-  ChartPie,
   Check,
   ChevronDown,
   Copy,
@@ -45,6 +44,7 @@ import { Input } from '@/components/ui/input'
 import { MarkdownView } from '@/components/ui/markdown'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   createAICopilotSession,
   deleteAICopilotSession,
@@ -60,12 +60,19 @@ import {
 } from '@/lib/ai-copilot-api'
 import { getApiErrorMessage } from '@/lib/api-error'
 import { copyToClipboard } from '@/lib/clipboard'
+import {
+  extractDocxText,
+  extractPdfText,
+  isDocxFile,
+  isPdfFile,
+} from '@/lib/document-extraction'
 import { getLocale } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 const USER_MESSAGE_ENVELOPE_START = '[[APPOS_CHAT_V1]]'
 const USER_MESSAGE_ENVELOPE_END = '[[/APPOS_CHAT_V1]]'
 const TEXT_ATTACHMENT_BYTES_LIMIT = 120_000
+const BINARY_DOCUMENT_BYTES_LIMIT = 10 * 1024 * 1024
 const DEFAULT_INPUT_TOKEN_BUDGET = 24_000
 const MAX_INPUT_TOKEN_BUDGET = 48_000
 const MIN_INPUT_TOKEN_BUDGET = 2_048
@@ -85,6 +92,11 @@ type DraftAttachment = {
 type ParsedUserMessage = {
   text: string
   attachments: AICopilotAttachment[]
+}
+
+type AttachmentStatus = {
+  tone: 'info' | 'warning' | 'error'
+  message: string
 }
 
 function modelSelectionValue(option: Pick<AICopilotModelOption, 'provider_id' | 'model_id'>) {
@@ -195,11 +207,41 @@ function formatRelativeTime(locale: 'en' | 'zh', value: string | undefined, just
   return formatter.format(diffMonths, 'month')
 }
 
+function TokenUsageRing({ percent }: { percent: number }) {
+  const clamped = Math.min(100, Math.max(0, percent))
+  const radius = 8
+  const circumference = 2 * Math.PI * radius
+  const offset = circumference * (1 - clamped / 100)
+  const colorClass =
+    clamped >= 100 ? 'text-destructive' : clamped >= 80 ? 'text-amber-500' : 'text-primary'
+
+  return (
+    <span className={cn('inline-flex h-5 w-5 items-center justify-center', colorClass)}>
+      <svg viewBox="0 0 20 20" className="h-5 w-5 -rotate-90" aria-hidden="true">
+        <circle cx="10" cy="10" r={radius} fill="none" stroke="currentColor" strokeOpacity="0.16" strokeWidth="2.4" />
+        <circle
+          cx="10"
+          cy="10"
+          r={radius}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+        />
+      </svg>
+    </span>
+  )
+}
+
 async function buildDraftAttachment(
   file: File,
   labels: {
     textPreviewSkipped: (limit: string) => string
     textPreviewUnavailable: string
+    binaryDocumentTooLarge: (limit: string) => string
+    unsupportedAttachmentType: string
   }
 ): Promise<DraftAttachment> {
   const draft: DraftAttachment = {
@@ -210,8 +252,43 @@ async function buildDraftAttachment(
     loading: false,
   }
 
+  if (isPdfFile(file)) {
+    if (file.size > BINARY_DOCUMENT_BYTES_LIMIT) {
+      return {
+        ...draft,
+        error: labels.binaryDocumentTooLarge(
+          formatAttachmentSize(BINARY_DOCUMENT_BYTES_LIMIT)
+        ),
+      }
+    }
+    try {
+      return { ...draft, textContent: await extractPdfText(file) }
+    } catch {
+      return { ...draft, error: labels.textPreviewUnavailable }
+    }
+  }
+
+  if (isDocxFile(file)) {
+    if (file.size > BINARY_DOCUMENT_BYTES_LIMIT) {
+      return {
+        ...draft,
+        error: labels.binaryDocumentTooLarge(
+          formatAttachmentSize(BINARY_DOCUMENT_BYTES_LIMIT)
+        ),
+      }
+    }
+    try {
+      return { ...draft, textContent: await extractDocxText(file) }
+    } catch {
+      return { ...draft, error: labels.textPreviewUnavailable }
+    }
+  }
+
   if (!isTextAttachment(file)) {
-    return draft
+    return {
+      ...draft,
+      error: labels.unsupportedAttachmentType,
+    }
   }
   if (file.size > TEXT_ATTACHMENT_BYTES_LIMIT) {
     return {
@@ -314,8 +391,11 @@ export function AICopilotPage() {
   const [renamingSessionId, setRenamingSessionId] = useState('')
   const [renameDraft, setRenameDraft] = useState('')
   const [attachments, setAttachments] = useState<DraftAttachment[]>([])
+  const [attachmentStatus, setAttachmentStatus] = useState<AttachmentStatus | null>(null)
   const [conversationListWide, setConversationListWide] = useState(true)
   const [deleteTarget, setDeleteTarget] = useState<AICopilotSession | null>(null)
+  const [batchDeleteMode, setBatchDeleteMode] = useState(false)
+  const [batchDeleteSet, setBatchDeleteSet] = useState<Set<string>>(new Set())
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const activeRequestRef = useRef<AbortController | null>(null)
@@ -328,6 +408,12 @@ export function AICopilotPage() {
   const defaultSessionTitle = t('page.defaultSessionTitle')
 
   const attachmentsLoading = attachments.some(item => item.loading)
+
+  useEffect(() => {
+    if (!sending && attachments.length === 0) {
+      setAttachmentStatus(null)
+    }
+  }, [attachments.length, sending])
 
   const stopStreaming = useCallback(() => {
     activeRequestRef.current?.abort()
@@ -479,6 +565,10 @@ export function AICopilotPage() {
   const addFiles = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return
     const files = Array.from(fileList)
+    setAttachmentStatus({
+      tone: 'info',
+      message: t('messages.readingAttachments', { count: files.length }),
+    })
     const placeholders = files.map(file => ({
       id: `${file.name}-${file.size}-${file.lastModified}`,
       name: file.name,
@@ -492,6 +582,9 @@ export function AICopilotPage() {
         buildDraftAttachment(file, {
           textPreviewSkipped: limit => t('messages.textPreviewSkipped', { limit }),
           textPreviewUnavailable: t('messages.textPreviewUnavailable'),
+          binaryDocumentTooLarge: limit =>
+            t('messages.binaryDocumentTooLarge', { limit }),
+          unsupportedAttachmentType: t('messages.unsupportedAttachmentType'),
         })
       )
     )
@@ -501,6 +594,27 @@ export function AICopilotPage() {
       )
       return [...existing, ...built]
     })
+    const failedCount = built.filter(item => Boolean(item.error)).length
+    const readableCount = built.length - failedCount
+    if (failedCount === 0) {
+      setAttachmentStatus({
+        tone: 'info',
+        message: t('messages.attachmentsReady', { count: readableCount }),
+      })
+    } else if (readableCount === 0) {
+      setAttachmentStatus({
+        tone: 'error',
+        message: t('messages.attachmentsUnreadable', { count: failedCount }),
+      })
+    } else {
+      setAttachmentStatus({
+        tone: 'warning',
+        message: t('messages.attachmentsPartialReady', {
+          count: readableCount,
+          failed: failedCount,
+        }),
+      })
+    }
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -513,17 +627,35 @@ export function AICopilotPage() {
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     const content = draft.trim()
-    const outgoingAttachments: AICopilotAttachment[] = attachments.map(item => ({
+    const readableAttachments = attachments.filter(item => !item.loading && !item.error)
+    const unreadableAttachments = attachments.filter(item => Boolean(item.error))
+    const outgoingAttachments: AICopilotAttachment[] = readableAttachments.map(item => ({
       name: item.name,
       mime_type: item.mimeType,
       size: item.size,
       text_content: item.textContent,
     }))
-    if (sending || attachmentsLoading || (!content && outgoingAttachments.length === 0)) return
+    if (sending || attachmentsLoading || (!content && attachments.length === 0)) return
+    if (content === '' && outgoingAttachments.length === 0 && unreadableAttachments.length > 0) {
+      setAttachmentStatus({
+        tone: 'error',
+        message: t('messages.attachmentsNeedReadableContent'),
+      })
+      return
+    }
+    const previousDraft = draft
+    const previousAttachments = attachments
     setDraft('')
-    setAttachments([])
     setSending(true)
     setError('')
+    setAttachmentStatus(
+      outgoingAttachments.length > 0 || unreadableAttachments.length > 0
+        ? {
+            tone: unreadableAttachments.length > 0 ? 'warning' : 'info',
+            message: t('messages.submittingAttachments', { count: outgoingAttachments.length }),
+          }
+        : null
+    )
 
     let sessionId = activeSessionId
     if (!sessionId) {
@@ -586,8 +718,12 @@ export function AICopilotPage() {
         { signal: controller.signal }
       )
       await refreshSessions()
+      setAttachments([])
+      setAttachmentStatus(null)
     } catch (err) {
       const aborted = err instanceof Error && err.name === 'AbortError'
+      setDraft(previousDraft)
+      setAttachments(previousAttachments)
       if (aborted) {
         setMessages(prev =>
           prev.map(item => (item.id === assistantId ? { ...item, status: 'stopped' } : item))
@@ -596,6 +732,29 @@ export function AICopilotPage() {
       } else {
         setError(getApiErrorMessage(err, t('messages.sendError')))
         await loadMessages(sessionId)
+      }
+      if (previousAttachments.length > 0) {
+        const failedCount = previousAttachments.filter(item => Boolean(item.error)).length
+        const readableCount = previousAttachments.length - failedCount
+        setAttachmentStatus(
+          failedCount === 0
+            ? {
+                tone: 'info',
+                message: t('messages.attachmentsReady', { count: readableCount }),
+              }
+            : readableCount === 0
+              ? {
+                  tone: 'error',
+                  message: t('messages.attachmentsUnreadable', { count: failedCount }),
+                }
+              : {
+                  tone: 'warning',
+                  message: t('messages.attachmentsPartialReady', {
+                    count: readableCount,
+                    failed: failedCount,
+                  }),
+                }
+        )
       }
     } finally {
       activeRequestRef.current = null
@@ -645,48 +804,28 @@ export function AICopilotPage() {
         >
           <aside
             className={cn(
-              'min-h-0 overflow-hidden rounded-xl border bg-background transition-all duration-200',
+              'flex min-h-0 flex-col overflow-hidden rounded-xl border bg-background transition-all duration-200',
               conversationListWide ? 'p-3 opacity-100' : 'w-0 border-transparent p-0 opacity-0'
             )}
             aria-hidden={!conversationListWide}
           >
-            <div className="mb-2.5 flex items-center justify-between gap-2 border-b pb-2.5">
-              <div className="flex items-center gap-1">
-                <div className="text-sm font-semibold tracking-tight">
-                  {t('page.conversationList')}
-                </div>
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7"
-                  aria-label={t('actions.createConversation')}
-                  onClick={() => void createSession()}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </Button>
-              </div>
+            <div className="flex items-center justify-between gap-2 border-b pb-2.5">
+              <span className="text-sm font-semibold tracking-tight">
+                {t('page.conversationList')} ({sessions.length})
+              </span>
               <Button
                 type="button"
                 size="icon"
                 variant="ghost"
                 className="h-7 w-7"
-                aria-label={
-                  conversationListWide
-                    ? t('actions.shrinkConversationList')
-                    : t('actions.expandConversationList')
-                }
-                onClick={() => setConversationListWide(prev => !prev)}
+                aria-label={t('actions.createConversation')}
+                onClick={() => void createSession()}
               >
-                {conversationListWide ? (
-                  <PanelLeftClose className="h-3.5 w-3.5" />
-                ) : (
-                  <PanelLeft className="h-3.5 w-3.5" />
-                )}
+                <Plus className="h-3.5 w-3.5" />
               </Button>
             </div>
 
-            <div className="space-y-1 overflow-y-auto pr-1">
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-1 py-2 pr-1">
               {sessions.map(session => {
                 const isActive = session.id === activeSessionId
                 const isRenaming = session.id === renamingSessionId
@@ -732,6 +871,24 @@ export function AICopilotPage() {
                       </div>
                     ) : (
                       <div className="flex items-start gap-1.5">
+                        {batchDeleteMode ? (
+                          <input
+                            type="checkbox"
+                            className="mt-1.5 h-4 w-4 shrink-0"
+                            checked={batchDeleteSet.has(session.id)}
+                            onChange={() => {
+                              setBatchDeleteSet(prev => {
+                                const next = new Set(prev)
+                                if (next.has(session.id)) {
+                                  next.delete(session.id)
+                                } else {
+                                  next.add(session.id)
+                                }
+                                return next
+                              })
+                            }}
+                          />
+                        ) : null}
                         <button
                           type="button"
                           onClick={() => void selectSession(session.id)}
@@ -758,6 +915,7 @@ export function AICopilotPage() {
                             </div>
                           </div>
                         </button>
+                        {batchDeleteMode ? null : (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
@@ -788,17 +946,145 @@ export function AICopilotPage() {
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
+                        )}
                       </div>
                     )}
                   </div>
                 )
               })}
             </div>
+
+            <div className="border-t pt-2.5 space-y-2">
+              {sessions.length > 0 ? (
+                <div className="flex items-center justify-between gap-1">
+                  {batchDeleteMode ? (
+                    <>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          setBatchDeleteSet(new Set(sessions.map(s => s.id)))
+                        }}
+                      >
+                        {t('actions.selectAll')}
+                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => {
+                            setBatchDeleteMode(false)
+                            setBatchDeleteSet(new Set())
+                          }}
+                        >
+                          {t('actions.cancel')}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="destructive"
+                          className="h-7 text-xs"
+                          disabled={batchDeleteSet.size === 0}
+                          onClick={async () => {
+                            setError('')
+                            const ids = Array.from(batchDeleteSet)
+                            let first = true
+                            for (const id of ids) {
+                              setBusySessionId(id)
+                              try {
+                                await deleteAICopilotSession(id)
+                                setSessions(prev => prev.filter(s => s.id !== id))
+                                if (activeSessionId === id) {
+                                  const remaining = sessions.filter(s => s.id !== id && !ids.includes(s.id))
+                                  if (remaining.length > 0 && first) {
+                                    setActiveSessionId(remaining[0].id)
+                                    await loadMessages(remaining[0].id)
+                                  } else if (remaining.length === 0) {
+                                    setActiveSessionId('')
+                                    setMessages([])
+                                  }
+                                }
+                              } catch {
+                                // continue
+                              } finally {
+                                setBusySessionId('')
+                              }
+                              first = false
+                            }
+                            setBatchDeleteMode(false)
+                            setBatchDeleteSet(new Set())
+                          }}
+                        >
+                          {t('actions.deleteSelected', { count: batchDeleteSet.size })}
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        aria-label={t('actions.batchDelete')}
+                        onClick={() => setBatchDeleteMode(true)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        aria-label={
+                          conversationListWide
+                            ? t('actions.shrinkConversationList')
+                            : t('actions.expandConversationList')
+                        }
+                        onClick={() => setConversationListWide(prev => !prev)}
+                      >
+                        {conversationListWide ? (
+                          <PanelLeftClose className="h-3.5 w-3.5" />
+                        ) : (
+                          <PanelLeft className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    aria-label={
+                      conversationListWide
+                        ? t('actions.shrinkConversationList')
+                        : t('actions.expandConversationList')
+                    }
+                    onClick={() => setConversationListWide(prev => !prev)}
+                  >
+                    {conversationListWide ? (
+                      <PanelLeftClose className="h-3.5 w-3.5" />
+                    ) : (
+                      <PanelLeft className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </div>
+              )}
+            </div>
           </aside>
 
           <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border bg-background">
             <div className="px-5 py-3">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
                 {!conversationListWide ? (
                   <Button
                     type="button"
@@ -810,7 +1096,69 @@ export function AICopilotPage() {
                     <PanelLeft className="h-4 w-4" />
                   </Button>
                 ) : null}
-                <h2 className="text-lg font-semibold">{activeSession?.title || t('page.title')}</h2>
+                  <h2 className="truncate text-lg font-semibold">{activeSession?.title || t('page.title')}</h2>
+                </div>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-accent/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                      aria-label={t('actions.tokenUsage')}
+                      disabled={!selectedModelMeta}
+                    >
+                      <TokenUsageRing percent={tokenUsagePercent} />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72 p-3" align="end">
+                    <div className="space-y-3 text-xs">
+                      <div>
+                        <div className="font-medium text-foreground">{t('tokens.title')}</div>
+                        <div className="mt-1 text-muted-foreground">{t('tokens.description')}</div>
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <TokenUsageRing percent={tokenUsagePercent} />
+                          <div className="text-muted-foreground">{selectedModelMeta?.label ?? '-'}</div>
+                        </div>
+                        <div className="text-sm font-medium text-foreground">{Math.min(tokenUsagePercent, 999)}%</div>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className={cn(
+                            'h-full rounded-full transition-[width]',
+                            tokenUsagePercent >= 100
+                              ? 'bg-destructive'
+                              : tokenUsagePercent >= 80
+                                ? 'bg-amber-500'
+                                : 'bg-primary'
+                          )}
+                          style={{ width: `${Math.min(tokenUsagePercent, 100)}%` }}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                        <div className="text-muted-foreground">{t('tokens.currentModel')}</div>
+                        <div className="text-right text-foreground">{selectedModelMeta?.label ?? '-'}</div>
+                        <div className="text-muted-foreground">{t('tokens.contextWindow')}</div>
+                        <div className="text-right text-foreground">{currentContextSize > 0 ? currentContextSize.toLocaleString() : '-'}</div>
+                        <div className="text-muted-foreground">{t('tokens.maxOutput')}</div>
+                        <div className="text-right text-foreground">{currentCompletionCap > 0 ? currentCompletionCap.toLocaleString() : '-'}</div>
+                        <div className="text-muted-foreground">{t('tokens.inputBudget')}</div>
+                        <div className="text-right text-foreground">{currentInputBudget.toLocaleString()}</div>
+                        <div className="text-muted-foreground">{t('tokens.visibleConversation')}</div>
+                        <div className="text-right text-foreground">{conversationTokenEstimate.toLocaleString()}</div>
+                        <div className="text-muted-foreground">{t('tokens.currentDraft')}</div>
+                        <div className="text-right text-foreground">{draftTokenEstimate.toLocaleString()}</div>
+                        <div className="text-muted-foreground">{t('tokens.nextRequestEstimate')}</div>
+                        <div className="text-right text-foreground">{estimatedNextRequestTokens.toLocaleString()}</div>
+                        <div className="text-muted-foreground">{t('tokens.remainingInput')}</div>
+                        <div className="text-right text-foreground">{estimatedRemainingInput.toLocaleString()}</div>
+                      </div>
+                      <div className="rounded-md border border-border/60 bg-muted/20 px-2.5 py-2 text-muted-foreground">
+                        {t('tokens.note')}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
 
@@ -833,7 +1181,7 @@ export function AICopilotPage() {
               )}
             </div>
 
-            <div className="shrink-0 border-t bg-background/96 px-5 pb-4 pt-3 backdrop-blur-md">
+            <div className="shrink-0 bg-background/96 px-5 pb-4 pt-3 backdrop-blur-md">
               <form onSubmit={submit} className="mx-auto max-w-4xl">
                 <div className="space-y-2 rounded-2xl border border-border/60 bg-background/94 p-2 shadow-[0_14px_30px_-22px_rgba(15,23,42,0.32)] transition-colors focus-within:border-primary/30">
                   <input
@@ -882,6 +1230,21 @@ export function AICopilotPage() {
                   ) : null}
 
                   <div className="rounded-xl bg-muted/15 px-3 pt-1.5">
+                    {attachmentStatus ? (
+                      <div
+                        className={cn(
+                          'mb-2 rounded-lg border px-3 py-2 text-xs',
+                          attachmentStatus.tone === 'error' &&
+                            'border-destructive/40 bg-destructive/5 text-destructive',
+                          attachmentStatus.tone === 'warning' &&
+                            'border-amber-500/40 bg-amber-500/5 text-amber-700 dark:text-amber-300',
+                          attachmentStatus.tone === 'info' &&
+                            'border-border/60 bg-background/80 text-muted-foreground'
+                        )}
+                      >
+                        {attachmentStatus.message}
+                      </div>
+                    ) : null}
                     <Textarea
                       value={draft}
                       onChange={event => setDraft(event.target.value)}
@@ -896,17 +1259,26 @@ export function AICopilotPage() {
                       disabled={sending}
                     />
                     <div className="flex items-center gap-1.5 px-0.5 pb-1 pt-0.5">
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className="-ml-1 h-7 w-7 shrink-0 rounded-full text-muted-foreground hover:bg-background/70 hover:text-foreground"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={sending}
-                        aria-label={t('actions.uploadFiles')}
-                      >
-                        <FileUp className="h-3 w-3" />
-                      </Button>
+                      <TooltipProvider delayDuration={150}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="-ml-1 h-7 w-7 shrink-0 rounded-full text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                              onClick={() => fileInputRef.current?.click()}
+                              disabled={sending}
+                              aria-label={t('actions.uploadFiles')}
+                            >
+                              <FileUp className="h-3 w-3" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{t('actions.uploadFilesHelp')}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                       <Popover open={modelPopoverOpen} onOpenChange={setModelPopoverOpen}>
                         <PopoverTrigger asChild>
                           <button
@@ -986,61 +1358,6 @@ export function AICopilotPage() {
                         </PopoverContent>
                       </Popover>
                       <div className="flex-1" />
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <button
-                            type="button"
-                            className="inline-flex h-7 items-center gap-1 rounded-md border border-input bg-background px-2 text-xs text-muted-foreground hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                            aria-label={t('actions.tokenUsage')}
-                            disabled={!selectedModelMeta}
-                          >
-                            <ChartPie className="h-3 w-3 shrink-0" />
-                            <span>{tokenUsagePercent}%</span>
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-72 p-3" align="end">
-                          <div className="space-y-3 text-xs">
-                            <div>
-                              <div className="font-medium text-foreground">{t('tokens.title')}</div>
-                              <div className="mt-1 text-muted-foreground">{t('tokens.description')}</div>
-                            </div>
-                            <div className="h-2 overflow-hidden rounded-full bg-muted">
-                              <div
-                                className={cn(
-                                  'h-full rounded-full transition-[width]',
-                                  tokenUsagePercent >= 100
-                                    ? 'bg-destructive'
-                                    : tokenUsagePercent >= 80
-                                      ? 'bg-amber-500'
-                                      : 'bg-primary'
-                                )}
-                                style={{ width: `${Math.min(tokenUsagePercent, 100)}%` }}
-                              />
-                            </div>
-                            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-                              <div className="text-muted-foreground">{t('tokens.currentModel')}</div>
-                              <div className="text-right text-foreground">{selectedModelMeta?.label ?? '-'}</div>
-                              <div className="text-muted-foreground">{t('tokens.contextWindow')}</div>
-                              <div className="text-right text-foreground">{currentContextSize > 0 ? currentContextSize.toLocaleString() : '-'}</div>
-                              <div className="text-muted-foreground">{t('tokens.maxOutput')}</div>
-                              <div className="text-right text-foreground">{currentCompletionCap > 0 ? currentCompletionCap.toLocaleString() : '-'}</div>
-                              <div className="text-muted-foreground">{t('tokens.inputBudget')}</div>
-                              <div className="text-right text-foreground">{currentInputBudget.toLocaleString()}</div>
-                              <div className="text-muted-foreground">{t('tokens.visibleConversation')}</div>
-                              <div className="text-right text-foreground">{conversationTokenEstimate.toLocaleString()}</div>
-                              <div className="text-muted-foreground">{t('tokens.currentDraft')}</div>
-                              <div className="text-right text-foreground">{draftTokenEstimate.toLocaleString()}</div>
-                              <div className="text-muted-foreground">{t('tokens.nextRequestEstimate')}</div>
-                              <div className="text-right text-foreground">{estimatedNextRequestTokens.toLocaleString()}</div>
-                              <div className="text-muted-foreground">{t('tokens.remainingInput')}</div>
-                              <div className="text-right text-foreground">{estimatedRemainingInput.toLocaleString()}</div>
-                            </div>
-                            <div className="rounded-md border border-border/60 bg-muted/20 px-2.5 py-2 text-muted-foreground">
-                              {t('tokens.note')}
-                            </div>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
                       {sending ? (
                         <Button
                           type="button"

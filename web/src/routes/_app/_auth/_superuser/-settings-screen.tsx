@@ -1,5 +1,7 @@
-import { useState } from 'react'
-import { Info, Loader2, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Info, Loader2, Settings2, X } from 'lucide-react'
+import { IconBreadcrumb } from '@/components/layout/IconBreadcrumb'
+import { useOptionalLayout } from '@/contexts/LayoutContext'
 import { parseExtListInput } from '@/lib/ext-normalize'
 import { type SettingsSection } from '@/lib/settings-api'
 import { Button } from '@/components/ui/button'
@@ -7,9 +9,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { getRegisteredSectionHelp } from './-settings-core/help'
 import { buildNavigationItems, isNavigationItemActive } from './-settings-core/navigation'
 import { renderRegisteredSection } from './-settings-core/render'
+import { PROXY_SECTION_IDS } from './-settings-core/section-ids'
 import { sectionLabel } from './-settings-sections/shared'
 import { findSchemaEntry } from './-settings-core/schema-helpers'
 import { type SettingsPageController } from './-settings-controller'
+import { cn } from '@/lib/utils'
 
 type SettingsScreenProps = {
   controller: SettingsPageController
@@ -77,6 +81,8 @@ function renderSection(controller: SettingsPageController, options?: { onOpenHel
 
 export function SettingsScreen({ controller }: SettingsScreenProps) {
   const [helpOpen, setHelpOpen] = useState(false)
+  const layout = useOptionalLayout()
+  const setHeaderRightStartContent = layout?.setHeaderRightStartContent
   const groups = controller.schemaEntries.reduce<SettingsSection[]>((acc, entry) => {
     if (!acc.includes(entry.section)) {
       acc.push(entry.section)
@@ -84,6 +90,26 @@ export function SettingsScreen({ controller }: SettingsScreenProps) {
     return acc
   }, [])
   const help = activeSectionHelp(controller)
+  const showProxyBreadcrumb = PROXY_SECTION_IDS.includes(controller.activeSection as (typeof PROXY_SECTION_IDS)[number])
+
+  useEffect(() => {
+    if (!setHeaderRightStartContent) {
+      return undefined
+    }
+    if (!showProxyBreadcrumb) {
+      setHeaderRightStartContent(null)
+      return undefined
+    }
+    setHeaderRightStartContent(
+      <IconBreadcrumb
+        icon={<Settings2 className="h-4 w-4" />}
+        parentLabel="Settings"
+        parentHref="/settings"
+        currentPage="Proxy"
+      />
+    )
+    return () => setHeaderRightStartContent(null)
+  }, [setHeaderRightStartContent, showProxyBreadcrumb])
 
   return (
     <div>
@@ -138,11 +164,16 @@ export function SettingsScreen({ controller }: SettingsScreenProps) {
           </nav>
 
           <div className="min-w-0 lg:max-w-[760px] xl:max-w-[820px] space-y-4">
-            {renderSection(controller, { onOpenHelp: () => setHelpOpen(true) })}
+            {renderSection(controller, { onOpenHelp: () => setHelpOpen(current => !current) })}
           </div>
 
           {helpOpen ? (
-            <div className="min-w-0 lg:col-start-2 lg:row-start-2 2xl:col-start-3 2xl:row-start-1 2xl:sticky 2xl:top-6 2xl:self-start">
+              <div
+                className={cn(
+                  'min-w-0 lg:col-start-2 lg:row-start-2 2xl:col-start-3 2xl:row-start-1 2xl:self-start',
+                  showProxyBreadcrumb ? '2xl:pt-[72px]' : undefined
+                )}
+              >
               <SettingsHelpPanel
                 title={help.title}
                 description={help.description}

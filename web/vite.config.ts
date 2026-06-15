@@ -32,6 +32,8 @@ export default defineConfig({
           if (id.includes('/react-markdown/')) return 'markdown-vendor'
           if (id.includes('/i18next/') || id.includes('/react-i18next/')) return 'i18n-vendor'
           if (id.includes('/pocketbase/')) return 'pb-vendor'
+          if (id.includes('/pdfjs-dist/')) return 'pdf-vendor'
+          if (id.includes('/mammoth/')) return 'mammoth-vendor'
         },
       },
     },

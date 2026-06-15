@@ -231,10 +231,18 @@ try direct then proxy 没有起作用
 
 每一个chat 窗口，提供一个 token 统计
 
-settings > proxy 界面优化
-Proxy Providers: Proxy nodes and service instances
-Platform Proxy: Global proxy settings for platform modules
-Remote Proxy: Proxy configurations for remote servers
+更新api key 之后，enable models 全部丢失
+
+settings > proxy > remote shell proxy 的 Server-specific overrides 列表中，除了显示 服务器名称之外，还需要服务器 host.  名称与host 在一行显示
+
+TestMonitorWriteForwardsAuthenticatedInfluxPayload — 依赖外部 tsdb 端口
+TestSettingsSchemaIncludesUnifiedEntries — 文案断言过时
+4. server_ports.go 中 port release 路径残留未走 proxy
+
+handleServerPortRelease 仍调用 resolveTerminalConfig（不带 proxy），未切换到 resolveTerminalConfigWithProxy
+
+
+https://bedrock-mantle.us-east-1.api.aws/v1
 
 每个区域一个独立的框，标题和说明放在框之外。
 所有的设置tab 今后都采用这种策略

@@ -11,6 +11,8 @@ const listMessagesMock = vi.fn()
 const listModelsMock = vi.fn()
 const sendMessageMock = vi.fn()
 const navigateMock = vi.fn()
+const extractPdfTextMock = vi.fn()
+const extractDocxTextMock = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (config: Record<string, unknown>) => config,
@@ -61,6 +63,8 @@ vi.mock('react-i18next', () => ({
           return 'Delete'
         case 'actions.uploadFiles':
           return 'Upload files'
+        case 'actions.uploadFilesHelp':
+          return 'Supported for reading: text files, PDF, DOCX, DOC'
         case 'actions.sendMessage':
           return 'Send message'
         case 'actions.copyMarkdown':
@@ -99,6 +103,22 @@ vi.mock('react-i18next', () => ({
           return `Text preview skipped: file exceeds ${options?.limit ?? ''}.`
         case 'messages.textPreviewUnavailable':
           return 'Text preview unavailable for this file.'
+        case 'messages.unsupportedAttachmentType':
+          return 'Only text, PDF, DOCX, and DOC uploads are supported here.'
+        case 'messages.legacyDocUnsupported':
+          return 'Legacy DOC files cannot be read yet. Convert the file to DOCX or text first.'
+        case 'messages.readingAttachments':
+          return `Reading ${options?.count ?? ''} attachment(s)...`
+        case 'messages.attachmentsReady':
+          return `Read ${options?.count ?? ''} attachment(s). Ready to send to the AI model.`
+        case 'messages.attachmentsUnreadable':
+          return 'The selected attachment(s) could not be read. Fix or remove them before sending.'
+        case 'messages.attachmentsPartialReady':
+          return `Read ${options?.count ?? ''} attachment(s). ${options?.failed ?? ''} attachment(s) will be skipped.`
+        case 'messages.attachmentsNeedReadableContent':
+          return 'No readable attachment content is available yet. Remove the failed files or add a new message before sending.'
+        case 'messages.submittingAttachments':
+          return `Submitting ${options?.count ?? ''} attachment(s) to the AI model...`
         case 'dialog.deleteTitle':
           return 'Delete conversation?'
         case 'dialog.deleteDescriptionPrefix':
@@ -149,6 +169,14 @@ vi.mock('@/lib/ai-copilot-api', () => ({
   sendAICopilotMessage: (...args: unknown[]) => sendMessageMock(...args),
 }))
 
+vi.mock('@/lib/document-extraction', () => ({
+  extractPdfText: (...args: unknown[]) => extractPdfTextMock(...args),
+  extractDocxText: (...args: unknown[]) => extractDocxTextMock(...args),
+  isPdfFile: (file: File) => file.name.toLowerCase().endsWith('.pdf'),
+  isDocxFile: (file: File) => file.name.toLowerCase().endsWith('.docx'),
+  isDocFile: (file: File) => file.name.toLowerCase().endsWith('.doc'),
+}))
+
 afterEach(() => {
   cleanup()
 })
@@ -172,6 +200,8 @@ describe('AICopilotPage', () => {
     listModelsMock.mockReset()
     sendMessageMock.mockReset()
     navigateMock.mockReset()
+    extractPdfTextMock.mockReset()
+    extractDocxTextMock.mockReset()
     listSessionsMock.mockResolvedValue([{ id: 'session-1', title: 'Ops chat' }])
     listMessagesMock.mockResolvedValue([
       { id: 'msg-1', session_id: 'session-1', role: 'user', content: 'hello' },
@@ -200,6 +230,8 @@ describe('AICopilotPage', () => {
     deleteSessionMock.mockResolvedValue(undefined)
     vi.mocked(navigator.clipboard.writeText).mockReset()
     vi.mocked(navigator.clipboard.writeText).mockResolvedValue(undefined)
+    extractPdfTextMock.mockResolvedValue('pdf content')
+    extractDocxTextMock.mockResolvedValue('docx content')
   })
 
   it('loads sessions and message history', async () => {
@@ -426,6 +458,68 @@ describe('AICopilotPage', () => {
       )
     )
     expect(await screen.findByText('received attachment')).toBeInTheDocument()
+  })
+
+  it('reads uploaded pdf files before sending them', async () => {
+    render(<AICopilotPage />)
+    const input = await screen.findByPlaceholderText(
+      'Ask about operations, diagnosis, or AppOS knowledge'
+    )
+    const upload = screen.getByLabelText('Chat file upload') as HTMLInputElement
+    const sendButton = screen.getByRole('button', { name: 'Send message' })
+    const file = new File(['pdf'], 'report.pdf', { type: 'application/pdf' })
+
+    Object.defineProperty(upload, 'files', {
+      value: [file],
+      configurable: true,
+    })
+    fireEvent.change(upload)
+
+    sendMessageMock.mockResolvedValue(undefined)
+
+    await screen.findByText('Read 1 attachment(s). Ready to send to the AI model.')
+    fireEvent.change(input, { target: { value: 'review pdf' } })
+    fireEvent.click(sendButton)
+
+    await waitFor(() =>
+      expect(sendMessageMock).toHaveBeenCalledWith(
+        'session-1',
+        'review pdf',
+        'provider-1',
+        'openai/gpt-4.1-mini',
+        expect.any(Object),
+        [
+          expect.objectContaining({
+            name: 'report.pdf',
+            text_content: 'pdf content',
+          }),
+        ],
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      )
+    )
+  })
+
+  it('does not call the model when only unreadable attachments are present', async () => {
+    render(<AICopilotPage />)
+    const upload = await screen.findByLabelText('Chat file upload') as HTMLInputElement
+    const sendButton = screen.getByRole('button', { name: 'Send message' })
+    const file = new File(['legacy doc'], 'legacy.doc', { type: 'application/msword' })
+
+    Object.defineProperty(upload, 'files', {
+      value: [file],
+      configurable: true,
+    })
+    fireEvent.change(upload)
+
+    await screen.findByText('Legacy DOC files cannot be read yet. Convert the file to DOCX or text first.')
+    fireEvent.click(sendButton)
+
+    expect(sendMessageMock).not.toHaveBeenCalled()
+    expect(
+      await screen.findByText(
+        'No readable attachment content is available yet. Remove the failed files or add a new message before sending.'
+      )
+    ).toBeInTheDocument()
   })
 
   it('copies the assistant markdown raw content', async () => {

@@ -12,11 +12,14 @@ export interface SpaceQuota {
 }
 
 export interface ProxyNetwork {
+  source: ProxySource
   enabled: boolean
   socks5ConnectorId: string
   httpConnectorId: string
   httpsConnectorId: string
 }
+
+export type ProxySource = 'none' | 'external' | 'self'
 
 export interface ProxyNetworkErrors {
   form?: string
@@ -52,6 +55,15 @@ export interface ProxyConsumerDefinition {
 export interface ProxyConsumersSettings {
   items: ProxyConsumerItem[]
   definitions: ProxyConsumerDefinition[]
+}
+
+export interface ProxyRemoteShellOverride {
+  serverId: string
+  mode: ProxyConsumerMode
+}
+
+export interface ProxyRemoteShellSettings {
+  items: ProxyRemoteShellOverride[]
 }
 
 export interface DockerMirror {
@@ -124,6 +136,7 @@ export const DEFAULT_SPACE_QUOTA: SpaceQuota = {
 }
 
 export const EMPTY_PROXY: ProxyNetwork = {
+  source: 'none',
   enabled: false,
   socks5ConnectorId: '',
   httpConnectorId: '',
@@ -133,6 +146,10 @@ export const EMPTY_PROXY: ProxyNetwork = {
 export const EMPTY_PROXY_CONSUMERS: ProxyConsumersSettings = {
   items: [],
   definitions: [],
+}
+
+export const EMPTY_PROXY_REMOTE_SHELL: ProxyRemoteShellSettings = {
+  items: [],
 }
 
 export const DEFAULT_CONNECT_TERMINAL: ConnectTerminalGroup = {

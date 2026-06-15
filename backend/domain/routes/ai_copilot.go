@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
@@ -15,6 +16,7 @@ import (
 )
 
 var aiCopilotModelFactory copilot.ModelFactory
+var aiCopilotProviderPreflight = preflightAICopilotProvider
 
 type routeSecretResolver struct {
 	app core.App
@@ -140,6 +142,12 @@ func handleAICopilotSendMessage(e *core.RequestEvent) error {
 	}
 
 	userID, _ := authInfo(e)
+	if aiCopilotProviderPreflight != nil {
+		if preflightErr := aiCopilotProviderPreflight(e, userID, body.ProviderID); preflightErr != nil {
+			_ = push("error", map[string]any{"code": copilot.CodeRuntimeFailed, "message": preflightErr.Error()})
+			return nil
+		}
+	}
 	assistant, err := newAICopilotService(e.App).SendMessage(e.Request.Context(), e.Request.PathValue("sessionId"), userID, body.Content, body.ProviderID, body.Model, body.Attachments, func(chunk string) error {
 		return push("chunk", map[string]any{"content": chunk})
 	})
@@ -149,12 +157,41 @@ func handleAICopilotSendMessage(e *core.RequestEvent) error {
 		message := err.Error()
 		if errors.As(err, &coded) {
 			code = coded.Code
-			message = coded.Error()
+			message = coded.Message
 		}
 		_ = push("error", map[string]any{"code": code, "message": message})
 		return nil
 	}
 	return push("done", map[string]any{"message": assistant})
+}
+
+func preflightAICopilotProvider(e *core.RequestEvent, actorID, providerID string) error {
+	repo := persistence.NewAIProviderRepository(e.App)
+	resolver := copilot.NewDefaultProviderResolver(repo, routeSecretResolver{app: e.App})
+	var (
+		provider *copilot.ProviderConfig
+		err      error
+	)
+	if providerID != "" {
+		provider, err = resolver.ResolveSelection(e.Request.Context(), actorID, providerID)
+	} else {
+		provider, err = resolver.ResolveDefault(e.Request.Context(), actorID)
+	}
+	if err != nil || provider == nil || !copilot.IsOpenRouterEndpoint(provider.Endpoint) {
+		return nil
+	}
+	client := newAIProviderHTTPClient(e.App, false)
+	headers := map[string]string{
+		"HTTP-Referer": strings.TrimSpace(provider.HTTPReferer),
+		"X-Title":      "AppOS",
+	}
+	if headers["HTTP-Referer"] == "" {
+		headers["HTTP-Referer"] = "https://appos.local"
+	}
+	if validateErr := copilot.ValidateOpenRouterCredential(e.Request.Context(), &client, provider.Endpoint, headers, provider.APIKey); validateErr != nil {
+		return fmt.Errorf("OpenRouter rejected the API credential. The upstream chat API returned 401 User not found")
+	}
+	return nil
 }
 
 func aiCopilotError(e *core.RequestEvent, err error) error {

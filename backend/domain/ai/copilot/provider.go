@@ -70,6 +70,7 @@ func (r *DefaultProviderResolver) providerConfig(ctx context.Context, actorID st
 	endpoint := strings.TrimSpace(selected.Endpoint())
 	credentialID := strings.TrimSpace(selected.CredentialID())
 	model := firstConfigString(selected.Config(), "defaultModel", "model")
+	httpReferer := firstConfigString(selected.Config(), "httpReferer", "http_referer", "referer")
 	maxCompletionTokens := firstConfigInt(selected.Config(), "max_completion_tokens", "maxCompletionTokens")
 	if endpoint == "" || credentialID == "" {
 		return nil, coded(CodeProviderInvalid, "default LLM provider requires endpoint and credential", nil)
@@ -93,6 +94,7 @@ func (r *DefaultProviderResolver) providerConfig(ctx context.Context, actorID st
 		Endpoint:            strings.TrimRight(endpoint, "/"),
 		Model:               model,
 		APIKey:              apiKey,
+		HTTPReferer:         httpReferer,
 		MaxCompletionTokens: maxCompletionTokens,
 		ContextSize:         tpl.ContextSize,
 	}, nil

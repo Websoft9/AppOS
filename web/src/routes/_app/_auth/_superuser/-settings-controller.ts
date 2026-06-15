@@ -45,6 +45,7 @@ export function useSettingsPageController() {
         'tunnel-port-range',
         'proxy-network',
         'proxy-consumers',
+        'proxy-remote-shell',
         'docker-mirror',
       ])
       const monitorTailIndex = schemaResult.entries.reduce((lastIndex, entry, index) => {

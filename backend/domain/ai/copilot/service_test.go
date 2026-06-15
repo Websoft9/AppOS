@@ -3,6 +3,8 @@ package copilot
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -89,6 +91,7 @@ func (r retryTestResolver) ResolveSelection(context.Context, string, string) (*P
 type retryTestFactory struct {
 	providers []*ProviderConfig
 	streamers []ModelStreamer
+	messages  [][]*Message
 	index     int
 }
 
@@ -96,6 +99,9 @@ func (f *retryTestFactory) NewStreamer(_ context.Context, provider *ProviderConf
 	clone := *provider
 	f.providers = append(f.providers, &clone)
 	streamer := f.streamers[f.index]
+	if capture, ok := streamer.(*capturingRetryTestStreamer); ok {
+		capture.factory = f
+	}
 	f.index++
 	return streamer, nil
 }
@@ -106,6 +112,24 @@ type retryTestStreamer struct {
 }
 
 func (s retryTestStreamer) Stream(context.Context, []*Message, func(string) error) (string, error) {
+	if s.err != nil {
+		return "", s.err
+	}
+	return s.content, nil
+}
+
+type capturingRetryTestStreamer struct {
+	factory *retryTestFactory
+	content string
+	err     error
+}
+
+func (s *capturingRetryTestStreamer) Stream(_ context.Context, messages []*Message, _ func(string) error) (string, error) {
+	cloned := make([]*Message, len(messages))
+	copy(cloned, messages)
+	if s.factory != nil {
+		s.factory.messages = append(s.factory.messages, cloned)
+	}
 	if s.err != nil {
 		return "", s.err
 	}
@@ -142,4 +166,142 @@ func TestSendMessageRetriesOpenRouterOnAffordableMaxTokens(t *testing.T) {
 	if factory.providers[1].MaxCompletionTokens == nil || *factory.providers[1].MaxCompletionTokens != 30989 {
 		t.Fatalf("expected retried cap 30989, got %#v", factory.providers[1].MaxCompletionTokens)
 	}
+}
+
+func TestSendMessagePreTrimsOldestConversationRounds(t *testing.T) {
+	repo := &retryTestRepo{messages: []*Message{}}
+	for index := 0; index < 8; index++ {
+		repo.messages = append(repo.messages,
+			&Message{Role: RoleUser, Content: fmt.Sprintf("user-%d", index)},
+			&Message{Role: RoleAssistant, Content: fmt.Sprintf("assistant-%d", index)},
+		)
+	}
+	provider := &ProviderConfig{Model: "test-model", ContextSize: 200000, MaxCompletionTokens: intPtr(1024)}
+	factory := &retryTestFactory{streamers: []ModelStreamer{&capturingRetryTestStreamer{content: "ok"}}}
+	service := NewService(repo, retryTestResolver{provider: provider}, factory)
+
+	assistant, err := service.SendMessage(context.Background(), "session-1", "user-1", "latest", "", "", nil, nil)
+	if err != nil {
+		t.Fatalf("expected send to succeed, got error: %v", err)
+	}
+	if assistant == nil || assistant.Content != "ok" {
+		t.Fatalf("expected assistant content ok, got %#v", assistant)
+	}
+	if len(factory.messages) != 1 {
+		t.Fatalf("expected one streamed request, got %d", len(factory.messages))
+	}
+	joined := joinMessageContents(factory.messages[0])
+	if strings.Contains(joined, "user-0") || strings.Contains(joined, "assistant-0") || strings.Contains(joined, "user-1") || strings.Contains(joined, "assistant-1") {
+		t.Fatalf("expected oldest two rounds to be trimmed, got %q", joined)
+	}
+	if !strings.Contains(joined, "latest") {
+		t.Fatalf("expected latest user message to remain, got %q", joined)
+	}
+}
+
+func TestSendMessageRetriesContextLengthExceededOnce(t *testing.T) {
+	repo := &retryTestRepo{messages: []*Message{}}
+	for index := 0; index < 5; index++ {
+		repo.messages = append(repo.messages,
+			&Message{Role: RoleUser, Content: fmt.Sprintf("user-%d", index)},
+			&Message{Role: RoleAssistant, Content: fmt.Sprintf("assistant-%d", index)},
+		)
+	}
+	provider := &ProviderConfig{Model: "test-model", ContextSize: 200000, MaxCompletionTokens: intPtr(1024)}
+	factory := &retryTestFactory{streamers: []ModelStreamer{
+		&capturingRetryTestStreamer{err: errors.New(`provider request failed, status code: 400, body: {"error":{"message":"too long","code":"context_length_exceeded"}}`)},
+		&capturingRetryTestStreamer{content: "ok"},
+	}}
+	service := NewService(repo, retryTestResolver{provider: provider}, factory)
+
+	assistant, err := service.SendMessage(context.Background(), "session-1", "user-1", "latest", "", "", nil, nil)
+	if err != nil {
+		t.Fatalf("expected retry to succeed, got error: %v", err)
+	}
+	if assistant == nil || assistant.Content != "ok" {
+		t.Fatalf("expected assistant content ok, got %#v", assistant)
+	}
+	if len(factory.messages) != 2 {
+		t.Fatalf("expected two streamed requests, got %d", len(factory.messages))
+	}
+	firstJoined := joinMessageContents(factory.messages[0])
+	secondJoined := joinMessageContents(factory.messages[1])
+	if !strings.Contains(firstJoined, "user-0") {
+		t.Fatalf("expected initial request to include earliest round, got %q", firstJoined)
+	}
+	if strings.Contains(secondJoined, "user-0") || strings.Contains(secondJoined, "assistant-0") || strings.Contains(secondJoined, "user-1") || strings.Contains(secondJoined, "assistant-1") {
+		t.Fatalf("expected retry request to drop earliest four messages, got %q", secondJoined)
+	}
+}
+
+func TestSendMessageRetriesOpenRouterContextLengthShape(t *testing.T) {
+	repo := &retryTestRepo{messages: []*Message{
+		{Role: RoleUser, Content: "user-0"},
+		{Role: RoleAssistant, Content: "assistant-0"},
+		{Role: RoleUser, Content: "user-1"},
+		{Role: RoleAssistant, Content: "assistant-1"},
+	}}
+	provider := &ProviderConfig{Model: "openrouter-model", ContextSize: 200000, MaxCompletionTokens: intPtr(1024)}
+	factory := &retryTestFactory{streamers: []ModelStreamer{
+		&capturingRetryTestStreamer{err: fmt.Errorf(`provider request failed, status code: 400, body: {"error":{"type":"invalid_request_error","message":"This model's maximum context length is 128000 tokens. Please reduce the length of your messages.","metadata":{"reason":"maximum context length exceeded"}}}`)},
+		&capturingRetryTestStreamer{content: "ok"},
+	}}
+	service := NewService(repo, retryTestResolver{provider: provider}, factory)
+
+	_, err := service.SendMessage(context.Background(), "session-1", "user-1", "latest", "", "", nil, nil)
+	if err != nil {
+		t.Fatalf("SendMessage returned error: %v", err)
+	}
+	if len(factory.messages) != 2 {
+		t.Fatalf("expected retry after OpenRouter-style overflow, got %d streamed requests", len(factory.messages))
+	}
+	secondJoined := joinMessageContents(factory.messages[1])
+	if strings.Contains(secondJoined, "user-0") || strings.Contains(secondJoined, "assistant-0") {
+		t.Fatalf("expected retry request to drop the oldest round, got %q", secondJoined)
+	}
+	if !strings.Contains(secondJoined, "latest") {
+		t.Fatalf("expected retry request to keep the latest user message, got %q", secondJoined)
+	}
+}
+
+func TestSendMessageReturnsConversationTooLongAfterOverflowRetryFails(t *testing.T) {
+	repo := &retryTestRepo{messages: []*Message{}}
+	for index := 0; index < 5; index++ {
+		repo.messages = append(repo.messages,
+			&Message{Role: RoleUser, Content: fmt.Sprintf("user-%d", index)},
+			&Message{Role: RoleAssistant, Content: fmt.Sprintf("assistant-%d", index)},
+		)
+	}
+	provider := &ProviderConfig{Model: "test-model", ContextSize: 200000, MaxCompletionTokens: intPtr(1024)}
+	overflowErr := errors.New(`provider request failed, status code: 429, body: {"error":{"message":"too long","code":"context_length_exceeded"}}`)
+	factory := &retryTestFactory{streamers: []ModelStreamer{
+		&capturingRetryTestStreamer{err: overflowErr},
+		&capturingRetryTestStreamer{err: overflowErr},
+	}}
+	service := NewService(repo, retryTestResolver{provider: provider}, factory)
+
+	_, err := service.SendMessage(context.Background(), "session-1", "user-1", "latest", "", "", nil, nil)
+	if err == nil {
+		t.Fatal("expected overflow retry failure")
+	}
+	var codedErr *CodedError
+	if !errors.As(err, &codedErr) {
+		t.Fatalf("expected coded error, got %T", err)
+	}
+	if codedErr.Code != CodeRuntimeFailed {
+		t.Fatalf("expected runtime failed code, got %q", codedErr.Code)
+	}
+	if codedErr.Message != "对话过长，请清空后重试" {
+		t.Fatalf("expected conversation too long message, got %q", codedErr.Message)
+	}
+}
+
+func joinMessageContents(messages []*Message) string {
+	parts := make([]string, 0, len(messages))
+	for _, message := range messages {
+		if message != nil {
+			parts = append(parts, message.Content)
+		}
+	}
+	return strings.Join(parts, "|")
 }

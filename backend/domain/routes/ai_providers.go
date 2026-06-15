@@ -19,6 +19,7 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/audit"
+	"github.com/websoft9/appos/backend/domain/ai/copilot"
 	sysconfig "github.com/websoft9/appos/backend/domain/config/sysconfig"
 	"github.com/websoft9/appos/backend/domain/proxy"
 	"github.com/websoft9/appos/backend/domain/resource/accounts"
@@ -428,6 +429,12 @@ func handleAIProviderReachability(e *core.RequestEvent) error {
 				results[index] = status
 				return
 			}
+			if validateErr := validateAIProviderCredential(e.App, e.Request.Context(), item, apiKey); validateErr != nil {
+				status.Status = "unreachable"
+				status.Error = validateErr.Error()
+				results[index] = status
+				return
+			}
 			_, fetchErr := fetchProviderModels(e.App, e.Request.Context(), strings.TrimSpace(item.Endpoint()), apiKey, strings.TrimSpace(item.TemplateID()))
 			if fetchErr != nil {
 				status.Status = "unreachable"
@@ -442,6 +449,23 @@ func handleAIProviderReachability(e *core.RequestEvent) error {
 	waitGroup.Wait()
 
 	return e.JSON(http.StatusOK, aiProviderReachabilityResponse{Items: results})
+}
+
+func validateAIProviderCredential(app core.App, ctx context.Context, item *aiproviders.AIProvider, apiKey string) error {
+	if item == nil {
+		return nil
+	}
+	if apiKey == "" {
+		return nil
+	}
+	if copilot.IsOpenRouterEndpoint(item.Endpoint()) {
+		client := newAIProviderHTTPClient(app, false)
+		return copilot.ValidateOpenRouterCredential(ctx, &client, item.Endpoint(), map[string]string{
+			"HTTP-Referer": "https://appos.local",
+			"X-Title":      "AppOS",
+		}, apiKey)
+	}
+	return nil
 }
 
 func handleAIProviderDefaultsGet(e *core.RequestEvent) error {

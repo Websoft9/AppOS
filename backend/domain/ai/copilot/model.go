@@ -39,6 +39,7 @@ type ProviderConfig struct {
 	Endpoint            string
 	Model               string
 	APIKey              string
+	HTTPReferer         string
 	MaxCompletionTokens *int
 	ContextSize         int
 }

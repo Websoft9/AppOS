@@ -166,6 +166,7 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 	var foundSecrets bool
 	var foundProxy bool
 	var foundProxyConsumers bool
+	var foundProxyRemoteShell bool
 	var foundDeployPreflight bool
 	var foundDeployRuntime bool
 	var foundDeployGitDefaults bool
@@ -192,6 +193,9 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 			items, _ := value["items"].([]any)
 			definitions, _ := value["definitions"].([]any)
 			foundProxyConsumers = items != nil && len(definitions) > 0
+		case "proxy-remote-shell":
+			items, _ := value["items"].([]any)
+			foundProxyRemoteShell = items != nil && len(items) == 0
 		case "deploy-runtime":
 			foundDeployRuntime = value != nil && int(value["imagePullTimeoutSeconds"].(float64)) == 180 && int(value["composeUpTimeoutSeconds"].(float64)) == 600 && int(value["healthCheckTimeoutSeconds"].(float64)) == 120 && int(value["runtimePullIdleHeartbeatSeconds"].(float64)) == 20
 		case "deploy-git-defaults":
@@ -226,6 +230,9 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 	}
 	if !foundProxyConsumers {
 		t.Fatal("expected proxy-consumers fallback value")
+	}
+	if !foundProxyRemoteShell {
+		t.Fatal("expected proxy-remote-shell fallback value")
 	}
 	if !foundDeployPreflight {
 		t.Fatal("expected deploy-preflight fallback value")
@@ -309,6 +316,15 @@ func TestSettingsEntryPatchValidation(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "direct-use proxy consumer") {
 		t.Fatalf("expected proxy-consumers validation error, got %s", rec.Body.String())
+	}
+
+	badProxyRemoteShell := `{"items":[{"serverId":"missing-server","mode":"always"}]}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/proxy-remote-shell", badProxyRemoteShell, true)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 for invalid proxy-remote-shell, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "does not exist") {
+		t.Fatalf("expected proxy-remote-shell validation error, got %s", rec.Body.String())
 	}
 
 	badDeployRuntime := `{"imagePullTimeoutSeconds":0,"composeUpTimeoutSeconds":"slow","healthCheckTimeoutSeconds":-1,"runtimePullIdleHeartbeatSeconds":0}`
@@ -514,6 +530,21 @@ func TestSettingsEntryPatchPersistsUnifiedValues(t *testing.T) {
 	items, ok := storedProxyConsumers["items"].([]any)
 	if !ok || len(items) != 2 {
 		t.Fatalf("expected two stored proxy consumer items, got %#v", storedProxyConsumers["items"])
+	}
+
+	server := createServerRecord(t, te, "remote-proxy", "10.0.0.10", 22, "root", "password")
+	proxyRemoteShellBody := `{"items":[{"serverId":"` + server.Id + `","mode":"always"}]}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/proxy-remote-shell", proxyRemoteShellBody, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for proxy-remote-shell patch, got %d: %s", rec.Code, rec.Body.String())
+	}
+	storedProxyRemoteShell, err := sysconfig.GetGroup(te.app, "proxy", "servers", nil)
+	if err != nil {
+		t.Fatalf("expected stored proxy-remote-shell, got error: %v", err)
+	}
+	serverItems, ok := storedProxyRemoteShell["items"].([]any)
+	if !ok || len(serverItems) != 1 {
+		t.Fatalf("expected one stored remote shell override, got %#v", storedProxyRemoteShell["items"])
 	}
 
 	deployRuntimeBody := `{"imagePullTimeoutSeconds":90,"composeUpTimeoutSeconds":480,"healthCheckTimeoutSeconds":75,"runtimePullIdleHeartbeatSeconds":15}`

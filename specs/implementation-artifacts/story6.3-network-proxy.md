@@ -17,6 +17,11 @@ Define one shared backend proxy runtime so AppOS external egress can honor Setti
 - undeclared consumers are invalid; declared but unenrolled consumers are denied at runtime
 - public outbound HTTP(S) traffic should use the configured proxy by default
 - control-plane connections such as SSH, SFTP, Docker local socket, and similar host-management paths are not forced through proxy in the first slice
+- remote shell subprocess traffic is a separate egress surface from the SSH control channel and must be modeled independently
+- when remote shell proxy is enabled, shell and child-process outbound traffic should inherit AppOS egress identity through a reverse tunnel instead of exposing remote server source IPs to upstream allowlists
+- remote shell proxy policy must be resolved from Settings `proxy/servers` using `servers.global` plus per-server overrides; no second shell-specific toggle should exist outside that model
+- reverse tunnel is the single proxy-bearing transport for remote shell once the effective remote shell mode is enabled; do not maintain parallel shell proxy mechanisms
+- AppOS-side reverse-tunnel dialing must reuse the platform's effective egress policy, including external proxy, self proxy, or direct mode, rather than using a hard-coded direct `net.Dial`
 - `NO_PROXY` and local/private bypass remain part of the central policy
 
 ## Scope
@@ -32,12 +37,16 @@ Create one reusable runtime under `backend/infra` or another infra-owned package
 - one settings enrollment model for declared consumers only
 - one adapter model such as `http_client`, `env`, and `dialer`
 - one mode model: `disabled`, `always`, and `fallback`
+- one remote-shell reverse-tunnel transport model that keeps SSH control direct while routing shell subprocess egress through AppOS when remote shell proxy policy is enabled
+- one effective-mode resolver for remote shell that combines `servers.global`, per-server overrides, and current platform proxy capability
 
 ## Non-Goals
 
 - transparent interception of all container traffic with iptables, TPROXY, or sidecar networking
 - forcing SSH or SFTP server-management traffic through proxy in the first slice
 - redefining product-specific route behavior beyond moving them onto the shared runtime
+- introducing a second user-facing shell proxy switch outside Settings `proxy/servers`
+- leaking remote server source-network identity when remote shell proxy policy has been explicitly enabled
 
 ## First Consumers
 
@@ -51,6 +60,7 @@ Create one reusable runtime under `backend/infra` or another infra-owned package
 - platform account outbound HTTP actions where applicable
 - software inventory HTTP probes
 - Docker and worker command environments that already consume proxy env
+- remote server shell and shell-spawned subprocess execution
 
 ## Consumer Model
 
@@ -110,6 +120,9 @@ Guardrail:
 - require subprocess-oriented network features to obtain proxy env from the same runtime
 - require proxy-capable features to resolve proxy behavior through declared consumer keys only
 - review direct `net.Dial` call sites and classify them instead of blindly proxying all raw TCP
+- keep SSH session establishment on the direct control-plane path while allowing remote shell egress to traverse a reverse tunnel anchored on the existing SSH session
+- treat reverse tunnel as a transport layer and keep final outbound policy in a shared AppOS-side dialer so external proxy, self proxy, and direct egress remain centrally decided
+- interpret remote shell `fallback` as: use reverse tunnel when proxy capability exists, otherwise allow direct shell execution; interpret remote shell `always` as fail closed when no usable proxy capability exists
 
 ## Hard Bypass List
 
@@ -119,6 +132,16 @@ The following paths are bypass-by-default in the first slice and must not silent
 - Docker local unix-socket traffic
 - local loopback and explicit local/private bypass targets
 - host-management and similar control-plane reachability probes unless explicitly reclassified later
+
+## Remote Shell Policy Notes
+
+- `servers.global` is the workspace-wide policy anchor for remote shell and shell-spawned subprocess egress
+- per-server overrides in Settings `proxy/servers` take precedence over `servers.global`
+- the SSH control channel remains a bypass-only control-plane consumer even when remote shell subprocess traffic is proxied
+- reverse-tunnel transport exists to let remote shell inherit AppOS network reachability and allowlisted egress identity without requiring upstream systems to whitelist every managed server
+- if AppOS uses an external proxy, reverse-tunnel egress must still present AppOS-side network identity rather than asking upstream systems to understand managed-server origins
+- if AppOS uses self proxy, reverse-tunnel egress should reuse that same AppOS-side capability instead of introducing a separate shell-specific proxy stack
+- terminal startup and one-shot SSH command execution should converge on the same effective remote shell proxy decision and the same reverse-tunnel transport rules
 
 ## Acceptance Criteria
 
@@ -133,6 +156,10 @@ The following paths are bypass-by-default in the first slice and must not silent
 - [ ] subprocess and Docker-style outbound features are expected to consume shared proxy env
 - [ ] the document explicitly rejects transparent full-container proxy interception for the first slice
 - [ ] the document explicitly states that proxy behavior should become global by shared runtime adoption, not by per-feature proxy logic
+- [ ] the design states that remote shell subprocess traffic is distinct from the SSH control channel and is governed by Settings `proxy/servers`
+- [ ] the design states that remote shell proxy uses reverse tunnel as the single proxy-bearing transport when its effective mode is enabled
+- [ ] the design states that remote shell reverse-tunnel egress must reuse AppOS effective outbound policy, including external proxy, self proxy, or direct mode
+- [ ] the design defines fail-open versus fail-closed semantics for remote shell `fallback` and `always`
 
 ## Guardrails
 
@@ -141,3 +168,5 @@ The following paths are bypass-by-default in the first slice and must not silent
 - do not allow settings to invent new consumer keys that code has not declared
 - do not proxy local sockets or clearly local control paths by default
 - do not mix product policy with the infra proxy runtime
+- do not let remote shell proxy decisions bypass `servers.global` and per-server override resolution
+- do not implement reverse-tunnel shell egress with a hard-coded direct dialer that ignores AppOS effective proxy capability

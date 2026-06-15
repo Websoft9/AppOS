@@ -433,6 +433,16 @@ func validateBranding(v map[string]any) map[string]string {
 func validateProxyNetwork(app core.App, v map[string]any) map[string]string {
 	errors := map[string]string{}
 
+	source := strings.ToLower(strings.TrimSpace(sysconfig.String(v, "source", "none")))
+	switch source {
+	case "", "none":
+		source = "none"
+	case "external", "self":
+	default:
+		errors["source"] = "must be one of none, external, or self"
+	}
+	v["source"] = source
+
 	enabled, err := parseBoolWithDefault(v["enabled"], false)
 	if err != nil {
 		errors["enabled"] = "must be a boolean"
@@ -528,6 +538,51 @@ func validateProxyConsumers(v map[string]any) map[string]string {
 	}
 
 	v["items"] = proxy.NormalizeConsumerSettingsValue(map[string]any{"items": itemsToMaps(items)})["items"]
+	return nil
+}
+
+func validateProxyRemoteShellServers(app core.App, v map[string]any) map[string]string {
+	rawItems, ok := v["items"]
+	if !ok || rawItems == nil {
+		v["items"] = []map[string]any{}
+		return nil
+	}
+	list, ok := rawItems.([]any)
+	if !ok {
+		typed, typedOK := rawItems.([]map[string]any)
+		if !typedOK {
+			return map[string]string{"items": "must be a list of remote shell proxy overrides"}
+		}
+		list = make([]any, 0, len(typed))
+		for _, item := range typed {
+			list = append(list, item)
+		}
+	}
+	seen := map[string]struct{}{}
+	items := make([]map[string]any, 0, len(list))
+	for idx, rawItem := range list {
+		item, ok := rawItem.(map[string]any)
+		if !ok {
+			return map[string]string{"items": fmt.Sprintf("item %d must be an object", idx+1)}
+		}
+		serverID := strings.TrimSpace(sysconfig.String(item, "serverId", ""))
+		if serverID == "" {
+			return map[string]string{"items": fmt.Sprintf("item %d requires serverId", idx+1)}
+		}
+		if _, exists := seen[serverID]; exists {
+			return map[string]string{"items": fmt.Sprintf("server %q is duplicated", serverID)}
+		}
+		seen[serverID] = struct{}{}
+		if _, err := app.FindRecordById("servers", serverID); err != nil {
+			return map[string]string{"items": fmt.Sprintf("server %q does not exist", serverID)}
+		}
+		mode := proxyinfra.Mode(strings.TrimSpace(sysconfig.String(item, "mode", "")))
+		if mode != proxyinfra.ModeDisabled && mode != proxyinfra.ModeAlways && mode != proxyinfra.ModeFallback {
+			return map[string]string{"items": fmt.Sprintf("server %q has invalid mode", serverID)}
+		}
+		items = append(items, map[string]any{"serverId": serverID, "mode": string(mode)})
+	}
+	v["items"] = proxy.NormalizeRemoteShellSettingsValue(map[string]any{"items": items})["items"]
 	return nil
 }
 

@@ -52,7 +52,7 @@ func resolveServerRemoteShellProxyEnv(app core.App, serverID string) (map[string
 	if serverRecordIsLocal(record) {
 		return nil, nil
 	}
-	return proxy.ProxyEnvForConsumer(app, "servers.global")
+	return proxy.ProxyEnvForRemoteShellServer(app, serverID)
 }
 
 func serverRecordIsLocal(record *core.Record) bool {

@@ -9,6 +9,7 @@ import {
 import { SettingsPage } from './settings'
 
 const sendMock = vi.fn()
+const listServersMock = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (config: Record<string, unknown>) => ({
@@ -39,9 +40,15 @@ vi.mock('@/lib/pb', () => ({
   },
 }))
 
+vi.mock('@/lib/connect-api', () => ({
+  listServers: (...args: unknown[]) => listServersMock(...args),
+}))
+
 describe('SettingsPage shared settings paths', () => {
   beforeEach(() => {
     sendMock.mockReset()
+    listServersMock.mockReset()
+    listServersMock.mockResolvedValue([])
     sendMock.mockImplementation((path: string, options?: { method?: string; body?: unknown }) => {
       if (path === SETTINGS_SCHEMA_API_PATH) {
         return Promise.resolve({
@@ -1474,24 +1481,101 @@ describe('SettingsPage shared settings paths', () => {
     fireEvent.click(within(nav).getByRole('button', { name: 'Proxy' }))
 
     await waitFor(() => {
-      expect(screen.getByLabelText('External Proxy Resources')).toBeInTheDocument()
+      expect(screen.getByText('Proxy resource from')).toBeInTheDocument()
     })
 
     expect(screen.getByRole('button', { name: 'Open Proxy help' })).toBeInTheDocument()
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/Add at least one proxy resource before enabling outbound proxy routing/i)
-      ).toBeInTheDocument()
-      expect(screen.getByRole('switch')).toBeDisabled()
-      expect(screen.queryByRole('link', { name: 'Add a SOCKS5 proxy' })).not.toBeInTheDocument()
-      expect(screen.queryByRole('link', { name: 'Add an HTTP proxy' })).not.toBeInTheDocument()
-      expect(
-        screen.getByText(
-          /Configure the external proxy resources first, then enroll the outbound consumers/i
-        )
-      ).toBeInTheDocument()
+      expect(screen.getByText('External Proxy')).toBeInTheDocument()
+      expect(screen.getByText('Self Proxy')).toBeInTheDocument()
     })
+  })
+
+  it('shows bypass-only remote controls and allows selecting a remote server override', async () => {
+    const defaultImpl = sendMock.getMockImplementation()
+    sendMock.mockImplementation(async (path: string, options?: { method?: string; body?: any }) => {
+      if (path === SETTINGS_ENTRIES_API_PATH) {
+        const response = defaultImpl ? await defaultImpl(path, options) : { items: [] }
+        const items = Array.isArray((response as { items?: unknown[] }).items)
+          ? [...((response as { items?: unknown[] }).items ?? [])]
+          : []
+        const upsertEntry = (id: string, value: Record<string, unknown>) => {
+          const index = items.findIndex(
+            item => typeof item === 'object' && item !== null && (item as { id?: string }).id === id
+          )
+          const next = { id, value }
+          if (index >= 0) {
+            items[index] = next
+            return
+          }
+          items.push(next)
+        }
+        upsertEntry('proxy-consumers', {
+          items: [{ consumerKey: 'servers.global', mode: 'fallback' }],
+          definitions: [
+            {
+              key: 'servers.global',
+              title: 'Servers',
+              description: 'Workspace-wide proxy policy for remote server shell and subprocess operations.',
+              location: 'remote',
+              scope: 'module',
+              adapter: 'env',
+              trafficClass: 'public_egress',
+              support: 'proxy_capable',
+              defaultMode: 'fallback',
+              allowedModes: ['disabled', 'always', 'fallback'],
+              tags: ['remote', 'servers'],
+              enrollable: true,
+            },
+            {
+              key: 'servers.ssh_control',
+              title: 'SSH Control Channel',
+              description: 'Direct-only SSH control channel used to establish remote shell sessions.',
+              location: 'remote',
+              scope: 'action',
+              adapter: 'dialer',
+              trafficClass: 'control_plane',
+              support: 'bypass_only',
+              defaultMode: 'disabled',
+              allowedModes: ['disabled'],
+              tags: ['remote', 'servers'],
+              enrollable: false,
+            },
+          ],
+        })
+        upsertEntry('proxy-remote-shell', { items: [] })
+        return { ...(response as Record<string, unknown>), items }
+      }
+      return defaultImpl ? defaultImpl(path, options) : Promise.resolve({})
+    })
+
+    listServersMock.mockResolvedValue([
+      { id: 'local', name: 'Local', host: 'local', is_local: true },
+      { id: 'srv-1', name: 'Remote One', host: '10.0.0.10' },
+      { id: 'srv-2', name: 'Remote Two', host: '10.0.0.11' },
+    ])
+
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+    })
+
+    const nav = container.querySelector('nav') as HTMLElement | null
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+
+    fireEvent.click(within(nav).getByRole('button', { name: 'Proxy' }))
+
+    await waitFor(() => {
+      const select = screen.getByRole('combobox', { name: 'Select a server' })
+      expect(select).toBeEnabled()
+    })
+    expect(screen.getByRole('option', { name: 'Remote One' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Remote Two' })).toBeInTheDocument()
   })
 
   it('warns when a saved proxy resource was deleted and blocks save until a valid option is chosen or proxy is disabled', async () => {
@@ -1580,6 +1664,7 @@ describe('SettingsPage shared settings paths', () => {
             {
               id: 'proxy-network',
               value: {
+                source: 'external',
                 enabled: true,
                 socks5ConnectorId: 'deleted-proxy',
                 httpConnectorId: '',
@@ -1589,6 +1674,10 @@ describe('SettingsPage shared settings paths', () => {
             {
               id: 'proxy-consumers',
               value: { items: [], definitions: [] },
+            },
+            {
+              id: 'proxy-remote-shell',
+              value: { items: [] },
             },
             { id: 'docker-mirror', value: { mirrors: [], allowInsecureRegistries: false } },
             { id: 'docker-registries', value: {} },
@@ -1620,7 +1709,7 @@ describe('SettingsPage shared settings paths', () => {
     fireEvent.click(within(nav).getByRole('button', { name: 'Proxy' }))
 
     await waitFor(() => {
-      expect(screen.getByLabelText('External Proxy Resources')).toBeInTheDocument()
+      expect(screen.getByText('Proxy resource from')).toBeInTheDocument()
     })
 
     await waitFor(() => {

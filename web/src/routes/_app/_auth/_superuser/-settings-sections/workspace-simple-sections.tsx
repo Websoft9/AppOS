@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { HelpCircle, Loader2 } from 'lucide-react'
+import { listServers, type Server } from '@/lib/connect-api'
 import { pb } from '@/lib/pb'
 import { type SettingsSchemaEntry } from '@/lib/settings-api'
 import type { SecretPolicy } from '@/lib/secrets-policy'
@@ -9,6 +10,11 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { SaveButton, Toggle, selectClass } from './shared'
 import type {
   ConnectSftpGroup,
@@ -20,6 +26,8 @@ import type {
   ProxyConsumerDefinition,
   ProxyConsumerItem,
   ProxyNetwork,
+  ProxyRemoteShellOverride,
+  ProxySource,
   SecretPolicyErrors,
   SpaceQuota,
   TopicCommentPolicy,
@@ -305,21 +313,33 @@ export function ProxySection({
   proxyForm,
   proxyConsumers,
   proxyConsumerDefinitions,
-  proxySaving,
+  proxyRemoteShellOverrides,
+  proxyNetworkSaving,
+  proxyConsumersSaving,
+  proxyRemoteShellSaving,
   proxyErrors,
   setProxyForm,
   setProxyConsumers,
-  saveProxy,
+  setProxyRemoteShellOverrides,
+  saveProxyNetwork,
+  saveProxyConsumers,
+  saveProxyRemoteShell,
   onOpenHelp,
 }: {
   proxyForm: ProxyNetwork
   proxyConsumers: ProxyConsumerItem[]
   proxyConsumerDefinitions: ProxyConsumerDefinition[]
-  proxySaving: boolean
-  proxyErrors: Partial<Record<'form' | 'consumers' | keyof ProxyNetwork, string>>
+  proxyRemoteShellOverrides: ProxyRemoteShellOverride[]
+  proxyNetworkSaving: boolean
+  proxyConsumersSaving: boolean
+  proxyRemoteShellSaving: boolean
+  proxyErrors: Partial<Record<'form' | 'consumers' | 'remoteShell' | keyof ProxyNetwork, string>>
   setProxyForm: React.Dispatch<React.SetStateAction<ProxyNetwork>>
   setProxyConsumers: React.Dispatch<React.SetStateAction<ProxyConsumerItem[]>>
-  saveProxy: (draft?: ProxyNetwork) => void
+  setProxyRemoteShellOverrides: React.Dispatch<React.SetStateAction<ProxyRemoteShellOverride[]>>
+  saveProxyNetwork: (draft?: ProxyNetwork) => Promise<void>
+  saveProxyConsumers: () => Promise<void>
+  saveProxyRemoteShell: () => Promise<void>
   onOpenHelp?: () => void
 }) {
   type ProxyConnectorOption = {
@@ -387,8 +407,6 @@ export function ProxySection({
     () => connectorOptions.filter(option => option.protocol !== 'SOCKS5'),
     [connectorOptions]
   )
-  const hasAnyAvailableProxy = connectorOptions.length > 0
-  const toggleDisabled = connectorsLoading || (!proxyForm.enabled && !hasAnyAvailableProxy)
   const missingSelections = {
     socks5ConnectorId:
       proxyForm.socks5ConnectorId && !validConnectorIDs.has(proxyForm.socks5ConnectorId)
@@ -419,7 +437,7 @@ export function ProxySection({
     return [{ id: missingValue, label: 'Previously selected resource was deleted' }, ...baseOptions]
   }
 
-  const saveCurrentProxy = () => {
+  const saveCurrentNetwork = () => {
     const draft: ProxyNetwork = {
       ...proxyForm,
       socks5ConnectorId: validConnectorIDs.has(proxyForm.socks5ConnectorId)
@@ -432,7 +450,15 @@ export function ProxySection({
         ? proxyForm.httpsConnectorId
         : '',
     }
-    void saveProxy(draft)
+    void saveProxyNetwork(draft)
+  }
+
+  const updateProxySource = (source: ProxySource) => {
+    setProxyForm(current => ({
+      ...current,
+      source,
+      enabled: source === 'external' ? current.enabled : false,
+    }))
   }
 
   const setConsumerMode = (consumerKey: string, mode: ProxyConsumerItem['mode']) => {
@@ -447,9 +473,104 @@ export function ProxySection({
   const configurableProxyConsumerDefinitions = proxyConsumerDefinitions.filter(
     definition => definition.enrollable
   )
-  const hardBypassDefinitions = proxyConsumerDefinitions.filter(
-    definition => !definition.enrollable
+  const remoteShellDefinition = proxyConsumerDefinitions.find(
+    definition => definition.key === 'servers.global'
   )
+  const moduleProxyDefinitions = configurableProxyConsumerDefinitions.filter(
+    definition => definition.key !== 'servers.global'
+  )
+  const globalRemoteShellMode =
+    (remoteShellDefinition && consumerModeMap.get(remoteShellDefinition.key)) ??
+    remoteShellDefinition?.defaultMode ??
+    'disabled'
+  const [availableServers, setAvailableServers] = useState<Server[]>([])
+  const [serversLoading, setServersLoading] = useState(true)
+  const [serverToOverride, setServerToOverride] = useState('')
+
+  const normalizeHost = (value: string) => {
+    const trimmed = value.trim().toLowerCase()
+    const withoutScheme = trimmed.replace(/^[a-z]+:\/\//, '')
+    return withoutScheme.split('/')[0]?.split(':')[0] ?? ''
+  }
+
+  const isLoopbackHost = (value: string) => {
+    const host = normalizeHost(value)
+    return host === 'local' || host === 'localhost' || host === '127.0.0.1' || host === '::1'
+  }
+
+  const isLocalServer = useCallback((server: Server) => {
+    if (server.id === 'local') {
+      return true
+    }
+    if (typeof server.host === 'string' && isLoopbackHost(server.host)) {
+      return true
+    }
+    const marker = server.is_local
+    if (typeof marker === 'boolean') {
+      return marker && (!server.host || isLoopbackHost(server.host))
+    }
+    if (typeof marker === 'string') {
+      return marker.toLowerCase() === 'true' && (!server.host || isLoopbackHost(server.host))
+    }
+    return false
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    void (async () => {
+      try {
+        const items = await listServers()
+        if (active) {
+          setAvailableServers(items)
+        }
+      } finally {
+        if (active) {
+          setServersLoading(false)
+        }
+      }
+    })()
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const remoteServers = useMemo(
+    () =>
+      availableServers
+        .filter(server => server.id && !isLocalServer(server))
+        .sort((left, right) =>
+          (left.name || left.host || left.id).localeCompare(right.name || right.host || right.id)
+        ),
+    [availableServers, isLocalServer]
+  )
+  const remoteShellOverrideMap = new Map(proxyRemoteShellOverrides.map(item => [item.serverId, item.mode]))
+  const overrideableServers = remoteServers.filter(server => !remoteShellOverrideMap.has(server.id))
+
+  useEffect(() => {
+    if (serverToOverride && !overrideableServers.some(server => server.id === serverToOverride)) {
+      setServerToOverride('')
+    }
+  }, [overrideableServers, serverToOverride])
+
+  const addRemoteShellOverride = () => {
+    const nextServerId = serverToOverride.trim()
+    if (!nextServerId) return
+    setProxyRemoteShellOverrides(current => {
+      if (current.some(item => item.serverId === nextServerId)) {
+        return current
+      }
+      return [...current, { serverId: nextServerId, mode: globalRemoteShellMode }].sort((left, right) => left.serverId.localeCompare(right.serverId))
+    })
+    setServerToOverride('')
+  }
+
+  const updateRemoteShellOverride = (serverId: string, mode: ProxyRemoteShellOverride['mode']) => {
+    setProxyRemoteShellOverrides(current => current.map(item => (item.serverId === serverId ? { ...item, mode } : item)))
+  }
+
+  const removeRemoteShellOverride = (serverId: string) => {
+    setProxyRemoteShellOverrides(current => current.filter(item => item.serverId !== serverId))
+  }
 
   const modeLabel = (mode: string) => {
     switch (mode) {
@@ -462,52 +583,81 @@ export function ProxySection({
     }
   }
 
+  const showExternalResources = proxyForm.source === 'external'
+  const showModuleProxy = proxyForm.source === 'external'
+  const showRemoteShell = proxyForm.source === 'external' || proxyForm.source === 'self'
+
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between gap-3">
-          <CardTitle>Proxy</CardTitle>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label="Open Proxy help"
-            onClick={onOpenHelp}
-          >
-            <HelpCircle className="h-4 w-4" />
-          </Button>
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <div className="flex items-center gap-2">
+          <h3 className="text-base font-semibold text-foreground">Proxy resource from</h3>
+          {onOpenHelp ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              aria-label="Open Proxy help"
+              onClick={onOpenHelp}
+            >
+              <HelpCircle className="h-4 w-4" />
+            </Button>
+          ) : null}
         </div>
-        <CardDescription>
-          Configure the external proxy resources first, then enroll the outbound consumers that may
-          use them.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-4 rounded-xl border border-border/70 bg-card/60 p-4">
-          <div className="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/30 px-4 py-3">
-            <div className="space-y-1">
-              <Label htmlFor="proxy-enabled">External Proxy Resources</Label>
-              <p className="text-xs text-muted-foreground">
-                Choose the SOCKS5, HTTP, and HTTPS services the platform may use for outbound
-                egress.
-              </p>
-            </div>
-            <Toggle
-              id="proxy-enabled"
-              checked={proxyForm.enabled}
-              onChange={checked => setProxyForm(current => ({ ...current, enabled: checked }))}
-              disabled={toggleDisabled}
-            />
+        <p className="text-sm text-muted-foreground">
+          Choose where proxy capability comes from before configuring modules or remote shell behavior.
+        </p>
+      </div>
+
+      <div className="rounded-lg border border-border/40 bg-background">
+        <div className="space-y-4 p-4">
+          <div className="grid gap-3 md:grid-cols-2">
+            {[
+              {
+                value: 'external' as const,
+                title: 'External Proxy',
+                description:
+                  'Apply external proxy to modules and remote shell',
+              },
+              {
+                value: 'self' as const,
+                title: 'Self Proxy',
+                description: 'Route remote shell via AppOS Console Network',
+              },
+            ].map(option => {
+              const active = proxyForm.source === option.value
+              return (
+                <label
+                  key={option.value}
+                  className={`flex cursor-pointer items-start gap-3 rounded-lg border px-4 py-3 transition-colors ${
+                    active ? 'border-primary bg-primary/5' : 'border-border/60 hover:border-foreground/30'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="proxy-source"
+                    className="mt-0.5 h-4 w-4 shrink-0"
+                    checked={active}
+                    onChange={() => updateProxySource(option.value)}
+                  />
+                  <span className="space-y-1">
+                    <span className="block text-sm font-medium text-foreground">{option.title}</span>
+                    <span className="block text-xs text-muted-foreground">{option.description}</span>
+                  </span>
+                </label>
+              )
+            })}
           </div>
 
-          {toggleDisabled ? (
-            <p className="text-xs text-muted-foreground">
-              Add at least one proxy resource before enabling outbound proxy routing.
-            </p>
+          {proxyForm.source === 'none' ? (
+            <div className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+              Choose one source before configuring module or remote shell proxy behavior.
+            </div>
           ) : null}
 
-          {proxyForm.enabled ? (
-            <div className="space-y-4">
+          {showExternalResources ? (
+            <div className="space-y-4 px-1 py-1">
               {proxyErrors.form ? (
                 <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
                   {proxyErrors.form}
@@ -516,95 +666,94 @@ export function ProxySection({
 
               {hasMissingSelections ? (
                 <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
-                  One or more saved proxy resources were deleted. Choose at least one available
-                  proxy option or disable proxy before saving.
+                  One or more saved proxy resources were deleted. Choose available proxy options before saving.
                 </div>
               ) : null}
 
               <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="socks5ConnectorId">SOCKS5 Proxy</Label>
-                  <select
-                    id="socks5ConnectorId"
-                    className={selectClass}
-                    value={proxyForm.socks5ConnectorId}
-                    onChange={event => {
-                      setProxyForm(current => ({
-                        ...current,
-                        socks5ConnectorId: event.target.value,
-                      }))
-                    }}
-                    disabled={connectorsLoading || socks5Options.length === 0}
-                  >
-                    <option value="">No SOCKS5 proxy</option>
-                    {buildOptionsForValue(socks5Options, missingSelections.socks5ConnectorId).map(
-                      option => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                        </option>
-                      )
-                    )}
-                  </select>
-                  <p className="text-xs text-muted-foreground">
-                    When set, all outbound traffic uses SOCKS5 before any per-protocol proxy choice.
-                  </p>
-                  {proxyErrors.socks5ConnectorId ? (
-                    <p className="text-xs text-destructive">{proxyErrors.socks5ConnectorId}</p>
-                  ) : null}
-                </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="socks5ConnectorId">SOCKS5 Proxy</Label>
+                      <select
+                        id="socks5ConnectorId"
+                        className={selectClass}
+                        value={proxyForm.socks5ConnectorId}
+                        onChange={event => {
+                          setProxyForm(current => ({
+                            ...current,
+                            socks5ConnectorId: event.target.value,
+                          }))
+                        }}
+                        disabled={connectorsLoading || socks5Options.length === 0}
+                      >
+                        <option value="">No SOCKS5 proxy</option>
+                        {buildOptionsForValue(socks5Options, missingSelections.socks5ConnectorId).map(
+                          option => (
+                            <option key={option.id} value={option.id}>
+                              {option.label}
+                            </option>
+                          )
+                        )}
+                      </select>
+                      <p className="text-xs text-muted-foreground">
+                        When set, all outbound traffic uses SOCKS5 before any per-protocol proxy choice.
+                      </p>
+                      {proxyErrors.socks5ConnectorId ? (
+                        <p className="text-xs text-destructive">{proxyErrors.socks5ConnectorId}</p>
+                      ) : null}
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="httpConnectorId">HTTP Proxy</Label>
-                  <select
-                    id="httpConnectorId"
-                    className={selectClass}
-                    value={proxyForm.httpConnectorId}
-                    onChange={event => {
-                      setProxyForm(current => ({ ...current, httpConnectorId: event.target.value }))
-                    }}
-                    disabled={connectorsLoading || httpOptions.length === 0}
-                  >
-                    <option value="">No HTTP proxy</option>
-                    {buildOptionsForValue(httpOptions, missingSelections.httpConnectorId).map(
-                      option => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                        </option>
-                      )
-                    )}
-                  </select>
-                  {proxyErrors.httpConnectorId ? (
-                    <p className="text-xs text-destructive">{proxyErrors.httpConnectorId}</p>
-                  ) : null}
-                </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="httpConnectorId">HTTP Proxy</Label>
+                      <select
+                        id="httpConnectorId"
+                        className={selectClass}
+                        value={proxyForm.httpConnectorId}
+                        onChange={event => {
+                          setProxyForm(current => ({ ...current, httpConnectorId: event.target.value }))
+                        }}
+                        disabled={connectorsLoading || httpOptions.length === 0}
+                      >
+                        <option value="">No HTTP proxy</option>
+                        {buildOptionsForValue(httpOptions, missingSelections.httpConnectorId).map(
+                          option => (
+                            <option key={option.id} value={option.id}>
+                              {option.label}
+                            </option>
+                          )
+                        )}
+                      </select>
+                      {proxyErrors.httpConnectorId ? (
+                        <p className="text-xs text-destructive">{proxyErrors.httpConnectorId}</p>
+                      ) : null}
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="httpsConnectorId">HTTPS Proxy</Label>
-                  <select
-                    id="httpsConnectorId"
-                    className={selectClass}
-                    value={proxyForm.httpsConnectorId}
-                    onChange={event => {
-                      setProxyForm(current => ({
-                        ...current,
-                        httpsConnectorId: event.target.value,
-                      }))
-                    }}
-                    disabled={connectorsLoading || httpsOptions.length === 0}
-                  >
-                    <option value="">No HTTPS proxy</option>
-                    {buildOptionsForValue(httpsOptions, missingSelections.httpsConnectorId).map(
-                      option => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                        </option>
-                      )
-                    )}
-                  </select>
-                  {proxyErrors.httpsConnectorId ? (
-                    <p className="text-xs text-destructive">{proxyErrors.httpsConnectorId}</p>
-                  ) : null}
-                </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="httpsConnectorId">HTTPS Proxy</Label>
+                      <select
+                        id="httpsConnectorId"
+                        className={selectClass}
+                        value={proxyForm.httpsConnectorId}
+                        onChange={event => {
+                          setProxyForm(current => ({
+                            ...current,
+                            httpsConnectorId: event.target.value,
+                          }))
+                        }}
+                        disabled={connectorsLoading || httpsOptions.length === 0}
+                      >
+                        <option value="">No HTTPS proxy</option>
+                        {buildOptionsForValue(httpsOptions, missingSelections.httpsConnectorId).map(
+                          option => (
+                            <option key={option.id} value={option.id}>
+                              {option.label}
+                            </option>
+                          )
+                        )}
+                      </select>
+                      {proxyErrors.httpsConnectorId ? (
+                        <p className="text-xs text-destructive">{proxyErrors.httpsConnectorId}</p>
+                      ) : null}
+                    </div>
               </div>
 
               {connectorsLoading ? (
@@ -632,101 +781,223 @@ export function ProxySection({
                 </div>
               ) : null}
             </div>
-          ) : null}
-        </div>
-
-        <div className="space-y-4 rounded-xl border border-border/70 bg-card/60 p-4">
-          <div className="space-y-1">
-            <Label>Consumer Enrollment</Label>
-            <p className="text-xs text-muted-foreground">
-              Decide which outbound consumers may use the configured proxy and whether they always
-              proxy, fall back from direct, or stay direct.
-            </p>
-          </div>
-          {proxyErrors.consumers ? (
-            <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-              {proxyErrors.consumers}
+          ) : proxyForm.source === 'self' ? (
+            <div className="px-1 py-1 text-sm text-muted-foreground">
+              Self Proxy is selected. External connector resources stay hidden, and only remote shell proxy controls remain visible below.
             </div>
           ) : null}
 
-          <div className="space-y-3">
-            {configurableProxyConsumerDefinitions.map(definition => {
+          <div className="flex items-center justify-between gap-3">
+            {showExternalResources ? (
+              <Button type="button" variant="outline" className="h-9 px-4" asChild>
+                <a href={addHTTPProxyHref}>Add external proxy</a>
+              </Button>
+            ) : <span />}
+            <SaveButton onClick={saveCurrentNetwork} saving={proxyNetworkSaving} compact />
+          </div>
+        </div>
+      </div>
+
+      {showModuleProxy ? (
+        <div className="space-y-2">
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold text-foreground">Set Module Proxy</h3>
+            <p className="text-xs text-muted-foreground">Proxy settings for individual modules</p>
+          </div>
+          <div className="rounded-lg border border-border/40 bg-background">
+            <div className="space-y-4 p-4">
+            {proxyErrors.consumers ? (
+              <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                {proxyErrors.consumers}
+              </div>
+            ) : null}
+
+            <div>
+            <div className="grid grid-cols-[minmax(0,1.4fr)_180px_220px] gap-4 border-b border-border/80 bg-muted/45 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-foreground/70">
+              <span>Name</span>
+              <span>Default</span>
+              <span>Setting</span>
+            </div>
+            {moduleProxyDefinitions.map(definition => {
               const currentMode = consumerModeMap.get(definition.key) ?? 'disabled'
               return (
                 <div
                   key={definition.key}
-                  className="rounded-lg border border-border/60 bg-muted/20 px-4 py-3"
+                  className="grid grid-cols-[minmax(0,1.4fr)_180px_220px] items-center gap-4 border-t border-border/60 px-4 py-3 first:border-t-0"
                 >
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-medium text-foreground">{definition.title}</p>
-                        <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] uppercase tracking-wide text-muted-foreground">
-                          {definition.adapter.replace('_', ' ')}
-                        </span>
-                        <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] uppercase tracking-wide text-muted-foreground">
-                          {definition.trafficClass.replaceAll('_', ' ')}
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground">{definition.description}</p>
-                      <p className="text-[11px] text-muted-foreground">{definition.key}</p>
-                    </div>
-                    <div className="min-w-[220px] space-y-2">
-                      <Label htmlFor={`proxy-consumer-${definition.key}`}>Mode</Label>
-                      <select
-                        id={`proxy-consumer-${definition.key}`}
-                        className={selectClass}
-                        value={currentMode}
-                        onChange={event =>
-                          setConsumerMode(
-                            definition.key,
-                            event.target.value as ProxyConsumerItem['mode']
-                          )
-                        }
-                      >
-                        {definition.allowedModes.map(mode => (
-                          <option key={mode} value={mode}>
-                            {modeLabel(mode)}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-[11px] text-muted-foreground">
-                        {`Default: ${modeLabel(definition.defaultMode)}`}
-                      </p>
-                    </div>
+                  <div className="min-w-0 pr-4">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-sm font-medium text-foreground cursor-help">{definition.title}</span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs">
+                        <p>{definition.description}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <div className="text-sm text-muted-foreground">{modeLabel(definition.defaultMode)}</div>
+                  <div className="w-full max-w-[220px]">
+                    <select
+                      id={`proxy-consumer-${definition.key}`}
+                      className={selectClass}
+                      value={currentMode}
+                      onChange={event =>
+                        setConsumerMode(
+                          definition.key,
+                          event.target.value as ProxyConsumerItem['mode']
+                        )
+                      }
+                    >
+                      {definition.allowedModes.map(mode => (
+                        <option key={mode} value={mode}>
+                          {modeLabel(mode)}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               )
             })}
+            </div>
+
+            <SaveButton onClick={() => void saveProxyConsumers()} saving={proxyConsumersSaving} compact />
+            </div>
           </div>
-
-          {hardBypassDefinitions.length > 0 ? (
-            <details className="rounded-lg border border-dashed border-border/70 bg-muted/10 px-4 py-3">
-              <summary className="cursor-pointer text-sm font-medium text-foreground">
-                Bypass-only consumers
-              </summary>
-              <div className="mt-3 space-y-3">
-                <p className="text-xs text-muted-foreground">
-                  These consumers stay direct by policy and are shown here for reference only.
-                </p>
-                {hardBypassDefinitions.map(definition => (
-                  <div
-                    key={definition.key}
-                    className="rounded-lg border border-border/60 bg-background/80 px-4 py-3"
-                  >
-                    <p className="text-sm font-medium text-foreground">{definition.title}</p>
-                    <p className="text-xs text-muted-foreground">{definition.description}</p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">{definition.key}</p>
-                  </div>
-                ))}
-              </div>
-            </details>
-          ) : null}
         </div>
+      ) : null}
 
-        <SaveButton onClick={saveCurrentProxy} saving={proxySaving} />
-      </CardContent>
-    </Card>
+      {showRemoteShell ? (
+        <div className="space-y-2">
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold text-foreground">Remote Shell Proxy</h3>
+            <p className="text-xs text-muted-foreground">Proxy configurations for remote server shell execution</p>
+          </div>
+          <div className="rounded-lg border border-border/40 bg-background">
+            <div className="space-y-4 p-4">
+            <div className="space-y-4 bg-muted/20 px-4 py-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">Global remote shell policy</p>
+                  <p className="text-xs text-muted-foreground">
+                    Applies to all remote servers unless a server-specific override is configured below.
+                  </p>
+                </div>
+                <div className="min-w-[220px]">
+                  <select
+                    id="proxy-remote-shell-global"
+                    className={selectClass}
+                    value={globalRemoteShellMode}
+                    onChange={event => setConsumerMode('servers.global', event.target.value as ProxyConsumerItem['mode'])}
+                  >
+                    {(remoteShellDefinition?.allowedModes ?? ['disabled', 'always', 'fallback']).map(mode => (
+                      <option key={mode} value={mode}>
+                        {modeLabel(mode)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {proxyErrors.remoteShell ? (
+              <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                {proxyErrors.remoteShell}
+              </div>
+            ) : null}
+
+            <div className="space-y-4 bg-muted/20 px-4 py-4">
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">Server-specific overrides</p>
+                  <p className="text-xs text-muted-foreground">
+                    Choose individual servers to override the global remote shell proxy policy. Per-server overrides take precedence.
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-2 lg:flex-row">
+                  <select
+                    id="proxy-remote-shell-server-select"
+                    className={selectClass}
+                    aria-label="Select a server"
+                    value={serverToOverride}
+                    onChange={event => setServerToOverride(event.target.value)}
+                    disabled={serversLoading || overrideableServers.length === 0}
+                  >
+                    <option value="">-- Select a server --</option>
+                    {overrideableServers.map(server => (
+                      <option key={server.id} value={server.id}>
+                        {server.name || server.host}
+                      </option>
+                    ))}
+                  </select>
+                  <Button type="button" variant="outline" className="h-9 px-4" onClick={addRemoteShellOverride} disabled={!serverToOverride}>
+                    Add override
+                  </Button>
+                </div>
+
+                {!serversLoading && remoteServers.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+                    No remote servers are available yet.
+                  </div>
+                ) : null}
+
+                {serversLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading servers...
+                  </div>
+                ) : null}
+
+                {proxyRemoteShellOverrides.length > 0 ? (
+                  <div className="divide-y divide-border/60">
+                    {proxyRemoteShellOverrides.map(item => {
+                      const server = remoteServers.find(candidate => candidate.id === item.serverId)
+                      return (
+                        <div key={item.serverId} className="flex flex-col gap-3 px-4 py-4 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="min-w-0 space-y-1 pr-4">
+                            <p className="text-sm font-semibold text-foreground">
+                              {server?.name || server?.host || item.serverId}
+                              {server?.host ? <span className="font-normal text-muted-foreground"> · {server.host}</span> : null}
+                            </p>
+                          </div>
+                          <div className="flex w-full max-w-[320px] gap-2">
+                            <select
+                              className={selectClass}
+                              value={item.mode}
+                              onChange={event => updateRemoteShellOverride(item.serverId, event.target.value as ProxyRemoteShellOverride['mode'])}
+                            >
+                              {(remoteShellDefinition?.allowedModes ?? ['disabled', 'always', 'fallback']).map(mode => (
+                                <option key={mode} value={mode}>
+                                  {modeLabel(mode)}
+                                </option>
+                              ))}
+                            </select>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="h-9 border-border/70 bg-background/80 px-3 text-muted-foreground hover:border-foreground/20 hover:bg-muted/40 hover:text-foreground"
+                              onClick={() => removeRemoteShellOverride(item.serverId)}
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+                    No server-specific overrides yet. Global remote shell policy applies to all remote servers.
+                  </div>
+                )}
+              </div>
+            </div>
+            <SaveButton onClick={() => void saveProxyRemoteShell()} saving={proxyRemoteShellSaving} compact />
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
   )
 }
 

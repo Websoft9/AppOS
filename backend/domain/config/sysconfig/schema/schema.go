@@ -273,6 +273,17 @@ var entryCatalog = []EntrySchema{
 		},
 	},
 	{
+		ID:      "proxy-remote-shell",
+		Title:   "Remote Shell Proxy",
+		Section: SectionWorkspace,
+		Source:  SourceCustom,
+		Module:  "proxy",
+		Key:     "servers",
+		Fields: []FieldSchema{
+			{ID: "items", Label: "Server Overrides", Type: "object-list", HelpText: "Per-server remote shell proxy overrides that take precedence over the global remote shell policy."},
+		},
+	},
+	{
 		ID:          "docker-mirror",
 		Title:       "Docker Mirrors",
 		Description: "Speed up AppOS image pulls. Does not change server Docker settings.",

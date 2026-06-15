@@ -141,11 +141,17 @@ function renderProxySection(
       proxyForm={controller.proxyForm}
       proxyConsumers={controller.proxyConsumers}
       proxyConsumerDefinitions={controller.proxyConsumerDefinitions}
-      proxySaving={controller.proxySaving}
+      proxyRemoteShellOverrides={controller.proxyRemoteShellOverrides}
+      proxyNetworkSaving={controller.proxyNetworkSaving}
+      proxyConsumersSaving={controller.proxyConsumersSaving}
+      proxyRemoteShellSaving={controller.proxyRemoteShellSaving}
       proxyErrors={controller.proxyErrors}
       setProxyForm={controller.setProxyForm}
       setProxyConsumers={controller.setProxyConsumers}
-      saveProxy={controller.saveProxy}
+      setProxyRemoteShellOverrides={controller.setProxyRemoteShellOverrides}
+      saveProxyNetwork={controller.saveProxyNetwork}
+      saveProxyConsumers={controller.saveProxyConsumers}
+      saveProxyRemoteShell={controller.saveProxyRemoteShell}
       onOpenHelp={options?.onOpenHelp}
     />
   )

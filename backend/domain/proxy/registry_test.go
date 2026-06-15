@@ -51,9 +51,29 @@ func TestDefaultRegistryRemovesLegacyDockerLocalSocketSurface(t *testing.T) {
 	if _, err := registry.Require("docker.image_pull"); !errors.Is(err, proxyinfra.ErrUnknownConsumer) {
 		t.Fatalf("expected docker.image_pull to be absent, got %v", err)
 	}
-	for _, key := range []string{"ai_providers.fetch_models", "ai_providers.reachability", "servers.remote_shell", "servers.ssh_control", "servers.sftp_control", "servers.reachability_probe"} {
+	for _, key := range []string{"ai_providers.fetch_models", "ai_providers.reachability", "servers.remote_shell"} {
 		if _, err := registry.Require(key); !errors.Is(err, proxyinfra.ErrUnknownConsumer) {
 			t.Fatalf("expected %s to be absent, got %v", key, err)
+		}
+	}
+}
+
+func TestDefaultRegistryIncludesRemoteBypassOnlyServerControls(t *testing.T) {
+	registry, err := DefaultRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, key := range []string{"servers.ssh_control", "servers.sftp_control", "servers.reachability_probe"} {
+		definition, err := registry.Require(key)
+		if err != nil {
+			t.Fatalf("expected %s to exist: %v", key, err)
+		}
+		if definition.Enrollable() {
+			t.Fatalf("expected %s to remain bypass-only", key)
+		}
+		if _, err := registry.RequireDirectUse(key); !errors.Is(err, proxyinfra.ErrDirectUseDenied) {
+			t.Fatalf("expected %s to deny direct use, got %v", key, err)
 		}
 	}
 }

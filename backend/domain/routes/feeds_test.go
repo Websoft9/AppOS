@@ -145,6 +145,19 @@ func TestCreateBookmarkPersistsManualLink(t *testing.T) {
 	}
 }
 
+func TestCreateBookmarkRejectsNonHTTPURL(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doFeeds(t, http.MethodPost, "/api/feeds/bookmarks", `{"url":"ftp://example.com/docs/notice","title":"Vendor notice"}`, true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid bookmark scheme, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), feedURLSchemeMessage) {
+		t.Fatalf("expected scheme validation message, got %s", rec.Body.String())
+	}
+}
+
 func TestCreateBookmarkPersistsFaviconURL(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
@@ -857,6 +870,19 @@ func TestCreateFeedSourcePersistsThroughFeedsRoute(t *testing.T) {
 	}
 }
 
+func TestCreateFeedSourceRejectsNonHTTPURL(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doFeeds(t, http.MethodPost, "/api/feeds/sources", `{"name":"Vendor feed","url":"ftp://example.com/feed.xml","favicon_url":"https://example.com/favicon.ico","format":"rss","status":"active"}`, true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid feed source scheme, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), feedURLSchemeMessage) {
+		t.Fatalf("expected scheme validation message, got %s", rec.Body.String())
+	}
+}
+
 func TestCreateFeedSourceRejectsDuplicateURLWithConflict(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
@@ -1064,6 +1090,19 @@ func TestFeedSourceAnalyzeRejectsBlankURL(t *testing.T) {
 	}
 }
 
+func TestFeedSourceAnalyzeRejectsNonHTTPURL(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doFeeds(t, http.MethodPost, "/api/feeds/analyze", `{"url":"ftp://example.com/feed.xml"}`, true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid analyze url scheme, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), feedURLSchemeMessage) {
+		t.Fatalf("expected scheme validation message, got %s", rec.Body.String())
+	}
+}
+
 func TestAnalyzeBookmarkReturnsMetadata(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
@@ -1105,6 +1144,19 @@ func TestAnalyzeBookmarkRejectsBlankURL(t *testing.T) {
 	rec := te.doFeeds(t, http.MethodPost, "/api/feeds/bookmarks/analyze", `{"url":" "}`, true)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for blank bookmark analyze url, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAnalyzeBookmarkRejectsNonHTTPURL(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doFeeds(t, http.MethodPost, "/api/feeds/bookmarks/analyze", `{"url":"ftp://example.com/post"}`, true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid bookmark analyze url scheme, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), feedURLSchemeMessage) {
+		t.Fatalf("expected scheme validation message, got %s", rec.Body.String())
 	}
 }
 

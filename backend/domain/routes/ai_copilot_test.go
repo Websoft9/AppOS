@@ -55,8 +55,11 @@ func (fakeAICopilotStreamer) Stream(_ context.Context, messages []*copilot.Messa
 
 func TestAICopilotRouteStreamsAndPersistsMessages(t *testing.T) {
 	oldFactory := aiCopilotModelFactory
+	oldPreflight := aiCopilotProviderPreflight
 	aiCopilotModelFactory = fakeAICopilotFactory{}
+	aiCopilotProviderPreflight = nil
 	t.Cleanup(func() { aiCopilotModelFactory = oldFactory })
+	t.Cleanup(func() { aiCopilotProviderPreflight = oldPreflight })
 
 	te := newTestEnv(t)
 	defer te.cleanup()
@@ -93,8 +96,11 @@ func TestAICopilotRouteStreamsAndPersistsMessages(t *testing.T) {
 
 func TestAICopilotRouteSupportsAttachmentsAndSessionLifecycle(t *testing.T) {
 	oldFactory := aiCopilotModelFactory
+	oldPreflight := aiCopilotProviderPreflight
 	aiCopilotModelFactory = fakeAICopilotFactory{}
+	aiCopilotProviderPreflight = nil
 	t.Cleanup(func() { aiCopilotModelFactory = oldFactory })
+	t.Cleanup(func() { aiCopilotProviderPreflight = oldPreflight })
 
 	te := newTestEnv(t)
 	defer te.cleanup()
@@ -169,8 +175,11 @@ func TestAICopilotRouteReportsProviderSetupRequired(t *testing.T) {
 func TestAICopilotRouteUsesSelectedProviderAndModel(t *testing.T) {
 	var seen *copilot.ProviderConfig
 	oldFactory := aiCopilotModelFactory
+	oldPreflight := aiCopilotProviderPreflight
 	aiCopilotModelFactory = captureAICopilotFactory{seen: &seen}
+	aiCopilotProviderPreflight = nil
 	t.Cleanup(func() { aiCopilotModelFactory = oldFactory })
+	t.Cleanup(func() { aiCopilotProviderPreflight = oldPreflight })
 
 	te := newTestEnv(t)
 	defer te.cleanup()
@@ -209,8 +218,11 @@ func TestAICopilotRouteUsesSelectedProviderAndModel(t *testing.T) {
 func TestAICopilotRouteFallsBackToTemplateMaxCompletionTokens(t *testing.T) {
 	var seen *copilot.ProviderConfig
 	oldFactory := aiCopilotModelFactory
+	oldPreflight := aiCopilotProviderPreflight
 	aiCopilotModelFactory = captureAICopilotFactory{seen: &seen}
+	aiCopilotProviderPreflight = nil
 	t.Cleanup(func() { aiCopilotModelFactory = oldFactory })
+	t.Cleanup(func() { aiCopilotProviderPreflight = oldPreflight })
 
 	te := newTestEnv(t)
 	defer te.cleanup()

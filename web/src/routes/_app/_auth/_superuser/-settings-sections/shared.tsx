@@ -56,22 +56,28 @@ export function SaveButton({
   onClick,
   saving,
   label = 'Save',
+  compact = false,
+  align = 'right',
 }: {
   onClick: () => void
   saving: boolean
   label?: string
+  compact?: boolean
+  align?: 'right' | 'left'
 }) {
   return (
-    <Button onClick={onClick} disabled={saving}>
-      {saving ? (
-        <>
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          Saving…
-        </>
-      ) : (
-        label
-      )}
-    </Button>
+    <div className={`${compact ? 'mt-0' : 'mt-4'} flex ${align === 'left' ? 'justify-start' : 'justify-end'}`}>
+      <Button onClick={onClick} disabled={saving}>
+        {saving ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Saving…
+          </>
+        ) : (
+          label
+        )}
+      </Button>
+    </div>
   )
 }
 

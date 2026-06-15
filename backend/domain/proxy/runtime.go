@@ -30,6 +30,11 @@ type ConsumerEnrollment struct {
 	Mode        proxyinfra.Mode
 }
 
+type RemoteShellServerOverride struct {
+	ServerID string
+	Mode     proxyinfra.Mode
+}
+
 type ConsumerDefinitionView struct {
 	Key          string   `json:"key"`
 	Title        string   `json:"title"`
@@ -48,6 +53,7 @@ type ConsumerDefinitionView struct {
 
 func DefaultNetworkSettingsMap() map[string]any {
 	return map[string]any{
+		"source":            "none",
 		"enabled":           false,
 		"socks5ConnectorId": "",
 		"httpConnectorId":   "",
@@ -72,6 +78,10 @@ func DefaultConsumerSettingsMap() map[string]any {
 	return map[string]any{"items": items}
 }
 
+func DefaultRemoteShellSettingsMap() map[string]any {
+	return map[string]any{"items": []map[string]any{}}
+}
+
 func LoadNetworkSettings(app core.App) NetworkSettings {
 	group, _ := sysconfig.GetGroup(app, "proxy", "network", DefaultNetworkSettingsMap())
 	if group == nil {
@@ -93,8 +103,20 @@ func LoadConsumerEnrollments(app core.App) ([]ConsumerEnrollment, error) {
 	return normalizeConsumerEnrollments(group), nil
 }
 
+func LoadRemoteShellServerOverrides(app core.App) ([]RemoteShellServerOverride, error) {
+	group, err := sysconfig.GetGroup(app, "proxy", "servers", DefaultRemoteShellSettingsMap())
+	if err != nil && group == nil {
+		return nil, err
+	}
+	return normalizeRemoteShellServerOverrides(group), nil
+}
+
 func SettingsEntryValue(app core.App) (map[string]any, error) {
-	definitions, err := directUseDefinitions()
+	definitions, err := settingsDefinitions()
+	if err != nil {
+		return nil, err
+	}
+	enrollableDefinitions, err := directUseDefinitions()
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +124,7 @@ func SettingsEntryValue(app core.App) (map[string]any, error) {
 	if loadErr != nil && items == nil {
 		return nil, loadErr
 	}
-	items = filterEnrollments(definitions, items)
+	items = filterEnrollments(enrollableDefinitions, items)
 	return map[string]any{
 		"items":       serializeEnrollments(items),
 		"definitions": serializeDefinitionViews(definitions),
@@ -112,6 +134,12 @@ func SettingsEntryValue(app core.App) (map[string]any, error) {
 func NormalizeConsumerSettingsValue(value map[string]any) map[string]any {
 	return map[string]any{
 		"items": serializeEnrollments(normalizeConsumerEnrollments(value)),
+	}
+}
+
+func NormalizeRemoteShellSettingsValue(value map[string]any) map[string]any {
+	return map[string]any{
+		"items": serializeRemoteShellServerOverrides(normalizeRemoteShellServerOverrides(value)),
 	}
 }
 
@@ -149,6 +177,34 @@ func ResolveConsumerMode(app core.App, consumerKey string) (proxyinfra.Definitio
 
 func ProxyEnvForConsumer(app core.App, consumerKey string) (map[string]string, error) {
 	_, mode, err := ResolveConsumerMode(app, consumerKey)
+	if err != nil {
+		return nil, err
+	}
+	if mode == proxyinfra.ModeDisabled {
+		return nil, nil
+	}
+	return ProxyEnv(app)
+}
+
+func ResolveRemoteShellMode(app core.App, serverID string) (proxyinfra.Mode, error) {
+	serverID = strings.TrimSpace(serverID)
+	if serverID != "" {
+		overrides, err := LoadRemoteShellServerOverrides(app)
+		if err != nil {
+			return proxyinfra.ModeDisabled, err
+		}
+		for _, item := range overrides {
+			if item.ServerID == serverID {
+				return item.Mode, nil
+			}
+		}
+	}
+	_, mode, err := ResolveConsumerMode(app, "servers.global")
+	return mode, err
+}
+
+func ProxyEnvForRemoteShellServer(app core.App, serverID string) (map[string]string, error) {
+	mode, err := ResolveRemoteShellMode(app, serverID)
 	if err != nil {
 		return nil, err
 	}
@@ -215,6 +271,24 @@ func directUseDefinitions() ([]proxyinfra.Definition, error) {
 	return registry.DirectUse(), nil
 }
 
+func settingsDefinitions() ([]proxyinfra.Definition, error) {
+	registry, err := DefaultRegistry()
+	if err != nil {
+		return nil, err
+	}
+	definitions := make([]proxyinfra.Definition, 0)
+	for _, definition := range registry.List() {
+		if definition.DirectUseAllowed() {
+			definitions = append(definitions, definition)
+			continue
+		}
+		if definition.Location == proxyinfra.LocationRemote && !definition.Enrollable() && strings.HasPrefix(definition.Key, "servers.") {
+			definitions = append(definitions, definition)
+		}
+	}
+	return definitions, nil
+}
+
 func buildProxyEnv(app core.App, network NetworkSettings) (map[string]string, error) {
 	if !network.Enabled {
 		return nil, nil
@@ -269,6 +343,46 @@ func normalizeConsumerEnrollments(group map[string]any) []ConsumerEnrollment {
 	return items
 }
 
+func normalizeRemoteShellServerOverrides(group map[string]any) []RemoteShellServerOverride {
+	if group == nil {
+		return nil
+	}
+	rawItems, ok := group["items"]
+	if !ok || rawItems == nil {
+		return nil
+	}
+	list, ok := rawItems.([]any)
+	if !ok {
+		typed, typedOK := rawItems.([]map[string]any)
+		if !typedOK {
+			return nil
+		}
+		list = make([]any, 0, len(typed))
+		for _, item := range typed {
+			list = append(list, item)
+		}
+	}
+	items := make([]RemoteShellServerOverride, 0, len(list))
+	seen := map[string]struct{}{}
+	for _, rawItem := range list {
+		item, ok := rawItem.(map[string]any)
+		if !ok {
+			continue
+		}
+		serverID := strings.TrimSpace(sysconfig.String(item, "serverId", ""))
+		mode := proxyinfra.Mode(strings.TrimSpace(sysconfig.String(item, "mode", "")))
+		if serverID == "" || mode == "" {
+			continue
+		}
+		if _, exists := seen[serverID]; exists {
+			continue
+		}
+		seen[serverID] = struct{}{}
+		items = append(items, RemoteShellServerOverride{ServerID: serverID, Mode: mode})
+	}
+	return items
+}
+
 func serializeEnrollments(items []ConsumerEnrollment) []map[string]any {
 	if len(items) == 0 {
 		return []map[string]any{}
@@ -278,6 +392,20 @@ func serializeEnrollments(items []ConsumerEnrollment) []map[string]any {
 		out = append(out, map[string]any{
 			"consumerKey": item.ConsumerKey,
 			"mode":        string(item.Mode),
+		})
+	}
+	return out
+}
+
+func serializeRemoteShellServerOverrides(items []RemoteShellServerOverride) []map[string]any {
+	if len(items) == 0 {
+		return []map[string]any{}
+	}
+	out := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		out = append(out, map[string]any{
+			"serverId": item.ServerID,
+			"mode":     string(item.Mode),
 		})
 	}
 	return out

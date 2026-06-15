@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -208,6 +209,7 @@ const (
 	defaultFeedListPage        = 1
 	defaultFeedListPerPage     = 20
 	maxFeedListPerPage         = 100
+	feedURLSchemeMessage       = "URL must start with http:// or https://"
 )
 
 // registerFeedsRoutes registers authenticated feeds actions under /api/feeds.
@@ -655,12 +657,16 @@ func handleCreateBookmark(e *core.RequestEvent) error {
 		return e.BadRequestError("invalid JSON body", err)
 	}
 
-	if strings.TrimSpace(body.URL) == "" {
+	bookmarkURL := strings.TrimSpace(body.URL)
+	if bookmarkURL == "" {
 		return e.BadRequestError("bookmark url is required", nil)
+	}
+	if err := validateHTTPURLScheme(bookmarkURL); err != nil {
+		return e.BadRequestError(feedURLSchemeMessage, err)
 	}
 
 	normalized := feeds.NormalizeItem(feeds.ItemCandidate{
-		Link:       body.URL,
+		Link:       bookmarkURL,
 		Title:      body.Title,
 		Summary:    body.Summary,
 		FaviconURL: body.FaviconURL,
@@ -742,6 +748,9 @@ func handleAnalyzeBookmark(e *core.RequestEvent) error {
 	if url == "" {
 		return e.BadRequestError("bookmark url is required", nil)
 	}
+	if err := validateHTTPURLScheme(url); err != nil {
+		return e.BadRequestError(feedURLSchemeMessage, err)
+	}
 
 	analysis, err := analyzeBookmarkURL(nil, url, nil)
 	if err != nil {
@@ -776,8 +785,12 @@ func handleUpdateBookmark(e *core.RequestEvent) error {
 		return e.BadRequestError("invalid JSON body", err)
 	}
 
-	if strings.TrimSpace(body.URL) == "" {
+	bookmarkURL := strings.TrimSpace(body.URL)
+	if bookmarkURL == "" {
 		return e.BadRequestError("bookmark url is required", nil)
+	}
+	if err := validateHTTPURLScheme(bookmarkURL); err != nil {
+		return e.BadRequestError(feedURLSchemeMessage, err)
 	}
 
 	record, err := e.App.FindRecordById(feeds.CollectionItems, id)
@@ -789,7 +802,7 @@ func handleUpdateBookmark(e *core.RequestEvent) error {
 	}
 
 	normalized := feeds.NormalizeItem(feeds.ItemCandidate{
-		Link:       body.URL,
+		Link:       bookmarkURL,
 		Title:      body.Title,
 		Summary:    body.Summary,
 		FaviconURL: body.FaviconURL,
@@ -907,6 +920,9 @@ func handleFeedSourceAnalyze(e *core.RequestEvent) error {
 	if url == "" {
 		return e.BadRequestError("feed source url is required", nil)
 	}
+	if err := validateHTTPURLScheme(url); err != nil {
+		return e.BadRequestError(feedURLSchemeMessage, err)
+	}
 
 	analysis, err := analyzeFeedSource(nil, url, nil)
 	if err != nil {
@@ -933,6 +949,9 @@ func handleCreateFeedSource(e *core.RequestEvent) error {
 	var body feedSourceUpsertRequest
 	if err := e.BindBody(&body); err != nil {
 		return e.BadRequestError("invalid JSON body", err)
+	}
+	if err := validateHTTPURLScheme(strings.TrimSpace(body.URL)); err != nil {
+		return e.BadRequestError(feedURLSchemeMessage, err)
 	}
 
 	record, err := feeds.CreateSource(e.App, toFeedSourceUpsertInput(body))
@@ -968,6 +987,9 @@ func handleUpdateFeedSource(e *core.RequestEvent) error {
 	if err := e.BindBody(&body); err != nil {
 		return e.BadRequestError("invalid JSON body", err)
 	}
+	if err := validateHTTPURLScheme(strings.TrimSpace(body.URL)); err != nil {
+		return e.BadRequestError(feedURLSchemeMessage, err)
+	}
 
 	record, err := feeds.UpdateSource(e.App, id, toFeedSourceUpsertInput(body))
 	if err != nil {
@@ -997,6 +1019,21 @@ func handleDeleteFeedSource(e *core.RequestEvent) error {
 	}
 
 	return e.NoContent(http.StatusNoContent)
+}
+
+func validateHTTPURLScheme(raw string) error {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return err
+	}
+	scheme := strings.ToLower(strings.TrimSpace(parsed.Scheme))
+	if scheme != "http" && scheme != "https" {
+		return errors.New("unsupported url scheme")
+	}
+	if strings.TrimSpace(parsed.Host) == "" {
+		return errors.New("url host is required")
+	}
+	return nil
 }
 
 // handleFeedItemStatePatch updates the reader-owned preferences of one normalized feed item.
