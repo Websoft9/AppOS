@@ -44,6 +44,7 @@ type ProviderAccount struct {
 	updated      string
 	name         string
 	kind         string
+	isEnabled    bool
 	templateID   string
 	identifier   string
 	credentialID string
@@ -57,6 +58,7 @@ type Snapshot struct {
 	Updated      string
 	Name         string
 	Kind         string
+	IsEnabled    bool
 	TemplateID   string
 	Identifier   string
 	CredentialID string
@@ -65,7 +67,7 @@ type Snapshot struct {
 }
 
 func NewProviderAccount() *ProviderAccount {
-	return &ProviderAccount{config: map[string]any{}}
+	return &ProviderAccount{isEnabled: true, config: map[string]any{}}
 }
 
 func RestoreProviderAccount(snapshot Snapshot) *ProviderAccount {
@@ -75,6 +77,7 @@ func RestoreProviderAccount(snapshot Snapshot) *ProviderAccount {
 		updated:      snapshot.Updated,
 		name:         snapshot.Name,
 		kind:         snapshot.Kind,
+		isEnabled:    snapshot.IsEnabled,
 		templateID:   snapshot.TemplateID,
 		identifier:   snapshot.Identifier,
 		credentialID: snapshot.CredentialID,
@@ -88,6 +91,7 @@ func (p *ProviderAccount) Created() string      { return p.created }
 func (p *ProviderAccount) Updated() string      { return p.updated }
 func (p *ProviderAccount) Name() string         { return p.name }
 func (p *ProviderAccount) Kind() string         { return p.kind }
+func (p *ProviderAccount) IsEnabled() bool      { return p.isEnabled }
 func (p *ProviderAccount) TemplateID() string   { return p.templateID }
 func (p *ProviderAccount) Identifier() string   { return p.identifier }
 func (p *ProviderAccount) CredentialID() string { return p.credentialID }
@@ -100,6 +104,7 @@ func (p *ProviderAccount) Config() map[string]any {
 func (p *ProviderAccount) ApplySaveInput(input SaveInput) {
 	p.name = strings.TrimSpace(input.Name)
 	p.kind = strings.TrimSpace(input.Kind)
+	p.isEnabled = input.IsEnabled
 	p.templateID = strings.TrimSpace(input.TemplateID)
 	p.identifier = strings.TrimSpace(input.Identifier)
 	p.credentialID = strings.TrimSpace(input.CredentialID)
@@ -124,6 +129,7 @@ func (p *ProviderAccount) Snapshot() Snapshot {
 		Updated:      p.Updated(),
 		Name:         p.Name(),
 		Kind:         p.Kind(),
+		IsEnabled:    p.IsEnabled(),
 		TemplateID:   p.TemplateID(),
 		Identifier:   p.Identifier(),
 		CredentialID: p.CredentialID(),

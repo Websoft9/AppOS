@@ -65,6 +65,7 @@ import { Route as AppAuthSuperuserTerminalIndexRouteImport } from './routes/_app
 import { Route as AppAuthAdminCredentialsEnvVarsRouteImport } from './routes/_app/_auth/admin/credentials/env-vars'
 import { Route as AppAuthSuperuserAiAssetsSkillsRouteImport } from './routes/_app/_auth/_superuser/ai-assets.skills'
 import { Route as AppAuthSuperuserAiAssetsScriptsRouteImport } from './routes/_app/_auth/_superuser/ai-assets.scripts'
+import { Route as AppAuthSuperuserAiAssetsPromptsRouteImport } from './routes/_app/_auth/_superuser/ai-assets.prompts'
 import { Route as AppAuthSuperuserTerminalServerServerIdRouteImport } from './routes/_app/_auth/_superuser/terminal.server.$serverId'
 
 const AppRoute = AppRouteImport.update({
@@ -358,6 +359,12 @@ const AppAuthSuperuserAiAssetsScriptsRoute =
     path: '/scripts',
     getParentRoute: () => AppAuthSuperuserAiAssetsRoute,
   } as any)
+const AppAuthSuperuserAiAssetsPromptsRoute =
+  AppAuthSuperuserAiAssetsPromptsRouteImport.update({
+    id: '/prompts',
+    path: '/prompts',
+    getParentRoute: () => AppAuthSuperuserAiAssetsRoute,
+  } as any)
 const AppAuthSuperuserTerminalServerServerIdRoute =
   AppAuthSuperuserTerminalServerServerIdRouteImport.update({
     id: '/terminal/server/$serverId',
@@ -414,6 +421,7 @@ export interface FileRoutesByFullPath {
   '/resources/': typeof AppAuthResourcesIndexRoute
   '/store/': typeof AppAuthStoreIndexRoute
   '/topics/': typeof AppAuthTopicsIndexRoute
+  '/ai-assets/prompts': typeof AppAuthSuperuserAiAssetsPromptsRoute
   '/ai-assets/scripts': typeof AppAuthSuperuserAiAssetsScriptsRoute
   '/ai-assets/skills': typeof AppAuthSuperuserAiAssetsSkillsRoute
   '/admin/credentials/env-vars': typeof AppAuthAdminCredentialsEnvVarsRoute
@@ -467,6 +475,7 @@ export interface FileRoutesByTo {
   '/resources': typeof AppAuthResourcesIndexRoute
   '/store': typeof AppAuthStoreIndexRoute
   '/topics': typeof AppAuthTopicsIndexRoute
+  '/ai-assets/prompts': typeof AppAuthSuperuserAiAssetsPromptsRoute
   '/ai-assets/scripts': typeof AppAuthSuperuserAiAssetsScriptsRoute
   '/ai-assets/skills': typeof AppAuthSuperuserAiAssetsSkillsRoute
   '/admin/credentials/env-vars': typeof AppAuthAdminCredentialsEnvVarsRoute
@@ -527,6 +536,7 @@ export interface FileRoutesById {
   '/_app/_auth/resources/': typeof AppAuthResourcesIndexRoute
   '/_app/_auth/store/': typeof AppAuthStoreIndexRoute
   '/_app/_auth/topics/': typeof AppAuthTopicsIndexRoute
+  '/_app/_auth/_superuser/ai-assets/prompts': typeof AppAuthSuperuserAiAssetsPromptsRoute
   '/_app/_auth/_superuser/ai-assets/scripts': typeof AppAuthSuperuserAiAssetsScriptsRoute
   '/_app/_auth/_superuser/ai-assets/skills': typeof AppAuthSuperuserAiAssetsSkillsRoute
   '/_app/_auth/admin/credentials/env-vars': typeof AppAuthAdminCredentialsEnvVarsRoute
@@ -585,6 +595,7 @@ export interface FileRouteTypes {
     | '/resources/'
     | '/store/'
     | '/topics/'
+    | '/ai-assets/prompts'
     | '/ai-assets/scripts'
     | '/ai-assets/skills'
     | '/admin/credentials/env-vars'
@@ -638,6 +649,7 @@ export interface FileRouteTypes {
     | '/resources'
     | '/store'
     | '/topics'
+    | '/ai-assets/prompts'
     | '/ai-assets/scripts'
     | '/ai-assets/skills'
     | '/admin/credentials/env-vars'
@@ -697,6 +709,7 @@ export interface FileRouteTypes {
     | '/_app/_auth/resources/'
     | '/_app/_auth/store/'
     | '/_app/_auth/topics/'
+    | '/_app/_auth/_superuser/ai-assets/prompts'
     | '/_app/_auth/_superuser/ai-assets/scripts'
     | '/_app/_auth/_superuser/ai-assets/skills'
     | '/_app/_auth/admin/credentials/env-vars'
@@ -1105,6 +1118,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthSuperuserAiAssetsScriptsRouteImport
       parentRoute: typeof AppAuthSuperuserAiAssetsRoute
     }
+    '/_app/_auth/_superuser/ai-assets/prompts': {
+      id: '/_app/_auth/_superuser/ai-assets/prompts'
+      path: '/prompts'
+      fullPath: '/ai-assets/prompts'
+      preLoaderRoute: typeof AppAuthSuperuserAiAssetsPromptsRouteImport
+      parentRoute: typeof AppAuthSuperuserAiAssetsRoute
+    }
     '/_app/_auth/_superuser/terminal/server/$serverId': {
       id: '/_app/_auth/_superuser/terminal/server/$serverId'
       path: '/terminal/server/$serverId'
@@ -1116,12 +1136,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppAuthSuperuserAiAssetsRouteChildren {
+  AppAuthSuperuserAiAssetsPromptsRoute: typeof AppAuthSuperuserAiAssetsPromptsRoute
   AppAuthSuperuserAiAssetsScriptsRoute: typeof AppAuthSuperuserAiAssetsScriptsRoute
   AppAuthSuperuserAiAssetsSkillsRoute: typeof AppAuthSuperuserAiAssetsSkillsRoute
 }
 
 const AppAuthSuperuserAiAssetsRouteChildren: AppAuthSuperuserAiAssetsRouteChildren =
   {
+    AppAuthSuperuserAiAssetsPromptsRoute: AppAuthSuperuserAiAssetsPromptsRoute,
     AppAuthSuperuserAiAssetsScriptsRoute: AppAuthSuperuserAiAssetsScriptsRoute,
     AppAuthSuperuserAiAssetsSkillsRoute: AppAuthSuperuserAiAssetsSkillsRoute,
   }

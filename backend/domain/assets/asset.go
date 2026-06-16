@@ -14,6 +14,7 @@ const (
 
 	KindScript = "script"
 	KindSkill  = "skill"
+	KindPrompt = "prompt"
 
 	StorageFile   = "file"
 	StorageFolder = "folder"
@@ -43,7 +44,7 @@ type ScriptLanguageDefinition struct {
 }
 
 var (
-	SupportedKinds        = []string{KindScript, KindSkill}
+	SupportedKinds        = []string{KindScript, KindSkill, KindPrompt}
 	SupportedStorageKinds = []string{StorageFile, StorageFolder}
 	SupportedSourceKinds  = []string{SourceLocal, SourceReference}
 	ScriptLanguages       = []ScriptLanguageDefinition{
@@ -94,6 +95,9 @@ func (a *Asset) ScriptExtension() string { return a.rec.GetString("script_extens
 func (a *Asset) Reference() string       { return a.rec.GetString("reference") }
 func (a *Asset) Path() string            { return a.rec.GetString("path") }
 func (a *Asset) Entrypoint() string      { return a.rec.GetString("entrypoint") }
+func (a *Asset) TemplateKey() string     { return a.rec.GetString("template_key") }
+func (a *Asset) IsSystem() bool          { return a.rec.GetBool("is_system") }
+func (a *Asset) IsTemplate() bool        { return a.rec.GetBool("is_template") }
 func (a *Asset) IsLocal() bool           { return a.SourceKind() == SourceLocal }
 func (a *Asset) IsReference() bool       { return a.SourceKind() == SourceReference }
 func (a *Asset) IsSingleFile() bool      { return a.StorageKind() == StorageFile }
@@ -128,6 +132,11 @@ func StoragePath(name, assetID string) string {
 func ScriptFileName(name, assetID, language, customExtension string) string {
 	base := StorageDirName(name, assetID)
 	return base + ScriptFileExt(language, customExtension)
+}
+
+// PromptFileName returns the derived prompt filename stored under the asset directory.
+func PromptFileName(name, assetID string) string {
+	return StorageDirName(name, assetID) + ".md"
 }
 
 // ScriptFileExt returns the canonical phase-1 extension for a script language.

@@ -15,8 +15,8 @@ Current examples:
 
 Phase 1 is intentionally narrow:
 
-- supported asset types: `script`, `skill`
-- future candidates, not phase-1 commitments: `prompt`, `runbook`
+- supported asset types: `script`, `skill`, `prompt`
+- future candidates, not phase-1 commitments: `runbook`
 
 ## Definition
 
@@ -48,7 +48,7 @@ Do not use `Assets` as a catch-all file store.
 
 - Epic 30 does not deliver execution, scheduling, or automation orchestration.
 - Epic 30 does not include a platform-wide file-service refactor as a delivery goal.
-- Epic 30 phase 1 supports only `script` and `skill` as committed asset types.
+- Epic 30 phase 1 supports `script`, `skill`, and `prompt` as committed asset types.
 - Asset metadata belongs in the application database.
 - Asset content belongs in the filesystem.
 - Filesystem content is stored under `/appos/data/assets/{assetName}-{assetId}/...`.
@@ -90,7 +90,7 @@ Recommended initial values:
 
 Phase-1 supported values:
 
-- `kind`: `script`, `skill`
+- `kind`: `script`, `skill`, `prompt`
 
 Minimal fields:
 
@@ -170,3 +170,16 @@ Output:
 - script create/edit form split into `Metadata`, `Content`, and collapsed `Advanced`
 - script `Reference URL + Pull` and `Script Content + Upload` helpers
 - skill create/edit flow built around folder contents, GitHub import, folder upload, and file-tree editing
+
+### Story 30.4: AI System Prompt
+
+Add `kind=prompt` asset type with built-in templates and Copilot handoff.
+
+Output:
+
+- `KindPrompt` constant and validation rules
+- `is_system`, `is_template`, and `template_key` metadata for prompt assets
+- reuse existing API endpoints for prompt CRUD
+- seed 1 protected meta prompt plus 5–8 prompt templates
+- prompt create/edit flow with template starter selection
+- `Send to AI Copilot` handoff instead of embedded AI rewrite

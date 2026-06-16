@@ -810,11 +810,12 @@ func TestInstancesCollectionExistsAfterMigration(t *testing.T) {
 		t.Fatal("instances collection not found after migration:", err)
 	}
 
-	for _, fieldName := range []string{"name", "kind", "template_id", "endpoint", "provider_account", "credential", "config", "description"} {
+	for _, fieldName := range []string{"name", "kind", "is_enabled", "template_id", "endpoint", "provider_account", "credential", "config", "description"} {
 		if col.Fields.GetByName(fieldName) == nil {
 			t.Fatalf("instances collection missing field %q", fieldName)
 		}
 	}
+	assertFieldExists(t, col, "is_enabled", core.FieldTypeBool, false)
 	assertRelationTarget(t, app, col, "provider_account", "provider_accounts")
 }
 
@@ -836,9 +837,12 @@ func TestAssetsCollectionFields(t *testing.T) {
 	assertFieldExists(t, col, "reference", core.FieldTypeText, false)
 	assertFieldExists(t, col, "path", core.FieldTypeText, false)
 	assertFieldExists(t, col, "entrypoint", core.FieldTypeText, false)
+	assertFieldExists(t, col, "template_key", core.FieldTypeText, false)
+	assertFieldExists(t, col, "is_system", core.FieldTypeBool, false)
+	assertFieldExists(t, col, "is_template", core.FieldTypeBool, false)
 	assertFieldExists(t, col, "created", core.FieldTypeAutodate, false)
 	assertFieldExists(t, col, "updated", core.FieldTypeAutodate, false)
-	assertSelectFieldValues(t, col, "kind", []string{"script", "skill"})
+	assertSelectFieldValues(t, col, "kind", []string{"script", "skill", "prompt"})
 	assertSelectFieldValues(t, col, "storage_kind", []string{"file", "folder"})
 	assertSelectFieldValues(t, col, "source_kind", []string{"local", "reference"})
 	assertSelectFieldValues(t, col, "language", []string{"shell", "bash", "zsh", "python", "javascript", "typescript", "powershell", "ruby", "perl", "php", "lua", "groovy", "r", "other"})
@@ -893,11 +897,12 @@ func TestProviderAccountsCollectionExistsAfterMigration(t *testing.T) {
 		t.Fatal("provider_accounts collection not found after migration:", err)
 	}
 
-	for _, fieldName := range []string{"name", "kind", "template_id", "identifier", "credential", "config", "description"} {
+	for _, fieldName := range []string{"name", "kind", "is_enabled", "template_id", "identifier", "credential", "config", "description"} {
 		if col.Fields.GetByName(fieldName) == nil {
 			t.Fatalf("provider_accounts collection missing field %q", fieldName)
 		}
 	}
+	assertFieldExists(t, col, "is_enabled", core.FieldTypeBool, false)
 	assertFieldExists(t, col, "identifier", core.FieldTypeText, true)
 	assertRelationTarget(t, app, col, "credential", "secrets")
 }
@@ -912,6 +917,7 @@ func TestConnectorsCollectionHasProviderAccountRelation(t *testing.T) {
 	if col.Fields.GetByName("provider_account") == nil {
 		t.Fatal("connectors collection missing field \"provider_account\"")
 	}
+	assertFieldExists(t, col, "is_enabled", core.FieldTypeBool, false)
 	assertRelationTarget(t, app, col, "provider_account", "provider_accounts")
 	assertSelectFieldValues(t, col, "kind", connectors.AllowedKinds())
 }
@@ -924,11 +930,12 @@ func TestAIProvidersCollectionExistsAfterMigration(t *testing.T) {
 		t.Fatal("ai_providers collection not found after migration:", err)
 	}
 
-	for _, fieldName := range []string{"name", "kind", "template_id", "endpoint", "provider_account", "credential", "config", "description"} {
+	for _, fieldName := range []string{"name", "kind", "is_enabled", "template_id", "endpoint", "provider_account", "credential", "config", "description"} {
 		if col.Fields.GetByName(fieldName) == nil {
 			t.Fatalf("ai_providers collection missing field %q", fieldName)
 		}
 	}
+	assertFieldExists(t, col, "is_enabled", core.FieldTypeBool, false)
 	assertRelationTarget(t, app, col, "provider_account", "provider_accounts")
 	assertRelationTarget(t, app, col, "credential", "secrets")
 }

@@ -110,6 +110,7 @@ func instanceFromRecord(record *core.Record) *domaininstances.Instance {
 		Updated:           recordDateTimeString(record, "updated"),
 		Name:              record.GetString("name"),
 		Kind:              record.GetString("kind"),
+		IsEnabled:         recordEnabledValue(record),
 		TemplateID:        record.GetString("template_id"),
 		Endpoint:          record.GetString("endpoint"),
 		ProviderAccountID: record.GetString("provider_account"),
@@ -137,6 +138,7 @@ func applyInstanceToRecord(record *core.Record, instance *domaininstances.Instan
 	snapshot := instance.Snapshot()
 	record.Set("name", snapshot.Name)
 	record.Set("kind", snapshot.Kind)
+	record.Set("is_enabled", snapshot.IsEnabled)
 	record.Set("template_id", snapshot.TemplateID)
 	record.Set("endpoint", snapshot.Endpoint)
 	record.Set("provider_account", snapshot.ProviderAccountID)

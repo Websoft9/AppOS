@@ -133,6 +133,7 @@ func providerAccountFromRecord(record *core.Record) *domainaccounts.ProviderAcco
 		Updated:      record.GetString("updated"),
 		Name:         record.GetString("name"),
 		Kind:         record.GetString("kind"),
+		IsEnabled:    recordEnabledValue(record),
 		TemplateID:   record.GetString("template_id"),
 		Identifier:   record.GetString("identifier"),
 		CredentialID: record.GetString("credential"),
@@ -145,6 +146,7 @@ func applyProviderAccountToRecord(record *core.Record, account *domainaccounts.P
 	snapshot := account.Snapshot()
 	record.Set("name", snapshot.Name)
 	record.Set("kind", snapshot.Kind)
+	record.Set("is_enabled", snapshot.IsEnabled)
 	record.Set("template_id", snapshot.TemplateID)
 	record.Set("identifier", snapshot.Identifier)
 	record.Set("credential", snapshot.CredentialID)

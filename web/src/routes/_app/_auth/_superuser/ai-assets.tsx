@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Outlet, createFileRoute, useLocation, useNavigate } from '@tanstack/react-router'
-import { ChevronRight, FileCode2, Loader2, Plus, ScrollText } from 'lucide-react'
+import { Bot, ChevronRight, FileCode2, Loader2, Plus, ScrollText } from 'lucide-react'
 import { listAssets, type AssetKind } from '@/lib/assets-api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -30,11 +30,18 @@ const ASSET_FAMILY_CARDS: AssetFamilyCardDef[] = [
   },
   {
     key: 'skill',
-    title: 'Skills',
+    title: 'AI Skills',
     description:
       'Bundled skill packages with structured files, entrypoints, and reusable guidance content.',
     href: '/ai-assets/skills',
     icon: <ScrollText className="h-5 w-5" />,
+  },
+  {
+    key: 'prompt',
+    title: 'AI Prompts',
+    description: 'Reusable prompts for Copilot and operators.',
+    href: '/ai-assets/prompts',
+    icon: <Bot className="h-5 w-5" />,
   },
 ]
 
@@ -65,6 +72,7 @@ export function AssetsPage() {
 
   const scriptCount = useMemo(() => items.filter(item => item.kind === 'script').length, [items])
   const skillCount = useMemo(() => items.filter(item => item.kind === 'skill').length, [items])
+  const promptCount = useMemo(() => items.filter(item => item.kind === 'prompt').length, [items])
 
   if (!isListRoute) {
     return <Outlet />
@@ -105,7 +113,14 @@ export function AssetsPage() {
                 navigate({ to: '/ai-assets/skills' as never, search: { create: '1' } as never })
               }
             >
-              Add Skill
+              Add AI Skill
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() =>
+                navigate({ to: '/ai-assets/prompts' as never, search: { create: '1' } as never })
+              }
+            >
+              Add AI Prompt
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -115,7 +130,8 @@ export function AssetsPage() {
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {ASSET_FAMILY_CARDS.map(family => {
-          const count = family.key === 'script' ? scriptCount : skillCount
+          const count =
+            family.key === 'script' ? scriptCount : family.key === 'skill' ? skillCount : promptCount
           return (
             <Link
               key={family.key}

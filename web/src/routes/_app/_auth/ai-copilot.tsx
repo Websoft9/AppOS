@@ -58,6 +58,8 @@ import {
   type AICopilotMessage,
   type AICopilotSession,
 } from '@/lib/ai-copilot-api'
+import { listAssets, type AssetRecord } from '@/lib/assets-api'
+import { consumeAICopilotDraftHandoff } from '@/lib/ai-copilot-draft-handoff'
 import { getApiErrorMessage } from '@/lib/api-error'
 import { copyToClipboard } from '@/lib/clipboard'
 import {
@@ -355,6 +357,10 @@ export function AICopilotPage() {
   const [loadingModels, setLoadingModels] = useState(false)
   const [modelSearchQuery, setModelSearchQuery] = useState('')
   const [modelPopoverOpen, setModelPopoverOpen] = useState(false)
+  const [promptAssets, setPromptAssets] = useState<AssetRecord[]>([])
+  const [loadingPromptAssets, setLoadingPromptAssets] = useState(false)
+  const [promptPopoverOpen, setPromptPopoverOpen] = useState(false)
+  const [selectedSystemPromptAssetId, setSelectedSystemPromptAssetId] = useState('')
 
   useEffect(() => {
     localStorage.setItem('ai-copilot-model', selectedModel)
@@ -384,9 +390,32 @@ export function AICopilotPage() {
     }
   }, [])
 
+  const refreshPromptAssets = useCallback(async () => {
+    setLoadingPromptAssets(true)
+    try {
+      const assets = await listAssets()
+      setPromptAssets(assets.filter(item => item.kind === 'prompt'))
+    } catch {
+      setPromptAssets([])
+    } finally {
+      setLoadingPromptAssets(false)
+    }
+  }, [])
+
   useEffect(() => {
     void refreshModels()
   }, [refreshModels])
+
+  useEffect(() => {
+    void refreshPromptAssets()
+  }, [refreshPromptAssets])
+
+  useEffect(() => {
+    const handoffDraft = consumeAICopilotDraftHandoff()
+    if (!handoffDraft) return
+    setDraft(current => (current.trim() ? `${current}\n\n${handoffDraft}` : handoffDraft))
+  }, [])
+
   const [busySessionId, setBusySessionId] = useState('')
   const [renamingSessionId, setRenamingSessionId] = useState('')
   const [renameDraft, setRenameDraft] = useState('')
@@ -404,6 +433,10 @@ export function AICopilotPage() {
     () => sessions.find(session => session.id === activeSessionId) ?? null,
     [activeSessionId, sessions]
   )
+  const selectedPromptAsset = useMemo(
+    () => promptAssets.find(item => item.id === selectedSystemPromptAssetId) ?? null,
+    [promptAssets, selectedSystemPromptAssetId]
+  )
   const locale = getLocale()
   const defaultSessionTitle = t('page.defaultSessionTitle')
 
@@ -414,6 +447,12 @@ export function AICopilotPage() {
       setAttachmentStatus(null)
     }
   }, [attachments.length, sending])
+
+  useEffect(() => {
+    if (activeSession) {
+      setSelectedSystemPromptAssetId(activeSession.system_prompt_asset_id ?? '')
+    }
+  }, [activeSession])
 
   const stopStreaming = useCallback(() => {
     activeRequestRef.current?.abort()
@@ -435,11 +474,13 @@ export function AICopilotPage() {
 
   const createSession = useCallback(async () => {
     setError('')
-    const session = await createAICopilotSession()
+    const session = await createAICopilotSession({
+      systemPromptAssetId: selectedSystemPromptAssetId,
+    })
     setSessions(prev => [session, ...prev])
     setActiveSessionId(session.id)
     setMessages([])
-  }, [])
+  }, [selectedSystemPromptAssetId])
 
   const filteredModels = useMemo(() => {
     const query = modelSearchQuery.trim().toLowerCase()
@@ -527,7 +568,7 @@ export function AICopilotPage() {
     setBusySessionId(sessionId)
     setError('')
     try {
-      const session = await updateAICopilotSession(sessionId, nextTitle)
+      const session = await updateAICopilotSession(sessionId, { title: nextTitle })
       setSessions(prev => prev.map(item => (item.id === sessionId ? session : item)))
       setRenamingSessionId('')
       setRenameDraft('')
@@ -559,6 +600,28 @@ export function AICopilotPage() {
     } finally {
       setBusySessionId('')
       setDeleteTarget(null)
+    }
+  }
+
+  const applySystemPromptSelection = async (assetId: string) => {
+    const previous = selectedSystemPromptAssetId
+    setSelectedSystemPromptAssetId(assetId)
+    setPromptPopoverOpen(false)
+    if (!activeSessionId) {
+      return
+    }
+    setBusySessionId(activeSessionId)
+    setError('')
+    try {
+      const updated = await updateAICopilotSession(activeSessionId, {
+        systemPromptAssetId: assetId,
+      })
+      setSessions(prev => prev.map(item => (item.id === activeSessionId ? updated : item)))
+    } catch (err) {
+      setSelectedSystemPromptAssetId(previous)
+      setError(getApiErrorMessage(err, t('messages.renameError')))
+    } finally {
+      setBusySessionId('')
     }
   }
 
@@ -659,7 +722,9 @@ export function AICopilotPage() {
 
     let sessionId = activeSessionId
     if (!sessionId) {
-      const created = await createAICopilotSession()
+      const created = await createAICopilotSession({
+        systemPromptAssetId: selectedSystemPromptAssetId,
+      })
       sessionId = created.id
       setSessions(prev => [created, ...prev])
       setActiveSessionId(created.id)
@@ -1279,6 +1344,55 @@ export function AICopilotPage() {
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
+                      <Popover open={promptPopoverOpen} onOpenChange={setPromptPopoverOpen}>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex h-7 items-center gap-1 rounded-md border border-input bg-background px-2 text-xs text-muted-foreground hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                            disabled={sending || loadingPromptAssets || busySessionId === activeSessionId}
+                            aria-label="System prompt"
+                          >
+                            {loadingPromptAssets ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Bot className="h-3 w-3" />
+                            )}
+                            <span className="max-w-[120px] truncate">
+                              {selectedPromptAsset?.name || 'System prompt'}
+                            </span>
+                            <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-72 p-1" align="start">
+                          <button
+                            type="button"
+                            className={cn(
+                              'flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-xs hover:bg-accent hover:text-accent-foreground',
+                              !selectedSystemPromptAssetId && 'bg-accent/50 font-medium'
+                            )}
+                            onClick={() => void applySystemPromptSelection('')}
+                          >
+                            <span>None</span>
+                            {!selectedSystemPromptAssetId ? <Check className="h-3.5 w-3.5" /> : null}
+                          </button>
+                          <div className="max-h-56 overflow-y-auto">
+                            {promptAssets.map(asset => (
+                              <button
+                                key={asset.id}
+                                type="button"
+                                className={cn(
+                                  'flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-left text-xs hover:bg-accent hover:text-accent-foreground',
+                                  asset.id === selectedSystemPromptAssetId && 'bg-accent/50 font-medium'
+                                )}
+                                onClick={() => void applySystemPromptSelection(asset.id)}
+                              >
+                                <span className="truncate">{asset.name}</span>
+                                {asset.id === selectedSystemPromptAssetId ? <Check className="h-3.5 w-3.5 shrink-0" /> : null}
+                              </button>
+                            ))}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                       <Popover open={modelPopoverOpen} onOpenChange={setModelPopoverOpen}>
                         <PopoverTrigger asChild>
                           <button

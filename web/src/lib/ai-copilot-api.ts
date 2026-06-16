@@ -3,6 +3,7 @@ import { pb } from '@/lib/pb'
 export type AICopilotSession = {
   id: string
   title: string
+  system_prompt_asset_id?: string
   created_at?: string
   updated_at?: string
   last_message_at?: string
@@ -44,20 +45,31 @@ export async function listAICopilotSessions(): Promise<AICopilotSession[]> {
   return Array.isArray(response.items) ? response.items : []
 }
 
-export async function createAICopilotSession(title?: string): Promise<AICopilotSession> {
+export async function createAICopilotSession(input?: {
+  title?: string
+  systemPromptAssetId?: string
+}): Promise<AICopilotSession> {
   return (await pb.send('/api/ai/copilot/sessions', {
     method: 'POST',
-    body: { title: title ?? '' },
+    body: {
+      title: input?.title ?? '',
+      system_prompt_asset_id: input?.systemPromptAssetId ?? '',
+    },
   })) as AICopilotSession
 }
 
 export async function updateAICopilotSession(
   sessionId: string,
-  title: string
+  patch: { title?: string; systemPromptAssetId?: string }
 ): Promise<AICopilotSession> {
   return (await pb.send(`/api/ai/copilot/sessions/${encodeURIComponent(sessionId)}`, {
     method: 'PATCH',
-    body: { title },
+    body: {
+      ...(patch.title !== undefined ? { title: patch.title } : {}),
+      ...(patch.systemPromptAssetId !== undefined
+        ? { system_prompt_asset_id: patch.systemPromptAssetId }
+        : {}),
+    },
   })) as AICopilotSession
 }
 

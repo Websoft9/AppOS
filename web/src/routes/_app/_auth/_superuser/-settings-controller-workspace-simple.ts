@@ -619,6 +619,13 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     setProxyErrors({})
     try {
       const payload = buildProxyNetworkPayload(draft ?? proxyForm)
+      if (payload.source === 'external' && !payload.enabled) {
+        setProxyErrors({
+          form: 'Select at least one external proxy connector before saving External Proxy.',
+        })
+        showToast('Please select at least one external proxy connector.', false)
+        return
+      }
 
       const res = (await pb.send(settingsEntryPath('proxy-network'), {
         method: 'PATCH',

@@ -282,7 +282,6 @@ export async function buildAIProviderPayload(
   if (!(extra === '' || extra == null)) {
     config = typeof extra === 'string' ? JSON.parse(extra) : (extra as Record<string, unknown>)
   }
-  config.is_enabled = resolveAIProviderEnabled(body.is_enabled)
 
   for (const field of template.fields ?? []) {
     if (field.id === 'endpoint' || field.id === 'credential') {
@@ -317,6 +316,9 @@ export async function buildAIProviderPayload(
   return {
     name: String(body.name ?? ''),
     kind: template.kind,
+    ...(body.is_enabled !== undefined
+      ? { is_enabled: resolveAIProviderEnabled(body.is_enabled) }
+      : {}),
     template_id: template.id,
     endpoint: String(body.endpoint ?? template.defaultEndpoint ?? ''),
     auth_scheme: authScheme,

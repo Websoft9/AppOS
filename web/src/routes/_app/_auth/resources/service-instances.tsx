@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useOptionalLayout } from '@/contexts/LayoutContext'
-import { Check, Loader2, Pencil } from 'lucide-react'
+import { Check, Loader2, Pencil, Power, PowerOff } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -30,6 +30,7 @@ type InstanceRecord = {
   updated?: string
   name?: string
   kind?: string
+  is_enabled?: boolean
   template_id?: string
   endpoint?: string
   provider_account?: string
@@ -320,6 +321,17 @@ function formatDateTime(value: unknown) {
   }).format(date)
 }
 
+function resolveInstanceEnabled(value: unknown) {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (['false', '0', 'no', 'off'].includes(normalized)) return false
+    if (['true', '1', 'yes', 'on'].includes(normalized)) return true
+  }
+  if (typeof value === 'number') return value !== 0
+  return true
+}
+
 function formatMonitorStatusLabel(value: unknown, t: Translate) {
   const raw = String(value ?? '')
     .trim()
@@ -522,6 +534,9 @@ async function buildInstancePayload(
   return {
     name: String(body.name ?? ''),
     kind: template.kind,
+    ...(body.is_enabled !== undefined
+      ? { is_enabled: resolveInstanceEnabled(body.is_enabled) }
+      : {}),
     template_id: template.id,
     endpoint: buildEndpoint(
       body.host,
@@ -570,6 +585,8 @@ function mapInstanceRow(
     updated: String(item.updated ?? ''),
     name: String(item.name ?? ''),
     kind: String(item.kind ?? ''),
+    is_enabled: resolveInstanceEnabled(item.is_enabled),
+    enabled_status: resolveInstanceEnabled(item.is_enabled) ? 'Enabled' : 'Disabled',
     kind_label: kindLabel(String(item.kind ?? ''), t),
     template_id: String(item.template_id ?? ''),
     profile: template?.title ?? String(item.template_id ?? ''),
@@ -588,9 +605,40 @@ function mapInstanceRow(
   }
 }
 
-function buildColumns(t: Translate): Column[] {
+function buildColumns(t: Translate, onToggleEnabled: (item: Record<string, unknown>) => void): Column[] {
   return [
     { key: 'name', label: t('serviceInstances.columns.name'), searchable: true, sortable: true },
+    {
+      key: 'enabled_status',
+      label: t('serviceInstances.columns.enabled'),
+      sortable: true,
+      filterOptions: [
+        { label: t('serviceInstances.enabled.yes'), value: 'Enabled' },
+        { label: t('serviceInstances.enabled.no'), value: 'Disabled' },
+      ],
+      filterValue: row => String(row.enabled_status ?? ''),
+      render: (_value, row) => {
+        const enabled = resolveInstanceEnabled(row.is_enabled)
+        return (
+          <button
+            type="button"
+            className={
+              enabled
+                ? 'inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 cursor-pointer'
+                : 'inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground cursor-pointer'
+            }
+            onClick={event => {
+              event.stopPropagation()
+              void onToggleEnabled(row)
+            }}
+            title={enabled ? t('serviceInstances.actions.disable') : t('serviceInstances.actions.enable')}
+          >
+            {enabled ? <Power className="h-3.5 w-3.5" /> : <PowerOff className="h-3.5 w-3.5" />}
+            {enabled ? t('serviceInstances.enabled.yes') : t('serviceInstances.enabled.no')}
+          </button>
+        )
+      },
+    },
     {
       key: 'kind_label',
       label: t('serviceInstances.columns.kind'),
@@ -683,6 +731,7 @@ export function ServiceInstancesPage() {
   const [secretEditTemplateId, setSecretEditTemplateId] = useState('')
   const [secretEditPayload, setSecretEditPayload] = useState<Record<string, string>>({})
   const [secretEditTemplates, setSecretEditTemplates] = useState<SecretTemplate[]>([])
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     if (!setHeaderRightStartContent) return undefined
@@ -1182,7 +1231,21 @@ export function ServiceInstancesPage() {
   )
 
   const bootstrapFields = useMemo(() => buildBaseFields(null), [buildBaseFields])
-  const columns = useMemo(() => buildColumns(t), [t])
+  const handleToggleEnabled = useCallback(
+    async (item: Record<string, unknown>) => {
+      const instanceId = String(item.id ?? '')
+      if (!instanceId) return
+      const body = await buildInstancePayload(
+        { ...item, is_enabled: !resolveInstanceEnabled(item.is_enabled) },
+        templatesById,
+        t
+      )
+      await pb.send(`/api/instances/${instanceId}`, { method: 'PUT', body })
+      setRefreshKey(current => current + 1)
+    },
+    [t, templatesById]
+  )
+  const columns = useMemo(() => buildColumns(t, handleToggleEnabled), [handleToggleEnabled, t])
 
   return (
     <>
@@ -1314,6 +1377,7 @@ export function ServiceInstancesPage() {
           enableGroupAssign: true,
           showRefreshButton: true,
           wrapTableInCard: false,
+          refreshKey,
           listItems,
           createItem: async payload => {
             const body = await buildInstancePayload(payload, templatesById, t)

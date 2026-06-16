@@ -73,6 +73,7 @@ type Connector struct {
 	updated           string
 	name              string
 	kind              string
+	isEnabled         bool
 	isDefault         bool
 	templateID        string
 	endpoint          string
@@ -89,6 +90,7 @@ type Snapshot struct {
 	Updated           string
 	Name              string
 	Kind              string
+	IsEnabled         bool
 	IsDefault         bool
 	TemplateID        string
 	Endpoint          string
@@ -100,7 +102,7 @@ type Snapshot struct {
 }
 
 func NewConnector() *Connector {
-	return &Connector{config: map[string]any{}}
+	return &Connector{isEnabled: true, config: map[string]any{}}
 }
 
 func RestoreConnector(snapshot Snapshot) *Connector {
@@ -110,6 +112,7 @@ func RestoreConnector(snapshot Snapshot) *Connector {
 		updated:           snapshot.Updated,
 		name:              snapshot.Name,
 		kind:              snapshot.Kind,
+		isEnabled:         snapshot.IsEnabled,
 		isDefault:         snapshot.IsDefault,
 		templateID:        snapshot.TemplateID,
 		endpoint:          snapshot.Endpoint,
@@ -126,6 +129,7 @@ func (c *Connector) Created() string           { return c.created }
 func (c *Connector) Updated() string           { return c.updated }
 func (c *Connector) Name() string              { return c.name }
 func (c *Connector) Kind() string              { return c.kind }
+func (c *Connector) IsEnabled() bool           { return c.isEnabled }
 func (c *Connector) IsDefault() bool           { return c.isDefault }
 func (c *Connector) TemplateID() string        { return c.templateID }
 func (c *Connector) Endpoint() string          { return c.endpoint }
@@ -141,6 +145,7 @@ func (c *Connector) Config() map[string]any {
 func (c *Connector) ApplySaveInput(input SaveInput) {
 	c.name = strings.TrimSpace(input.Name)
 	c.kind = strings.TrimSpace(input.Kind)
+	c.isEnabled = input.IsEnabled
 	c.isDefault = input.IsDefault
 	c.templateID = strings.TrimSpace(input.TemplateID)
 	c.endpoint = strings.TrimSpace(input.Endpoint)
@@ -180,6 +185,7 @@ func (c *Connector) Snapshot() Snapshot {
 		Updated:           c.Updated(),
 		Name:              c.Name(),
 		Kind:              c.Kind(),
+		IsEnabled:         c.IsEnabled(),
 		IsDefault:         c.IsDefault(),
 		TemplateID:        c.TemplateID(),
 		Endpoint:          c.Endpoint(),

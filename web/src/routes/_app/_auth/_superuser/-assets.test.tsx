@@ -77,6 +77,16 @@ describe('AssetsPage', () => {
             entrypoint: 'SKILL.md',
             updated: '2026-05-29T13:00:00Z',
           },
+          {
+            id: 'asset-4',
+            name: 'Prompt Optimizer',
+            kind: 'prompt',
+            storage_kind: 'file',
+            source_kind: 'local',
+            path: 'prompt-optimizer.md',
+            entrypoint: '',
+            updated: '2026-05-29T14:00:00Z',
+          },
         ])
       }
       if (path === '/api/assets/asset-1/content') {
@@ -125,10 +135,10 @@ describe('AssetsPage', () => {
     expect(screen.getByRole('heading', { name: 'Assets' })).toBeInTheDocument()
 
     await waitFor(() => {
-      expect(screen.getByText('2 canonical families')).toBeInTheDocument()
+      expect(screen.getByText('3 canonical families')).toBeInTheDocument()
     })
 
-    expect(screen.getByText('2 canonical families')).toBeInTheDocument()
+    expect(screen.getByText('3 canonical families')).toBeInTheDocument()
     expect(screen.getAllByText('Open family').length).toBeGreaterThan(0)
     expect(
       screen.getByText(
@@ -140,6 +150,11 @@ describe('AssetsPage', () => {
         'Bundled skill packages with structured files, entrypoints, and reusable guidance content.'
       )
     ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Reusable system prompt assets with built-in starters and a lightweight handoff to AI Copilot.'
+      )
+    ).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Search assets')).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Scripts/i })).toHaveAttribute(
       'href',
@@ -149,9 +164,16 @@ describe('AssetsPage', () => {
       'href',
       '/ai-assets/skills'
     )
+    expect(screen.getByRole('link', { name: /Prompts/i })).toHaveAttribute(
+      'href',
+      '/ai-assets/prompts'
+    )
 
     fireEvent.click(screen.getByRole('button', { name: /Add Skill/i }))
     expect(navigateMock).toHaveBeenCalledWith({ to: '/ai-assets/skills', search: { create: '1' } })
+
+    fireEvent.click(screen.getByRole('button', { name: /Add Prompt/i }))
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/ai-assets/prompts', search: { create: '1' } })
   })
 
   it('renders nested family routes instead of the hub on child asset paths', () => {

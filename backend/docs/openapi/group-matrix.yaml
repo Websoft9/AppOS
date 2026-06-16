@@ -182,6 +182,7 @@ groups:
       - POST /api/assets
       - POST /api/assets/script/pull
       - POST /api/assets/skill/pull
+      - POST /api/assets/{id}/restore-default
       - GET /api/assets/{id}
       - PUT /api/assets/{id}
       - DELETE /api/assets/{id}

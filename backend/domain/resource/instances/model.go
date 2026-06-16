@@ -47,6 +47,7 @@ type Instance struct {
 	updated           string
 	name              string
 	kind              string
+	isEnabled         bool
 	templateID        string
 	endpoint          string
 	providerAccountID string
@@ -61,6 +62,7 @@ type Snapshot struct {
 	Updated           string
 	Name              string
 	Kind              string
+	IsEnabled         bool
 	TemplateID        string
 	Endpoint          string
 	ProviderAccountID string
@@ -70,7 +72,7 @@ type Snapshot struct {
 }
 
 func NewInstance() *Instance {
-	return &Instance{config: map[string]any{}}
+	return &Instance{isEnabled: true, config: map[string]any{}}
 }
 
 func RestoreInstance(snapshot Snapshot) *Instance {
@@ -80,6 +82,7 @@ func RestoreInstance(snapshot Snapshot) *Instance {
 		updated:           snapshot.Updated,
 		name:              snapshot.Name,
 		kind:              snapshot.Kind,
+		isEnabled:         snapshot.IsEnabled,
 		templateID:        snapshot.TemplateID,
 		endpoint:          snapshot.Endpoint,
 		providerAccountID: snapshot.ProviderAccountID,
@@ -94,6 +97,7 @@ func (i *Instance) Created() string           { return i.created }
 func (i *Instance) Updated() string           { return i.updated }
 func (i *Instance) Name() string              { return i.name }
 func (i *Instance) Kind() string              { return i.kind }
+func (i *Instance) IsEnabled() bool           { return i.isEnabled }
 func (i *Instance) TemplateID() string        { return i.templateID }
 func (i *Instance) Endpoint() string          { return i.endpoint }
 func (i *Instance) ProviderAccountID() string { return i.providerAccountID }
@@ -107,6 +111,7 @@ func (i *Instance) Config() map[string]any {
 func (i *Instance) ApplySaveInput(input SaveInput) {
 	i.name = strings.TrimSpace(input.Name)
 	i.kind = strings.TrimSpace(input.Kind)
+	i.isEnabled = input.IsEnabled
 	i.templateID = strings.TrimSpace(input.TemplateID)
 	i.endpoint = strings.TrimSpace(input.Endpoint)
 	i.providerAccountID = strings.TrimSpace(input.ProviderAccountID)
@@ -136,6 +141,7 @@ func (i *Instance) Snapshot() Snapshot {
 		Updated:           i.Updated(),
 		Name:              i.Name(),
 		Kind:              i.Kind(),
+		IsEnabled:         i.IsEnabled(),
 		TemplateID:        i.TemplateID(),
 		Endpoint:          i.Endpoint(),
 		ProviderAccountID: i.ProviderAccountID(),

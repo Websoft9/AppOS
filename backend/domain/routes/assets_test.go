@@ -82,8 +82,15 @@ func TestAssetsCreateListGetDeleteLocalFile(t *testing.T) {
 		t.Fatalf("list assets: expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 	items := parseJSONArray(t, rec)
-	if len(items) != 1 {
-		t.Fatalf("expected 1 asset, got %d", len(items))
+	foundCreated := false
+	for _, item := range items {
+		if item["id"] == assetID {
+			foundCreated = true
+			break
+		}
+	}
+	if !foundCreated {
+		t.Fatalf("expected created asset %s to appear in list", assetID)
 	}
 
 	rec = te.doAssets(t, http.MethodGet, "/api/assets/"+assetID, "", true)
@@ -225,6 +232,66 @@ func TestAssetsRejectsScriptWithoutLanguage(t *testing.T) {
 	}
 	if !strings.Contains(strings.ToLower(rec.Body.String()), "language") {
 		t.Fatalf("expected language error, got %s", rec.Body.String())
+	}
+}
+
+func TestAssetsCreatePromptLocalFile(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	payload := `{"name":"Support Prompt","kind":"prompt","storage_kind":"file","content":"You are a support assistant."}`
+	rec := te.doAssets(t, http.MethodPost, "/api/assets", payload, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := parseJSON(t, rec)
+	assetID := body["id"].(string)
+	if body["source_kind"] != "local" {
+		t.Fatalf("expected source_kind local, got %v", body["source_kind"])
+	}
+	if body["reference"] != "" {
+		t.Fatalf("expected empty reference, got %v", body["reference"])
+	}
+	if body["path"] != "support-prompt-"+assetID+".md" {
+		t.Fatalf("unexpected prompt path %v", body["path"])
+	}
+
+	rec = te.doAssets(t, http.MethodGet, "/api/assets/"+assetID+"/content", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("prompt content: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	content := parseJSON(t, rec)
+	if content["content"] != "You are a support assistant." {
+		t.Fatalf("expected prompt content roundtrip, got %v", content["content"])
+	}
+}
+
+func TestAssetsRejectsPromptReference(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	payload := `{"name":"Remote Prompt","kind":"prompt","storage_kind":"file","reference":"https://example.com/prompt.txt","content":"hello"}`
+	rec := te.doAssets(t, http.MethodPost, "/api/assets", payload, true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(strings.ToLower(rec.Body.String()), "reference") {
+		t.Fatalf("expected reference validation error, got %s", rec.Body.String())
+	}
+}
+
+func TestAssetsSeededSystemPromptCannotBeDeleted(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	record, err := te.app.FindFirstRecordByFilter("assets", "template_key = {:template_key}", map[string]any{"template_key": "prompt-meta-optimizer"})
+	if err != nil {
+		t.Fatalf("find seeded meta prompt: %v", err)
+	}
+
+	rec := te.doAssets(t, http.MethodDelete, "/api/assets/"+record.Id, "", true)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -387,16 +454,29 @@ func TestExtractGitHubSkillFiles(t *testing.T) {
 	}
 }
 
-func TestAssetsRejectsUnsupportedKind(t *testing.T) {
+func TestAssetsSeedsPromptTemplates(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	payload := `{"name":"Prompt","kind":"prompt","storage_kind":"file","source_kind":"local","entrypoint":"main.md","content":"hi"}`
-	rec := te.doAssets(t, http.MethodPost, "/api/assets", payload, true)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	rec := te.doAssets(t, http.MethodGet, "/api/assets", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(strings.ToLower(rec.Body.String()), "unsupported kind") {
-		t.Fatalf("expected unsupported kind error, got %s", rec.Body.String())
+	items := parseJSONArray(t, rec)
+	templateCount := 0
+	metaFound := false
+	for _, item := range items {
+		if item["kind"] == "prompt" && item["is_template"] == true {
+			templateCount++
+		}
+		if item["template_key"] == "prompt-meta-optimizer" && item["is_system"] == true {
+			metaFound = true
+		}
+	}
+	if templateCount < 5 {
+		t.Fatalf("expected at least 5 seeded prompt templates, got %d", templateCount)
+	}
+	if !metaFound {
+		t.Fatal("expected seeded meta prompt to exist")
 	}
 }

@@ -1059,6 +1059,7 @@
     },
     "columns": {
       "name": "名称",
+      "enabled": "启用",
       "kind": "类型",
       "profile": "资料",
       "host": "主机",
@@ -1066,6 +1067,14 @@
       "lastChecked": "最近检查",
       "created": "创建时间",
       "updated": "更新时间"
+    },
+    "actions": {
+      "enable": "启用",
+      "disable": "禁用"
+    },
+    "enabled": {
+      "yes": "是",
+      "no": "否"
     },
     "monitor": {
       "unknown": "未知",
@@ -1158,9 +1167,18 @@
     },
     "columns": {
       "name": "名称",
+      "enabled": "启用",
       "platform": "平台",
       "profile": "资料",
       "identifier": "标识符"
+    },
+    "actions": {
+      "enable": "启用",
+      "disable": "禁用"
+    },
+    "enabled": {
+      "yes": "是",
+      "no": "否"
     }
   },
   "connectors": {
@@ -1190,11 +1208,20 @@
     },
     "columns": {
       "name": "名称",
+      "enabled": "启用",
       "default": "默认",
       "kind": "类型",
       "profile": "资料",
       "url": "URL",
       "auth": "认证"
+    },
+    "actions": {
+      "enable": "启用",
+      "disable": "禁用"
+    },
+    "enabled": {
+      "yes": "是",
+      "no": "否"
     },
     "badges": {
       "default": "默认"
@@ -1261,11 +1288,20 @@
     },
     "columns": {
       "name": "名称",
+      "enabled": "启用",
       "profile": "资料",
       "reachability": "可达性",
       "endpoint": "端点",
       "created": "创建时间",
       "updated": "更新时间"
+    },
+    "actions": {
+      "enable": "启用",
+      "disable": "禁用"
+    },
+    "enabled": {
+      "yes": "是",
+      "no": "否"
     },
     "status": {
       "reachable": "可达",

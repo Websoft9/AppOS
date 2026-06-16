@@ -58,6 +58,7 @@ func registerAssetsRoutes(se *core.ServeEvent) {
 	read.GET("/{id}/content", handleAssetContent)
 
 	write.POST("", handleAssetCreate)
+	write.POST("/{id}/restore-default", handleAssetRestoreDefault)
 	write.POST("/script/pull", handleAssetScriptPull)
 	write.POST("/skill/pull", handleAssetSkillPull)
 	write.PUT("/{id}", handleAssetUpdate)
@@ -67,7 +68,7 @@ func registerAssetsRoutes(se *core.ServeEvent) {
 // handleAssetList returns all phase-1 assets for authenticated users.
 //
 // @Summary List assets
-// @Description Returns all phase-1 asset records, including script and skill metadata. Authenticated users only.
+// @Description Returns all phase-1 asset records, including script, skill, and prompt metadata. Authenticated users only.
 // @Tags Assets
 // @Security BearerAuth
 // @Success 200 {array} map[string]any
@@ -164,7 +165,7 @@ func handleAssetContent(e *core.RequestEvent) error {
 // handleAssetCreate creates one phase-1 asset record and persists local content when provided.
 //
 // @Summary Create asset
-// @Description Creates one script or skill asset. Writes are limited to superusers.
+// @Description Creates one script, skill, or prompt asset. Writes are limited to superusers.
 // @Tags Assets
 // @Security BearerAuth
 // @Param body body assetWriteRequest true "asset payload"
@@ -228,10 +229,7 @@ func handleAssetUpdate(e *core.RequestEvent) error {
 	if err := normalizeAssetWriteRequest(&req); err != nil {
 		return e.BadRequestError(err.Error(), nil)
 	}
-	if record.GetString("kind") == assets.KindScript {
-		req.Path = assets.ScriptFileName(req.Name, record.Id, req.Language, req.ScriptExtension)
-		req.Entrypoint = ""
-	}
+	applyDerivedAssetFields(record, &req)
 	bindAssetRecord(record, req)
 	if err := e.App.Save(record); err != nil {
 		return e.BadRequestError("Validation failed", err)
@@ -334,6 +332,9 @@ func handleAssetDelete(e *core.RequestEvent) error {
 		return e.NotFoundError("Asset not found", err)
 	}
 	asset := assets.From(record)
+	if asset.IsSystem() {
+		return e.ForbiddenError("System-managed asset cannot be deleted", nil)
+	}
 	if asset.IsLocal() {
 		if err := assets.RemoveLocalStorage(asset.StoragePath()); err != nil {
 			return e.InternalServerError("Failed to remove asset storage", err)
@@ -343,6 +344,38 @@ func handleAssetDelete(e *core.RequestEvent) error {
 		return e.InternalServerError("Failed to delete asset", err)
 	}
 	return e.NoContent(http.StatusNoContent)
+}
+
+// handleAssetRestoreDefault rewrites a system or template prompt asset with its seeded default content.
+//
+// @Summary Restore prompt default content
+// @Description Restores the seeded default content for a prompt asset that carries a known template key. Writes are limited to superusers.
+// @Tags Assets
+// @Security BearerAuth
+// @Param id path string true "asset id"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/assets/{id}/restore-default [post]
+func handleAssetRestoreDefault(e *core.RequestEvent) error {
+	record, err := e.App.FindRecordById(assets.Collection, e.Request.PathValue("id"))
+	if err != nil {
+		return e.NotFoundError("Asset not found", err)
+	}
+	asset := assets.From(record)
+	if asset.Kind() != assets.KindPrompt {
+		return e.BadRequestError("Only prompt assets can be restored", nil)
+	}
+	definition, ok := assets.PromptSeedByKey(asset.TemplateKey())
+	if !ok {
+		return e.BadRequestError("Prompt does not have a restoreable default", nil)
+	}
+	if err := assets.WriteLocalFile(asset.StoragePath(), asset.Path(), definition.Content); err != nil {
+		return e.InternalServerError("Failed to restore prompt content", err)
+	}
+	return e.JSON(http.StatusOK, assetRecordToMap(record))
 }
 
 func assetRecordToMap(r *core.Record) map[string]any {
@@ -358,6 +391,9 @@ func assetRecordToMap(r *core.Record) map[string]any {
 		"reference":        r.GetString("reference"),
 		"path":             r.GetString("path"),
 		"entrypoint":       r.GetString("entrypoint"),
+		"template_key":     r.GetString("template_key"),
+		"is_system":        r.GetBool("is_system"),
+		"is_template":      r.GetBool("is_template"),
 		"created":          r.GetString("created"),
 		"updated":          r.GetString("updated"),
 	}
@@ -452,6 +488,25 @@ func normalizeAssetWriteRequest(req *assetWriteRequest) error {
 		return nil
 	}
 
+	if req.Kind == assets.KindPrompt {
+		if req.StorageKind != assets.StorageFile {
+			return errors.New("prompt assets must use storage_kind=file")
+		}
+		if req.Reference != "" {
+			return errors.New("prompt assets do not support reference in phase 1")
+		}
+		if req.Content == "" {
+			return errors.New("prompt requires content")
+		}
+		req.SourceKind = assets.SourceLocal
+		req.Language = ""
+		req.ScriptExtension = ""
+		req.Reference = ""
+		req.Entrypoint = ""
+		req.Path = ""
+		return nil
+	}
+
 	if !containsString(assets.SupportedSourceKinds, req.SourceKind) {
 		return errors.New("unsupported source_kind")
 	}
@@ -484,6 +539,9 @@ func persistAssetContent(asset *assets.Asset, req assetWriteRequest) error {
 		if req.Content == "" {
 			return assets.RemoveLocalStorage(asset.StoragePath())
 		}
+		return assets.WriteLocalFile(asset.StoragePath(), req.Path, req.Content)
+	}
+	if asset.Kind() == assets.KindPrompt {
 		return assets.WriteLocalFile(asset.StoragePath(), req.Path, req.Content)
 	}
 	if asset.Kind() == assets.KindSkill {
@@ -777,18 +835,25 @@ func splitGitHubPath(rawPath string) []string {
 }
 
 func applyDerivedScriptFields(app core.App, record *core.Record, req *assetWriteRequest) error {
-	if record.GetString("kind") != assets.KindScript {
+	if record.GetString("kind") != assets.KindScript && record.GetString("kind") != assets.KindPrompt {
 		return nil
 	}
-	derivedPath := assets.ScriptFileName(req.Name, record.Id, req.Language, req.ScriptExtension)
-	if record.GetString("path") == derivedPath && record.GetString("entrypoint") == "" {
-		req.Path = derivedPath
-		req.Entrypoint = ""
+	applyDerivedAssetFields(record, req)
+	if record.GetString("path") == req.Path && record.GetString("entrypoint") == req.Entrypoint {
 		return nil
 	}
-	req.Path = derivedPath
-	req.Entrypoint = ""
-	record.Set("path", derivedPath)
-	record.Set("entrypoint", "")
+	record.Set("path", req.Path)
+	record.Set("entrypoint", req.Entrypoint)
 	return app.Save(record)
+}
+
+func applyDerivedAssetFields(record *core.Record, req *assetWriteRequest) {
+	switch req.Kind {
+	case assets.KindScript:
+		req.Path = assets.ScriptFileName(req.Name, record.Id, req.Language, req.ScriptExtension)
+		req.Entrypoint = ""
+	case assets.KindPrompt:
+		req.Path = assets.PromptFileName(req.Name, record.Id)
+		req.Entrypoint = ""
+	}
 }

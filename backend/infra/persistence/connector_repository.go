@@ -137,6 +137,7 @@ func connectorFromRecord(record *core.Record) *domainconnectors.Connector {
 		Updated:           record.GetString("updated"),
 		Name:              record.GetString("name"),
 		Kind:              record.GetString("kind"),
+		IsEnabled:         recordEnabledValue(record),
 		IsDefault:         record.GetBool("is_default"),
 		TemplateID:        record.GetString("template_id"),
 		Endpoint:          record.GetString("endpoint"),
@@ -152,6 +153,7 @@ func applyConnectorToRecord(record *core.Record, connector *domainconnectors.Con
 	snapshot := connector.Snapshot()
 	record.Set("name", snapshot.Name)
 	record.Set("kind", snapshot.Kind)
+	record.Set("is_enabled", snapshot.IsEnabled)
 	record.Set("is_default", snapshot.IsDefault)
 	record.Set("template_id", snapshot.TemplateID)
 	record.Set("endpoint", snapshot.Endpoint)

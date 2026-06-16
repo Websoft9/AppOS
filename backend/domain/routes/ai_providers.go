@@ -31,6 +31,7 @@ import (
 type aiProviderUpsertRequest struct {
 	Name              string         `json:"name"`
 	Kind              string         `json:"kind"`
+	IsEnabled         *bool          `json:"is_enabled,omitempty"`
 	IsDefault         bool           `json:"is_default"`
 	TemplateID        string         `json:"template_id"`
 	Endpoint          string         `json:"endpoint"`
@@ -154,7 +155,7 @@ func handleAIProviderGet(e *core.RequestEvent) error {
 }
 
 func handleAIProviderCreate(e *core.RequestEvent) error {
-	input, err := bindAIProviderUpsertRequest(e)
+	input, err := bindAIProviderUpsertRequest(e, nil)
 	if err != nil {
 		return err
 	}
@@ -173,10 +174,6 @@ func handleAIProviderCreate(e *core.RequestEvent) error {
 }
 
 func handleAIProviderUpdate(e *core.RequestEvent) error {
-	input, err := bindAIProviderUpsertRequest(e)
-	if err != nil {
-		return err
-	}
 	repo := persistence.NewAIProviderRepository(e.App)
 	before, getErr := repo.Get(e.Request.PathValue("id"))
 	if getErr != nil {
@@ -184,6 +181,10 @@ func handleAIProviderUpdate(e *core.RequestEvent) error {
 			return e.NotFoundError("AI provider not found", getErr)
 		}
 		return e.InternalServerError("failed to load AI provider", getErr)
+	}
+	input, err := bindAIProviderUpsertRequest(e, before)
+	if err != nil {
+		return err
 	}
 	beforeSnap := before.Snapshot()
 	userID, _ := authInfo(e)
@@ -237,7 +238,7 @@ func handleAIProviderDelete(e *core.RequestEvent) error {
 	return e.NoContent(http.StatusNoContent)
 }
 
-func bindAIProviderUpsertRequest(e *core.RequestEvent) (aiproviders.SaveInput, error) {
+func bindAIProviderUpsertRequest(e *core.RequestEvent, existing *aiproviders.AIProvider) (aiproviders.SaveInput, error) {
 	var body aiProviderUpsertRequest
 	if err := e.BindBody(&body); err != nil {
 		return aiproviders.SaveInput{}, e.BadRequestError("invalid JSON body", err)
@@ -251,9 +252,17 @@ func bindAIProviderUpsertRequest(e *core.RequestEvent) (aiproviders.SaveInput, e
 			delete(config, "enabled_models")
 		}
 	}
+	isEnabled := true
+	if existing != nil {
+		isEnabled = existing.IsEnabled()
+	}
+	if body.IsEnabled != nil {
+		isEnabled = *body.IsEnabled
+	}
 	return aiproviders.SaveInput{
 		Name:              body.Name,
 		Kind:              body.Kind,
+		IsEnabled:         isEnabled,
 		IsDefault:         body.IsDefault,
 		TemplateID:        body.TemplateID,
 		Endpoint:          body.Endpoint,
@@ -493,7 +502,7 @@ func handleAIProviderChatModels(e *core.RequestEvent) error {
 	filtered := make([]*aiproviders.AIProvider, 0, len(items))
 	for _, item := range items {
 		kind := strings.TrimSpace(item.Kind())
-		enabled := aiProviderIsEnabled(item)
+		enabled := item.IsEnabled()
 		e.App.Logger().Info("chat-models: provider", "id", item.ID(), "kind", kind, "is_enabled", enabled)
 		if kind == aiproviders.KindLLM && enabled {
 			filtered = append(filtered, item)
@@ -872,7 +881,7 @@ func aiProviderResponse(item *aiproviders.AIProvider) map[string]any {
 		"updated":          item.Updated(),
 		"name":             item.Name(),
 		"kind":             item.Kind(),
-		"is_enabled":       aiProviderIsEnabled(item),
+		"is_enabled":       item.IsEnabled(),
 		"is_default":       item.IsDefault(),
 		"template_id":      item.TemplateID(),
 		"endpoint":         item.Endpoint(),
@@ -1140,26 +1149,6 @@ func firstConfigString(config map[string]any, keys ...string) string {
 		}
 	}
 	return ""
-}
-
-func aiProviderIsEnabled(item *aiproviders.AIProvider) bool {
-	config := item.Config()
-	raw, exists := config["is_enabled"]
-	if !exists {
-		return true
-	}
-	switch value := raw.(type) {
-	case bool:
-		return value
-	case string:
-		return strings.EqualFold(strings.TrimSpace(value), "true")
-	case float64:
-		return value != 0
-	case int:
-		return value != 0
-	default:
-		return true
-	}
 }
 
 func isAIProviderNotFound(err error) bool {

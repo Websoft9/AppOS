@@ -297,6 +297,8 @@ components:
           type: string
         kind:
           type: string
+        is_enabled:
+          type: boolean
         is_default:
           type: boolean
         template_id:
@@ -321,6 +323,8 @@ components:
           type: string
         kind:
           type: string
+        is_enabled:
+          type: boolean
         is_default:
           type: boolean
         template_id:
@@ -478,6 +482,8 @@ components:
           type: string
         kind:
           type: string
+        is_enabled:
+          type: boolean
         template_id:
           type: string
         endpoint:
@@ -498,6 +504,8 @@ components:
           type: string
         kind:
           type: string
+        is_enabled:
+          type: boolean
         template_id:
           type: string
         endpoint:
@@ -540,6 +548,8 @@ components:
           type: string
         kind:
           type: string
+        is_enabled:
+          type: boolean
         template_id:
           type: string
         identifier:
@@ -558,6 +568,8 @@ components:
           type: string
         kind:
           type: string
+        is_enabled:
+          type: boolean
         template_id:
           type: string
         identifier:
@@ -2535,7 +2547,7 @@ paths:
     get:
       tags: [Assets]
       summary: List assets
-      description: "Returns all phase-1 asset records, including script and skill metadata. Authenticated users only."
+      description: "Returns all phase-1 asset records, including script, skill, and prompt metadata. Authenticated users only."
       operationId: get_api_assets
       security:
         - bearerAuth: []
@@ -2566,7 +2578,7 @@ paths:
     post:
       tags: [Assets]
       summary: Create asset
-      description: "Creates one script or skill asset. Writes are limited to superusers."
+      description: "Creates one script, skill, or prompt asset. Writes are limited to superusers."
       operationId: post_api_assets
       requestBody:
         description: "asset payload"
@@ -2851,6 +2863,63 @@ paths:
                 additionalProperties: true
         "409":
           description: Conflict
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/assets/{id}/restore-default:
+    post:
+      tags: [Assets]
+      summary: Restore prompt default content
+      description: "Restores the seeded default content for a prompt asset that carries a known template key. Writes are limited to superusers."
+      operationId: post_api_assets_id_restore-default
+      parameters:
+        - name: id
+          in: path
+          description: "asset id"
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
           content:
             application/json:
               schema:

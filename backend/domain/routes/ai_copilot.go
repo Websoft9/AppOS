@@ -62,13 +62,14 @@ func handleAICopilotListSessions(e *core.RequestEvent) error {
 
 func handleAICopilotCreateSession(e *core.RequestEvent) error {
 	var body struct {
-		Title string `json:"title"`
+		Title               string `json:"title"`
+		SystemPromptAssetID string `json:"system_prompt_asset_id,omitempty"`
 	}
 	if err := e.BindBody(&body); err != nil {
 		return aiCopilotError(e, &copilot.CodedError{Code: copilot.CodeInvalidRequest, Message: "invalid request body", Cause: err})
 	}
 	userID, _ := authInfo(e)
-	session, err := newAICopilotService(e.App).CreateSession(e.Request.Context(), userID, body.Title)
+	session, err := newAICopilotService(e.App).CreateSession(e.Request.Context(), userID, body.Title, body.SystemPromptAssetID)
 	if err != nil {
 		return aiCopilotError(e, err)
 	}
@@ -86,13 +87,14 @@ func handleAICopilotListMessages(e *core.RequestEvent) error {
 
 func handleAICopilotUpdateSession(e *core.RequestEvent) error {
 	var body struct {
-		Title string `json:"title"`
+		Title               *string `json:"title,omitempty"`
+		SystemPromptAssetID *string `json:"system_prompt_asset_id,omitempty"`
 	}
 	if err := e.BindBody(&body); err != nil {
 		return aiCopilotError(e, &copilot.CodedError{Code: copilot.CodeInvalidRequest, Message: "invalid request body", Cause: err})
 	}
 	userID, _ := authInfo(e)
-	session, err := newAICopilotService(e.App).UpdateSession(e.Request.Context(), e.Request.PathValue("sessionId"), userID, body.Title)
+	session, err := newAICopilotService(e.App).UpdateSession(e.Request.Context(), e.Request.PathValue("sessionId"), userID, body.Title, body.SystemPromptAssetID)
 	if err != nil {
 		return aiCopilotError(e, err)
 	}

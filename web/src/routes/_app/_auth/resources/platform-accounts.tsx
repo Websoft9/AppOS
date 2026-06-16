@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { Power, PowerOff } from 'lucide-react'
 import { useOptionalLayout } from '@/contexts/LayoutContext'
 import { Badge } from '@/components/ui/badge'
 import { ResourcePage, type Column, type FieldDef } from '@/components/resources/ResourcePage'
@@ -12,6 +13,7 @@ type ProviderAccountRecord = {
   id: string
   name?: string
   kind?: string
+  is_enabled?: boolean
   template_id?: string
   identifier?: string
   credential?: string
@@ -61,6 +63,17 @@ function normalizeTemplateFieldDefault(field: ProviderAccountTemplateField) {
     return ''
   }
   return field.default
+}
+
+function resolveProviderAccountEnabled(value: unknown) {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (['false', '0', 'no', 'off'].includes(normalized)) return false
+    if (['true', '1', 'yes', 'on'].includes(normalized)) return true
+  }
+  if (typeof value === 'number') return value !== 0
+  return true
 }
 
 function kindLabel(kind: string, t: Translate) {
@@ -153,6 +166,9 @@ async function buildProviderAccountPayload(
   return {
     name: String(body.name ?? ''),
     kind: template.kind,
+    ...(body.is_enabled !== undefined
+      ? { is_enabled: resolveProviderAccountEnabled(body.is_enabled) }
+      : {}),
     template_id: template.id,
     identifier,
     credential: String(body.credential ?? ''),
@@ -184,6 +200,8 @@ function mapProviderAccountRow(
     id: item.id,
     name: String(item.name ?? ''),
     kind: String(item.kind ?? ''),
+    is_enabled: resolveProviderAccountEnabled(item.is_enabled),
+    enabled_status: resolveProviderAccountEnabled(item.is_enabled) ? 'Enabled' : 'Disabled',
     kind_label: kindLabel(String(item.kind ?? ''), t),
     template_id: String(item.template_id ?? ''),
     profile: template?.title ?? String(item.template_id ?? ''),
@@ -194,9 +212,40 @@ function mapProviderAccountRow(
   }
 }
 
-function buildColumns(t: Translate): Column[] {
+function buildColumns(t: Translate, onToggleEnabled: (item: Record<string, unknown>) => void): Column[] {
   return [
     { key: 'name', label: t('platformAccounts.columns.name') },
+    {
+      key: 'enabled_status',
+      label: t('platformAccounts.columns.enabled'),
+      sortable: true,
+      filterOptions: [
+        { label: t('platformAccounts.enabled.yes'), value: 'Enabled' },
+        { label: t('platformAccounts.enabled.no'), value: 'Disabled' },
+      ],
+      filterValue: row => String(row.enabled_status ?? ''),
+      render: (_value, row) => {
+        const enabled = resolveProviderAccountEnabled(row.is_enabled)
+        return (
+          <button
+            type="button"
+            className={
+              enabled
+                ? 'inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 cursor-pointer'
+                : 'inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground cursor-pointer'
+            }
+            onClick={event => {
+              event.stopPropagation()
+              void onToggleEnabled(row)
+            }}
+            title={enabled ? t('platformAccounts.actions.disable') : t('platformAccounts.actions.enable')}
+          >
+            {enabled ? <Power className="h-3.5 w-3.5" /> : <PowerOff className="h-3.5 w-3.5" />}
+            {enabled ? t('platformAccounts.enabled.yes') : t('platformAccounts.enabled.no')}
+          </button>
+        )
+      },
+    },
     {
       key: 'kind_label',
       label: t('platformAccounts.columns.platform'),
@@ -215,6 +264,7 @@ export function PlatformAccountsPage() {
   const [providerAccountTemplates, setProviderAccountTemplates] = useState<
     ProviderAccountTemplate[]
   >([])
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     if (!setHeaderRightStartContent) return undefined
@@ -365,7 +415,20 @@ export function PlatformAccountsPage() {
   )
 
   const bootstrapFields = useMemo(() => buildBaseFields(null), [buildBaseFields])
-  const columns = useMemo(() => buildColumns(t), [t])
+  const handleToggleEnabled = useCallback(
+    async (item: Record<string, unknown>) => {
+      const accountId = String(item.id ?? '')
+      if (!accountId) return
+      const body = await buildProviderAccountPayload(
+        { ...item, is_enabled: !resolveProviderAccountEnabled(item.is_enabled) },
+        templatesById
+      )
+      await pb.send(`/api/provider-accounts/${accountId}`, { method: 'PUT', body })
+      setRefreshKey(current => current + 1)
+    },
+    [templatesById]
+  )
+  const columns = useMemo(() => buildColumns(t, handleToggleEnabled), [handleToggleEnabled, t])
 
   return (
     <ResourcePage
@@ -405,6 +468,7 @@ export function PlatformAccountsPage() {
         resourceType: 'provider_account',
         autoCreate,
         enableGroupAssign: true,
+        refreshKey,
         listItems: async () => {
           const items = await pb.send<ProviderAccountRecord[]>('/api/provider-accounts', {
             method: 'GET',

@@ -33,14 +33,15 @@ var (
 )
 
 type Repository interface {
-	CreateSession(ctx context.Context, ownerID, title string) (*Session, error)
+	CreateSession(ctx context.Context, ownerID, title, systemPromptAssetID string) (*Session, error)
 	ListSessions(ctx context.Context, ownerID string) ([]*Session, error)
 	GetSession(ctx context.Context, sessionID, ownerID string) (*Session, error)
-	UpdateSession(ctx context.Context, sessionID, ownerID, title string) (*Session, error)
+	UpdateSession(ctx context.Context, sessionID, ownerID string, title *string, systemPromptAssetID *string) (*Session, error)
 	DeleteSession(ctx context.Context, sessionID, ownerID string) error
 	ListMessages(ctx context.Context, sessionID string) ([]*Message, error)
 	AppendMessage(ctx context.Context, sessionID, role, content, status string) (*Message, error)
 	TouchSession(ctx context.Context, sessionID, title string) error
+	GetPromptContent(ctx context.Context, assetID string) (string, error)
 }
 
 type userMessageEnvelope struct {
@@ -75,24 +76,44 @@ func NewService(repo Repository, resolver ProviderResolver, factory ModelFactory
 	return &Service{repo: repo, resolver: resolver, factory: factory}
 }
 
-func (s *Service) CreateSession(ctx context.Context, ownerID, title string) (*Session, error) {
+func (s *Service) CreateSession(ctx context.Context, ownerID, title, systemPromptAssetID string) (*Session, error) {
 	title = strings.TrimSpace(title)
 	if title == "" {
 		title = "New chat"
 	}
-	return s.repo.CreateSession(ctx, ownerID, title)
+	if strings.TrimSpace(systemPromptAssetID) != "" {
+		if _, err := s.repo.GetPromptContent(ctx, systemPromptAssetID); err != nil {
+			return nil, coded(CodeInvalidRequest, "system prompt asset is unavailable", err)
+		}
+	}
+	return s.repo.CreateSession(ctx, ownerID, title, systemPromptAssetID)
 }
 
 func (s *Service) ListSessions(ctx context.Context, ownerID string) ([]*Session, error) {
 	return s.repo.ListSessions(ctx, ownerID)
 }
 
-func (s *Service) UpdateSession(ctx context.Context, sessionID, ownerID, title string) (*Session, error) {
-	title = strings.TrimSpace(title)
-	if title == "" {
-		return nil, coded(CodeInvalidRequest, "session title is required", nil)
+func (s *Service) UpdateSession(ctx context.Context, sessionID, ownerID string, title *string, systemPromptAssetID *string) (*Session, error) {
+	if title != nil {
+		trimmed := strings.TrimSpace(*title)
+		if trimmed == "" {
+			return nil, coded(CodeInvalidRequest, "session title is required", nil)
+		}
+		*title = trimmed
 	}
-	session, err := s.repo.UpdateSession(ctx, sessionID, ownerID, title)
+	if systemPromptAssetID != nil {
+		trimmed := strings.TrimSpace(*systemPromptAssetID)
+		*systemPromptAssetID = trimmed
+		if trimmed != "" {
+			if _, err := s.repo.GetPromptContent(ctx, trimmed); err != nil {
+				return nil, coded(CodeInvalidRequest, "system prompt asset is unavailable", err)
+			}
+		}
+	}
+	if title == nil && systemPromptAssetID == nil {
+		return nil, coded(CodeInvalidRequest, "no session changes were provided", nil)
+	}
+	session, err := s.repo.UpdateSession(ctx, sessionID, ownerID, title, systemPromptAssetID)
 	if err != nil {
 		return nil, coded(CodeSessionNotFound, "chat session not found", err)
 	}
@@ -155,6 +176,16 @@ func (s *Service) SendMessage(ctx context.Context, sessionID, ownerID, content, 
 	messages, err := s.repo.ListMessages(ctx, sessionID)
 	if err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(session.SystemPromptAssetID) != "" {
+		promptContent, promptErr := s.repo.GetPromptContent(ctx, session.SystemPromptAssetID)
+		if promptErr != nil {
+			return nil, coded(CodeInvalidRequest, "system prompt asset is unavailable", promptErr)
+		}
+		promptContent = strings.TrimSpace(promptContent)
+		if promptContent != "" {
+			messages = append([]*Message{{Role: RoleSystem, Content: promptContent}}, messages...)
+		}
 	}
 	messages = applyPreTrimPolicy(messages)
 	assistantContent, err := s.streamAssistantMessage(ctx, provider, prepareMessagesForModel(messages, provider), onChunk)

@@ -159,6 +159,7 @@
     },
     "columns": {
       "name": "Name",
+      "enabled": "Enabled",
       "kind": "Kind",
       "profile": "Profile",
       "host": "Host",
@@ -166,6 +167,14 @@
       "lastChecked": "Last Checked",
       "created": "Created",
       "updated": "Updated"
+    },
+    "actions": {
+      "enable": "Enable",
+      "disable": "Disable"
+    },
+    "enabled": {
+      "yes": "Yes",
+      "no": "No"
     },
     "monitor": {
       "unknown": "Unknown",
@@ -1162,9 +1171,18 @@
     },
     "columns": {
       "name": "Name",
+      "enabled": "Enabled",
       "platform": "Platform",
       "profile": "Profile",
       "identifier": "Identifier"
+    },
+    "actions": {
+      "enable": "Enable",
+      "disable": "Disable"
+    },
+    "enabled": {
+      "yes": "Yes",
+      "no": "No"
     }
   },
   "connectors": {
@@ -1194,11 +1212,20 @@
     },
     "columns": {
       "name": "Name",
+      "enabled": "Enabled",
       "default": "Default",
       "kind": "Kind",
       "profile": "Profile",
       "url": "URL",
       "auth": "Auth"
+    },
+    "actions": {
+      "enable": "Enable",
+      "disable": "Disable"
+    },
+    "enabled": {
+      "yes": "Yes",
+      "no": "No"
     },
     "badges": {
       "default": "Default"
@@ -1265,11 +1292,20 @@
     },
     "columns": {
       "name": "Name",
+      "enabled": "Enabled",
       "profile": "Profile",
       "reachability": "Reachability",
       "endpoint": "Endpoint",
       "created": "Created",
       "updated": "Updated"
+    },
+    "actions": {
+      "enable": "Enable",
+      "disable": "Disable"
+    },
+    "enabled": {
+      "yes": "Yes",
+      "no": "No"
     },
     "status": {
       "reachable": "Reachable",

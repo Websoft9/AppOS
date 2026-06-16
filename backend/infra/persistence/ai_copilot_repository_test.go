@@ -12,7 +12,7 @@ func TestAICopilotRepositoryPersistsSessionAndMessagesInOrder(t *testing.T) {
 	repo := NewAICopilotRepository(app)
 	ctx := context.Background()
 
-	session, err := repo.CreateSession(ctx, "owner-1", "Ops chat")
+	session, err := repo.CreateSession(ctx, "owner-1", "Ops chat", "")
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}

@@ -12,6 +12,7 @@ const originalFileReader = globalThis.FileReader
 
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (config: Record<string, unknown>) => ({ ...config }),
+  useNavigate: () => vi.fn(),
   Link: ({
     to,
     children,

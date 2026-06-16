@@ -137,6 +137,7 @@ func aiProviderFromRecord(record *core.Record) *domainaiproviders.AIProvider {
 		Updated:           record.GetDateTime("updated").String(),
 		Name:              record.GetString("name"),
 		Kind:              record.GetString("kind"),
+		IsEnabled:         recordEnabledValue(record),
 		IsDefault:         record.GetBool("is_default"),
 		TemplateID:        record.GetString("template_id"),
 		Endpoint:          record.GetString("endpoint"),
@@ -152,6 +153,7 @@ func applyAIProviderToRecord(record *core.Record, provider *domainaiproviders.AI
 	snapshot := provider.Snapshot()
 	record.Set("name", snapshot.Name)
 	record.Set("kind", snapshot.Kind)
+	record.Set("is_enabled", snapshot.IsEnabled)
 	record.Set("is_default", snapshot.IsDefault)
 	record.Set("template_id", snapshot.TemplateID)
 	record.Set("endpoint", snapshot.Endpoint)

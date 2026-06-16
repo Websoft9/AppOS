@@ -17,6 +17,7 @@ import (
 type connectorUpsertRequest struct {
 	Name              string         `json:"name"`
 	Kind              string         `json:"kind"`
+	IsEnabled         *bool          `json:"is_enabled,omitempty"`
 	IsDefault         *bool          `json:"is_default"`
 	TemplateID        string         `json:"template_id"`
 	Endpoint          string         `json:"endpoint"`
@@ -33,6 +34,7 @@ type connectorResponseDocument struct {
 	Updated           string         `json:"updated"`
 	Name              string         `json:"name"`
 	Kind              string         `json:"kind"`
+	IsEnabled         bool           `json:"is_enabled"`
 	IsDefault         bool           `json:"is_default"`
 	TemplateID        string         `json:"template_id"`
 	Endpoint          string         `json:"endpoint"`
@@ -264,9 +266,17 @@ func bindConnectorUpsertRequest(e *core.RequestEvent, existing *connectors.Conne
 	if body.IsDefault != nil {
 		isDefault = *body.IsDefault
 	}
+	isEnabled := true
+	if existing != nil {
+		isEnabled = existing.IsEnabled()
+	}
+	if body.IsEnabled != nil {
+		isEnabled = *body.IsEnabled
+	}
 	return connectors.SaveInput{
 		Name:              body.Name,
 		Kind:              body.Kind,
+		IsEnabled:         isEnabled,
 		IsDefault:         isDefault,
 		TemplateID:        body.TemplateID,
 		Endpoint:          body.Endpoint,
@@ -305,6 +315,7 @@ func connectorResponse(item *connectors.Connector) map[string]any {
 		"updated":          item.Updated(),
 		"name":             item.Name(),
 		"kind":             item.Kind(),
+		"is_enabled":       item.IsEnabled(),
 		"is_default":       item.IsDefault(),
 		"template_id":      item.TemplateID(),
 		"endpoint":         item.Endpoint(),
@@ -414,6 +425,7 @@ func connectorInputMap(input connectors.SaveInput) map[string]any {
 	return map[string]any{
 		"name":             input.Name,
 		"kind":             input.Kind,
+		"is_enabled":       input.IsEnabled,
 		"is_default":       input.IsDefault,
 		"template_id":      input.TemplateID,
 		"endpoint":         input.Endpoint,
@@ -430,6 +442,7 @@ func connectorSnapshotMap(snap *connectors.Snapshot) map[string]any {
 		"id":               snap.ID,
 		"name":             snap.Name,
 		"kind":             snap.Kind,
+		"is_enabled":       snap.IsEnabled,
 		"is_default":       snap.IsDefault,
 		"template_id":      snap.TemplateID,
 		"endpoint":         snap.Endpoint,

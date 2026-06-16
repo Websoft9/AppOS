@@ -39,6 +39,9 @@ func (r *DefaultProviderResolver) ResolveSelection(ctx context.Context, actorID,
 	providerID = strings.TrimSpace(providerID)
 	for _, item := range items {
 		if item.ID() == providerID {
+			if !item.IsEnabled() {
+				return nil, coded(CodeProviderSetupRequired, "selected LLM provider is disabled", nil)
+			}
 			return r.providerConfig(ctx, actorID, item)
 		}
 	}
@@ -52,13 +55,24 @@ func (r *DefaultProviderResolver) defaultProvider() (*aiproviders.AIProvider, er
 	}
 	var selected *aiproviders.AIProvider
 	for _, item := range items {
+		if !item.IsEnabled() {
+			continue
+		}
 		if item.IsDefault() {
 			selected = item
 			break
 		}
 	}
-	if selected == nil && len(items) == 1 {
-		selected = items[0]
+	if selected == nil {
+		enabled := make([]*aiproviders.AIProvider, 0, len(items))
+		for _, item := range items {
+			if item.IsEnabled() {
+				enabled = append(enabled, item)
+			}
+		}
+		if len(enabled) == 1 {
+			selected = enabled[0]
+		}
 	}
 	if selected == nil {
 		return nil, coded(CodeProviderSetupRequired, "default LLM provider is not configured", nil)

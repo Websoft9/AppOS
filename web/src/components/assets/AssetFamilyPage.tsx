@@ -20,6 +20,7 @@ import {
   listAssets,
   pullSkillReference,
   pullScriptReference,
+  restoreAssetDefault,
   updateAsset,
   type AssetKind,
   type AssetRecord,
@@ -28,6 +29,7 @@ import {
   type AssetStorageKind,
   type AssetWriteRequest,
 } from '@/lib/assets-api'
+import { saveAICopilotDraftHandoff } from '@/lib/ai-copilot-draft-handoff'
 import {
   formatScriptLanguageOptionLabel,
   isScriptLanguage,
@@ -146,8 +148,25 @@ const skillDefaults: AssetFormState = {
   skillFiles: [{ path: 'SKILL.md', content: '# Skill\n' }],
 }
 
+const promptDefaults: AssetFormState = {
+  name: '',
+  description: '',
+  kind: 'prompt',
+  storage_kind: 'file',
+  source_kind: 'local',
+  language: 'other',
+  script_extension: '',
+  reference: '',
+  path: '',
+  entrypoint: '',
+  content: 'You are a helpful assistant.\n',
+  skillFiles: [],
+}
+
 function defaultsForKind(kind: AssetKind): AssetFormState {
-  return kind === 'skill' ? createSkillDefaults() : createScriptDefaults()
+  if (kind === 'skill') return createSkillDefaults()
+  if (kind === 'prompt') return createPromptDefaults()
+  return createScriptDefaults()
 }
 
 function normalizeSkillFiles(files: Array<{ path: string; content: string }>) {
@@ -189,6 +208,13 @@ function createSkillDefaults(): AssetFormState {
   return {
     ...skillDefaults,
     name: randomAssetName(['skill', 'agent', 'guide', 'playbook', 'workflow', 'kit']),
+  }
+}
+
+function createPromptDefaults(): AssetFormState {
+  return {
+    ...promptDefaults,
+    name: randomAssetName(['prompt', 'assistant', 'guide', 'coach', 'copilot', 'advisor']),
   }
 }
 
@@ -245,12 +271,18 @@ function assetDialogTitle(kind: AssetKind, editing: boolean) {
   if (kind === 'skill') {
     return editing ? 'Edit Skill' : 'Add Skill'
   }
+  if (kind === 'prompt') {
+    return editing ? 'Edit Prompt' : 'Add Prompt'
+  }
   return editing ? 'Edit Script' : 'Create Script'
 }
 
 function assetDialogDescription(kind: AssetKind) {
   if (kind === 'skill') {
     return 'Manage reusable skill packages with bundled files and a defined entrypoint.'
+  }
+  if (kind === 'prompt') {
+    return 'Create reusable AI prompts from starter templates.'
   }
   return 'Manage reusable single-file scripts for terminal tasks and operator workflows.'
 }
@@ -279,6 +311,14 @@ export function AssetFamilyPage({
   const [skillAdvancedOpen, setSkillAdvancedOpen] = useState(false)
   const [scriptPulling, setScriptPulling] = useState(false)
   const [skillPulling, setSkillPulling] = useState(false)
+  const [templateApplying, setTemplateApplying] = useState('')
+  const [restoringId, setRestoringId] = useState('')
+  const [promptStarterTemplateId, setPromptStarterTemplateId] = useState('blank')
+  const [promptLabelFilter, setPromptLabelFilter] = useState<'all' | 'system' | 'template' | 'custom'>('all')
+  const [promptSort, setPromptSort] = useState<{ key: 'name' | 'created' | 'updated'; direction: 'asc' | 'desc' }>({
+    key: 'updated',
+    direction: 'desc',
+  })
   const scriptUploadInputRef = useRef<HTMLInputElement | null>(null)
   const skillFolderUploadInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -296,7 +336,7 @@ export function AssetFamilyPage({
   }
 
   async function populateEditingContent(item: AssetRecord, baseForm: AssetFormState) {
-    if (item.kind === 'script') {
+    if (item.kind === 'script' || item.kind === 'prompt') {
       if (item.source_kind === 'reference') {
         setForm(baseForm)
         return
@@ -336,9 +376,71 @@ export function AssetFamilyPage({
     setForm(baseForm)
   }
 
+  async function applyPromptTemplate(item: AssetRecord) {
+    if (item.kind !== 'prompt') return
+    setTemplateApplying(item.id)
+    setPromptStarterTemplateId(item.id)
+    setFormError('')
+    try {
+      const content = await getAssetContent(item.id)
+      if (content.storage_kind !== 'file') {
+        throw new Error('Prompt template content is unavailable.')
+      }
+      setForm(current => ({
+        ...current,
+        name: `${item.name} Copy`,
+        description: item.description ?? current.description,
+        content: content.content,
+      }))
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to load prompt template.')
+    } finally {
+      setTemplateApplying('')
+    }
+  }
+
+  async function sendPromptToCopilot(item?: AssetRecord) {
+    setFormError('')
+    try {
+      let content = form.content
+      if (item) {
+        const result = await getAssetContent(item.id)
+        if (result.storage_kind !== 'file') {
+          throw new Error('Prompt content is unavailable.')
+        }
+        content = result.content
+      }
+      if (!content.trim()) {
+        setFormError('Prompt content is required before sending to AI Copilot.')
+        return
+      }
+      saveAICopilotDraftHandoff(content)
+      const tab = window.open('/ai-copilot', '_blank', 'noopener,noreferrer')
+      if (!tab) {
+        setFormError('Unable to open AI Copilot in a new tab.')
+      }
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to open AI Copilot.')
+    }
+  }
+
+  async function handleRestoreDefault(item: AssetRecord) {
+    setRestoringId(item.id)
+    setFormError('')
+    try {
+      await restoreAssetDefault(item.id)
+      await loadAssets()
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to restore prompt content.')
+    } finally {
+      setRestoringId('')
+    }
+  }
+
   function openCreateDialog() {
     setEditing(null)
     setForm(defaultsForKind(kind))
+    setPromptStarterTemplateId('blank')
     setFormError('')
     setScriptAdvancedOpen(false)
     setSkillAdvancedOpen(false)
@@ -352,13 +454,13 @@ export function AssetFamilyPage({
     }
   }, [kind])
 
+  const isScript = kind === 'script'
+  const isPrompt = kind === 'prompt'
+
   const filteredItems = useMemo(() => {
-    if (!queryState.q.trim()) {
-      return items
-    }
     const query = queryState.q.trim().toLowerCase()
-    return items.filter(item => {
-      return (
+    let next = items.filter(item => {
+      const matchesQuery = !query || (
         item.name.toLowerCase().includes(query) ||
         item.id.toLowerCase().includes(query) ||
         item.path.toLowerCase().includes(query) ||
@@ -367,12 +469,44 @@ export function AssetFamilyPage({
         (item.language ?? '').toLowerCase().includes(query) ||
         (item.reference ?? '').toLowerCase().includes(query)
       )
+      if (!matchesQuery) {
+        return false
+      }
+      if (!isPrompt) {
+        return true
+      }
+      if (promptLabelFilter === 'system') {
+        return item.is_system === true
+      }
+      if (promptLabelFilter === 'template') {
+        return item.is_template === true
+      }
+      if (promptLabelFilter === 'custom') {
+        return item.is_system !== true && item.is_template !== true
+      }
+      return true
     })
-  }, [items, queryState.q])
+    if (isPrompt) {
+      next = [...next].sort((left, right) => {
+        const direction = promptSort.direction === 'asc' ? 1 : -1
+        if (promptSort.key === 'name') {
+          return left.name.localeCompare(right.name) * direction
+        }
+        const leftTime = new Date((promptSort.key === 'created' ? left.created : left.updated) ?? '').getTime()
+        const rightTime = new Date((promptSort.key === 'created' ? right.created : right.updated) ?? '').getTime()
+        return ((leftTime || 0) - (rightTime || 0)) * direction
+      })
+    }
+    return next
+  }, [isPrompt, items, promptLabelFilter, promptSort, queryState.q])
 
   const totalItems = filteredItems.length
   const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE))
   const currentPage = Math.min(Math.max(queryState.page, 1), totalPages)
+  const starterTemplates = useMemo(
+    () => (kind === 'prompt' ? items.filter(item => item.is_template) : []),
+    [items, kind]
+  )
 
   const pagedItems = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE
@@ -394,6 +528,15 @@ export function AssetFamilyPage({
     setSkillAdvancedOpen(false)
     setDialogOpen(true)
     void populateEditingContent(item, baseForm)
+  }
+
+  function togglePromptSort(key: 'name' | 'created' | 'updated') {
+    setPromptSort(current => {
+      if (current.key === key) {
+        return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' }
+      }
+      return { key, direction: key === 'name' ? 'asc' : 'desc' }
+    })
   }
 
   async function handlePullScriptReference() {
@@ -503,6 +646,8 @@ export function AssetFamilyPage({
           form.language === 'other' ? form.script_extension.trim() || undefined : undefined
         payload.reference = form.reference.trim() || undefined
         payload.content = form.content
+      } else if (form.kind === 'prompt') {
+        payload.content = form.content
       } else {
         payload.entrypoint = form.entrypoint
         payload.reference = form.reference.trim() || undefined
@@ -538,7 +683,6 @@ export function AssetFamilyPage({
     })
   }
 
-  const isScript = kind === 'script'
   const colSpan = 6
 
   return (
@@ -579,7 +723,7 @@ export function AssetFamilyPage({
           <div className="relative w-full sm:max-w-sm">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder={`Search ${kind === 'script' ? 'scripts' : 'skills'}...`}
+              placeholder={`Search ${kind === 'script' ? 'scripts' : kind === 'prompt' ? 'prompts' : 'skills'}...`}
               className="w-full pl-9"
               value={queryState.q}
               onChange={event => onQueryStateChange({ q: event.target.value, page: 1 })}
@@ -618,7 +762,7 @@ export function AssetFamilyPage({
         {loading ? null : pagedItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
             <p className="text-muted-foreground">
-              No {kind === 'script' ? 'scripts' : 'skills'} found.
+              No {kind === 'script' ? 'scripts' : kind === 'prompt' ? 'prompts' : 'skills'} found.
             </p>
             {items.length > 0 ? (
               <button
@@ -642,11 +786,75 @@ export function AssetFamilyPage({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>{isScript ? 'Language' : 'Source'}</TableHead>
-                <TableHead>{isScript ? 'Content' : 'Shape'}</TableHead>
-                <TableHead>{isScript ? 'Reference' : 'Entrypoint'}</TableHead>
-                <TableHead>Updated</TableHead>
+                <TableHead>
+                  {isPrompt ? (
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-left font-semibold hover:text-foreground"
+                      onClick={() => togglePromptSort('name')}
+                    >
+                      Name
+                      <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', promptSort.key === 'name' && promptSort.direction === 'asc' && 'rotate-180')} />
+                    </button>
+                  ) : (
+                    'Name'
+                  )}
+                </TableHead>
+                <TableHead>
+                  {isScript ? (
+                    'Language'
+                  ) : isPrompt ? (
+                    <Select
+                      value={promptLabelFilter}
+                      onValueChange={value =>
+                        setPromptLabelFilter(value as 'all' | 'system' | 'template' | 'custom')
+                      }
+                    >
+                      <SelectTrigger className="h-8 w-[132px] text-xs">
+                        <SelectValue placeholder="Labels" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All labels</SelectItem>
+                        <SelectItem value="system">System</SelectItem>
+                        <SelectItem value="template">Template</SelectItem>
+                        <SelectItem value="custom">Custom</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    'Source'
+                  )}
+                </TableHead>
+                <TableHead>{isScript ? 'Content' : isPrompt ? 'Content' : 'Shape'}</TableHead>
+                <TableHead>
+                  {isScript ? (
+                    'Reference'
+                  ) : isPrompt ? (
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-left font-semibold hover:text-foreground"
+                      onClick={() => togglePromptSort('created')}
+                    >
+                      Created
+                      <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', promptSort.key === 'created' && promptSort.direction === 'asc' && 'rotate-180')} />
+                    </button>
+                  ) : (
+                    'Entrypoint'
+                  )}
+                </TableHead>
+                <TableHead>
+                  {isPrompt ? (
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-left font-semibold hover:text-foreground"
+                      onClick={() => togglePromptSort('updated')}
+                    >
+                      Updated
+                      <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', promptSort.key === 'updated' && promptSort.direction === 'asc' && 'rotate-180')} />
+                    </button>
+                  ) : (
+                    'Updated'
+                  )}
+                </TableHead>
                 <TableHead className="w-[48px]" />
               </TableRow>
             </TableHeader>
@@ -670,23 +878,39 @@ export function AssetFamilyPage({
                       </button>
                     </TableCell>
                     <TableCell>
-                      {isScript
-                        ? item.language || '—'
-                        : item.source_kind === 'local'
-                          ? 'Local'
-                          : 'Reference'}
+                      {isScript ? (
+                        item.language || '—'
+                      ) : isPrompt ? (
+                        <div className="flex flex-wrap gap-1">
+                          {item.is_system ? <Badge variant="secondary">System</Badge> : null}
+                          {item.is_template ? <Badge variant="outline">Template</Badge> : null}
+                          {!item.is_system && !item.is_template ? '—' : null}
+                        </div>
+                      ) : item.source_kind === 'local' ? (
+                        'Local'
+                      ) : (
+                        'Reference'
+                      )}
                     </TableCell>
                     <TableCell>
                       {isScript
                         ? item.source_kind === 'local'
                           ? 'Inline'
                           : 'Reference only'
-                        : item.storage_kind === 'folder'
-                          ? 'Folder Package'
-                          : 'Single File'}
+                        : isPrompt
+                          ? 'Inline'
+                          : item.storage_kind === 'folder'
+                            ? 'Folder Package'
+                            : 'Single File'}
                     </TableCell>
-                    <TableCell className={cn(isScript && 'font-mono text-xs')}>
-                      {isScript ? (item.reference ? 'Configured' : '—') : item.entrypoint || '—'}
+                    <TableCell className={cn((isScript || isPrompt) && 'font-mono text-xs')}>
+                      {isScript
+                        ? item.reference
+                          ? 'Configured'
+                          : '—'
+                        : isPrompt
+                          ? formatDate(item.created)
+                          : item.entrypoint || '—'}
                     </TableCell>
                     <TableCell>{formatDate(item.updated)}</TableCell>
                     <TableCell className="text-right">
@@ -701,13 +925,28 @@ export function AssetFamilyPage({
                           <DropdownMenuItem onClick={() => openEditDialog(item)}>
                             Edit
                           </DropdownMenuItem>
+                          {isPrompt ? (
+                            <DropdownMenuItem onClick={() => void sendPromptToCopilot(item)}>
+                              Send to AI Copilot
+                            </DropdownMenuItem>
+                          ) : null}
+                          {isPrompt && item.is_system ? (
+                            <DropdownMenuItem
+                              disabled={restoringId === item.id}
+                              onClick={() => void handleRestoreDefault(item)}
+                            >
+                              {restoringId === item.id ? 'Restoring...' : 'Restore default'}
+                            </DropdownMenuItem>
+                          ) : null}
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
-                            onClick={() => setDeleteTarget(item)}
-                          >
-                            Delete
-                          </DropdownMenuItem>
+                          {!item.is_system ? (
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => setDeleteTarget(item)}
+                            >
+                              Delete
+                            </DropdownMenuItem>
+                          ) : null}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -723,23 +962,37 @@ export function AssetFamilyPage({
                           </div>
                           <div>
                             <span className="text-muted-foreground">Family:</span>{' '}
-                            <span>{item.kind === 'script' ? 'Script' : 'Skill'}</span>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">
-                              {isScript ? 'Language:' : 'Source:'}
-                            </span>{' '}
                             <span>
-                              {isScript
-                                ? item.language || '—'
-                                : item.source_kind === 'local'
-                                  ? 'Local'
-                                  : 'Reference'}
+                              {item.kind === 'script'
+                                ? 'Script'
+                                : item.kind === 'prompt'
+                                  ? 'Prompt'
+                                  : 'Skill'}
                             </span>
                           </div>
                           <div>
-                            <span className="text-muted-foreground">Stored File:</span>{' '}
-                            <span className="font-mono text-xs">{item.path || '—'}</span>
+                            <span className="text-muted-foreground">
+                              {isScript ? 'Language:' : isPrompt ? 'Labels:' : 'Source:'}
+                            </span>{' '}
+                            {isPrompt ? (
+                              <span>
+                                {[item.is_system ? 'System' : '', item.is_template ? 'Template' : '']
+                                  .filter(Boolean)
+                                  .join(', ') || '—'}
+                              </span>
+                            ) : (
+                              <span>
+                                {isScript
+                                  ? item.language || '—'
+                                  : item.source_kind === 'local'
+                                    ? 'Local'
+                                    : 'Reference'}
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Created:</span>{' '}
+                            <span>{formatDate(item.created)}</span>
                           </div>
                           {isScript ? (
                             <div>
@@ -748,11 +1001,21 @@ export function AssetFamilyPage({
                                 {item.source_kind === 'local' ? 'Inline content' : 'Reference only'}
                               </span>
                             </div>
+                          ) : isPrompt ? (
+                            <div>
+                              <span className="text-muted-foreground">Content:</span>{' '}
+                              <span>Inline prompt text</span>
+                            </div>
                           ) : null}
                           {isScript ? (
                             <div>
                               <span className="text-muted-foreground">Reference:</span>{' '}
                               <span className="font-mono text-xs">{item.reference || '—'}</span>
+                            </div>
+                          ) : isPrompt ? (
+                            <div>
+                              <span className="text-muted-foreground">Template Key:</span>{' '}
+                              <span className="font-mono text-xs">{item.template_key || '—'}</span>
                             </div>
                           ) : (
                             <div>
@@ -963,6 +1226,118 @@ export function AssetFamilyPage({
                       </CollapsibleContent>
                     </div>
                   </Collapsible>
+                </>
+              ) : form.kind === 'prompt' ? (
+                <>
+                  {!editing ? (
+                    <section className="space-y-3 rounded-md border bg-muted/20 p-3">
+                      <div className="grid gap-2">
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="prompt-starter" className={fieldLabelClassName}>
+                            Starter
+                          </Label>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+                                aria-label="Starter template help"
+                              >
+                                <CircleHelp className="h-4 w-4" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="right" sideOffset={8} className="max-w-[220px] leading-5">
+                              Choose a starter, or begin with Blank.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <Select
+                          value={promptStarterTemplateId}
+                          onValueChange={value => {
+                            setPromptStarterTemplateId(value)
+                            if (value === 'blank') {
+                              setForm(createPromptDefaults())
+                              return
+                            }
+                            const template = starterTemplates.find(item => item.id === value)
+                            if (template) {
+                              void applyPromptTemplate(template)
+                            }
+                          }}
+                        >
+                          <SelectTrigger id="prompt-starter">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="blank">Blank</SelectItem>
+                            {starterTemplates.map(template => (
+                              <SelectItem key={template.id} value={template.id}>
+                                {template.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {templateApplying ? (
+                          <div className="text-xs text-muted-foreground">Loading template...</div>
+                        ) : null}
+                      </div>
+                    </section>
+                  ) : null}
+
+                  <section className="space-y-3">
+                    <div className="grid gap-2">
+                      <Label htmlFor="asset-name" className={fieldLabelClassName}>
+                        Name
+                      </Label>
+                      <Input
+                        id="asset-name"
+                        value={form.name}
+                        onChange={e => setForm(current => ({ ...current, name: e.target.value }))}
+                      />
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="asset-description-prompt" className={fieldLabelClassName}>
+                        Description
+                      </Label>
+                      <Textarea
+                        id="asset-description-prompt"
+                        value={form.description}
+                        onChange={e =>
+                          setForm(current => ({ ...current, description: e.target.value }))
+                        }
+                        rows={3}
+                        placeholder="Optional description for operators and future consumers"
+                      />
+                    </div>
+
+                    <div className="grid gap-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <Label htmlFor="asset-prompt-content" className={fieldLabelClassName}>
+                          Prompt Content
+                        </Label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => void sendPromptToCopilot()}
+                          disabled={!form.content.trim()}
+                        >
+                          Send to AI Copilot
+                        </Button>
+                      </div>
+                      <Textarea
+                        id="asset-prompt-content"
+                        value={form.content}
+                        onChange={e => setForm(current => ({ ...current, content: e.target.value }))}
+                        rows={8}
+                        wrap="soft"
+                        className="max-h-44 resize-none overflow-y-auto [overflow-wrap:anywhere] [word-break:break-word]"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Use {'{{var}}'} placeholders in plain text when needed. Variable resolution is handled by consumers later.
+                      </p>
+                    </div>
+                  </section>
                 </>
               ) : (
                 <>

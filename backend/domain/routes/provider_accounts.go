@@ -16,6 +16,7 @@ import (
 type providerAccountUpsertRequest struct {
 	Name         string         `json:"name"`
 	Kind         string         `json:"kind"`
+	IsEnabled    *bool          `json:"is_enabled,omitempty"`
 	TemplateID   string         `json:"template_id"`
 	Identifier   string         `json:"identifier"`
 	CredentialID string         `json:"credential"`
@@ -29,6 +30,7 @@ type providerAccountResponseDocument struct {
 	Updated      string         `json:"updated"`
 	Name         string         `json:"name"`
 	Kind         string         `json:"kind"`
+	IsEnabled    bool           `json:"is_enabled"`
 	TemplateID   string         `json:"template_id"`
 	Identifier   string         `json:"identifier"`
 	CredentialID string         `json:"credential"`
@@ -142,7 +144,7 @@ func handleProviderAccountGet(e *core.RequestEvent) error {
 // @Failure 500 {object} map[string]any
 // @Router /api/provider-accounts [post]
 func handleProviderAccountCreate(e *core.RequestEvent) error {
-	input, err := bindProviderAccountUpsertRequest(e)
+	input, err := bindProviderAccountUpsertRequest(e, nil)
 	if err != nil {
 		return err
 	}
@@ -173,10 +175,6 @@ func handleProviderAccountCreate(e *core.RequestEvent) error {
 // @Failure 500 {object} map[string]any
 // @Router /api/provider-accounts/{id} [put]
 func handleProviderAccountUpdate(e *core.RequestEvent) error {
-	input, err := bindProviderAccountUpsertRequest(e)
-	if err != nil {
-		return err
-	}
 	repo := persistence.NewProviderAccountRepository(e.App)
 	before, getErr := repo.Get(e.Request.PathValue("id"))
 	if getErr != nil {
@@ -184,6 +182,10 @@ func handleProviderAccountUpdate(e *core.RequestEvent) error {
 			return e.NotFoundError("provider account not found", getErr)
 		}
 		return e.InternalServerError("failed to load provider account", getErr)
+	}
+	input, err := bindProviderAccountUpsertRequest(e, before)
+	if err != nil {
+		return err
 	}
 	beforeSnap := before.Snapshot()
 	userID, _ := authInfo(e)
@@ -228,14 +230,22 @@ func handleProviderAccountDelete(e *core.RequestEvent) error {
 	return e.NoContent(http.StatusNoContent)
 }
 
-func bindProviderAccountUpsertRequest(e *core.RequestEvent) (accounts.SaveInput, error) {
+func bindProviderAccountUpsertRequest(e *core.RequestEvent, existing *accounts.ProviderAccount) (accounts.SaveInput, error) {
 	var body providerAccountUpsertRequest
 	if err := e.BindBody(&body); err != nil {
 		return accounts.SaveInput{}, e.BadRequestError("invalid JSON body", err)
 	}
+	isEnabled := true
+	if existing != nil {
+		isEnabled = existing.IsEnabled()
+	}
+	if body.IsEnabled != nil {
+		isEnabled = *body.IsEnabled
+	}
 	return accounts.SaveInput{
 		Name:         body.Name,
 		Kind:         body.Kind,
+		IsEnabled:    isEnabled,
 		TemplateID:   body.TemplateID,
 		Identifier:   body.Identifier,
 		CredentialID: body.CredentialID,
@@ -360,6 +370,7 @@ func providerAccountResponse(item *accounts.ProviderAccount) map[string]any {
 		"updated":     item.Updated(),
 		"name":        item.Name(),
 		"kind":        item.Kind(),
+		"is_enabled":  item.IsEnabled(),
 		"template_id": item.TemplateID(),
 		"identifier":  item.Identifier(),
 		"credential":  item.CredentialID(),
@@ -378,6 +389,7 @@ func providerAccountSnapshotMap(snapshot *accounts.Snapshot) map[string]any {
 		"updated":     snapshot.Updated,
 		"name":        snapshot.Name,
 		"kind":        snapshot.Kind,
+		"is_enabled":  snapshot.IsEnabled,
 		"template_id": snapshot.TemplateID,
 		"identifier":  snapshot.Identifier,
 		"credential":  snapshot.CredentialID,
@@ -390,6 +402,7 @@ func providerAccountInputMap(input accounts.SaveInput) map[string]any {
 	return map[string]any{
 		"name":        input.Name,
 		"kind":        input.Kind,
+		"is_enabled":  input.IsEnabled,
 		"template_id": input.TemplateID,
 		"identifier":  input.Identifier,
 		"credential":  input.CredentialID,

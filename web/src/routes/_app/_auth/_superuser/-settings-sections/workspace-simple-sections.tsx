@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { HelpCircle, Loader2 } from 'lucide-react'
+import { ProxyConnectorDialog } from '@/components/connectors/ProxyConnectorDialog'
 import { listServers, type Server } from '@/lib/connect-api'
 import { pb } from '@/lib/pb'
 import { type SettingsSchemaEntry } from '@/lib/settings-api'
 import type { SecretPolicy } from '@/lib/secrets-policy'
 import { SECRET_ACCESS_MODE_OPTIONS } from '@/lib/secrets-policy'
-import { buildConnectorCreateHref } from '@/components/connectors/shared'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -345,12 +345,14 @@ export function ProxySection({
   type ProxyConnectorOption = {
     id: string
     name: string
+    is_enabled?: boolean
     endpoint?: string
     config?: Record<string, unknown>
   }
 
   const [connectors, setConnectors] = useState<ProxyConnectorOption[]>([])
   const [connectorsLoading, setConnectorsLoading] = useState(false)
+  const [proxyDialogOpen, setProxyDialogOpen] = useState(false)
 
   const loadConnectors = useCallback(async () => {
     setConnectorsLoading(true)
@@ -378,19 +380,19 @@ export function ProxySection({
             ? connector.config.protocol.toUpperCase()
             : 'PROXY'
         const endpoint = typeof connector.endpoint === 'string' ? connector.endpoint : ''
+        const enabled = connector.is_enabled !== false
+        const disabledLabel = enabled ? '' : ' (disabled)'
         return {
           id: connector.id,
           protocol,
           label: endpoint
-            ? `${connector.name} · ${protocol} · ${endpoint}`
-            : `${connector.name} · ${protocol}`,
+            ? `${connector.name}${disabledLabel} · ${protocol} · ${endpoint}`
+            : `${connector.name}${disabledLabel} · ${protocol}`,
         }
       }),
     [connectors]
   )
 
-  const addHTTPProxyHref = buildConnectorCreateHref('proxy', 'http-proxy')
-  const addSOCKS5ProxyHref = buildConnectorCreateHref('proxy', 'socks5-proxy')
   const validConnectorIDs = useMemo(
     () => new Set(connectorOptions.map(option => option.id)),
     [connectorOptions]
@@ -570,6 +572,24 @@ export function ProxySection({
 
   const removeRemoteShellOverride = (serverId: string) => {
     setProxyRemoteShellOverrides(current => current.filter(item => item.serverId !== serverId))
+  }
+
+  const formatServerOptionLabel = (server: Server) => {
+    const name = String(server.name ?? '').trim()
+    const host = String(server.host ?? '').trim()
+    if (name && host) {
+      return `${name} (${host})`
+    }
+    return name || host || server.id
+  }
+
+  const formatServerDisplay = (server: Server | undefined, fallbackServerId: string) => {
+    const name = String(server?.name ?? '').trim()
+    const host = String(server?.host ?? '').trim()
+    return {
+      name: name || host || fallbackServerId,
+      host: name && host ? host : '',
+    }
   }
 
   const modeLabel = (mode: string) => {
@@ -763,37 +783,37 @@ export function ProxySection({
                 </div>
               ) : connectorOptions.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-                  No proxy connectors yet.{' '}
-                  <a
-                    href={addSOCKS5ProxyHref}
-                    className="font-medium text-foreground underline underline-offset-4"
-                  >
-                    Add a SOCKS5 proxy
-                  </a>{' '}
-                  or{' '}
-                  <a
-                    href={addHTTPProxyHref}
-                    className="font-medium text-foreground underline underline-offset-4"
-                  >
-                    add an HTTP proxy
-                  </a>{' '}
-                  from External Services.
+                  No proxy connectors yet. Use Add external proxy to create one.
                 </div>
               ) : null}
             </div>
           ) : proxyForm.source === 'self' ? (
             <div className="px-1 py-1 text-sm text-muted-foreground">
-              Self Proxy is selected. External connector resources stay hidden, and only remote shell proxy controls remain visible below.
+              Enable Self Proxy and configure remote shell proxy.
             </div>
           ) : null}
 
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-3">
             {showExternalResources ? (
-              <Button type="button" variant="outline" className="h-9 px-4" asChild>
-                <a href={addHTTPProxyHref}>Add external proxy</a>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 px-4"
+                onClick={() => setProxyDialogOpen(true)}
+              >
+                Add external proxy
               </Button>
-            ) : <span />}
-            <SaveButton onClick={saveCurrentNetwork} saving={proxyNetworkSaving} compact />
+            ) : null}
+            <Button type="button" className="h-9 px-4" onClick={saveCurrentNetwork} disabled={proxyNetworkSaving}>
+              {proxyNetworkSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                'Save'
+              )}
+            </Button>
           </div>
         </div>
       </div>
@@ -875,14 +895,14 @@ export function ProxySection({
           <div className="rounded-lg border border-border/40 bg-background">
             <div className="space-y-4 p-4">
             <div className="space-y-4 bg-muted/20 px-4 py-4">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div className="space-y-3">
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-foreground">Global remote shell policy</p>
                   <p className="text-xs text-muted-foreground">
                     Applies to all remote servers unless a server-specific override is configured below.
                   </p>
                 </div>
-                <div className="min-w-[220px]">
+                <div className="max-w-[320px]">
                   <select
                     id="proxy-remote-shell-global"
                     className={selectClass}
@@ -926,7 +946,7 @@ export function ProxySection({
                     <option value="">-- Select a server --</option>
                     {overrideableServers.map(server => (
                       <option key={server.id} value={server.id}>
-                        {server.name || server.host}
+                        {formatServerOptionLabel(server)}
                       </option>
                     ))}
                   </select>
@@ -952,13 +972,16 @@ export function ProxySection({
                   <div className="divide-y divide-border/60">
                     {proxyRemoteShellOverrides.map(item => {
                       const server = remoteServers.find(candidate => candidate.id === item.serverId)
+                      const serverDisplay = formatServerDisplay(server, item.serverId)
                       return (
                         <div key={item.serverId} className="flex flex-col gap-3 px-4 py-4 lg:flex-row lg:items-start lg:justify-between">
                           <div className="min-w-0 space-y-1 pr-4">
                             <p className="text-sm font-semibold text-foreground">
-                              {server?.name || server?.host || item.serverId}
-                              {server?.host ? <span className="font-normal text-muted-foreground"> · {server.host}</span> : null}
+                              {serverDisplay.name}
                             </p>
+                            {serverDisplay.host ? (
+                              <p className="text-sm text-muted-foreground">{serverDisplay.host}</p>
+                            ) : null}
                           </div>
                           <div className="flex w-full max-w-[320px] gap-2">
                             <select
@@ -997,6 +1020,31 @@ export function ProxySection({
           </div>
         </div>
       ) : null}
+
+      <ProxyConnectorDialog
+        open={proxyDialogOpen}
+        onOpenChange={setProxyDialogOpen}
+        initialProtocol="http"
+        onCreated={connector => {
+          setConnectors(current => {
+            const next = current.filter(item => item.id !== connector.id)
+            next.push({
+              id: connector.id,
+              name: String(connector.name ?? ''),
+              is_enabled:
+                typeof connector.is_enabled === 'boolean' ? connector.is_enabled : true,
+              endpoint: typeof connector.endpoint === 'string' ? connector.endpoint : '',
+              config:
+                connector.config && typeof connector.config === 'object'
+                  ? (connector.config as Record<string, unknown>)
+                  : {},
+            })
+            next.sort((left, right) => left.name.localeCompare(right.name))
+            return next
+          })
+          void loadConnectors()
+        }}
+      />
     </div>
   )
 }

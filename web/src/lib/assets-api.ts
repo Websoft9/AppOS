@@ -1,7 +1,7 @@
 import { pb } from '@/lib/pb'
 import type { ScriptLanguage } from '@/lib/assets-script-languages'
 
-export type AssetKind = 'script' | 'skill'
+export type AssetKind = 'script' | 'skill' | 'prompt'
 export type AssetStorageKind = 'file' | 'folder'
 export type AssetSourceKind = 'local' | 'reference'
 export type { ScriptLanguage } from '@/lib/assets-script-languages'
@@ -18,6 +18,9 @@ export interface AssetRecord {
   reference?: string
   path: string
   entrypoint: string
+  template_key?: string
+  is_system?: boolean
+  is_template?: boolean
   created?: string
   updated?: string
 }
@@ -96,6 +99,13 @@ export async function updateAsset(id: string, payload: AssetWriteRequest): Promi
 
 export async function deleteAsset(id: string): Promise<void> {
   await pb.send(`/api/assets/${encodeURIComponent(id)}`, { ...noAutoCancel, method: 'DELETE' })
+}
+
+export async function restoreAssetDefault(id: string): Promise<AssetRecord> {
+  return pb.send<AssetRecord>(`/api/assets/${encodeURIComponent(id)}/restore-default`, {
+    ...noAutoCancel,
+    method: 'POST',
+  })
 }
 
 export async function getAssetContent(id: string): Promise<AssetContentResponse> {

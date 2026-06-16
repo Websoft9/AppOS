@@ -392,8 +392,8 @@ function mapAIProviderRow(
     name: String(item.name ?? ''),
     template_id: String(item.template_id ?? ''),
     provider: template?.title ?? humanizeTemplateId(String(item.template_id ?? '')),
-    is_enabled: resolveAIProviderEnabled(item.is_enabled ?? item.config?.is_enabled),
-    enabled_status: normalizeEnabledStatus(item.is_enabled ?? item.config?.is_enabled),
+    is_enabled: resolveAIProviderEnabled(item.is_enabled),
+    enabled_status: normalizeEnabledStatus(item.is_enabled),
     reachability: reachabilityOverrides?.get(String(item.id ?? '')) ?? resolveReachability(item, t),
     endpoint: String(item.endpoint ?? ''),
     credential: String(item.credential ?? ''),
@@ -454,11 +454,11 @@ function buildColumns(
     },
     {
       key: 'enabled_status',
-      label: 'Enabled',
+      label: t('aiProviders.columns.enabled'),
       sortable: true,
       filterOptions: [
-        { label: 'Yes', value: 'Enabled' },
-        { label: 'No', value: 'Disabled' },
+        { label: t('aiProviders.enabled.yes'), value: 'Enabled' },
+        { label: t('aiProviders.enabled.no'), value: 'Disabled' },
       ],
       filterValue: row => String(row.enabled_status ?? ''),
       render: (_value, row) => {
@@ -472,10 +472,10 @@ function buildColumns(
                 : 'inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground cursor-pointer'
             }
             onClick={() => onToggleEnabled(row)}
-            title={enabled ? 'Click to disable' : 'Click to enable'}
+            title={enabled ? t('aiProviders.actions.disable') : t('aiProviders.actions.enable')}
           >
             {enabled ? <Power className="h-3.5 w-3.5" /> : <PowerOff className="h-3.5 w-3.5" />}
-            {enabled ? 'Yes' : 'No'}
+            {enabled ? t('aiProviders.enabled.yes') : t('aiProviders.enabled.no')}
           </button>
         )
       },
@@ -1400,14 +1400,14 @@ export function AIProvidersPage() {
                 ),
               },
               {
-                label: 'Enabled',
+                label: t('aiProviders.columns.enabled'),
                 value: (
                   <span
                     className={
                       enabled ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'
                     }
                   >
-                    {enabled ? 'Yes' : 'No'}
+                    {enabled ? t('aiProviders.enabled.yes') : t('aiProviders.enabled.no')}
                   </span>
                 ),
               },

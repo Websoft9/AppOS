@@ -10,6 +10,7 @@ export type ConnectorRecord = {
   id: string
   name?: string
   kind?: string
+  is_enabled?: boolean
   is_default?: boolean
   template_id?: string
   endpoint?: string
@@ -275,6 +276,17 @@ export function normalizeTemplateFieldDefault(field: ConnectorTemplateField) {
     return JSON.stringify(field.default, null, 2)
   }
   return field.default
+}
+
+export function resolveConnectorEnabled(value: unknown) {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (['false', '0', 'no', 'off'].includes(normalized)) return false
+    if (['true', '1', 'yes', 'on'].includes(normalized)) return true
+  }
+  if (typeof value === 'number') return value !== 0
+  return true
 }
 
 function inferEndpointScheme(
@@ -591,6 +603,9 @@ export async function buildConnectorPayload(
   return {
     name: String(body.name ?? ''),
     kind: template.kind,
+    ...(body.is_enabled !== undefined
+      ? { is_enabled: resolveConnectorEnabled(body.is_enabled) }
+      : {}),
     template_id: template.id,
     endpoint: normalizedEndpoint,
     auth_scheme: authScheme,
@@ -629,6 +644,8 @@ export function mapConnectorRow(
     id: item.id,
     name: String(item.name ?? ''),
     kind,
+    is_enabled: resolveConnectorEnabled(item.is_enabled),
+    enabled_status: resolveConnectorEnabled(item.is_enabled) ? 'Enabled' : 'Disabled',
     is_default: Boolean(item.is_default),
     template_id: String(item.template_id ?? ''),
     kind_label: getConnectorKindLabel(kind, t),

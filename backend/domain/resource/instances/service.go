@@ -5,6 +5,7 @@ import "strings"
 type SaveInput struct {
 	Name              string
 	Kind              string
+	IsEnabled         bool
 	TemplateID        string
 	Endpoint          string
 	ProviderAccountID string

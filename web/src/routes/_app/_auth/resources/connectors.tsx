@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { Check, Pencil } from 'lucide-react'
+import { Check, Pencil, Power, PowerOff } from 'lucide-react'
 import { useOptionalLayout } from '@/contexts/LayoutContext'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -29,15 +29,47 @@ import {
   listConnectorTemplatesForKind,
   mapConnectorRow,
   mapTemplateFieldToResourceField,
+  resolveConnectorEnabled,
   type Translate,
   type ConnectorRecord,
   type ConnectorTemplateField,
   type ConnectorTemplate,
 } from '@/components/connectors/shared'
 
-function buildColumns(t: Translate): Column[] {
+function buildColumns(t: Translate, onToggleEnabled: (item: Record<string, unknown>) => void): Column[] {
   return [
     { key: 'name', label: t('connectors.columns.name'), searchable: true },
+    {
+      key: 'enabled_status',
+      label: t('connectors.columns.enabled'),
+      sortable: true,
+      filterOptions: [
+        { label: t('connectors.enabled.yes'), value: 'Enabled' },
+        { label: t('connectors.enabled.no'), value: 'Disabled' },
+      ],
+      filterValue: row => String(row.enabled_status ?? ''),
+      render: (_value, row) => {
+        const enabled = resolveConnectorEnabled(row.is_enabled)
+        return (
+          <button
+            type="button"
+            className={
+              enabled
+                ? 'inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 cursor-pointer'
+                : 'inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground cursor-pointer'
+            }
+            onClick={event => {
+              event.stopPropagation()
+              void onToggleEnabled(row)
+            }}
+            title={enabled ? t('connectors.actions.disable') : t('connectors.actions.enable')}
+          >
+            {enabled ? <Power className="h-3.5 w-3.5" /> : <PowerOff className="h-3.5 w-3.5" />}
+            {enabled ? t('connectors.enabled.yes') : t('connectors.enabled.no')}
+          </button>
+        )
+      },
+    },
     {
       key: 'is_default',
       label: t('connectors.columns.default'),
@@ -81,6 +113,7 @@ export function ConnectorsPage() {
   const autoCreate = searchParams.get('create') === '1'
   const forcedKind = searchParams.get('kind') ?? ''
   const forcedTemplateID = searchParams.get('template') ?? ''
+  const [refreshKey, setRefreshKey] = useState(0)
   const [secretDialogOpen, setSecretDialogOpen] = useState(false)
   const [connectorTemplates, setConnectorTemplates] = useState<ConnectorTemplate[]>([])
   const [secretAddOption, setSecretAddOption] = useState<
@@ -271,7 +304,22 @@ export function ConnectorsPage() {
     [buildConnectorFields, connectorTemplates, connectorTemplatesById, resolveFormKind]
   )
 
-  const columns = useMemo(() => buildColumns(t), [t])
+  const handleToggleEnabled = useCallback(
+    async (item: Record<string, unknown>) => {
+      const connectorId = String(item.id ?? '')
+      if (!connectorId) return
+      const body = await buildConnectorPayload(
+        { ...item, is_enabled: !resolveConnectorEnabled(item.is_enabled) },
+        connectorTemplatesById,
+        t
+      )
+      await pb.send(`/api/connectors/${connectorId}`, { method: 'PUT', body })
+      setRefreshKey(current => current + 1)
+    },
+    [connectorTemplatesById, t]
+  )
+
+  const columns = useMemo(() => buildColumns(t, handleToggleEnabled), [handleToggleEnabled, t])
 
   const validateConnectorForm = useCallback(
     ({
@@ -379,6 +427,7 @@ export function ConnectorsPage() {
             'border-0 shadow-none focus-visible:border-transparent focus-visible:ring-0 sm:border-input sm:shadow-xs sm:focus-visible:border-ring sm:focus-visible:ring-[3px]',
           createButtonShowIcon: false,
           wrapTableInCard: false,
+          refreshKey,
           listControlsBorder: false,
           listControlsShowReset: false,
           headerFilters: true,

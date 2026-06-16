@@ -8,6 +8,7 @@ import (
 type SaveInput struct {
 	Name              string
 	Kind              string
+	IsEnabled         bool
 	IsDefault         bool
 	TemplateID        string
 	Endpoint          string

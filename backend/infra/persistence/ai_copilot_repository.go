@@ -3,10 +3,13 @@ package persistence
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/assets"
 	"github.com/websoft9/appos/backend/domain/ai/copilot"
 	"github.com/websoft9/appos/backend/infra/collections"
 )
@@ -19,7 +22,7 @@ func NewAICopilotRepository(app core.App) copilot.Repository {
 	return &pocketBaseAICopilotRepository{app: app}
 }
 
-func (r *pocketBaseAICopilotRepository) CreateSession(_ context.Context, ownerID, title string) (*copilot.Session, error) {
+func (r *pocketBaseAICopilotRepository) CreateSession(_ context.Context, ownerID, title, systemPromptAssetID string) (*copilot.Session, error) {
 	collection, err := r.app.FindCollectionByNameOrId(collections.AICopilotSessions)
 	if err != nil {
 		return nil, err
@@ -28,6 +31,7 @@ func (r *pocketBaseAICopilotRepository) CreateSession(_ context.Context, ownerID
 	now := time.Now().UTC().Format(time.RFC3339)
 	record.Set("owner_id", ownerID)
 	record.Set("title", strings.TrimSpace(title))
+	record.Set("system_prompt_asset_id", strings.TrimSpace(systemPromptAssetID))
 	record.Set("last_message_at", now)
 	if err := r.app.Save(record); err != nil {
 		return nil, err
@@ -55,17 +59,48 @@ func (r *pocketBaseAICopilotRepository) GetSession(_ context.Context, sessionID,
 	return sessionFromRecord(record), nil
 }
 
-func (r *pocketBaseAICopilotRepository) UpdateSession(_ context.Context, sessionID, ownerID, title string) (*copilot.Session, error) {
+func (r *pocketBaseAICopilotRepository) UpdateSession(_ context.Context, sessionID, ownerID string, title *string, systemPromptAssetID *string) (*copilot.Session, error) {
 	record, err := r.findOwnedSessionRecord(sessionID, ownerID)
 	if err != nil {
 		return nil, err
 	}
-	record.Set("title", strings.TrimSpace(title))
+	if title != nil {
+		record.Set("title", strings.TrimSpace(*title))
+	}
+	if systemPromptAssetID != nil {
+		record.Set("system_prompt_asset_id", strings.TrimSpace(*systemPromptAssetID))
+	}
 	record.Set("last_message_at", time.Now().UTC().Format(time.RFC3339))
 	if err := r.app.Save(record); err != nil {
 		return nil, err
 	}
 	return sessionFromRecord(record), nil
+}
+
+func (r *pocketBaseAICopilotRepository) GetPromptContent(_ context.Context, assetID string) (string, error) {
+	assetID = strings.TrimSpace(assetID)
+	if assetID == "" {
+		return "", sql.ErrNoRows
+	}
+	record, err := r.app.FindRecordById(assets.Collection, assetID)
+	if err != nil {
+		return "", err
+	}
+	asset := assets.From(record)
+	if asset.Kind() != assets.KindPrompt {
+		return "", errors.New("asset is not a prompt")
+	}
+	if !asset.IsLocal() {
+		return "", errors.New("prompt asset must be local")
+	}
+	content, err := assets.ReadLocalFile(asset.StoragePath(), asset.Path())
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", sql.ErrNoRows
+		}
+		return "", err
+	}
+	return content, nil
 }
 
 func (r *pocketBaseAICopilotRepository) DeleteSession(_ context.Context, sessionID, ownerID string) error {
@@ -131,6 +166,7 @@ func sessionFromRecord(record *core.Record) *copilot.Session {
 	return &copilot.Session{
 		ID:            record.Id,
 		Title:         record.GetString("title"),
+		SystemPromptAssetID: record.GetString("system_prompt_asset_id"),
 		OwnerID:       record.GetString("owner_id"),
 		CreatedAt:     record.GetString("created"),
 		UpdatedAt:     record.GetString("updated"),

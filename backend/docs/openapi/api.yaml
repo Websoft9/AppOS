@@ -224,6 +224,8 @@ components:
                     type: string
                 is_default:
                     type: boolean
+                is_enabled:
+                    type: boolean
                 kind:
                     type: string
                 name:
@@ -249,6 +251,8 @@ components:
                 endpoint:
                     type: string
                 is_default:
+                    type: boolean
+                is_enabled:
                     type: boolean
                 kind:
                     type: string
@@ -414,6 +418,8 @@ components:
                     type: string
                 id:
                     type: string
+                is_enabled:
+                    type: boolean
                 kind:
                     type: string
                 name:
@@ -436,6 +442,8 @@ components:
                     type: string
                 endpoint:
                     type: string
+                is_enabled:
+                    type: boolean
                 kind:
                     type: string
                 name:
@@ -683,6 +691,8 @@ components:
                     type: string
                 identifier:
                     type: string
+                is_enabled:
+                    type: boolean
                 kind:
                     type: string
                 name:
@@ -703,6 +713,8 @@ components:
                     type: string
                 identifier:
                     type: string
+                is_enabled:
+                    type: boolean
                 kind:
                     type: string
                 name:
@@ -2736,7 +2748,7 @@ paths:
                 - Apps
     /api/assets:
         get:
-            description: Returns all phase-1 asset records, including script and skill metadata. Authenticated users only.
+            description: Returns all phase-1 asset records, including script, skill, and prompt metadata. Authenticated users only.
             operationId: get_api_assets
             responses:
                 "200":
@@ -2768,7 +2780,7 @@ paths:
             tags:
                 - Assets
         post:
-            description: Creates one script or skill asset. Writes are limited to superusers.
+            description: Creates one script, skill, or prompt asset. Writes are limited to superusers.
             operationId: post_api_assets
             requestBody:
                 content:
@@ -2989,6 +3001,64 @@ paths:
             security:
                 - bearerAuth: []
             summary: Get asset content
+            tags:
+                - Assets
+    /api/assets/{id}/restore-default:
+        post:
+            description: Restores the seeded default content for a prompt asset that carries a known template key. Writes are limited to superusers.
+            operationId: post_api_assets_id_restore-default
+            parameters:
+                - description: asset id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Restore prompt default content
             tags:
                 - Assets
     /api/assets/script/pull:

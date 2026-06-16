@@ -5,7 +5,7 @@
   "providerMode": "gateway",
   "description": "Amazon Bedrock gateway for foundation models from multiple vendors.",
   "helpUrl": "https://docs.aws.amazon.com/bedrock/latest/userguide/endpoints.html",
-  "defaultEndpoint": "https://bedrock-mantle.{region}.api.aws/openai/v1",
+  "defaultEndpoint": "https://bedrock-mantle.{region}.api.aws/v1",
   "defaultEnabledModels": [
     "anthropic.claude-3-5-sonnet-20240620-v1:0",
     "anthropic.claude-3-5-haiku-20241022-v1:0",
@@ -17,8 +17,8 @@
   "fields": [
     {
       "id": "endpoint",
-      "default": "https://bedrock-mantle.us-east-1.api.aws/openai/v1",
-      "placeholder": "https://bedrock-mantle.us-east-1.api.aws/openai/v1"
+      "default": "https://bedrock-mantle.us-east-1.api.aws/v1",
+      "placeholder": "https://bedrock-mantle.us-east-1.api.aws/v1"
     },
     {
       "id": "region",
