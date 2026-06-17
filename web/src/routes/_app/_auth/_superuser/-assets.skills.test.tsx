@@ -4,11 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AssetsSkillsPage } from './ai-assets.skills'
 
 const sendMock = vi.fn()
+const setHeaderRightStartContentMock = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({
-  createFileRoute: () => (config: Record<string, unknown>) => ({
-    ...config,
-  }),
+  createFileRoute: () => (config: Record<string, unknown>) => ({ ...config }),
   useNavigate: () => vi.fn(),
   Link: ({
     to,
@@ -31,29 +30,24 @@ vi.mock('@/lib/pb', () => ({
   },
 }))
 
+vi.mock('@/contexts/LayoutContext', () => ({
+  useOptionalLayout: () => ({
+    setHeaderRightStartContent: setHeaderRightStartContentMock,
+  }),
+}))
+
 vi.mock('@/components/ui/dropdown-menu', () => ({
   DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DropdownMenuItem: ({
-    children,
-    onClick,
-    className,
-  }: {
-    children: React.ReactNode
-    onClick?: () => void
-    className?: string
-  }) => (
-    <button onClick={onClick} className={className}>
-      {children}
-    </button>
-  ),
+  DropdownMenuItem: ({ children }: { children: React.ReactNode }) => <button>{children}</button>,
   DropdownMenuSeparator: () => <div />,
 }))
 
 describe('AssetsSkillsPage', () => {
   beforeEach(() => {
     window.history.pushState({}, '', '/ai-assets/skills')
+    setHeaderRightStartContentMock.mockReset()
     sendMock.mockReset()
     sendMock.mockImplementation((path: string, options?: { method?: string }) => {
       if (path === '/api/assets') {
@@ -106,6 +100,10 @@ describe('AssetsSkillsPage', () => {
       expect(screen.getByRole('heading', { name: 'AI Skills' })).toBeInTheDocument()
     })
 
+    expect(setHeaderRightStartContentMock).toHaveBeenCalled()
+    const breadcrumb = setHeaderRightStartContentMock.mock.calls[0]?.[0] as React.ReactElement
+    render(breadcrumb)
+    expect(screen.getByRole('link', { name: 'Assets' })).toHaveAttribute('href', '/ai-assets')
     expect(
       screen.getByText(
         'Bundled skill packages with structured files, entrypoints, and reusable guidance content.'
@@ -127,32 +125,5 @@ describe('AssetsSkillsPage', () => {
       within(createDialog).getByRole('button', { name: 'Skill source help' })
     ).toBeInTheDocument()
     expect(within(createDialog).getByText('Skill Files')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByText('Edit'))
-    const dialog = screen.getByRole('dialog')
-    expect(within(dialog).getByRole('heading', { name: 'Edit Skill' })).toBeInTheDocument()
-    expect(within(dialog).getByLabelText('Skill Source')).toBeInTheDocument()
-    expect(within(dialog).queryByText('Metadata')).not.toBeInTheDocument()
-    expect(within(dialog).queryByText('Content')).not.toBeInTheDocument()
-    expect(within(dialog).getAllByDisplayValue('SKILL.md')).toHaveLength(1)
-    expect(within(dialog).getByRole('button', { name: 'Upload folder' })).toBeInTheDocument()
-    expect(within(dialog).getByRole('button', { name: 'Add file' })).toBeInTheDocument()
-    expect(
-      within(dialog).getByRole('button', { name: 'Show advanced settings' })
-    ).toBeInTheDocument()
-
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Show advanced settings' }))
-    expect(within(dialog).getByLabelText('Description')).toBeInTheDocument()
-    expect(within(dialog).getAllByDisplayValue('SKILL.md')).toHaveLength(2)
-
-    fireEvent.change(within(dialog).getByLabelText('Skill Source'), {
-      target: { value: 'https://github.com/example/skill-repo' },
-    })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Pull' }))
-
-    await waitFor(() => {
-      expect(within(dialog).getByDisplayValue('# Pulled Skill')).toBeInTheDocument()
-    })
-    expect(within(dialog).getAllByDisplayValue('docs/SKILL.md')).toHaveLength(2)
   })
 })

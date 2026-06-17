@@ -243,26 +243,6 @@ handleServerPortRelease 仍调用 resolveTerminalConfig（不带 proxy），未�
 
 
 
-Create Scipt 弹窗
-
-1. 明确 Name, Language, Script Content 是必填项，标星
-
-Add prompt 弹窗
-Send to AI Copilot 按钮改用  target=_blank 模式 报错了
-
-Assets 页面(/ai-assets)
-排序：AI Prompts， AI skills, scripts
-
-system prompt 列表页
-1. Labels 筛选项太丑
-2. Created 列 字体字号
-3. 详情中的行高有点太紧
-
-AI copilot
-
-1. 在 AI Chat 侧引入 prompt asset 的消费绑定；需要优化
-
-
 每个区域一个独立的框，标题和说明放在框之外。
 所有的设置tab 今后都采用这种策略
 
@@ -273,3 +253,7 @@ AI copilot
 token 超标
 限制历史消息数量，每次8轮
 捕捉token 超标的错误后，删除最早的2条消息
+
+
+
+google gemini 报错：AI provider rate limit exceeded

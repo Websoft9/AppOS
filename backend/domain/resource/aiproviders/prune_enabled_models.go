@@ -40,7 +40,7 @@ func PruneUnavailableEnabledModels(
 			continue
 		}
 
-		fetched, fetchErr := FetchModels(ctx, strings.TrimSpace(item.Endpoint()), apiKey, strings.TrimSpace(item.TemplateID()))
+		fetched, fetchErr := FetchModels(ctx, ActiveEndpoint(item), apiKey, strings.TrimSpace(item.TemplateID()), ProviderDefaultProtocol(item))
 		if fetchErr != nil {
 			pruneErrors = append(pruneErrors, fmt.Errorf("provider %s fetch models: %w", item.ID(), fetchErr))
 			continue

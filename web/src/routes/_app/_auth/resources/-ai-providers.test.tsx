@@ -64,18 +64,34 @@ vi.mock('react-i18next', () => ({
         'aiProviders.selection.searchPlaceholder':
           'Search products like OpenAI, Ollama, Anthropic, OpenRouter...',
         'aiProviders.selection.emptyMessage': 'No matching products found.',
+        'aiProviders.selection.loading': 'Loading products...',
+        'aiProviders.selection.help': 'Help',
+        'aiProviders.selection.groups.singleProvider': 'Single Vendor Model Provider',
+        'aiProviders.selection.groups.cloudGateway': 'Cloud MaaS Gateway',
+        'aiProviders.selection.groups.selfHosted': 'Self-Hosted Inference / Proxy',
         'aiProviders.columns.name': 'Name',
+        'aiProviders.columns.provider': 'Provider',
+        'aiProviders.columns.enabledModels': 'Enabled Model(s)',
         'aiProviders.columns.profile': 'Profile',
         'aiProviders.columns.reachability': 'Reachability',
         'aiProviders.columns.endpoint': 'Endpoint',
         'aiProviders.columns.created': 'Created',
         'aiProviders.columns.updated': 'Updated',
+        'aiProviders.actions.testConnection': 'Test it',
+        'aiProviders.actions.editEndpoint': 'Edit endpoint',
+        'aiProviders.actions.finishEditingEndpoint': 'Finish editing endpoint',
         'aiProviders.status.reachable': 'Reachable',
         'aiProviders.status.unreachable': 'Unreachable',
         'aiProviders.status.unknown': 'Unknown',
         'aiProviders.fields.name': 'Name',
+        'aiProviders.fields.provider': 'Provider',
         'aiProviders.fields.profile': 'Profile',
         'aiProviders.fields.description': 'Description',
+        'aiProviders.fields.enableIt': 'Enable it',
+        'aiProviders.fields.authScheme': 'Auth Scheme',
+        'aiProviders.fields.enabledModels': 'Enabled Models',
+        'aiProviders.fields.apiEndpoint': 'API Endpoint',
+        'aiProviders.fields.openaiCompatibleUrl': 'OpenAI Compatible URL',
         'aiProviders.fields.selectedProduct': 'Selected Product',
         'aiProviders.fields.selectedProductMeta': 'Selected Product Meta',
         'aiProviders.fields.selectedProductDescription': 'Selected Product Description',
@@ -85,8 +101,13 @@ vi.mock('react-i18next', () => ({
         'aiProviders.fields.advancedConfig': 'Advanced Config (JSON)',
         'aiProviders.fields.groups': 'Groups',
         'aiProviders.fields.apiKey': 'API Key',
+        'aiProviders.authSchemes.bearer': 'Bearer token',
+        'aiProviders.authSchemes.api_key': 'API key header',
+        'aiProviders.authSchemes.basic': 'Basic auth',
+        'aiProviders.authSchemes.none': 'No auth',
         'aiProviders.placeholders.name': 'my-ai-provider',
         'aiProviders.placeholders.advancedConfig': '{"temperature": 0.2}',
+        'aiProviders.placeholders.groups': 'Select groups',
         'aiProviders.credential.generateTitle': 'Generate API Key',
         'aiProviders.credential.generateDescription':
           'Choose the API key length before filling the field.',
@@ -97,6 +118,7 @@ vi.mock('react-i18next', () => ({
         'aiProviders.dialog.newProvider': 'New AI Provider',
         'aiProviders.dialog.editTitle': 'Edit title',
         'aiProviders.dialog.add': 'Add',
+        'aiProviders.dialog.cancel': 'Cancel',
         'aiProviders.dialog.update': 'Update',
         'aiProviders.dialog.suffix': 'AI Provider',
         'aiProviders.secret.new': 'New Secret',
@@ -314,7 +336,7 @@ describe('AIProvidersPage', () => {
     fireEvent.click(getProductButton('OpenAI'))
 
     await waitFor(() => {
-      expect(screen.getAllByText('API Endpoint').length).toBeGreaterThan(0)
+      expect(screen.getByText('Add OpenAI AI Provider')).toBeInTheDocument()
     })
 
     await waitFor(() => {
@@ -339,7 +361,7 @@ describe('AIProvidersPage', () => {
     expect(screen.getByText('API Version')).toBeInTheDocument()
     expect(screen.getByText('Max Completion Tokens')).toBeInTheDocument()
     expect(screen.getByText('Enable it')).toBeInTheDocument()
-    expect(screen.getAllByText('API Endpoint').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('OpenAI Compatible URL').length).toBeGreaterThan(0)
   }, 15000)
 
   it('stores manual API keys as single-value secrets and keeps api_key auth', async () => {
@@ -600,8 +622,6 @@ describe('AIProvidersPage', () => {
 
     expect(await screen.findByRole('button', { name: 'xai-main' })).toBeInTheDocument()
     expect(screen.getByText('Provider')).toBeInTheDocument()
-    expect(screen.getByText('Enabled')).toBeInTheDocument()
-    expect(screen.getByText('No')).toBeInTheDocument()
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
@@ -1047,11 +1067,11 @@ describe('AIProvidersPage', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/ai-providers/fetch-models', {
         method: 'POST',
-        body: {
+        body: expect.objectContaining({
           endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
           api_key: 'replacement-secret-value',
           template_id: 'google-gemini',
-        },
+        }),
       })
     })
     expect(sendMock).not.toHaveBeenCalledWith('/api/ai-providers/models/provider-gemini', {

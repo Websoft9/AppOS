@@ -300,6 +300,7 @@ type fetchModelsRequest struct {
 	Endpoint   string `json:"endpoint"`
 	APIKey     string `json:"api_key"`
 	TemplateID string `json:"template_id,omitempty"`
+	Protocol   string `json:"protocol,omitempty"`
 }
 
 type fetchModelsResponse struct {
@@ -340,7 +341,7 @@ func handleFetchModels(e *core.RequestEvent) error {
 	if endpoint == "" {
 		return e.BadRequestError("endpoint is required", nil)
 	}
-	result, err := fetchProviderModels(e.App, e.Request.Context(), endpoint, apiKey, body.TemplateID)
+	result, err := fetchProviderModels(e.App, e.Request.Context(), endpoint, apiKey, body.TemplateID, body.Protocol)
 	if err != nil {
 		return e.BadRequestError(describeFetchModelsError(err), err)
 	}
@@ -359,7 +360,7 @@ func handleAIProviderModels(e *core.RequestEvent) error {
 	if resolveErr != nil {
 		return e.InternalServerError("failed to resolve provider credential", resolveErr)
 	}
-	result, fetchErr := fetchProviderModels(e.App, e.Request.Context(), strings.TrimSpace(item.Endpoint()), apiKey, strings.TrimSpace(item.TemplateID()))
+	result, fetchErr := fetchProviderModels(e.App, e.Request.Context(), aiproviders.ActiveEndpoint(item), apiKey, strings.TrimSpace(item.TemplateID()), aiproviders.ProviderDefaultProtocol(item))
 	if fetchErr != nil {
 		return e.BadRequestError(describeFetchModelsError(fetchErr), fetchErr)
 	}
@@ -444,7 +445,7 @@ func handleAIProviderReachability(e *core.RequestEvent) error {
 				results[index] = status
 				return
 			}
-			_, fetchErr := fetchProviderModels(e.App, e.Request.Context(), strings.TrimSpace(item.Endpoint()), apiKey, strings.TrimSpace(item.TemplateID()))
+			_, fetchErr := fetchProviderModels(e.App, e.Request.Context(), aiproviders.ActiveEndpoint(item), apiKey, strings.TrimSpace(item.TemplateID()), aiproviders.ProviderDefaultProtocol(item))
 			if fetchErr != nil {
 				status.Status = "unreachable"
 				status.Error = fetchErr.Error()
@@ -520,7 +521,7 @@ func handleAIProviderChatModels(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, aiProviderChatModelsResponse{Items: chatModels})
 }
 
-func fetchProviderModels(app core.App, ctx context.Context, endpoint string, apiKey string, templateID string) (fetchModelsResponse, error) {
+func fetchProviderModels(app core.App, ctx context.Context, endpoint string, apiKey string, templateID string, protocol string) (fetchModelsResponse, error) {
 	endpoint = strings.TrimSpace(endpoint)
 	if endpoint == "" {
 		return fetchModelsResponse{}, errors.New("endpoint is required")
@@ -529,15 +530,24 @@ func fetchProviderModels(app core.App, ctx context.Context, endpoint string, api
 	modelsURL := strings.TrimRight(endpoint, "/") + "/models"
 	useBearerAuth := false
 	useQueryAPIKey := false
+	useAnthropicHeaders := false
 	var tpl aiproviders.Template
 	var hasTemplate bool
 	if templateID != "" {
 		tpl, hasTemplate = aiproviders.FindTemplate(templateID)
-		if hasTemplate && tpl.ModelsEndpoint != "" {
+		if protocolTpl, ok := findTemplateProtocol(tpl, protocol); ok && strings.TrimSpace(protocolTpl.ModelsEndpoint) != "" {
+			modelsURL = resolveModelsEndpoint(endpoint, protocolTpl.ModelsEndpoint)
+		} else if hasTemplate && tpl.ModelsEndpoint != "" {
 			modelsURL = resolveModelsEndpoint(endpoint, tpl.ModelsEndpoint)
 		}
 	}
-	if isGoogleGeminiProvider(templateID, endpoint) {
+	normalizedProtocol := aiproviders.NormalizeProtocol(protocol)
+	if normalizedProtocol == aiproviders.ProtocolAnthropic {
+		useAnthropicHeaders = true
+		modelsURL = strings.TrimRight(endpoint, "/") + "/models"
+	} else if normalizedProtocol == aiproviders.ProtocolOllama {
+		modelsURL = resolveModelsEndpoint(endpoint, "/api/tags")
+	} else if isGoogleGeminiProvider(templateID, endpoint) {
 		modelsURL = resolveGoogleGeminiModelsURL(endpoint)
 		useBearerAuth = isGoogleGeminiOpenAIEndpoint(endpoint)
 		useQueryAPIKey = !useBearerAuth
@@ -564,6 +574,11 @@ func fetchProviderModels(app core.App, ctx context.Context, endpoint string, api
 			query.Set("key", apiKey)
 			req.URL.RawQuery = query.Encode()
 		}
+	} else if useAnthropicHeaders {
+		if apiKey != "" {
+			req.Header.Set("x-api-key", apiKey)
+		}
+		req.Header.Set("anthropic-version", resolveAnthropicVersion(tpl))
 	} else if useBearerAuth && apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
@@ -634,6 +649,28 @@ func buildFetchModelsResponse(parsed any, defaultEnabled map[string]struct{}, te
 		}
 	}
 	return fetchModelsResponse{Models: models, Groups: groups}
+}
+
+func findTemplateProtocol(template aiproviders.Template, protocol string) (aiproviders.TemplateProtocol, bool) {
+	normalized := aiproviders.NormalizeProtocol(protocol)
+	for _, item := range aiproviders.TemplateProtocols(template) {
+		if aiproviders.NormalizeProtocol(item.ID) == normalized {
+			return item, true
+		}
+	}
+	return aiproviders.TemplateProtocol{}, false
+}
+
+func resolveAnthropicVersion(template aiproviders.Template) string {
+	for _, field := range template.Fields {
+		if strings.TrimSpace(field.ID) != "version" {
+			continue
+		}
+		if value := strings.TrimSpace(fmt.Sprint(field.Default)); value != "" && value != "<nil>" {
+			return value
+		}
+	}
+	return "2023-06-01"
 }
 
 func collectModelItems(parsed any, defaultEnabled map[string]struct{}, templateID string) []fetchModelsItem {
@@ -750,6 +787,10 @@ func isAWSBedrockProvider(templateID string, endpoint string) bool {
 }
 
 func resolveAWSBedrockModelsURL(endpoint string) (string, error) {
+	host := extractEndpointHostname(endpoint)
+	if strings.HasPrefix(host, "bedrock-mantle.") {
+		return strings.TrimRight(endpoint, "/") + "/models", nil
+	}
 	region := extractAWSBedrockRegion(endpoint)
 	if region == "" {
 		return "", errors.New("could not determine AWS Bedrock region from endpoint")

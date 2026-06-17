@@ -211,6 +211,14 @@ type TemplateField struct {
 	Default        any    `json:"default,omitempty"`
 }
 
+type TemplateProtocol struct {
+	ID             string `json:"id"`
+	Label          string `json:"label"`
+	Default        bool   `json:"default,omitempty"`
+	DefaultEndpoint string `json:"defaultEndpoint,omitempty"`
+	ModelsEndpoint string `json:"modelsEndpoint,omitempty"`
+}
+
 // Template is the minimum connector template contract loaded from built-in defaults and template files.
 // ID is a profile identifier within a kind. It may be vendor-specific (for example openai)
 // or generic (for example generic-smtp), depending on how much differentiation the kind needs.
@@ -220,6 +228,10 @@ type Template struct {
 	Title                string          `json:"title"`
 	Vendor               string          `json:"vendor,omitempty"`
 	Category             string          `json:"category,omitempty"`
+	UIGroup              string          `json:"uiGroup,omitempty"`
+	HostingMode          string          `json:"hostingMode,omitempty"`
+	ServiceMode          string          `json:"serviceMode,omitempty"`
+	EndpointMode         string          `json:"endpointMode,omitempty"`
 	ProviderMode         string          `json:"providerMode,omitempty"`
 	Description          string          `json:"description,omitempty"`
 	HelpURL              string          `json:"helpUrl,omitempty"`
@@ -230,6 +242,9 @@ type Template struct {
 	DefaultEnabledModels []string        `json:"defaultEnabledModels,omitempty"`
 	Capabilities         []string        `json:"capabilities,omitempty"`
 	Aliases              []string        `json:"aliases,omitempty"`
+	SupportsClosedModels bool            `json:"supportsClosedModels,omitempty"`
+	SupportsMultiVendorModels bool       `json:"supportsMultiVendorModels,omitempty"`
+	Protocols            []TemplateProtocol `json:"protocols,omitempty"`
 	SkipTLSCertVerify    bool            `json:"skipTLSCertVerify,omitempty"`
 	Fields               []TemplateField `json:"fields,omitempty"`
 }

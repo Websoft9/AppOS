@@ -1,25 +1,22 @@
 {
-  "id": "alibaba-cloud-bailian",
-  "title": "Alibaba Cloud Bailian",
+  "id": "qwen-dashscope",
+  "title": "Qwen (DashScope)",
   "vendor": "Alibaba Cloud",
-  "uiGroup": "cloud_gateway",
+  "uiGroup": "single_provider",
   "hostingMode": "cloud",
-  "serviceMode": "maas_platform",
+  "serviceMode": "official_provider",
   "endpointMode": "customizable",
-  "providerMode": "gateway",
   "supportsClosedModels": true,
-  "supportsMultiVendorModels": true,
-  "description": "Alibaba Cloud Bailian model gateway and enterprise AI platform.",
+  "supportsMultiVendorModels": false,
+  "description": "DashScope endpoint focused on Qwen model access.",
   "helpUrl": "https://www.alibabacloud.com/help/en/model-studio/",
   "defaultEndpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-  "skipTLSCertVerify": true,
   "defaultEnabledModels": [
     "qwen-turbo",
     "qwen-plus",
     "qwen-max",
     "qwen-long"
   ],
-  "capabilities": ["chat", "routing", "streaming"],
   "protocols": [
     {
       "id": "openai",
@@ -28,7 +25,8 @@
       "defaultEndpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1"
     }
   ],
-  "aliases": ["alibaba cloud bailian", "bailian", "alibaba-cloud-bailian"],
+  "capabilities": ["chat", "tools", "streaming"],
+  "aliases": ["qwen", "dashscope", "qwen-dashscope"],
   "fields": [
     {
       "id": "endpoint",

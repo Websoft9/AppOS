@@ -1,0 +1,29 @@
+{
+  "id": "nvidia-nim-cloud",
+  "title": "NVIDIA NIM Cloud",
+  "vendor": "NVIDIA",
+  "uiGroup": "single_provider",
+  "hostingMode": "cloud",
+  "serviceMode": "official_provider",
+  "endpointMode": "user_supplied",
+  "supportsClosedModels": false,
+  "supportsMultiVendorModels": true,
+  "description": "NVIDIA hosted NIM API for vendor-curated open-weight models.",
+  "helpUrl": "https://build.nvidia.com/",
+  "defaultEndpoint": "",
+  "protocols": [
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "default": true
+    }
+  ],
+  "capabilities": ["chat", "embeddings", "streaming", "openai-compatible"],
+  "aliases": ["nvidia nim cloud", "nvidia-nim-cloud", "nvidia cloud nim"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "placeholder": "https://your-nvidia-nim-cloud-endpoint.example/v1"
+    }
+  ]
+}

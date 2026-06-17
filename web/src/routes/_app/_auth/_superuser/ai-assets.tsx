@@ -21,12 +21,11 @@ type AssetFamilyCardDef = {
 
 const ASSET_FAMILY_CARDS: AssetFamilyCardDef[] = [
   {
-    key: 'script',
-    title: 'Scripts',
-    description:
-      'Reusable single-file assets for terminal snippets, operator workflows, and recovery actions.',
-    href: '/ai-assets/scripts',
-    icon: <FileCode2 className="h-5 w-5" />,
+    key: 'prompt',
+    title: 'AI Prompts',
+    description: 'Reusable system prompts for AI Copilot and operators.',
+    href: '/ai-assets/prompts',
+    icon: <Bot className="h-5 w-5" />,
   },
   {
     key: 'skill',
@@ -37,11 +36,12 @@ const ASSET_FAMILY_CARDS: AssetFamilyCardDef[] = [
     icon: <ScrollText className="h-5 w-5" />,
   },
   {
-    key: 'prompt',
-    title: 'AI Prompts',
-    description: 'Reusable prompts for Copilot and operators.',
-    href: '/ai-assets/prompts',
-    icon: <Bot className="h-5 w-5" />,
+    key: 'script',
+    title: 'Scripts',
+    description:
+      'Reusable single-file assets for terminal snippets, operator workflows, and recovery actions.',
+    href: '/ai-assets/scripts',
+    icon: <FileCode2 className="h-5 w-5" />,
   },
 ]
 

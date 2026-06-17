@@ -61,12 +61,16 @@ type retryTestRepo struct {
 	messages []*Message
 }
 
-func (r *retryTestRepo) CreateSession(context.Context, string, string) (*Session, error) { return nil, nil }
+func (r *retryTestRepo) CreateSession(context.Context, string, string, string) (*Session, error) {
+	return nil, nil
+}
 func (r *retryTestRepo) ListSessions(context.Context, string) ([]*Session, error) { return nil, nil }
 func (r *retryTestRepo) GetSession(context.Context, string, string) (*Session, error) {
 	return &Session{ID: "session-1", Title: "New chat"}, nil
 }
-func (r *retryTestRepo) UpdateSession(context.Context, string, string, string) (*Session, error) { return nil, nil }
+func (r *retryTestRepo) UpdateSession(context.Context, string, string, *string, *string) (*Session, error) {
+	return nil, nil
+}
 func (r *retryTestRepo) DeleteSession(context.Context, string, string) error { return nil }
 func (r *retryTestRepo) ListMessages(context.Context, string) ([]*Message, error) { return r.messages, nil }
 func (r *retryTestRepo) AppendMessage(_ context.Context, sessionID, role, content, status string) (*Message, error) {
@@ -75,6 +79,7 @@ func (r *retryTestRepo) AppendMessage(_ context.Context, sessionID, role, conten
 	return message, nil
 }
 func (r *retryTestRepo) TouchSession(context.Context, string, string) error { return nil }
+func (r *retryTestRepo) GetPromptContent(context.Context, string) (string, error) { return "", nil }
 
 type retryTestResolver struct {
 	provider *ProviderConfig

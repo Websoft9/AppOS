@@ -396,7 +396,7 @@ func TestFetchProviderModelsGoogleGeminiDirectEndpointUsesAPIKeyQueryAndFiltersG
 	}))
 	defer server.Close()
 
-	result, err := fetchProviderModels(nil, context.Background(), server.URL+"/v1beta", "gemini-test-key", "google-gemini")
+	result, err := fetchProviderModels(nil, context.Background(), server.URL+"/v1beta", "gemini-test-key", "google-gemini", "")
 	if err != nil {
 		t.Fatalf("fetch gemini provider models: %v", err)
 	}
@@ -436,7 +436,7 @@ func TestFetchProviderModelsGoogleGeminiOpenAIEndpointUsesBearerAuth(t *testing.
 	}))
 	defer server.Close()
 
-	result, err := fetchProviderModels(nil, context.Background(), server.URL+"/v1beta/openai", "gemini-test-key", "google-gemini")
+	result, err := fetchProviderModels(nil, context.Background(), server.URL+"/v1beta/openai", "gemini-test-key", "google-gemini", "openai")
 	if err != nil {
 		t.Fatalf("fetch Gemini OpenAI-compatible models: %v", err)
 	}
@@ -599,7 +599,7 @@ func TestFetchProviderModelsUsesConfiguredSocks5Proxy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result, err := fetchProviderModels(te.app, context.Background(), proxiedEndpoint, "gemini-test-key", "google-gemini")
+	result, err := fetchProviderModels(te.app, context.Background(), proxiedEndpoint, "gemini-test-key", "google-gemini", "")
 	if err != nil {
 		t.Fatalf("fetch gemini provider models via socks5 proxy: %v", err)
 	}
@@ -736,7 +736,7 @@ func TestGoogleGemini1926ProxyConsumerEnrollmentControlsProxyUsage(t *testing.T)
 		t.Fatal(err)
 	}
 
-	if _, err := fetchProviderModels(te.app, context.Background(), proxiedEndpoint, "gemini-test-key", "google-gemini"); err == nil {
+	if _, err := fetchProviderModels(te.app, context.Background(), proxiedEndpoint, "gemini-test-key", "google-gemini", ""); err == nil {
 		t.Fatal("expected direct request without consumer enrollment to fail for proxy-only host")
 	}
 	if proxyHits != 0 {
@@ -752,7 +752,7 @@ func TestGoogleGemini1926ProxyConsumerEnrollmentControlsProxyUsage(t *testing.T)
 		t.Fatal(err)
 	}
 
-	result, err := fetchProviderModels(te.app, context.Background(), proxiedEndpoint, "gemini-test-key", "google-gemini")
+	result, err := fetchProviderModels(te.app, context.Background(), proxiedEndpoint, "gemini-test-key", "google-gemini", "")
 	if err != nil {
 		t.Fatalf("expected proxied gemini fetch after enabling consumer enrollment: %v", err)
 	}
@@ -770,10 +770,10 @@ func TestGoogleGemini1926ProxyConsumerEnrollmentControlsProxyUsage(t *testing.T)
 func TestResolveAWSBedrockModelsURL(t *testing.T) {
 	url, err := resolveAWSBedrockModelsURL("https://bedrock-mantle.us-east-1.api.aws/openai/v1")
 	if err != nil {
-		t.Fatalf("resolve AWS Bedrock models URL: %v", err)
+		t.Fatalf("resolve bedrock-mantle models URL: %v", err)
 	}
-	if url != "https://bedrock.us-east-1.amazonaws.com/foundation-models" {
-		t.Fatalf("unexpected AWS Bedrock models URL: %s", url)
+	if url != "https://bedrock-mantle.us-east-1.api.aws/openai/v1/models" {
+		t.Fatalf("bedrock-mantle should keep the OpenAI-compatible path, got: %s", url)
 	}
 
 	url, err = resolveAWSBedrockModelsURL("https://bedrock-runtime.eu-west-1.amazonaws.com/openai/v1")

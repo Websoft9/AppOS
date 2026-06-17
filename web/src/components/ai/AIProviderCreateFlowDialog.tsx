@@ -8,17 +8,18 @@ import {
   type FormEvent,
 } from 'react'
 import { useNavigate } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { Check, ExternalLink, Loader2, Pencil } from 'lucide-react'
 import {
   AIProviderModelSelector,
   type AIProviderModelGroup,
   type AIProviderModelOption,
 } from '@/components/ai/AIProviderModelSelector'
+import { buildUserVisibleSecretRelationApiPath } from '@/components/secrets/resource-secret-relations'
 import { SecretCredentialField } from '@/components/secrets/SecretCredentialField'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { ResourceDialogForm } from '@/components/resources/ResourceDialogForm'
 import type { FieldDef, RelationOption } from '@/components/resources/resource-page-types'
-import { buildUserVisibleSecretRelationApiPath } from '@/components/secrets/resource-secret-relations'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialog,
@@ -42,28 +43,57 @@ import {
   AI_PROVIDER_CREDENTIAL_TEMPLATE_ID,
   SECRET_TEMPLATE_LABELS,
   buildAIProviderPayload,
+  buildProtocolFieldDefaults,
   buildDefaultProviderName,
   chooserTitle,
+  defaultTemplateProtocol,
   formatSecretLabel,
   type AIProviderRecord,
+  type AIProviderSelectionGroupKey,
   type AIProviderTemplate,
   type AIProviderTemplateField,
+  isGenericOpenAICompatibleTemplate,
   isGatewayProviderTemplate,
   isAdvancedProviderField,
   reconcileProviderModelSelection,
   normalizeTemplateFieldDefault,
-  providerSelectionGroup,
+  providerSelectionGroupKey,
+  protocolEndpointFieldKey,
   productTitle,
+  resolveCurrentProtocolEndpoint,
   resolveTemplateEndpoint,
   sanitizeProviderModelGroups,
   sanitizeProviderModelOptions,
 } from '@/lib/ai-providers'
 import { pb } from '@/lib/pb'
 
+const AUTH_SCHEME_OPTIONS = [
+  { label: 'Bearer token', value: 'bearer' },
+  { label: 'API key header', value: 'api_key' },
+  { label: 'Basic auth', value: 'basic' },
+  { label: 'No auth', value: 'none' },
+]
+
+type Translate = (key: string, options?: Record<string, unknown>) => string
+
+function providerSelectionGroupLabel(t: Translate, group: AIProviderSelectionGroupKey) {
+  return t(`aiProviders.selection.groups.${group}`)
+}
+
+function resolveEndpointFieldTitle(
+  t: Translate,
+  template: AIProviderTemplate | null | undefined
+) {
+  return defaultTemplateProtocol(template) === 'anthropic'
+    ? t('aiProviders.fields.apiEndpoint')
+    : t('aiProviders.fields.openaiCompatibleUrl')
+}
+
 function mapTemplateFieldToResourceField(
   field: AIProviderTemplateField,
   openSecretDialog: (callbacks: { addOption: (id: string, label: string) => void }) => void,
   openSecretEditor: (secretId: string) => void,
+  t: Translate,
   renderCredentialField: NonNullable<FieldDef['render']>,
   renderEndpointField: NonNullable<FieldDef['render']>
 ): FieldDef {
@@ -78,11 +108,11 @@ function mapTemplateFieldToResourceField(
       }),
       relationFormatLabel: formatSecretLabel,
       relationCreateButton: {
-        label: 'New Secret',
+        label: t('aiProviders.secret.new'),
         onClick: openSecretDialog,
       },
       relationEditButton: {
-        label: 'Edit Secret',
+        label: t('aiProviders.secret.edit'),
         onClick: openSecretEditor,
       },
       render: renderCredentialField,
@@ -92,7 +122,7 @@ function mapTemplateFieldToResourceField(
   if (field.id === 'endpoint') {
     return {
       key: field.id,
-      label: 'API Endpoint',
+      label: resolveEndpointFieldTitle(t, null),
       type: 'text',
       required: field.required,
       placeholder: field.placeholder,
@@ -113,11 +143,11 @@ function mapTemplateFieldToResourceField(
       }),
       relationFormatLabel: formatSecretLabel,
       relationCreateButton: {
-        label: 'New Secret',
+        label: t('aiProviders.secret.new'),
         onClick: openSecretDialog,
       },
       relationEditButton: {
-        label: 'Edit Secret',
+        label: t('aiProviders.secret.edit'),
         onClick: openSecretEditor,
       },
     }
@@ -257,6 +287,7 @@ export function AIProviderCreateFlowDialog({
   onCreated: (provider: AIProviderRecord) => void
 }) {
   const navigate = useNavigate()
+  const { t } = useTranslation('resources')
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const [templates, setTemplates] = useState<AIProviderTemplate[]>([])
   const [loadingTemplates, setLoadingTemplates] = useState(false)
@@ -269,7 +300,6 @@ export function AIProviderCreateFlowDialog({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [existingProviderNames, setExistingProviderNames] = useState<string[]>([])
-  const [endpointEditing, setEndpointEditing] = useState(false)
   const [selectedModels, setSelectedModels] = useState<string[]>([])
   const [lastFetchSucceeded, setLastFetchSucceeded] = useState(false)
   const [modelLoadConfirmOpen, setModelLoadConfirmOpen] = useState(false)
@@ -283,7 +313,6 @@ export function AIProviderCreateFlowDialog({
     setFetchedGroups([])
     setSelectedModels([])
     setLastFetchSucceeded(false)
-    setEndpointEditing(false)
     setModelLoadConfirmOpen(false)
     setModelLoadConfirmMessage('')
 
@@ -410,69 +439,43 @@ export function AIProviderCreateFlowDialog({
           onEditReference={openSecretEditor}
           editMode={editMode}
           editReferenceMode="icon"
-          manualPlaceholder={`Enter ${String(field.label ?? 'API Key')}`}
-          showLabel={`Show ${String(field.label ?? 'API Key')}`}
-          hideLabel={`Hide ${String(field.label ?? 'API Key')}`}
+          manualPlaceholder={t('aiProviders.credential.enterField', {
+            field: String(field.label ?? t('aiProviders.fields.apiKey')),
+          })}
+          showLabel={t('aiProviders.credential.showField', {
+            field: String(field.label ?? t('aiProviders.fields.apiKey')),
+          })}
+          hideLabel={t('aiProviders.credential.hideField', {
+            field: String(field.label ?? t('aiProviders.fields.apiKey')),
+          })}
           allowGenerate={false}
           referenceToggleMode="icon"
         />
       )
     },
-    [openSecretEditor]
+    [openSecretEditor, t]
   )
 
   const renderEndpointField = useCallback<NonNullable<FieldDef['render']>>(
     ({ inputId, formData: currentFormData, updateField }) => {
-      const current = String(currentFormData.endpoint ?? '')
-      const editing = endpointEditing
       const helpUrl = String(selectedTemplate?.helpUrl ?? '').trim()
-      if (!editing) {
-        return (
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <label htmlFor={inputId} className="text-sm font-medium text-foreground">
-                API Endpoint
-              </label>
-              {helpUrl ? (
-                <a
-                  href={helpUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-muted-foreground transition-colors hover:text-foreground"
-                  aria-label="Open official API endpoint help"
-                  title="Open official API endpoint help"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-              ) : null}
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                id={inputId}
-                type="text"
-                className="border-input bg-muted/40 text-muted-foreground h-10 w-full rounded-md border px-3 text-sm"
-                value={current}
-                readOnly
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10 shrink-0"
-                title="Edit endpoint"
-                onClick={() => setEndpointEditing(true)}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          </div>
-        )
-      }
+      const defaultProtocol = defaultTemplateProtocol(selectedTemplate, currentFormData.default_protocol)
+      const endpointEditing = Boolean(currentFormData.endpoint_editing)
+      const endpointLabel = resolveEndpointFieldTitle(t, selectedTemplate)
+      const endpointValue = String(
+        currentFormData.endpoint ??
+          currentFormData[protocolEndpointFieldKey(defaultProtocol)] ??
+          resolveTemplateEndpoint(selectedTemplate, currentFormData)
+      )
+      const endpointPlaceholder = String(
+        selectedTemplate?.fields?.find(field => field.id === 'endpoint')?.placeholder ??
+          resolveTemplateEndpoint(selectedTemplate, currentFormData)
+      )
       return (
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">
             <label htmlFor={inputId} className="text-sm font-medium text-foreground">
-              API Endpoint
+              {endpointLabel}
             </label>
             {helpUrl ? (
               <a
@@ -491,26 +494,30 @@ export function AIProviderCreateFlowDialog({
             <input
               id={inputId}
               type="text"
-              className="border-input bg-background h-10 w-full rounded-md border px-3 text-sm"
-              value={current}
-              onChange={e => updateField('endpoint', e.target.value)}
-              autoFocus
+              className={`border-input h-10 w-full rounded-md border px-3 text-sm ${endpointEditing ? 'bg-background' : 'bg-muted/40 text-muted-foreground'}`}
+              value={endpointValue}
+              placeholder={endpointPlaceholder}
+              readOnly={!endpointEditing}
+              onChange={event => {
+                updateField('default_protocol', defaultProtocol)
+                updateField(protocolEndpointFieldKey(defaultProtocol), event.target.value)
+                updateField('endpoint', event.target.value)
+              }}
             />
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               size="icon"
-              className="h-10 w-10 shrink-0"
-              title="Done"
-              onClick={() => setEndpointEditing(false)}
+              title={endpointEditing ? t('aiProviders.actions.finishEditingEndpoint') : t('aiProviders.actions.editEndpoint')}
+              onClick={() => updateField('endpoint_editing', !endpointEditing)}
             >
-              <Check className="h-3.5 w-3.5" />
+              {endpointEditing ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
             </Button>
           </div>
         </div>
       )
     },
-    [endpointEditing, selectedTemplate]
+    [selectedTemplate, t]
   )
 
   const [fetchModelsError, setFetchModelsError] = useState('')
@@ -523,7 +530,7 @@ export function AIProviderCreateFlowDialog({
     selected: string[]
     error?: string
   }> => {
-    const endpoint = String(formData.endpoint ?? '').trim()
+    const endpoint = resolveCurrentProtocolEndpoint(selectedTemplate, formData)
     const apiKey = String(formData.api_key_value ?? '').trim()
     const usingSavedSecret =
       Boolean(formData.credential_use_secret) && String(formData.credential ?? '').trim() !== ''
@@ -551,7 +558,12 @@ export function AIProviderCreateFlowDialog({
         groups?: Array<{ vendor: string; label?: string; models: Array<{ id: string }> }>
       }>('/api/ai-providers/fetch-models', {
         method: 'POST',
-        body: { endpoint, api_key: apiKey, template_id: String(formData.template_id ?? '') },
+        body: {
+          endpoint,
+          api_key: apiKey,
+          template_id: String(formData.template_id ?? ''),
+          protocol: defaultTemplateProtocol(selectedTemplate, formData.default_protocol),
+        },
       })
       const models = sanitizeProviderModelOptions(result?.models ?? [])
       const groups = sanitizeProviderModelGroups(result?.groups ?? [])
@@ -576,7 +588,7 @@ export function AIProviderCreateFlowDialog({
     } finally {
       setFetchingModels(false)
     }
-  }, [formData.endpoint, formData.api_key_value, formData.template_id, selectedModels])
+  }, [formData, selectedModels, selectedTemplate])
 
   const handleTestConnection = useCallback(() => {
     void runFetchModels()
@@ -592,7 +604,7 @@ export function AIProviderCreateFlowDialog({
     () => [
       {
         key: 'is_enabled',
-        label: 'Enable it',
+        label: t('aiProviders.fields.enableIt'),
         type: 'text',
         hideLabel: true,
         defaultValue: true,
@@ -601,7 +613,9 @@ export function AIProviderCreateFlowDialog({
           const enabled = Boolean(currentFormData.is_enabled ?? true)
           return (
             <div className="space-y-2">
-              <div className="text-sm font-medium text-foreground">Enable it</div>
+              <div className="text-sm font-medium text-foreground">
+                {t('aiProviders.fields.enableIt')}
+              </div>
               <div className="flex flex-wrap gap-4 text-sm">
                 <label className="inline-flex items-center gap-2">
                   <input
@@ -627,9 +641,27 @@ export function AIProviderCreateFlowDialog({
         },
       },
       {
+        key: 'auth_scheme',
+        label: t('aiProviders.fields.authScheme'),
+        type: 'select',
+        options: AUTH_SCHEME_OPTIONS.map(option => ({
+          ...option,
+          label: t(`aiProviders.authSchemes.${option.value}`),
+        })),
+        defaultValue: '',
+        advanced: true,
+      },
+      {
+        key: 'endpoint_editing',
+        label: 'Endpoint Editing',
+        type: 'boolean',
+        hidden: true,
+        defaultValue: false,
+      },
+      {
         key: 'description',
-        label: 'Description',
-        type: 'textarea',
+        label: t('aiProviders.fields.description'),
+        type: 'text',
         advanced: true,
       },
       {
@@ -655,24 +687,27 @@ export function AIProviderCreateFlowDialog({
       },
       {
         key: 'advanced_config',
-        label: 'Advanced Config',
+        label: t('aiProviders.fields.advancedConfig'),
         type: 'textarea',
-        placeholder: '{\n  "key": "value"\n}',
+        rows: 5,
+        textareaClassName: 'max-h-[8.5rem] overflow-y-auto',
+        placeholder: t('aiProviders.placeholders.advancedConfig'),
         advanced: true,
       },
       {
         key: 'groups',
-        label: 'Groups',
+        label: t('aiProviders.fields.groups'),
         type: 'relation',
         advanced: true,
         multiSelect: true,
         relationAutoSelectDefault: true,
+        placeholder: t('aiProviders.placeholders.groups'),
         relationApiPath: '/api/collections/groups/records?perPage=500&sort=name',
         relationLabelKey: 'name',
         defaultValue: [],
       },
     ],
-    []
+    [t]
   )
 
   const resolvedFields = useMemo(() => {
@@ -681,6 +716,7 @@ export function AIProviderCreateFlowDialog({
         field,
         () => setSecretDialogOpen(true),
         openSecretEditor,
+        t,
         renderCredentialField,
         renderEndpointField
       )
@@ -707,7 +743,7 @@ export function AIProviderCreateFlowDialog({
         mapped,
         {
           key: 'select_models',
-          label: 'Select Models',
+          label: t('aiProviders.fields.enabledModels'),
           type: 'text',
           hideLabel: true,
           render: () => (
@@ -720,7 +756,7 @@ export function AIProviderCreateFlowDialog({
               error={fetchModelsError || undefined}
               loaded={lastFetchSucceeded}
               canLoad={Boolean(
-                String(formData.endpoint ?? '').trim() &&
+                resolveCurrentProtocolEndpoint(selectedTemplate, formData) &&
                 String(formData.api_key_value ?? '').trim()
               )}
               loadActionLabel="Load all available models"
@@ -732,15 +768,31 @@ export function AIProviderCreateFlowDialog({
       ]
     })
 
+    const endpointInMainSection = isGenericOpenAICompatibleTemplate(selectedTemplate)
+
+    dynamicFields = dynamicFields.map(field => {
+      if (field.key !== 'endpoint') return field
+      return {
+        ...field,
+        label: resolveEndpointFieldTitle(t, selectedTemplate),
+        advanced: !endpointInMainSection,
+      }
+    })
+
     if (selectedTemplate?.id === 'aws-bedrock') {
       dynamicFields = moveFieldBefore(dynamicFields, 'region', 'endpoint')
     }
 
+    const authSchemeField = {
+      ...baseProviderFields[1],
+      advanced: !endpointInMainSection,
+    }
+
     return [
-      baseProviderFields[1],
-      ...baseProviderFields.slice(2, 5),
       ...dynamicFields,
-      ...baseProviderFields.slice(5),
+      authSchemeField,
+      baseProviderFields[2],
+      ...baseProviderFields.slice(3),
       baseProviderFields[0],
     ]
   }, [
@@ -756,6 +808,7 @@ export function AIProviderCreateFlowDialog({
     renderEndpointField,
     selectedModels,
     selectedTemplate,
+    t,
     toggleSelectedModel,
   ])
 
@@ -805,15 +858,19 @@ export function AIProviderCreateFlowDialog({
       kind: template.kind,
       template_id: template.id,
       name: buildDefaultProviderName(template),
+      auth_scheme: String(template.defaultAuthScheme ?? ''),
       credential_use_secret: false,
       api_key_value: '',
       is_enabled: true,
       title_name_editing: false,
+      endpoint_editing: false,
     }
 
     for (const field of template.fields ?? []) {
       defaults[field.id] = normalizeTemplateFieldDefault(field)
     }
+
+    Object.assign(defaults, buildProtocolFieldDefaults(template, defaults))
 
     defaults.endpoint = resolveTemplateEndpoint(template, defaults)
 
@@ -976,7 +1033,7 @@ export function AIProviderCreateFlowDialog({
             type="button"
             variant="outline"
             size="icon"
-            title="Apply title"
+            title={t('aiProviders.dialog.applyTitle')}
             onMouseDown={event => event.preventDefault()}
             onClick={() => updateField('title_name_editing', false)}
           >
@@ -986,13 +1043,13 @@ export function AIProviderCreateFlowDialog({
       ) : (
         <>
           <span className="max-w-full truncate text-xl font-semibold">
-            {providerName || 'New AI Provider'}
+            {providerName || t('aiProviders.dialog.newProvider')}
           </span>
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            title="Edit title"
+            title={t('aiProviders.dialog.editTitle')}
             onClick={() => updateField('title_name_editing', true)}
           >
             <Pencil className="h-4 w-4" />
@@ -1001,12 +1058,12 @@ export function AIProviderCreateFlowDialog({
       )}
     </div>
   ) : (
-    'New AI Provider'
+    t('aiProviders.dialog.newProvider')
   )
 
   const dialogDescription = selectedTemplate
-    ? `Add ${productTitle(selectedTemplate)} AI Provider`
-    : 'Choose a product, then enter connection details.'
+    ? `${t('aiProviders.dialog.add')} ${productTitle(selectedTemplate)} ${t('aiProviders.dialog.suffix')}`
+    : t('aiProviders.selection.description')
 
   return (
     <>
@@ -1021,16 +1078,14 @@ export function AIProviderCreateFlowDialog({
       >
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Choose a Product</DialogTitle>
-            <DialogDescription>
-              Choose a provider product, then enter connection details.
-            </DialogDescription>
+            <DialogTitle>{t('aiProviders.selection.title')}</DialogTitle>
+            <DialogDescription>{t('aiProviders.selection.description')}</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <Input
               type="text"
-              placeholder="Search products like OpenAI, Ollama, Anthropic, OpenRouter..."
+              placeholder={t('aiProviders.selection.searchPlaceholder')}
               value={selectionQuery}
               onChange={event => setSelectionQuery(event.target.value)}
               autoFocus
@@ -1039,23 +1094,23 @@ export function AIProviderCreateFlowDialog({
             {loadingTemplates ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Loading products...
+                {t('aiProviders.selection.loading')}
               </div>
             ) : productOptions.length === 0 ? (
               <div className="rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-                No matching options found.
+                {t('aiProviders.selection.emptyMessage')}
               </div>
             ) : (
               <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
-                {['Provider', 'LLM Gateway'].map(group => {
+                {(['singleProvider', 'cloudGateway', 'selfHosted'] as AIProviderSelectionGroupKey[]).map(group => {
                   const groupOptions = productOptions.filter(
-                    option => providerSelectionGroup(option) === group
+                    option => providerSelectionGroupKey(option) === group
                   )
                   if (groupOptions.length === 0) return null
                   return (
                     <div key={group} className="space-y-2">
                       <div className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        {group}
+                        {providerSelectionGroupLabel(t, group)}
                       </div>
                       {groupOptions.map(option => (
                         <button
@@ -1078,7 +1133,7 @@ export function AIProviderCreateFlowDialog({
                                 className="shrink-0 text-xs text-primary hover:underline"
                                 onClick={event => event.stopPropagation()}
                               >
-                                Help
+                                {t('aiProviders.selection.help')}
                               </a>
                             ) : null}
                           </div>
@@ -1124,10 +1179,10 @@ export function AIProviderCreateFlowDialog({
           ) : null
         }
         selectedSummary={null}
-        submitLabel="Add Model"
-        cancelLabel="Cancel"
+        submitLabel={t('aiProviders.dialog.add')}
+        cancelLabel={t('aiProviders.dialog.cancel')}
         resetAction={{
-          label: 'Test it',
+          label: t('aiProviders.actions.testConnection'),
           onClick: handleTestConnection,
         }}
         onSubmit={handleSubmit}
@@ -1158,8 +1213,8 @@ export function AIProviderCreateFlowDialog({
       <SecretCreateDialog
         open={secretDialogOpen}
         onOpenChange={setSecretDialogOpen}
-        title="New Secret"
-        description="Create a reusable secret and attach it to this AI Provider."
+        title={t('aiProviders.secret.newTitle')}
+        description={t('aiProviders.secret.newDescription')}
         allowedTemplateIds={[AI_PROVIDER_CREDENTIAL_TEMPLATE_ID]}
         templateLabels={SECRET_TEMPLATE_LABELS}
         defaultTemplateId={AI_PROVIDER_CREDENTIAL_TEMPLATE_ID}

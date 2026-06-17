@@ -117,7 +117,7 @@ export function ResourceFormField({
       ) : effectiveType === 'select' ? (
         <select
           id={inputId}
-          className={`${INPUT_CLASS} ${field.readOnly ? READ_ONLY_INPUT_CLASS : ''}`}
+          className={`${INPUT_CLASS} ${field.readOnly ? READ_ONLY_INPUT_CLASS : ''} ${field.inputClassName ?? ''}`}
           value={String(formData[field.key] ?? '')}
           onChange={e => handleChange(field, e.target.value)}
           required={field.required}
@@ -127,39 +127,30 @@ export function ResourceFormField({
           {renderSelectOptions(field.options)}
         </select>
       ) : effectiveType === 'relation' && field.multiSelect ? (
-        <div className="border border-input rounded-md p-2 max-h-44 overflow-y-auto space-y-1 bg-background">
-          {relationOptions.length === 0 ? (
-            <p className="text-xs text-muted-foreground px-1">No options available</p>
-          ) : (
-            relationOptions.map(option => {
-              const selected = ((formData[field.key] as string[]) ?? []).includes(option.id)
-              return (
-                <label
-                  key={option.id}
-                  className="flex items-center gap-2 cursor-pointer px-1 py-0.5 rounded hover:bg-muted transition-colors"
-                >
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-input"
-                    checked={selected}
-                    onChange={event => {
-                      const current = (formData[field.key] as string[]) ?? []
-                      if (event.target.checked) {
-                        updateField(field.key, [...current, option.id])
-                        return
-                      }
-                      updateField(
-                        field.key,
-                        current.filter(id => id !== option.id)
-                      )
-                    }}
-                  />
-                  <span className="text-sm">{option.label}</span>
-                </label>
-              )
-            })
-          )}
-        </div>
+        <ReferenceSelect
+          id={inputId}
+          value=""
+          values={Array.isArray(formData[field.key]) ? (formData[field.key] as string[]) : []}
+          options={relationOptions}
+          multiple
+          onSelect={() => undefined}
+          onToggleOption={(optionId, checked) => {
+            const current = Array.isArray(formData[field.key]) ? (formData[field.key] as string[]) : []
+            if (checked) {
+              updateField(field.key, [...current, optionId])
+              return
+            }
+            updateField(
+              field.key,
+              current.filter(id => id !== optionId)
+            )
+          }}
+          placeholder={field.placeholder ?? `Select ${field.label.toLowerCase()}`}
+          searchPlaceholder={`Search ${field.label.toLowerCase()}...`}
+          emptyMessage="No matching references."
+          showNoneOption
+          showSelectedIndicator
+        />
       ) : effectiveType === 'relation' ? (
         <ReferenceSelect
           id={inputId}
@@ -197,12 +188,12 @@ export function ResourceFormField({
         <div className="space-y-1">
           <textarea
             id={inputId}
-            className={INPUT_CLASS + ' min-h-[120px] resize-y font-mono text-xs'}
+            className={`${INPUT_CLASS} min-h-[120px] resize-y font-mono text-xs ${field.textareaClassName ?? ''}`}
             value={String(formData[field.key] ?? '')}
             onChange={e => updateField(field.key, e.target.value)}
             placeholder={field.placeholder}
             required={field.required}
-            rows={5}
+            rows={field.rows ?? 5}
           />
         </div>
       ) : effectiveType === 'boolean' ? (
@@ -229,7 +220,7 @@ export function ResourceFormField({
                 ? 'number'
                 : 'text'
           }
-          className={`${INPUT_CLASS} ${field.readOnly ? READ_ONLY_INPUT_CLASS : ''}`}
+          className={`${INPUT_CLASS} ${field.readOnly ? READ_ONLY_INPUT_CLASS : ''} ${field.inputClassName ?? ''}`}
           value={String(formData[field.key] ?? '')}
           onChange={e => handleChange(field, e.target.value)}
           placeholder={field.placeholder}

@@ -115,24 +115,32 @@ export function ResourceDialogForm({
           {primaryFields.map(renderField)}
 
           {advancedFields.length > 0 && (
-            <div className="overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-b from-muted/70 via-muted/30 to-background shadow-sm">
+            <div className="overflow-hidden rounded-xl border border-border/70 bg-card/80 shadow-sm">
               <button
                 type="button"
-                className="flex w-full items-center justify-between gap-4 border-b border-border/70 px-5 py-4 text-left"
+                className={`flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition-colors hover:bg-muted/40 ${advancedOpen ? 'border-b border-border/70 bg-muted/20' : 'bg-muted/10'}`}
                 onClick={() => setAdvancedOpen(prev => !prev)}
               >
-                <div>
+                <div className="min-w-0">
                   <div className="text-sm font-medium text-foreground">Advanced</div>
+                  <div className="text-xs text-muted-foreground">
+                    Optional overrides and operational settings.
+                  </div>
                 </div>
+                <div className="inline-flex items-center gap-3">
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                    {advancedFields.length}
+                  </span>
                 {advancedOpen ? (
                   <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 ) : (
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 )}
+                </div>
               </button>
 
               {advancedOpen ? (
-                <div className="space-y-4 bg-background/90 px-5 py-5">
+                <div className="space-y-4 bg-background px-4 py-4">
                   {advancedFields.map(renderField)}
                 </div>
               ) : null}

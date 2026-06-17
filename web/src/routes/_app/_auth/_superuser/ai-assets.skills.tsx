@@ -1,9 +1,27 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { ScrollText } from 'lucide-react'
 import { createFileRoute } from '@tanstack/react-router'
 import { AssetFamilyPage } from '@/components/assets/AssetFamilyPage'
+import { IconBreadcrumb } from '@/components/layout/IconBreadcrumb'
+import { useOptionalLayout } from '@/contexts/LayoutContext'
 
 export function AssetsSkillsPage() {
   const [queryState, setQueryState] = useState({ q: '', page: 1 })
+  const layout = useOptionalLayout()
+  const setHeaderRightStartContent = layout?.setHeaderRightStartContent
+
+  useEffect(() => {
+    if (!setHeaderRightStartContent) return undefined
+    setHeaderRightStartContent(
+      <IconBreadcrumb
+        icon={<ScrollText className="h-4 w-4" />}
+        parentLabel="Assets"
+        parentHref="/ai-assets"
+        currentPage="AI Skills"
+      />
+    )
+    return () => setHeaderRightStartContent(null)
+  }, [setHeaderRightStartContent])
 
   return (
     <AssetFamilyPage

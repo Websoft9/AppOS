@@ -1,7 +1,9 @@
 package copilot
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -23,6 +25,9 @@ func (f EinoModelFactory) ValidateProvider(ctx context.Context, provider *Provid
 	if provider == nil {
 		return fmt.Errorf("provider is required")
 	}
+	if strings.EqualFold(strings.TrimSpace(provider.Protocol), "anthropic") {
+		return nil
+	}
 	if !IsOpenRouterEndpoint(provider.Endpoint) {
 		return nil
 	}
@@ -40,28 +45,47 @@ func (f EinoModelFactory) NewStreamer(ctx context.Context, provider *ProviderCon
 	if provider == nil {
 		return nil, fmt.Errorf("provider is required")
 	}
+	protocol := strings.TrimSpace(strings.ToLower(provider.Protocol))
+	if protocol == "anthropic" {
+		return newAnthropicStreamer(f.providerHTTPClient(provider), provider), nil
+	}
+	baseURL := resolveOpenAIBaseURL(provider)
 	config := &openai.ChatModelConfig{
 		APIKey:  provider.APIKey,
-		BaseURL: provider.Endpoint,
+		BaseURL: baseURL,
 		Model:   provider.Model,
 		Timeout: 90 * time.Second,
 	}
 	if provider.MaxCompletionTokens != nil && *provider.MaxCompletionTokens > 0 {
 		config.MaxCompletionTokens = provider.MaxCompletionTokens
 	}
-	if f.App != nil {
-		client, err := proxy.NewHTTPClient(f.App, "ai_providers.global", 90*time.Second, false)
-		if err == nil {
-			config.HTTPClient = withProviderHeaders(&client, provider)
-		}
-	} else {
-		config.HTTPClient = withProviderHeaders(nil, provider)
-	}
+	config.HTTPClient = withProviderHeaders(f.providerHTTPClient(provider), provider)
 	model, err := openai.NewChatModel(ctx, config)
 	if err != nil {
 		return nil, err
 	}
 	return &einoStreamer{model: model}, nil
+}
+
+func (f EinoModelFactory) providerHTTPClient(provider *ProviderConfig) *http.Client {
+	if f.App != nil {
+		client, err := proxy.NewHTTPClient(f.App, "ai_providers.global", 90*time.Second, false)
+		if err == nil {
+			return &client
+		}
+	}
+	return nil
+}
+
+func resolveOpenAIBaseURL(provider *ProviderConfig) string {
+	if provider == nil {
+		return ""
+	}
+	endpoint := strings.TrimRight(strings.TrimSpace(provider.Endpoint), "/")
+	if strings.EqualFold(strings.TrimSpace(provider.Protocol), "ollama") && !strings.HasSuffix(strings.ToLower(endpoint), "/v1") {
+		return endpoint + "/v1"
+	}
+	return endpoint
 }
 
 type headerRoundTripper struct {
@@ -122,6 +146,148 @@ func providerHeaders(provider *ProviderConfig) map[string]string {
 		"HTTP-Referer": referer,
 		"X-Title":      "AppOS",
 	}
+}
+
+type anthropicMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type anthropicRequest struct {
+	Model     string             `json:"model"`
+	System    string             `json:"system,omitempty"`
+	Messages  []anthropicMessage `json:"messages"`
+	MaxTokens int                `json:"max_tokens"`
+	Stream    bool               `json:"stream"`
+}
+
+type anthropicStreamer struct {
+	client   *http.Client
+	provider *ProviderConfig
+}
+
+func newAnthropicStreamer(client *http.Client, provider *ProviderConfig) *anthropicStreamer {
+	if client == nil {
+		client = &http.Client{Timeout: 90 * time.Second}
+	}
+	return &anthropicStreamer{client: client, provider: provider}
+}
+
+func (s *anthropicStreamer) Stream(ctx context.Context, messages []*Message, onChunk func(string) error) (string, error) {
+	requestBody := anthropicRequest{
+		Model:     strings.TrimSpace(s.provider.Model),
+		Messages:  anthropicMessages(messages),
+		MaxTokens: anthropicMaxTokens(s.provider),
+		Stream:    true,
+	}
+	if system := anthropicSystemPrompt(messages); system != "" {
+		requestBody.System = system
+	}
+	payload, err := json.Marshal(requestBody)
+	if err != nil {
+		return "", err
+	}
+	endpoint := strings.TrimRight(strings.TrimSpace(s.provider.Endpoint), "/") + "/messages"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(string(payload)))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("content-type", "application/json")
+	req.Header.Set("accept", "text/event-stream")
+	req.Header.Set("x-api-key", s.provider.APIKey)
+	req.Header.Set("anthropic-version", resolveProviderAnthropicVersion(s.provider))
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return "", fmt.Errorf("provider returned non-200: %s: %s", http.StatusText(resp.StatusCode), string(body))
+	}
+
+	var builder strings.Builder
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if !strings.HasPrefix(line, "data:") {
+			continue
+		}
+		payload := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if payload == "" || payload == "[DONE]" {
+			continue
+		}
+		var event map[string]any
+		if err := json.Unmarshal([]byte(payload), &event); err != nil {
+			continue
+		}
+		delta, _ := event["delta"].(map[string]any)
+		text := strings.TrimSpace(fmt.Sprint(delta["text"]))
+		if text == "" || text == "<nil>" {
+			continue
+		}
+		builder.WriteString(text)
+		if onChunk != nil {
+			if err := onChunk(text); err != nil {
+				return "", err
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+	return builder.String(), nil
+}
+
+func anthropicMessages(messages []*Message) []anthropicMessage {
+	result := make([]anthropicMessage, 0, len(messages))
+	for _, message := range messages {
+		if message == nil {
+			continue
+		}
+		role := NormalizeRole(message.Role)
+		if role == RoleSystem {
+			continue
+		}
+		content := strings.TrimSpace(message.Content)
+		if content == "" {
+			continue
+		}
+		result = append(result, anthropicMessage{Role: role, Content: content})
+	}
+	return result
+}
+
+func anthropicSystemPrompt(messages []*Message) string {
+	parts := make([]string, 0, 1)
+	for _, message := range messages {
+		if message == nil || NormalizeRole(message.Role) != RoleSystem {
+			continue
+		}
+		content := strings.TrimSpace(message.Content)
+		if content != "" {
+			parts = append(parts, content)
+		}
+	}
+	return strings.Join(parts, "\n\n")
+}
+
+func anthropicMaxTokens(provider *ProviderConfig) int {
+	if provider != nil && provider.MaxCompletionTokens != nil && *provider.MaxCompletionTokens > 0 {
+		return *provider.MaxCompletionTokens
+	}
+	return 4096
+}
+
+func resolveProviderAnthropicVersion(provider *ProviderConfig) string {
+	if provider != nil {
+		version := strings.TrimSpace(provider.APIVersion)
+		if version != "" {
+			return version
+		}
+	}
+	return "2023-06-01"
 }
 
 type einoStreamer struct {

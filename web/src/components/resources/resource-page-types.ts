@@ -49,6 +49,7 @@ export interface FieldDef {
     | 'file-textarea'
   required?: boolean
   placeholder?: string
+  rows?: number
   options?: SelectOption[]
   defaultValue?: unknown
   hidden?: boolean
@@ -76,6 +77,8 @@ export interface FieldDef {
   dynamicType?: { field: string; values: string[]; as: 'textarea' | 'file-textarea' }
   fileAccept?: string
   readOnly?: boolean
+  inputClassName?: string
+  textareaClassName?: string
   render?: (ctx: {
     field: FieldDef
     inputId: string

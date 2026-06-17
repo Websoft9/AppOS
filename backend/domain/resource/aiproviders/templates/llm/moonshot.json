@@ -1,0 +1,29 @@
+{
+  "id": "moonshot",
+  "title": "Moonshot AI",
+  "vendor": "Moonshot AI",
+  "uiGroup": "single_provider",
+  "hostingMode": "cloud",
+  "serviceMode": "official_provider",
+  "endpointMode": "user_supplied",
+  "supportsClosedModels": true,
+  "supportsMultiVendorModels": false,
+  "description": "Moonshot AI hosted API for Kimi and related Moonshot models.",
+  "helpUrl": "https://platform.moonshot.ai/docs/guide/overview",
+  "defaultEndpoint": "",
+  "protocols": [
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "default": true
+    }
+  ],
+  "capabilities": ["chat", "long-context", "tools", "streaming"],
+  "aliases": ["moonshot", "kimi", "moonshot-ai"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "placeholder": "https://your-moonshot-endpoint.example/v1"
+    }
+  ]
+}

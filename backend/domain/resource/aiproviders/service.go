@@ -90,6 +90,9 @@ func normalizeSaveInput(input SaveInput) (SaveInput, error) {
 			return SaveInput{}, &ValidationError{Message: fmt.Sprintf("template %q has kind %q, not %q", templateID, template.Kind, KindLLM)}
 		}
 		input.TemplateID = template.ID
+		input.Endpoint, input.Config = NormalizeProtocolConfig(template, input.Endpoint, input.Config)
+		return input, nil
 	}
+	input.Endpoint, input.Config = NormalizeProtocolConfig(Template{}, input.Endpoint, input.Config)
 	return input, nil
 }

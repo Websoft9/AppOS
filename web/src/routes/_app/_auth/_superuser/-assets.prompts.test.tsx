@@ -5,6 +5,7 @@ import { AssetsPromptsPage } from './ai-assets.prompts'
 
 const sendMock = vi.fn()
 const openMock = vi.fn()
+const setHeaderRightStartContentMock = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (config: Record<string, unknown>) => ({ ...config }),
@@ -30,10 +31,30 @@ vi.mock('@/lib/pb', () => ({
   },
 }))
 
+vi.mock('@/contexts/LayoutContext', () => ({
+  useOptionalLayout: () => ({
+    setHeaderRightStartContent: setHeaderRightStartContentMock,
+  }),
+}))
+
 vi.mock('@/components/ui/dropdown-menu', () => ({
   DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuRadioGroup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuRadioItem: ({
+    children,
+    onClick,
+    className,
+  }: {
+    children: React.ReactNode
+    onClick?: () => void
+    className?: string
+  }) => (
+    <button onClick={onClick} className={className}>
+      {children}
+    </button>
+  ),
   DropdownMenuItem: ({
     children,
     onClick,
@@ -56,6 +77,7 @@ describe('AssetsPromptsPage', () => {
     window.localStorage.clear()
     openMock.mockReset()
     openMock.mockReturnValue({} as Window)
+    setHeaderRightStartContentMock.mockReset()
     vi.stubGlobal('open', openMock)
     sendMock.mockReset()
     sendMock.mockImplementation((path: string, options?: { method?: string }) => {
@@ -129,16 +151,24 @@ describe('AssetsPromptsPage', () => {
       expect(screen.getByRole('heading', { name: 'AI Prompts' })).toBeInTheDocument()
     })
 
+    expect(setHeaderRightStartContentMock).toHaveBeenCalled()
+    const breadcrumb = setHeaderRightStartContentMock.mock.calls[0]?.[0] as React.ReactElement
+    render(breadcrumb)
+    expect(screen.getByRole('link', { name: 'Assets' })).toHaveAttribute('href', '/ai-assets')
+    expect(screen.getAllByText('AI Prompts').length).toBeGreaterThan(0)
+
     expect(screen.getByPlaceholderText('Search prompts...')).toBeInTheDocument()
     expect(screen.getByText('Prompt Optimizer')).toBeInTheDocument()
     expect(screen.getByText('Support Prompt')).toBeInTheDocument()
-    expect(screen.getByText('System')).toBeInTheDocument()
-    expect(screen.getByText('Template')).toBeInTheDocument()
+    expect(screen.getAllByText('System').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Template').length).toBeGreaterThan(0)
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Prompt' }))
     const dialog = screen.getByRole('dialog')
-    expect(within(dialog).getByRole('heading', { name: 'Add Prompt' })).toBeInTheDocument()
-    expect(within(dialog).getByText('Starter')).toBeInTheDocument()
+    expect(within(dialog).getByRole('heading', { name: /Add Prompt/ })).toBeInTheDocument()
+    expect(within(dialog).getByLabelText(/Name/)).toBeInTheDocument()
+    expect(within(dialog).getByText('Starter Tempate')).toBeInTheDocument()
+    expect(within(dialog).getByDisplayValue(/## Role/)).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole('combobox'))
     fireEvent.click(screen.getByRole('option', { name: 'Code Review Assistant' }))
 

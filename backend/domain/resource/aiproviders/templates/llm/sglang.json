@@ -1,0 +1,36 @@
+{
+  "id": "sglang",
+  "title": "SGLang",
+  "vendor": "SGLang",
+  "uiGroup": "self_hosted",
+  "hostingMode": "self_hosted",
+  "serviceMode": "inference_runtime",
+  "endpointMode": "user_supplied",
+  "supportsClosedModels": false,
+  "supportsMultiVendorModels": false,
+  "description": "Self-hosted SGLang runtime exposing an OpenAI-compatible inference endpoint.",
+  "helpUrl": "https://docs.sglang.ai/",
+  "defaultEndpoint": "",
+  "defaultAuthScheme": "none",
+  "protocols": [
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "default": true
+    }
+  ],
+  "capabilities": ["chat", "embeddings", "local", "openai-compatible"],
+  "aliases": ["sglang"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "placeholder": "http://your-sglang-host:30000/v1"
+    },
+    {
+      "id": "credential",
+      "label": "Credential",
+      "required": false,
+      "sensitive": false
+    }
+  ]
+}

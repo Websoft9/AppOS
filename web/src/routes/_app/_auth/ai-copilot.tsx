@@ -7,6 +7,7 @@ import {
   Check,
   ChevronDown,
   Copy,
+  File,
   FileUp,
   Loader2,
   MoreVertical,
@@ -65,8 +66,10 @@ import { copyToClipboard } from '@/lib/clipboard'
 import {
   extractDocxText,
   extractPdfText,
+  extractSpreadsheetText,
   isDocxFile,
   isPdfFile,
+  isSpreadsheetFile,
 } from '@/lib/document-extraction'
 import { getLocale } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
@@ -281,6 +284,22 @@ async function buildDraftAttachment(
     }
     try {
       return { ...draft, textContent: await extractDocxText(file) }
+    } catch {
+      return { ...draft, error: labels.textPreviewUnavailable }
+    }
+  }
+
+  if (isSpreadsheetFile(file)) {
+    if (file.size > BINARY_DOCUMENT_BYTES_LIMIT) {
+      return {
+        ...draft,
+        error: labels.binaryDocumentTooLarge(
+          formatAttachmentSize(BINARY_DOCUMENT_BYTES_LIMIT)
+        ),
+      }
+    }
+    try {
+      return { ...draft, textContent: await extractSpreadsheetText(file) }
     } catch {
       return { ...draft, error: labels.textPreviewUnavailable }
     }
@@ -1346,22 +1365,28 @@ export function AICopilotPage() {
                       </TooltipProvider>
                       <Popover open={promptPopoverOpen} onOpenChange={setPromptPopoverOpen}>
                         <PopoverTrigger asChild>
-                          <button
+                          <Button
                             type="button"
-                            className="inline-flex h-7 items-center gap-1 rounded-md border border-input bg-background px-2 text-xs text-muted-foreground hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                            variant="ghost"
+                            className={cn(
+                              'h-7 shrink-0 rounded-md text-muted-foreground hover:bg-background/70 hover:text-foreground px-2',
+                              selectedSystemPromptAssetId && 'text-foreground'
+                            )}
                             disabled={sending || loadingPromptAssets || busySessionId === activeSessionId}
-                            aria-label="System prompt"
+                            aria-label="Prompt context"
+                            title={selectedPromptAsset?.name || 'Prompt context'}
                           >
                             {loadingPromptAssets ? (
                               <Loader2 className="h-3 w-3 animate-spin" />
                             ) : (
-                              <Bot className="h-3 w-3" />
+                              <>
+                                <span className="inline-flex items-center gap-1 text-xs">
+                                  <File className="h-3 w-3" />
+                                  <span>Context</span>
+                                </span>
+                              </>
                             )}
-                            <span className="max-w-[120px] truncate">
-                              {selectedPromptAsset?.name || 'System prompt'}
-                            </span>
-                            <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
-                          </button>
+                          </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-72 p-1" align="start">
                           <button

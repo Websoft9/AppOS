@@ -2,9 +2,23 @@
   "id": "mistral",
   "title": "Mistral",
   "vendor": "Mistral AI",
+  "uiGroup": "single_provider",
+  "hostingMode": "cloud",
+  "serviceMode": "official_provider",
+  "endpointMode": "customizable",
+  "supportsClosedModels": true,
+  "supportsMultiVendorModels": false,
   "description": "Mistral hosted LLM access using an API key.",
   "helpUrl": "https://docs.mistral.ai/",
   "defaultEndpoint": "https://api.mistral.ai/v1",
+  "protocols": [
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "default": true,
+      "defaultEndpoint": "https://api.mistral.ai/v1"
+    }
+  ],
   "capabilities": ["chat", "embeddings", "tools", "streaming"],
   "aliases": ["mistral"],
   "fields": [

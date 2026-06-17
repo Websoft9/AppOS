@@ -152,27 +152,27 @@ describe('AssetsPage', () => {
     ).toBeInTheDocument()
     expect(
       screen.getByText(
-        'Reusable system prompt assets with built-in starters and a lightweight handoff to AI Copilot.'
+        'Reusable system prompts for AI Copilot and operators.'
       )
     ).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Search assets')).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Scripts/i })).toHaveAttribute(
-      'href',
-      '/ai-assets/scripts'
-    )
-    expect(screen.getByRole('link', { name: /Skills/i })).toHaveAttribute(
-      'href',
-      '/ai-assets/skills'
-    )
     expect(screen.getByRole('link', { name: /Prompts/i })).toHaveAttribute(
       'href',
       '/ai-assets/prompts'
     )
+    expect(screen.getByRole('link', { name: /AI Skills/i })).toHaveAttribute(
+      'href',
+      '/ai-assets/skills'
+    )
+    expect(screen.getByRole('link', { name: /Scripts/i })).toHaveAttribute(
+      'href',
+      '/ai-assets/scripts'
+    )
 
-    fireEvent.click(screen.getByRole('button', { name: /Add Skill/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Add AI Skill/i }))
     expect(navigateMock).toHaveBeenCalledWith({ to: '/ai-assets/skills', search: { create: '1' } })
 
-    fireEvent.click(screen.getByRole('button', { name: /Add Prompt/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Add AI Prompt/i }))
     expect(navigateMock).toHaveBeenCalledWith({ to: '/ai-assets/prompts', search: { create: '1' } })
   })
 

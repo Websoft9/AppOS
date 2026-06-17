@@ -2,6 +2,12 @@
   "id": "deepseek",
   "title": "DeepSeek",
   "vendor": "DeepSeek",
+  "uiGroup": "single_provider",
+  "hostingMode": "cloud",
+  "serviceMode": "official_provider",
+  "endpointMode": "customizable",
+  "supportsClosedModels": true,
+  "supportsMultiVendorModels": false,
   "description": "DeepSeek hosted LLM access using an API key.",
   "helpUrl": "https://api-docs.deepseek.com/",
   "modelsEndpoint": "https://api.deepseek.com/models",
@@ -9,6 +15,14 @@
   "defaultEnabledModels": [
     "deepseek-v4-flash",
     "deepseek-v4-pro"
+  ],
+  "protocols": [
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "default": true,
+      "defaultEndpoint": "https://api.deepseek.com"
+    }
   ],
   "capabilities": ["chat", "reasoning", "tools", "streaming"],
   "aliases": ["deepseek"],

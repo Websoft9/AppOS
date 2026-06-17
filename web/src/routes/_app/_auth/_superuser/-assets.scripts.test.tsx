@@ -9,6 +9,7 @@ import { AssetsScriptsPage } from './ai-assets.scripts'
 
 const sendMock = vi.fn()
 const originalFileReader = globalThis.FileReader
+const setHeaderRightStartContentMock = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (config: Record<string, unknown>) => ({ ...config }),
@@ -34,6 +35,12 @@ vi.mock('@/lib/pb', () => ({
   },
 }))
 
+vi.mock('@/contexts/LayoutContext', () => ({
+  useOptionalLayout: () => ({
+    setHeaderRightStartContent: setHeaderRightStartContentMock,
+  }),
+}))
+
 vi.mock('@/components/ui/dropdown-menu', () => ({
   DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -57,6 +64,7 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
 describe('AssetsScriptsPage', () => {
   beforeEach(() => {
     window.history.pushState({}, '', '/ai-assets/scripts')
+    setHeaderRightStartContentMock.mockReset()
     sendMock.mockReset()
     sendMock.mockImplementation((path: string, options?: { method?: string }) => {
       if (path === '/api/assets') {
@@ -107,6 +115,12 @@ describe('AssetsScriptsPage', () => {
       expect(screen.getByRole('heading', { name: 'Scripts' })).toBeInTheDocument()
     })
 
+    expect(setHeaderRightStartContentMock).toHaveBeenCalled()
+    const breadcrumb = setHeaderRightStartContentMock.mock.calls[0]?.[0] as React.ReactElement
+    render(breadcrumb)
+    expect(screen.getByRole('link', { name: 'Assets' })).toHaveAttribute('href', '/ai-assets')
+    expect(screen.getAllByText('Scripts').length).toBeGreaterThan(0)
+
     expect(
       screen.getByText(
         'Reusable single-file assets for terminal snippets, operator workflows, and recovery actions.'
@@ -122,16 +136,17 @@ describe('AssetsScriptsPage', () => {
 
     fireEvent.click(screen.getByText('Edit'))
     const dialog = screen.getByRole('dialog')
-    expect(within(dialog).getByRole('heading', { name: 'Edit Script' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('heading', { name: /Edit Script/ })).toBeInTheDocument()
+    expect(within(dialog).getByLabelText(/Name/)).toBeInTheDocument()
     expect(within(dialog).queryByText('Metadata')).not.toBeInTheDocument()
     expect(within(dialog).queryByText('Content')).not.toBeInTheDocument()
     expect(
       within(dialog).getByRole('button', { name: 'Show advanced settings' })
     ).toBeInTheDocument()
-    expect(within(dialog).getByText('Language')).toBeInTheDocument()
+    expect(within(dialog).getByText(/Language/)).toBeInTheDocument()
     expect(within(dialog).getByText(formatScriptLanguageOptionLabel('shell'))).toBeInTheDocument()
     expect(within(dialog).getByLabelText('Script Source')).toBeInTheDocument()
-    expect(within(dialog).getByLabelText('Script Content')).toBeInTheDocument()
+    expect(within(dialog).getByLabelText(/Script Content/)).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Show advanced settings' }))
     expect(within(dialog).getByLabelText('Description')).toHaveValue('Script for backups')
     expect(within(dialog).queryByLabelText('File Path')).not.toBeInTheDocument()
@@ -174,7 +189,8 @@ describe('AssetsScriptsPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Script' }))
-    expect((screen.getByLabelText('Name') as HTMLInputElement).value).not.toBe('')
+    expect(screen.getByLabelText(/Name/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit asset name' })).not.toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Script Source'), {
       target: { value: 'https://example.com/backup.sh' },

@@ -37,9 +37,11 @@ type MessageAttachment struct {
 
 type ProviderConfig struct {
 	Name                string
+	Protocol            string
 	Endpoint            string
 	Model               string
 	APIKey              string
+	APIVersion          string
 	HTTPReferer         string
 	MaxCompletionTokens *int
 	ContextSize         int

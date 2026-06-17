@@ -1288,11 +1288,20 @@
       "title": "Choose a Product",
       "description": "Choose a provider product, then enter connection details.",
       "searchPlaceholder": "Search products like OpenAI, Ollama, Anthropic, OpenRouter...",
-      "emptyMessage": "No matching products found."
+      "emptyMessage": "No matching products found.",
+      "loading": "Loading products...",
+      "help": "Help",
+      "groups": {
+        "singleProvider": "Single Vendor Model Provider",
+        "cloudGateway": "Cloud MaaS Gateway",
+        "selfHosted": "Self-Hosted Inference / Proxy"
+      }
     },
     "columns": {
       "name": "Name",
       "enabled": "Enabled",
+      "provider": "Provider",
+      "enabledModels": "Enabled Model(s)",
       "profile": "Profile",
       "reachability": "Reachability",
       "endpoint": "Endpoint",
@@ -1301,7 +1310,10 @@
     },
     "actions": {
       "enable": "Enable",
-      "disable": "Disable"
+      "disable": "Disable",
+      "testConnection": "Test it",
+      "editEndpoint": "Edit endpoint",
+      "finishEditingEndpoint": "Finish editing endpoint"
     },
     "enabled": {
       "yes": "Yes",
@@ -1314,8 +1326,14 @@
     },
     "fields": {
       "name": "Name",
+      "provider": "Provider",
       "profile": "Profile",
       "description": "Description",
+      "enableIt": "Enable it",
+      "authScheme": "Auth Scheme",
+      "enabledModels": "Enabled Models",
+      "apiEndpoint": "API Endpoint",
+      "openaiCompatibleUrl": "OpenAI Compatible URL",
       "selectedProduct": "Selected Product",
       "selectedProductMeta": "Selected Product Meta",
       "selectedProductDescription": "Selected Product Description",
@@ -1326,9 +1344,16 @@
       "groups": "Groups",
       "apiKey": "API Key"
     },
+    "authSchemes": {
+      "bearer": "Bearer token",
+      "api_key": "API key header",
+      "basic": "Basic auth",
+      "none": "No auth"
+    },
     "placeholders": {
       "name": "my-ai-provider",
-      "advancedConfig": "{\"temperature\": 0.2}"
+      "advancedConfig": "{\"temperature\": 0.2}",
+      "groups": "Select groups"
     },
     "credential": {
       "enterField": "Enter {{field}}",
@@ -1345,6 +1370,7 @@
       "newProvider": "New AI Provider",
       "editTitle": "Edit title",
       "add": "Add",
+      "cancel": "Cancel",
       "update": "Update",
       "suffix": "AI Provider"
     },

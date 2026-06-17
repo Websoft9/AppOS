@@ -30,11 +30,23 @@ export type AIProviderTemplateField = {
   default?: unknown
 }
 
+export type AIProviderTemplateProtocol = {
+  id: string
+  label: string
+  default?: boolean
+  defaultEndpoint?: string
+  modelsEndpoint?: string
+}
+
 export type AIProviderTemplate = {
   id: string
   kind: string
   title: string
   vendor?: string
+  uiGroup?: string
+  hostingMode?: string
+  serviceMode?: string
+  endpointMode?: string
   providerMode?: string
   description?: string
   helpUrl?: string
@@ -44,8 +56,16 @@ export type AIProviderTemplate = {
   defaultAuthScheme?: string
   defaultEnabledModels?: string[]
   capabilities?: string[]
+  supportsClosedModels?: boolean
+  supportsMultiVendorModels?: boolean
+  protocols?: AIProviderTemplateProtocol[]
   fields?: AIProviderTemplateField[]
 }
+
+export type AIProviderSelectionGroupKey =
+  | 'singleProvider'
+  | 'cloudGateway'
+  | 'selfHosted'
 
 type ProviderModelLike = {
   id?: unknown
@@ -88,6 +108,145 @@ export function chooserTitle(template: AIProviderTemplate) {
   return productTitle(template)
 }
 
+export function normalizeProtocolId(value: string) {
+  return value.trim().toLowerCase()
+}
+
+function fallbackTemplateProtocols(template: AIProviderTemplate): AIProviderTemplateProtocol[] {
+  if (template.id === 'anthropic') {
+    return [
+      {
+        id: 'anthropic',
+        label: 'Anthropic',
+        default: true,
+        defaultEndpoint: template.defaultEndpoint,
+      },
+    ]
+  }
+  if (template.id === 'ollama') {
+    return [
+      {
+        id: 'ollama',
+        label: 'Ollama',
+        default: true,
+        defaultEndpoint: 'http://localhost:11434',
+        modelsEndpoint: '/api/tags',
+      },
+    ]
+  }
+  return [
+    {
+      id: 'openai',
+      label: 'OpenAI',
+      default: true,
+      defaultEndpoint: template.defaultEndpoint,
+    },
+  ]
+}
+
+export function normalizeTemplateProtocols(
+  template: AIProviderTemplate | null | undefined
+): AIProviderTemplateProtocol[] {
+  if (!template) return []
+  const protocols = Array.isArray(template.protocols) && template.protocols.length > 0
+    ? template.protocols
+    : fallbackTemplateProtocols(template)
+  return protocols
+    .map(protocol => ({
+      ...protocol,
+      id: normalizeProtocolId(String(protocol.id ?? '')),
+      label: String(protocol.label ?? protocol.id ?? '').trim() || String(protocol.id ?? ''),
+      defaultEndpoint: String(protocol.defaultEndpoint ?? '').trim(),
+      modelsEndpoint: String(protocol.modelsEndpoint ?? '').trim(),
+    }))
+    .filter(protocol => protocol.id)
+}
+
+export function defaultTemplateProtocol(
+  template: AIProviderTemplate | null | undefined,
+  preferred?: unknown
+) {
+  const preferredId = normalizeProtocolId(String(preferred ?? ''))
+  const protocols = normalizeTemplateProtocols(template)
+  if (preferredId && protocols.some(protocol => protocol.id === preferredId)) {
+    return preferredId
+  }
+  const marked = protocols.find(protocol => protocol.default)
+  if (marked) return marked.id
+  return protocols[0]?.id ?? 'openai'
+}
+
+export function protocolEndpointFieldKey(protocolId: string) {
+  return `protocol_endpoint_${normalizeProtocolId(protocolId)}`
+}
+
+export function resolveTemplateProtocolEndpoint(
+  protocol: AIProviderTemplateProtocol,
+  values: Record<string, unknown> = {}
+) {
+  const endpointTemplate = String(protocol.defaultEndpoint ?? '').trim()
+  if (!endpointTemplate) return ''
+  return endpointTemplate.replaceAll(/\{([^}]+)\}/g, (_match, key: string) => {
+    const resolved = String(values[key] ?? '').trim()
+    if (resolved) return resolved
+    if (key === 'region') return 'us-east-1'
+    return ''
+  })
+}
+
+export function buildProtocolFieldDefaults(
+  template: AIProviderTemplate | null | undefined,
+  values: Record<string, unknown> = {}
+) {
+  const protocols = normalizeTemplateProtocols(template)
+  const defaults: Record<string, unknown> = {
+    default_protocol: defaultTemplateProtocol(template),
+  }
+  for (const protocol of protocols) {
+    defaults[protocolEndpointFieldKey(protocol.id)] = resolveTemplateProtocolEndpoint(protocol, values)
+  }
+  return defaults
+}
+
+export function resolveCurrentProtocolEndpoint(
+  template: AIProviderTemplate | null | undefined,
+  values: Record<string, unknown>
+) {
+  const defaultProtocol = defaultTemplateProtocol(template, values.default_protocol)
+  return String(values[protocolEndpointFieldKey(defaultProtocol)] ?? values.endpoint ?? '').trim()
+}
+
+export function resolveProviderDefaultProtocol(
+  item: AIProviderRecord,
+  template?: AIProviderTemplate | null
+) {
+  const configured = normalizeProtocolId(String(item.config?.default_protocol ?? ''))
+  return defaultTemplateProtocol(template ?? null, configured)
+}
+
+export function resolveProviderProtocolEndpoints(
+  item: AIProviderRecord,
+  template?: AIProviderTemplate | null
+) {
+  const defaultProtocol = resolveProviderDefaultProtocol(item, template)
+  const result: Record<string, string> = {}
+  const raw = item.config?.protocol_endpoints
+  if (raw && typeof raw === 'object') {
+    for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+      const normalizedKey = normalizeProtocolId(key)
+      const trimmedValue = String(value ?? '').trim()
+      if (normalizedKey && trimmedValue) {
+        result[normalizedKey] = trimmedValue
+      }
+    }
+  }
+  const activeEndpoint = String(item.endpoint ?? '').trim()
+  if (defaultProtocol && activeEndpoint && !result[defaultProtocol]) {
+    result[defaultProtocol] = activeEndpoint
+  }
+  return result
+}
+
 export function isGatewayProviderTemplate(template: AIProviderTemplate | null | undefined) {
   return (
     String(template?.providerMode ?? '')
@@ -96,8 +255,28 @@ export function isGatewayProviderTemplate(template: AIProviderTemplate | null | 
   )
 }
 
+export function isGenericOpenAICompatibleTemplate(
+  template: AIProviderTemplate | null | undefined
+) {
+  return String(template?.id ?? '').trim() === 'generic-llm'
+}
+
+export function providerSelectionGroupKey(
+  template: AIProviderTemplate | null | undefined
+): AIProviderSelectionGroupKey {
+  const group = String(template?.uiGroup ?? '').trim().toLowerCase()
+  if (group === 'cloud_gateway') return 'cloudGateway'
+  if (group === 'self_hosted') return 'selfHosted'
+  if (group === 'single_provider') return 'singleProvider'
+  if (isGatewayProviderTemplate(template)) return 'cloudGateway'
+  return 'singleProvider'
+}
+
 export function providerSelectionGroup(template: AIProviderTemplate) {
-  return isGatewayProviderTemplate(template) ? 'LLM Gateway' : 'Provider'
+  const group = providerSelectionGroupKey(template)
+  if (group === 'cloudGateway') return 'Cloud MaaS Gateway'
+  if (group === 'selfHosted') return 'Self-Hosted Inference / Proxy'
+  return 'Single Vendor Model Provider'
 }
 
 export function normalizeEnabledModels(value: unknown): string[] {
@@ -151,6 +330,13 @@ export function resolveTemplateEndpoint(
   template: AIProviderTemplate | null | undefined,
   values: Record<string, unknown> = {}
 ) {
+  const protocol = defaultTemplateProtocol(template, values.default_protocol)
+  const configured = String(values[protocolEndpointFieldKey(protocol)] ?? '').trim()
+  if (configured) return configured
+  const protocolConfig = normalizeTemplateProtocols(template).find(item => item.id === protocol)
+  if (protocolConfig) {
+    return resolveTemplateProtocolEndpoint(protocolConfig, values)
+  }
   const endpointTemplate = String(template?.defaultEndpoint ?? '').trim()
   if (!endpointTemplate) return ''
   return endpointTemplate.replaceAll(/\{([^}]+)\}/g, (_match, key: string) => {
@@ -269,11 +455,14 @@ export async function buildAIProviderPayload(
     )
   }
 
-  let authScheme = template.defaultAuthScheme ?? 'none'
+  const explicitAuthScheme = String(body.auth_scheme ?? '').trim()
+  let authScheme = explicitAuthScheme || String(template.defaultAuthScheme ?? 'none')
   if (credentialId) {
-    const secret = await pb.collection('secrets').getOne(credentialId)
-    const secretTemplateId = String(secret.template_id ?? '')
-    authScheme = resolveAuthScheme(template, secretTemplateId)
+    if (!explicitAuthScheme) {
+      const secret = await pb.collection('secrets').getOne(credentialId)
+      const secretTemplateId = String(secret.template_id ?? '')
+      authScheme = resolveAuthScheme(template, secretTemplateId)
+    }
   }
 
   const extra =
@@ -313,6 +502,23 @@ export async function buildAIProviderPayload(
     delete config.enabled_models
   }
 
+  const defaultProtocol = defaultTemplateProtocol(template, body.default_protocol)
+  const protocolEndpoints: Record<string, string> = {}
+  for (const protocol of normalizeTemplateProtocols(template)) {
+    const endpoint = String(body[protocolEndpointFieldKey(protocol.id)] ?? '').trim()
+    if (endpoint) {
+      protocolEndpoints[protocol.id] = endpoint
+    }
+  }
+  const activeEndpoint =
+    protocolEndpoints[defaultProtocol] || String(body.endpoint ?? template.defaultEndpoint ?? '').trim()
+  config.default_protocol = defaultProtocol
+  if (Object.keys(protocolEndpoints).length > 0) {
+    config.protocol_endpoints = protocolEndpoints
+  } else {
+    delete config.protocol_endpoints
+  }
+
   return {
     name: String(body.name ?? ''),
     kind: template.kind,
@@ -320,7 +526,7 @@ export async function buildAIProviderPayload(
       ? { is_enabled: resolveAIProviderEnabled(body.is_enabled) }
       : {}),
     template_id: template.id,
-    endpoint: String(body.endpoint ?? template.defaultEndpoint ?? ''),
+    endpoint: activeEndpoint,
     auth_scheme: authScheme,
     credential: credentialId,
     enabled_models: enabledModels,

@@ -2,9 +2,23 @@
   "id": "groq",
   "title": "Groq",
   "vendor": "Groq",
+  "uiGroup": "single_provider",
+  "hostingMode": "cloud",
+  "serviceMode": "official_provider",
+  "endpointMode": "customizable",
+  "supportsClosedModels": false,
+  "supportsMultiVendorModels": false,
   "description": "Groq-hosted OpenAI-compatible inference endpoint.",
   "helpUrl": "https://console.groq.com/docs/overview",
   "defaultEndpoint": "https://api.groq.com/openai/v1",
+  "protocols": [
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "default": true,
+      "defaultEndpoint": "https://api.groq.com/openai/v1"
+    }
+  ],
   "capabilities": ["chat", "tools", "streaming", "openai-compatible"],
   "aliases": ["groq"],
   "fields": [

@@ -27,6 +27,28 @@ export function isDocxFile(file: File): boolean {
   return file.name.toLowerCase().endsWith('.docx')
 }
 
+export function isSpreadsheetFile(file: File): boolean {
+  if (
+    file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    file.type === 'application/vnd.ms-excel' ||
+    file.type === 'application/vnd.ms-excel.sheet.macroEnabled.12' ||
+    file.type === 'application/vnd.oasis.opendocument.spreadsheet' ||
+    file.type === 'text/csv' ||
+    file.type === 'application/csv'
+  ) {
+    return true
+  }
+
+  const name = file.name.toLowerCase()
+  return (
+    name.endsWith('.xlsx') ||
+    name.endsWith('.xls') ||
+    name.endsWith('.xlsm') ||
+    name.endsWith('.csv') ||
+    name.endsWith('.ods')
+  )
+}
+
 async function loadPdfJs() {
   if (!pdfJsAssetsPromise) {
     pdfJsAssetsPromise = Promise.all([
@@ -82,4 +104,24 @@ export async function extractDocxText(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer()
   const result = await mammoth.extractRawText({ arrayBuffer })
   return result.value.trim()
+}
+
+export async function extractSpreadsheetText(file: File): Promise<string> {
+  if (file.size > DOCUMENT_BYTES_LIMIT) {
+    throw new Error('Spreadsheet file too large')
+  }
+
+  const XLSX = await import('xlsx')
+  const arrayBuffer = await file.arrayBuffer()
+  const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' })
+
+  const parts = workbook.SheetNames.map(sheetName => {
+    const sheet = workbook.Sheets[sheetName]
+    if (!sheet) return ''
+    const csv = XLSX.utils.sheet_to_csv(sheet, { blankrows: false }).trim()
+    if (!csv) return ''
+    return workbook.SheetNames.length > 1 ? `# ${sheetName}\n${csv}` : csv
+  }).filter(Boolean)
+
+  return parts.join('\n\n').trim()
 }

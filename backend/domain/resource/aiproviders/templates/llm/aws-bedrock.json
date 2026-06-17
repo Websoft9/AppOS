@@ -2,17 +2,30 @@
   "id": "aws-bedrock",
   "title": "AWS Bedrock",
   "vendor": "Amazon Web Services",
+  "uiGroup": "cloud_gateway",
+  "hostingMode": "cloud",
+  "serviceMode": "maas_platform",
+  "endpointMode": "customizable",
   "providerMode": "gateway",
+  "supportsClosedModels": true,
+  "supportsMultiVendorModels": true,
   "description": "Amazon Bedrock gateway for foundation models from multiple vendors.",
   "helpUrl": "https://docs.aws.amazon.com/bedrock/latest/userguide/endpoints.html",
   "defaultEndpoint": "https://bedrock-mantle.{region}.api.aws/v1",
   "defaultEnabledModels": [
-    "anthropic.claude-3-5-sonnet-20240620-v1:0",
-    "anthropic.claude-3-5-haiku-20241022-v1:0",
-    "amazon.nova-pro-v1:0",
-    "8888"
+    "openai.gpt-5.4",
+    "openai.gpt-5.5",
+    "anthropic.claude-opus-4-8"
   ],
   "capabilities": ["chat", "routing", "streaming"],
+  "protocols": [
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "default": true,
+      "defaultEndpoint": "https://bedrock-mantle.{region}.api.aws/v1"
+    }
+  ],
   "aliases": ["aws bedrock", "bedrock", "aws-bedrock"],
   "fields": [
     {

@@ -81,9 +81,11 @@ func (r *DefaultProviderResolver) defaultProvider() (*aiproviders.AIProvider, er
 }
 
 func (r *DefaultProviderResolver) providerConfig(ctx context.Context, actorID string, selected *aiproviders.AIProvider) (*ProviderConfig, error) {
-	endpoint := strings.TrimSpace(selected.Endpoint())
+	protocol := aiproviders.ProviderDefaultProtocol(selected)
+	endpoint := strings.TrimSpace(aiproviders.ActiveEndpoint(selected))
 	credentialID := strings.TrimSpace(selected.CredentialID())
 	model := firstConfigString(selected.Config(), "defaultModel", "model")
+	apiVersion := firstConfigString(selected.Config(), "version", "apiVersion")
 	httpReferer := firstConfigString(selected.Config(), "httpReferer", "http_referer", "referer")
 	maxCompletionTokens := firstConfigInt(selected.Config(), "max_completion_tokens", "maxCompletionTokens")
 	if endpoint == "" || credentialID == "" {
@@ -105,9 +107,11 @@ func (r *DefaultProviderResolver) providerConfig(ctx context.Context, actorID st
 
 	return &ProviderConfig{
 		Name:                selected.Name(),
+		Protocol:            protocol,
 		Endpoint:            strings.TrimRight(endpoint, "/"),
 		Model:               model,
 		APIKey:              apiKey,
+		APIVersion:          apiVersion,
 		HTTPReferer:         httpReferer,
 		MaxCompletionTokens: maxCompletionTokens,
 		ContextSize:         tpl.ContextSize,

@@ -14,6 +14,7 @@ type AIProvider = connectors.Connector
 type Snapshot = connectors.Snapshot
 type Template = connectors.Template
 type TemplateField = connectors.TemplateField
+type TemplateProtocol = connectors.TemplateProtocol
 
 func AllowedKinds() []string {
 	return []string{KindLLM}

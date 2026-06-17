@@ -2,20 +2,26 @@
   "id": "google-gemini",
   "title": "Google Gemini",
   "vendor": "Google",
+  "uiGroup": "single_provider",
+  "hostingMode": "cloud",
+  "serviceMode": "official_provider",
+  "endpointMode": "customizable",
+  "supportsClosedModels": true,
+  "supportsMultiVendorModels": false,
   "description": "Google Gemini hosted LLM access through the Generative Language API.",
   "helpUrl": "https://ai.google.dev/gemini-api/docs/openai",
   "modelsEndpoint": "/models",
   "defaultEndpoint": "https://generativelanguage.googleapis.com/v1beta/openai",
   "defaultEnabledModels": [
-    "gemini-3.5-flash",
-    "gemini-3-flash-preview",
-    "gemini-3.1-pro-preview",
-    "gemini-3.1-flash-lite",
-    "gemini-3.1-flash-image",
-    "gemini-3-pro-image",
-    "gemini-3.5-live-translate-preview",
-    "gemini-3.1-flash-live-preview",
-    "gemini-3.1-flash-tts-preview"
+    "gemini-3.5-flash"
+  ],
+  "protocols": [
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "default": true,
+      "defaultEndpoint": "https://generativelanguage.googleapis.com/v1beta/openai"
+    }
   ],
   "capabilities": ["chat", "multimodal", "tools", "streaming"],
   "aliases": ["google gemini", "gemini", "google-gemini"],

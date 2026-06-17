@@ -13,6 +13,7 @@ const sendMessageMock = vi.fn()
 const navigateMock = vi.fn()
 const extractPdfTextMock = vi.fn()
 const extractDocxTextMock = vi.fn()
+const extractSpreadsheetTextMock = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (config: Record<string, unknown>) => config,
@@ -64,7 +65,7 @@ vi.mock('react-i18next', () => ({
         case 'actions.uploadFiles':
           return 'Upload files'
         case 'actions.uploadFilesHelp':
-          return 'Supported for reading: text files, PDF, DOCX, DOC'
+          return 'Supported for reading: text files, PDF, DOCX, XLSX, XLS, XLSM, CSV, ODS'
         case 'actions.sendMessage':
           return 'Send message'
         case 'actions.copyMarkdown':
@@ -104,9 +105,7 @@ vi.mock('react-i18next', () => ({
         case 'messages.textPreviewUnavailable':
           return 'Text preview unavailable for this file.'
         case 'messages.unsupportedAttachmentType':
-          return 'Only text, PDF, DOCX, and DOC uploads are supported here.'
-        case 'messages.legacyDocUnsupported':
-          return 'Legacy DOC files cannot be read yet. Convert the file to DOCX or text first.'
+          return 'Only text, PDF, DOCX, XLSX, XLS, XLSM, CSV, and ODS uploads can be read here.'
         case 'messages.readingAttachments':
           return `Reading ${options?.count ?? ''} attachment(s)...`
         case 'messages.attachmentsReady':
@@ -172,9 +171,11 @@ vi.mock('@/lib/ai-copilot-api', () => ({
 vi.mock('@/lib/document-extraction', () => ({
   extractPdfText: (...args: unknown[]) => extractPdfTextMock(...args),
   extractDocxText: (...args: unknown[]) => extractDocxTextMock(...args),
+  extractSpreadsheetText: (...args: unknown[]) => extractSpreadsheetTextMock(...args),
   isPdfFile: (file: File) => file.name.toLowerCase().endsWith('.pdf'),
   isDocxFile: (file: File) => file.name.toLowerCase().endsWith('.docx'),
-  isDocFile: (file: File) => file.name.toLowerCase().endsWith('.doc'),
+  isSpreadsheetFile: (file: File) =>
+    ['.xlsx', '.xls', '.xlsm', '.csv', '.ods'].some(ext => file.name.toLowerCase().endsWith(ext)),
 }))
 
 afterEach(() => {
@@ -202,6 +203,7 @@ describe('AICopilotPage', () => {
     navigateMock.mockReset()
     extractPdfTextMock.mockReset()
     extractDocxTextMock.mockReset()
+    extractSpreadsheetTextMock.mockReset()
     listSessionsMock.mockResolvedValue([{ id: 'session-1', title: 'Ops chat' }])
     listMessagesMock.mockResolvedValue([
       { id: 'msg-1', session_id: 'session-1', role: 'user', content: 'hello' },
@@ -232,6 +234,7 @@ describe('AICopilotPage', () => {
     vi.mocked(navigator.clipboard.writeText).mockResolvedValue(undefined)
     extractPdfTextMock.mockResolvedValue('pdf content')
     extractDocxTextMock.mockResolvedValue('docx content')
+    extractSpreadsheetTextMock.mockResolvedValue('sheet content')
   })
 
   it('loads sessions and message history', async () => {
@@ -507,6 +510,47 @@ describe('AICopilotPage', () => {
           expect.objectContaining({
             name: 'report.pdf',
             text_content: 'pdf content',
+          }),
+        ],
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      )
+    )
+  })
+
+  it('reads uploaded spreadsheet files before sending them', async () => {
+    render(<AICopilotPage />)
+    const input = await screen.findByPlaceholderText(
+      'Ask about operations, diagnosis, or AppOS knowledge'
+    )
+    const upload = screen.getByLabelText('Chat file upload') as HTMLInputElement
+    const sendButton = screen.getByRole('button', { name: 'Send message' })
+    const file = new File(['sheet'], 'report.xlsx', {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+
+    Object.defineProperty(upload, 'files', {
+      value: [file],
+      configurable: true,
+    })
+    fireEvent.change(upload)
+
+    sendMessageMock.mockResolvedValue(undefined)
+
+    await screen.findByText('Read 1 attachment(s). Ready to send to the AI model.')
+    fireEvent.change(input, { target: { value: 'review spreadsheet' } })
+    fireEvent.click(sendButton)
+
+    await waitFor(() =>
+      expect(sendMessageMock).toHaveBeenCalledWith(
+        'session-1',
+        'review spreadsheet',
+        'provider-1',
+        'openai/gpt-4.1-mini',
+        expect.any(Object),
+        [
+          expect.objectContaining({
+            name: 'report.xlsx',
+            text_content: 'sheet content',
           }),
         ],
         expect.objectContaining({ signal: expect.any(AbortSignal) })

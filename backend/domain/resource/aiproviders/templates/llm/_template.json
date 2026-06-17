@@ -1,6 +1,7 @@
 {
   "kind": "llm",
   "category": "AI",
+  "endpointMode": "customizable",
   "description": "Reusable AI provider profile.",
   "defaultAuthScheme": "api_key",
   "capabilities": ["chat"],

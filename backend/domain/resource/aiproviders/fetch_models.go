@@ -9,9 +9,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 )
+
+var placeholderPattern = regexp.MustCompile(`\{([^}]+)\}`)
 
 type FetchedModel struct {
 	ID               string
@@ -29,7 +32,7 @@ type FetchModelsResponse struct {
 	Groups []FetchModelsGroup
 }
 
-func FetchModels(ctx context.Context, endpoint string, apiKey string, templateID string) (FetchModelsResponse, error) {
+func FetchModels(ctx context.Context, endpoint string, apiKey string, templateID string, protocol string) (FetchModelsResponse, error) {
 	endpoint = strings.TrimSpace(endpoint)
 	if endpoint == "" {
 		return FetchModelsResponse{}, errors.New("endpoint is required")
@@ -38,15 +41,24 @@ func FetchModels(ctx context.Context, endpoint string, apiKey string, templateID
 	modelsURL := strings.TrimRight(endpoint, "/") + "/models"
 	useBearerAuth := false
 	useQueryAPIKey := false
+	useAnthropicHeaders := false
 	var tpl Template
 	var hasTemplate bool
 	if templateID != "" {
 		tpl, hasTemplate = FindTemplate(templateID)
-		if hasTemplate && tpl.ModelsEndpoint != "" {
+		if protocolTpl, ok := findTemplateProtocol(tpl, protocol); ok && strings.TrimSpace(protocolTpl.ModelsEndpoint) != "" {
+			modelsURL = resolveModelsEndpoint(endpoint, protocolTpl.ModelsEndpoint)
+		} else if hasTemplate && tpl.ModelsEndpoint != "" {
 			modelsURL = resolveModelsEndpoint(endpoint, tpl.ModelsEndpoint)
 		}
 	}
-	if isGoogleGeminiProvider(templateID, endpoint) {
+	normalizedProtocol := NormalizeProtocol(protocol)
+	if normalizedProtocol == ProtocolAnthropic {
+		useAnthropicHeaders = true
+		modelsURL = strings.TrimRight(endpoint, "/") + "/models"
+	} else if normalizedProtocol == ProtocolOllama {
+		modelsURL = resolveModelsEndpoint(endpoint, "/api/tags")
+	} else if isGoogleGeminiProvider(templateID, endpoint) {
 		modelsURL = resolveGoogleGeminiModelsURL(endpoint)
 		useBearerAuth = isGoogleGeminiOpenAIEndpoint(endpoint)
 		useQueryAPIKey = !useBearerAuth
@@ -84,6 +96,11 @@ func FetchModels(ctx context.Context, endpoint string, apiKey string, templateID
 			query.Set("key", apiKey)
 			request.URL.RawQuery = query.Encode()
 		}
+	} else if useAnthropicHeaders {
+		if apiKey != "" {
+			request.Header.Set("x-api-key", apiKey)
+		}
+		request.Header.Set("anthropic-version", resolveAnthropicVersion(tpl))
 	} else if useBearerAuth && apiKey != "" {
 		request.Header.Set("Authorization", "Bearer "+apiKey)
 	}
@@ -120,6 +137,28 @@ func FetchModels(ctx context.Context, endpoint string, apiKey string, templateID
 	}
 
 	return buildFetchModelsResponse(parsed, defaultEnabled, templateID), nil
+}
+
+func findTemplateProtocol(template Template, protocol string) (TemplateProtocol, bool) {
+	normalized := NormalizeProtocol(protocol)
+	for _, item := range TemplateProtocols(template) {
+		if NormalizeProtocol(item.ID) == normalized {
+			return item, true
+		}
+	}
+	return TemplateProtocol{}, false
+}
+
+func resolveAnthropicVersion(template Template) string {
+	for _, field := range template.Fields {
+		if strings.TrimSpace(field.ID) != "version" {
+			continue
+		}
+		if value := strings.TrimSpace(fmt.Sprint(field.Default)); value != "" && value != "<nil>" {
+			return value
+		}
+	}
+	return "2023-06-01"
 }
 
 func buildFetchModelsResponse(parsed any, defaultEnabled map[string]struct{}, templateID string) FetchModelsResponse {
@@ -263,6 +302,10 @@ func isAWSBedrockProvider(templateID string, endpoint string) bool {
 }
 
 func resolveAWSBedrockModelsURL(endpoint string) (string, error) {
+	host := extractEndpointHostname(endpoint)
+	if strings.HasPrefix(host, "bedrock-mantle.") {
+		return strings.TrimRight(endpoint, "/") + "/models", nil
+	}
 	region := extractAWSBedrockRegion(endpoint)
 	if region == "" {
 		return "", errors.New("could not determine AWS Bedrock region from endpoint")

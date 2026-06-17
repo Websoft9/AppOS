@@ -39,19 +39,27 @@ import { buildUserVisibleSecretRelationApiPath } from '@/components/secrets/reso
 import {
   AI_PROVIDER_CREDENTIAL_TEMPLATE_ID,
   buildAIProviderPayload,
+  buildProtocolFieldDefaults,
+  defaultTemplateProtocol,
   formatSecretLabel,
   inferAWSRegionFromEndpoint,
   type AIProviderRecord,
+  type AIProviderSelectionGroupKey,
   type AIProviderTemplate,
   type AIProviderTemplateField,
+  isGenericOpenAICompatibleTemplate,
   isAdvancedProviderField,
   reconcileProviderModelSelection,
   normalizeTemplateFieldDefault,
   normalizeEnabledModels,
-  providerSelectionGroup,
+  providerSelectionGroupKey,
+  protocolEndpointFieldKey,
   productTitle,
+  resolveCurrentProtocolEndpoint,
   resolveTemplateEndpoint,
   resolveAIProviderEnabled,
+  resolveProviderDefaultProtocol,
+  resolveProviderProtocolEndpoints,
   sanitizeProviderModelGroups,
   sanitizeProviderModelOptions,
 } from '@/lib/ai-providers'
@@ -72,6 +80,13 @@ type ProviderModelsResponse = {
   groups?: ProviderModelGroup[]
 }
 
+const AUTH_SCHEME_OPTIONS: SelectOption[] = [
+  { label: 'Bearer token', value: 'bearer' },
+  { label: 'API key header', value: 'api_key' },
+  { label: 'Basic auth', value: 'basic' },
+  { label: 'No auth', value: 'none' },
+]
+
 function humanizeTemplateId(templateId: string) {
   return templateId
     .split('-')
@@ -80,10 +95,23 @@ function humanizeTemplateId(templateId: string) {
     .join(' ')
 }
 
-function renderEndpointFieldLabel(helpUrl: string) {
+function providerSelectionGroupLabel(t: Translate, group: AIProviderSelectionGroupKey) {
+  return t(`aiProviders.selection.groups.${group}`)
+}
+
+function resolveEndpointFieldTitle(
+  t: Translate,
+  template: AIProviderTemplate | null | undefined
+) {
+  return defaultTemplateProtocol(template) === 'anthropic'
+    ? t('aiProviders.fields.apiEndpoint')
+    : t('aiProviders.fields.openaiCompatibleUrl')
+}
+
+function renderEndpointFieldLabel(label: string, helpUrl: string) {
   return (
     <div className="flex items-center gap-2">
-      <label className="text-sm font-medium text-foreground">API Endpoint</label>
+      <label className="text-sm font-medium text-foreground">{label}</label>
       {helpUrl ? (
         <a
           href={helpUrl}
@@ -376,11 +404,13 @@ function mapAIProviderRow(
 
   const advancedConfig = Object.fromEntries(
     Object.entries(item.config ?? {}).filter(
-      ([key]) => !knownFieldIDs.has(key) && key !== 'enabled_models'
+      ([key]) => !knownFieldIDs.has(key) && !['enabled_models', 'default_protocol', 'protocol_endpoints'].includes(key)
     )
   )
 
   const enabledModels = normalizeEnabledModels(item.enabled_models ?? item.config?.enabled_models)
+  const defaultProtocol = resolveProviderDefaultProtocol(item, template)
+  const protocolEndpoints = resolveProviderProtocolEndpoints(item, template)
   const inferredRegion =
     String(item.template_id ?? '') === 'aws-bedrock'
       ? String(item.config?.region ?? '').trim() ||
@@ -396,6 +426,8 @@ function mapAIProviderRow(
     enabled_status: normalizeEnabledStatus(item.is_enabled),
     reachability: reachabilityOverrides?.get(String(item.id ?? '')) ?? resolveReachability(item, t),
     endpoint: String(item.endpoint ?? ''),
+    default_protocol: defaultProtocol,
+    auth_scheme: String(item.auth_scheme ?? ''),
     credential: String(item.credential ?? ''),
     credential_name:
       secretNamesById.get(String(item.credential ?? '').trim()) ??
@@ -412,6 +444,12 @@ function mapAIProviderRow(
     updated: String(item.updated ?? ''),
     advanced_config:
       Object.keys(advancedConfig).length > 0 ? JSON.stringify(advancedConfig, null, 2) : '',
+    ...Object.fromEntries(
+      Object.entries(protocolEndpoints).map(([protocol, endpointValue]) => [
+        protocolEndpointFieldKey(protocol),
+        endpointValue,
+      ])
+    ),
     ...flattenedConfig,
   }
 }
@@ -446,7 +484,7 @@ function buildColumns(
     },
     {
       key: 'provider',
-      label: 'Provider',
+      label: t('aiProviders.columns.provider'),
       searchable: true,
       sortable: true,
       filterOptions: providerOptions,
@@ -505,7 +543,7 @@ function buildColumns(
     },
     {
       key: 'enabled_models_count',
-      label: 'Enabled Model(s)',
+      label: t('aiProviders.columns.enabledModels'),
       render: (_value, row) => {
         const id = String(row.id ?? '')
         const count = enabledModelsCount[id]
@@ -600,7 +638,7 @@ export function AIProvidersPage() {
       editingItem: Record<string, unknown> | null,
       onPruneSelection?: (models: string[]) => void,
       currentSelection?: unknown,
-      fetchInput?: { endpoint: string; apiKey: string; templateID: string }
+      fetchInput?: { endpoint: string; apiKey: string; templateID: string; protocol: string }
     ) => {
       setEditTestResult({ loading: true })
       setEditModelsValidated(false)
@@ -614,6 +652,7 @@ export function AIProvidersPage() {
               endpoint: fetchInput.endpoint,
               api_key: fetchInput.apiKey,
               template_id: fetchInput.templateID,
+              protocol: fetchInput.protocol,
             },
           })
         } else {
@@ -800,9 +839,9 @@ export function AIProvidersPage() {
       providerTemplates.map(template => ({
         label: template.title,
         value: template.id,
-        group: providerSelectionGroup(template),
+        group: providerSelectionGroupLabel(t, providerSelectionGroupKey(template)),
       })),
-    [providerTemplates]
+    [providerTemplates, t]
   )
 
   const providerFilterOptions = useMemo<SelectOption[]>(
@@ -923,42 +962,57 @@ export function AIProvidersPage() {
 
   const renderEndpointField = useCallback<NonNullable<FieldDef['render']>>(
     ({ inputId, formData, updateField }) => {
-      const current = String(formData.endpoint ?? '')
-      const editing = Boolean(formData.endpoint_editing)
       const selectedTemplate = providerTemplatesById.get(String(formData.template_id ?? ''))
       const helpUrl = String(selectedTemplate?.helpUrl ?? '').trim()
+      const defaultProtocol = defaultTemplateProtocol(selectedTemplate, formData.default_protocol)
+      const endpointEditing = Boolean(formData.endpoint_editing)
+      const endpointLabel = resolveEndpointFieldTitle(t, selectedTemplate)
+      const endpointValue = String(
+        formData.endpoint ??
+          formData[protocolEndpointFieldKey(defaultProtocol)] ??
+          resolveTemplateEndpoint(selectedTemplate, formData)
+      )
+      const endpointPlaceholder = String(
+        selectedTemplate?.fields?.find(field => field.id === 'endpoint')?.placeholder ??
+          resolveTemplateEndpoint(selectedTemplate, formData)
+      )
 
       return (
         <div className="space-y-1.5">
-          {renderEndpointFieldLabel(helpUrl)}
+          {renderEndpointFieldLabel(endpointLabel, helpUrl)}
           <div className="flex items-center gap-2">
             <input
               id={inputId}
               type="text"
-              className={`border-input h-10 w-full rounded-md border px-3 text-sm ${editing ? 'bg-background' : 'bg-muted/40 text-muted-foreground'}`}
-              value={current}
-              onChange={event => updateField('endpoint', event.target.value)}
-              readOnly={!editing}
+              className={`border-input h-10 w-full rounded-md border px-3 text-sm ${endpointEditing ? 'bg-background' : 'bg-muted/40 text-muted-foreground'}`}
+              value={endpointValue}
+              placeholder={endpointPlaceholder}
+              readOnly={!endpointEditing}
+              onChange={event => {
+                updateField('default_protocol', defaultProtocol)
+                updateField(protocolEndpointFieldKey(defaultProtocol), event.target.value)
+                updateField('endpoint', event.target.value)
+              }}
             />
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               size="icon"
-              className="h-10 w-10 shrink-0"
-              title={editing ? 'Done' : 'Edit endpoint'}
-              onClick={() => updateField('endpoint_editing', !editing)}
+              title={endpointEditing ? t('aiProviders.actions.finishEditingEndpoint') : t('aiProviders.actions.editEndpoint')}
+              onClick={() => updateField('endpoint_editing', !endpointEditing)}
             >
-              {editing ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+              {endpointEditing ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
             </Button>
           </div>
         </div>
       )
     },
-    [providerTemplatesById]
+    [providerTemplatesById, t]
   )
 
   const renderEnabledModelsField = useCallback<NonNullable<FieldDef['render']>>(
     ({ formData, updateField, editingItem }) => {
+      const selectedTemplate = providerTemplatesById.get(String(formData.template_id ?? ''))
       const selectedModels = normalizeEnabledModels(formData.enabled_models)
       const inlineSecretValue = String(formData.credential_secret_value ?? '').trim()
       const shouldUseInlineSecret =
@@ -979,9 +1033,10 @@ export function AIProvidersPage() {
               selectedModels,
               shouldUseInlineSecret
                 ? {
-                    endpoint: String(formData.endpoint ?? '').trim(),
+                    endpoint: resolveCurrentProtocolEndpoint(selectedTemplate, formData),
                     apiKey: inlineSecretValue,
                     templateID: String(formData.template_id ?? '').trim(),
+                    protocol: defaultTemplateProtocol(selectedTemplate, formData.default_protocol),
                   }
                 : undefined
             )
@@ -1003,6 +1058,7 @@ export function AIProvidersPage() {
       editModelsValidated,
       editTestResult,
       handleEditTestConnection,
+      providerTemplatesById,
     ]
   )
 
@@ -1017,7 +1073,7 @@ export function AIProvidersPage() {
       },
       {
         key: 'template_id',
-        label: 'Provider',
+        label: t('aiProviders.fields.provider'),
         type: 'select',
         required: true,
         options: providerProfileOptions,
@@ -1031,13 +1087,18 @@ export function AIProvidersPage() {
               update(field.id, normalized)
             }
           }
+          Object.assign(nextDefaults, buildProtocolFieldDefaults(template, nextDefaults))
+          for (const [key, defaultValue] of Object.entries(buildProtocolFieldDefaults(template, nextDefaults))) {
+            update(key, defaultValue)
+          }
+          update('auth_scheme', String(template?.defaultAuthScheme ?? ''))
           update('endpoint', resolveTemplateEndpoint(template, nextDefaults))
           update('enabled_models', normalizeEnabledModels(template?.defaultEnabledModels ?? []))
         },
       },
       {
         key: 'is_enabled',
-        label: 'Enable it',
+        label: t('aiProviders.fields.enableIt'),
         type: 'text',
         hideLabel: true,
         defaultValue: true,
@@ -1046,7 +1107,9 @@ export function AIProvidersPage() {
           const enabled = Boolean(formData.is_enabled ?? true)
           return (
             <div className="space-y-2">
-              <div className="text-sm font-medium text-foreground">Enable it</div>
+              <div className="text-sm font-medium text-foreground">
+                {t('aiProviders.fields.enableIt')}
+              </div>
               <div className="flex flex-wrap gap-4 text-sm">
                 <label className="inline-flex items-center gap-2">
                   <input
@@ -1072,9 +1135,20 @@ export function AIProvidersPage() {
         },
       },
       {
+        key: 'auth_scheme',
+        label: t('aiProviders.fields.authScheme'),
+        type: 'select',
+        options: AUTH_SCHEME_OPTIONS.map(option => ({
+          ...option,
+          label: t(`aiProviders.authSchemes.${option.value}`),
+        })),
+        defaultValue: '',
+        advanced: true,
+      },
+      {
         key: 'description',
         label: t('aiProviders.fields.description'),
-        type: 'textarea',
+        type: 'text',
         advanced: true,
       },
       {
@@ -1120,6 +1194,13 @@ export function AIProvidersPage() {
         defaultValue: [],
       },
       {
+        key: 'default_protocol',
+        label: 'Default Protocol',
+        type: 'text',
+        hidden: true,
+        defaultValue: 'openai',
+      },
+      {
         key: 'endpoint_editing',
         label: 'Endpoint Editing',
         type: 'boolean',
@@ -1130,6 +1211,8 @@ export function AIProvidersPage() {
         key: 'advanced_config',
         label: t('aiProviders.fields.advancedConfig'),
         type: 'textarea',
+        rows: 5,
+        textareaClassName: 'max-h-[8.5rem] overflow-y-auto',
         placeholder: t('aiProviders.placeholders.advancedConfig'),
         advanced: true,
       },
@@ -1140,6 +1223,7 @@ export function AIProvidersPage() {
         advanced: true,
         multiSelect: true,
         relationAutoSelectDefault: true,
+        placeholder: t('aiProviders.placeholders.groups'),
         relationApiPath: '/api/collections/groups/records?perPage=500&sort=name',
         relationLabelKey: 'name',
         defaultValue: [],
@@ -1169,7 +1253,7 @@ export function AIProvidersPage() {
             }),
             relationFormatLabel: formatSecretLabel,
             relationCreateButton: {
-              label: 'New Secret',
+              label: t('aiProviders.secret.new'),
               onClick: openSecretDialog,
             },
             render: renderCredentialField,
@@ -1179,7 +1263,7 @@ export function AIProvidersPage() {
             credentialField,
             {
               key: 'select_models',
-              label: 'Select Models',
+              label: t('aiProviders.fields.enabledModels'),
               type: 'text',
               hideLabel: true,
               render: renderEnabledModelsField,
@@ -1198,10 +1282,16 @@ export function AIProvidersPage() {
             {
               ...mappedField,
               onValueChange: (value: unknown, update: (key: string, value: unknown) => void) => {
+                const protocol = defaultTemplateProtocol(selectedTemplate, formData.default_protocol)
+                const nextEndpoint = resolveTemplateEndpoint(selectedTemplate, {
+                  ...formData,
+                  region: value,
+                })
                 update(
-                  'endpoint',
-                  resolveTemplateEndpoint(selectedTemplate, { ...formData, region: value })
+                  protocolEndpointFieldKey(protocol),
+                  nextEndpoint
                 )
+                update('endpoint', nextEndpoint)
               },
             },
           ]
@@ -1209,15 +1299,22 @@ export function AIProvidersPage() {
         return [mappedField]
       })
 
+      const endpointInMainSection = isGenericOpenAICompatibleTemplate(selectedTemplate)
       let normalizedDynamicFields = dynamicFields.map(field => {
         if (field.key !== 'endpoint') return field
         return {
           ...field,
-          label: 'API Endpoint',
+          label: resolveEndpointFieldTitle(t, selectedTemplate),
           hideLabel: true,
+          advanced: !endpointInMainSection,
           render: renderEndpointField,
         }
       })
+
+      const authSchemeField = {
+        ...baseProviderFields[3],
+        advanced: !endpointInMainSection,
+      }
 
       if (selectedTemplate?.id === 'aws-bedrock') {
         normalizedDynamicFields = moveFieldBefore(normalizedDynamicFields, 'region', 'endpoint')
@@ -1228,7 +1325,8 @@ export function AIProvidersPage() {
           { ...baseProviderFields[0], hidden: true },
           { ...baseProviderFields[1], readOnly: true },
           ...normalizedDynamicFields,
-          baseProviderFields[3],
+          authSchemeField,
+          baseProviderFields[4],
           ...baseProviderFields.slice(5),
           baseProviderFields[2],
         ]
@@ -1236,9 +1334,11 @@ export function AIProvidersPage() {
 
       return [
         baseProviderFields[0],
-        ...baseProviderFields.slice(2, 5),
         ...normalizedDynamicFields,
+        authSchemeField,
+        baseProviderFields[4],
         ...baseProviderFields.slice(5),
+        baseProviderFields[2],
       ]
     },
     [
@@ -1380,7 +1480,7 @@ export function AIProvidersPage() {
                   ),
               },
               {
-                label: 'Provider',
+                label: t('aiProviders.columns.provider'),
                 value: (
                   <span className="inline-flex items-center gap-2">
                     <span>{String(item.provider ?? '—')}</span>
@@ -1414,6 +1514,12 @@ export function AIProvidersPage() {
               {
                 label: t('aiProviders.columns.reachability'),
                 value: <Badge variant={reachVariant}>{reachability}</Badge>,
+              },
+              {
+                label: t('aiProviders.fields.authScheme'),
+                value: String(item.auth_scheme ?? '').trim()
+                  ? t(`aiProviders.authSchemes.${String(item.auth_scheme ?? '').trim()}`)
+                  : '—',
               },
               {
                 label: 'Secret',
