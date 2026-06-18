@@ -52,9 +52,9 @@ import {
   type AIProviderSelectionGroupKey,
   type AIProviderTemplate,
   type AIProviderTemplateField,
-  isGenericOpenAICompatibleTemplate,
   isGatewayProviderTemplate,
   isAdvancedProviderField,
+  resolveCredentialFieldPresentation,
   reconcileProviderModelSelection,
   normalizeTemplateFieldDefault,
   providerSelectionGroupKey,
@@ -62,6 +62,9 @@ import {
   productTitle,
   resolveCurrentProtocolEndpoint,
   resolveTemplateEndpoint,
+  templateChooserSearchText,
+  shouldPromoteAuthSchemeField,
+  shouldPromoteEndpointField,
   sanitizeProviderModelGroups,
   sanitizeProviderModelOptions,
 } from '@/lib/ai-providers'
@@ -70,7 +73,6 @@ import { pb } from '@/lib/pb'
 const AUTH_SCHEME_OPTIONS = [
   { label: 'Bearer token', value: 'bearer' },
   { label: 'API key header', value: 'api_key' },
-  { label: 'Basic auth', value: 'basic' },
   { label: 'No auth', value: 'none' },
 ]
 
@@ -248,6 +250,19 @@ function moveFieldBefore(fields: FieldDef[], fieldKey: string, beforeKey: string
   return nextFields
 }
 
+function moveFieldAfter(fields: FieldDef[], fieldKey: string, afterKey: string) {
+  const nextFields = [...fields]
+  const fieldIndex = nextFields.findIndex(field => field.key === fieldKey)
+  const afterIndex = nextFields.findIndex(field => field.key === afterKey)
+  if (fieldIndex === -1 || afterIndex === -1 || fieldIndex === afterIndex + 1) {
+    return nextFields
+  }
+  const [field] = nextFields.splice(fieldIndex, 1)
+  const targetIndex = nextFields.findIndex(item => item.key === afterKey)
+  nextFields.splice(targetIndex + 1, 0, field)
+  return nextFields
+}
+
 /**
  * Pure decision helper for the auto‑List‑Models behaviour inside
  * handleSubmit.  Returns true when the submit should proceed to the
@@ -366,6 +381,7 @@ export function AIProviderCreateFlowDialog({
   const productOptions = useMemo(
     () =>
       [...templates]
+        .filter(template => !template.hideInChooser)
         .sort((left, right) => {
           const leftIsGateway = isGatewayProviderTemplate(left)
           const rightIsGateway = isGatewayProviderTemplate(right)
@@ -374,8 +390,14 @@ export function AIProviderCreateFlowDialog({
           }
           const leftIsOpenAICompatible = left.id === 'generic-llm'
           const rightIsOpenAICompatible = right.id === 'generic-llm'
-          if (leftIsOpenAICompatible !== rightIsOpenAICompatible) {
-            return leftIsOpenAICompatible ? 1 : -1
+          const leftGroup = providerSelectionGroupKey(left)
+          const rightGroup = providerSelectionGroupKey(right)
+          if (
+            leftGroup === 'selfHosted' &&
+            rightGroup === 'selfHosted' &&
+            leftIsOpenAICompatible !== rightIsOpenAICompatible
+          ) {
+            return leftIsOpenAICompatible ? -1 : 1
           }
           const leftInitial = chooserTitle(left).trim().charAt(0).toLowerCase()
           const rightInitial = chooserTitle(right).trim().charAt(0).toLowerCase()
@@ -384,10 +406,7 @@ export function AIProviderCreateFlowDialog({
         .filter(template => {
           const query = selectionQuery.trim().toLowerCase()
           if (!query) return true
-          return [template.title, template.vendor, template.description, template.id]
-            .join(' ')
-            .toLowerCase()
-            .includes(query)
+          return templateChooserSearchText(template).includes(query)
         }),
     [selectionQuery, templates]
   )
@@ -458,7 +477,7 @@ export function AIProviderCreateFlowDialog({
 
   const renderEndpointField = useCallback<NonNullable<FieldDef['render']>>(
     ({ inputId, formData: currentFormData, updateField }) => {
-      const helpUrl = String(selectedTemplate?.helpUrl ?? '').trim()
+      const endpointField = selectedTemplate?.fields?.find(field => field.id === 'endpoint')
       const defaultProtocol = defaultTemplateProtocol(selectedTemplate, currentFormData.default_protocol)
       const endpointEditing = Boolean(currentFormData.endpoint_editing)
       const endpointLabel = resolveEndpointFieldTitle(t, selectedTemplate)
@@ -473,23 +492,10 @@ export function AIProviderCreateFlowDialog({
       )
       return (
         <div className="space-y-1.5">
-          <div className="flex items-center gap-2">
-            <label htmlFor={inputId} className="text-sm font-medium text-foreground">
-              {endpointLabel}
-            </label>
-            {helpUrl ? (
-              <a
-                href={helpUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="text-muted-foreground transition-colors hover:text-foreground"
-                aria-label="Open official API endpoint help"
-                title="Open official API endpoint help"
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            ) : null}
-          </div>
+          <label htmlFor={inputId} className="text-sm font-medium text-foreground">
+            <span>{endpointLabel}</span>
+            {endpointField?.required ? <span aria-hidden="true" className="ml-1 text-destructive">*</span> : null}
+          </label>
           <div className="flex items-center gap-2">
             <input
               id={inputId}
@@ -561,6 +567,7 @@ export function AIProviderCreateFlowDialog({
         body: {
           endpoint,
           api_key: apiKey,
+          auth_scheme: String(formData.auth_scheme ?? selectedTemplate?.defaultAuthScheme ?? ''),
           template_id: String(formData.template_id ?? ''),
           protocol: defaultTemplateProtocol(selectedTemplate, formData.default_protocol),
         },
@@ -711,9 +718,11 @@ export function AIProviderCreateFlowDialog({
   )
 
   const resolvedFields = useMemo(() => {
+    const selfHostedTemplate = providerSelectionGroupKey(selectedTemplate) === 'selfHosted'
     let dynamicFields = (selectedTemplate?.fields ?? []).flatMap(field => {
+      const presentedField = resolveCredentialFieldPresentation(selectedTemplate, field)
       const mapped = mapTemplateFieldToResourceField(
-        field,
+        presentedField,
         () => setSecretDialogOpen(true),
         openSecretEditor,
         t,
@@ -735,7 +744,7 @@ export function AIProviderCreateFlowDialog({
         ]
       }
 
-      if (field.id !== 'credential') {
+      if (presentedField.id !== 'credential') {
         return [mapped]
       }
 
@@ -768,14 +777,15 @@ export function AIProviderCreateFlowDialog({
       ]
     })
 
-    const endpointInMainSection = isGenericOpenAICompatibleTemplate(selectedTemplate)
+    const promoteEndpoint = shouldPromoteEndpointField(selectedTemplate)
+    const promoteAuthScheme = shouldPromoteAuthSchemeField(selectedTemplate)
 
     dynamicFields = dynamicFields.map(field => {
       if (field.key !== 'endpoint') return field
       return {
         ...field,
         label: resolveEndpointFieldTitle(t, selectedTemplate),
-        advanced: !endpointInMainSection,
+        advanced: !promoteEndpoint,
       }
     })
 
@@ -785,16 +795,24 @@ export function AIProviderCreateFlowDialog({
 
     const authSchemeField = {
       ...baseProviderFields[1],
-      advanced: !endpointInMainSection,
+      hidden: !promoteAuthScheme,
+      advanced: !promoteAuthScheme,
     }
 
-    return [
+    let resolved = [
       ...dynamicFields,
       authSchemeField,
       baseProviderFields[2],
       ...baseProviderFields.slice(3),
       baseProviderFields[0],
     ]
+
+    if (selfHostedTemplate) {
+      resolved = moveFieldAfter(resolved, 'endpoint', 'credential')
+      resolved = moveFieldAfter(resolved, 'auth_scheme', 'endpoint')
+    }
+
+    return resolved
   }, [
     baseProviderFields,
     fetchModelsError,
@@ -808,6 +826,7 @@ export function AIProviderCreateFlowDialog({
     renderEndpointField,
     selectedModels,
     selectedTemplate,
+    formData,
     t,
     toggleSelectedModel,
   ])
@@ -873,6 +892,9 @@ export function AIProviderCreateFlowDialog({
     Object.assign(defaults, buildProtocolFieldDefaults(template, defaults))
 
     defaults.endpoint = resolveTemplateEndpoint(template, defaults)
+    if (!defaults.endpoint) {
+      defaults.endpoint_editing = true
+    }
 
     setFormData(defaults)
     setSelectedModels(
@@ -1061,9 +1083,25 @@ export function AIProviderCreateFlowDialog({
     t('aiProviders.dialog.newProvider')
   )
 
-  const dialogDescription = selectedTemplate
-    ? `${t('aiProviders.dialog.add')} ${productTitle(selectedTemplate)} ${t('aiProviders.dialog.suffix')}`
-    : t('aiProviders.selection.description')
+  const dialogDescription = selectedTemplate ? (
+    <span className="inline-flex items-center gap-2">
+      <span>{`${t('aiProviders.dialog.add')} ${productTitle(selectedTemplate)} ${t('aiProviders.dialog.suffix')}`}</span>
+      {selectedTemplate.helpUrl ? (
+        <a
+          href={selectedTemplate.helpUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground"
+          aria-label="Open official API endpoint help"
+          title="Open official API endpoint help"
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+        </a>
+      ) : null}
+    </span>
+  ) : (
+    t('aiProviders.selection.description')
+  )
 
   return (
     <>
@@ -1117,6 +1155,7 @@ export function AIProviderCreateFlowDialog({
                           key={option.id}
                           type="button"
                           className="w-full rounded-lg border px-4 py-3 text-left transition-colors hover:bg-muted"
+                          title={option.description?.trim() || chooserTitle(option)}
                           onClick={() => selectTemplate(option)}
                         >
                           <div className="flex items-center justify-between gap-3">

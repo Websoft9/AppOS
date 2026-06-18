@@ -12,12 +12,10 @@
   "helpUrl": "https://ollama.com/blog/openai-compatibility",
   "modelsEndpoint": "/api/tags",
   "defaultEndpoint": "http://localhost:11434/v1",
-  "defaultAuthScheme": "none",
   "protocols": [
     {
       "id": "openai",
-      "label": "OpenAI",
-      "defaultEndpoint": "http://localhost:11434/v1"
+      "label": "OpenAI"
     },
     {
       "id": "ollama",
@@ -31,8 +29,7 @@
   "aliases": ["ollama"],
   "fields": [
     {
-      "id": "endpoint",
-      "default": "http://localhost:11434/v1"
+      "id": "endpoint"
     },
     {
       "id": "credential",

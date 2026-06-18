@@ -476,10 +476,10 @@ export function ProxySection({
     definition => definition.enrollable
   )
   const remoteShellDefinition = proxyConsumerDefinitions.find(
-    definition => definition.key === 'servers.global'
+    definition => definition.key === 'remote_shell.global'
   )
   const moduleProxyDefinitions = configurableProxyConsumerDefinitions.filter(
-    definition => definition.key !== 'servers.global'
+    definition => definition.key !== 'remote_shell.global'
   )
   const globalRemoteShellMode =
     (remoteShellDefinition && consumerModeMap.get(remoteShellDefinition.key)) ??
@@ -596,8 +596,6 @@ export function ProxySection({
     switch (mode) {
       case 'always':
         return 'Always use proxy'
-      case 'fallback':
-        return 'Try direct then proxy'
       default:
         return 'Disabled'
     }
@@ -610,23 +608,36 @@ export function ProxySection({
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <div className="flex items-center gap-2">
-          <h3 className="text-base font-semibold text-foreground">Proxy resource from</h3>
-          {onOpenHelp ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              aria-label="Open Proxy help"
-              onClick={onOpenHelp}
-            >
-              <HelpCircle className="h-4 w-4" />
-            </Button>
-          ) : null}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-semibold text-foreground">Proxy resource from</h3>
+            {onOpenHelp ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                aria-label="Open Proxy help"
+                onClick={onOpenHelp}
+              >
+                <HelpCircle className="h-4 w-4" />
+              </Button>
+            ) : null}
+          </div>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="proxy-enabled-switch" className="text-sm text-muted-foreground">
+              Proxy enabled
+            </Label>
+            <Toggle
+              id="proxy-enabled-switch"
+              ariaLabel="Toggle proxy enabled"
+              checked={proxyForm.source !== 'none'}
+              onChange={checked => updateProxySource(checked ? (proxyForm.source === 'none' ? 'external' : proxyForm.source) : 'none')}
+            />
+          </div>
         </div>
         <p className="text-sm text-muted-foreground">
-          Choose where proxy capability comes from before configuring modules or remote shell behavior.
+          Choose where proxy capability comes from before configuring policy domains or remote shell behavior.
         </p>
       </div>
 
@@ -637,13 +648,12 @@ export function ProxySection({
               {
                 value: 'external' as const,
                 title: 'External Proxy',
-                description:
-                  'Apply external proxy to modules and remote shell',
+                description: 'Apply external proxy resources to AppOS policy domains and remote shell.',
               },
               {
                 value: 'self' as const,
                 title: 'Self Proxy',
-                description: 'Route remote shell via AppOS Console Network',
+                description: 'Route remote shell through AppOS self-managed egress.',
               },
             ].map(option => {
               const active = proxyForm.source === option.value
@@ -672,7 +682,7 @@ export function ProxySection({
 
           {proxyForm.source === 'none' ? (
             <div className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-              Choose one source before configuring module or remote shell proxy behavior.
+              Proxy is currently off. Choose External Proxy or Self Proxy to enable policy-based egress.
             </div>
           ) : null}
 
@@ -789,7 +799,7 @@ export function ProxySection({
             </div>
           ) : proxyForm.source === 'self' ? (
             <div className="px-1 py-1 text-sm text-muted-foreground">
-              Enable Self Proxy and configure remote shell proxy.
+              Self Proxy currently applies to remote shell egress policies.
             </div>
           ) : null}
 
@@ -821,8 +831,8 @@ export function ProxySection({
       {showModuleProxy ? (
         <div className="space-y-2">
           <div className="space-y-1">
-            <h3 className="text-base font-semibold text-foreground">Set Module Proxy</h3>
-            <p className="text-xs text-muted-foreground">Proxy settings for individual modules</p>
+            <h3 className="text-base font-semibold text-foreground">Proxy Policies</h3>
+            <p className="text-xs text-muted-foreground">Configure AppOS policy domains that can use external proxy egress.</p>
           </div>
           <div className="rounded-lg border border-border/40 bg-background">
             <div className="space-y-4 p-4">
@@ -907,9 +917,9 @@ export function ProxySection({
                     id="proxy-remote-shell-global"
                     className={selectClass}
                     value={globalRemoteShellMode}
-                    onChange={event => setConsumerMode('servers.global', event.target.value as ProxyConsumerItem['mode'])}
+                    onChange={event => setConsumerMode('remote_shell.global', event.target.value as ProxyConsumerItem['mode'])}
                   >
-                    {(remoteShellDefinition?.allowedModes ?? ['disabled', 'always', 'fallback']).map(mode => (
+                    {(remoteShellDefinition?.allowedModes ?? ['disabled', 'always']).map(mode => (
                       <option key={mode} value={mode}>
                         {modeLabel(mode)}
                       </option>
@@ -989,7 +999,7 @@ export function ProxySection({
                               value={item.mode}
                               onChange={event => updateRemoteShellOverride(item.serverId, event.target.value as ProxyRemoteShellOverride['mode'])}
                             >
-                              {(remoteShellDefinition?.allowedModes ?? ['disabled', 'always', 'fallback']).map(mode => (
+                              {(remoteShellDefinition?.allowedModes ?? ['disabled', 'always']).map(mode => (
                                 <option key={mode} value={mode}>
                                   {modeLabel(mode)}
                                 </option>

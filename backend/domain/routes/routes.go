@@ -37,6 +37,8 @@ func SetAsynqClient(c *asynq.Client) {
 
 // Register mounts all custom route groups on the PocketBase router.
 func Register(se *core.ServeEvent) {
+	registerSelfProxyIngress(se)
+
 	// OpenAPI docs — public, no auth required
 	registerOpenAPIRoutes(se)
 

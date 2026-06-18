@@ -248,6 +248,38 @@ describe('TerminalPanel regressions', () => {
     })
   })
 
+  it('shows a non-blocking warning banner for warning control frames', async () => {
+    render(<TerminalPanel serverId="s1" isActive />)
+
+    await waitFor(() => {
+      expect(mocks.MockWebSocket.instances.length).toBe(1)
+    })
+
+    const socket = mocks.MockWebSocket.instances[0]
+    const payload = new TextEncoder().encode(
+      JSON.stringify({
+        type: 'warning',
+        message: 'Self Proxy is selected for remote shell, but no online SSH tunnel is available.',
+      })
+    )
+    const frame = new Uint8Array(1 + payload.length)
+    frame[0] = 0x00
+    frame.set(payload, 1)
+
+    socket.onmessage?.(
+      new MessageEvent('message', {
+        data: frame.buffer,
+      })
+    )
+
+    expect(await screen.findByText('Proxy warning')).toBeInTheDocument()
+    expect(
+      screen.getByText(/no online SSH tunnel is available/i)
+    ).toBeInTheDocument()
+    expect(socket.close).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: /reconnect/i })).not.toBeInTheDocument()
+  })
+
   it('passes session_id when reconnecting a container terminal', async () => {
     render(
       <TerminalPanel containerId="c1" sessionId="dock-sess-1" dockerServerId="srv-1" isActive />

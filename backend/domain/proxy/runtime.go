@@ -3,7 +3,6 @@ package proxy
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -15,10 +14,12 @@ import (
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	proxyinfra "github.com/websoft9/appos/backend/infra/proxy"
+	netproxy "golang.org/x/net/proxy"
 	"golang.org/x/net/http/httpproxy"
 )
 
 type NetworkSettings struct {
+	Source            string
 	Enabled           bool
 	Socks5ConnectorID string
 	HTTPConnectorID   string
@@ -87,16 +88,30 @@ func LoadNetworkSettings(app core.App) NetworkSettings {
 	if group == nil {
 		return NetworkSettings{}
 	}
+	source := strings.TrimSpace(sysconfig.String(group, "source", ""))
+	enabled := sysconfig.Bool(group, "enabled", false)
+	socks5ConnectorID := strings.TrimSpace(sysconfig.String(group, "socks5ConnectorId", ""))
+	httpConnectorID := strings.TrimSpace(sysconfig.String(group, "httpConnectorId", ""))
+	httpsConnectorID := strings.TrimSpace(sysconfig.String(group, "httpsConnectorId", ""))
+	if source == "" {
+		switch {
+		case enabled || socks5ConnectorID != "" || httpConnectorID != "" || httpsConnectorID != "":
+			source = "external"
+		default:
+			source = "none"
+		}
+	}
 	return NetworkSettings{
-		Enabled:           sysconfig.Bool(group, "enabled", false),
-		Socks5ConnectorID: strings.TrimSpace(sysconfig.String(group, "socks5ConnectorId", "")),
-		HTTPConnectorID:   strings.TrimSpace(sysconfig.String(group, "httpConnectorId", "")),
-		HTTPSConnectorID:  strings.TrimSpace(sysconfig.String(group, "httpsConnectorId", "")),
+		Source:            source,
+		Enabled:           enabled,
+		Socks5ConnectorID: socks5ConnectorID,
+		HTTPConnectorID:   httpConnectorID,
+		HTTPSConnectorID:  httpsConnectorID,
 	}
 }
 
 func LoadConsumerEnrollments(app core.App) ([]ConsumerEnrollment, error) {
-	group, err := sysconfig.GetGroup(app, "proxy", "consumers", DefaultConsumerSettingsMap())
+	group, err := sysconfig.GetGroup(app, "proxy", "policies", DefaultConsumerSettingsMap())
 	if err != nil && group == nil {
 		return nil, err
 	}
@@ -143,7 +158,7 @@ func NormalizeRemoteShellSettingsValue(value map[string]any) map[string]any {
 	}
 }
 
-func ResolveConsumerMode(app core.App, consumerKey string) (proxyinfra.Definition, proxyinfra.Mode, error) {
+func ResolvePolicyMode(app core.App, consumerKey string) (proxyinfra.Definition, proxyinfra.Mode, error) {
 	registry, err := DefaultRegistry()
 	if err != nil {
 		return proxyinfra.Definition{}, proxyinfra.ModeDisabled, err
@@ -156,7 +171,7 @@ func ResolveConsumerMode(app core.App, consumerKey string) (proxyinfra.Definitio
 		return definition, proxyinfra.ModeDisabled, nil
 	}
 	network := LoadNetworkSettings(app)
-	if !network.Enabled {
+	if !proxySourceActive(network.Source) {
 		return definition, proxyinfra.ModeDisabled, nil
 	}
 	items, err := LoadConsumerEnrollments(app)
@@ -176,7 +191,7 @@ func ResolveConsumerMode(app core.App, consumerKey string) (proxyinfra.Definitio
 }
 
 func ProxyEnvForConsumer(app core.App, consumerKey string) (map[string]string, error) {
-	_, mode, err := ResolveConsumerMode(app, consumerKey)
+	_, mode, err := ResolvePolicyMode(app, consumerKey)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +214,7 @@ func ResolveRemoteShellMode(app core.App, serverID string) (proxyinfra.Mode, err
 			}
 		}
 	}
-	_, mode, err := ResolveConsumerMode(app, "servers.global")
+	_, mode, err := ResolvePolicyMode(app, "remote_shell.global")
 	return mode, err
 }
 
@@ -228,7 +243,7 @@ func NewHTTPClient(app core.App, consumerKey string, timeout time.Duration, skip
 	if app == nil {
 		return http.Client{Timeout: timeout, Transport: directTransport}, nil
 	}
-	definition, mode, err := ResolveConsumerMode(app, consumerKey)
+	_, mode, err := ResolvePolicyMode(app, consumerKey)
 	if err != nil {
 		return http.Client{}, err
 	}
@@ -240,14 +255,13 @@ func NewHTTPClient(app core.App, consumerKey string, timeout time.Duration, skip
 		return http.Client{Timeout: timeout, Transport: directTransport}, err
 	}
 	proxyTransport := transport.Clone()
-	if proxyFunc := proxyFuncFromEnv(env); proxyFunc != nil {
+	if dialContext := socks5DialContextFromEnv(env); dialContext != nil {
+		proxyTransport.Proxy = nil
+		proxyTransport.DialContext = dialContext
+	} else if proxyFunc := proxyFuncFromEnv(env); proxyFunc != nil {
 		proxyTransport.Proxy = proxyFunc
 	}
-	client := http.Client{Timeout: timeout, Transport: proxyTransport}
-	if mode == proxyinfra.ModeFallback && definition.AllowFallback {
-		client.Transport = fallbackRoundTripper{direct: directTransport, proxy: proxyTransport}
-	}
-	return client, nil
+	return http.Client{Timeout: timeout, Transport: proxyTransport}, nil
 }
 
 func ValidateConsumerEnrollment(definition proxyinfra.Definition, item ConsumerEnrollment) error {
@@ -276,21 +290,11 @@ func settingsDefinitions() ([]proxyinfra.Definition, error) {
 	if err != nil {
 		return nil, err
 	}
-	definitions := make([]proxyinfra.Definition, 0)
-	for _, definition := range registry.List() {
-		if definition.DirectUseAllowed() {
-			definitions = append(definitions, definition)
-			continue
-		}
-		if definition.Location == proxyinfra.LocationRemote && !definition.Enrollable() && strings.HasPrefix(definition.Key, "servers.") {
-			definitions = append(definitions, definition)
-		}
-	}
-	return definitions, nil
+	return registry.DirectUse(), nil
 }
 
 func buildProxyEnv(app core.App, network NetworkSettings) (map[string]string, error) {
-	if !network.Enabled {
+	if network.Source != "external" || !network.Enabled {
 		return nil, nil
 	}
 	return connectors.BuildProxyEnvWith(
@@ -301,6 +305,15 @@ func buildProxyEnv(app core.App, network NetworkSettings) (map[string]string, er
 		network.HTTPConnectorID,
 		network.HTTPSConnectorID,
 	)
+}
+
+func proxySourceActive(source string) bool {
+	switch strings.TrimSpace(source) {
+	case "external", "self":
+		return true
+	default:
+		return false
+	}
 }
 
 func normalizeConsumerEnrollments(group map[string]any) []ConsumerEnrollment {
@@ -455,6 +468,34 @@ func filterEnrollments(definitions []proxyinfra.Definition, items []ConsumerEnro
 	return filtered
 }
 
+func socks5DialContextFromEnv(proxyEnv map[string]string) func(ctx context.Context, network, address string) (net.Conn, error) {
+	proxyAddress := firstNonEmptyString(
+		proxyEnv["ALL_PROXY"],
+		proxyEnv["all_proxy"],
+		proxyEnv["HTTP_PROXY"],
+		proxyEnv["http_proxy"],
+		proxyEnv["HTTPS_PROXY"],
+		proxyEnv["https_proxy"],
+	)
+	if proxyAddress == "" {
+		return nil
+	}
+	proxyURL, err := url.Parse(proxyAddress)
+	if err != nil {
+		return nil
+	}
+	if proxyURL.Scheme != "socks5" && proxyURL.Scheme != "socks5h" {
+		return nil
+	}
+	dialer, err := netproxy.FromURL(proxyURL, netproxy.Direct)
+	if err != nil {
+		return nil
+	}
+	return func(ctx context.Context, network, address string) (net.Conn, error) {
+		return dialer.Dial(network, address)
+	}
+}
+
 func proxyFuncFromEnv(proxyEnv map[string]string) func(*http.Request) (*url.URL, error) {
 	if len(proxyEnv) == 0 {
 		return http.ProxyFromEnvironment
@@ -482,51 +523,3 @@ func firstNonEmptyString(values ...string) string {
 	return ""
 }
 
-type fallbackRoundTripper struct {
-	proxy  http.RoundTripper
-	direct http.RoundTripper
-}
-
-func (rt fallbackRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	fallbackReq, cloneErr := cloneRequestForFallback(req)
-	response, err := rt.direct.RoundTrip(req)
-	if err == nil {
-		return response, nil
-	}
-	if cloneErr != nil || !shouldFallbackOnError(err) {
-		return nil, err
-	}
-	return rt.proxy.RoundTrip(fallbackReq)
-}
-
-func cloneRequestForFallback(req *http.Request) (*http.Request, error) {
-	clone := req.Clone(req.Context())
-	if req.Body == nil || req.Body == http.NoBody {
-		return clone, nil
-	}
-	if req.GetBody == nil {
-		return nil, errors.New("request body is not retryable")
-	}
-	body, err := req.GetBody()
-	if err != nil {
-		return nil, err
-	}
-	clone.Body = body
-	return clone, nil
-}
-
-func shouldFallbackOnError(err error) bool {
-	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return false
-	}
-	var urlErr *url.Error
-	if errors.As(err, &urlErr) {
-		return shouldFallbackOnError(urlErr.Err)
-	}
-	var netErr net.Error
-	if errors.As(err, &netErr) {
-		return true
-	}
-	message := strings.ToLower(strings.TrimSpace(err.Error()))
-	return strings.Contains(message, "connection refused") || strings.Contains(message, "no such host") || strings.Contains(message, "network is unreachable")
-}

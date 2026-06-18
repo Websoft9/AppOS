@@ -243,6 +243,10 @@ components:
           type: string
         source_kind:
           type: string
+        prompt_scope:
+          type: string
+        is_template:
+          type: boolean
         language:
           type: string
         script_extension:

@@ -23,8 +23,7 @@
     {
       "id": "openai",
       "label": "OpenAI",
-      "default": true,
-      "defaultEndpoint": "https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/openai"
+      "default": true
     }
   ],
   "aliases": ["cloudflare ai gateway", "cloudflare-ai-gateway"],

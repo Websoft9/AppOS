@@ -1,6 +1,6 @@
 {
   "id": "xai",
-  "title": "xAI",
+  "title": "xAI Grok",
   "vendor": "xAI",
   "uiGroup": "single_provider",
   "hostingMode": "cloud",
@@ -16,16 +16,14 @@
     {
       "id": "openai",
       "label": "OpenAI",
-      "default": true,
-      "defaultEndpoint": "https://api.x.ai/v1"
+      "default": true
     }
   ],
   "capabilities": ["chat", "tools", "streaming", "openai-compatible"],
   "aliases": ["xai", "x.ai", "grok"],
   "fields": [
     {
-      "id": "endpoint",
-      "default": "https://api.x.ai/v1"
+      "id": "endpoint"
     }
   ]
 }

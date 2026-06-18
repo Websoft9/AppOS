@@ -15,16 +15,14 @@
     {
       "id": "openai",
       "label": "OpenAI",
-      "default": true,
-      "defaultEndpoint": "https://api.mistral.ai/v1"
+      "default": true
     }
   ],
   "capabilities": ["chat", "embeddings", "tools", "streaming"],
   "aliases": ["mistral"],
   "fields": [
     {
-      "id": "endpoint",
-      "default": "https://api.mistral.ai/v1"
+      "id": "endpoint"
     }
   ]
 }

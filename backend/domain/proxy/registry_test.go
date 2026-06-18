@@ -13,21 +13,20 @@ func TestDefaultRegistrySeparatesPolicyAnchorsFromConcreteConsumers(t *testing.T
 		t.Fatal(err)
 	}
 
-	if _, err := registry.RequireDirectUse("external_services.global"); !errors.Is(err, proxyinfra.ErrDirectUseDenied) {
-		t.Fatalf("expected module-level external_services.global to deny direct use, got %v", err)
+	if _, err := registry.RequireDirectUse("http.global"); !errors.Is(err, proxyinfra.ErrDirectUseDenied) {
+		t.Fatalf("expected module-level http.global to deny direct use, got %v", err)
 	}
 
-	if _, err := registry.RequireDirectUse("platform_accounts.global"); !errors.Is(err, proxyinfra.ErrDirectUseDenied) {
-		t.Fatalf("expected module-level platform_accounts.global to deny direct use, got %v", err)
+	if _, err := registry.RequireDirectUse("download.global"); !errors.Is(err, proxyinfra.ErrDirectUseDenied) {
+		t.Fatalf("expected module-level download.global to deny direct use, got %v", err)
 	}
 
 	for _, key := range []string{
-		"ai_providers.global",
-		"external_services.outbound_http",
-		"platform_accounts.outbound_http",
-		"servers.global",
-		"feeds.fetch_source",
-		"feeds.fetch_favicon",
+		"http.general",
+		"http.ai",
+		"download.general",
+		"git.general",
+		"remote_shell.global",
 	} {
 		definition, err := registry.RequireDirectUse(key)
 		if err != nil {
@@ -64,7 +63,7 @@ func TestDefaultRegistryIncludesRemoteBypassOnlyServerControls(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for _, key := range []string{"servers.ssh_control", "servers.sftp_control", "servers.reachability_probe"} {
+	for _, key := range []string{"control_plane.ssh", "control_plane.sftp", "control_plane.reachability"} {
 		definition, err := registry.Require(key)
 		if err != nil {
 			t.Fatalf("expected %s to exist: %v", key, err)

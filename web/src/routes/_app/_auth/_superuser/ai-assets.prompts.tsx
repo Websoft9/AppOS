@@ -27,7 +27,7 @@ export function AssetsPromptsPage() {
     <AssetFamilyPage
       kind="prompt"
       title="AI Prompts"
-      description="Reusable system prompts for AI Copilot and operators."
+      description="Reusable system prompts and task instructions for AI Copilot and operators."
       createLabel="Add Prompt"
       showHeaderCount={false}
       queryState={queryState}

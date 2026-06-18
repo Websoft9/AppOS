@@ -47,9 +47,9 @@ import {
   type AIProviderSelectionGroupKey,
   type AIProviderTemplate,
   type AIProviderTemplateField,
-  isGenericOpenAICompatibleTemplate,
   isAdvancedProviderField,
   reconcileProviderModelSelection,
+  resolveCredentialFieldPresentation,
   normalizeTemplateFieldDefault,
   normalizeEnabledModels,
   providerSelectionGroupKey,
@@ -60,6 +60,8 @@ import {
   resolveAIProviderEnabled,
   resolveProviderDefaultProtocol,
   resolveProviderProtocolEndpoints,
+  shouldPromoteAuthSchemeField,
+  shouldPromoteEndpointField,
   sanitizeProviderModelGroups,
   sanitizeProviderModelOptions,
 } from '@/lib/ai-providers'
@@ -83,7 +85,6 @@ type ProviderModelsResponse = {
 const AUTH_SCHEME_OPTIONS: SelectOption[] = [
   { label: 'Bearer token', value: 'bearer' },
   { label: 'API key header', value: 'api_key' },
-  { label: 'Basic auth', value: 'basic' },
   { label: 'No auth', value: 'none' },
 ]
 
@@ -108,23 +109,9 @@ function resolveEndpointFieldTitle(
     : t('aiProviders.fields.openaiCompatibleUrl')
 }
 
-function renderEndpointFieldLabel(label: string, helpUrl: string) {
+function renderEndpointFieldLabel(label: string) {
   return (
-    <div className="flex items-center gap-2">
-      <label className="text-sm font-medium text-foreground">{label}</label>
-      {helpUrl ? (
-        <a
-          href={helpUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="text-muted-foreground transition-colors hover:text-foreground"
-          aria-label="Open official API endpoint help"
-          title="Open official API endpoint help"
-        >
-          <ExternalLink className="h-3.5 w-3.5" />
-        </a>
-      ) : null}
-    </div>
+    <label className="text-sm font-medium text-foreground">{label}</label>
   )
 }
 
@@ -638,7 +625,13 @@ export function AIProvidersPage() {
       editingItem: Record<string, unknown> | null,
       onPruneSelection?: (models: string[]) => void,
       currentSelection?: unknown,
-      fetchInput?: { endpoint: string; apiKey: string; templateID: string; protocol: string }
+      fetchInput?: {
+        endpoint: string
+        apiKey: string
+        authScheme: string
+        templateID: string
+        protocol: string
+      }
     ) => {
       setEditTestResult({ loading: true })
       setEditModelsValidated(false)
@@ -651,6 +644,7 @@ export function AIProvidersPage() {
             body: {
               endpoint: fetchInput.endpoint,
               api_key: fetchInput.apiKey,
+              auth_scheme: fetchInput.authScheme,
               template_id: fetchInput.templateID,
               protocol: fetchInput.protocol,
             },
@@ -963,7 +957,6 @@ export function AIProvidersPage() {
   const renderEndpointField = useCallback<NonNullable<FieldDef['render']>>(
     ({ inputId, formData, updateField }) => {
       const selectedTemplate = providerTemplatesById.get(String(formData.template_id ?? ''))
-      const helpUrl = String(selectedTemplate?.helpUrl ?? '').trim()
       const defaultProtocol = defaultTemplateProtocol(selectedTemplate, formData.default_protocol)
       const endpointEditing = Boolean(formData.endpoint_editing)
       const endpointLabel = resolveEndpointFieldTitle(t, selectedTemplate)
@@ -979,7 +972,7 @@ export function AIProvidersPage() {
 
       return (
         <div className="space-y-1.5">
-          {renderEndpointFieldLabel(endpointLabel, helpUrl)}
+          {renderEndpointFieldLabel(endpointLabel)}
           <div className="flex items-center gap-2">
             <input
               id={inputId}
@@ -1035,6 +1028,9 @@ export function AIProvidersPage() {
                 ? {
                     endpoint: resolveCurrentProtocolEndpoint(selectedTemplate, formData),
                     apiKey: inlineSecretValue,
+                    authScheme: String(
+                      formData.auth_scheme ?? selectedTemplate?.defaultAuthScheme ?? ''
+                    ).trim(),
                     templateID: String(formData.template_id ?? '').trim(),
                     protocol: defaultTemplateProtocol(selectedTemplate, formData.default_protocol),
                   }
@@ -1093,6 +1089,9 @@ export function AIProvidersPage() {
           }
           update('auth_scheme', String(template?.defaultAuthScheme ?? ''))
           update('endpoint', resolveTemplateEndpoint(template, nextDefaults))
+          if (!resolveTemplateEndpoint(template, nextDefaults)) {
+            update('endpoint_editing', true)
+          }
           update('enabled_models', normalizeEnabledModels(template?.defaultEnabledModels ?? []))
         },
       },
@@ -1242,12 +1241,13 @@ export function AIProvidersPage() {
     }) => {
       const selectedTemplate = providerTemplatesById.get(String(formData.template_id ?? ''))
       const dynamicFields = (selectedTemplate?.fields ?? []).flatMap(field => {
-        if (field.id === 'credential') {
+        const presentedField = resolveCredentialFieldPresentation(selectedTemplate, field)
+        if (presentedField.id === 'credential') {
           const credentialField: FieldDef = {
-            key: field.id,
-            label: field.label,
+            key: presentedField.id,
+            label: presentedField.label,
             type: 'relation',
-            required: field.required,
+            required: presentedField.required,
             relationApiPath: buildUserVisibleSecretRelationApiPath('ai_provider', {
               secretTemplate: AI_PROVIDER_CREDENTIAL_TEMPLATE_ID,
             }),
@@ -1272,12 +1272,12 @@ export function AIProvidersPage() {
         }
 
         const mappedField = mapTemplateFieldToResourceField(
-          field,
+          presentedField,
           openSecretDialog,
           openSecretEditor,
           t
         )
-        if (selectedTemplate?.id === 'aws-bedrock' && field.id === 'region') {
+        if (selectedTemplate?.id === 'aws-bedrock' && presentedField.id === 'region') {
           return [
             {
               ...mappedField,
@@ -1299,21 +1299,23 @@ export function AIProvidersPage() {
         return [mappedField]
       })
 
-      const endpointInMainSection = isGenericOpenAICompatibleTemplate(selectedTemplate)
+      const promoteEndpoint = shouldPromoteEndpointField(selectedTemplate)
+      const promoteAuthScheme = shouldPromoteAuthSchemeField(selectedTemplate)
       let normalizedDynamicFields = dynamicFields.map(field => {
         if (field.key !== 'endpoint') return field
         return {
           ...field,
           label: resolveEndpointFieldTitle(t, selectedTemplate),
           hideLabel: true,
-          advanced: !endpointInMainSection,
+          advanced: !promoteEndpoint,
           render: renderEndpointField,
         }
       })
 
       const authSchemeField = {
         ...baseProviderFields[3],
-        advanced: !endpointInMainSection,
+        hidden: !promoteAuthScheme,
+        advanced: !promoteAuthScheme,
       }
 
       if (selectedTemplate?.id === 'aws-bedrock') {
@@ -1750,7 +1752,23 @@ export function AIProvidersPage() {
                   )}
                 </div>
               ),
-              description: `${editingItem ? t('aiProviders.dialog.update') : t('aiProviders.dialog.add')} ${productTitle(selectedTemplate)} ${t('aiProviders.dialog.suffix')}`,
+              description: (
+                <span className="inline-flex items-center gap-2">
+                  <span>{`${editingItem ? t('aiProviders.dialog.update') : t('aiProviders.dialog.add')} ${productTitle(selectedTemplate)} ${t('aiProviders.dialog.suffix')}`}</span>
+                  {selectedTemplate.helpUrl ? (
+                    <a
+                      href={selectedTemplate.helpUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground"
+                      aria-label="Open official API endpoint help"
+                      title="Open official API endpoint help"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  ) : null}
+                </span>
+              ),
               hideSelectedProductSummary: true,
             }
           },

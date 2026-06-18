@@ -78,6 +78,15 @@
     "remainingInput": "剩余输入预算",
     "note": "这是基于当前可见消息与附件的估算值。服务端在真正请求模型前，仍可能继续摘要或裁剪历史消息。"
   },
+  "prompts": {
+    "selectSystemPrompt": "为本次对话选择一个系统提示词",
+    "systemPromptGroup": "系统提示词",
+    "systemPromptNone": "不设置",
+    "taskInstruction": "任务",
+    "taskInstructionTitle": "任务指令 — 填充到消息草稿",
+    "taskInstructionGroup": "任务指令",
+    "noTaskInstructions": "暂无可用任务指令"
+  },
   "aria": {
     "conversationActions": "{{title}} 的对话操作",
     "removeAttachment": "移除 {{name}}"

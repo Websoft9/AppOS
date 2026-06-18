@@ -39,6 +39,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
@@ -59,8 +63,11 @@ import {
   type AICopilotMessage,
   type AICopilotSession,
 } from '@/lib/ai-copilot-api'
-import { listAssets, type AssetRecord } from '@/lib/assets-api'
-import { consumeAICopilotDraftHandoff } from '@/lib/ai-copilot-draft-handoff'
+import { getAssetContent, listAssets, type AssetRecord } from '@/lib/assets-api'
+import {
+  consumeAICopilotDraftHandoff,
+  consumeAICopilotSessionHandoff,
+} from '@/lib/ai-copilot-draft-handoff'
 import { getApiErrorMessage } from '@/lib/api-error'
 import { copyToClipboard } from '@/lib/clipboard'
 import {
@@ -378,8 +385,11 @@ export function AICopilotPage() {
   const [modelPopoverOpen, setModelPopoverOpen] = useState(false)
   const [promptAssets, setPromptAssets] = useState<AssetRecord[]>([])
   const [loadingPromptAssets, setLoadingPromptAssets] = useState(false)
-  const [promptPopoverOpen, setPromptPopoverOpen] = useState(false)
+  const [taskPromptPopoverOpen, setTaskPromptPopoverOpen] = useState(false)
+  const [headerSystemPromptMenuOpen, setHeaderSystemPromptMenuOpen] = useState(false)
+  const [emptySystemPromptPopoverOpen, setEmptySystemPromptPopoverOpen] = useState(false)
   const [selectedSystemPromptAssetId, setSelectedSystemPromptAssetId] = useState('')
+  const [loadingTaskContent, setLoadingTaskContent] = useState(false)
 
   useEffect(() => {
     localStorage.setItem('ai-copilot-model', selectedModel)
@@ -413,7 +423,11 @@ export function AICopilotPage() {
     setLoadingPromptAssets(true)
     try {
       const assets = await listAssets()
-      setPromptAssets(assets.filter(item => item.kind === 'prompt'))
+      setPromptAssets(
+        assets.filter(
+          item => item.kind === 'prompt'
+        )
+      )
     } catch {
       setPromptAssets([])
     } finally {
@@ -452,9 +466,17 @@ export function AICopilotPage() {
     () => sessions.find(session => session.id === activeSessionId) ?? null,
     [activeSessionId, sessions]
   )
+  const systemPrompts = useMemo(
+    () => promptAssets.filter(item => item.prompt_scope !== 'task'),
+    [promptAssets]
+  )
+  const taskInstructions = useMemo(
+    () => promptAssets.filter(item => item.prompt_scope === 'task'),
+    [promptAssets]
+  )
   const selectedPromptAsset = useMemo(
-    () => promptAssets.find(item => item.id === selectedSystemPromptAssetId) ?? null,
-    [promptAssets, selectedSystemPromptAssetId]
+    () => systemPrompts.find(item => item.id === selectedSystemPromptAssetId) ?? null,
+    [systemPrompts, selectedSystemPromptAssetId]
   )
   const locale = getLocale()
   const defaultSessionTitle = t('page.defaultSessionTitle')
@@ -542,10 +564,22 @@ export function AICopilotPage() {
 
   useEffect(() => {
     let cancelled = false
+    const sessionHandoff = consumeAICopilotSessionHandoff()
     setLoading(true)
     refreshSessions()
       .then(async items => {
         if (cancelled) return
+        if (sessionHandoff?.systemPromptAssetId) {
+          setSelectedSystemPromptAssetId(sessionHandoff.systemPromptAssetId)
+          const created = await createAICopilotSession({
+            systemPromptAssetId: sessionHandoff.systemPromptAssetId,
+          })
+          if (cancelled) return
+          setSessions([created, ...items])
+          setActiveSessionId(created.id)
+          setMessages([])
+          return
+        }
         if (items.length === 0) {
           setSessions([])
           setActiveSessionId('')
@@ -625,7 +659,8 @@ export function AICopilotPage() {
   const applySystemPromptSelection = async (assetId: string) => {
     const previous = selectedSystemPromptAssetId
     setSelectedSystemPromptAssetId(assetId)
-    setPromptPopoverOpen(false)
+    setHeaderSystemPromptMenuOpen(false)
+    setEmptySystemPromptPopoverOpen(false)
     if (!activeSessionId) {
       return
     }
@@ -643,6 +678,65 @@ export function AICopilotPage() {
       setBusySessionId('')
     }
   }
+
+  const applyTaskInstruction = async (assetId: string) => {
+    setTaskPromptPopoverOpen(false)
+    if (!assetId) return
+    setLoadingTaskContent(true)
+    try {
+      const content = await getAssetContent(assetId)
+      const text =
+        'files' in content
+          ? (content.files ?? []).map((f: { content: string }) => f.content).join('\n\n')
+          : content.content
+      setDraft(prev => {
+        const trimmedPrev = prev.trim()
+        const trimmedText = text.trim()
+        return trimmedPrev ? `${trimmedPrev}\n\n${trimmedText}` : trimmedText
+      })
+    } catch {
+      // silently ignore content fetch failures
+    } finally {
+      setLoadingTaskContent(false)
+    }
+  }
+
+  const renderSystemPromptChooser = () => (
+    <>
+      <div className="px-2 py-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        {t('prompts.systemPromptGroup')}
+      </div>
+      <button
+        type="button"
+        className={cn(
+          'flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-left text-xs hover:bg-accent hover:text-accent-foreground',
+          !selectedSystemPromptAssetId && 'bg-accent/50 font-medium'
+        )}
+        onClick={() => void applySystemPromptSelection('')}
+      >
+        <span>{t('prompts.systemPromptNone')}</span>
+        {!selectedSystemPromptAssetId ? <Check className="h-3.5 w-3.5" /> : null}
+      </button>
+      <div className="max-h-56 overflow-y-auto">
+        {systemPrompts.map(asset => (
+          <button
+            key={asset.id}
+            type="button"
+            className={cn(
+              'flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-left text-xs hover:bg-accent hover:text-accent-foreground',
+              asset.id === selectedSystemPromptAssetId && 'bg-accent/50 font-medium'
+            )}
+            onClick={() => void applySystemPromptSelection(asset.id)}
+          >
+            <span className="truncate">{asset.name}</span>
+            {asset.id === selectedSystemPromptAssetId ? (
+              <Check className="h-3.5 w-3.5 shrink-0" />
+            ) : null}
+          </button>
+        ))}
+      </div>
+    </>
+  )
 
   const addFiles = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return
@@ -1169,31 +1263,68 @@ export function AICopilotPage() {
             <div className="px-5 py-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
-                {!conversationListWide ? (
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    aria-label={t('actions.expandConversationList')}
-                    onClick={() => setConversationListWide(true)}
-                  >
-                    <PanelLeft className="h-4 w-4" />
-                  </Button>
-                ) : null}
+                  {!conversationListWide ? (
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      aria-label={t('actions.expandConversationList')}
+                      onClick={() => setConversationListWide(true)}
+                    >
+                      <PanelLeft className="h-4 w-4" />
+                    </Button>
+                  ) : null}
                   <h2 className="truncate text-lg font-semibold">{activeSession?.title || t('page.title')}</h2>
                 </div>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <button
-                      type="button"
-                      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-accent/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
-                      aria-label={t('actions.tokenUsage')}
-                      disabled={!selectedModelMeta}
-                    >
-                      <TokenUsageRing percent={tokenUsagePercent} />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-72 p-3" align="end">
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <DropdownMenu open={headerSystemPromptMenuOpen} onOpenChange={setHeaderSystemPromptMenuOpen}>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                        aria-label={t('prompts.selectSystemPrompt')}
+                        disabled={sending || busySessionId === activeSessionId}
+                        title={selectedPromptAsset?.name || t('prompts.systemPromptNone')}
+                      >
+                        <Settings className="h-4 w-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-64 p-1" align="end">
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger className="text-xs">
+                          <Settings className="h-3.5 w-3.5" />
+                          <div className="min-w-0">
+                            <div className="truncate">{t('prompts.selectSystemPrompt')}</div>
+                            <div className="truncate text-[11px] text-muted-foreground">
+                              {selectedPromptAsset?.name || t('prompts.systemPromptNone')}
+                            </div>
+                          </div>
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent className="w-64 p-1">
+                          {renderSystemPromptChooser()}
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-xs text-muted-foreground"
+                        onClick={event => event.preventDefault()}
+                      >
+                        {selectedPromptAsset?.name || t('prompts.systemPromptNone')}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-accent/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                        aria-label={t('actions.tokenUsage')}
+                        disabled={!selectedModelMeta}
+                      >
+                        <TokenUsageRing percent={tokenUsagePercent} />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-72 p-3" align="end">
                     <div className="space-y-3 text-xs">
                       <div>
                         <div className="font-medium text-foreground">{t('tokens.title')}</div>
@@ -1241,8 +1372,9 @@ export function AICopilotPage() {
                         {t('tokens.note')}
                       </div>
                     </div>
-                  </PopoverContent>
-                </Popover>
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
             </div>
 
@@ -1254,6 +1386,52 @@ export function AICopilotPage() {
                   <Bot className="mb-3 h-7 w-7" />
                   <div className="font-medium text-foreground">{t('page.emptyTitle')}</div>
                   <div className="mt-1">{t('page.emptyDescription')}</div>
+                  <div className="mt-4 flex flex-col items-center gap-2">
+                    <span className="text-xs text-muted-foreground">{t('prompts.selectSystemPrompt')}</span>
+                    <div className="grid w-full max-w-md grid-cols-3 gap-1.5">
+                      <button
+                        type="button"
+                        className={cn(
+                          'rounded-full border px-2.5 py-1 text-xs transition-colors hover:bg-accent hover:text-accent-foreground',
+                          !selectedSystemPromptAssetId && 'bg-primary/10 border-primary/30 text-primary font-medium',
+                        )}
+                        onClick={() => void applySystemPromptSelection('')}
+                      >
+                        None
+                      </button>
+                      {systemPrompts.slice(0, 4).map(asset => (
+                        <button
+                          key={asset.id}
+                          type="button"
+                          className={cn(
+                            'truncate rounded-full border px-2.5 py-1 text-xs transition-colors hover:bg-accent hover:text-accent-foreground',
+                            asset.id === selectedSystemPromptAssetId && 'bg-primary/10 border-primary/30 text-primary font-medium',
+                          )}
+                          onClick={() => void applySystemPromptSelection(asset.id)}
+                        >
+                          {asset.name}
+                        </button>
+                      ))}
+                      {systemPrompts.length > 4 ? (
+                        <Popover
+                          open={emptySystemPromptPopoverOpen}
+                          onOpenChange={setEmptySystemPromptPopoverOpen}
+                        >
+                          <PopoverTrigger asChild>
+                            <button
+                              type="button"
+                              className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                            >
+                              +{systemPrompts.length - 4} more
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-64 p-1" align="center">
+                            {renderSystemPromptChooser()}
+                          </PopoverContent>
+                        </Popover>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="mx-auto flex max-w-4xl flex-col gap-6">
@@ -1363,56 +1541,55 @@ export function AICopilotPage() {
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
-                      <Popover open={promptPopoverOpen} onOpenChange={setPromptPopoverOpen}>
+                      <Popover open={taskPromptPopoverOpen} onOpenChange={setTaskPromptPopoverOpen}>
                         <PopoverTrigger asChild>
                           <Button
                             type="button"
                             variant="ghost"
                             className={cn(
                               'h-7 shrink-0 rounded-md text-muted-foreground hover:bg-background/70 hover:text-foreground px-2',
-                              selectedSystemPromptAssetId && 'text-foreground'
+                              taskInstructions.length > 0 && 'text-foreground'
                             )}
-                            disabled={sending || loadingPromptAssets || busySessionId === activeSessionId}
-                            aria-label="Prompt context"
-                            title={selectedPromptAsset?.name || 'Prompt context'}
+                            disabled={sending || loadingPromptAssets || loadingTaskContent || busySessionId === activeSessionId}
+                            aria-label="Task instruction"
+                            title={t('prompts.taskInstructionTitle')}
                           >
-                            {loadingPromptAssets ? (
+                            {loadingPromptAssets || loadingTaskContent ? (
                               <Loader2 className="h-3 w-3 animate-spin" />
                             ) : (
                               <>
-                                <span className="inline-flex items-center gap-1 text-xs">
+                                <span className="inline-flex items-center gap-1 text-xs" title={t('prompts.taskInstructionTitle')}>
                                   <File className="h-3 w-3" />
-                                  <span>Context</span>
+                                  <span>{t('prompts.taskInstruction')}</span>
                                 </span>
                               </>
                             )}
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-72 p-1" align="start">
+                          <div className="px-2 py-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{t('prompts.taskInstructionGroup')}</div>
                           <button
                             type="button"
                             className={cn(
-                              'flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-xs hover:bg-accent hover:text-accent-foreground',
-                              !selectedSystemPromptAssetId && 'bg-accent/50 font-medium'
+                              'flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground',
                             )}
-                            onClick={() => void applySystemPromptSelection('')}
+                            onClick={() => setTaskPromptPopoverOpen(false)}
                           >
                             <span>None</span>
-                            {!selectedSystemPromptAssetId ? <Check className="h-3.5 w-3.5" /> : null}
                           </button>
                           <div className="max-h-56 overflow-y-auto">
-                            {promptAssets.map(asset => (
+                            {taskInstructions.length === 0 ? (
+                              <div className="px-2 py-3 text-center text-xs text-muted-foreground">{t('prompts.noTaskInstructions')}</div>
+                            ) : taskInstructions.map(asset => (
                               <button
                                 key={asset.id}
                                 type="button"
                                 className={cn(
                                   'flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-left text-xs hover:bg-accent hover:text-accent-foreground',
-                                  asset.id === selectedSystemPromptAssetId && 'bg-accent/50 font-medium'
                                 )}
-                                onClick={() => void applySystemPromptSelection(asset.id)}
+                                onClick={() => void applyTaskInstruction(asset.id)}
                               >
                                 <span className="truncate">{asset.name}</span>
-                                {asset.id === selectedSystemPromptAssetId ? <Check className="h-3.5 w-3.5 shrink-0" /> : null}
                               </button>
                             ))}
                           </div>

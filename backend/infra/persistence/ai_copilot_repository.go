@@ -27,6 +27,9 @@ func (r *pocketBaseAICopilotRepository) CreateSession(_ context.Context, ownerID
 	if err != nil {
 		return nil, err
 	}
+	if err := r.validateSystemPromptAssetID(systemPromptAssetID); err != nil {
+		return nil, err
+	}
 	record := core.NewRecord(collection)
 	now := time.Now().UTC().Format(time.RFC3339)
 	record.Set("owner_id", ownerID)
@@ -68,6 +71,9 @@ func (r *pocketBaseAICopilotRepository) UpdateSession(_ context.Context, session
 		record.Set("title", strings.TrimSpace(*title))
 	}
 	if systemPromptAssetID != nil {
+		if err := r.validateSystemPromptAssetID(*systemPromptAssetID); err != nil {
+			return nil, err
+		}
 		record.Set("system_prompt_asset_id", strings.TrimSpace(*systemPromptAssetID))
 	}
 	record.Set("last_message_at", time.Now().UTC().Format(time.RFC3339))
@@ -75,6 +81,25 @@ func (r *pocketBaseAICopilotRepository) UpdateSession(_ context.Context, session
 		return nil, err
 	}
 	return sessionFromRecord(record), nil
+}
+
+func (r *pocketBaseAICopilotRepository) validateSystemPromptAssetID(assetID string) error {
+	assetID = strings.TrimSpace(assetID)
+	if assetID == "" {
+		return nil
+	}
+	record, err := r.app.FindRecordById(assets.Collection, assetID)
+	if err != nil {
+		return err
+	}
+	asset := assets.From(record)
+	if asset.Kind() != assets.KindPrompt {
+		return errors.New("system prompt asset must be a prompt")
+	}
+	if asset.PromptScope() != assets.PromptScopeSystem {
+		return errors.New("system prompt asset must use system scope")
+	}
+	return nil
 }
 
 func (r *pocketBaseAICopilotRepository) GetPromptContent(_ context.Context, assetID string) (string, error) {

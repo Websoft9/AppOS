@@ -16,6 +16,9 @@ const (
 	KindSkill  = "skill"
 	KindPrompt = "prompt"
 
+	PromptScopeSystem = "system"
+	PromptScopeTask   = "task"
+
 	StorageFile   = "file"
 	StorageFolder = "folder"
 
@@ -47,6 +50,7 @@ var (
 	SupportedKinds        = []string{KindScript, KindSkill, KindPrompt}
 	SupportedStorageKinds = []string{StorageFile, StorageFolder}
 	SupportedSourceKinds  = []string{SourceLocal, SourceReference}
+	SupportedPromptScopes = []string{PromptScopeSystem, PromptScopeTask}
 	ScriptLanguages       = []ScriptLanguageDefinition{
 		{Code: LanguageShell, DefaultExtension: "sh"},
 		{Code: LanguageBash, DefaultExtension: "bash"},
@@ -98,10 +102,19 @@ func (a *Asset) Entrypoint() string      { return a.rec.GetString("entrypoint") 
 func (a *Asset) TemplateKey() string     { return a.rec.GetString("template_key") }
 func (a *Asset) IsSystem() bool          { return a.rec.GetBool("is_system") }
 func (a *Asset) IsTemplate() bool        { return a.rec.GetBool("is_template") }
+func (a *Asset) PromptScope() string     { return NormalizePromptScope(a.rec.GetString("prompt_scope")) }
 func (a *Asset) IsLocal() bool           { return a.SourceKind() == SourceLocal }
 func (a *Asset) IsReference() bool       { return a.SourceKind() == SourceReference }
 func (a *Asset) IsSingleFile() bool      { return a.StorageKind() == StorageFile }
 func (a *Asset) IsFolder() bool          { return a.StorageKind() == StorageFolder }
+
+func NormalizePromptScope(value string) string {
+	normalized := strings.TrimSpace(strings.ToLower(value))
+	if normalized == PromptScopeTask {
+		return PromptScopeTask
+	}
+	return PromptScopeSystem
+}
 
 // StorageDirName returns the canonical filesystem directory name for this asset.
 func (a *Asset) StorageDirName() string {

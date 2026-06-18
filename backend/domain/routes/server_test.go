@@ -1,9 +1,11 @@
 package routes
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -11,8 +13,10 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	"github.com/websoft9/appos/backend/domain/software"
 	"github.com/websoft9/appos/backend/domain/terminal"
+	"github.com/websoft9/appos/backend/infra/remoteshell"
 	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
 )
 
@@ -600,6 +604,160 @@ func TestServersViewMarksTunnelSetupRequired(t *testing.T) {
 	}
 	if item.Tunnel == nil || item.Tunnel.State != "setup_required" || !item.Tunnel.Waiting {
 		t.Fatalf("unexpected setup-required tunnel payload: %#v", item)
+	}
+}
+
+func TestResolveTerminalExecutionPlanBuildsSelfProxyEnv(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	server := createServerRecord(t, te, "self-proxy-shell", "203.0.113.10", 22, "root", "password")
+	server.Set("connect_type", "direct")
+	if err := te.app.Save(server); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := sysconfig.SetGroup(te.app, "proxy", "network", map[string]any{
+		"source":            "self",
+		"enabled":           false,
+		"socks5ConnectorId": "",
+		"httpConnectorId":   "",
+		"httpsConnectorId":  "",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sysconfig.SetGroup(te.app, "proxy", "policies", map[string]any{
+		"items": []map[string]any{{
+			"consumerKey": "remote_shell.global",
+			"mode":        "always",
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	plan, err := resolveTerminalExecutionPlanWithAppOSBaseURL(te.app, nil, server.Id, "https://console.example.com:9443")
+	if err != nil {
+		t.Fatalf("resolve terminal execution plan: %v", err)
+	}
+	if plan.Transport != "direct_ssh" {
+		t.Fatalf("expected direct ssh transport, got %q", plan.Transport)
+	}
+	if plan.Config.Host != "203.0.113.10" || plan.Config.Port != 22 {
+		t.Fatalf("expected original SSH target to remain unchanged, got %s:%d", plan.Config.Host, plan.Config.Port)
+	}
+	if len(plan.Warnings) != 0 {
+		t.Fatalf("expected no self proxy fallback warning, got %#v", plan.Warnings)
+	}
+	proxyURL, err := url.Parse(plan.Env["HTTP_PROXY"])
+	if err != nil {
+		t.Fatalf("parse self proxy env: %v", err)
+	}
+	if proxyURL.Scheme != "https" || proxyURL.Host != "console.example.com:9443" {
+		t.Fatalf("unexpected self proxy target URL: %s", proxyURL.String())
+	}
+	if proxyURL.User == nil || proxyURL.User.Username() != server.Id {
+		t.Fatalf("expected self proxy username %q, got %#v", server.Id, proxyURL.User)
+	}
+	if token, ok := proxyURL.User.Password(); !ok || strings.TrimSpace(token) == "" {
+		t.Fatalf("expected self proxy password token in URL, got %s", proxyURL.String())
+	}
+}
+
+func TestResolveTerminalExecutionPlanWarnsWhenSelfProxyBaseURLUnavailable(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	server := createServerRecord(t, te, "self-proxy-fallback", "203.0.113.11", 22, "root", "password")
+	server.Set("connect_type", "direct")
+	if err := te.app.Save(server); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := sysconfig.SetGroup(te.app, "proxy", "network", map[string]any{
+		"source":            "self",
+		"enabled":           false,
+		"socks5ConnectorId": "",
+		"httpConnectorId":   "",
+		"httpsConnectorId":  "",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sysconfig.SetGroup(te.app, "proxy", "policies", map[string]any{
+		"items": []map[string]any{{
+			"consumerKey": "remote_shell.global",
+			"mode":        "always",
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	plan, err := resolveTerminalExecutionPlan(te.app, nil, server.Id)
+	if err != nil {
+		t.Fatalf("resolve terminal execution plan: %v", err)
+	}
+	if plan.Transport != "direct_ssh" {
+		t.Fatalf("expected direct ssh fallback transport, got %q", plan.Transport)
+	}
+	if plan.Config.Host != "203.0.113.11" || plan.Config.Port != 22 {
+		t.Fatalf("expected original SSH target to remain unchanged, got %s:%d", plan.Config.Host, plan.Config.Port)
+	}
+	if len(plan.Warnings) != 1 || !strings.Contains(plan.Warnings[0], "AppOS public URL is unavailable") {
+		t.Fatalf("expected self proxy fallback warning, got %#v", plan.Warnings)
+	}
+}
+
+func TestSelfProxyMiddlewareForwardsHTTPRequests(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	server := createServerRecord(t, te, "self-proxy-forward", "203.0.113.20", 22, "root", "password")
+	if err := sysconfig.SetGroup(te.app, "proxy", "network", map[string]any{
+		"source":            "self",
+		"enabled":           false,
+		"socks5ConnectorId": "",
+		"httpConnectorId":   "",
+		"httpsConnectorId":  "",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	token, err := remoteshell.GetOrIssueSelfProxyToken(te.app, server.Id)
+	if err != nil {
+		t.Fatalf("issue self proxy token: %v", err)
+	}
+
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Proxy-Authorization"); got != "" {
+			t.Fatalf("expected proxy auth header to be stripped before upstream request, got %q", got)
+		}
+		w.Header().Set("X-Upstream", "ok")
+		_, _ = w.Write([]byte("proxied-through-appos"))
+	}))
+	defer target.Close()
+
+	r, err := apis.NewRouter(te.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	Register(&core.ServeEvent{App: te.app, Router: r})
+	mux, err := r.BuildMux()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, target.URL+"/demo?check=1", nil)
+	req.Header.Set("Proxy-Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(server.Id+":"+token)))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected proxy forward to return 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if rec.Header().Get("X-Upstream") != "ok" {
+		t.Fatalf("expected upstream response header to pass through, got %#v", rec.Header())
+	}
+	if rec.Body.String() != "proxied-through-appos" {
+		t.Fatalf("unexpected proxied response body: %q", rec.Body.String())
 	}
 }
 

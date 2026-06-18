@@ -11,20 +11,19 @@
   "description": "Anthropic hosted LLM access using an API key.",
   "helpUrl": "https://docs.anthropic.com/en/api/overview",
   "defaultEndpoint": "https://api.anthropic.com",
+  "defaultAuthScheme": "api_key",
   "protocols": [
     {
       "id": "anthropic",
       "label": "Anthropic",
-      "default": true,
-      "defaultEndpoint": "https://api.anthropic.com"
+      "default": true
     }
   ],
   "capabilities": ["chat", "tools", "streaming"],
   "aliases": ["anthropic", "claude"],
   "fields": [
     {
-      "id": "endpoint",
-      "default": "https://api.anthropic.com"
+      "id": "endpoint"
     },
     {
       "id": "version",

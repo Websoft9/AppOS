@@ -14,7 +14,7 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/domain/proxy"
+	"github.com/websoft9/appos/backend/infra/httpout"
 )
 
 type EinoModelFactory struct {
@@ -33,7 +33,7 @@ func (f EinoModelFactory) ValidateProvider(ctx context.Context, provider *Provid
 	}
 	var client *http.Client
 	if f.App != nil {
-		configuredClient, err := proxy.NewHTTPClient(f.App, "ai_providers.global", 90*time.Second, false)
+		configuredClient, err := httpout.NewPolicyClient(f.App, "http.ai", 90*time.Second, false)
 		if err == nil {
 			client = &configuredClient
 		}
@@ -69,7 +69,7 @@ func (f EinoModelFactory) NewStreamer(ctx context.Context, provider *ProviderCon
 
 func (f EinoModelFactory) providerHTTPClient(provider *ProviderConfig) *http.Client {
 	if f.App != nil {
-		client, err := proxy.NewHTTPClient(f.App, "ai_providers.global", 90*time.Second, false)
+		client, err := httpout.NewPolicyClient(f.App, "http.ai", 90*time.Second, false)
 		if err == nil {
 			return &client
 		}
@@ -89,14 +89,22 @@ func resolveOpenAIBaseURL(provider *ProviderConfig) string {
 }
 
 type headerRoundTripper struct {
-	base    http.RoundTripper
-	headers map[string]string
+	base      http.RoundTripper
+	headers   map[string]string
+	overwrite map[string]struct{}
+	remove    []string
 }
 
 func (t headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	clone := req.Clone(req.Context())
+	for _, key := range t.remove {
+		clone.Header.Del(key)
+	}
 	for key, value := range t.headers {
-		if strings.TrimSpace(value) == "" || clone.Header.Get(key) != "" {
+		if strings.TrimSpace(value) == "" {
+			continue
+		}
+		if _, ok := t.overwrite[key]; !ok && clone.Header.Get(key) != "" {
 			continue
 		}
 		clone.Header.Set(key, value)
@@ -126,7 +134,12 @@ func withProviderHeaders(client *http.Client, provider *ProviderConfig) *http.Cl
 	if base == nil {
 		base = http.DefaultTransport
 	}
-	clone.Transport = headerRoundTripper{base: base, headers: headers}
+	clone.Transport = headerRoundTripper{
+		base:      base,
+		headers:   headers,
+		overwrite: providerHeaderOverwriteSet(provider),
+		remove:    providerHeaderRemovalList(provider),
+	}
 	return &clone
 }
 
@@ -134,17 +147,63 @@ func providerHeaders(provider *ProviderConfig) map[string]string {
 	if provider == nil {
 		return nil
 	}
+	headers := authSchemeHeaders(provider.APIKey, provider.AuthScheme)
 	endpoint := strings.ToLower(strings.TrimSpace(provider.Endpoint))
-	if !strings.Contains(endpoint, "openrouter.ai") {
+	if strings.Contains(endpoint, "openrouter.ai") {
+		referer := strings.TrimSpace(provider.HTTPReferer)
+		if referer == "" {
+			referer = "https://appos.local"
+		}
+		headers["HTTP-Referer"] = referer
+		headers["X-Title"] = "AppOS"
+	}
+	if len(headers) == 0 {
 		return nil
 	}
-	referer := strings.TrimSpace(provider.HTTPReferer)
-	if referer == "" {
-		referer = "https://appos.local"
+	return headers
+}
+
+func providerHeaderOverwriteSet(provider *ProviderConfig) map[string]struct{} {
+	if provider == nil {
+		return nil
 	}
-	return map[string]string{
-		"HTTP-Referer": referer,
-		"X-Title":      "AppOS",
+	scheme := strings.TrimSpace(strings.ToLower(provider.AuthScheme))
+	if scheme == "" || scheme == "bearer" {
+		return nil
+	}
+	return map[string]struct{}{
+		"Authorization": {},
+		"x-api-key":     {},
+	}
+}
+
+func providerHeaderRemovalList(provider *ProviderConfig) []string {
+	if provider == nil {
+		return nil
+	}
+	scheme := strings.TrimSpace(strings.ToLower(provider.AuthScheme))
+	if scheme == "" || scheme == "bearer" {
+		return nil
+	}
+	return []string{"Authorization", "x-api-key"}
+}
+
+func authSchemeHeaders(apiKey string, authScheme string) map[string]string {
+	apiKey = strings.TrimSpace(apiKey)
+	if apiKey == "" {
+		return map[string]string{}
+	}
+	switch strings.TrimSpace(strings.ToLower(authScheme)) {
+	case "", "bearer":
+		return map[string]string{"Authorization": "Bearer " + apiKey}
+	case "api_key":
+		return map[string]string{"x-api-key": apiKey}
+	case "basic":
+		return map[string]string{"Authorization": "Basic " + apiKey}
+	case "none":
+		return map[string]string{}
+	default:
+		return map[string]string{"Authorization": "Bearer " + apiKey}
 	}
 }
 
@@ -194,7 +253,11 @@ func (s *anthropicStreamer) Stream(ctx context.Context, messages []*Message, onC
 	}
 	req.Header.Set("content-type", "application/json")
 	req.Header.Set("accept", "text/event-stream")
-	req.Header.Set("x-api-key", s.provider.APIKey)
+	for key, value := range authSchemeHeaders(s.provider.APIKey, s.provider.AuthScheme) {
+		if strings.TrimSpace(value) != "" {
+			req.Header.Set(key, value)
+		}
+	}
 	req.Header.Set("anthropic-version", resolveProviderAnthropicVersion(s.provider))
 	resp, err := s.client.Do(req)
 	if err != nil {

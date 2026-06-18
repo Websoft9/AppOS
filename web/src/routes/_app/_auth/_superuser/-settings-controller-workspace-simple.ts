@@ -165,7 +165,7 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     const item = value as Record<string, unknown>
     const consumerKey = typeof item.consumerKey === 'string' ? item.consumerKey.trim() : ''
     const mode = typeof item.mode === 'string' ? item.mode.trim() : ''
-    if (consumerKey === '' || (mode !== 'disabled' && mode !== 'always' && mode !== 'fallback')) {
+    if (consumerKey === '' || (mode !== 'disabled' && mode !== 'always')) {
       return null
     }
     return { consumerKey, mode }
@@ -179,8 +179,7 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     if (key === '' || title === '') return null
     const allowedModes = Array.isArray(item.allowedModes)
       ? item.allowedModes.filter(
-          (entry): entry is 'disabled' | 'always' | 'fallback' =>
-            entry === 'disabled' || entry === 'always' || entry === 'fallback'
+          (entry): entry is 'disabled' | 'always' => entry === 'disabled' || entry === 'always'
         )
       : []
     return {
@@ -194,9 +193,7 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
       trafficClass: typeof item.trafficClass === 'string' ? item.trafficClass : 'public_egress',
       support: typeof item.support === 'string' ? item.support : 'proxy_capable',
       defaultMode:
-        item.defaultMode === 'disabled' ||
-        item.defaultMode === 'always' ||
-        item.defaultMode === 'fallback'
+        item.defaultMode === 'disabled' || item.defaultMode === 'always'
           ? item.defaultMode
           : 'disabled',
       allowedModes,
@@ -214,7 +211,7 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     const mode = typeof item.mode === 'string' ? item.mode.trim() : ''
     if (
       serverId === '' ||
-      (mode !== 'disabled' && mode !== 'always' && mode !== 'fallback')
+      (mode !== 'disabled' && mode !== 'always')
     ) {
       return null
     }
@@ -242,13 +239,13 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
       network.socks5ConnectorId !== '' ||
       network.httpConnectorId !== '' ||
       network.httpsConnectorId !== '' ||
-      consumers.some(item => item.consumerKey !== 'servers.global' && item.mode !== 'disabled')
+      consumers.some(item => item.consumerKey !== 'remote_shell.global' && item.mode !== 'disabled')
     ) {
       return 'external'
     }
 
-    const remoteShellDefinition = definitions.find(definition => definition.key === 'servers.global')
-    const savedRemoteShellMode = consumers.find(item => item.consumerKey === 'servers.global')?.mode
+    const remoteShellDefinition = definitions.find(definition => definition.key === 'remote_shell.global')
+    const savedRemoteShellMode = consumers.find(item => item.consumerKey === 'remote_shell.global')?.mode
     const effectiveRemoteShellMode = savedRemoteShellMode ?? remoteShellDefinition?.defaultMode ?? 'disabled'
     if (remoteShellOverrides.length > 0 || effectiveRemoteShellMode !== 'disabled') {
       return 'self'
@@ -450,7 +447,7 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
 
     const network = (entryMap.get('proxy-network') as Partial<ProxyNetwork>) ?? {}
     const consumersEntry =
-      (entryMap.get('proxy-consumers') as Partial<ProxyConsumersSettings> | undefined) ??
+      (entryMap.get('proxy-policies') as Partial<ProxyConsumersSettings> | undefined) ??
       EMPTY_PROXY_CONSUMERS
     const normalizedDefinitions = Array.isArray(consumersEntry.definitions)
       ? consumersEntry.definitions
@@ -670,7 +667,7 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
           mode: item.mode,
         })),
       }
-      const consumerRes = (await pb.send(settingsEntryPath('proxy-consumers'), {
+      const consumerRes = (await pb.send(settingsEntryPath('proxy-policies'), {
         method: 'PATCH',
         body: consumerPayload,
       })) as { value?: Partial<ProxyConsumersSettings> }
@@ -689,7 +686,7 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
         )
       }
       setProxyErrors(current => ({ ...current, consumers: undefined }))
-      showToast('Module proxy settings saved')
+      showToast('Proxy policy settings saved')
     } catch (err) {
       if (err instanceof ClientResponseError && (err.status === 400 || err.status === 422)) {
 	        const inlineErrors = parseProxyApiErrors(err.response, 'consumers')

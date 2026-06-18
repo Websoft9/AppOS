@@ -20,16 +20,14 @@
     {
       "id": "openai",
       "label": "OpenAI",
-      "default": true,
-      "defaultEndpoint": "https://api.deepseek.com"
+      "default": true
     }
   ],
   "capabilities": ["chat", "reasoning", "tools", "streaming"],
   "aliases": ["deepseek"],
   "fields": [
     {
-      "id": "endpoint",
-      "default": "https://api.deepseek.com"
+      "id": "endpoint"
     }
   ]
 }

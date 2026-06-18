@@ -23,7 +23,7 @@ const ASSET_FAMILY_CARDS: AssetFamilyCardDef[] = [
   {
     key: 'prompt',
     title: 'AI Prompts',
-    description: 'Reusable system prompts for AI Copilot and operators.',
+    description: 'Reusable system prompts and task instructions for AI Copilot and operators.',
     href: '/ai-assets/prompts',
     icon: <Bot className="h-5 w-5" />,
   },

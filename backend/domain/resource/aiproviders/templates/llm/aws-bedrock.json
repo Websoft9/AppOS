@@ -22,15 +22,13 @@
     {
       "id": "openai",
       "label": "OpenAI",
-      "default": true,
-      "defaultEndpoint": "https://bedrock-mantle.{region}.api.aws/v1"
+      "default": true
     }
   ],
   "aliases": ["aws bedrock", "bedrock", "aws-bedrock"],
   "fields": [
     {
       "id": "endpoint",
-      "default": "https://bedrock-mantle.us-east-1.api.aws/v1",
       "placeholder": "https://bedrock-mantle.us-east-1.api.aws/v1"
     },
     {

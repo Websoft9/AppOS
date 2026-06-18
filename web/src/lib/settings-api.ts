@@ -2,6 +2,8 @@ export const SETTINGS_SCHEMA_API_PATH = '/api/settings/schema'
 export const SETTINGS_ENTRIES_API_PATH = '/api/settings/entries'
 export const SETTINGS_ACTIONS_API_PATH = '/api/settings/actions'
 
+export const MIRRORS_QUICK_ADD_URL = 'https://artifact.websoft9.com/websoft9/dev/mirrors.json'
+
 export type SettingsSection = string
 export type SettingsSource = 'native' | 'custom'
 export type SettingsActionId = string

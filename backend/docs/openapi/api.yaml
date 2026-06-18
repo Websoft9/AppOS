@@ -102,6 +102,8 @@ components:
                     additionalProperties:
                         type: string
                     type: object
+                is_template:
+                    type: boolean
                 kind:
                     type: string
                 language:
@@ -109,6 +111,8 @@ components:
                 name:
                     type: string
                 path:
+                    type: string
+                prompt_scope:
                     type: string
                 reference:
                     type: string

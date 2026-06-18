@@ -21,7 +21,7 @@ import (
 	"github.com/websoft9/appos/backend/domain/audit"
 	"github.com/websoft9/appos/backend/domain/ai/copilot"
 	sysconfig "github.com/websoft9/appos/backend/domain/config/sysconfig"
-	"github.com/websoft9/appos/backend/domain/proxy"
+	"github.com/websoft9/appos/backend/infra/httpout"
 	"github.com/websoft9/appos/backend/domain/resource/accounts"
 	"github.com/websoft9/appos/backend/domain/resource/aiproviders"
 	"github.com/websoft9/appos/backend/domain/secrets"
@@ -299,6 +299,7 @@ func aiProviderSaveError(e *core.RequestEvent, err error) error {
 type fetchModelsRequest struct {
 	Endpoint   string `json:"endpoint"`
 	APIKey     string `json:"api_key"`
+	AuthScheme string `json:"auth_scheme,omitempty"`
 	TemplateID string `json:"template_id,omitempty"`
 	Protocol   string `json:"protocol,omitempty"`
 }
@@ -338,10 +339,11 @@ func handleFetchModels(e *core.RequestEvent) error {
 
 	endpoint := strings.TrimSpace(body.Endpoint)
 	apiKey := strings.TrimSpace(body.APIKey)
+	authScheme := strings.TrimSpace(body.AuthScheme)
 	if endpoint == "" {
 		return e.BadRequestError("endpoint is required", nil)
 	}
-	result, err := fetchProviderModels(e.App, e.Request.Context(), endpoint, apiKey, body.TemplateID, body.Protocol)
+	result, err := fetchProviderModels(e.App, e.Request.Context(), endpoint, apiKey, authScheme, body.TemplateID, body.Protocol)
 	if err != nil {
 		return e.BadRequestError(describeFetchModelsError(err), err)
 	}
@@ -360,7 +362,7 @@ func handleAIProviderModels(e *core.RequestEvent) error {
 	if resolveErr != nil {
 		return e.InternalServerError("failed to resolve provider credential", resolveErr)
 	}
-	result, fetchErr := fetchProviderModels(e.App, e.Request.Context(), aiproviders.ActiveEndpoint(item), apiKey, strings.TrimSpace(item.TemplateID()), aiproviders.ProviderDefaultProtocol(item))
+	result, fetchErr := fetchProviderModels(e.App, e.Request.Context(), aiproviders.ActiveEndpoint(item), apiKey, strings.TrimSpace(item.AuthScheme()), strings.TrimSpace(item.TemplateID()), aiproviders.ProviderDefaultProtocol(item))
 	if fetchErr != nil {
 		return e.BadRequestError(describeFetchModelsError(fetchErr), fetchErr)
 	}
@@ -445,7 +447,7 @@ func handleAIProviderReachability(e *core.RequestEvent) error {
 				results[index] = status
 				return
 			}
-			_, fetchErr := fetchProviderModels(e.App, e.Request.Context(), aiproviders.ActiveEndpoint(item), apiKey, strings.TrimSpace(item.TemplateID()), aiproviders.ProviderDefaultProtocol(item))
+			_, fetchErr := fetchProviderModels(e.App, e.Request.Context(), aiproviders.ActiveEndpoint(item), apiKey, strings.TrimSpace(item.AuthScheme()), strings.TrimSpace(item.TemplateID()), aiproviders.ProviderDefaultProtocol(item))
 			if fetchErr != nil {
 				status.Status = "unreachable"
 				status.Error = fetchErr.Error()
@@ -521,7 +523,7 @@ func handleAIProviderChatModels(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, aiProviderChatModelsResponse{Items: chatModels})
 }
 
-func fetchProviderModels(app core.App, ctx context.Context, endpoint string, apiKey string, templateID string, protocol string) (fetchModelsResponse, error) {
+func fetchProviderModels(app core.App, ctx context.Context, endpoint string, apiKey string, authScheme string, templateID string, protocol string) (fetchModelsResponse, error) {
 	endpoint = strings.TrimSpace(endpoint)
 	if endpoint == "" {
 		return fetchModelsResponse{}, errors.New("endpoint is required")
@@ -559,7 +561,7 @@ func fetchProviderModels(app core.App, ctx context.Context, endpoint string, api
 		}
 		useBearerAuth = true
 	} else if apiKey != "" {
-		useBearerAuth = true
+		useBearerAuth = strings.EqualFold(strings.TrimSpace(authScheme), "bearer") || strings.TrimSpace(authScheme) == ""
 	}
 
 	client := newAIProviderHTTPClient(app, hasTemplate && tpl.SkipTLSCertVerify)
@@ -575,12 +577,10 @@ func fetchProviderModels(app core.App, ctx context.Context, endpoint string, api
 			req.URL.RawQuery = query.Encode()
 		}
 	} else if useAnthropicHeaders {
-		if apiKey != "" {
-			req.Header.Set("x-api-key", apiKey)
-		}
+		applyAuthSchemeHeaders(req, apiKey, authScheme)
 		req.Header.Set("anthropic-version", resolveAnthropicVersion(tpl))
-	} else if useBearerAuth && apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+apiKey)
+	} else if useBearerAuth || apiKey != "" {
+		applyAuthSchemeHeaders(req, apiKey, authScheme)
 	}
 
 	resp, doErr := client.Do(req)
@@ -616,7 +616,7 @@ func fetchProviderModels(app core.App, ctx context.Context, endpoint string, api
 }
 
 func newAIProviderHTTPClient(app core.App, skipTLSVerify bool) http.Client {
-	client, err := proxy.NewHTTPClient(app, "ai_providers.global", 8*time.Second, skipTLSVerify)
+	client, err := httpout.NewPolicyClient(app, "http.ai", 8*time.Second, skipTLSVerify)
 	if err == nil {
 		return client
 	}
@@ -671,6 +671,35 @@ func resolveAnthropicVersion(template aiproviders.Template) string {
 		}
 	}
 	return "2023-06-01"
+}
+
+func applyAuthSchemeHeaders(req *http.Request, apiKey string, authScheme string) {
+	if req == nil {
+		return
+	}
+	req.Header.Del("Authorization")
+	req.Header.Del("x-api-key")
+	apiKey = strings.TrimSpace(apiKey)
+	switch strings.TrimSpace(strings.ToLower(authScheme)) {
+	case "", "bearer":
+		if apiKey != "" {
+			req.Header.Set("Authorization", "Bearer "+apiKey)
+		}
+	case "api_key":
+		if apiKey != "" {
+			req.Header.Set("x-api-key", apiKey)
+		}
+	case "basic":
+		if apiKey != "" {
+			req.Header.Set("Authorization", "Basic "+apiKey)
+		}
+	case "none":
+		return
+	default:
+		if apiKey != "" {
+			req.Header.Set("Authorization", "Bearer "+apiKey)
+		}
+	}
 }
 
 func collectModelItems(parsed any, defaultEnabled map[string]struct{}, templateID string) []fetchModelsItem {

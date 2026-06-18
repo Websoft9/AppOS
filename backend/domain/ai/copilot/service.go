@@ -404,47 +404,59 @@ func extractProviderErrorSignals(message string) []string {
 
 func describeRuntimeFailure(provider *ProviderConfig, err error) string {
 	if err == nil {
-		return "AI runtime request failed"
+		return formatRuntimeFailure("AI runtime request failed", "unknown error")
 	}
 	message := strings.TrimSpace(err.Error())
 	if message == "" {
-		return "AI runtime request failed"
+		return formatRuntimeFailure("AI runtime request failed", "empty error message")
 	}
 	lowerMessage := strings.ToLower(message)
 
 	// 1) String-precise matches first — these are the most reliable.
 	switch {
 	case strings.Contains(lowerMessage, "context deadline exceeded") || strings.Contains(lowerMessage, "client timeout exceeded"):
-		return "AI provider timed out before returning a response"
+		return formatRuntimeFailure("AI provider timed out before returning a response", message)
 	case strings.Contains(lowerMessage, "payment required"):
-		return "AI provider rejected the request because the account or token budget is insufficient"
+		return formatRuntimeFailure("AI provider rejected the request because the account or token budget is insufficient", message)
 	case strings.Contains(lowerMessage, "not available in your region"):
-		return "OpenRouter rejected the selected model because it is not available in your region"
+		return formatRuntimeFailure("OpenRouter rejected the selected model because it is not available in your region", message)
 	case strings.Contains(lowerMessage, "user not found"):
-		return "OpenRouter rejected the API credential. The upstream chat API returned 401 User not found"
+		return formatRuntimeFailure("OpenRouter rejected the API credential. The upstream chat API returned 401 User not found", message)
 	case strings.Contains(lowerMessage, "invalid api key"):
-		return "AI provider authentication failed"
+		return formatRuntimeFailure("AI provider authentication failed", message)
 	case strings.Contains(lowerMessage, "unauthorized"):
 		if isOpenRouterProvider(provider) {
-			return "OpenRouter rejected the API credential. The upstream chat API returned 401 User not found"
+			return formatRuntimeFailure("OpenRouter rejected the API credential. The upstream chat API returned 401 User not found", message)
 		}
-		return "AI provider rejected the chat request. Check model access, credential format, and provider-specific headers"
+		return formatRuntimeFailure("AI provider rejected the chat request. Check model access, credential format, and provider-specific headers", message)
 	case strings.Contains(lowerMessage, "forbidden"):
-		return "AI provider rejected the chat request. Check model access, credential format, and provider-specific headers"
+		return formatRuntimeFailure("AI provider rejected the chat request. Check model access, credential format, and provider-specific headers", message)
 	case strings.Contains(lowerMessage, "rate limit") || strings.Contains(lowerMessage, "too many requests"):
-		return "AI provider rate limit exceeded"
+		return formatRuntimeFailure("AI provider rate limit exceeded", message)
 	}
 
 	// 2) Fall back to JSON signal extraction for structured error bodies.
 	for _, signal := range extractProviderErrorSignals(message) {
 		normalized := normalizeProviderErrorSignal(signal)
 		if normalized != "" {
-			return normalized
+			return formatRuntimeFailure(normalized, message)
 		}
 	}
 
 	// 3) Nothing matched — return the raw upstream message so the user sees the real error.
 	return message
+}
+
+func formatRuntimeFailure(projection string, rawMessage string) string {
+	projection = strings.TrimSpace(projection)
+	rawMessage = strings.TrimSpace(rawMessage)
+	if projection == "" {
+		return rawMessage
+	}
+	if rawMessage == "" || strings.EqualFold(projection, rawMessage) {
+		return projection
+	}
+	return projection + " — " + rawMessage
 }
 
 func normalizeProviderErrorSignal(signal string) string {

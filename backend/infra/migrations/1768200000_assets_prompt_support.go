@@ -22,13 +22,14 @@ func init() {
 		kindField.Values = assets.SupportedKinds
 		addFieldIfMissing(col, &core.BoolField{Name: "is_system"})
 		addFieldIfMissing(col, &core.BoolField{Name: "is_template"})
+		addFieldIfMissing(col, &core.SelectField{Name: "prompt_scope", Values: assets.SupportedPromptScopes})
 		addFieldIfMissing(col, &core.TextField{Name: "template_key", Max: 128})
 		if err := app.Save(col); err != nil {
 			return err
 		}
 
 		for _, item := range assets.DefaultPromptDefinitions {
-			if err := ensureSeededPromptAsset(app, col, item.Name, item.Description, item.TemplateKey, item.IsSystem, item.IsTemplate, item.Content); err != nil {
+			if err := ensureSeededPromptAsset(app, col, item.Name, item.Description, item.TemplateKey, item.PromptScope, item.IsSystem, item.IsTemplate, item.Content); err != nil {
 				return err
 			}
 		}
@@ -59,14 +60,21 @@ func init() {
 		}
 		col.Fields.RemoveByName("is_system")
 		col.Fields.RemoveByName("is_template")
+		col.Fields.RemoveByName("prompt_scope")
 		col.Fields.RemoveByName("template_key")
 		return app.Save(col)
 	})
 }
 
-func ensureSeededPromptAsset(app core.App, col *core.Collection, name, description, templateKey string, isSystem, isTemplate bool, content string) error {
+func ensureSeededPromptAsset(app core.App, col *core.Collection, name, description, templateKey, promptScope string, isSystem, isTemplate bool, content string) error {
 	record, err := app.FindFirstRecordByFilter(assets.Collection, "template_key = {:template_key}", map[string]any{"template_key": templateKey})
 	if err == nil && record != nil {
+		record.Set("prompt_scope", assets.NormalizePromptScope(promptScope))
+		record.Set("is_system", isSystem)
+		record.Set("is_template", isTemplate)
+		if saveErr := app.Save(record); saveErr != nil {
+			return saveErr
+		}
 		asset := assets.From(record)
 		if err := assets.WriteLocalFile(asset.StoragePath(), asset.Path(), content); err != nil {
 			return err
@@ -85,6 +93,7 @@ func ensureSeededPromptAsset(app core.App, col *core.Collection, name, descripti
 	record.Set("reference", "")
 	record.Set("entrypoint", "")
 	record.Set("template_key", templateKey)
+	record.Set("prompt_scope", assets.NormalizePromptScope(promptScope))
 	record.Set("is_system", isSystem)
 	record.Set("is_template", isTemplate)
 	if err := app.Save(record); err != nil {

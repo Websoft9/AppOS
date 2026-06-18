@@ -262,14 +262,14 @@ var entryCatalog = []EntrySchema{
 		},
 	},
 	{
-		ID:      "proxy-consumers",
-		Title:   "Proxy Consumers",
+		ID:      "proxy-policies",
+		Title:   "Proxy Policies",
 		Section: SectionWorkspace,
 		Source:  SourceCustom,
 		Module:  "proxy",
-		Key:     "consumers",
+		Key:     "policies",
 		Fields: []FieldSchema{
-			{ID: "items", Label: "Consumer Enrollments", Type: "object-list", HelpText: "Proxy consumer enrollment rows plus mode selection."},
+			{ID: "items", Label: "Policy Selections", Type: "object-list", HelpText: "Policy-domain mode selection rows."},
 		},
 	},
 	{
@@ -444,9 +444,9 @@ var customSettingDefaults = map[string]map[string]any{
 		"disallowedFolderNames": []string{},
 	},
 	"proxy/network": {
-		"enabled": false, "socks5ConnectorId": "", "httpConnectorId": "", "httpsConnectorId": "",
+		"source": "none", "enabled": false, "socks5ConnectorId": "", "httpConnectorId": "", "httpsConnectorId": "",
 	},
-	"proxy/consumers": defaultProxyConsumerSettingsMap(),
+	"proxy/policies": defaultProxyConsumerSettingsMap(),
 	"docker/mirror": {
 		"mirrors": []any{}, "allowInsecureRegistries": false,
 	},

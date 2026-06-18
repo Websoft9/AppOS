@@ -23,8 +23,7 @@
     {
       "id": "openai",
       "label": "OpenAI",
-      "default": true,
-      "defaultEndpoint": "https://{resource}.openai.azure.com/openai/deployments/{deployment}"
+      "default": true
     }
   ],
   "aliases": ["azure openai", "azure-openai", "azure ai foundry", "azure-ai-foundry"],

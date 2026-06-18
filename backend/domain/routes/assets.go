@@ -36,6 +36,8 @@ type assetWriteRequest struct {
 	Kind            string            `json:"kind"`
 	StorageKind     string            `json:"storage_kind"`
 	SourceKind      string            `json:"source_kind"`
+	PromptScope     string            `json:"prompt_scope"`
+	IsTemplate      bool              `json:"is_template"`
 	Language        string            `json:"language"`
 	ScriptExtension string            `json:"script_extension"`
 	Reference       string            `json:"reference"`
@@ -187,6 +189,9 @@ func handleAssetCreate(e *core.RequestEvent) error {
 		return e.InternalServerError("assets collection not found", err)
 	}
 	record := core.NewRecord(col)
+	if err := validatePromptTemplateState(record, req); err != nil {
+		return e.BadRequestError(err.Error(), nil)
+	}
 	bindAssetRecord(record, req)
 	if err := e.App.Save(record); err != nil {
 		return e.BadRequestError("Validation failed", err)
@@ -222,11 +227,17 @@ func handleAssetUpdate(e *core.RequestEvent) error {
 	if err != nil {
 		return e.NotFoundError("Asset not found", err)
 	}
+	if assets.From(record).IsSystem() {
+		return e.ForbiddenError("System-managed asset cannot be edited", nil)
+	}
 	var req assetWriteRequest
 	if err := e.BindBody(&req); err != nil {
 		return e.BadRequestError("Invalid request body", err)
 	}
 	if err := normalizeAssetWriteRequest(&req); err != nil {
+		return e.BadRequestError(err.Error(), nil)
+	}
+	if err := validatePromptTemplateState(record, req); err != nil {
 		return e.BadRequestError(err.Error(), nil)
 	}
 	applyDerivedAssetFields(record, &req)
@@ -392,6 +403,7 @@ func assetRecordToMap(r *core.Record) map[string]any {
 		"path":             r.GetString("path"),
 		"entrypoint":       r.GetString("entrypoint"),
 		"template_key":     r.GetString("template_key"),
+		"prompt_scope":     assets.NormalizePromptScope(r.GetString("prompt_scope")),
 		"is_system":        r.GetBool("is_system"),
 		"is_template":      r.GetBool("is_template"),
 		"created":          r.GetString("created"),
@@ -410,6 +422,20 @@ func bindAssetRecord(record *core.Record, req assetWriteRequest) {
 	record.Set("reference", req.Reference)
 	record.Set("path", req.Path)
 	record.Set("entrypoint", req.Entrypoint)
+	if req.Kind == assets.KindPrompt {
+		record.Set("prompt_scope", assets.NormalizePromptScope(req.PromptScope))
+		record.Set("is_template", req.IsTemplate)
+	}
+}
+
+func validatePromptTemplateState(record *core.Record, req assetWriteRequest) error {
+	if req.Kind != assets.KindPrompt {
+		return nil
+	}
+	if record != nil && record.GetBool("is_system") && req.IsTemplate {
+		return errors.New("system prompts cannot be marked as templates")
+	}
+	return nil
 }
 
 func normalizeAssetWriteRequest(req *assetWriteRequest) error {
@@ -418,6 +444,7 @@ func normalizeAssetWriteRequest(req *assetWriteRequest) error {
 	req.Kind = strings.TrimSpace(req.Kind)
 	req.StorageKind = strings.TrimSpace(req.StorageKind)
 	req.SourceKind = strings.TrimSpace(req.SourceKind)
+	req.PromptScope = strings.TrimSpace(strings.ToLower(req.PromptScope))
 	req.Language = strings.TrimSpace(strings.ToLower(req.Language))
 	req.ScriptExtension = assets.NormalizeScriptExtension(req.ScriptExtension)
 	req.Reference = strings.TrimSpace(req.Reference)
@@ -492,6 +519,11 @@ func normalizeAssetWriteRequest(req *assetWriteRequest) error {
 		if req.StorageKind != assets.StorageFile {
 			return errors.New("prompt assets must use storage_kind=file")
 		}
+		if req.PromptScope == "" {
+			req.PromptScope = assets.PromptScopeTask
+		} else {
+			req.PromptScope = assets.NormalizePromptScope(req.PromptScope)
+		}
 		if req.Reference != "" {
 			return errors.New("prompt assets do not support reference in phase 1")
 		}
@@ -499,6 +531,7 @@ func normalizeAssetWriteRequest(req *assetWriteRequest) error {
 			return errors.New("prompt requires content")
 		}
 		req.SourceKind = assets.SourceLocal
+		req.PromptScope = assets.NormalizePromptScope(req.PromptScope)
 		req.Language = ""
 		req.ScriptExtension = ""
 		req.Reference = ""

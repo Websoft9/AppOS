@@ -503,7 +503,7 @@ func validateProxyConsumers(v map[string]any) map[string]string {
 
 	list, ok := rawItems.([]any)
 	if !ok {
-		return map[string]string{"items": "must be a list of proxy consumer settings"}
+		return map[string]string{"items": "must be a list of proxy policy settings"}
 	}
 
 	items := make([]proxy.ConsumerEnrollment, 0, len(list))
@@ -518,17 +518,17 @@ func validateProxyConsumers(v map[string]any) map[string]string {
 			return map[string]string{"items": fmt.Sprintf("item %d requires consumerKey", idx+1)}
 		}
 		if _, exists := seen[consumerKey]; exists {
-			return map[string]string{"items": fmt.Sprintf("consumer %q is duplicated", consumerKey)}
+			return map[string]string{"items": fmt.Sprintf("policy %q is duplicated", consumerKey)}
 		}
 		seen[consumerKey] = struct{}{}
 
 		definition, ok := directUseDefinitions[consumerKey]
 		if !ok {
-			return map[string]string{"items": fmt.Sprintf("consumer %q is not a valid direct-use proxy consumer", consumerKey)}
+			return map[string]string{"items": fmt.Sprintf("policy %q is not a valid direct-use proxy policy", consumerKey)}
 		}
 		mode := proxyinfra.Mode(strings.TrimSpace(sysconfig.String(item, "mode", "")))
 		if mode == "" {
-			return map[string]string{"items": fmt.Sprintf("consumer %q requires mode", consumerKey)}
+			return map[string]string{"items": fmt.Sprintf("policy %q requires mode", consumerKey)}
 		}
 		enrollment := proxy.ConsumerEnrollment{ConsumerKey: definition.Key, Mode: mode}
 		if validateErr := proxy.ValidateConsumerEnrollment(definition, enrollment); validateErr != nil {
@@ -577,7 +577,7 @@ func validateProxyRemoteShellServers(app core.App, v map[string]any) map[string]
 			return map[string]string{"items": fmt.Sprintf("server %q does not exist", serverID)}
 		}
 		mode := proxyinfra.Mode(strings.TrimSpace(sysconfig.String(item, "mode", "")))
-		if mode != proxyinfra.ModeDisabled && mode != proxyinfra.ModeAlways && mode != proxyinfra.ModeFallback {
+		if mode != proxyinfra.ModeDisabled && mode != proxyinfra.ModeAlways {
 			return map[string]string{"items": fmt.Sprintf("server %q has invalid mode", serverID)}
 		}
 		items = append(items, map[string]any{"serverId": serverID, "mode": string(mode)})

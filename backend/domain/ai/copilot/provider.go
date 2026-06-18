@@ -111,6 +111,7 @@ func (r *DefaultProviderResolver) providerConfig(ctx context.Context, actorID st
 		Endpoint:            strings.TrimRight(endpoint, "/"),
 		Model:               model,
 		APIKey:              apiKey,
+		AuthScheme:          strings.TrimSpace(selected.AuthScheme()),
 		APIVersion:          apiVersion,
 		HTTPReferer:         httpReferer,
 		MaxCompletionTokens: maxCompletionTokens,

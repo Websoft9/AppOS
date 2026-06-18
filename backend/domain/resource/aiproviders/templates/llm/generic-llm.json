@@ -1,7 +1,7 @@
 {
   "id": "generic-llm",
-  "title": "OpenAI-Compatible",
-  "vendor": "OpenAI-Compatible",
+  "title": "Custom OpenAI-compatible",
+  "vendor": "Custom OpenAI-compatible",
   "uiGroup": "self_hosted",
   "hostingMode": "hybrid",
   "serviceMode": "compat_proxy",
@@ -11,7 +11,6 @@
   "description": "User-defined OpenAI-compatible LLM endpoint for providers not covered by built-in templates.",
   "helpUrl": "https://platform.openai.com/docs/api-reference/introduction",
   "defaultEndpoint": "",
-  "defaultAuthScheme": "none",
   "protocols": [
     {
       "id": "openai",
@@ -26,12 +25,6 @@
       "label": "Credential",
       "required": false,
       "sensitive": false
-    },
-    {
-      "id": "notes",
-      "label": "Notes",
-      "type": "string",
-      "placeholder": "OpenAI-compatible, vendor-specific path, etc."
     }
   ]
 }

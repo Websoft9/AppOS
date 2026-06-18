@@ -29,7 +29,7 @@ export interface ProxyNetworkErrors {
   httpsConnectorId?: string
 }
 
-export type ProxyConsumerMode = 'disabled' | 'always' | 'fallback'
+export type ProxyConsumerMode = 'disabled' | 'always'
 
 export interface ProxyConsumerItem {
   consumerKey: string

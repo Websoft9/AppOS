@@ -5,12 +5,12 @@
   "uiGroup": "single_provider",
   "hostingMode": "cloud",
   "serviceMode": "official_provider",
-  "endpointMode": "user_supplied",
+  "endpointMode": "customizable",
   "supportsClosedModels": true,
   "supportsMultiVendorModels": false,
   "description": "MiniMax hosted multimodal and language model API.",
   "helpUrl": "https://www.minimaxi.com/document",
-  "defaultEndpoint": "",
+  "defaultEndpoint": "https://api.minimax.chat/v1",
   "protocols": [
     {
       "id": "openai",
@@ -22,9 +22,7 @@
   "aliases": ["minimax"],
   "fields": [
     {
-      "id": "endpoint",
-      "label": "OpenAI Compatible URL",
-      "placeholder": "https://api.minimax.chat/v1"
+      "id": "endpoint"
     },
     {
       "id": "group_id",
@@ -34,7 +32,7 @@
     },
     {
       "id": "credential",
-      "label": "API Key Secret",
+      "label": "API Key",
       "type": "secret_ref",
       "required": true,
       "secretTemplate": "single_value"

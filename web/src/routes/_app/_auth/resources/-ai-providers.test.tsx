@@ -66,9 +66,9 @@ vi.mock('react-i18next', () => ({
         'aiProviders.selection.emptyMessage': 'No matching products found.',
         'aiProviders.selection.loading': 'Loading products...',
         'aiProviders.selection.help': 'Help',
-        'aiProviders.selection.groups.singleProvider': 'Single Vendor Model Provider',
-        'aiProviders.selection.groups.cloudGateway': 'Cloud MaaS Gateway',
-        'aiProviders.selection.groups.selfHosted': 'Self-Hosted Inference / Proxy',
+        'aiProviders.selection.groups.singleProvider': 'Single Provider',
+        'aiProviders.selection.groups.cloudGateway': 'LLM Gateway',
+        'aiProviders.selection.groups.selfHosted': 'Self-Hosted LLM Gateway',
         'aiProviders.columns.name': 'Name',
         'aiProviders.columns.provider': 'Provider',
         'aiProviders.columns.enabledModels': 'Enabled Model(s)',
@@ -103,7 +103,6 @@ vi.mock('react-i18next', () => ({
         'aiProviders.fields.apiKey': 'API Key',
         'aiProviders.authSchemes.bearer': 'Bearer token',
         'aiProviders.authSchemes.api_key': 'API key header',
-        'aiProviders.authSchemes.basic': 'Basic auth',
         'aiProviders.authSchemes.none': 'No auth',
         'aiProviders.placeholders.name': 'my-ai-provider',
         'aiProviders.placeholders.advancedConfig': '{"temperature": 0.2}',
@@ -175,8 +174,8 @@ describe('AIProvidersPage', () => {
             {
               id: 'generic-llm',
               kind: 'llm',
-              title: 'OpenAI-Compatible',
-              vendor: 'OpenAI-Compatible',
+              title: 'Custom OpenAI-compatible',
+              vendor: 'Custom OpenAI-compatible',
               description: 'Custom OpenAI-compatible endpoint',
               defaultAuthScheme: 'none',
               fields: [
@@ -190,6 +189,7 @@ describe('AIProvidersPage', () => {
               title: 'OpenAI',
               vendor: 'OpenAI',
               description: 'Hosted OpenAI models',
+              aliases: ['chatgpt'],
               contextSize: 128000,
               defaultEndpoint: 'https://api.openai.com/v1',
               defaultAuthScheme: 'api_key',
@@ -315,15 +315,16 @@ describe('AIProvidersPage', () => {
       screen.getByPlaceholderText('Search products like OpenAI, Ollama, Anthropic, OpenRouter...')
     ).toBeInTheDocument()
     expect(getProductButton('OpenAI')).toBeInTheDocument()
-    expect(getProductButton('OpenAI-Compatible')).toBeInTheDocument()
+    expect(getProductButton('Custom OpenAI-compatible')).toBeInTheDocument()
     expect(getProductButton('Ollama')).toBeInTheDocument()
     expect(getProductButton('xAI')).toBeInTheDocument()
+    expect(getProductButton('OpenAI')).toHaveAttribute('title', 'Hosted OpenAI models')
     expect(document.querySelector('optgroup')).toBeNull()
 
-    const productButtons = ['OpenAI', 'Ollama', 'xAI', 'OpenAI-Compatible'].filter(title =>
+    const productButtons = ['OpenAI', 'Ollama', 'xAI', 'Custom OpenAI-compatible'].filter(title =>
       screen.queryByText(title)
     )
-    expect(productButtons).toEqual(['OpenAI', 'Ollama', 'xAI', 'OpenAI-Compatible'])
+    expect(productButtons).toEqual(['OpenAI', 'Ollama', 'xAI', 'Custom OpenAI-compatible'])
 
     fireEvent.change(
       screen.getByPlaceholderText('Search products like OpenAI, Ollama, Anthropic, OpenRouter...'),
@@ -332,6 +333,14 @@ describe('AIProvidersPage', () => {
 
     expect(getProductButton('OpenAI')).toBeInTheDocument()
     expect(screen.queryByText('Ollama')).not.toBeInTheDocument()
+
+    fireEvent.change(
+      screen.getByPlaceholderText('Search products like OpenAI, Ollama, Anthropic, OpenRouter...'),
+      { target: { value: 'chatgpt' } }
+    )
+
+    expect(getProductButton('OpenAI')).toBeInTheDocument()
+    expect(screen.queryByText('Custom OpenAI-compatible')).not.toBeInTheDocument()
 
     fireEvent.click(getProductButton('OpenAI'))
 
@@ -347,6 +356,7 @@ describe('AIProvidersPage', () => {
     expect(screen.queryByLabelText('Profile')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Name')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Runtime Default')).not.toBeInTheDocument()
+    expect(screen.queryByText('Auth Scheme')).not.toBeInTheDocument()
     expect(screen.getByText('API Key')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Enter API Key')).toBeInTheDocument()
     expect(screen.getByTitle('Use a saved secret')).toBeInTheDocument()
@@ -363,6 +373,269 @@ describe('AIProvidersPage', () => {
     expect(screen.getByText('Enable it')).toBeInTheDocument()
     expect(screen.getAllByText('OpenAI Compatible URL').length).toBeGreaterThan(0)
   }, 15000)
+
+  it('keeps endpoint in advanced settings for customizable hosted providers like Kimi', async () => {
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/ai-providers/templates') {
+        return Promise.resolve([
+          {
+            id: 'moonshot',
+            kind: 'llm',
+            title: 'Moonshot AI (Kimi)',
+            vendor: 'Moonshot AI',
+            uiGroup: 'single_provider',
+            endpointMode: 'customizable',
+            defaultEndpoint: 'https://api.moonshot.cn/v1',
+            defaultAuthScheme: 'bearer',
+            fields: [
+              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+            ],
+          },
+        ])
+      }
+      if (path === '/api/ai-providers') {
+        return Promise.resolve([])
+      }
+      if (path === AI_PROVIDER_SECRET_PATH) {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      return Promise.resolve([])
+    })
+
+    render(<AIProvidersPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add AI Provider' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add AI Provider' }))
+    await screen.findByRole('dialog')
+    fireEvent.click(getProductButton('Moonshot AI (Kimi)'))
+
+    await waitFor(() => {
+      expect(screen.getByText('Add Moonshot AI (Kimi) AI Provider')).toBeInTheDocument()
+    })
+
+    expect(screen.queryByText('OpenAI Compatible URL')).not.toBeInTheDocument()
+    expect(screen.queryByText('Advanced Config (JSON)')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Advanced/i }))
+
+    expect(screen.getByText('OpenAI Compatible URL')).toBeInTheDocument()
+  })
+
+  it('hides qwen from the chooser and groups NVIDIA NIM Cloud under LLM Gateway', async () => {
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/ai-providers/templates') {
+        return Promise.resolve([
+          {
+            id: 'openai',
+            kind: 'llm',
+            title: 'OpenAI',
+            vendor: 'OpenAI',
+            uiGroup: 'single_provider',
+            defaultEndpoint: 'https://api.openai.com/v1',
+            defaultAuthScheme: 'api_key',
+            fields: [
+              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+            ],
+          },
+          {
+            id: 'nvidia-nim-cloud',
+            kind: 'llm',
+            title: 'NVIDIA NIM Cloud',
+            vendor: 'NVIDIA',
+            uiGroup: 'cloud_gateway',
+            providerMode: 'gateway',
+            fields: [
+              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+            ],
+          },
+          {
+            id: 'qwen-dashscope',
+            kind: 'llm',
+            title: 'Qwen (DashScope)',
+            vendor: 'Alibaba Cloud',
+            uiGroup: 'single_provider',
+            hideInChooser: true,
+            defaultEndpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+            fields: [
+              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+            ],
+          },
+        ])
+      }
+      if (path === '/api/ai-providers') {
+        return Promise.resolve([])
+      }
+      if (path === AI_PROVIDER_SECRET_PATH) {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      return Promise.resolve([])
+    })
+
+    render(<AIProvidersPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add AI Provider' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add AI Provider' }))
+
+    await screen.findByRole('dialog')
+
+    expect(screen.getByText('Single Provider')).toBeInTheDocument()
+    expect(screen.getByText('LLM Gateway')).toBeInTheDocument()
+    expect(getProductButton('NVIDIA NIM Cloud')).toBeInTheDocument()
+    expect(screen.queryByText('Qwen (DashScope)')).not.toBeInTheDocument()
+  })
+
+  it('promotes self-hosted endpoint and auth scheme into the primary create form', async () => {
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/ai-providers/templates') {
+        return Promise.resolve([
+          {
+            id: 'nvidia-nim-local',
+            kind: 'llm',
+            title: 'NVIDIA NIM Local',
+            vendor: 'NVIDIA',
+            uiGroup: 'self_hosted',
+            defaultEndpoint: 'http://localhost:8000/v1',
+            defaultAuthScheme: 'none',
+            fields: [
+              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+              { id: 'credential', label: 'API Key', type: 'secret_ref', required: false },
+            ],
+          },
+        ])
+      }
+      if (path === '/api/ai-providers') {
+        return Promise.resolve([])
+      }
+      if (path === AI_PROVIDER_SECRET_PATH) {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      return Promise.resolve([])
+    })
+
+    render(<AIProvidersPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add AI Provider' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add AI Provider' }))
+    await screen.findByRole('dialog')
+    fireEvent.click(getProductButton('NVIDIA NIM Local'))
+
+    await waitFor(() => {
+      expect(screen.getByText('Add NVIDIA NIM Local AI Provider')).toBeInTheDocument()
+    })
+
+    expect(screen.getByDisplayValue('http://localhost:8000/v1')).toBeInTheDocument()
+    expect(screen.getByText('Auth Scheme')).toBeInTheDocument()
+    expect(screen.getByText('API Key')).toBeInTheDocument()
+    expect(screen.queryByText('Advanced Config (JSON)')).not.toBeInTheDocument()
+  })
+
+  it('sorts Custom OpenAI-compatible to the top of the self-hosted chooser group', async () => {
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/ai-providers/templates') {
+        return Promise.resolve([
+          {
+            id: 'vllm',
+            kind: 'llm',
+            title: 'vLLM',
+            vendor: 'vLLM',
+            uiGroup: 'self_hosted',
+            endpointMode: 'user_supplied',
+            fields: [{ id: 'endpoint', label: 'Base URL', type: 'url', required: true }],
+          },
+          {
+            id: 'generic-llm',
+            kind: 'llm',
+            title: 'Custom OpenAI-compatible',
+            vendor: 'Custom OpenAI-compatible',
+            uiGroup: 'self_hosted',
+            endpointMode: 'user_supplied',
+            fields: [
+              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+              { id: 'credential', label: 'Credential', type: 'secret_ref', required: false },
+            ],
+          },
+          {
+            id: 'sglang',
+            kind: 'llm',
+            title: 'SGLang',
+            vendor: 'SGLang',
+            uiGroup: 'self_hosted',
+            endpointMode: 'user_supplied',
+            fields: [{ id: 'endpoint', label: 'Base URL', type: 'url', required: true }],
+          },
+        ])
+      }
+      if (path === '/api/ai-providers') {
+        return Promise.resolve([])
+      }
+      if (path === AI_PROVIDER_SECRET_PATH) {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      return Promise.resolve([])
+    })
+
+    render(<AIProvidersPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add AI Provider' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add AI Provider' }))
+    await screen.findByRole('dialog')
+
+    const customButton = getProductButton('Custom OpenAI-compatible')
+    const vllmButton = getProductButton('vLLM')
+    expect(
+      customButton.compareDocumentPosition(vllmButton) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
+  it('removes Notes from Custom OpenAI-compatible and keeps Description as the freeform metadata field', async () => {
+    render(<AIProvidersPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add AI Provider' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add AI Provider' }))
+    await screen.findByRole('dialog')
+    fireEvent.click(getProductButton('Custom OpenAI-compatible'))
+
+    await waitFor(() => {
+      expect(screen.getByText('Add Custom OpenAI-compatible AI Provider')).toBeInTheDocument()
+    })
+
+    expect(screen.queryByText('Notes')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Advanced/i }))
+
+    expect(screen.getByText('Description')).toBeInTheDocument()
+    expect(screen.queryByText('Notes')).not.toBeInTheDocument()
+  })
 
   it('stores manual API keys as single-value secrets and keeps api_key auth', async () => {
     const templatesById = new Map([

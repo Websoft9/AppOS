@@ -257,8 +257,8 @@ func TestAIProvidersCRUD(t *testing.T) {
 	if created["endpoint"] != "https://api.openai.com/v1" {
 		t.Fatalf("expected template default endpoint, got %v", created["endpoint"])
 	}
-	if created["auth_scheme"] != connectors.AuthSchemeAPIKey {
-		t.Fatalf("expected template default auth scheme %q, got %v", connectors.AuthSchemeAPIKey, created["auth_scheme"])
+	if created["auth_scheme"] != connectors.AuthSchemeBearer {
+		t.Fatalf("expected template default auth scheme %q, got %v", connectors.AuthSchemeBearer, created["auth_scheme"])
 	}
 	if created["kind"] != aiproviders.KindLLM {
 		t.Fatalf("expected kind %q, got %v", aiproviders.KindLLM, created["kind"])
@@ -396,7 +396,7 @@ func TestFetchProviderModelsGoogleGeminiDirectEndpointUsesAPIKeyQueryAndFiltersG
 	}))
 	defer server.Close()
 
-	result, err := fetchProviderModels(nil, context.Background(), server.URL+"/v1beta", "gemini-test-key", "google-gemini", "")
+	result, err := fetchProviderModels(nil, context.Background(), server.URL+"/v1beta", "gemini-test-key", "api_key", "google-gemini", "")
 	if err != nil {
 		t.Fatalf("fetch gemini provider models: %v", err)
 	}
@@ -407,8 +407,8 @@ func TestFetchProviderModelsGoogleGeminiDirectEndpointUsesAPIKeyQueryAndFiltersG
 	for _, model := range result.Models {
 		ids[model.ID] = model.EnabledByDefault
 	}
-	if !ids["gemini-3.1-pro-preview"] {
-		t.Fatalf("expected gemini-3.1-pro-preview enabled by default, got %#v", result.Models)
+	if ids["gemini-3.1-pro-preview"] {
+		t.Fatalf("expected gemini-3.1-pro-preview to remain opt-in, got %#v", result.Models)
 	}
 	if !ids["gemini-3.5-flash"] {
 		t.Fatalf("expected gemini-3.5-flash enabled by default, got %#v", result.Models)
@@ -436,7 +436,7 @@ func TestFetchProviderModelsGoogleGeminiOpenAIEndpointUsesBearerAuth(t *testing.
 	}))
 	defer server.Close()
 
-	result, err := fetchProviderModels(nil, context.Background(), server.URL+"/v1beta/openai", "gemini-test-key", "google-gemini", "openai")
+	result, err := fetchProviderModels(nil, context.Background(), server.URL+"/v1beta/openai", "gemini-test-key", "bearer", "google-gemini", "openai")
 	if err != nil {
 		t.Fatalf("fetch Gemini OpenAI-compatible models: %v", err)
 	}
@@ -583,6 +583,7 @@ func TestFetchProviderModelsUsesConfiguredSocks5Proxy(t *testing.T) {
 		Config:     map[string]any{"protocol": "socks5"},
 	})
 	if err := sysconfig.SetGroup(te.app, "proxy", "network", map[string]any{
+		"source":            "external",
 		"enabled":           true,
 		"socks5ConnectorId": proxyConnector.Id,
 		"httpConnectorId":   "",
@@ -590,16 +591,16 @@ func TestFetchProviderModelsUsesConfiguredSocks5Proxy(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := sysconfig.SetGroup(te.app, "proxy", "consumers", map[string]any{
+	if err := sysconfig.SetGroup(te.app, "proxy", "policies", map[string]any{
 		"items": []map[string]any{{
-			"consumerKey": "ai_providers.global",
+			"consumerKey": "http.ai",
 			"mode":        "always",
 		}},
 	}); err != nil {
 		t.Fatal(err)
 	}
 
-	result, err := fetchProviderModels(te.app, context.Background(), proxiedEndpoint, "gemini-test-key", "google-gemini", "")
+	result, err := fetchProviderModels(te.app, context.Background(), proxiedEndpoint, "gemini-test-key", "api_key", "google-gemini", "")
 	if err != nil {
 		t.Fatalf("fetch gemini provider models via socks5 proxy: %v", err)
 	}
@@ -720,6 +721,7 @@ func TestGoogleGemini1926ProxyConsumerEnrollmentControlsProxyUsage(t *testing.T)
 		Config:     map[string]any{"protocol": "socks5"},
 	})
 	if err := sysconfig.SetGroup(te.app, "proxy", "network", map[string]any{
+		"source":            "external",
 		"enabled":           true,
 		"socks5ConnectorId": proxyConnector.Id,
 		"httpConnectorId":   "",
@@ -727,37 +729,37 @@ func TestGoogleGemini1926ProxyConsumerEnrollmentControlsProxyUsage(t *testing.T)
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := sysconfig.SetGroup(te.app, "proxy", "consumers", map[string]any{
+	if err := sysconfig.SetGroup(te.app, "proxy", "policies", map[string]any{
 		"items": []map[string]any{{
-			"consumerKey": "ai_providers.global",
+			"consumerKey": "http.ai",
 			"mode":        "disabled",
 		}},
 	}); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := fetchProviderModels(te.app, context.Background(), proxiedEndpoint, "gemini-test-key", "google-gemini", ""); err == nil {
+	if _, err := fetchProviderModels(te.app, context.Background(), proxiedEndpoint, "gemini-test-key", "api_key", "google-gemini", ""); err == nil {
 		t.Fatal("expected direct request without consumer enrollment to fail for proxy-only host")
 	}
 	if proxyHits != 0 {
-		t.Fatalf("expected no proxy traffic while ai_providers.global is disabled, got %d hits", proxyHits)
+		t.Fatalf("expected no proxy traffic while http.ai is disabled, got %d hits", proxyHits)
 	}
 
-	if err := sysconfig.SetGroup(te.app, "proxy", "consumers", map[string]any{
+	if err := sysconfig.SetGroup(te.app, "proxy", "policies", map[string]any{
 		"items": []map[string]any{{
-			"consumerKey": "ai_providers.global",
+			"consumerKey": "http.ai",
 			"mode":        "always",
 		}},
 	}); err != nil {
 		t.Fatal(err)
 	}
 
-	result, err := fetchProviderModels(te.app, context.Background(), proxiedEndpoint, "gemini-test-key", "google-gemini", "")
+	result, err := fetchProviderModels(te.app, context.Background(), proxiedEndpoint, "gemini-test-key", "api_key", "google-gemini", "")
 	if err != nil {
 		t.Fatalf("expected proxied gemini fetch after enabling consumer enrollment: %v", err)
 	}
 	if proxyHits == 0 {
-		t.Fatal("expected proxy hit after enabling ai_providers.global consumer")
+		t.Fatal("expected proxy hit after enabling http.ai policy")
 	}
 	if modelServerHits != 1 {
 		t.Fatalf("expected exactly one successful model server hit, got %d", modelServerHits)

@@ -102,12 +102,10 @@ RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         redis-server \
         openssl \
-        unzip \
         ca-certificates \
         tzdata \
         bash \
         curl \
-        git \
         python3 \
         python3-socks \
         python3-venv \
@@ -161,8 +159,7 @@ RUN set -eux; \
     supervisord --version | grep -Fx "${SUPERVISOR_VERSION}" || { echo "ERROR: supervisor version mismatch"; exit 1; }; \
     nginx -t || { echo "ERROR: nginx config invalid"; exit 1; }
 
-ENV TSDB_ADDR=http://127.0.0.1:8428 \
-    DISABLE_TELEMETRY=1 \
+ENV DISABLE_TELEMETRY=1 \
     DO_NOT_TRACK=1
 
 EXPOSE 80

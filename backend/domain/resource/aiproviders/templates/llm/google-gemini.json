@@ -19,16 +19,14 @@
     {
       "id": "openai",
       "label": "OpenAI",
-      "default": true,
-      "defaultEndpoint": "https://generativelanguage.googleapis.com/v1beta/openai"
+      "default": true
     }
   ],
   "capabilities": ["chat", "multimodal", "tools", "streaming"],
   "aliases": ["google gemini", "gemini", "google-gemini"],
   "fields": [
     {
-      "id": "endpoint",
-      "default": "https://generativelanguage.googleapis.com/v1beta/openai"
+      "id": "endpoint"
     }
   ]
 }

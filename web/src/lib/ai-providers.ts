@@ -56,9 +56,11 @@ export type AIProviderTemplate = {
   defaultAuthScheme?: string
   defaultEnabledModels?: string[]
   capabilities?: string[]
+  aliases?: string[]
   supportsClosedModels?: boolean
   supportsMultiVendorModels?: boolean
   protocols?: AIProviderTemplateProtocol[]
+  hideInChooser?: boolean
   fields?: AIProviderTemplateField[]
 }
 
@@ -106,6 +108,18 @@ export function productTitle(template: AIProviderTemplate) {
 
 export function chooserTitle(template: AIProviderTemplate) {
   return productTitle(template)
+}
+
+export function templateChooserSearchText(template: AIProviderTemplate) {
+  return [
+    template.title,
+    template.vendor,
+    template.description,
+    ...(Array.isArray(template.aliases) ? template.aliases : []),
+    template.id,
+  ]
+    .join(' ')
+    .toLowerCase()
 }
 
 export function normalizeProtocolId(value: string) {
@@ -261,6 +275,45 @@ export function isGenericOpenAICompatibleTemplate(
   return String(template?.id ?? '').trim() === 'generic-llm'
 }
 
+export function isUserSuppliedEndpointTemplate(
+  template: AIProviderTemplate | null | undefined
+) {
+  return String(template?.endpointMode ?? '').trim().toLowerCase() === 'user_supplied'
+}
+
+export function shouldPromoteEndpointField(
+  template: AIProviderTemplate | null | undefined
+) {
+  return (
+    isGenericOpenAICompatibleTemplate(template) ||
+    providerSelectionGroupKey(template) === 'selfHosted' ||
+    isUserSuppliedEndpointTemplate(template)
+  )
+}
+
+export function shouldPromoteAuthSchemeField(
+  template: AIProviderTemplate | null | undefined
+) {
+  return (
+    isGenericOpenAICompatibleTemplate(template) ||
+    providerSelectionGroupKey(template) === 'selfHosted'
+  )
+}
+
+export function resolveCredentialFieldPresentation(
+  template: AIProviderTemplate | null | undefined,
+  field: AIProviderTemplateField
+) {
+  if (field.id === 'credential' && providerSelectionGroupKey(template) === 'selfHosted') {
+    return {
+      ...field,
+      label: 'API Key',
+      required: true,
+    }
+  }
+  return field
+}
+
 export function providerSelectionGroupKey(
   template: AIProviderTemplate | null | undefined
 ): AIProviderSelectionGroupKey {
@@ -274,9 +327,9 @@ export function providerSelectionGroupKey(
 
 export function providerSelectionGroup(template: AIProviderTemplate) {
   const group = providerSelectionGroupKey(template)
-  if (group === 'cloudGateway') return 'Cloud MaaS Gateway'
-  if (group === 'selfHosted') return 'Self-Hosted Inference / Proxy'
-  return 'Single Vendor Model Provider'
+  if (group === 'cloudGateway') return 'LLM Gateway'
+  if (group === 'selfHosted') return 'Self-Hosted LLM Gateway'
+  return 'Single Provider'
 }
 
 export function normalizeEnabledModels(value: unknown): string[] {

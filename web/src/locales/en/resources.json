@@ -1292,9 +1292,9 @@
       "loading": "Loading products...",
       "help": "Help",
       "groups": {
-        "singleProvider": "Single Vendor Model Provider",
-        "cloudGateway": "Cloud MaaS Gateway",
-        "selfHosted": "Self-Hosted Inference / Proxy"
+        "singleProvider": "Single Provider",
+        "cloudGateway": "LLM Gateway",
+        "selfHosted": "Self-Hosted LLM Gateway"
       }
     },
     "columns": {

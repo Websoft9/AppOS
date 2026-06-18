@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -52,15 +53,16 @@ func handleSSHTerminal(e *core.RequestEvent) error {
 	}
 
 	if requestedSessionID == "" {
-		cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
+		plan, resolveErr := resolveTerminalExecutionPlanForRequest(e, serverID)
 		if resolveErr != nil {
 			log.Printf("[server-shell] resolveServerConfig failed serverId=%s err=%v", serverID, resolveErr)
 			return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 		}
 		connector := &terminal.SSHConnector{}
-		sess, err = connector.Connect(e.Request.Context(), cfg)
+		sess, err = connector.Connect(e.Request.Context(), plan.Config)
 		if err != nil {
-			log.Printf("[server-shell] ssh connect failed serverId=%s host=%s port=%d user=%s authType=%s err=%v", serverID, cfg.Host, cfg.Port, cfg.User, cfg.AuthType, err)
+			cfg := plan.Config
+			log.Printf("[server-shell] ssh connect failed serverId=%s host=%s port=%d user=%s authType=%s transport=%s err=%v", serverID, cfg.Host, cfg.Port, cfg.User, cfg.AuthType, plan.Transport, err)
 			conn, upgradeErr := wsUpgrader.Upgrade(e.Response, e.Request, nil)
 			if upgradeErr == nil {
 				defer conn.Close()
@@ -107,6 +109,21 @@ func handleSSHTerminal(e *core.RequestEvent) error {
 			terminal.Close(sessionID)
 		}
 		return nil
+	}
+	if requestedSessionID == "" {
+		if plan, planErr := resolveTerminalExecutionPlanForRequest(e, serverID); planErr == nil {
+			for _, warning := range plan.Warnings {
+				if strings.TrimSpace(warning) == "" {
+					continue
+				}
+				if err := writeWSControl(conn, "warning", warning); err != nil {
+					if requestedSessionID == "" {
+						terminal.Close(sessionID)
+					}
+					return nil
+				}
+			}
+		}
 	}
 	if attachErr := terminal.AttachResumable(sessionID, userID, "server", serverID, "ssh", conn); attachErr != nil {
 		if requestedSessionID == "" {

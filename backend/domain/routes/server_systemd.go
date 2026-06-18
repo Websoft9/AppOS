@@ -25,7 +25,7 @@ func handleSystemdServices(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": "serverId required"})
 	}
 
-	cfg, proxyEnv, err := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
+	cfg, proxyEnv, err := resolveTerminalConfigWithProxyForRequest(e, serverID)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
@@ -79,7 +79,7 @@ func handleSystemdServiceStatus(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
+	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxyForRequest(e, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
@@ -139,7 +139,7 @@ func handleSystemdServiceLogs(e *core.RequestEvent) error {
 		}
 	}
 
-	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
+	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxyForRequest(e, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
@@ -187,7 +187,7 @@ func handleSystemdServiceContent(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
+	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxyForRequest(e, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
@@ -245,7 +245,7 @@ func handleSystemdServiceAction(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
+	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxyForRequest(e, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
@@ -287,7 +287,7 @@ func handleSystemdServiceUnitRead(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
+	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxyForRequest(e, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
@@ -337,7 +337,7 @@ func handleSystemdServiceUnitWrite(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
+	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxyForRequest(e, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
@@ -378,7 +378,7 @@ func handleSystemdServiceUnitVerify(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
+	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxyForRequest(e, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
@@ -424,7 +424,7 @@ func handleSystemdServiceUnitApply(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
+	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxyForRequest(e, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}

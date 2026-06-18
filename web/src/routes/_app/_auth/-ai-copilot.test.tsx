@@ -10,6 +10,8 @@ const deleteSessionMock = vi.fn()
 const listMessagesMock = vi.fn()
 const listModelsMock = vi.fn()
 const sendMessageMock = vi.fn()
+const listAssetsMock = vi.fn()
+const getAssetContentMock = vi.fn()
 const navigateMock = vi.fn()
 const extractPdfTextMock = vi.fn()
 const extractDocxTextMock = vi.fn()
@@ -168,6 +170,11 @@ vi.mock('@/lib/ai-copilot-api', () => ({
   sendAICopilotMessage: (...args: unknown[]) => sendMessageMock(...args),
 }))
 
+vi.mock('@/lib/assets-api', () => ({
+  listAssets: (...args: unknown[]) => listAssetsMock(...args),
+  getAssetContent: (...args: unknown[]) => getAssetContentMock(...args),
+}))
+
 vi.mock('@/lib/document-extraction', () => ({
   extractPdfText: (...args: unknown[]) => extractPdfTextMock(...args),
   extractDocxText: (...args: unknown[]) => extractDocxTextMock(...args),
@@ -200,6 +207,8 @@ describe('AICopilotPage', () => {
     listMessagesMock.mockReset()
     listModelsMock.mockReset()
     sendMessageMock.mockReset()
+    listAssetsMock.mockReset()
+    getAssetContentMock.mockReset()
     navigateMock.mockReset()
     extractPdfTextMock.mockReset()
     extractDocxTextMock.mockReset()
@@ -230,6 +239,35 @@ describe('AICopilotPage', () => {
     createSessionMock.mockResolvedValue({ id: 'session-new', title: 'New chat' })
     updateSessionMock.mockResolvedValue({ id: 'session-1', title: 'Renamed chat' })
     deleteSessionMock.mockResolvedValue(undefined)
+    listAssetsMock.mockResolvedValue([
+      {
+        id: 'prompt-system',
+        name: 'Default system prompt',
+        kind: 'prompt',
+        storage_kind: 'file',
+        source_kind: 'local',
+        path: 'default-system-prompt.md',
+        entrypoint: '',
+        prompt_scope: 'system',
+      },
+      {
+        id: 'prompt-task',
+        name: 'Task helper',
+        kind: 'prompt',
+        storage_kind: 'file',
+        source_kind: 'local',
+        path: 'task-helper.md',
+        entrypoint: '',
+        prompt_scope: 'task',
+      },
+    ])
+    getAssetContentMock.mockResolvedValue({
+      id: 'prompt-task',
+      storage_kind: 'file',
+      path: 'task-helper.md',
+      entrypoint: '',
+      content: 'Task helper content',
+    })
     vi.mocked(navigator.clipboard.writeText).mockReset()
     vi.mocked(navigator.clipboard.writeText).mockResolvedValue(undefined)
     extractPdfTextMock.mockResolvedValue('pdf content')
@@ -257,6 +295,21 @@ describe('AICopilotPage', () => {
 
     expect(input).toHaveValue('Refine this prompt')
     expect(localStorage.getItem('ai-copilot.draft-handoff.v1')).toBeNull()
+  })
+
+  it('creates a new conversation from a system prompt handoff', async () => {
+    localStorage.setItem(
+      'ai-copilot.session-handoff.v1',
+      JSON.stringify({ systemPromptAssetId: 'prompt-system' })
+    )
+
+    render(<AICopilotPage />)
+
+    await waitFor(() =>
+      expect(createSessionMock).toHaveBeenCalledWith({ systemPromptAssetId: 'prompt-system' })
+    )
+    expect(await screen.findByRole('heading', { name: 'New chat' })).toBeInTheDocument()
+    expect(localStorage.getItem('ai-copilot.session-handoff.v1')).toBeNull()
   })
 
   it('disables empty sends and renders streamed assistant output', async () => {
@@ -670,5 +723,88 @@ describe('AICopilotPage', () => {
       )
     )
     expect(await screen.findByText('created on demand')).toBeInTheDocument()
+  })
+
+  it('opens the system prompt chooser from empty-state overflow instead of task instructions', async () => {
+    listSessionsMock.mockResolvedValueOnce([])
+    listAssetsMock.mockResolvedValueOnce([
+      {
+        id: 'system-1',
+        name: 'System 1',
+        kind: 'prompt',
+        storage_kind: 'file',
+        source_kind: 'local',
+        path: 'system-1.md',
+        entrypoint: '',
+        prompt_scope: 'system',
+      },
+      {
+        id: 'system-2',
+        name: 'System 2',
+        kind: 'prompt',
+        storage_kind: 'file',
+        source_kind: 'local',
+        path: 'system-2.md',
+        entrypoint: '',
+        prompt_scope: 'system',
+      },
+      {
+        id: 'system-3',
+        name: 'System 3',
+        kind: 'prompt',
+        storage_kind: 'file',
+        source_kind: 'local',
+        path: 'system-3.md',
+        entrypoint: '',
+        prompt_scope: 'system',
+      },
+      {
+        id: 'system-4',
+        name: 'System 4',
+        kind: 'prompt',
+        storage_kind: 'file',
+        source_kind: 'local',
+        path: 'system-4.md',
+        entrypoint: '',
+        prompt_scope: 'system',
+      },
+      {
+        id: 'system-5',
+        name: 'System 5',
+        kind: 'prompt',
+        storage_kind: 'file',
+        source_kind: 'local',
+        path: 'system-5.md',
+        entrypoint: '',
+        prompt_scope: 'system',
+      },
+      {
+        id: 'system-6',
+        name: 'System 6',
+        kind: 'prompt',
+        storage_kind: 'file',
+        source_kind: 'local',
+        path: 'system-6.md',
+        entrypoint: '',
+        prompt_scope: 'system',
+      },
+      {
+        id: 'task-1',
+        name: 'Task helper',
+        kind: 'prompt',
+        storage_kind: 'file',
+        source_kind: 'local',
+        path: 'task-1.md',
+        entrypoint: '',
+        prompt_scope: 'task',
+      },
+    ])
+
+    render(<AICopilotPage />)
+
+    expect(await screen.findByText('Start a conversation')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '+2 more' }))
+
+    expect(await screen.findByText('System 6')).toBeInTheDocument()
   })
 })

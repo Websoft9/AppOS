@@ -152,7 +152,7 @@ describe('AssetsPage', () => {
     ).toBeInTheDocument()
     expect(
       screen.getByText(
-        'Reusable system prompts for AI Copilot and operators.'
+        'Reusable system prompts and task instructions for AI Copilot and operators.'
       )
     ).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Search assets')).not.toBeInTheDocument()

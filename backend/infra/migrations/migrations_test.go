@@ -840,11 +840,13 @@ func TestAssetsCollectionFields(t *testing.T) {
 	assertFieldExists(t, col, "template_key", core.FieldTypeText, false)
 	assertFieldExists(t, col, "is_system", core.FieldTypeBool, false)
 	assertFieldExists(t, col, "is_template", core.FieldTypeBool, false)
+	assertFieldExists(t, col, "prompt_scope", core.FieldTypeSelect, false)
 	assertFieldExists(t, col, "created", core.FieldTypeAutodate, false)
 	assertFieldExists(t, col, "updated", core.FieldTypeAutodate, false)
 	assertSelectFieldValues(t, col, "kind", []string{"script", "skill", "prompt"})
 	assertSelectFieldValues(t, col, "storage_kind", []string{"file", "folder"})
 	assertSelectFieldValues(t, col, "source_kind", []string{"local", "reference"})
+	assertSelectFieldValues(t, col, "prompt_scope", []string{"system", "task"})
 	assertSelectFieldValues(t, col, "language", []string{"shell", "bash", "zsh", "python", "javascript", "typescript", "powershell", "ruby", "perl", "php", "lua", "groovy", "r", "other"})
 
 	if col.ListRule == nil || col.ViewRule == nil {

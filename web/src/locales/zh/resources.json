@@ -1288,9 +1288,9 @@
       "loading": "正在加载产品...",
       "help": "帮助",
       "groups": {
-        "singleProvider": "单厂商模型提供方",
-        "cloudGateway": "云 MaaS 网关",
-        "selfHosted": "自托管推理 / 代理"
+        "singleProvider": "单一提供方",
+        "cloudGateway": "LLM 网关",
+        "selfHosted": "自托管 LLM 网关"
       }
     },
     "columns": {

@@ -255,6 +255,9 @@ func TestAssetsCreatePromptLocalFile(t *testing.T) {
 	if body["path"] != "support-prompt-"+assetID+".md" {
 		t.Fatalf("unexpected prompt path %v", body["path"])
 	}
+	if body["prompt_scope"] != "task" {
+		t.Fatalf("expected default prompt_scope task, got %v", body["prompt_scope"])
+	}
 
 	rec = te.doAssets(t, http.MethodGet, "/api/assets/"+assetID+"/content", "", true)
 	if rec.Code != http.StatusOK {
@@ -263,6 +266,82 @@ func TestAssetsCreatePromptLocalFile(t *testing.T) {
 	content := parseJSON(t, rec)
 	if content["content"] != "You are a support assistant." {
 		t.Fatalf("expected prompt content roundtrip, got %v", content["content"])
+	}
+}
+
+func TestAssetsCreateTaskPrompt(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	payload := `{"name":"Support Prompt","kind":"prompt","storage_kind":"file","prompt_scope":"task","content":"You are a support assistant."}`
+	rec := te.doAssets(t, http.MethodPost, "/api/assets", payload, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := parseJSON(t, rec)
+	if body["prompt_scope"] != "task" {
+		t.Fatalf("expected prompt_scope task, got %v", body["prompt_scope"])
+	}
+}
+
+func TestAssetsUpdatePromptTemplateFlag(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	payload := `{"name":"Support Prompt","kind":"prompt","storage_kind":"file","prompt_scope":"task","content":"You are a support assistant."}`
+	rec := te.doAssets(t, http.MethodPost, "/api/assets", payload, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := parseJSON(t, rec)
+	assetID := body["id"].(string)
+
+	updatePayload := `{"name":"Support Prompt","kind":"prompt","storage_kind":"file","prompt_scope":"task","is_template":true,"content":"You are a support assistant."}`
+	rec = te.doAssets(t, http.MethodPut, "/api/assets/"+assetID, updatePayload, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body = parseJSON(t, rec)
+	if body["is_template"] != true {
+		t.Fatalf("expected is_template true, got %v", body["is_template"])
+	}
+}
+
+func TestAssetsRejectsSystemPromptTemplateFlag(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	record, err := te.app.FindFirstRecordByFilter("assets", "template_key = {:template_key}", map[string]any{"template_key": "prompt-meta-optimizer"})
+	if err != nil {
+		t.Fatalf("find seeded meta prompt: %v", err)
+	}
+
+	payload := `{"name":"Prompt Optimizer","kind":"prompt","storage_kind":"file","prompt_scope":"system","is_template":true,"content":"You are a prompt engineering specialist."}`
+	rec := te.doAssets(t, http.MethodPut, "/api/assets/"+record.Id, payload, true)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(strings.ToLower(rec.Body.String()), "system-managed asset cannot be edited") {
+		t.Fatalf("expected immutable system asset error, got %s", rec.Body.String())
+	}
+}
+
+func TestAssetsRejectsSystemPromptUpdate(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	record, err := te.app.FindFirstRecordByFilter("assets", "template_key = {:template_key}", map[string]any{"template_key": "prompt-meta-optimizer"})
+	if err != nil {
+		t.Fatalf("find seeded meta prompt: %v", err)
+	}
+
+	payload := `{"name":"Renamed Prompt Optimizer","kind":"prompt","storage_kind":"file","prompt_scope":"system","content":"changed"}`
+	rec := te.doAssets(t, http.MethodPut, "/api/assets/"+record.Id, payload, true)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(strings.ToLower(rec.Body.String()), "system-managed asset cannot be edited") {
+		t.Fatalf("expected immutable system asset error, got %s", rec.Body.String())
 	}
 }
 
@@ -469,7 +548,7 @@ func TestAssetsSeedsPromptTemplates(t *testing.T) {
 		if item["kind"] == "prompt" && item["is_template"] == true {
 			templateCount++
 		}
-		if item["template_key"] == "prompt-meta-optimizer" && item["is_system"] == true {
+		if item["template_key"] == "prompt-meta-optimizer" && item["is_system"] == true && item["prompt_scope"] == "system" {
 			metaFound = true
 		}
 	}
@@ -478,5 +557,85 @@ func TestAssetsSeedsPromptTemplates(t *testing.T) {
 	}
 	if !metaFound {
 		t.Fatal("expected seeded meta prompt to exist")
+	}
+}
+
+func TestAssetsPromptScopeRoundTrip(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	payload := `{"name":"Task Scope Prompt","kind":"prompt","storage_kind":"file","prompt_scope":"task","content":"Handle a task."}`
+	rec := te.doAssets(t, http.MethodPost, "/api/assets", payload, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create task: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	createBody := parseJSON(t, rec)
+	if createBody["prompt_scope"] != "task" {
+		t.Fatalf("create response: expected prompt_scope task, got %v", createBody["prompt_scope"])
+	}
+	taskID := createBody["id"].(string)
+
+	payload = `{"name":"System Scope Prompt","kind":"prompt","storage_kind":"file","prompt_scope":"system","content":"Guard chat behavior."}`
+	rec = te.doAssets(t, http.MethodPost, "/api/assets", payload, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create system: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	createBody = parseJSON(t, rec)
+	if createBody["prompt_scope"] != "system" {
+		t.Fatalf("create response: expected prompt_scope system, got %v", createBody["prompt_scope"])
+	}
+	systemID := createBody["id"].(string)
+
+	rec = te.doAssets(t, http.MethodGet, "/api/assets", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	items := parseJSONArray(t, rec)
+
+	foundTask := false
+	foundSystem := false
+	for _, item := range items {
+		id, _ := item["id"].(string)
+		if id == taskID {
+			foundTask = true
+			if item["prompt_scope"] != "task" {
+				t.Fatalf("list: task prompt (%s) has prompt_scope=%v, want task", taskID, item["prompt_scope"])
+			}
+		}
+		if id == systemID {
+			foundSystem = true
+			if item["prompt_scope"] != "system" {
+				t.Fatalf("list: system prompt (%s) has prompt_scope=%v, want system", systemID, item["prompt_scope"])
+			}
+		}
+	}
+	if !foundTask {
+		t.Fatalf("list: task prompt %s not found in list response", taskID)
+	}
+	if !foundSystem {
+		t.Fatalf("list: system prompt %s not found in list response", systemID)
+	}
+
+	updatePayload := `{"name":"Task Scope Prompt","kind":"prompt","storage_kind":"file","prompt_scope":"system","content":"Handle a task."}`
+	rec = te.doAssets(t, http.MethodPut, "/api/assets/"+taskID, updatePayload, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("update: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	updateBody := parseJSON(t, rec)
+	if updateBody["prompt_scope"] != "system" {
+		t.Fatalf("update response: expected prompt_scope system, got %v", updateBody["prompt_scope"])
+	}
+
+	rec = te.doAssets(t, http.MethodGet, "/api/assets", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list after update: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	items = parseJSONArray(t, rec)
+	for _, item := range items {
+		if id, _ := item["id"].(string); id == taskID {
+			if item["prompt_scope"] != "system" {
+				t.Fatalf("list after update: task prompt (%s) has prompt_scope=%v, want system", taskID, item["prompt_scope"])
+			}
+		}
 	}
 }

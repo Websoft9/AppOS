@@ -15,8 +15,7 @@ func TestDefinitionSupportsMode(t *testing.T) {
 		Adapter:        AdapterHTTPClient,
 		TrafficClass:   TrafficClassPublicEgress,
 		Support:        SupportProxyCapable,
-		DefaultMode:    ModeFallback,
-		AllowFallback:  true,
+		DefaultMode:    ModeAlways,
 	}
 
 	if !definition.SupportsMode(ModeDisabled) {
@@ -25,12 +24,8 @@ func TestDefinitionSupportsMode(t *testing.T) {
 	if !definition.SupportsMode(ModeAlways) {
 		t.Fatal("expected always mode to be supported")
 	}
-	if !definition.SupportsMode(ModeFallback) {
-		t.Fatal("expected fallback mode to be supported")
-	}
-
 	bypassOnly := Definition{
-		Key:            "servers.global",
+		Key:            "control_plane.global",
 		Title:          "Servers",
 		Location:       LocationRemote,
 		Scope:          ScopeModule,
@@ -42,9 +37,6 @@ func TestDefinitionSupportsMode(t *testing.T) {
 	}
 	if bypassOnly.SupportsMode(ModeAlways) {
 		t.Fatal("expected bypass-only definition to reject always mode")
-	}
-	if bypassOnly.SupportsMode(ModeFallback) {
-		t.Fatal("expected bypass-only definition to reject fallback mode")
 	}
 }
 
@@ -97,23 +89,9 @@ func TestNewRegistryRejectsInvalidDefinitions(t *testing.T) {
 			},
 		},
 		{
-			name: "fallback without permission",
+			name: "bypass only cannot use always mode",
 			definition: Definition{
-				Key:            "platform_accounts.global",
-				Title:          "Platform Accounts",
-				Location:       LocationLocal,
-				Scope:          ScopeModule,
-				AllowDirectUse: false,
-				Adapter:        AdapterHTTPClient,
-				TrafficClass:   TrafficClassPublicEgress,
-				Support:        SupportProxyCapable,
-				DefaultMode:    ModeFallback,
-			},
-		},
-		{
-			name: "bypass only cannot allow fallback",
-			definition: Definition{
-				Key:            "servers.global",
+				Key:            "control_plane.global",
 				Title:          "Servers",
 				Location:       LocationRemote,
 				Scope:          ScopeModule,
@@ -121,8 +99,7 @@ func TestNewRegistryRejectsInvalidDefinitions(t *testing.T) {
 				Adapter:        AdapterDialer,
 				TrafficClass:   TrafficClassControlPlane,
 				Support:        SupportBypassOnly,
-				DefaultMode:    ModeDisabled,
-				AllowFallback:  true,
+				DefaultMode:    ModeAlways,
 			},
 		},
 	}
@@ -190,8 +167,7 @@ func TestDefaultRegistryContainsExpectedDefinitions(t *testing.T) {
 			Adapter:        AdapterHTTPClient,
 			TrafficClass:   TrafficClassPublicEgress,
 			Support:        SupportProxyCapable,
-			DefaultMode:    ModeFallback,
-			AllowFallback:  true,
+			DefaultMode:    ModeAlways,
 		},
 	)
 	if err != nil {

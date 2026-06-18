@@ -57,7 +57,6 @@ type Mode string
 const (
 	ModeDisabled Mode = "disabled"
 	ModeAlways   Mode = "always"
-	ModeFallback Mode = "fallback"
 )
 
 // Definition declares one known proxy-related network surface.
@@ -85,9 +84,8 @@ type Definition struct {
 
 	// DefaultMode is the platform-recommended enrollment seed. It is not the
 	// final runtime truth once settings enrollment exists.
-	DefaultMode   Mode
-	AllowFallback bool
-	Tags          []string
+	DefaultMode Mode
+	Tags        []string
 }
 
 func (d Definition) Enrollable() bool {
@@ -100,8 +98,6 @@ func (d Definition) SupportsMode(mode Mode) bool {
 		return true
 	case ModeAlways:
 		return d.Support == SupportProxyCapable
-	case ModeFallback:
-		return d.Support == SupportProxyCapable && d.AllowFallback
 	default:
 		return false
 	}
@@ -111,9 +107,6 @@ func (d Definition) AllowedModes() []Mode {
 	modes := []Mode{ModeDisabled}
 	if d.Support == SupportProxyCapable {
 		modes = append(modes, ModeAlways)
-		if d.AllowFallback {
-			modes = append(modes, ModeFallback)
-		}
 	}
 	return modes
 }
@@ -301,9 +294,6 @@ func normalizeDefinition(definition Definition) (Definition, error) {
 		}
 	}
 
-	if definition.Support == SupportBypassOnly && definition.AllowFallback {
-		return Definition{}, fmt.Errorf("bypass-only proxy consumer %q cannot allow fallback", definition.Key)
-	}
 	if !definition.SupportsMode(definition.DefaultMode) {
 		return Definition{}, fmt.Errorf("proxy consumer %q does not support default mode %q", definition.Key, definition.DefaultMode)
 	}
@@ -360,5 +350,5 @@ func isValidSupport(support Support) bool {
 }
 
 func isValidMode(mode Mode) bool {
-	return mode == ModeDisabled || mode == ModeAlways || mode == ModeFallback
+	return mode == ModeDisabled || mode == ModeAlways
 }

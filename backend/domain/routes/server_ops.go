@@ -252,7 +252,7 @@ func handleServerPower(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": actionErr.Error()})
 	}
 
-	cfg, proxyEnv, err := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
+	cfg, proxyEnv, err := resolveTerminalConfigWithProxyForRequest(e, serverID)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}

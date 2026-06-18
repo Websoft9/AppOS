@@ -4,6 +4,7 @@ import type { ScriptLanguage } from '@/lib/assets-script-languages'
 export type AssetKind = 'script' | 'skill' | 'prompt'
 export type AssetStorageKind = 'file' | 'folder'
 export type AssetSourceKind = 'local' | 'reference'
+export type PromptScope = 'system' | 'task'
 export type { ScriptLanguage } from '@/lib/assets-script-languages'
 
 export interface AssetRecord {
@@ -19,6 +20,7 @@ export interface AssetRecord {
   path: string
   entrypoint: string
   template_key?: string
+  prompt_scope?: PromptScope
   is_system?: boolean
   is_template?: boolean
   created?: string
@@ -31,6 +33,8 @@ export interface AssetWriteRequest {
   kind: AssetKind
   storage_kind: AssetStorageKind
   source_kind?: AssetSourceKind
+  prompt_scope?: PromptScope
+  is_template?: boolean
   language?: ScriptLanguage
   script_extension?: string
   reference?: string

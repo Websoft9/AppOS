@@ -87,6 +87,7 @@ func loadTemplates() error {
 			if err != nil {
 				return fmt.Errorf("merge AI provider template %s: %w", filePath, err)
 			}
+			template = applyImplicitTemplateDefaults(template)
 			if err := validateTemplate(template); err != nil {
 				return fmt.Errorf("invalid AI provider template %s: %w", filePath, err)
 			}
@@ -130,6 +131,7 @@ type templateFile struct {
 	SupportsClosedModels *bool               `json:"supportsClosedModels,omitempty"`
 	SupportsMultiVendorModels *bool          `json:"supportsMultiVendorModels,omitempty"`
 	Protocols            []templateProtocolFile `json:"protocols,omitempty"`
+	HideInChooser        *bool               `json:"hideInChooser,omitempty"`
 	SkipTLSCertVerify    *bool               `json:"skipTLSCertVerify,omitempty"`
 	Fields               []templateFieldFile `json:"fields,omitempty"`
 }
@@ -256,6 +258,9 @@ func applyTemplateOverlay(base Template, file templateFile) (Template, error) {
 			return Template{}, err
 		}
 		result.Protocols = protocols
+	}
+	if file.HideInChooser != nil {
+		result.HideInChooser = *file.HideInChooser
 	}
 	if file.SkipTLSCertVerify != nil {
 		result.SkipTLSCertVerify = *file.SkipTLSCertVerify
@@ -389,6 +394,40 @@ func applyFieldOverlay(base TemplateField, override templateFieldFile) (Template
 	return result, nil
 }
 
+func applyImplicitTemplateDefaults(template Template) Template {
+	defaultEndpoint := strings.TrimSpace(template.DefaultEndpoint)
+	if defaultEndpoint == "" {
+		return template
+	}
+
+	if len(template.Protocols) > 0 {
+		protocols := append([]TemplateProtocol(nil), template.Protocols...)
+		for index, protocol := range protocols {
+			if strings.TrimSpace(protocol.DefaultEndpoint) != "" {
+				continue
+			}
+			protocol.DefaultEndpoint = defaultEndpoint
+			protocols[index] = protocol
+		}
+		template.Protocols = protocols
+	}
+
+	if len(template.Fields) == 0 {
+		return template
+	}
+
+	fields := append([]TemplateField(nil), template.Fields...)
+	for index, field := range fields {
+		if strings.TrimSpace(field.ID) != "endpoint" || field.Default != nil {
+			continue
+		}
+		field.Default = defaultEndpoint
+		fields[index] = field
+	}
+	template.Fields = fields
+	return template
+}
+
 func validateTemplate(template Template) error {
 	if strings.TrimSpace(template.ID) == "" {
 		return fmt.Errorf("template id is required")
@@ -423,7 +462,9 @@ func validateTemplate(template Template) error {
 	if !isAllowedTemplateValue(template.EndpointMode, "fixed", "customizable", "user_supplied") {
 		return fmt.Errorf("template endpointMode must be fixed, customizable, or user_supplied")
 	}
-	if mode := strings.TrimSpace(template.ProviderMode); mode != "" && mode != "vendor" && mode != "gateway" {
+	if mode := strings.TrimSpace(template.ProviderMode); mode == "" {
+		return fmt.Errorf("template providerMode is required")
+	} else if mode != "vendor" && mode != "gateway" {
 		return fmt.Errorf("template providerMode must be vendor or gateway")
 	}
 	defaultProtocols := 0

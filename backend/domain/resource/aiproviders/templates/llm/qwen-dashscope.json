@@ -6,6 +6,7 @@
   "hostingMode": "cloud",
   "serviceMode": "official_provider",
   "endpointMode": "customizable",
+  "hideInChooser": true,
   "supportsClosedModels": true,
   "supportsMultiVendorModels": false,
   "description": "DashScope endpoint focused on Qwen model access.",
@@ -21,16 +22,14 @@
     {
       "id": "openai",
       "label": "OpenAI",
-      "default": true,
-      "defaultEndpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+      "default": true
     }
   ],
   "capabilities": ["chat", "tools", "streaming"],
   "aliases": ["qwen", "dashscope", "qwen-dashscope"],
   "fields": [
     {
-      "id": "endpoint",
-      "default": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+      "id": "endpoint"
     }
   ]
 }

@@ -78,6 +78,15 @@
     "remainingInput": "Remaining input",
     "note": "This is an estimate based on visible chat content and attachments. The server may further summarize or trim history before sending the final request."
   },
+  "prompts": {
+    "selectSystemPrompt": "Choose a system prompt for this conversation",
+    "systemPromptGroup": "System Prompt",
+    "systemPromptNone": "None (no system prompt)",
+    "taskInstruction": "Task",
+    "taskInstructionTitle": "Task instruction — fill into message draft",
+    "taskInstructionGroup": "Task Instruction",
+    "noTaskInstructions": "No task instructions available"
+  },
   "aria": {
     "conversationActions": "Conversation actions for {{title}}",
     "removeAttachment": "Remove {{name}}"

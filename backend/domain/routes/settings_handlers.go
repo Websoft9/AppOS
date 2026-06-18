@@ -242,7 +242,7 @@ func patchSettingsEntryValue(e *core.RequestEvent, entry settingsschema.EntrySch
 }
 
 func getCustomSettingsEntryValue(app core.App, module, key string) (map[string]any, error) {
-	if module == "proxy" && key == "consumers" {
+	if module == "proxy" && key == "policies" {
 		value, err := proxy.SettingsEntryValue(app)
 		if err != nil {
 			return nil, err
@@ -310,7 +310,7 @@ func validateCustomSettingsEntry(e *core.RequestEvent, module, key string, value
 		return validateSpaceQuota(value)
 	case "proxy/network":
 		return validateProxyNetwork(e.App, value)
-	case "proxy/consumers":
+		case "proxy/policies":
 		return validateProxyConsumers(value)
 	case "proxy/servers":
 		return validateProxyRemoteShellServers(e.App, value)

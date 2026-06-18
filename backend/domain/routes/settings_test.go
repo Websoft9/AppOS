@@ -189,7 +189,7 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 			foundTunnel = value != nil && int(value["start"].(float64)) == 40000 && int(value["end"].(float64)) == 49999
 		case "proxy-network":
 			foundProxy = value != nil && value["enabled"] == false && value["socks5ConnectorId"] == "" && value["httpConnectorId"] == "" && value["httpsConnectorId"] == ""
-		case "proxy-consumers":
+		case "proxy-policies":
 			items, _ := value["items"].([]any)
 			definitions, _ := value["definitions"].([]any)
 			foundProxyConsumers = items != nil && len(definitions) > 0
@@ -229,7 +229,7 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 		t.Fatal("expected proxy-network fallback value")
 	}
 	if !foundProxyConsumers {
-		t.Fatal("expected proxy-consumers fallback value")
+		t.Fatal("expected proxy-policies fallback value")
 	}
 	if !foundProxyRemoteShell {
 		t.Fatal("expected proxy-remote-shell fallback value")
@@ -310,12 +310,12 @@ func TestSettingsEntryPatchValidation(t *testing.T) {
 	}
 
 	badProxyConsumers := `{"items":[{"consumerKey":"invalid.consumer","mode":"always"}]}`
-	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/proxy-consumers", badProxyConsumers, true)
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/proxy-policies", badProxyConsumers, true)
 	if rec.Code != http.StatusUnprocessableEntity {
-		t.Fatalf("expected 422 for invalid proxy-consumers, got %d: %s", rec.Code, rec.Body.String())
+		t.Fatalf("expected 422 for invalid proxy-policies, got %d: %s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "direct-use proxy consumer") {
-		t.Fatalf("expected proxy-consumers validation error, got %s", rec.Body.String())
+	if !strings.Contains(rec.Body.String(), "direct-use proxy policy") {
+		t.Fatalf("expected proxy-policies validation error, got %s", rec.Body.String())
 	}
 
 	badProxyRemoteShell := `{"items":[{"serverId":"missing-server","mode":"always"}]}`
@@ -499,7 +499,7 @@ func TestSettingsEntryPatchPersistsUnifiedValues(t *testing.T) {
 		Endpoint:   "http://proxy.example.com:3128",
 		Config:     map[string]any{"protocol": "http"},
 	})
-	proxyBody := `{"enabled":true,"socks5ConnectorId":"","httpConnectorId":"` + proxyConnector.Id + `","httpsConnectorId":""}`
+	proxyBody := `{"source":"external","enabled":true,"socks5ConnectorId":"","httpConnectorId":"` + proxyConnector.Id + `","httpsConnectorId":""}`
 	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/proxy-network", proxyBody, true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 for proxy-network patch, got %d: %s", rec.Code, rec.Body.String())
@@ -518,14 +518,14 @@ func TestSettingsEntryPatchPersistsUnifiedValues(t *testing.T) {
 		t.Fatalf("expected httpConnectorId %q, got %q", proxyConnector.Id, got)
 	}
 
-	proxyConsumersBody := `{"items":[{"consumerKey":"ai_providers.global","mode":"always"},{"consumerKey":"feeds.fetch_source","mode":"disabled"}]}`
-	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/proxy-consumers", proxyConsumersBody, true)
+	proxyConsumersBody := `{"items":[{"consumerKey":"http.ai","mode":"always"},{"consumerKey":"download.general","mode":"disabled"}]}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/proxy-policies", proxyConsumersBody, true)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200 for proxy-consumers patch, got %d: %s", rec.Code, rec.Body.String())
+		t.Fatalf("expected 200 for proxy-policies patch, got %d: %s", rec.Code, rec.Body.String())
 	}
-	storedProxyConsumers, err := sysconfig.GetGroup(te.app, "proxy", "consumers", nil)
+	storedProxyConsumers, err := sysconfig.GetGroup(te.app, "proxy", "policies", nil)
 	if err != nil {
-		t.Fatalf("expected stored proxy-consumers, got error: %v", err)
+		t.Fatalf("expected stored proxy-policies, got error: %v", err)
 	}
 	items, ok := storedProxyConsumers["items"].([]any)
 	if !ok || len(items) != 2 {

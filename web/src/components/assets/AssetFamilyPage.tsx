@@ -9,6 +9,8 @@ import {
   Loader2,
   MoreVertical,
   Filter,
+  Pencil,
+  Bot,
   Trash2,
   RefreshCw,
   Search,
@@ -29,8 +31,12 @@ import {
   type AssetSourceKind,
   type AssetStorageKind,
   type AssetWriteRequest,
+  type PromptScope,
 } from '@/lib/assets-api'
-import { saveAICopilotDraftHandoff } from '@/lib/ai-copilot-draft-handoff'
+import {
+  saveAICopilotDraftHandoff,
+  saveAICopilotSessionHandoff,
+} from '@/lib/ai-copilot-draft-handoff'
 import {
   formatScriptLanguageOptionLabel,
   isScriptLanguage,
@@ -95,6 +101,8 @@ type AssetFormState = {
   kind: AssetKind
   storage_kind: AssetStorageKind
   source_kind: AssetSourceKind
+  prompt_scope: PromptScope
+  is_template: boolean
   language: ScriptLanguage
   script_extension: string
   reference: string
@@ -118,17 +126,25 @@ type AssetFamilyPageProps = {
   onQueryStateChange: (patch: { q?: string; page?: number }) => void
 }
 
-type PromptLabelFilter = 'all' | 'system' | 'template' | 'custom'
+type PromptLabelFilter = 'all' | 'system' | 'task'
 
 const PAGE_SIZE = 20
 const fieldLabelClassName = 'text-sm text-foreground'
 const directoryUploadInputProps = { webkitdirectory: '', directory: '' } as Record<string, string>
 const PROMPT_LABEL_FILTER_LABELS: Record<PromptLabelFilter, string> = {
-  all: 'All Labels',
-  system: 'System',
-  template: 'Template',
-  custom: 'Custom',
+  all: 'All Prompts',
+  system: 'System Prompts',
+  task: 'Task Instructions',
 }
+const PROMPT_SCOPE_LABELS: Record<PromptScope, string> = {
+  system: 'System Prompt',
+  task: 'Task Instruction',
+}
+
+function blankPromptContent(scope: PromptScope) {
+  return scope === 'system' ? promptSkeleton : ''
+}
+
 const promptSkeleton = `## Role
 
 You are a helpful AI assistant.
@@ -185,6 +201,8 @@ const scriptDefaults: AssetFormState = {
   kind: 'script',
   storage_kind: 'file',
   source_kind: 'local',
+  prompt_scope: 'system',
+  is_template: false,
   language: 'shell',
   script_extension: '',
   reference: '',
@@ -200,6 +218,8 @@ const skillDefaults: AssetFormState = {
   kind: 'skill',
   storage_kind: 'folder',
   source_kind: 'local',
+  prompt_scope: 'system',
+  is_template: false,
   language: 'other',
   script_extension: '',
   reference: '',
@@ -215,12 +235,14 @@ const promptDefaults: AssetFormState = {
   kind: 'prompt',
   storage_kind: 'file',
   source_kind: 'local',
+  prompt_scope: 'task',
+  is_template: false,
   language: 'other',
   script_extension: '',
   reference: '',
   path: '',
   entrypoint: '',
-  content: promptSkeleton,
+  content: '',
   skillFiles: [],
 }
 
@@ -276,10 +298,12 @@ function createSkillDefaults(): AssetFormState {
   }
 }
 
-function createPromptDefaults(name = promptSequenceName(1)): AssetFormState {
+function createPromptDefaults(name = promptSequenceName(1), scope: PromptScope = 'task'): AssetFormState {
   return {
     ...promptDefaults,
     name,
+    prompt_scope: scope,
+    content: blankPromptContent(scope),
   }
 }
 
@@ -330,6 +354,8 @@ function buildFormFromAsset(asset: AssetRecord): AssetFormState {
     kind: asset.kind,
     storage_kind: asset.storage_kind,
     source_kind: asset.source_kind,
+    prompt_scope: asset.prompt_scope === 'task' ? 'task' : 'system',
+    is_template: asset.is_template === true,
     language: isScriptLanguage(language) ? language : 'shell',
     script_extension: asset.script_extension ?? '',
     reference: asset.reference ?? '',
@@ -355,9 +381,27 @@ function assetDialogDescription(kind: AssetKind) {
     return 'Manage reusable skill packages with bundled files and a defined entrypoint.'
   }
   if (kind === 'prompt') {
-    return 'Create reusable AI prompts from starter templates.'
+    return 'Create reusable AI prompts for global AI Copilot behavior or task-level instructions.'
   }
   return 'Manage reusable single-file scripts for terminal tasks and operator workflows.'
+}
+
+function promptScopeOf(asset: AssetRecord): PromptScope {
+	return asset.prompt_scope === 'task' ? 'task' : 'system'
+}
+
+function isTaskPrompt(asset: AssetRecord) {
+	return promptScopeOf(asset) === 'task'
+}
+
+function isTemplateLocked(asset: AssetRecord | null) {
+  return asset?.is_system === true
+}
+
+function promptScopeDescription(scope: PromptScope) {
+  return scope === 'system'
+    ? 'System prompts can be bound as the default AI Copilot behavior for a conversation.'
+    : 'Task instructions are reusable prompt assets you can hand off into AI Copilot as working context.'
 }
 
 export function AssetFamilyPage({
@@ -382,6 +426,7 @@ export function AssetFamilyPage({
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [scriptAdvancedOpen, setScriptAdvancedOpen] = useState(false)
   const [skillAdvancedOpen, setSkillAdvancedOpen] = useState(false)
+  const [promptAdvancedOpen, setPromptAdvancedOpen] = useState(false)
   const [scriptPulling, setScriptPulling] = useState(false)
   const [skillPulling, setSkillPulling] = useState(false)
   const [templateApplying, setTemplateApplying] = useState('')
@@ -392,6 +437,7 @@ export function AssetFamilyPage({
     key: 'updated',
     direction: 'desc',
   })
+  const editLoadRequestRef = useRef(0)
   const scriptUploadInputRef = useRef<HTMLInputElement | null>(null)
   const skillFolderUploadInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -408,45 +454,51 @@ export function AssetFamilyPage({
     }
   }
 
-  async function populateEditingContent(item: AssetRecord, baseForm: AssetFormState) {
+  async function populateEditingContent(item: AssetRecord, requestId: number) {
     if (item.kind === 'script' || item.kind === 'prompt') {
       if (item.source_kind === 'reference') {
-        setForm(baseForm)
         return
       }
       try {
         const content = await getAssetContent(item.id)
         if (content.storage_kind === 'file') {
-          setForm({
-            ...baseForm,
-            content: content.content,
-            path: content.path || baseForm.path,
-            entrypoint: content.entrypoint || baseForm.entrypoint,
+          setForm(current => {
+            if (requestId !== editLoadRequestRef.current || current.kind !== item.kind) {
+              return current
+            }
+            return {
+              ...current,
+              content: content.content,
+              path: content.path || current.path,
+              entrypoint: content.entrypoint || current.entrypoint,
+            }
           })
           return
         }
       } catch {}
-      setForm(baseForm)
       return
     }
 
     if (item.source_kind === 'reference') {
-      setForm(baseForm)
       return
     }
 
     try {
       const content = await getAssetContent(item.id)
       if (content.storage_kind === 'folder') {
-        setForm({
-          ...baseForm,
-          skillFiles: content.files.map(file => ({ path: file.path, content: file.content })),
-          entrypoint: content.entrypoint || baseForm.entrypoint,
+        setForm(current => {
+          if (requestId !== editLoadRequestRef.current || current.kind !== item.kind) {
+            return current
+          }
+          return {
+            ...current,
+            skillFiles: content.files.map(file => ({ path: file.path, content: file.content })),
+            entrypoint: content.entrypoint || current.entrypoint,
+          }
         })
         return
       }
     } catch {}
-    setForm(baseForm)
   }
 
   async function applyPromptTemplate(item: AssetRecord) {
@@ -493,6 +545,12 @@ export function AssetFamilyPage({
     }
   }
 
+  function startAICopilotWithSystemPrompt(item: AssetRecord) {
+    if (item.kind !== 'prompt' || promptScopeOf(item) !== 'system') return
+    saveAICopilotSessionHandoff({ systemPromptAssetId: item.id })
+    window.open('/ai-copilot', '_blank', 'noopener,noreferrer')
+  }
+
   async function handleRestoreDefault(item: AssetRecord) {
     setRestoringId(item.id)
     setFormError('')
@@ -507,6 +565,7 @@ export function AssetFamilyPage({
   }
 
   function openCreateDialog() {
+    editLoadRequestRef.current += 1
     setEditing(null)
     if (kind === 'prompt') {
       setForm(createPromptDefaults(promptSequenceName(items.length + 1)))
@@ -517,6 +576,7 @@ export function AssetFamilyPage({
     setFormError('')
     setScriptAdvancedOpen(false)
     setSkillAdvancedOpen(false)
+    setPromptAdvancedOpen(false)
     setDialogOpen(true)
   }
 
@@ -549,13 +609,10 @@ export function AssetFamilyPage({
         return true
       }
       if (promptLabelFilter === 'system') {
-        return item.is_system === true
+        return promptScopeOf(item) === 'system'
       }
-      if (promptLabelFilter === 'template') {
-        return item.is_template === true
-      }
-      if (promptLabelFilter === 'custom') {
-        return item.is_system !== true && item.is_template !== true
+      if (promptLabelFilter === 'task') {
+        return promptScopeOf(item) === 'task'
       }
       return true
     })
@@ -576,10 +633,19 @@ export function AssetFamilyPage({
   const totalItems = filteredItems.length
   const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE))
   const currentPage = Math.min(Math.max(queryState.page, 1), totalPages)
-  const starterTemplates = useMemo(
-    () => (kind === 'prompt' ? items.filter(item => item.is_template) : []),
-    [items, kind]
-  )
+  const starterTemplates = useMemo(() => {
+    if (kind !== 'prompt') return []
+    return [...items]
+      .filter(item => item.is_template)
+      .sort((left, right) => {
+        const leftMatchesScope = promptScopeOf(left) === form.prompt_scope ? 1 : 0
+        const rightMatchesScope = promptScopeOf(right) === form.prompt_scope ? 1 : 0
+        if (leftMatchesScope !== rightMatchesScope) {
+          return rightMatchesScope - leftMatchesScope
+        }
+        return left.name.localeCompare(right.name)
+      })
+  }, [form.prompt_scope, items, kind])
 
   const pagedItems = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE
@@ -593,14 +659,17 @@ export function AssetFamilyPage({
   }, [onQueryStateChange, queryState.page, totalPages])
 
   function openEditDialog(item: AssetRecord) {
+    const requestId = editLoadRequestRef.current + 1
+    editLoadRequestRef.current = requestId
     setEditing(item)
     const baseForm = buildFormFromAsset(item)
     setForm(baseForm)
     setFormError('')
     setScriptAdvancedOpen(false)
     setSkillAdvancedOpen(false)
+    setPromptAdvancedOpen(false)
     setDialogOpen(true)
-    void populateEditingContent(item, baseForm)
+    void populateEditingContent(item, requestId)
   }
 
   function togglePromptSort(key: 'name' | 'created' | 'updated') {
@@ -720,6 +789,8 @@ export function AssetFamilyPage({
         payload.reference = form.reference.trim() || undefined
         payload.content = form.content
       } else if (form.kind === 'prompt') {
+        payload.prompt_scope = form.prompt_scope
+        payload.is_template = form.is_template
         payload.content = form.content
       } else {
         payload.entrypoint = form.entrypoint
@@ -900,10 +971,9 @@ export function AssetFamilyPage({
                           value={promptLabelFilter}
                           onValueChange={value => setPromptLabelFilter(value as PromptLabelFilter)}
                         >
-                          <DropdownMenuRadioItem value="all">All Labels</DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="system">System</DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="template">Template</DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="custom">Custom</DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="all">All Prompts</DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="system">System Prompts</DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="task">Task Instructions</DropdownMenuRadioItem>
                         </DropdownMenuRadioGroup>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -911,7 +981,7 @@ export function AssetFamilyPage({
                     'Source'
                   )}
                 </TableHead>
-                <TableHead>{isScript ? 'Content' : isPrompt ? 'Content' : 'Shape'}</TableHead>
+                <TableHead>{isScript ? 'Content' : isPrompt ? 'Template' : 'Shape'}</TableHead>
                 <TableHead>
                   {isScript ? (
                     'Reference'
@@ -942,7 +1012,7 @@ export function AssetFamilyPage({
                     'Updated'
                   )}
                 </TableHead>
-                <TableHead className="w-[48px]" />
+                <TableHead className="w-[48px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -969,9 +1039,7 @@ export function AssetFamilyPage({
                         item.language || '—'
                       ) : isPrompt ? (
                         <div className="flex flex-wrap gap-1">
-                          {item.is_system ? <Badge variant="secondary">System</Badge> : null}
-                          {item.is_template ? <Badge variant="outline">Template</Badge> : null}
-                          {!item.is_system && !item.is_template ? '—' : null}
+                          <Badge variant="secondary">{PROMPT_SCOPE_LABELS[promptScopeOf(item)]}</Badge>
                         </div>
                       ) : item.source_kind === 'local' ? (
                         'Local'
@@ -985,7 +1053,9 @@ export function AssetFamilyPage({
                           ? 'Inline'
                           : 'Reference only'
                         : isPrompt
-                          ? 'Inline'
+                          ? item.is_template
+                            ? 'Template'
+                            : '—'
                           : item.storage_kind === 'folder'
                             ? 'Folder Package'
                             : 'Single File'}
@@ -1009,12 +1079,22 @@ export function AssetFamilyPage({
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openEditDialog(item)}>
-                            Edit
-                          </DropdownMenuItem>
-                          {isPrompt ? (
+                          {!item.is_system ? (
+                            <DropdownMenuItem onClick={() => openEditDialog(item)}>
+                              <Pencil className="h-4 w-4" />
+                              Edit
+                            </DropdownMenuItem>
+                          ) : null}
+                          {isPrompt && isTaskPrompt(item) ? (
                             <DropdownMenuItem onClick={() => void sendPromptToCopilot(item)}>
+                              <Bot className="h-4 w-4" />
                               Send to AI Copilot
+                            </DropdownMenuItem>
+                          ) : null}
+                          {isPrompt && promptScopeOf(item) === 'system' ? (
+                            <DropdownMenuItem onClick={() => startAICopilotWithSystemPrompt(item)}>
+                              <Bot className="h-4 w-4" />
+                              New AI Copilot
                             </DropdownMenuItem>
                           ) : null}
                           {isPrompt && item.is_system ? (
@@ -1022,6 +1102,7 @@ export function AssetFamilyPage({
                               disabled={restoringId === item.id}
                               onClick={() => void handleRestoreDefault(item)}
                             >
+                              <RefreshCw className={cn('h-4 w-4', restoringId === item.id && 'animate-spin')} />
                               {restoringId === item.id ? 'Restoring...' : 'Restore default'}
                             </DropdownMenuItem>
                           ) : null}
@@ -1031,6 +1112,7 @@ export function AssetFamilyPage({
                               className="text-destructive focus:text-destructive"
                               onClick={() => setDeleteTarget(item)}
                             >
+                              <Trash2 className="h-4 w-4" />
                               Delete
                             </DropdownMenuItem>
                           ) : null}
@@ -1059,14 +1141,10 @@ export function AssetFamilyPage({
                           </div>
                           <div>
                             <span className="text-muted-foreground">
-                              {isScript ? 'Language:' : isPrompt ? 'Labels:' : 'Source:'}
+                              {isScript ? 'Language:' : isPrompt ? 'Scope:' : 'Source:'}
                             </span>{' '}
                             {isPrompt ? (
-                              <span>
-                                {[item.is_system ? 'System' : '', item.is_template ? 'Template' : '']
-                                  .filter(Boolean)
-                                  .join(', ') || '—'}
-                              </span>
+                              <span>{PROMPT_SCOPE_LABELS[promptScopeOf(item)]}</span>
                             ) : (
                               <span>
                                 {isScript
@@ -1090,8 +1168,8 @@ export function AssetFamilyPage({
                             </div>
                           ) : isPrompt ? (
                             <div>
-                              <span className="text-muted-foreground">Content:</span>{' '}
-                              <span>Inline prompt text</span>
+                              <span className="text-muted-foreground">Starter Template:</span>{' '}
+                              <span>{item.is_template ? 'Enabled' : 'Disabled'}</span>
                             </div>
                           ) : null}
                           {isScript ? (
@@ -1324,8 +1402,64 @@ export function AssetFamilyPage({
                         onChange={e => setForm(current => ({ ...current, name: e.target.value }))}
                       />
                     </div>
-                  {!editing ? (
-                    <section className="space-y-3">
+                  <section className="space-y-3">
+                    <div className="grid gap-2">
+                      <Label className={fieldLabelClassName}>
+                        {requiredLabel('Prompt Type')}
+                      </Label>
+                      <div
+                        role="radiogroup"
+                        aria-label="Prompt Type"
+                        className="grid gap-2 sm:grid-cols-2"
+                      >
+                        {(['system', 'task'] as const).map(scope => {
+                          const checked = form.prompt_scope === scope
+                          return (
+                            <Tooltip key={scope}>
+                              <TooltipTrigger asChild>
+                                <button
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={checked}
+                                  className={cn(
+                                    'rounded-lg border px-3 py-3 text-left transition-colors',
+                                    checked
+                                      ? 'border-primary bg-primary/5 text-foreground shadow-sm'
+                                      : 'border-border bg-background text-muted-foreground hover:border-foreground/20 hover:text-foreground'
+                                  )}
+                                  onClick={() =>
+                                    setForm(current => {
+                                      const next = {
+                                        ...current,
+                                        prompt_scope: scope,
+                                      }
+                                      if (!editing && promptStarterTemplateId === 'blank') {
+                                        next.content = blankPromptContent(scope)
+                                      }
+                                      return next
+                                    })
+                                  }
+                                >
+                                  <div className="text-sm font-medium text-foreground">
+                                    {PROMPT_SCOPE_LABELS[scope]}
+                                  </div>
+                                  <div className="mt-1 text-xs leading-5">
+                                    {scope === 'system'
+                                      ? 'Conversation-level default behavior'
+                                      : 'Reusable working context for one task'}
+                                  </div>
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom" className="max-w-[280px] leading-5">
+                                {promptScopeDescription(scope)}
+                              </TooltipContent>
+                            </Tooltip>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {!editing ? (
                       <div className="grid gap-2">
                         <div className="flex items-center gap-2">
                           <Label htmlFor="prompt-starter" className={fieldLabelClassName}>
@@ -1342,7 +1476,7 @@ export function AssetFamilyPage({
                               </button>
                             </PopoverTrigger>
                             <PopoverContent side="right" sideOffset={8} className="max-w-[220px] leading-5">
-                              Choose a starter, or begin with Blank.
+                              Choose a starter, or begin with Blank. Templates matching the current prompt type are listed first.
                             </PopoverContent>
                           </Popover>
                         </div>
@@ -1352,8 +1486,12 @@ export function AssetFamilyPage({
                             setPromptStarterTemplateId(value)
                             if (value === 'blank') {
                               setForm(current => ({
-                                ...createPromptDefaults(current.name || promptSequenceName(items.length + 1)),
+                                ...createPromptDefaults(
+                                  current.name || promptSequenceName(items.length + 1),
+                                  current.prompt_scope
+                                ),
                                 description: current.description,
+                                prompt_scope: current.prompt_scope,
                               }))
                               return
                             }
@@ -1370,7 +1508,7 @@ export function AssetFamilyPage({
                             <SelectItem value="blank">Blank</SelectItem>
                             {starterTemplates.map(template => (
                               <SelectItem key={template.id} value={template.id}>
-                                {template.name}
+                                {template.name} · {PROMPT_SCOPE_LABELS[promptScopeOf(template)]}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -1379,38 +1517,46 @@ export function AssetFamilyPage({
                           <div className="text-xs text-muted-foreground">Loading template...</div>
                         ) : null}
                       </div>
-                    </section>
-                  ) : null}
-
-                  <section className="space-y-3">
-                    <div className="grid gap-2">
-                      <Label htmlFor="asset-description-prompt" className={fieldLabelClassName}>
-                        Description
-                      </Label>
-                      <Textarea
-                        id="asset-description-prompt"
-                        value={form.description}
-                        onChange={e =>
-                          setForm(current => ({ ...current, description: e.target.value }))
-                        }
-                        rows={3}
-                        placeholder="Optional description for operators and future consumers"
-                      />
-                    </div>
+                    ) : null}
 
                     <div className="grid gap-2">
                       <div className="flex items-center justify-between gap-3">
-                        <Label htmlFor="asset-prompt-content" className={fieldLabelClassName}>
-                          {requiredLabel('Prompt Content')}
-                        </Label>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => void sendPromptToCopilot()}
-                          disabled={!form.content.trim()}
-                        >
-                          Send to AI Copilot
-                        </Button>
+                        <div className="flex items-center gap-1.5">
+                          <Label htmlFor="asset-prompt-content" className={fieldLabelClassName}>
+                            {requiredLabel('Prompt Content')}
+                          </Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button
+                                type="button"
+                                className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+                                aria-label="Prompt content help"
+                              >
+                                <CircleHelp className="h-4 w-4" />
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent
+                              side="left"
+                              sideOffset={8}
+                              className="max-w-[280px] leading-5"
+                            >
+                              {form.prompt_scope === 'system'
+                                ? 'Use system prompts for stable AI Copilot behavior that should persist across a conversation.'
+                                : 'Use task instructions for reusable work context. You can hand them off into AI Copilot from here.'}{' '}
+                              Use {'{{var}}'} placeholders in plain text when needed. Variable resolution is handled by consumers later.
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => void sendPromptToCopilot()}
+                            disabled={!form.content.trim() || form.prompt_scope !== 'task'}
+                          >
+                            Send to AI Copilot
+                          </Button>
+                        </div>
                       </div>
                       <Textarea
                         id="asset-prompt-content"
@@ -1420,10 +1566,73 @@ export function AssetFamilyPage({
                         wrap="soft"
                         className="max-h-44 resize-none overflow-y-auto [overflow-wrap:anywhere] [word-break:break-word]"
                       />
-                      <p className="text-xs text-muted-foreground">
-                        Use {'{{var}}'} placeholders in plain text when needed. Variable resolution is handled by consumers later.
-                      </p>
                     </div>
+
+                    <Collapsible open={promptAdvancedOpen} onOpenChange={setPromptAdvancedOpen}>
+                      <div className="space-y-2">
+                        <CollapsibleTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="-ml-0.5 h-auto px-0 text-sm font-semibold text-muted-foreground hover:text-foreground"
+                          >
+                            <ChevronDown
+                              className={cn(
+                                'mr-2 h-4 w-4 transition-transform',
+                                promptAdvancedOpen && 'rotate-180'
+                              )}
+                            />
+                            {promptAdvancedOpen ? 'Hide advanced settings' : 'Show advanced settings'}
+                          </Button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="space-y-3">
+                          <div className="grid gap-2">
+                            <Label htmlFor="asset-description-prompt" className={fieldLabelClassName}>
+                              Description
+                            </Label>
+                            <Textarea
+                              id="asset-description-prompt"
+                              value={form.description}
+                              onChange={e =>
+                                setForm(current => ({ ...current, description: e.target.value }))
+                              }
+                              rows={3}
+                              placeholder="Optional description for operators and future consumers"
+                            />
+                          </div>
+
+                          {editing ? (
+                            <div className="grid gap-2">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="space-y-1">
+                                  <Label htmlFor="asset-prompt-template" className={fieldLabelClassName}>
+                                    Set as template
+                                  </Label>
+                                  <p className="text-xs text-muted-foreground">
+                                    Template prompts appear in Starter Template when creating new prompts.
+                                  </p>
+                                </div>
+                                <input
+                                  id="asset-prompt-template"
+                                  type="checkbox"
+                                  className="mt-1 h-4 w-4 rounded border-border"
+                                  checked={form.is_template}
+                                  disabled={isTemplateLocked(editing)}
+                                  onChange={event =>
+                                    setForm(current => ({ ...current, is_template: event.target.checked }))
+                                  }
+                                />
+                              </div>
+                              {isTemplateLocked(editing) ? (
+                                <p className="text-xs text-muted-foreground">
+                                  System-managed prompts such as Prompt Optimizer cannot be used as starter templates.
+                                </p>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </CollapsibleContent>
+                      </div>
+                    </Collapsible>
                   </section>
                   </div>
                 </>

@@ -44,7 +44,7 @@ export function useSettingsPageController() {
       const movedToSystemIds = new Set([
         'tunnel-port-range',
         'proxy-network',
-        'proxy-consumers',
+        'proxy-policies',
         'proxy-remote-shell',
         'docker-mirror',
       ])

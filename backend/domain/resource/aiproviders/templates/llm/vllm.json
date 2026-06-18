@@ -11,7 +11,6 @@
   "description": "Self-hosted vLLM runtime exposing an OpenAI-compatible inference endpoint.",
   "helpUrl": "https://docs.vllm.ai/",
   "defaultEndpoint": "",
-  "defaultAuthScheme": "none",
   "protocols": [
     {
       "id": "openai",

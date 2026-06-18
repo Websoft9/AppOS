@@ -49,11 +49,9 @@ func newWorkerTestApp(t *testing.T) *tests.TestApp {
 	t.Helper()
 
 	workerTestSharedOnce.Do(func() {
-		// Set a dummy REDIS_ADDR so worker.New() succeeds. Tests that
-		// don't call Start() or Enqueue() never contact Redis.
-		if os.Getenv("REDIS_ADDR") == "" {
-			os.Setenv("REDIS_ADDR", "127.0.0.1:6379")
-		}
+		// worker.New() reads runtimecfg.RedisURL() which defaults to
+		// redis://127.0.0.1:6379. Tests that don't call Start() or
+		// Enqueue() never contact Redis.
 
 		baselineDir, err := workerTestBaselineDataDir()
 		if err != nil {

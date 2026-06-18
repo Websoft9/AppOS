@@ -30,7 +30,7 @@ func handleServerPortsList(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": paramErr.Error()})
 	}
 
-	cfg, proxyEnv, err := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
+	cfg, proxyEnv, err := resolveTerminalConfigWithProxyForRequest(e, serverID)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
@@ -158,7 +158,7 @@ func handleServerPortInspect(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": paramErr.Error()})
 	}
 
-	cfg, proxyEnv, err := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
+	cfg, proxyEnv, err := resolveTerminalConfigWithProxyForRequest(e, serverID)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
@@ -239,7 +239,7 @@ func handleServerPortRelease(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": modeErr.Error()})
 	}
 
-	cfg, proxyEnv, err := resolveTerminalConfigWithProxy(e.App, e.Auth, serverID)
+	cfg, proxyEnv, err := resolveTerminalConfigWithProxyForRequest(e, serverID)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}

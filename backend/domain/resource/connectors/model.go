@@ -245,6 +245,7 @@ type Template struct {
 	SupportsClosedModels bool            `json:"supportsClosedModels,omitempty"`
 	SupportsMultiVendorModels bool       `json:"supportsMultiVendorModels,omitempty"`
 	Protocols            []TemplateProtocol `json:"protocols,omitempty"`
+	HideInChooser        bool            `json:"hideInChooser,omitempty"`
 	SkipTLSCertVerify    bool            `json:"skipTLSCertVerify,omitempty"`
 	Fields               []TemplateField `json:"fields,omitempty"`
 }
