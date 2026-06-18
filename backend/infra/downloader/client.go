@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/infra/httpout"
+	"github.com/websoft9/appos/backend/infra/egress"
 )
 
 func NewClient(app core.App, timeout time.Duration, skipTLSVerify bool) (http.Client, error) {
-	return httpout.NewPolicyClient(app, "download.general", timeout, skipTLSVerify)
+	return egress.NewPolicyClient(app, "download.general", timeout, skipTLSVerify)
 }

@@ -1,10 +1,8 @@
-package proxy
+package egress
 
 import (
 	"errors"
 	"testing"
-
-	proxyinfra "github.com/websoft9/appos/backend/infra/proxy"
 )
 
 func TestDefaultRegistrySeparatesPolicyAnchorsFromConcreteConsumers(t *testing.T) {
@@ -13,12 +11,15 @@ func TestDefaultRegistrySeparatesPolicyAnchorsFromConcreteConsumers(t *testing.T
 		t.Fatal(err)
 	}
 
-	if _, err := registry.RequireDirectUse("http.global"); !errors.Is(err, proxyinfra.ErrDirectUseDenied) {
+	if _, err := registry.RequireDirectUse("http.global"); !errors.Is(err, ErrDirectUseDenied) {
 		t.Fatalf("expected module-level http.global to deny direct use, got %v", err)
 	}
 
-	if _, err := registry.RequireDirectUse("download.global"); !errors.Is(err, proxyinfra.ErrDirectUseDenied) {
+	if _, err := registry.RequireDirectUse("download.global"); !errors.Is(err, ErrDirectUseDenied) {
 		t.Fatalf("expected module-level download.global to deny direct use, got %v", err)
+	}
+	if _, err := registry.RequireDirectUse("remote_shell.global"); !errors.Is(err, ErrDirectUseDenied) {
+		t.Fatalf("expected module-level remote_shell.global to deny direct use, got %v", err)
 	}
 
 	for _, key := range []string{
@@ -26,7 +27,9 @@ func TestDefaultRegistrySeparatesPolicyAnchorsFromConcreteConsumers(t *testing.T
 		"http.ai",
 		"download.general",
 		"git.general",
-		"remote_shell.global",
+		"remote_shell.env",
+		"remote_shell.tunnel_http",
+		"remote_shell.tunnel_dialer",
 	} {
 		definition, err := registry.RequireDirectUse(key)
 		if err != nil {
@@ -44,14 +47,14 @@ func TestDefaultRegistryRemovesLegacyDockerLocalSocketSurface(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := registry.Require("docker.local_socket"); !errors.Is(err, proxyinfra.ErrUnknownConsumer) {
+	if _, err := registry.Require("docker.local_socket"); !errors.Is(err, ErrUnknownConsumer) {
 		t.Fatalf("expected docker.local_socket to be absent, got %v", err)
 	}
-	if _, err := registry.Require("docker.image_pull"); !errors.Is(err, proxyinfra.ErrUnknownConsumer) {
+	if _, err := registry.Require("docker.image_pull"); !errors.Is(err, ErrUnknownConsumer) {
 		t.Fatalf("expected docker.image_pull to be absent, got %v", err)
 	}
 	for _, key := range []string{"ai_providers.fetch_models", "ai_providers.reachability", "servers.remote_shell"} {
-		if _, err := registry.Require(key); !errors.Is(err, proxyinfra.ErrUnknownConsumer) {
+		if _, err := registry.Require(key); !errors.Is(err, ErrUnknownConsumer) {
 			t.Fatalf("expected %s to be absent, got %v", key, err)
 		}
 	}
@@ -71,7 +74,7 @@ func TestDefaultRegistryIncludesRemoteBypassOnlyServerControls(t *testing.T) {
 		if definition.Enrollable() {
 			t.Fatalf("expected %s to remain bypass-only", key)
 		}
-		if _, err := registry.RequireDirectUse(key); !errors.Is(err, proxyinfra.ErrDirectUseDenied) {
+		if _, err := registry.RequireDirectUse(key); !errors.Is(err, ErrDirectUseDenied) {
 			t.Fatalf("expected %s to deny direct use, got %v", key, err)
 		}
 	}

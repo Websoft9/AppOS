@@ -1,4 +1,4 @@
-package proxy
+package egress
 
 import (
 	"context"
@@ -13,9 +13,8 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	"github.com/websoft9/appos/backend/domain/resource/connectors"
-	proxyinfra "github.com/websoft9/appos/backend/infra/proxy"
-	netproxy "golang.org/x/net/proxy"
 	"golang.org/x/net/http/httpproxy"
+	netproxy "golang.org/x/net/proxy"
 )
 
 type NetworkSettings struct {
@@ -28,12 +27,12 @@ type NetworkSettings struct {
 
 type ConsumerEnrollment struct {
 	ConsumerKey string
-	Mode        proxyinfra.Mode
+	Mode        Mode
 }
 
 type RemoteShellServerOverride struct {
 	ServerID string
-	Mode     proxyinfra.Mode
+	Mode     Mode
 }
 
 type ConsumerDefinitionView struct {
@@ -52,6 +51,53 @@ type ConsumerDefinitionView struct {
 	Tags         []string `json:"tags,omitempty"`
 }
 
+type Capability string
+
+const (
+	CapabilityNone     Capability = "no_proxy_capability"
+	CapabilityExternal Capability = "external_proxy_available"
+	CapabilitySelf     Capability = "self_proxy_available"
+)
+
+type WarningCode string
+
+const (
+	WarningCodeProxyUnavailable WarningCode = "proxy_unavailable"
+)
+
+type Warning struct {
+	Code    WarningCode `json:"code"`
+	Message string      `json:"message"`
+}
+
+type Decision struct {
+	Definition  Definition `json:"-"`
+	ConsumerKey string     `json:"consumerKey"`
+	Mode        Mode       `json:"mode"`
+	Capability  Capability `json:"capability"`
+	UseProxy    bool       `json:"useProxy"`
+	Warnings    []Warning  `json:"warnings,omitempty"`
+	Reason      string     `json:"reason,omitempty"`
+}
+
+type EnvPlan struct {
+	Decision Decision          `json:"decision"`
+	Env      map[string]string `json:"-"`
+}
+
+type HTTPClientPlan struct {
+	Decision Decision    `json:"decision"`
+	Client   http.Client `json:"-"`
+}
+
+type EffectiveDialerMode string
+
+const (
+	EffectiveDialerModeDirect   EffectiveDialerMode = "direct"
+	EffectiveDialerModeExternal EffectiveDialerMode = "external_proxy"
+	EffectiveDialerModeSelf     EffectiveDialerMode = "self_proxy"
+)
+
 func DefaultNetworkSettingsMap() map[string]any {
 	return map[string]any{
 		"source":            "none",
@@ -64,7 +110,7 @@ func DefaultNetworkSettingsMap() map[string]any {
 
 func DefaultConsumerSettingsMap() map[string]any {
 	items := make([]map[string]any, 0)
-	definitions, err := directUseDefinitions()
+	definitions, err := enrollableDefinitions()
 	if err == nil {
 		for _, definition := range definitions {
 			if !definition.Enrollable() {
@@ -131,7 +177,7 @@ func SettingsEntryValue(app core.App) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	enrollableDefinitions, err := directUseDefinitions()
+	enrollableDefinitions, err := enrollableDefinitions()
 	if err != nil {
 		return nil, err
 	}
@@ -158,55 +204,62 @@ func NormalizeRemoteShellSettingsValue(value map[string]any) map[string]any {
 	}
 }
 
-func ResolvePolicyMode(app core.App, consumerKey string) (proxyinfra.Definition, proxyinfra.Mode, error) {
+func ResolvePolicyMode(app core.App, consumerKey string) (Definition, Mode, error) {
+	return resolvePolicySelection(app, consumerKey, true)
+}
+
+func resolvePolicySelection(app core.App, consumerKey string, requireDirectUse bool) (Definition, Mode, error) {
 	registry, err := DefaultRegistry()
 	if err != nil {
-		return proxyinfra.Definition{}, proxyinfra.ModeDisabled, err
+		return Definition{}, ModeDisabled, err
 	}
-	definition, err := registry.RequireDirectUse(consumerKey)
-	if err != nil {
-		return proxyinfra.Definition{}, proxyinfra.ModeDisabled, err
+	var definition Definition
+	if requireDirectUse {
+		definition, err = registry.RequireDirectUse(consumerKey)
+		if err != nil {
+			return Definition{}, ModeDisabled, err
+		}
+	} else {
+		definition, err = registry.Require(consumerKey)
+		if err != nil {
+			return Definition{}, ModeDisabled, err
+		}
 	}
 	if !definition.Enrollable() {
-		return definition, proxyinfra.ModeDisabled, nil
-	}
-	network := LoadNetworkSettings(app)
-	if !proxySourceActive(network.Source) {
-		return definition, proxyinfra.ModeDisabled, nil
+		return definition, ModeDisabled, nil
 	}
 	items, err := LoadConsumerEnrollments(app)
 	if err != nil {
-		return definition, proxyinfra.ModeDisabled, err
+		return definition, ModeDisabled, err
 	}
-	for _, item := range items {
-		if item.ConsumerKey != definition.Key {
-			continue
+	for _, key := range enrollmentLookupKeys(definition) {
+		for _, item := range items {
+			if item.ConsumerKey != key {
+				continue
+			}
+			if definition.SupportsMode(item.Mode) {
+				return definition, item.Mode, nil
+			}
+			return definition, ModeDisabled, nil
 		}
-		if definition.SupportsMode(item.Mode) {
-			return definition, item.Mode, nil
-		}
-		return definition, proxyinfra.ModeDisabled, nil
 	}
-	return definition, proxyinfra.ModeDisabled, nil
+	return definition, ModeDisabled, nil
 }
 
 func ProxyEnvForConsumer(app core.App, consumerKey string) (map[string]string, error) {
-	_, mode, err := ResolvePolicyMode(app, consumerKey)
+	plan, err := BuildEnvPlan(app, consumerKey)
 	if err != nil {
 		return nil, err
 	}
-	if mode == proxyinfra.ModeDisabled {
-		return nil, nil
-	}
-	return ProxyEnv(app)
+	return plan.Env, nil
 }
 
-func ResolveRemoteShellMode(app core.App, serverID string) (proxyinfra.Mode, error) {
+func ResolveRemoteShellMode(app core.App, serverID string) (Mode, error) {
 	serverID = strings.TrimSpace(serverID)
 	if serverID != "" {
 		overrides, err := LoadRemoteShellServerOverrides(app)
 		if err != nil {
-			return proxyinfra.ModeDisabled, err
+			return ModeDisabled, err
 		}
 		for _, item := range overrides {
 			if item.ServerID == serverID {
@@ -214,19 +267,8 @@ func ResolveRemoteShellMode(app core.App, serverID string) (proxyinfra.Mode, err
 			}
 		}
 	}
-	_, mode, err := ResolvePolicyMode(app, "remote_shell.global")
+	_, mode, err := resolvePolicySelection(app, "remote_shell.global", false)
 	return mode, err
-}
-
-func ProxyEnvForRemoteShellServer(app core.App, serverID string) (map[string]string, error) {
-	mode, err := ResolveRemoteShellMode(app, serverID)
-	if err != nil {
-		return nil, err
-	}
-	if mode == proxyinfra.ModeDisabled {
-		return nil, nil
-	}
-	return ProxyEnv(app)
 }
 
 func ProxyEnv(app core.App) (map[string]string, error) {
@@ -234,25 +276,70 @@ func ProxyEnv(app core.App) (map[string]string, error) {
 }
 
 func NewHTTPClient(app core.App, consumerKey string, timeout time.Duration, skipTLSVerify bool) (http.Client, error) {
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	if skipTLSVerify {
-		// #nosec G402 -- caller explicitly opts into skipping TLS verification for trusted/self-hosted endpoints.
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-	}
-	directTransport := transport.Clone()
-	if app == nil {
-		return http.Client{Timeout: timeout, Transport: directTransport}, nil
-	}
-	_, mode, err := ResolvePolicyMode(app, consumerKey)
+	plan, err := NewHTTPClientPlan(app, consumerKey, timeout, skipTLSVerify)
 	if err != nil {
 		return http.Client{}, err
 	}
-	if mode == proxyinfra.ModeDisabled {
-		return http.Client{Timeout: timeout, Transport: directTransport}, nil
+	return plan.Client, nil
+}
+
+func BuildEnvPlan(app core.App, consumerKey string) (EnvPlan, error) {
+	definition, mode, err := resolvePolicySelection(app, consumerKey, true)
+	if err != nil {
+		return EnvPlan{}, err
 	}
-	env, err := buildProxyEnv(app, LoadNetworkSettings(app))
-	if err != nil || len(env) == 0 {
-		return http.Client{Timeout: timeout, Transport: directTransport}, err
+	if err := ensureAdapter(definition, AdapterEnv); err != nil {
+		return EnvPlan{}, err
+	}
+	plan := EnvPlan{Decision: Decision{Definition: definition, ConsumerKey: definition.Key, Mode: mode, Capability: CapabilityNone}}
+	if mode == ModeDisabled {
+		return plan, nil
+	}
+	capability, env, err := resolveCapability(app)
+	if err != nil {
+		return EnvPlan{}, err
+	}
+	plan.Decision.Capability = capability
+	if len(env) > 0 {
+		plan.Decision.UseProxy = true
+		plan.Env = env
+		return plan, nil
+	}
+	plan.Decision.Warnings = append(plan.Decision.Warnings, proxyUnavailableWarning(definition, capability))
+	plan.Decision.Reason = "configured always, but no usable env-capable proxy path is available"
+	return plan, nil
+}
+
+func NewHTTPClientPlan(app core.App, consumerKey string, timeout time.Duration, skipTLSVerify bool) (HTTPClientPlan, error) {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if skipTLSVerify {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+	directTransport := transport.Clone()
+	plan := HTTPClientPlan{Client: http.Client{Timeout: timeout, Transport: directTransport}}
+	if app == nil {
+		return plan, nil
+	}
+	definition, mode, err := resolvePolicySelection(app, consumerKey, true)
+	if err != nil {
+		return HTTPClientPlan{}, err
+	}
+	if err := ensureAdapter(definition, AdapterHTTPClient); err != nil {
+		return HTTPClientPlan{}, err
+	}
+	plan.Decision = Decision{Definition: definition, ConsumerKey: definition.Key, Mode: mode, Capability: CapabilityNone}
+	if mode == ModeDisabled {
+		return plan, nil
+	}
+	capability, env, err := resolveCapability(app)
+	if err != nil {
+		return HTTPClientPlan{}, err
+	}
+	plan.Decision.Capability = capability
+	if len(env) == 0 {
+		plan.Decision.Warnings = append(plan.Decision.Warnings, proxyUnavailableWarning(definition, capability))
+		plan.Decision.Reason = "configured always, but no usable http_client proxy path is available"
+		return plan, nil
 	}
 	proxyTransport := transport.Clone()
 	if dialContext := socks5DialContextFromEnv(env); dialContext != nil {
@@ -261,10 +348,111 @@ func NewHTTPClient(app core.App, consumerKey string, timeout time.Duration, skip
 	} else if proxyFunc := proxyFuncFromEnv(env); proxyFunc != nil {
 		proxyTransport.Proxy = proxyFunc
 	}
-	return http.Client{Timeout: timeout, Transport: proxyTransport}, nil
+	plan.Decision.UseProxy = true
+	plan.Client = http.Client{Timeout: timeout, Transport: proxyTransport}
+	return plan, nil
 }
 
-func ValidateConsumerEnrollment(definition proxyinfra.Definition, item ConsumerEnrollment) error {
+func NewTunnelHTTPClientPlan(app core.App, consumerKey string, timeout time.Duration, skipTLSVerify bool) (HTTPClientPlan, error) {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if skipTLSVerify {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+	directTransport := transport.Clone()
+	plan := HTTPClientPlan{Client: http.Client{Timeout: timeout, Transport: directTransport}}
+	if app == nil {
+		return plan, nil
+	}
+	decision, dialerMode, env, err := resolveTunnelDecision(app, consumerKey, AdapterHTTPClient)
+	if err != nil {
+		return HTTPClientPlan{}, err
+	}
+	plan.Decision = decision
+	if decision.Mode == ModeDisabled {
+		return plan, nil
+	}
+	if dialerMode == EffectiveDialerModeExternal {
+		proxyTransport := transport.Clone()
+		if dialContext := socks5DialContextFromEnv(env); dialContext != nil {
+			proxyTransport.Proxy = nil
+			proxyTransport.DialContext = dialContext
+		} else if proxyFunc := proxyFuncFromEnv(env); proxyFunc != nil {
+			proxyTransport.Proxy = proxyFunc
+		}
+		plan.Client = http.Client{Timeout: timeout, Transport: proxyTransport}
+	}
+	return plan, nil
+}
+
+func WarningMessages(warnings []Warning) []string {
+	if len(warnings) == 0 {
+		return nil
+	}
+	items := make([]string, 0, len(warnings))
+	for _, warning := range warnings {
+		if strings.TrimSpace(warning.Message) == "" {
+			continue
+		}
+		items = append(items, warning.Message)
+	}
+	return items
+}
+
+func resolveTunnelDecision(app core.App, consumerKey string, expected Adapter) (Decision, EffectiveDialerMode, map[string]string, error) {
+	definition, mode, err := resolvePolicySelection(app, consumerKey, true)
+	if err != nil {
+		return Decision{}, EffectiveDialerModeDirect, nil, err
+	}
+	if err := ensureAdapter(definition, expected); err != nil {
+		return Decision{}, EffectiveDialerModeDirect, nil, err
+	}
+	decision := Decision{Definition: definition, ConsumerKey: definition.Key, Mode: mode, Capability: CapabilityNone}
+	if mode == ModeDisabled {
+		return decision, EffectiveDialerModeDirect, nil, nil
+	}
+	network := LoadNetworkSettings(app)
+	switch strings.TrimSpace(network.Source) {
+	case "external":
+		env, envErr := buildProxyEnv(app, network)
+		if envErr != nil {
+			return Decision{}, EffectiveDialerModeDirect, nil, envErr
+		}
+		decision.Capability = CapabilityExternal
+		if len(env) == 0 {
+			decision.Capability = CapabilityNone
+			decision.Warnings = append(decision.Warnings, proxyUnavailableWarning(definition, decision.Capability))
+			decision.Reason = "configured always, but no usable external tunnel proxy path is available"
+			return decision, EffectiveDialerModeDirect, nil, nil
+		}
+		decision.UseProxy = true
+		return decision, EffectiveDialerModeExternal, env, nil
+	case "self":
+		decision.Capability = CapabilitySelf
+		decision.Reason = "self-managed AppOS tunnel egress uses AppOS-side direct dialing"
+		return decision, EffectiveDialerModeSelf, nil, nil
+	default:
+		decision.Warnings = append(decision.Warnings, proxyUnavailableWarning(definition, CapabilityNone))
+		decision.Reason = "configured always, but no tunnel proxy capability is available"
+		return decision, EffectiveDialerModeDirect, nil, nil
+	}
+}
+
+func enrollmentLookupKeys(definition Definition) []string {
+	keys := []string{definition.Key}
+	if definition.Scope == ScopeAction && strings.TrimSpace(definition.ModuleKey) != "" {
+		keys = append(keys, definition.ModuleKey)
+	}
+	return keys
+}
+
+func ensureAdapter(definition Definition, expected Adapter) error {
+	if definition.Adapter == expected {
+		return nil
+	}
+	return fmt.Errorf("proxy consumer %q uses adapter %q, not %q", definition.Key, definition.Adapter, expected)
+}
+
+func ValidateConsumerEnrollment(definition Definition, item ConsumerEnrollment) error {
 	if item.ConsumerKey != definition.Key {
 		return fmt.Errorf("consumer key mismatch: %s", item.ConsumerKey)
 	}
@@ -277,7 +465,7 @@ func ValidateConsumerEnrollment(definition proxyinfra.Definition, item ConsumerE
 	return nil
 }
 
-func directUseDefinitions() ([]proxyinfra.Definition, error) {
+func directUseDefinitions() ([]Definition, error) {
 	registry, err := DefaultRegistry()
 	if err != nil {
 		return nil, err
@@ -285,12 +473,16 @@ func directUseDefinitions() ([]proxyinfra.Definition, error) {
 	return registry.DirectUse(), nil
 }
 
-func settingsDefinitions() ([]proxyinfra.Definition, error) {
+func enrollableDefinitions() ([]Definition, error) {
 	registry, err := DefaultRegistry()
 	if err != nil {
 		return nil, err
 	}
-	return registry.DirectUse(), nil
+	return registry.Enrollable(), nil
+}
+
+func settingsDefinitions() ([]Definition, error) {
+	return enrollableDefinitions()
 }
 
 func buildProxyEnv(app core.App, network NetworkSettings) (map[string]string, error) {
@@ -305,6 +497,33 @@ func buildProxyEnv(app core.App, network NetworkSettings) (map[string]string, er
 		network.HTTPConnectorID,
 		network.HTTPSConnectorID,
 	)
+}
+
+func resolveCapability(app core.App) (Capability, map[string]string, error) {
+	network := LoadNetworkSettings(app)
+	switch strings.TrimSpace(network.Source) {
+	case "external":
+		env, err := buildProxyEnv(app, network)
+		if err != nil {
+			return CapabilityNone, nil, err
+		}
+		if len(env) == 0 {
+			return CapabilityNone, nil, nil
+		}
+		return CapabilityExternal, env, nil
+	case "self":
+		return CapabilitySelf, nil, nil
+	default:
+		return CapabilityNone, nil, nil
+	}
+}
+
+func proxyUnavailableWarning(definition Definition, capability Capability) Warning {
+	message := fmt.Sprintf("Proxy consumer %q is configured for always, but AppOS has no usable proxy capability for adapter %q. Continuing direct.", definition.Key, definition.Adapter)
+	if capability == CapabilitySelf {
+		message = fmt.Sprintf("Proxy consumer %q is configured for always, but source=self does not provide a usable proxy path for adapter %q. Continuing direct.", definition.Key, definition.Adapter)
+	}
+	return Warning{Code: WarningCodeProxyUnavailable, Message: message}
 }
 
 func proxySourceActive(source string) bool {
@@ -343,7 +562,7 @@ func normalizeConsumerEnrollments(group map[string]any) []ConsumerEnrollment {
 			continue
 		}
 		consumerKey := strings.TrimSpace(sysconfig.String(item, "consumerKey", ""))
-		mode := proxyinfra.Mode(strings.TrimSpace(sysconfig.String(item, "mode", "")))
+		mode := Mode(strings.TrimSpace(sysconfig.String(item, "mode", "")))
 		if consumerKey == "" || mode == "" {
 			continue
 		}
@@ -383,7 +602,7 @@ func normalizeRemoteShellServerOverrides(group map[string]any) []RemoteShellServ
 			continue
 		}
 		serverID := strings.TrimSpace(sysconfig.String(item, "serverId", ""))
-		mode := proxyinfra.Mode(strings.TrimSpace(sysconfig.String(item, "mode", "")))
+		mode := Mode(strings.TrimSpace(sysconfig.String(item, "mode", "")))
 		if serverID == "" || mode == "" {
 			continue
 		}
@@ -424,7 +643,7 @@ func serializeRemoteShellServerOverrides(items []RemoteShellServerOverride) []ma
 	return out
 }
 
-func serializeDefinitionViews(definitions []proxyinfra.Definition) []ConsumerDefinitionView {
+func serializeDefinitionViews(definitions []Definition) []ConsumerDefinitionView {
 	out := make([]ConsumerDefinitionView, 0, len(definitions))
 	for _, definition := range definitions {
 		allowedModes := definition.AllowedModes()
@@ -451,7 +670,7 @@ func serializeDefinitionViews(definitions []proxyinfra.Definition) []ConsumerDef
 	return out
 }
 
-func filterEnrollments(definitions []proxyinfra.Definition, items []ConsumerEnrollment) []ConsumerEnrollment {
+func filterEnrollments(definitions []Definition, items []ConsumerEnrollment) []ConsumerEnrollment {
 	if len(definitions) == 0 || len(items) == 0 {
 		return items
 	}
@@ -522,4 +741,3 @@ func firstNonEmptyString(values ...string) string {
 	}
 	return ""
 }
-

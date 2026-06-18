@@ -9,8 +9,8 @@ import (
 	"github.com/pocketbase/pocketbase/forms"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
-	"github.com/websoft9/appos/backend/domain/proxy"
 	"github.com/websoft9/appos/backend/domain/secrets"
+	"github.com/websoft9/appos/backend/infra/egress"
 )
 
 type connectorManagedSettingsError struct {
@@ -243,18 +243,18 @@ func patchSettingsEntryValue(e *core.RequestEvent, entry settingsschema.EntrySch
 
 func getCustomSettingsEntryValue(app core.App, module, key string) (map[string]any, error) {
 	if module == "proxy" && key == "policies" {
-		value, err := proxy.SettingsEntryValue(app)
+		value, err := egress.SettingsEntryValue(app)
 		if err != nil {
 			return nil, err
 		}
 		return maskValue(value), nil
 	}
 	if module == "proxy" && key == "servers" {
-		value, err := sysconfig.GetGroup(app, module, key, proxy.DefaultRemoteShellSettingsMap())
+		value, err := sysconfig.GetGroup(app, module, key, egress.DefaultRemoteShellSettingsMap())
 		if err != nil {
 			app.Logger().Debug("settings fallback used", "module", module, "key", key, "error", err)
 		}
-		return maskValue(proxy.NormalizeRemoteShellSettingsValue(value)), nil
+		return maskValue(egress.NormalizeRemoteShellSettingsValue(value)), nil
 	}
 
 	fallback := fallbackForKey(module, key)
@@ -271,8 +271,8 @@ func getCustomSettingsEntryValue(app core.App, module, key string) (map[string]a
 func patchCustomSettingsEntry(e *core.RequestEvent, module, key string, value map[string]any) (map[string]any, error) {
 	fallback := fallbackForKey(module, key)
 	if module == "proxy" && key == "servers" {
-		fallback = proxy.DefaultRemoteShellSettingsMap()
-		value = proxy.NormalizeRemoteShellSettingsValue(value)
+		fallback = egress.DefaultRemoteShellSettingsMap()
+		value = egress.NormalizeRemoteShellSettingsValue(value)
 	}
 	existing, _ := sysconfig.GetGroup(e.App, module, key, fallback)
 	merged := preserveSensitive(value, existing)
@@ -285,7 +285,7 @@ func patchCustomSettingsEntry(e *core.RequestEvent, module, key string, value ma
 		return nil, err
 	}
 	if module == "proxy" && key == "servers" {
-		return maskValue(proxy.NormalizeRemoteShellSettingsValue(merged)), nil
+		return maskValue(egress.NormalizeRemoteShellSettingsValue(merged)), nil
 	}
 
 	stored, _ := getCustomSettingsEntryValue(e.App, module, key)
@@ -310,7 +310,7 @@ func validateCustomSettingsEntry(e *core.RequestEvent, module, key string, value
 		return validateSpaceQuota(value)
 	case "proxy/network":
 		return validateProxyNetwork(e.App, value)
-		case "proxy/policies":
+	case "proxy/policies":
 		return validateProxyConsumers(value)
 	case "proxy/servers":
 		return validateProxyRemoteShellServers(e.App, value)

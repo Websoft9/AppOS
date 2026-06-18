@@ -11,11 +11,10 @@ import (
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 	"github.com/websoft9/appos/backend/domain/monitor"
-	"github.com/websoft9/appos/backend/domain/proxy"
 	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	"github.com/websoft9/appos/backend/domain/secrets"
+	"github.com/websoft9/appos/backend/infra/egress"
 	persistence "github.com/websoft9/appos/backend/infra/persistence"
-	proxyinfra "github.com/websoft9/appos/backend/infra/proxy"
 	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
 )
 
@@ -486,11 +485,11 @@ func validateProxyNetwork(app core.App, v map[string]any) map[string]string {
 }
 
 func validateProxyConsumers(v map[string]any) map[string]string {
-	registry, err := proxy.DefaultRegistry()
+	registry, err := egress.DefaultRegistry()
 	if err != nil {
 		return map[string]string{"items": "proxy consumer registry is unavailable"}
 	}
-	directUseDefinitions := map[string]proxyinfra.Definition{}
+	directUseDefinitions := map[string]egress.Definition{}
 	for _, definition := range registry.DirectUse() {
 		directUseDefinitions[definition.Key] = definition
 	}
@@ -506,7 +505,7 @@ func validateProxyConsumers(v map[string]any) map[string]string {
 		return map[string]string{"items": "must be a list of proxy policy settings"}
 	}
 
-	items := make([]proxy.ConsumerEnrollment, 0, len(list))
+	items := make([]egress.ConsumerEnrollment, 0, len(list))
 	seen := map[string]struct{}{}
 	for idx, rawItem := range list {
 		item, ok := rawItem.(map[string]any)
@@ -526,18 +525,18 @@ func validateProxyConsumers(v map[string]any) map[string]string {
 		if !ok {
 			return map[string]string{"items": fmt.Sprintf("policy %q is not a valid direct-use proxy policy", consumerKey)}
 		}
-		mode := proxyinfra.Mode(strings.TrimSpace(sysconfig.String(item, "mode", "")))
+		mode := egress.Mode(strings.TrimSpace(sysconfig.String(item, "mode", "")))
 		if mode == "" {
 			return map[string]string{"items": fmt.Sprintf("policy %q requires mode", consumerKey)}
 		}
-		enrollment := proxy.ConsumerEnrollment{ConsumerKey: definition.Key, Mode: mode}
-		if validateErr := proxy.ValidateConsumerEnrollment(definition, enrollment); validateErr != nil {
+		enrollment := egress.ConsumerEnrollment{ConsumerKey: definition.Key, Mode: mode}
+		if validateErr := egress.ValidateConsumerEnrollment(definition, enrollment); validateErr != nil {
 			return map[string]string{"items": validateErr.Error()}
 		}
 		items = append(items, enrollment)
 	}
 
-	v["items"] = proxy.NormalizeConsumerSettingsValue(map[string]any{"items": itemsToMaps(items)})["items"]
+	v["items"] = egress.NormalizeConsumerSettingsValue(map[string]any{"items": itemsToMaps(items)})["items"]
 	return nil
 }
 
@@ -576,17 +575,17 @@ func validateProxyRemoteShellServers(app core.App, v map[string]any) map[string]
 		if _, err := app.FindRecordById("servers", serverID); err != nil {
 			return map[string]string{"items": fmt.Sprintf("server %q does not exist", serverID)}
 		}
-		mode := proxyinfra.Mode(strings.TrimSpace(sysconfig.String(item, "mode", "")))
-		if mode != proxyinfra.ModeDisabled && mode != proxyinfra.ModeAlways {
+		mode := egress.Mode(strings.TrimSpace(sysconfig.String(item, "mode", "")))
+		if mode != egress.ModeDisabled && mode != egress.ModeAlways {
 			return map[string]string{"items": fmt.Sprintf("server %q has invalid mode", serverID)}
 		}
 		items = append(items, map[string]any{"serverId": serverID, "mode": string(mode)})
 	}
-	v["items"] = proxy.NormalizeRemoteShellSettingsValue(map[string]any{"items": items})["items"]
+	v["items"] = egress.NormalizeRemoteShellSettingsValue(map[string]any{"items": items})["items"]
 	return nil
 }
 
-func itemsToMaps(items []proxy.ConsumerEnrollment) []map[string]any {
+func itemsToMaps(items []egress.ConsumerEnrollment) []map[string]any {
 	out := make([]map[string]any, 0, len(items))
 	for _, item := range items {
 		out = append(out, map[string]any{

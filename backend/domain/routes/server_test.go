@@ -14,9 +14,10 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
+	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	"github.com/websoft9/appos/backend/domain/software"
 	"github.com/websoft9/appos/backend/domain/terminal"
-	"github.com/websoft9/appos/backend/infra/remoteshell"
+	"github.com/websoft9/appos/backend/infra/egress"
 	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
 )
 
@@ -706,6 +707,56 @@ func TestResolveTerminalExecutionPlanWarnsWhenSelfProxyBaseURLUnavailable(t *tes
 	}
 }
 
+func TestResolveTerminalExecutionPlanUsesAppOSEndpointForExternalProxyMode(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	server := createServerRecord(t, te, "external-proxy-shell", "203.0.113.12", 22, "root", "password")
+	server.Set("connect_type", "direct")
+	if err := te.app.Save(server); err != nil {
+		t.Fatal(err)
+	}
+
+	proxyConnector := createDockerRouteConnector(t, te, connectors.SaveInput{
+		Name:       "office-proxy",
+		Kind:       connectors.KindProxy,
+		TemplateID: "http-proxy",
+		Endpoint:   "http://proxy.example.com:3128",
+		Config:     map[string]any{"protocol": "http", "username": "alice", "password": "secret"},
+	})
+	if err := sysconfig.SetGroup(te.app, "proxy", "network", map[string]any{
+		"source":            "external",
+		"enabled":           true,
+		"socks5ConnectorId": "",
+		"httpConnectorId":   proxyConnector.Id,
+		"httpsConnectorId":  "",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sysconfig.SetGroup(te.app, "proxy", "policies", map[string]any{
+		"items": []map[string]any{{
+			"consumerKey": "remote_shell.global",
+			"mode":        "always",
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	plan, err := resolveTerminalExecutionPlanWithAppOSBaseURL(te.app, nil, server.Id, "https://console.example.com:9443")
+	if err != nil {
+		t.Fatalf("resolve terminal execution plan: %v", err)
+	}
+	if got := plan.Env["HTTP_PROXY"]; !strings.Contains(got, "console.example.com:9443") {
+		t.Fatalf("expected remote shell env to use AppOS endpoint, got %q", got)
+	}
+	if got := plan.Env["HTTP_PROXY"]; strings.Contains(got, "proxy.example.com:3128") {
+		t.Fatalf("expected remote shell env to hide raw external proxy endpoint, got %q", got)
+	}
+	if len(plan.Warnings) != 0 {
+		t.Fatalf("expected no warning when AppOS endpoint is available, got %#v", plan.Warnings)
+	}
+}
+
 func TestSelfProxyMiddlewareForwardsHTTPRequests(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
@@ -721,7 +772,7 @@ func TestSelfProxyMiddlewareForwardsHTTPRequests(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	token, err := remoteshell.GetOrIssueSelfProxyToken(te.app, server.Id)
+	token, err := egress.GetOrIssueSelfProxyToken(te.app, server.Id)
 	if err != nil {
 		t.Fatalf("issue self proxy token: %v", err)
 	}
@@ -758,6 +809,88 @@ func TestSelfProxyMiddlewareForwardsHTTPRequests(t *testing.T) {
 	}
 	if rec.Body.String() != "proxied-through-appos" {
 		t.Fatalf("unexpected proxied response body: %q", rec.Body.String())
+	}
+}
+
+func TestSelfProxyMiddlewareUsesExternalProxyForForwardedHTTPRequests(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	server := createServerRecord(t, te, "self-proxy-external", "203.0.113.21", 22, "root", "password")
+	proxySeen := make(chan *http.Request, 1)
+	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case proxySeen <- r.Clone(r.Context()):
+		default:
+		}
+		w.Header().Set("X-Proxy", "external")
+		_, _ = w.Write([]byte("through-configured-external-proxy"))
+	}))
+	defer proxyServer.Close()
+
+	proxyConnector := createDockerRouteConnector(t, te, connectors.SaveInput{
+		Name:       "route-http-proxy",
+		Kind:       connectors.KindProxy,
+		TemplateID: "http-proxy",
+		Endpoint:   proxyServer.URL,
+		Config:     map[string]any{"protocol": "http"},
+	})
+	if err := sysconfig.SetGroup(te.app, "proxy", "network", map[string]any{
+		"source":            "external",
+		"enabled":           true,
+		"socks5ConnectorId": "",
+		"httpConnectorId":   proxyConnector.Id,
+		"httpsConnectorId":  "",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sysconfig.SetGroup(te.app, "proxy", "policies", map[string]any{
+		"items": []map[string]any{{
+			"consumerKey": "remote_shell.global",
+			"mode":        "always",
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	token, err := egress.GetOrIssueSelfProxyToken(te.app, server.Id)
+	if err != nil {
+		t.Fatalf("issue self proxy token: %v", err)
+	}
+
+	targetURL := "http://example.com/proxied"
+
+	r, err := apis.NewRouter(te.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	Register(&core.ServeEvent{App: te.app, Router: r})
+	mux, err := r.BuildMux()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, targetURL, nil)
+	req.Header.Set("Proxy-Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(server.Id+":"+token)))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected proxy forward to return 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if rec.Header().Get("X-Proxy") != "external" {
+		t.Fatalf("expected response to come from external proxy, got headers %#v", rec.Header())
+	}
+	if rec.Body.String() != "through-configured-external-proxy" {
+		t.Fatalf("unexpected proxied response body: %q", rec.Body.String())
+	}
+	select {
+	case seen := <-proxySeen:
+		if seen.URL == nil || seen.URL.String() != targetURL {
+			t.Fatalf("expected external proxy to receive target URL, got %#v", seen.URL)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected configured external proxy to receive the forwarded request")
 	}
 }
 

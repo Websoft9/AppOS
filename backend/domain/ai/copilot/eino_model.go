@@ -14,7 +14,7 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/infra/httpout"
+	"github.com/websoft9/appos/backend/infra/egress"
 )
 
 type EinoModelFactory struct {
@@ -33,9 +33,18 @@ func (f EinoModelFactory) ValidateProvider(ctx context.Context, provider *Provid
 	}
 	var client *http.Client
 	if f.App != nil {
-		configuredClient, err := httpout.NewPolicyClient(f.App, "http.ai", 90*time.Second, false)
-		if err == nil {
-			client = &configuredClient
+		plan, err := egress.NewHTTPClientPlan(f.App, "http.ai", 90*time.Second, false)
+		if err != nil {
+			f.App.Logger().Warn("copilot proxy resolution failed", "consumer", "http.ai", "error", err)
+			client = &plan.Client
+		} else {
+			for _, warning := range plan.Decision.Warnings {
+				if strings.TrimSpace(warning.Message) == "" {
+					continue
+				}
+				f.App.Logger().Warn("copilot proxy warning", "consumer", "http.ai", "code", string(warning.Code), "message", warning.Message)
+			}
+			client = &plan.Client
 		}
 	}
 	return ValidateOpenRouterCredential(ctx, client, provider.Endpoint, providerHeaders(provider), provider.APIKey)
@@ -69,10 +78,18 @@ func (f EinoModelFactory) NewStreamer(ctx context.Context, provider *ProviderCon
 
 func (f EinoModelFactory) providerHTTPClient(provider *ProviderConfig) *http.Client {
 	if f.App != nil {
-		client, err := httpout.NewPolicyClient(f.App, "http.ai", 90*time.Second, false)
-		if err == nil {
-			return &client
+		plan, err := egress.NewHTTPClientPlan(f.App, "http.ai", 90*time.Second, false)
+		if err != nil {
+			f.App.Logger().Warn("copilot proxy resolution failed", "consumer", "http.ai", "error", err)
+			return &plan.Client
 		}
+		for _, warning := range plan.Decision.Warnings {
+			if strings.TrimSpace(warning.Message) == "" {
+				continue
+			}
+			f.App.Logger().Warn("copilot proxy warning", "consumer", "http.ai", "code", string(warning.Code), "message", warning.Message)
+		}
+		return &plan.Client
 	}
 	return nil
 }

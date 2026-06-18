@@ -10,16 +10,8 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/hook"
-	"github.com/websoft9/appos/backend/infra/remoteshell"
+	"github.com/websoft9/appos/backend/infra/egress"
 )
-
-var selfProxyHTTPTransport = &http.Transport{
-	Proxy:                 nil,
-	MaxIdleConns:          100,
-	IdleConnTimeout:       90 * time.Second,
-	TLSHandshakeTimeout:   10 * time.Second,
-	ExpectContinueTimeout: 1 * time.Second,
-}
 
 func registerSelfProxyIngress(se *core.ServeEvent) {
 	se.Router.Bind(selfProxyMiddleware())
@@ -66,8 +58,8 @@ func handleSelfProxyRequest(e *core.RequestEvent) error {
 	if _, err := findMonitorServer(e.App, serverID); err != nil {
 		return selfProxyUnauthorized(e)
 	}
-	expectedToken, err := remoteshell.ReadSelfProxyToken(e.App, serverID)
-	if err != nil || !remoteshell.ConstantTimeTokenEqual(expectedToken, token) {
+	expectedToken, err := egress.ReadSelfProxyToken(e.App, serverID)
+	if err != nil || !egress.ConstantTimeTokenEqual(expectedToken, token) {
 		return selfProxyUnauthorized(e)
 	}
 	if e.Request.Method == http.MethodConnect {
@@ -93,7 +85,12 @@ func handleSelfProxyForward(e *core.RequestEvent) error {
 		return e.BadRequestError("invalid proxy request", err)
 	}
 	copyProxyRequestHeaders(upstreamReq.Header, e.Request.Header)
-	resp, err := selfProxyHTTPTransport.RoundTrip(upstreamReq)
+	clientPlan, err := egress.NewTunnelHTTPClientPlan(e.App, "remote_shell.tunnel_http", 30*time.Second, false)
+	if err != nil {
+		return e.InternalServerError("self proxy transport resolution failed", err)
+	}
+	logEgressWarnings(e, clientPlan.Decision.Warnings)
+	resp, err := clientPlan.Client.Do(upstreamReq)
 	if err != nil {
 		return e.InternalServerError("self proxy upstream request failed", err)
 	}
@@ -112,7 +109,12 @@ func handleSelfProxyConnect(e *core.RequestEvent) error {
 	if targetAddr == "" {
 		return e.BadRequestError("missing CONNECT target", nil)
 	}
-	upstreamConn, err := (&net.Dialer{Timeout: 15 * time.Second}).DialContext(e.Request.Context(), "tcp", targetAddr)
+	dialerPlan, err := egress.NewTunnelDialerPlan(e.App, "remote_shell.tunnel_dialer", 15*time.Second)
+	if err != nil {
+		return e.InternalServerError("self proxy dialer resolution failed", err)
+	}
+	logEgressWarnings(e, dialerPlan.Decision.Warnings)
+	upstreamConn, err := dialerPlan.DialContext(e.Request.Context(), "tcp", targetAddr)
 	if err != nil {
 		return e.InternalServerError("self proxy CONNECT dial failed", err)
 	}
@@ -182,5 +184,17 @@ func copyResponseHeaders(dst http.Header, src http.Header) {
 		for _, value := range values {
 			dst.Add(key, value)
 		}
+	}
+}
+
+func logEgressWarnings(e *core.RequestEvent, warnings []egress.Warning) {
+	if e == nil || e.App == nil || len(warnings) == 0 {
+		return
+	}
+	for _, warning := range warnings {
+		if strings.TrimSpace(warning.Message) == "" {
+			continue
+		}
+		e.App.Logger().Warn("self proxy egress warning", "code", string(warning.Code), "message", warning.Message)
 	}
 }

@@ -7,10 +7,9 @@ import (
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/domain/proxy"
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
 	"github.com/websoft9/appos/backend/domain/terminal"
-	proxyinfra "github.com/websoft9/appos/backend/infra/proxy"
+	"github.com/websoft9/appos/backend/infra/egress"
 )
 
 const (
@@ -43,51 +42,27 @@ func ResolveExecutionPlan(app core.App, access servers.AccessConfig, serverID st
 	if serverRecordIsLocal(record) {
 		return plan, nil
 	}
-	network := proxy.LoadNetworkSettings(app)
+	network := egress.LoadNetworkSettings(app)
 	plan.Source = network.Source
-	mode, err := proxy.ResolveRemoteShellMode(app, serverID)
+	mode, err := egress.ResolveRemoteShellMode(app, serverID)
 	if err != nil {
 		return ExecutionPlan{}, err
 	}
 	plan.PolicyMode = string(mode)
-	if network.Source == "self" && mode == proxyinfra.ModeAlways {
-		selfProxyEnv, envErr := BuildSelfProxyEnv(app, serverID, apposBaseURL)
+	if mode == egress.ModeAlways {
+		tunnelEnv, warning, envErr := BuildTunnelProxyEnv(app, serverID, apposBaseURL)
 		if envErr != nil {
 			return ExecutionPlan{}, envErr
 		}
-		if len(selfProxyEnv) == 0 {
-			plan.Warnings = append(plan.Warnings,
-				"Self Proxy is selected for remote shell, but the AppOS public URL is unavailable. This session falls back to the direct SSH control path.")
-		} else {
-			plan.Env = selfProxyEnv
+		if strings.TrimSpace(warning) != "" {
+			plan.Warnings = append(plan.Warnings, warning)
 		}
-	}
-	if len(plan.Env) == 0 {
-		env, err := proxy.ProxyEnvForRemoteShellServer(app, serverID)
-		if err != nil {
-			return ExecutionPlan{}, err
-		}
-		plan.Env = env
+		plan.Env = tunnelEnv
 	}
 	if len(plan.Env) > 0 {
 		plan.Config.Shell = wrapInteractiveShell(plan.Config.Shell, plan.Env)
 	}
 	return plan, nil
-}
-
-func ResolveExecutionEnv(app core.App, serverID string) (map[string]string, error) {
-	serverID = strings.TrimSpace(serverID)
-	if app == nil || serverID == "" || serverID == "local" {
-		return nil, nil
-	}
-	record, err := app.FindRecordById("servers", serverID)
-	if err != nil {
-		return nil, err
-	}
-	if serverRecordIsLocal(record) {
-		return nil, nil
-	}
-	return proxy.ProxyEnvForRemoteShellServer(app, serverID)
 }
 
 func terminalConfigFromAccess(access servers.AccessConfig) terminal.ConnectorConfig {
@@ -134,19 +109,26 @@ func wrapInteractiveShell(shell string, env map[string]string) string {
 	return fmt.Sprintf("sh -lc %s", terminal.ShellQuote(strings.Join(exports, "; ")+"; exec "+targetShell))
 }
 
-func BuildSelfProxyEnv(app core.App, serverID string, apposBaseURL string) (map[string]string, error) {
+func BuildTunnelProxyEnv(app core.App, serverID string, apposBaseURL string) (map[string]string, string, error) {
+	plan, err := egress.BuildEnvPlan(app, "remote_shell.env")
+	if err != nil {
+		return nil, "", err
+	}
+	if plan.Decision.Mode == egress.ModeDisabled {
+		return nil, "", nil
+	}
 	serverID = strings.TrimSpace(serverID)
 	apposBaseURL = strings.TrimRight(strings.TrimSpace(apposBaseURL), "/")
 	if app == nil || serverID == "" || apposBaseURL == "" {
-		return nil, nil
+		return nil, "Remote shell proxy is set to Always, but the AppOS public URL is unavailable. This session runs with direct managed-server egress.", nil
 	}
-	token, err := GetOrIssueSelfProxyToken(app, serverID)
+	token, err := egress.GetOrIssueSelfProxyToken(app, serverID)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	proxyURL, err := withBasicAuth(apposBaseURL, serverID, token)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	return map[string]string{
 		"ALL_PROXY":   proxyURL,
@@ -155,7 +137,7 @@ func BuildSelfProxyEnv(app core.App, serverID string, apposBaseURL string) (map[
 		"http_proxy":  proxyURL,
 		"HTTPS_PROXY": proxyURL,
 		"https_proxy": proxyURL,
-	}, nil
+	}, "", nil
 }
 
 func withBasicAuth(rawBaseURL, username, password string) (string, error) {

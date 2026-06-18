@@ -1,4 +1,4 @@
-package proxy
+package egress
 
 import (
 	"errors"
@@ -59,11 +59,6 @@ const (
 	ModeAlways   Mode = "always"
 )
 
-// Definition declares one known proxy-related network surface.
-//
-// Definitions are code-owned. Settings may only enroll declared consumers.
-// A bypass-only definition exists to make non-proxy control paths explicit and
-// to prevent accidental future enrollment.
 type Definition struct {
 	Key         string
 	Title       string
@@ -72,20 +67,13 @@ type Definition struct {
 	Scope       Scope
 	ModuleKey   string
 
-	// AllowDirectUse controls whether runtime callers may resolve this consumer
-	// as a concrete outbound surface. Module-level definitions normally keep
-	// this false and act as policy anchors, while action-level definitions set
-	// it true to prevent hidden catch-all consumption through *.global keys.
 	AllowDirectUse bool
 
 	Adapter      Adapter
 	TrafficClass TrafficClass
 	Support      Support
-
-	// DefaultMode is the platform-recommended enrollment seed. It is not the
-	// final runtime truth once settings enrollment exists.
-	DefaultMode Mode
-	Tags        []string
+	DefaultMode  Mode
+	Tags         []string
 }
 
 func (d Definition) Enrollable() bool {
@@ -156,14 +144,6 @@ func NewRegistry(definitions ...Definition) (*Registry, error) {
 	return &Registry{items: items, order: order}, nil
 }
 
-func MustNewRegistry(definitions ...Definition) *Registry {
-	registry, err := NewRegistry(definitions...)
-	if err != nil {
-		panic(err)
-	}
-	return registry
-}
-
 func (r *Registry) List() []Definition {
 	if r == nil || len(r.order) == 0 {
 		return nil
@@ -230,13 +210,6 @@ func (r *Registry) RequireDirectUse(key string) (Definition, error) {
 	return definition, nil
 }
 
-func (r *Registry) Keys() []string {
-	if r == nil {
-		return nil
-	}
-	return append([]string(nil), r.order...)
-}
-
 func normalizeDefinition(definition Definition) (Definition, error) {
 	definition.Key = strings.TrimSpace(definition.Key)
 	definition.Title = strings.TrimSpace(definition.Title)
@@ -268,36 +241,25 @@ func normalizeDefinition(definition Definition) (Definition, error) {
 	if !isValidSupport(definition.Support) {
 		return Definition{}, fmt.Errorf("proxy consumer %q has invalid support %q", definition.Key, definition.Support)
 	}
-	if !isValidMode(definition.DefaultMode) {
+	if !definition.SupportsMode(definition.DefaultMode) {
 		return Definition{}, fmt.Errorf("proxy consumer %q has invalid default mode %q", definition.Key, definition.DefaultMode)
 	}
-
 	if definition.Scope == ScopeModule {
 		if !strings.HasSuffix(definition.Key, ".global") {
 			return Definition{}, fmt.Errorf("module-level proxy consumer %q must end with .global", definition.Key)
 		}
 		if definition.ModuleKey != "" {
-			return Definition{}, fmt.Errorf("module-level proxy consumer %q must not set module key", definition.Key)
+			return Definition{}, fmt.Errorf("module-level proxy consumer %q cannot declare module key", definition.Key)
 		}
-	} else {
-		if strings.HasSuffix(definition.Key, ".global") {
-			return Definition{}, fmt.Errorf("action-level proxy consumer %q must not end with .global", definition.Key)
-		}
+	}
+	if definition.Scope == ScopeAction {
 		if definition.ModuleKey == "" {
-			return Definition{}, fmt.Errorf("action-level proxy consumer %q requires a module key", definition.Key)
+			return Definition{}, fmt.Errorf("action-level proxy consumer %q requires module key", definition.Key)
 		}
-		if !consumerKeyPattern.MatchString(definition.ModuleKey) || !strings.HasSuffix(definition.ModuleKey, ".global") {
-			return Definition{}, fmt.Errorf("action-level proxy consumer %q has invalid module key %q", definition.Key, definition.ModuleKey)
-		}
-		if family(definition.Key) != family(definition.ModuleKey) {
+		if strings.SplitN(definition.Key, ".", 2)[0] != strings.SplitN(definition.ModuleKey, ".", 2)[0] {
 			return Definition{}, fmt.Errorf("action-level proxy consumer %q must share family with module key %q", definition.Key, definition.ModuleKey)
 		}
 	}
-
-	if !definition.SupportsMode(definition.DefaultMode) {
-		return Definition{}, fmt.Errorf("proxy consumer %q does not support default mode %q", definition.Key, definition.DefaultMode)
-	}
-
 	return definition, nil
 }
 
@@ -305,8 +267,8 @@ func normalizeTags(tags []string) []string {
 	if len(tags) == 0 {
 		return nil
 	}
-	seen := make(map[string]struct{}, len(tags))
-	result := make([]string, 0, len(tags))
+	normalized := make([]string, 0, len(tags))
+	seen := map[string]struct{}{}
 	for _, tag := range tags {
 		tag = strings.TrimSpace(tag)
 		if tag == "" {
@@ -316,39 +278,41 @@ func normalizeTags(tags []string) []string {
 			continue
 		}
 		seen[tag] = struct{}{}
-		result = append(result, tag)
+		normalized = append(normalized, tag)
 	}
-	sort.Strings(result)
-	return result
-}
-
-func family(key string) string {
-	if idx := strings.IndexByte(key, '.'); idx > 0 {
-		return key[:idx]
+	sort.Strings(normalized)
+	if len(normalized) == 0 {
+		return nil
 	}
-	return key
+	return normalized
 }
 
 func isValidScope(scope Scope) bool {
 	return scope == ScopeModule || scope == ScopeAction
 }
 
-func isValidLocation(location Location) bool {
-	return location == LocationLocal || location == LocationRemote
-}
-
 func isValidAdapter(adapter Adapter) bool {
-	return adapter == AdapterHTTPClient || adapter == AdapterEnv || adapter == AdapterDialer
+	switch adapter {
+	case AdapterHTTPClient, AdapterEnv, AdapterDialer:
+		return true
+	default:
+		return false
+	}
 }
 
 func isValidTrafficClass(class TrafficClass) bool {
-	return class == TrafficClassPublicEgress || class == TrafficClassControlPlane || class == TrafficClassLocalOrPrivate
+	switch class {
+	case TrafficClassPublicEgress, TrafficClassControlPlane, TrafficClassLocalOrPrivate:
+		return true
+	default:
+		return false
+	}
 }
 
 func isValidSupport(support Support) bool {
 	return support == SupportProxyCapable || support == SupportBypassOnly
 }
 
-func isValidMode(mode Mode) bool {
-	return mode == ModeDisabled || mode == ModeAlways
+func isValidLocation(location Location) bool {
+	return location == LocationLocal || location == LocationRemote
 }

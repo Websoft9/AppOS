@@ -1,4 +1,4 @@
-package remoteshell
+package egress
 
 import (
 	"crypto/rand"

@@ -1,4 +1,4 @@
-package proxy
+package egress
 
 import (
 	"database/sql"

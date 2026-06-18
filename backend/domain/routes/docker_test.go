@@ -14,7 +14,6 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	"github.com/websoft9/appos/backend/domain/proxy"
 	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
 	"github.com/websoft9/appos/backend/domain/secrets"
@@ -22,6 +21,7 @@ import (
 	"github.com/websoft9/appos/backend/domain/worker"
 	"github.com/websoft9/appos/backend/infra/collections"
 	"github.com/websoft9/appos/backend/infra/docker"
+	"github.com/websoft9/appos/backend/infra/egress"
 )
 
 type stubDockerExecutor struct {
@@ -917,7 +917,7 @@ func TestLoadDockerProxyEnvIncludesCredentials(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	env, err := proxy.ProxyEnv(te.app)
+	env, err := egress.ProxyEnv(te.app)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -972,7 +972,7 @@ func TestLoadDockerProxyEnvPrefersSocks5WhenConfigured(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	env, err := proxy.ProxyEnv(te.app)
+	env, err := egress.ProxyEnv(te.app)
 	if err != nil {
 		t.Fatal(err)
 	}

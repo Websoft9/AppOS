@@ -2,7 +2,6 @@ package routes
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,13 +17,13 @@ import (
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/domain/audit"
 	"github.com/websoft9/appos/backend/domain/ai/copilot"
+	"github.com/websoft9/appos/backend/domain/audit"
 	sysconfig "github.com/websoft9/appos/backend/domain/config/sysconfig"
-	"github.com/websoft9/appos/backend/infra/httpout"
 	"github.com/websoft9/appos/backend/domain/resource/accounts"
 	"github.com/websoft9/appos/backend/domain/resource/aiproviders"
 	"github.com/websoft9/appos/backend/domain/secrets"
+	"github.com/websoft9/appos/backend/infra/egress"
 	persistence "github.com/websoft9/appos/backend/infra/persistence"
 )
 
@@ -616,16 +615,18 @@ func fetchProviderModels(app core.App, ctx context.Context, endpoint string, api
 }
 
 func newAIProviderHTTPClient(app core.App, skipTLSVerify bool) http.Client {
-	client, err := httpout.NewPolicyClient(app, "http.ai", 8*time.Second, skipTLSVerify)
-	if err == nil {
-		return client
+	plan, err := egress.NewHTTPClientPlan(app, "http.ai", 8*time.Second, skipTLSVerify)
+	if err != nil {
+		app.Logger().Warn("ai provider proxy resolution failed", "consumer", "http.ai", "error", err)
+		return plan.Client
 	}
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	if skipTLSVerify {
-		// #nosec G402 -- explicit user/provider setting for self-hosted endpoints with custom/self-signed certificates.
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	for _, warning := range plan.Decision.Warnings {
+		if strings.TrimSpace(warning.Message) == "" {
+			continue
+		}
+		app.Logger().Warn("ai provider proxy warning", "consumer", "http.ai", "code", string(warning.Code), "message", warning.Message)
 	}
-	return http.Client{Timeout: 8 * time.Second, Transport: transport}
+	return plan.Client
 }
 
 func buildFetchModelsResponse(parsed any, defaultEnabled map[string]struct{}, templateID string) fetchModelsResponse {

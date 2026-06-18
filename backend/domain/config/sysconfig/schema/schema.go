@@ -447,6 +447,7 @@ var customSettingDefaults = map[string]map[string]any{
 		"source": "none", "enabled": false, "socks5ConnectorId": "", "httpConnectorId": "", "httpsConnectorId": "",
 	},
 	"proxy/policies": defaultProxyConsumerSettingsMap(),
+	"proxy/servers":  map[string]any{"items": []any{}},
 	"docker/mirror": {
 		"mirrors": []any{}, "allowInsecureRegistries": false,
 	},
