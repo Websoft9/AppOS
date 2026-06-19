@@ -318,7 +318,7 @@ function ServersPanel({
   onExitSession,
   closingSessionId,
 }: ServersPanelProps) {
-  const onlineServers = servers.filter(isServerOnline)
+  const onlineServers = servers.filter(s => s.is_enabled !== false).filter(isServerOnline)
   const serverById = new Map(servers.map(server => [server.id, server]))
   const latestSessionByServer = sessionItems.reduce((sessions, session) => {
     if (!sessions.has(session.resource_id)) {

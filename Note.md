@@ -261,3 +261,8 @@ proxy runtime 是啥
 把 SSH/SFTP/一部分 direct net.Dial 消费方继续逐步迁到共享 dialer factory
 
 如果要继续追 story6.3，更大的下一步就是把“reverse-tunnel transport lifecycle”建成显式对象，而不只是现在的 AppOS-side policy enforcement
+
+
+Proxy Policies 还有些问题
+
+network 菜单

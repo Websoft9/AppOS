@@ -53,6 +53,7 @@ export interface Server {
   id: string
   name: string
   host: string
+  is_enabled?: boolean
   connect_type?: 'direct' | 'tunnel' | string
   access_status?: string
   tunnel_status?: string

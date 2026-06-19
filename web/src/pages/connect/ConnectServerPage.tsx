@@ -646,9 +646,10 @@ export function ConnectServerPage({
     return map
   }, [servers])
   const filteredServers = useMemo(() => {
+    const enabled = servers.filter(s => s.is_enabled !== false)
     const keyword = serverQuery.trim().toLowerCase()
-    if (!keyword) return servers
-    return servers.filter(server => {
+    if (!keyword) return enabled
+    return enabled.filter(server => {
       const connectType = String(server.connect_type || 'direct')
       const label =
         `${server.name || ''} ${server.host || ''} ${server.id} ${connectType}`.toLowerCase()
