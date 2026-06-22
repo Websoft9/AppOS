@@ -484,59 +484,52 @@ func validateProxyNetwork(app core.App, v map[string]any) map[string]string {
 	return errors
 }
 
-func validateProxyConsumers(v map[string]any) map[string]string {
-	registry, err := egress.DefaultRegistry()
-	if err != nil {
-		return map[string]string{"items": "proxy consumer registry is unavailable"}
-	}
-	directUseDefinitions := map[string]egress.Definition{}
-	for _, definition := range registry.DirectUse() {
-		directUseDefinitions[definition.Key] = definition
-	}
-
+func validateProxyConsumers(app core.App, v map[string]any) map[string]string {
 	rawItems, ok := v["items"]
 	if !ok || rawItems == nil {
 		v["items"] = []map[string]any{}
-		return nil
-	}
-
-	list, ok := rawItems.([]any)
-	if !ok {
-		return map[string]string{"items": "must be a list of proxy policy settings"}
-	}
-
-	items := make([]egress.ConsumerEnrollment, 0, len(list))
-	seen := map[string]struct{}{}
-	for idx, rawItem := range list {
-		item, ok := rawItem.(map[string]any)
+	} else {
+		list, ok := rawItems.([]any)
 		if !ok {
-			return map[string]string{"items": fmt.Sprintf("item %d must be an object", idx+1)}
+			return map[string]string{"items": "must be a list of proxy policy settings"}
 		}
-		consumerKey := strings.TrimSpace(sysconfig.String(item, "consumerKey", ""))
-		if consumerKey == "" {
-			return map[string]string{"items": fmt.Sprintf("item %d requires consumerKey", idx+1)}
-		}
-		if _, exists := seen[consumerKey]; exists {
-			return map[string]string{"items": fmt.Sprintf("policy %q is duplicated", consumerKey)}
-		}
-		seen[consumerKey] = struct{}{}
 
-		definition, ok := directUseDefinitions[consumerKey]
-		if !ok {
-			return map[string]string{"items": fmt.Sprintf("policy %q is not a valid direct-use proxy policy", consumerKey)}
+		items := make([]egress.ConsumerEnrollment, 0, len(list))
+		for idx, rawItem := range list {
+			item, ok := rawItem.(map[string]any)
+			if !ok {
+				return map[string]string{"items": fmt.Sprintf("item %d must be an object", idx+1)}
+			}
+			consumerKey := strings.TrimSpace(sysconfig.String(item, "consumerKey", ""))
+			if consumerKey == "" {
+				return map[string]string{"items": fmt.Sprintf("item %d requires consumerKey", idx+1)}
+			}
+			mode := egress.Mode(strings.TrimSpace(sysconfig.String(item, "mode", "")))
+			if mode == "" {
+				return map[string]string{"items": fmt.Sprintf("policy %q requires mode", consumerKey)}
+			}
+			items = append(items, egress.ConsumerEnrollment{ConsumerKey: consumerKey, Mode: mode})
 		}
-		mode := egress.Mode(strings.TrimSpace(sysconfig.String(item, "mode", "")))
-		if mode == "" {
-			return map[string]string{"items": fmt.Sprintf("policy %q requires mode", consumerKey)}
+
+		normalized, err := egress.PrepareConsumerSettingsValue(map[string]any{"items": itemsToMaps(items)})
+		if err != nil {
+			return map[string]string{"items": err.Error()}
 		}
-		enrollment := egress.ConsumerEnrollment{ConsumerKey: definition.Key, Mode: mode}
-		if validateErr := egress.ValidateConsumerEnrollment(definition, enrollment); validateErr != nil {
-			return map[string]string{"items": validateErr.Error()}
-		}
-		items = append(items, enrollment)
+		v["items"] = normalized["items"]
 	}
 
-	v["items"] = egress.NormalizeConsumerSettingsValue(map[string]any{"items": itemsToMaps(items)})["items"]
+	serverOverridesPayload := map[string]any{"items": []map[string]any{}}
+	if rawServerOverrides, ok := v["serverOverrides"]; ok {
+		serverOverridesPayload["items"] = rawServerOverrides
+	}
+	if errors := validateProxyRemoteShellServers(app, serverOverridesPayload); errors != nil {
+		message := errors["items"]
+		if message == "" {
+			message = "invalid remote shell overrides"
+		}
+		return map[string]string{"serverOverrides": message}
+	}
+	v["serverOverrides"] = serverOverridesPayload["items"]
 	return nil
 }
 

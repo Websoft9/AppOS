@@ -55,6 +55,7 @@ export interface ProxyConsumerDefinition {
 export interface ProxyConsumersSettings {
   items: ProxyConsumerItem[]
   definitions: ProxyConsumerDefinition[]
+  serverOverrides?: ProxyRemoteShellOverride[]
 }
 
 export interface ProxyRemoteShellOverride {

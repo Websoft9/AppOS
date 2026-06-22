@@ -57,6 +57,8 @@ const (
 	CapabilityNone     Capability = "no_proxy_capability"
 	CapabilityExternal Capability = "external_proxy_available"
 	CapabilitySelf     Capability = "self_proxy_available"
+
+	publicOutboundHTTPPolicyKey = "outbound_http.global"
 )
 
 type WarningCode string
@@ -109,20 +111,15 @@ func DefaultNetworkSettingsMap() map[string]any {
 }
 
 func DefaultConsumerSettingsMap() map[string]any {
-	items := make([]map[string]any, 0)
-	definitions, err := enrollableDefinitions()
-	if err == nil {
-		for _, definition := range definitions {
-			if !definition.Enrollable() {
-				continue
-			}
-			items = append(items, map[string]any{
-				"consumerKey": definition.Key,
-				"mode":        string(definition.DefaultMode),
-			})
-		}
+	items, err := expandConsumerEnrollmentsToStored([]ConsumerEnrollment{
+		{ConsumerKey: publicOutboundHTTPPolicyKey, Mode: ModeAlways},
+		{ConsumerKey: "git.global", Mode: ModeAlways},
+		{ConsumerKey: "remote_shell.global", Mode: ModeAlways},
+	})
+	if err != nil {
+		return map[string]any{"items": []map[string]any{}, "serverOverrides": []map[string]any{}}
 	}
-	return map[string]any{"items": items}
+	return map[string]any{"items": serializeEnrollments(items), "serverOverrides": []map[string]any{}}
 }
 
 func DefaultRemoteShellSettingsMap() map[string]any {
@@ -185,17 +182,35 @@ func SettingsEntryValue(app core.App) (map[string]any, error) {
 	if loadErr != nil && items == nil {
 		return nil, loadErr
 	}
+	remoteShellOverrides, remoteShellErr := LoadRemoteShellServerOverrides(app)
+	if remoteShellErr != nil && remoteShellOverrides == nil {
+		return nil, remoteShellErr
+	}
 	items = filterEnrollments(enrollableDefinitions, items)
+	items = compressConsumerEnrollmentsToPublic(items)
 	return map[string]any{
-		"items":       serializeEnrollments(items),
-		"definitions": serializeDefinitionViews(definitions),
+		"items":           serializeEnrollments(items),
+		"definitions":     serializeDefinitionViews(definitions),
+		"serverOverrides": serializeRemoteShellServerOverrides(remoteShellOverrides),
 	}, nil
 }
 
 func NormalizeConsumerSettingsValue(value map[string]any) map[string]any {
-	return map[string]any{
-		"items": serializeEnrollments(normalizeConsumerEnrollments(value)),
+	normalized, err := PrepareConsumerSettingsValue(value)
+	if err != nil {
+		return map[string]any{"items": []map[string]any{}}
 	}
+	return normalized
+}
+
+func PrepareConsumerSettingsValue(value map[string]any) (map[string]any, error) {
+	items, err := expandConsumerEnrollmentsToStored(normalizeConsumerEnrollments(value))
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"items": serializeEnrollments(items),
+	}, nil
 }
 
 func NormalizeRemoteShellSettingsValue(value map[string]any) map[string]any {
@@ -482,7 +497,149 @@ func enrollableDefinitions() ([]Definition, error) {
 }
 
 func settingsDefinitions() ([]Definition, error) {
-	return enrollableDefinitions()
+	return publicPolicyDefinitions(), nil
+}
+
+func publicPolicyDefinitions() []Definition {
+	return []Definition{
+		{
+			Key:            publicOutboundHTTPPolicyKey,
+			Title:          "Outbound HTTP",
+			Description:    "AppOS web APIs, AI requests, and download traffic.",
+			Location:       LocationLocal,
+			Scope:          ScopeModule,
+			AllowDirectUse: false,
+			Adapter:        AdapterHTTPClient,
+			TrafficClass:   TrafficClassPublicEgress,
+			Support:        SupportProxyCapable,
+			DefaultMode:    ModeAlways,
+			Tags:           []string{"http", "download", "local", "policy"},
+		},
+		{
+			Key:            "git.global",
+			Title:          "Git",
+			Description:    "Git clone, fetch, and remote inspection workflows.",
+			Location:       LocationLocal,
+			Scope:          ScopeModule,
+			AllowDirectUse: false,
+			Adapter:        AdapterEnv,
+			TrafficClass:   TrafficClassPublicEgress,
+			Support:        SupportProxyCapable,
+			DefaultMode:    ModeAlways,
+			Tags:           []string{"git", "local", "policy", "subprocess"},
+		},
+		{
+			Key:            "remote_shell.global",
+			Title:          "Remote Shell",
+			Description:    "Remote shell commands and reverse-tunnel shell egress.",
+			Location:       LocationRemote,
+			Scope:          ScopeModule,
+			AllowDirectUse: false,
+			Adapter:        AdapterEnv,
+			TrafficClass:   TrafficClassPublicEgress,
+			Support:        SupportProxyCapable,
+			DefaultMode:    ModeAlways,
+			Tags:           []string{"remote", "shell", "policy"},
+		},
+	}
+}
+
+func publicPolicyStorageKeys(policyKey string) []string {
+	switch strings.TrimSpace(policyKey) {
+	case publicOutboundHTTPPolicyKey:
+		return []string{"http.global", "download.global"}
+	case "git.global":
+		return []string{"git.global"}
+	case "remote_shell.global":
+		return []string{"remote_shell.global"}
+	default:
+		return nil
+	}
+}
+
+func canonicalPublicPolicyKey(consumerKey string) string {
+	switch strings.TrimSpace(consumerKey) {
+	case publicOutboundHTTPPolicyKey, "http.global", "http.general", "http.ai", "download.global", "download.general":
+		return publicOutboundHTTPPolicyKey
+	case "git.global", "git.general":
+		return "git.global"
+	case "remote_shell.global", "remote_shell.env", "remote_shell.tunnel_http", "remote_shell.tunnel_dialer":
+		return "remote_shell.global"
+	default:
+		return ""
+	}
+}
+
+func publicPolicyDefinitionMap() map[string]Definition {
+	definitions := publicPolicyDefinitions()
+	items := make(map[string]Definition, len(definitions))
+	for _, definition := range definitions {
+		items[definition.Key] = definition
+	}
+	return items
+}
+
+func compressConsumerEnrollmentsToPublic(items []ConsumerEnrollment) []ConsumerEnrollment {
+	definitions := publicPolicyDefinitions()
+	if len(definitions) == 0 {
+		return nil
+	}
+	out := make([]ConsumerEnrollment, 0, len(definitions))
+	for _, definition := range definitions {
+		out = append(out, ConsumerEnrollment{
+			ConsumerKey: definition.Key,
+			Mode:        resolveCompressedPolicyMode(definition.Key, definition.DefaultMode, items),
+		})
+	}
+	return out
+}
+
+func resolveCompressedPolicyMode(policyKey string, defaultMode Mode, items []ConsumerEnrollment) Mode {
+	mode := defaultMode
+	seenExplicit := false
+	for _, item := range items {
+		if canonicalPublicPolicyKey(item.ConsumerKey) != policyKey {
+			continue
+		}
+		seenExplicit = true
+		if item.Mode == ModeAlways {
+			return ModeAlways
+		}
+		mode = item.Mode
+	}
+	if seenExplicit {
+		return mode
+	}
+	return defaultMode
+}
+
+func expandConsumerEnrollmentsToStored(items []ConsumerEnrollment) ([]ConsumerEnrollment, error) {
+	definitions := publicPolicyDefinitionMap()
+	canonicalItems := make([]ConsumerEnrollment, 0, len(items))
+	seen := map[string]struct{}{}
+	for _, item := range items {
+		canonicalKey := canonicalPublicPolicyKey(item.ConsumerKey)
+		if canonicalKey == "" {
+			return nil, fmt.Errorf("policy %q is not a valid proxy policy", item.ConsumerKey)
+		}
+		if _, exists := seen[canonicalKey]; exists {
+			return nil, fmt.Errorf("policy %q is duplicated", canonicalKey)
+		}
+		definition := definitions[canonicalKey]
+		if !definition.SupportsMode(item.Mode) {
+			return nil, fmt.Errorf("proxy policy %q does not support mode %q", canonicalKey, item.Mode)
+		}
+		seen[canonicalKey] = struct{}{}
+		canonicalItems = append(canonicalItems, ConsumerEnrollment{ConsumerKey: canonicalKey, Mode: item.Mode})
+	}
+
+	out := make([]ConsumerEnrollment, 0, len(canonicalItems)*2)
+	for _, item := range canonicalItems {
+		for _, storageKey := range publicPolicyStorageKeys(item.ConsumerKey) {
+			out = append(out, ConsumerEnrollment{ConsumerKey: storageKey, Mode: item.Mode})
+		}
+	}
+	return out, nil
 }
 
 func buildProxyEnv(app core.App, network NetworkSettings) (map[string]string, error) {

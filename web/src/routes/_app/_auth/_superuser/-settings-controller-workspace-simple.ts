@@ -146,9 +146,7 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
   const [proxyRemoteShellOverrides, setProxyRemoteShellOverrides] = useState<
     ProxyRemoteShellOverride[]
   >(EMPTY_PROXY_REMOTE_SHELL.items)
-  const [proxySavingSection, setProxySavingSection] = useState<
-    'network' | 'consumers' | 'remoteShell' | null
-  >(null)
+  const [proxySavingSection, setProxySavingSection] = useState<'network' | 'consumers' | null>(null)
   const [proxyErrors, setProxyErrors] = useState<
     Partial<Record<'form' | 'consumers' | 'remoteShell' | keyof ProxyNetwork, string>>
   >({})
@@ -459,6 +457,11 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
           .map(normalizeProxyConsumerItem)
           .filter((item): item is ProxyConsumerItem => item !== null)
       : []
+    const normalizedConsumerRemoteShellItems = Array.isArray(consumersEntry.serverOverrides)
+      ? consumersEntry.serverOverrides
+          .map(normalizeProxyRemoteShellOverride)
+          .filter((item): item is ProxyRemoteShellOverride => item !== null)
+      : []
 
     const remoteShellEntry =
       (entryMap.get('proxy-remote-shell') as Partial<ProxyRemoteShellSettings> | undefined) ??
@@ -468,6 +471,10 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
           .map(normalizeProxyRemoteShellOverride)
           .filter((item): item is ProxyRemoteShellOverride => item !== null)
       : []
+    const effectiveRemoteShellItems =
+      normalizedConsumerRemoteShellItems.length > 0
+        ? normalizedConsumerRemoteShellItems
+        : normalizedRemoteShellItems
 
     const mergedProxyBase = {
       ...EMPTY_PROXY,
@@ -493,14 +500,14 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
         network: mergedProxyBase,
         consumers: normalizedItems,
         definitions: normalizedDefinitions,
-        remoteShellOverrides: normalizedRemoteShellItems,
+        remoteShellOverrides: effectiveRemoteShellItems,
       }),
     }
     setProxyNetwork(mergedProxy)
     setProxyForm(mergedProxy)
     setProxyConsumerDefinitions(normalizedDefinitions)
     setProxyConsumers(normalizedItems)
-    setProxyRemoteShellOverrides(normalizedRemoteShellItems)
+    setProxyRemoteShellOverrides(effectiveRemoteShellItems)
   }, [])
 
   const validateSpaceQuota = (): boolean => {
@@ -607,6 +614,10 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
           parsed.consumers = consumersError
         }
     }
+    const remoteShellOverridesError = extractFieldError(bag.serverOverrides)
+    if (remoteShellOverridesError) {
+      parsed.remoteShell = remoteShellOverridesError
+    }
 
     return parsed
   }
@@ -666,6 +677,10 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
           consumerKey: item.consumerKey.trim(),
           mode: item.mode,
         })),
+        serverOverrides: proxyRemoteShellOverrides.map(item => ({
+          serverId: item.serverId.trim(),
+          mode: item.mode,
+        })),
       }
       const consumerRes = (await pb.send(settingsEntryPath('proxy-policies'), {
         method: 'PATCH',
@@ -676,8 +691,14 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
             .map(normalizeProxyConsumerItem)
             .filter((item): item is ProxyConsumerItem => item !== null)
         : consumerPayload.items
+      const savedRemoteShellOverrides = Array.isArray(consumerRes.value?.serverOverrides)
+        ? consumerRes.value.serverOverrides
+            .map(normalizeProxyRemoteShellOverride)
+            .filter((item): item is ProxyRemoteShellOverride => item !== null)
+        : consumerPayload.serverOverrides
 
       setProxyConsumers(savedConsumers)
+      setProxyRemoteShellOverrides(savedRemoteShellOverrides)
       if (Array.isArray(consumerRes.value?.definitions)) {
         setProxyConsumerDefinitions(
           consumerRes.value.definitions
@@ -685,49 +706,11 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
             .filter((definition): definition is ProxyConsumerDefinition => definition !== null)
         )
       }
-      setProxyErrors(current => ({ ...current, consumers: undefined }))
+      setProxyErrors(current => ({ ...current, consumers: undefined, remoteShell: undefined }))
       showToast('Proxy policy settings saved')
     } catch (err) {
       if (err instanceof ClientResponseError && (err.status === 400 || err.status === 422)) {
 	        const inlineErrors = parseProxyApiErrors(err.response, 'consumers')
-        if (Object.keys(inlineErrors).length > 0) {
-          setProxyErrors(current => ({ ...current, ...inlineErrors }))
-          showToast('Please fix validation errors and try again.', false)
-          return
-        }
-      }
-      showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
-    } finally {
-      setProxySavingSection(null)
-    }
-  }
-
-  const saveProxyRemoteShell = async () => {
-    setProxySavingSection('remoteShell')
-    setProxyErrors(current => ({ ...current, remoteShell: undefined }))
-    try {
-      const remoteShellPayload = {
-        items: proxyRemoteShellOverrides.map(item => ({
-          serverId: item.serverId.trim(),
-          mode: item.mode,
-        })),
-      }
-      const remoteShellRes = (await pb.send(settingsEntryPath('proxy-remote-shell'), {
-        method: 'PATCH',
-        body: remoteShellPayload,
-      })) as { value?: Partial<ProxyRemoteShellSettings> }
-      const savedRemoteShell = Array.isArray(remoteShellRes.value?.items)
-        ? remoteShellRes.value.items
-            .map(normalizeProxyRemoteShellOverride)
-            .filter((item): item is ProxyRemoteShellOverride => item !== null)
-        : remoteShellPayload.items
-
-      setProxyRemoteShellOverrides(savedRemoteShell)
-      setProxyErrors(current => ({ ...current, remoteShell: undefined }))
-      showToast('Remote shell proxy settings saved')
-    } catch (err) {
-      if (err instanceof ClientResponseError && (err.status === 400 || err.status === 422)) {
-	        const inlineErrors = parseProxyApiErrors(err.response, 'remoteShell')
         if (Object.keys(inlineErrors).length > 0) {
           setProxyErrors(current => ({ ...current, ...inlineErrors }))
           showToast('Please fix validation errors and try again.', false)
@@ -1446,14 +1429,12 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     proxySaving: proxySavingSection !== null,
     proxyNetworkSaving: proxySavingSection === 'network',
     proxyConsumersSaving: proxySavingSection === 'consumers',
-    proxyRemoteShellSaving: proxySavingSection === 'remoteShell',
     proxyErrors,
     setProxyForm,
     setProxyConsumers,
     setProxyRemoteShellOverrides,
     saveProxyNetwork,
     saveProxyConsumers,
-    saveProxyRemoteShell,
     hydrateWorkspaceSimpleEntries,
   }
 }

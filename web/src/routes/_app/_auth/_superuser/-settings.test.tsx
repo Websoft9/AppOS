@@ -1402,10 +1402,10 @@ describe('SettingsPage shared settings paths', () => {
       screen.getByRole('option', { name: 'Workspace OpenAI / OpenAI / gpt-4.1-mini' })
     ).toBeInTheDocument()
     expect(screen.getByRole('option', { name: '+ Add a new model...' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Save' })[0]).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Open AI Providers' })).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[0])
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/ai-providers/defaults', {
@@ -1426,7 +1426,7 @@ describe('SettingsPage shared settings paths', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText('Choose a Product')).toBeInTheDocument()
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
     })
   })
 
@@ -1481,14 +1481,14 @@ describe('SettingsPage shared settings paths', () => {
     fireEvent.click(within(nav).getByRole('button', { name: 'Proxy' }))
 
     await waitFor(() => {
-      expect(screen.getByText('Proxy resource from')).toBeInTheDocument()
+      expect(screen.getByText('Proxy Network')).toBeInTheDocument()
     })
 
     expect(screen.getByRole('button', { name: 'Open Proxy help' })).toBeInTheDocument()
 
     await waitFor(() => {
       expect(screen.getByText('External Proxy')).toBeInTheDocument()
-      expect(screen.getByText('Self Proxy')).toBeInTheDocument()
+      expect(screen.getByText('Built-in Shell Proxy')).toBeInTheDocument()
     })
   })
 
@@ -1511,36 +1511,29 @@ describe('SettingsPage shared settings paths', () => {
           }
           items.push(next)
         }
-        upsertEntry('proxy-consumers', {
-          items: [{ consumerKey: 'servers.global', mode: 'fallback' }],
+        upsertEntry('proxy-network', {
+          source: 'self',
+          enabled: false,
+          socks5ConnectorId: '',
+          httpConnectorId: '',
+          httpsConnectorId: '',
+        })
+        upsertEntry('proxy-policies', {
+          items: [{ consumerKey: 'remote_shell.global', mode: 'always' }],
           definitions: [
             {
-              key: 'servers.global',
-              title: 'Servers',
+              key: 'remote_shell.global',
+              title: 'Remote Shell',
               description: 'Workspace-wide proxy policy for remote server shell and subprocess operations.',
               location: 'remote',
               scope: 'module',
               adapter: 'env',
               trafficClass: 'public_egress',
               support: 'proxy_capable',
-              defaultMode: 'fallback',
-              allowedModes: ['disabled', 'always', 'fallback'],
+              defaultMode: 'always',
+              allowedModes: ['disabled', 'always'],
               tags: ['remote', 'servers'],
               enrollable: true,
-            },
-            {
-              key: 'servers.ssh_control',
-              title: 'SSH Control Channel',
-              description: 'Direct-only SSH control channel used to establish remote shell sessions.',
-              location: 'remote',
-              scope: 'action',
-              adapter: 'dialer',
-              trafficClass: 'control_plane',
-              support: 'bypass_only',
-              defaultMode: 'disabled',
-              allowedModes: ['disabled'],
-              tags: ['remote', 'servers'],
-              enrollable: false,
             },
           ],
         })
@@ -1571,11 +1564,16 @@ describe('SettingsPage shared settings paths', () => {
     fireEvent.click(within(nav).getByRole('button', { name: 'Proxy' }))
 
     await waitFor(() => {
-      const select = screen.getByRole('combobox', { name: 'Select a server' })
-      expect(select).toBeEnabled()
+      expect(screen.getByRole('button', { name: 'Manage overrides' })).toBeInTheDocument()
     })
-    expect(screen.getByRole('option', { name: 'Remote One' })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: 'Remote Two' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Manage overrides' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Remote Shell overrides' })).toBeInTheDocument()
+      expect(screen.getByText('Remote One (10.0.0.10)')).toBeInTheDocument()
+      expect(screen.getByText('Remote Two (10.0.0.11)')).toBeInTheDocument()
+    })
   })
 
   it('warns when a saved proxy resource was deleted and blocks save until a valid option is chosen or proxy is disabled', async () => {
@@ -1709,7 +1707,7 @@ describe('SettingsPage shared settings paths', () => {
     fireEvent.click(within(nav).getByRole('button', { name: 'Proxy' }))
 
     await waitFor(() => {
-      expect(screen.getByText('Proxy resource from')).toBeInTheDocument()
+      expect(screen.getByText('Proxy Network')).toBeInTheDocument()
     })
 
     await waitFor(() => {
@@ -1718,11 +1716,11 @@ describe('SettingsPage shared settings paths', () => {
       ).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[0])
 
     await waitFor(() => {
       expect(
-        screen.getByText(/Choose at least one proxy option or disable proxy before saving/i)
+        screen.getByText(/Select at least one external proxy connector before saving External Proxy/i)
       ).toBeInTheDocument()
     })
 

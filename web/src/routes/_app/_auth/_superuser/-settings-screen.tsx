@@ -1,15 +1,19 @@
 import { useEffect, useState } from 'react'
-import { Info, Loader2, Settings2, X } from 'lucide-react'
-import { IconBreadcrumb } from '@/components/layout/IconBreadcrumb'
+import { Info, Loader2, X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useOptionalLayout } from '@/contexts/LayoutContext'
 import { parseExtListInput } from '@/lib/ext-normalize'
 import { type SettingsSection } from '@/lib/settings-api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { getRegisteredSectionHelp } from './-settings-core/help'
-import { buildNavigationItems, isNavigationItemActive } from './-settings-core/navigation'
+import {
+  buildNavigationItems,
+  getActiveNavigationItem,
+  isNavigationItemActive,
+} from './-settings-core/navigation'
 import { renderRegisteredSection } from './-settings-core/render'
-import { PROXY_SECTION_IDS } from './-settings-core/section-ids'
+import { SettingsBreadcrumb } from './-settings-core/breadcrumb'
 import { sectionLabel } from './-settings-sections/shared'
 import { findSchemaEntry } from './-settings-core/schema-helpers'
 import { type SettingsPageController } from './-settings-controller'
@@ -80,6 +84,7 @@ function renderSection(controller: SettingsPageController, options?: { onOpenHel
 }
 
 export function SettingsScreen({ controller }: SettingsScreenProps) {
+  const { t } = useTranslation('navigation')
   const [helpOpen, setHelpOpen] = useState(false)
   const layout = useOptionalLayout()
   const setHeaderRightStartContent = layout?.setHeaderRightStartContent
@@ -90,26 +95,21 @@ export function SettingsScreen({ controller }: SettingsScreenProps) {
     return acc
   }, [])
   const help = activeSectionHelp(controller)
-  const showProxyBreadcrumb = PROXY_SECTION_IDS.includes(controller.activeSection as (typeof PROXY_SECTION_IDS)[number])
+  const activeNavigationItem = getActiveNavigationItem(controller)
+  const currentBreadcrumbTitle = activeNavigationItem?.title ?? null
+  const showSettingsBreadcrumb = currentBreadcrumbTitle != null
 
   useEffect(() => {
     if (!setHeaderRightStartContent) {
       return undefined
     }
-    if (!showProxyBreadcrumb) {
+    if (!showSettingsBreadcrumb || !currentBreadcrumbTitle) {
       setHeaderRightStartContent(null)
       return undefined
     }
-    setHeaderRightStartContent(
-      <IconBreadcrumb
-        icon={<Settings2 className="h-4 w-4" />}
-        parentLabel="Settings"
-        parentHref="/settings"
-        currentPage="Proxy"
-      />
-    )
+    setHeaderRightStartContent(<SettingsBreadcrumb currentPage={currentBreadcrumbTitle} />)
     return () => setHeaderRightStartContent(null)
-  }, [setHeaderRightStartContent, showProxyBreadcrumb])
+  }, [currentBreadcrumbTitle, setHeaderRightStartContent, showSettingsBreadcrumb])
 
   return (
     <div>
@@ -124,7 +124,7 @@ export function SettingsScreen({ controller }: SettingsScreenProps) {
         ))}
       </div>
 
-      <h1 className="text-2xl font-bold mb-6">Settings</h1>
+      <h1 className="text-2xl font-bold mb-6">{t('items.settings')}</h1>
 
       {controller.pbLoading ? (
         <div className="flex items-center justify-center h-48">
@@ -171,7 +171,7 @@ export function SettingsScreen({ controller }: SettingsScreenProps) {
               <div
                 className={cn(
                   'min-w-0 lg:col-start-2 lg:row-start-2 2xl:col-start-3 2xl:row-start-1 2xl:self-start',
-                  showProxyBreadcrumb ? '2xl:pt-[72px]' : undefined
+                  showSettingsBreadcrumb ? '2xl:pt-[72px]' : undefined
                 )}
               >
               <SettingsHelpPanel

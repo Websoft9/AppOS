@@ -17,15 +17,7 @@
 
 ## AI Copit
 
-- AI 驾驶舱，一个交互式的 AI chat，连通云和应用
-- AI 基于 cli 与应用交付
-
-## 我的应用
-
-## 应用商店
-
-由文件管理机制机制，迁移至后端提供
-
+- AI 连通云和应用，AI 基于 cli 与应用交付
 
 ## 发布
 
@@ -39,17 +31,6 @@
 
 免登录访问 saas 系统的控制台
 
-## 凭据的分布
-
-Secrets（基础设施层）
-└── 哑存储：只管加密存取，不懂业务，不知道值是给谁用的
-
-Integrations（业务层）
-└── 智能连接器：知道"GitHub 需要什么"，管理 API key + endpoint + 客户端安装 + OAuth 等
-    └── 其中，敏感字段通过 secretRef 指向 Secrets，自己不存明文
-
-Settings（配置层）
-└── 非敏感的全局配置
 
 ## LLM
 - 本地小模型内嵌？
@@ -63,7 +44,6 @@ Settings（配置层）
 
 ## 每日
 
-
 - default group 
 - 协作菜单的图标，不够简洁，请采用更合适的
 
@@ -72,9 +52,9 @@ Settings（配置层）
 - 如何做？存储到哪里？
 
 
-
 给 App detail 再接一层 compose 校验与 diff 预览，避免直接保存时改坏配置。
 
+## 部署
 
 手工部署应该有一个完整的体验过程：
 
@@ -88,11 +68,6 @@ Settings（配置层）
 
 给 target-based deploy 再补一层 .env 和参数表单预填
 给私有 Git 再补 Secret 引用模式，避免每次手填 token
-
-
-2. Install  from store 和 Custom Deployment 区块没有考虑 dark 模式
-3.  
-
 
 
 但它们不等于宇宙完备分类。将来还可能出现这些不太适合硬塞进去的类型：
@@ -109,7 +84,6 @@ artifact/：如果你未来不只管镜像，还管 Helm Chart、包仓库、插
 这四个能覆盖“当前大多数外联资源”，但不应被当成最终固定全集。
 
 我更建议你这样理解：
-
 
 resource/  server/  database/  integration/  registry/  ...
 这里的 resource/ 是“外部资源命名空间”，而不是“只有这四类”。
@@ -250,19 +224,6 @@ handleServerPortRelease 仍调用 resolveTerminalConfig（不带 proxy），未�
 
 改动在 web/src/routes/_app/_auth/feeds.tsx。如果你愿意，下一步我可以顺手把这个编辑提交流程补一条前端测试，避免这类字段遗漏再次出现
 
-token 超标
+
 限制历史消息数量，每次8轮
 捕捉token 超标的错误后，删除最早的2条消息
-
-
-
-proxy runtime 是啥
-
-把 SSH/SFTP/一部分 direct net.Dial 消费方继续逐步迁到共享 dialer factory
-
-如果要继续追 story6.3，更大的下一步就是把“reverse-tunnel transport lifecycle”建成显式对象，而不只是现在的 AppOS-side policy enforcement
-
-
-Proxy Policies 还有些问题
-
-network 菜单

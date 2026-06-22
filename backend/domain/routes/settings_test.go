@@ -192,7 +192,7 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 		case "proxy-policies":
 			items, _ := value["items"].([]any)
 			definitions, _ := value["definitions"].([]any)
-			foundProxyConsumers = items != nil && len(definitions) > 0
+			foundProxyConsumers = items != nil && len(items) == 3 && len(definitions) == 3
 		case "proxy-remote-shell":
 			items, _ := value["items"].([]any)
 			foundProxyRemoteShell = items != nil && len(items) == 0
@@ -314,7 +314,7 @@ func TestSettingsEntryPatchValidation(t *testing.T) {
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("expected 422 for invalid proxy-policies, got %d: %s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "direct-use proxy policy") {
+	if !strings.Contains(rec.Body.String(), "not a valid proxy policy") {
 		t.Fatalf("expected proxy-policies validation error, got %s", rec.Body.String())
 	}
 
@@ -518,7 +518,7 @@ func TestSettingsEntryPatchPersistsUnifiedValues(t *testing.T) {
 		t.Fatalf("expected httpConnectorId %q, got %q", proxyConnector.Id, got)
 	}
 
-	proxyConsumersBody := `{"items":[{"consumerKey":"http.ai","mode":"always"},{"consumerKey":"download.general","mode":"disabled"}]}`
+	proxyConsumersBody := `{"items":[{"consumerKey":"outbound_http.global","mode":"always"},{"consumerKey":"git.global","mode":"disabled"}]}`
 	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/proxy-policies", proxyConsumersBody, true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 for proxy-policies patch, got %d: %s", rec.Code, rec.Body.String())
@@ -528,8 +528,19 @@ func TestSettingsEntryPatchPersistsUnifiedValues(t *testing.T) {
 		t.Fatalf("expected stored proxy-policies, got error: %v", err)
 	}
 	items, ok := storedProxyConsumers["items"].([]any)
-	if !ok || len(items) != 2 {
-		t.Fatalf("expected two stored proxy consumer items, got %#v", storedProxyConsumers["items"])
+	if !ok || len(items) != 3 {
+		t.Fatalf("expected three stored proxy consumer items, got %#v", storedProxyConsumers["items"])
+	}
+	itemMap := map[string]string{}
+	for _, rawItem := range items {
+		item, ok := rawItem.(map[string]any)
+		if !ok {
+			continue
+		}
+		itemMap[sysconfig.String(item, "consumerKey", "")] = sysconfig.String(item, "mode", "")
+	}
+	if itemMap["http.global"] != "always" || itemMap["download.global"] != "always" || itemMap["git.global"] != "disabled" {
+		t.Fatalf("expected expanded proxy policy anchors, got %#v", itemMap)
 	}
 
 	server := createServerRecord(t, te, "remote-proxy", "10.0.0.10", 22, "root", "password")

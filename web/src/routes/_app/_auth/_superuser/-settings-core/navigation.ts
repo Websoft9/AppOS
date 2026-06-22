@@ -47,3 +47,27 @@ export function isNavigationItemActive(
 
   return itemId === activeSection
 }
+
+export function getActiveNavigationItem(controller: SettingsPageController): {
+  group: SettingsSection
+  id: string
+  title: string
+} | null {
+  const groups = controller.schemaEntries.reduce<SettingsSection[]>((acc, entry) => {
+    if (!acc.includes(entry.section)) {
+      acc.push(entry.section)
+    }
+    return acc
+  }, [])
+
+  for (const group of groups) {
+    const activeItem = buildNavigationItems(controller, group).find(item =>
+      isNavigationItemActive(group, item.id, controller.activeSection)
+    )
+    if (activeItem) {
+      return { group, ...activeItem }
+    }
+  }
+
+  return null
+}

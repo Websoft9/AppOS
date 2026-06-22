@@ -270,6 +270,9 @@ func getCustomSettingsEntryValue(app core.App, module, key string) (map[string]a
 
 func patchCustomSettingsEntry(e *core.RequestEvent, module, key string, value map[string]any) (map[string]any, error) {
 	fallback := fallbackForKey(module, key)
+	if module == "proxy" && key == "policies" {
+		fallback = egress.DefaultConsumerSettingsMap()
+	}
 	if module == "proxy" && key == "servers" {
 		fallback = egress.DefaultRemoteShellSettingsMap()
 		value = egress.NormalizeRemoteShellSettingsValue(value)
@@ -279,6 +282,20 @@ func patchCustomSettingsEntry(e *core.RequestEvent, module, key string, value ma
 
 	if validationErrors := validateCustomSettingsEntry(e, module, key, merged); validationErrors != nil {
 		return nil, &settingsValidationError{Fields: validationErrors}
+	}
+
+	if module == "proxy" && key == "policies" {
+		policyGroup := map[string]any{"items": merged["items"]}
+		if err := sysconfig.SetGroup(e.App, module, key, policyGroup); err != nil {
+			return nil, err
+		}
+		if serverOverrides, ok := merged["serverOverrides"]; ok {
+			if err := sysconfig.SetGroup(e.App, module, "servers", map[string]any{"items": serverOverrides}); err != nil {
+				return nil, err
+			}
+		}
+		stored, _ := getCustomSettingsEntryValue(e.App, module, key)
+		return stored, nil
 	}
 
 	if err := sysconfig.SetGroup(e.App, module, key, merged); err != nil {
@@ -311,7 +328,7 @@ func validateCustomSettingsEntry(e *core.RequestEvent, module, key string, value
 	case "proxy/network":
 		return validateProxyNetwork(e.App, value)
 	case "proxy/policies":
-		return validateProxyConsumers(value)
+		return validateProxyConsumers(e.App, value)
 	case "proxy/servers":
 		return validateProxyRemoteShellServers(e.App, value)
 	case "monitor/scheduling":
