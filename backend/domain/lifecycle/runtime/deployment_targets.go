@@ -33,6 +33,20 @@ type Executor interface {
 	Name() string
 }
 
+type localExecutor struct{}
+
+func (localExecutor) PrepareWorkspace(string, string) error {
+	return fmt.Errorf("local workspace preparation is unsupported for this executor")
+}
+
+func (localExecutor) DockerClient() (*docker.Client, error) {
+	return nil, fmt.Errorf("docker client is unavailable for local lifecycle executor")
+}
+
+func (localExecutor) Name() string {
+	return "local"
+}
+
 type sshExecutor struct {
 	app           core.App
 	serverID      string
@@ -109,6 +123,10 @@ func NewDeploymentExecutor(app core.App, serverID string) Executor {
 		return unsupportedExecutor{}
 	}
 	return newSSHExecutor(app, serverID)
+}
+
+func NewLocalLifecycleExecutor() Executor {
+	return localExecutor{}
 }
 
 type unsupportedExecutor struct{}

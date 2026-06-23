@@ -330,25 +330,25 @@ describe('AICopilotPage', () => {
         callbacks: Parameters<typeof sendAICopilotMessage>[4]
       ) => {
         callbacks.onChunk('received: ')
-        callbacks.onChunk('check nginx')
+        callbacks.onChunk('check traefik')
         callbacks.onDone?.({
           id: 'msg-3',
           session_id: 'session-1',
           role: 'assistant',
-          content: 'received: check nginx',
+          content: 'received: check traefik',
         })
       }
     )
 
-    fireEvent.change(input, { target: { value: 'check nginx' } })
+    fireEvent.change(input, { target: { value: 'check traefik' } })
     fireEvent.click(sendButton)
 
-    expect(await screen.findByText('check nginx')).toBeInTheDocument()
-    expect(await screen.findByText('received: check nginx')).toBeInTheDocument()
+    expect(await screen.findByText('check traefik')).toBeInTheDocument()
+    expect(await screen.findByText('received: check traefik')).toBeInTheDocument()
     await waitFor(() =>
       expect(sendMessageMock).toHaveBeenCalledWith(
         'session-1',
-        'check nginx',
+        'check traefik',
         'provider-1',
         'openai/gpt-4.1-mini',
         expect.any(Object),
@@ -423,7 +423,7 @@ describe('AICopilotPage', () => {
 
     await screen.findByRole('heading', { name: 'Ops chat' })
     fireEvent.change(screen.getByPlaceholderText('Ask about operations, diagnosis, or AppOS knowledge'), {
-      target: { value: 'Check nginx logs and summarize the findings' },
+      target: { value: 'Check traefik logs and summarize the findings' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Token usage' }))
 
@@ -482,7 +482,7 @@ describe('AICopilotPage', () => {
     )
     const upload = screen.getByLabelText('Chat file upload') as HTMLInputElement
     const sendButton = screen.getByRole('button', { name: 'Send message' })
-    const file = new File(['worker_processes auto;'], 'nginx.conf', { type: 'text/plain' })
+    const file = new File(['http:\n  routers: {}\n'], 'traefik.yml', { type: 'text/plain' })
 
     Object.defineProperty(upload, 'files', {
       value: [file],
@@ -520,9 +520,9 @@ describe('AICopilotPage', () => {
         expect.any(Object),
         [
           expect.objectContaining({
-            name: 'nginx.conf',
+            name: 'traefik.yml',
             mime_type: 'text/plain',
-            text_content: 'worker_processes auto;',
+            text_content: 'http:\n  routers: {}',
           }),
         ],
         expect.objectContaining({ signal: expect.any(AbortSignal) })

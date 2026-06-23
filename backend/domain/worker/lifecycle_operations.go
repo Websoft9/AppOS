@@ -989,7 +989,13 @@ func (w *Worker) createReleaseBaseline(execCtx *lifecycleExecutionContext, now t
 
 func (w *Worker) executorFor(execCtx *lifecycleExecutionContext) lifecycleruntime.Executor {
 	if execCtx.executor == nil {
-		execCtx.executor = operationExecutorFactory(w.app, normalizeDeployServerID(execCtx.Operation.GetString("server_id")))
+		serverID := normalizeDeployServerID(execCtx.Operation.GetString("server_id"))
+		operationType := strings.TrimSpace(execCtx.Operation.GetString("operation_type"))
+		if (serverID == "" || serverID == "local") && (operationType == string(model.OperationTypePublish) || operationType == string(model.OperationTypeUnpublish)) {
+			execCtx.executor = lifecycleruntime.NewLocalLifecycleExecutor()
+		} else {
+			execCtx.executor = operationExecutorFactory(w.app, serverID)
+		}
 	}
 	return execCtx.executor
 }

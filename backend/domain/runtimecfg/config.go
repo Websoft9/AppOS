@@ -11,11 +11,12 @@ import (
 )
 
 const (
-	DefaultRedisURL      = "redis://127.0.0.1:6379"
-	DefaultTSDBURL       = "http://127.0.0.1:8428"
-	DefaultTunnelSSHPort = "2222"
-	DefaultInitMode      = "auto"
-	DefaultPBSubdir      = "pb/pb_data"
+	DefaultRedisURL        = "redis://127.0.0.1:6379"
+	DefaultTSDBURL         = "http://127.0.0.1:8428"
+	DefaultTunnelSSHPort   = "2222"
+	DefaultInitMode        = "auto"
+	DefaultPBSubdir        = "pb/pb_data"
+	DefaultContainerWebDir = "/appos/web"
 )
 
 type Config struct {
@@ -23,6 +24,7 @@ type Config struct {
 	DataDir           string `yaml:"data_dir"`
 	HTTP              string `yaml:"http"`
 	Dir               string `yaml:"dir"`
+	WebDir            string `yaml:"web_dir"`
 	RedisURL          string `yaml:"redis_url"`
 	TSDBURL           string `yaml:"tsdb_url"`
 	TunnelSSHPort     string `yaml:"tunnel_ssh_port"`
@@ -65,6 +67,31 @@ func RedisURL() string {
 	return Get().RedisURL
 }
 
+func WebDir() string {
+	configured := strings.TrimSpace(Get().WebDir)
+	if configured != "" {
+		return configured
+	}
+	if fromEnv := strings.TrimSpace(os.Getenv("APPOS_WEB_DIR")); fromEnv != "" {
+		return fromEnv
+	}
+	return ""
+}
+
+func ResolveWebRoot() (string, bool) {
+	if configured := strings.TrimSpace(WebDir()); configured != "" {
+		if hasConsoleIndex(configured) {
+			return configured, true
+		}
+	}
+	for _, candidate := range defaultWebDirCandidates() {
+		if hasConsoleIndex(candidate) {
+			return candidate, true
+		}
+	}
+	return "", false
+}
+
 func TSDBURL() string {
 	return Get().TSDBURL
 }
@@ -103,6 +130,7 @@ func ResolveArgs(args []string) (Config, []string, error) {
 	applyFlagOverride(args[1:], "tsdb-url", &cfg.TSDBURL)
 	applyFlagOverride(args[1:], "tunnel-ssh-port", &cfg.TunnelSSHPort)
 	applyFlagOverride(args[1:], "data-dir", &cfg.DataDir)
+	applyFlagOverride(args[1:], "web-dir", &cfg.WebDir)
 	applyFlagOverride(args[1:], "init-mode", &cfg.InitMode)
 	applyFlagOverride(args[1:], "superuser-email", &cfg.SuperuserEmail)
 	applyFlagOverride(args[1:], "superuser-password", &cfg.SuperuserPassword)
@@ -142,6 +170,7 @@ func RegisterFlags(register func(name string, value string, usage string)) {
 	defaults := Defaults()
 	register("config", "", "Path to the AppOS YAML runtime config file")
 	register("data-dir", "", "AppOS data root directory; PocketBase data will live under <data-dir>/pb/pb_data")
+	register("web-dir", "", "AppOS web bundle root directory that contains index.html and assets/")
 	register("redis-url", defaults.RedisURL, "Redis connection URL used by AppOS background workers")
 	register("tsdb-url", defaults.TSDBURL, "VictoriaMetrics base URL used by AppOS metrics reads and writes")
 	register("tunnel-ssh-port", defaults.TunnelSSHPort, "Public SSH port exposed by the AppOS tunnel service")
@@ -207,9 +236,27 @@ func consumesNextValue(arg string) bool {
 	}
 	name := strings.TrimLeft(arg, "-")
 	switch name {
-	case "config", "data-dir", "redis-url", "tsdb-url", "tunnel-ssh-port", "init-mode", "superuser-email", "superuser-password", "http", "dir":
+	case "config", "data-dir", "web-dir", "redis-url", "tsdb-url", "tunnel-ssh-port", "init-mode", "superuser-email", "superuser-password", "http", "dir":
 		return true
 	default:
 		return false
 	}
+}
+
+func defaultWebDirCandidates() []string {
+	cwd, _ := os.Getwd()
+	return []string{
+		DefaultContainerWebDir,
+		filepath.Join(cwd, "web", "dist"),
+		filepath.Join(cwd, "..", "web", "dist"),
+	}
+}
+
+func hasConsoleIndex(root string) bool {
+	root = strings.TrimSpace(root)
+	if root == "" {
+		return false
+	}
+	info, err := os.Stat(filepath.Join(root, "index.html"))
+	return err == nil && !info.IsDir()
 }

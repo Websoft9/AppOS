@@ -622,25 +622,25 @@ function derivePlatformAvailability(
     {
       label: 'Console Access',
       targetIds: ['appos-core'],
-      serviceNames: ['appos-core', 'nginx'],
-      fallbackReason: 'Core runtime and proxy are responding normally.',
+      serviceNames: [],
+      fallbackReason: 'Core runtime signals are responding normally.',
     },
     {
       label: 'Application Management',
       targetIds: ['appos-core'],
-      serviceNames: ['appos-core', 'redis'],
+      serviceNames: ['redis'],
       fallbackReason: 'Core management services are available.',
     },
     {
       label: 'Background Jobs',
       targetIds: ['worker', 'scheduler'],
-      serviceNames: ['appos-worker', 'appos-scheduler'],
+      serviceNames: [],
       fallbackReason: 'Worker and scheduler signals are healthy.',
     },
     {
       label: 'Monitoring',
-      targetIds: [],
-      serviceNames: ['victoria-metrics', 'appos-core'],
+      targetIds: ['appos-core'],
+      serviceNames: ['victoria-metrics'],
       fallbackReason: 'Monitoring storage and the AppOS self-collector are available.',
     },
   ]

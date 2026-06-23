@@ -6,7 +6,7 @@ This directory is reserved for tests that require a real AppOS container runtime
 
 - Container startup validation
 - Image/install smoke tests
-- Full end-to-end flows that need Nginx + frontend + backend + worker running together
+- Full end-to-end flows that need the publication gateway + frontend + backend + worker running together
 - System tests that require a real containerized runtime
 
 ## Current Entry Point

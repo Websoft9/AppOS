@@ -20,7 +20,7 @@ func TestLocalExecutorVerifyTreatsUninterruptibleAsDegraded(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "stat"), []byte("cpu  1 1 1 1 1 1 1 1 1 1\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	writeProcEntry(t, root, 101, "nginx", "D", 200)
+	writeProcEntry(t, root, 101, "traefik", "D", 200)
 
 	restore := process.SetProcRootForTesting(root)
 	defer restore()
@@ -31,7 +31,7 @@ func TestLocalExecutorVerifyTreatsUninterruptibleAsDegraded(t *testing.T) {
 		TemplateKind: software.TemplateKindBinary,
 		Verify: software.VerifySpec{
 			Strategy:    "process-running",
-			ServiceName: "nginx",
+			ServiceName: "traefik",
 		},
 	})
 	if err != nil {

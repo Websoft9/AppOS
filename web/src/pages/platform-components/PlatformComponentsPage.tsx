@@ -217,6 +217,9 @@ export function PlatformComponentsPage() {
                     <p className="mt-2 text-sm text-muted-foreground">
                       {component.role || 'No role declared'}
                     </p>
+                    {component.notes ? (
+                      <p className="mt-1 text-xs text-muted-foreground">{component.notes}</p>
+                    ) : null}
                     <p className="mt-1 text-sm text-muted-foreground">
                       Version {formatComponentVersion(component.version, component.probe_pending)}
                     </p>
@@ -323,6 +326,9 @@ export function InstalledComponentsContent() {
                 <p className="mt-2 text-sm text-muted-foreground">
                   {component.role || 'No role declared'}
                 </p>
+                {component.notes ? (
+                  <p className="mt-1 text-xs text-muted-foreground">{component.notes}</p>
+                ) : null}
                 <p className="mt-1 text-sm text-muted-foreground">
                   Version {component.version || 'unknown'}
                 </p>

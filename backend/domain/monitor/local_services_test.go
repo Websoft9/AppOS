@@ -104,3 +104,48 @@ func TestObserveLocalServicesNilRegistryReturnsEmpty(t *testing.T) {
 		t.Fatalf("expected empty result for nil registry, got %d items", len(items))
 	}
 }
+
+func TestObserveLocalServicesTreatsMissingOnDemandServiceAsStopped(t *testing.T) {
+	originalProcessInfoFn := localServiceProcessInfoFn
+	originalItems := append([]LocalServiceObservation(nil), localServiceObservationCache.items...)
+	originalInitialized := localServiceObservationCache.initialized
+	originalRefreshing := localServiceObservationCache.refreshing
+
+	localServiceObservationCache.mu.Lock()
+	localServiceObservationCache.items = nil
+	localServiceObservationCache.initialized = false
+	localServiceObservationCache.refreshing = false
+	localServiceObservationCache.mu.Unlock()
+
+	t.Cleanup(func() {
+		localServiceProcessInfoFn = originalProcessInfoFn
+		localServiceObservationCache.mu.Lock()
+		localServiceObservationCache.items = append([]LocalServiceObservation(nil), originalItems...)
+		localServiceObservationCache.initialized = originalInitialized
+		localServiceObservationCache.refreshing = originalRefreshing
+		localServiceObservationCache.mu.Unlock()
+	})
+
+	localServiceProcessInfoFn = func([]process.MatchTarget) ([]process.ProcessInfo, error) {
+		return nil, nil
+	}
+
+	registry := &swcatalog.LocalRegistry{
+		Version: 1,
+		Services: []swcatalog.LocalService{
+			{Name: "traefik", ComponentID: "traefik", Enabled: true, Lifecycle: "on_demand", Visibility: "default"},
+			{Name: "appos", ComponentID: "appos", Enabled: true, Lifecycle: "always_on", Visibility: "default"},
+		},
+	}
+
+	items := observeLocalServicesSnapshot(registry, false)
+	if len(items) != 2 {
+		t.Fatalf("expected 2 services, got %d", len(items))
+	}
+	if items[0].State != "stopped" {
+		t.Fatalf("expected on-demand service to be stopped when absent, got %q", items[0].State)
+	}
+	if items[1].State != "missing" {
+		t.Fatalf("expected always-on service to remain missing when absent, got %q", items[1].State)
+	}
+}

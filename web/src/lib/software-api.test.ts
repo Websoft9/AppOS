@@ -165,12 +165,12 @@ describe('supported server software catalog', () => {
   it('fetches one supported server software entry by key', async () => {
     const component = {
       component_key: 'reverse-proxy',
-      label: 'Nginx',
+      label: 'Traefik',
       capability: 'reverse_proxy',
       template_kind: 'package',
       artifact_kind: 'package',
       supported_actions: ['install', 'upgrade', 'verify'],
-      description: 'Nginx is supported by AppOS.',
+      description: 'Traefik is supported by AppOS.',
       readiness_requirements: ['supported_os', 'root_privilege', 'network_access'],
       visibility: ['server_operations', 'supported_software_discovery'],
     }

@@ -1,168 +1,82 @@
-ARG VICTORIAMETRICS_VERSION=v1.144.0
+FROM alpine:3.21
 
-# ===========================
-# Stage 1: Build Web App
-# ===========================
-FROM node:24-alpine AS web-builder
-
-ARG HTTP_PROXY
-ARG HTTPS_PROXY
-ARG ALL_PROXY
-ARG NO_PROXY
-ARG http_proxy
-ARG https_proxy
-ARG all_proxy
-ARG no_proxy
-ENV HTTP_PROXY=${HTTP_PROXY} \
-    HTTPS_PROXY=${HTTPS_PROXY} \
-    ALL_PROXY=${ALL_PROXY} \
-    NO_PROXY=${NO_PROXY} \
-    http_proxy=${http_proxy} \
-    https_proxy=${https_proxy} \
-    all_proxy=${all_proxy} \
-    no_proxy=${no_proxy}
-
-WORKDIR /build
-COPY web/package.json web/package-lock.json* ./
-RUN npm ci --silent
-COPY web/ .
-RUN npm run build
-
-# ===========================
-# Node.js 24 Runtime Provider
-# ===========================
-FROM node:24-bookworm-slim AS node-provider
-
-# ===========================
-# VictoriaMetrics Binary
-# ===========================
-FROM victoriametrics/victoria-metrics:${VICTORIAMETRICS_VERSION} AS victoriametrics-bin
-
-# ===========================
-# Stage 2: Build Backend (PocketBase Framework)
-# ===========================
-FROM golang:1.26.3-alpine AS backend-builder
-
-ARG HTTP_PROXY
-ARG HTTPS_PROXY
-ARG ALL_PROXY
-ARG NO_PROXY
-ARG http_proxy
-ARG https_proxy
-ARG all_proxy
-ARG no_proxy
-ENV HTTP_PROXY=${HTTP_PROXY} \
-    HTTPS_PROXY=${HTTPS_PROXY} \
-    ALL_PROXY=${ALL_PROXY} \
-    NO_PROXY=${NO_PROXY} \
-    http_proxy=${http_proxy} \
-    https_proxy=${https_proxy} \
-    all_proxy=${all_proxy} \
-    no_proxy=${no_proxy}
-
-WORKDIR /build
-COPY backend/go.mod backend/go.sum ./
-RUN go mod download
-COPY backend/ .
-RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
-
-# ===========================
-# Stage 3: Runtime
-# ===========================
-FROM debian:bookworm-slim
-
-ARG SUPERVISOR_VERSION=4.3.0
-
-ARG HTTP_PROXY
-ARG HTTPS_PROXY
-ARG ALL_PROXY
-ARG NO_PROXY
-ARG http_proxy
-ARG https_proxy
-ARG all_proxy
-ARG no_proxy
-ENV HTTP_PROXY=${HTTP_PROXY} \
-        HTTPS_PROXY=${HTTPS_PROXY} \
-        ALL_PROXY=${ALL_PROXY} \
-        NO_PROXY=${NO_PROXY} \
-        http_proxy=${http_proxy} \
-        https_proxy=${https_proxy} \
-        all_proxy=${all_proxy} \
-        no_proxy=${no_proxy}
+ARG VICTORIAMETRICS_VERSION=v1.146.0
+ARG TRAEFIK_VERSION=v3.4.1
+ARG TARGETARCH
 
 LABEL maintainer="Websoft9<help@websoft9.com>" \
       org.opencontainers.image.title="AppOS" \
-    org.opencontainers.image.description="All-in-One container: Web app + PocketBase Framework (AppOS) + Redis + VictoriaMetrics" \
+      org.opencontainers.image.description="All-in-One container: pre-built AppOS + Redis + VictoriaMetrics + Traefik" \
       org.opencontainers.image.vendor="Websoft9" \
       org.opencontainers.image.url="https://www.websoft9.com" \
       org.opencontainers.image.source="https://github.com/websoft9/websoft9"
 
 # Install runtime dependencies.
-RUN apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        redis-server \
-        openssl \
-        ca-certificates \
-        tzdata \
-        bash \
-        curl \
-        python3 \
-        python3-socks \
-        python3-venv \
-        nginx \
-    && python3 -m venv --system-site-packages /opt/supervisor \
-    && /opt/supervisor/bin/pip install --no-cache-dir supervisor==${SUPERVISOR_VERSION} \
-    && ln -sf /opt/supervisor/bin/supervisord /usr/local/bin/supervisord \
-    && ln -sf /opt/supervisor/bin/supervisorctl /usr/local/bin/supervisorctl \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache \
+		bash \
+		ca-certificates \
+		curl \
+		openssl \
+		redis \
+		runit \
+		tzdata
 
-# Copy Node.js 24 from node-provider
-COPY --from=node-provider /usr/local/bin/node /usr/local/bin/node
-COPY --from=node-provider /usr/local/lib/node_modules /usr/local/lib/node_modules
-RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
-    && ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+# Download external binaries from GitHub releases (bypasses registry mirrors).
+RUN set -eux; \
+        arch="$TARGETARCH"; \
+        case "$arch" in \
+                amd64|arm64) ;; \
+                *) echo "unsupported TARGETARCH: $arch" >&2; exit 1 ;; \
+        esac; \
+        curl -fsSL --retry 3 --retry-delay 5 --connect-timeout 30 --max-time 600 \
+            "https://github.com/VictoriaMetrics/VictoriaMetrics/releases/download/${VICTORIAMETRICS_VERSION}/victoria-metrics-linux-${arch}-${VICTORIAMETRICS_VERSION}.tar.gz" \
+            | tar xz -C /tmp; \
+        mv /tmp/victoria-metrics-prod /usr/local/bin/victoria-metrics-prod; \
+        curl -fsSL --retry 3 --retry-delay 5 --connect-timeout 30 --max-time 600 \
+            "https://github.com/traefik/traefik/releases/download/${TRAEFIK_VERSION}/traefik_${TRAEFIK_VERSION}_linux_${arch}.tar.gz" \
+            | tar xz -C /tmp; \
+        mv /tmp/traefik /usr/local/bin/traefik; \
+        chmod 755 /usr/local/bin/victoria-metrics-prod /usr/local/bin/traefik
 
 # Copy build artifacts
-COPY --from=web-builder /build/dist /usr/share/nginx/html/web
-COPY --from=backend-builder /build/appos /usr/local/bin/appos
+COPY backend/appos /usr/local/bin/appos
+COPY web/dist /appos/web
 COPY templates/apps /appos/data/templates/apps
-COPY --from=victoriametrics-bin /victoria-metrics-prod /usr/local/bin/victoria-metrics-prod
 
-# Create data directories
-RUN mkdir -p \
-    /appos/data/pb/pb_data \
-    /appos/data/pb/pb_migrations \
-    /appos/data/redis \
-    /appos/data/apps \
-    /appos/data/victoriametrics \
-    /appos/data/workflows \
-    /appos/data/templates/apps \
-    /appos/data/templates/workflows \
-    /appos/data/templates/custom \
-    /appos/data/templates/custom/apps \
-    /appos/data/templates/official/apps \
-    /var/log/supervisor \
-    /var/log/nginx \
-    /etc/nginx/conf.d \
-    /run/nginx
-
-# Copy configuration files
-COPY build/supervisord.conf /etc/supervisor/supervisord.conf
-COPY build/nginx.conf /etc/nginx/nginx.conf
+# Copy configuration files and set up runit services
+COPY --chmod=755 build/runit/appos/run /etc/sv/appos/run
+COPY --chmod=755 build/runit/redis/run /etc/sv/redis/run
+COPY --chmod=755 build/runit/victoriametrics/run /etc/sv/victoriametrics/run
+COPY --chmod=755 build/runit/traefik/run /etc/sv/traefik/run
+COPY build/runit/traefik/down /etc/sv/traefik/down
+COPY build/traefik.yml /etc/traefik/traefik.yml
 COPY --chmod=755 build/entrypoint.sh /entrypoint.sh
+
+RUN mkdir -p \
+    /etc/service \
+    /etc/sv \
+    /etc/traefik/dynamic \
+    && ln -s /etc/sv/appos /etc/service/appos \
+    && ln -s /etc/sv/redis /etc/service/redis \
+    && ln -s /etc/sv/victoriametrics /etc/service/victoriametrics \
+    && ln -s /etc/sv/traefik /etc/service/traefik
 
 # Verify critical files
 RUN set -eux; \
     test -x /usr/local/bin/appos || { echo "ERROR: appos binary not found"; exit 1; }; \
     test -x /usr/local/bin/victoria-metrics-prod || { echo "ERROR: victoria-metrics-prod binary not found"; exit 1; }; \
+    test -x /usr/local/bin/traefik || { echo "ERROR: traefik binary not found"; exit 1; }; \
+	command -v runsvdir >/dev/null 2>&1 || { echo "ERROR: runsvdir binary not found"; exit 1; }; \
+	command -v sv >/dev/null 2>&1 || { echo "ERROR: sv binary not found"; exit 1; }; \
+	command -v redis-server >/dev/null 2>&1 || { echo "ERROR: redis-server binary not found"; exit 1; }; \
     test -x /entrypoint.sh || { echo "ERROR: entrypoint.sh not executable"; exit 1; }; \
-    supervisord --version | grep -Fx "${SUPERVISOR_VERSION}" || { echo "ERROR: supervisor version mismatch"; exit 1; }; \
-    nginx -t || { echo "ERROR: nginx config invalid"; exit 1; }
+    traefik version >/dev/null 2>&1 || { echo "ERROR: traefik binary invalid"; exit 1; }
 
 ENV DISABLE_TELEMETRY=1 \
     DO_NOT_TRACK=1
 
-EXPOSE 80
+# Expose ports for Proxy Gateway(Traefik), AppOS Console, Traefik, and SSH Tunnel
+EXPOSE 8081 8443 9000 2222
 
 VOLUME ["/appos/data"]
 
@@ -170,4 +84,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost/api/health || exit 1
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["supervisord", "-n", "-c", "/etc/supervisor/supervisord.conf"]
+CMD ["runsvdir", "-P", "/etc/service"]

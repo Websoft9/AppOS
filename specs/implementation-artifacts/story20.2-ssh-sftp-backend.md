@@ -1,5 +1,7 @@
 # Story 20.2: SSH + SFTP
 
+> Historical note (2026-06-23): Any nginx.conf-specific notes below are archive context from the earlier internal-proxy runtime. Current container runtime uses `runit` and Traefik for publication ingress, not an internal Nginx front layer.
+
 **Epic**: Epic 20 – Servers
 **Status**: Complete | **Priority**: P1 | **Depends on**: Story 20.1, Epic 1, 3, 8, 15
 

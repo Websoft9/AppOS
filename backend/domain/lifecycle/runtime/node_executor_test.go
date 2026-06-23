@@ -300,6 +300,83 @@ func (publishExecutor) DockerClient() (*docker.Client, error) {
 	return docker.New(publishDockerExecutor{}), nil
 }
 
+func TestExecuteNodeRegistersAndRemovesPublicationRouteForLocalTraefik(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldConfigDir := publicationDynamicConfigDir
+	oldServicePath := publicationServicePath
+	oldCommandRunner := runLocalLifecycleCommand
+	publicationDynamicConfigDir = tmpDir
+	publicationServicePath = filepath.Join(tmpDir, "service", "traefik")
+	if err := os.MkdirAll(filepath.Dir(publicationServicePath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(publicationServicePath, []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var commands []string
+	runLocalLifecycleCommand = func(_ context.Context, command string, args ...string) (string, error) {
+		commands = append(commands, strings.TrimSpace(command+" "+strings.Join(args, " ")))
+		joined := strings.Join(args, " ")
+		if strings.Contains(joined, "sv status") {
+			if strings.Contains(joined, publicationServicePath) {
+				if len(commands) > 0 && strings.Contains(commands[len(commands)-2], "sv down") {
+					return "down: traefik: 1s", nil
+				}
+				return "run: traefik: (pid 123) 1s", nil
+			}
+		}
+		return "", nil
+	}
+	defer func() {
+		publicationDynamicConfigDir = oldConfigDir
+		publicationServicePath = oldServicePath
+		runLocalLifecycleCommand = oldCommandRunner
+	}()
+
+	operation := core.NewRecord(core.NewBaseCollection("app_operations"))
+	operation.Set("app", "app-123")
+	operation.Set("operation_type", string(model.OperationTypePublish))
+	operation.Set("spec_json", map[string]any{
+		"exposure_intent": map[string]any{
+			"exposure_type": "domain",
+			"domain":        "demo.local",
+			"target_port":   8080,
+		},
+	})
+
+	if _, err := ExecuteNode(context.Background(), operation, model.NodeDefinition{NodeType: "exposure"}, localExecutor{}, nil, NodeExecutionHooks{}); err != nil {
+		t.Fatalf("register publication route: %v", err)
+	}
+	configPath := filepath.Join(tmpDir, "app-app-123.yml")
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("expected publication config file: %v", err)
+	}
+	if !strings.Contains(string(content), "host.docker.internal:8080") {
+		t.Fatalf("expected host-gateway upstream in config, got %q", string(content))
+	}
+	if !strings.Contains(strings.Join(commands, "\n"), "sv up '") || !strings.Contains(strings.Join(commands, "\n"), publicationServicePath) {
+		t.Fatalf("expected sv up command, got %v", commands)
+	}
+	if _, err := ExecuteNode(context.Background(), operation, model.NodeDefinition{NodeType: "exposure_check"}, localExecutor{}, nil, NodeExecutionHooks{}); err != nil {
+		t.Fatalf("verify publication route: %v", err)
+	}
+
+	operation.Set("operation_type", string(model.OperationTypeUnpublish))
+	if _, err := ExecuteNode(context.Background(), operation, model.NodeDefinition{NodeType: "exposure"}, localExecutor{}, nil, NodeExecutionHooks{}); err != nil {
+		t.Fatalf("remove publication route: %v", err)
+	}
+	if _, err := os.Stat(configPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("expected publication config removal, got err=%v", err)
+	}
+	if !strings.Contains(strings.Join(commands, "\n"), "sv down '") || !strings.Contains(strings.Join(commands, "\n"), publicationServicePath) {
+		t.Fatalf("expected sv down command, got %v", commands)
+	}
+	if _, err := ExecuteNode(context.Background(), operation, model.NodeDefinition{NodeType: "exposure_check"}, localExecutor{}, nil, NodeExecutionHooks{}); err != nil {
+		t.Fatalf("verify publication removal: %v", err)
+	}
+}
+
 func TestExecuteNodeHydratesSourceWorkspaceFromWorkspaceRef(t *testing.T) {
 	tmpDir := t.TempDir()
 	oldBasePath := sourceWorkspaceBasePath

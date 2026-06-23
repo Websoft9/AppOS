@@ -92,12 +92,12 @@ describe('PlatformComponentsPage built-in components presentation', () => {
           items: [
             {
               id: 'c1',
-              name: 'Nginx',
+              name: 'AppOS',
               criticality: 'core',
               runtime_kind: 'service',
-              role: 'reverse proxy',
-              owned_capability: 'web ingress',
-              version: '1.27.0',
+              role: 'control-plane api',
+              owned_capability: 'appos control plane',
+              version: '1.0.0',
               available: true,
               updated_at: '2026-03-20T10:00:00Z',
             },
@@ -138,7 +138,7 @@ describe('PlatformComponentsPage built-in components presentation', () => {
     fireEvent.click(componentsTab)
 
     await waitFor(() => {
-      expect(screen.getByText('Nginx')).toBeInTheDocument()
+      expect(screen.getByText('AppOS')).toBeInTheDocument()
       expect(screen.getByText('Redis')).toBeInTheDocument()
     })
 
@@ -148,10 +148,10 @@ describe('PlatformComponentsPage built-in components presentation', () => {
       )
     ).toBeInTheDocument()
     expect(screen.getAllByText('Service').length).toBeGreaterThan(0)
-    expect(screen.getByText('reverse proxy')).toBeInTheDocument()
-    expect(screen.getByText('Capability: web ingress')).toBeInTheDocument()
+    expect(screen.getByText('control-plane api')).toBeInTheDocument()
+    expect(screen.getByText('Capability: appos control plane')).toBeInTheDocument()
     expect(screen.getByText('cache store')).toBeInTheDocument()
-    expect(screen.getByText('Version 1.27.0')).toBeInTheDocument()
+    expect(screen.getByText('Version 1.0.0')).toBeInTheDocument()
     expect(screen.getByText('Version Checking...')).toBeInTheDocument()
     expect(screen.getAllByText(/^Updated /).length).toBe(2)
 

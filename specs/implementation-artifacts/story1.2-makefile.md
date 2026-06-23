@@ -1,5 +1,7 @@
 # Story 1.2: Makefile Development Workflow
 
+> Historical note (2026-06-23): Commands and examples in this artifact predate the single-image Alpine runtime. Current image flow is `make image build` with one [build/Dockerfile](/data/dev/appos/build/Dockerfile); `build-local`, `Dockerfile.local`, internal Nginx, and supervisord references are obsolete.
+
 **Epic**: Epic 1 - DevOps  
 **Priority**: P2  
 **Status**: Ready for Dev

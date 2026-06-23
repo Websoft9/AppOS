@@ -1,5 +1,7 @@
 # Epic 4: Docker Operations Layer
 
+> Historical note (2026-06-23): Any references in this artifact to `Dockerfile.local`, runtime Node/npm inside the AppOS container, or duplicated image flows are obsolete. The current container build uses the single Alpine-based [build/Dockerfile](/data/dev/appos/build/Dockerfile).
+
 ## Overview
 
 **Docker control-plane API** — AppOS exposes authenticated Docker inventory and action routes for one explicit server scope at a time. All five Docker resource types (compose, images, containers, networks, volumes) remain available, but the API should model server scope directly instead of hiding it behind optional query parameters.

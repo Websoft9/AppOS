@@ -1,5 +1,7 @@
 # Story 2.5: Service Initialization & Connection Testing
 
+> Historical note (2026-06-23): This artifact reflects the retired Convex/supervisord/internal-Nginx boot path. Current container initialization is handled by [build/entrypoint.sh](/data/dev/appos/build/entrypoint.sh) with `runit`, Redis, AppOS, VictoriaMetrics, and optional Traefik.
+
 Status: ready-for-dev
 
 ## Story

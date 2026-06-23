@@ -117,4 +117,5 @@ func Register(se *core.ServeEvent) {
 	registerSecretsRoutes(se)
 	registerCertificatesRoutes(se)
 	registerCronLogsRoute(se)
+	registerConsoleRoutes(se)
 }

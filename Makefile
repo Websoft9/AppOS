@@ -1,6 +1,6 @@
 
 .PHONY: help install tidy build run test test-strict test-fast lint lint-strict lint-fast fmt fmt-strict fmt-fast check check-fast sec sec-strict sec-fast artifact-scan \
-	backend web backend-targeted backend-iac backend-software fast strict build-local latest dev \
+	backend web backend-targeted backend-iac backend-software fast strict latest \
 	image start stop restart logs stats delete rm kill-port redo sync-store tl \
 	openapi-gen openapi-merge openapi-check openapi-sync
 
@@ -45,7 +45,7 @@ help:
 	@echo "  make sync-store           Refresh backend/domain/catalog/seed/*.json from artifact.websoft9.com"
 	@echo "  make run                  Copy artifacts + restart services (~10s)"
 	@echo "  make run 9092             Copy artifacts + restart on custom port"
-	@echo "  make redo                 Full rebuild: build + image, then replace container/volumes + start dev"
+	@echo "  make redo                 Full rebuild: build + image, then replace container/volumes + start latest"
 	@echo ""
 	@printf "\033[36mTesting & Quality:\033[0m\n"
 	@echo "  make test                 Run strict tests (Go + JS + E2E smoke, stop early)"
@@ -78,12 +78,10 @@ help:
 	@echo "  make artifact-scan        Generate SBOM and scan the built image (syft + trivy)"
 	@echo ""
 	@printf "\033[36mBuild Image:\033[0m\n"
-	@echo "  make image build          Build production image (multi-stage Dockerfile)"
-	@echo "  make image build-local    Build dev image (Dockerfile.local, pre-built artifacts)"
+	@echo "  make image build          Build the AppOS image from pre-built host artifacts"
 	@echo ""
 	@printf "\033[36mContainer Management:\033[0m\n"
-	@echo "  make start                Start container (interactive: choose image & port)"
-	@echo "  make start dev            Start with dev image (skip interactive)"
+	@echo "  make start                Start container (interactive port prompt when attached to a TTY)"
 	@echo "  make start latest         Start with latest image (skip interactive)"
 	@echo "  make stop                 Stop container"
 	@echo "  make restart              Restart container"
@@ -246,25 +244,23 @@ endif
 redo:
 	@echo "Full rebuild: building artifacts and image before replacing container + volumes..."
 	@$(MAKE) build
-	@$(MAKE) image build-local
+	@$(MAKE) image build
 	@docker rm -f $$(docker ps -aq --filter name=$(CONTAINER)) 2>/dev/null || true
 	@$(COMPOSE_CMD) down --timeout 5 -v 2>/dev/null || true
 	@echo "✓ Previous container and volumes removed after successful build"
-	@$(MAKE) start dev
+	@$(MAKE) start latest
 	@sleep 3
-	@docker exec $(CONTAINER) supervisorctl -c /etc/supervisor/supervisord.conf restart appos 2>/dev/null || true
+	@docker exec $(CONTAINER) sv restart /etc/service/appos >/dev/null
 	@sleep 2
 	@echo "✓ Services restarted (migrations applied)"
 
 run:
+	@docker inspect $(CONTAINER) >/dev/null 2>&1 || { echo "AppOS container not running. Starting latest image first..."; $(MAKE) start latest; }
 	@echo "Hot reload: copying pre-built artifacts..."
 	@docker cp backend/appos $(CONTAINER):/usr/local/bin/appos
-	@docker cp web/dist/. $(CONTAINER):/usr/share/nginx/html/web/
+	@docker cp web/dist/. $(CONTAINER):/appos/web/
 	@docker cp templates/apps/. $(CONTAINER):/appos/data/templates/apps/
-	@docker cp build/supervisord.conf $(CONTAINER):/etc/supervisor/supervisord.conf
-	@docker cp build/nginx.conf $(CONTAINER):/etc/nginx/nginx.conf
-	@docker exec $(CONTAINER) nginx -t
-	@docker exec $(CONTAINER) supervisorctl -c /etc/supervisor/supervisord.conf restart appos nginx
+	@docker exec $(CONTAINER) sh -lc 'if [ -e /etc/service/appos ] && command -v sv >/dev/null 2>&1; then sv restart /etc/service/appos; elif command -v supervisorctl >/dev/null 2>&1 && [ -f /etc/supervisor/supervisord.conf ]; then supervisorctl -c /etc/supervisor/supervisord.conf restart appos; else exit 42; fi' >/dev/null || { status=$$?; if [ "$$status" = "42" ]; then docker restart $(CONTAINER) >/dev/null; else exit $$status; fi; }
 	@echo "✓ Hot reload complete"
 	@echo "  → http://127.0.0.1:$(PORT_EFFECTIVE)/"
 
@@ -928,53 +924,51 @@ artifact-scan:
 image:
 ifeq ($(ARG2),build)
   ifeq ($(ARG3),)
-	@echo "Building production image (multi-stage)..."
-	docker build -f build/Dockerfile -t websoft9dev/appos:latest .
+	@echo "Building AppOS image (Alpine runtime, pre-built artifacts)..."
+	@test -f backend/appos || { echo "Error: backend/appos not found. Run 'make build backend' first."; exit 1; }
+	@test -d web/dist || { echo "Error: web/dist/ not found. Run 'make build web' first."; exit 1; }
+	@docker_args=""; \
+	if [ -t 0 ]; then \
+		printf "Use build proxy? [y/N] "; \
+		read use_proxy; \
+		case "$$use_proxy" in \
+			y|Y) \
+				default_proxy="socks5://172.17.0.1:1089"; \
+				default_no_proxy="$${no_proxy:-$${NO_PROXY:-}}"; \
+				printf "Proxy URL [$$default_proxy]: "; \
+				read proxy_url; \
+				proxy_url=$${proxy_url:-$$default_proxy}; \
+				if [ -n "$$proxy_url" ]; then \
+					docker_args="$$docker_args --build-arg ALL_PROXY=$$proxy_url --build-arg all_proxy=$$proxy_url"; \
+					docker_args="$$docker_args --build-arg HTTP_PROXY=$$proxy_url --build-arg http_proxy=$$proxy_url"; \
+					docker_args="$$docker_args --build-arg HTTPS_PROXY=$$proxy_url --build-arg https_proxy=$$proxy_url"; \
+					if [ -n "$$default_no_proxy" ]; then \
+						docker_args="$$docker_args --build-arg NO_PROXY=$$default_no_proxy --build-arg no_proxy=$$default_no_proxy"; \
+					fi; \
+				fi; \
+				;; \
+			esac; \
+	fi; \
+	docker build $$docker_args -f build/Dockerfile -t websoft9dev/appos:latest .
 	@echo "✓ Image built: websoft9dev/appos:latest"
 	@docker images websoft9dev/appos:latest --format "  Size: {{.Size}}"
   else
 	@echo "Unknown image subcommand: $(ARG3)"
-	@echo "Usage: make image build | make image build-local"
+	@echo "Usage: make image build"
   endif
-else ifeq ($(ARG2),build-local)
-	@echo "Building dev image (pre-built artifacts)..."
-	@# Verify artifacts exist
-	@test -f backend/appos || { echo "Error: backend/appos not found. Run 'make build backend' first."; exit 1; }
-	@test -d web/dist || { echo "Error: web/dist/ not found. Run 'make build web' first."; exit 1; }
-	@# Pass host proxy into build (replace 127.0.0.1 with host-gateway for container access)
-	$(eval HOST_PROXY := $(shell \
-		P=$${all_proxy:-$${ALL_PROXY:-$${http_proxy:-$${HTTP_PROXY:-}}}}; \
-		if [ -n "$$P" ]; then \
-			echo "$$(echo $$P | sed 's/127\.0\.0\.1/host-gateway/g;s/localhost/host-gateway/g')"; \
-		fi))
-	$(eval PROXY_ARGS := $(if $(HOST_PROXY),--add-host=host-gateway:host-gateway --build-arg ALL_PROXY=$(HOST_PROXY),))
-	docker build $(PROXY_ARGS) -f build/Dockerfile.local -t websoft9dev/appos:dev .
-	@echo "✓ Dev image built: websoft9dev/appos:dev"
-	@docker images websoft9dev/appos:dev --format "  Size: {{.Size}}"
 else
-	@echo "Usage: make image build | make image build-local"
+	@echo "Usage: make image build"
 endif
 
 # ============================================================
 # Container Management
 # ============================================================
 start:
-	@if [ "$(ARG2)" = "dev" ] || [ "$(ARG2)" = "latest" ]; then \
-		IMAGE_TAG=$(ARG2); \
+	@if [ "$(ARG2)" = "latest" ]; then \
+		IMAGE_TAG=latest; \
 		PORT=9091; \
 	elif [ -t 0 ]; then \
-		echo ""; \
-		printf "\033[1mSelect image to start:\033[0m\n"; \
-		echo "  1) websoft9/appos:latest  (Production build)"; \
-		echo "  2) websoft9/appos:dev     (Development build)"; \
-		printf "\nChoice [1]: "; \
-		read choice; \
-		choice=$${choice:-1}; \
-		if [ "$$choice" = "2" ]; then \
-			IMAGE_TAG=dev; \
-		else \
-			IMAGE_TAG=latest; \
-		fi; \
+		IMAGE_TAG=latest; \
 		printf "\nPort [9091]: "; \
 		read port; \
 		PORT=$${port:-9091}; \
@@ -1016,10 +1010,10 @@ logs:
 stats:
 	@echo "Services status inside container:"
 	@echo ""
-	@if docker exec $(CONTAINER) supervisorctl -c /etc/supervisor/supervisord.conf status 2>&1 | grep -q "RUNNING\|STOPPED\|FATAL\|STARTING\|BACKOFF\|EXITED"; then \
-		docker exec $(CONTAINER) supervisorctl -c /etc/supervisor/supervisord.conf status 2>/dev/null || true; \
+	@if docker inspect $(CONTAINER) >/dev/null 2>&1; then \
+		docker exec $(CONTAINER) sh -lc 'sv status /etc/service/*' 2>/dev/null || true; \
 	else \
-		echo "✗ Error: Container '$(CONTAINER)' not running or supervisord not available"; \
+		echo "✗ Error: Container '$(CONTAINER)' not running"; \
 		exit 1; \
 	fi
 	@echo ""
@@ -1062,7 +1056,7 @@ endif
 		echo "Error: fuser or lsof required"; exit 1; \
 	fi
 
-backend web backend-targeted backend-iac backend-software fast strict build-local latest dev:
+backend web backend-targeted backend-iac backend-software fast strict latest:
 	@:
 
 # Swallow positional args (e.g., make start 9092, make build backend)

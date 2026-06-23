@@ -310,7 +310,15 @@ function BundledComponentsDetailContent({
         {components.map(component => (
           <TableRow key={component.id} className="border-b-0 hover:bg-transparent">
             <TableCell className="font-medium text-foreground">
-              {component.name || component.id}
+              <div>
+                <div>{component.name || component.id}</div>
+                {component.role ? (
+                  <div className="text-xs font-normal text-muted-foreground">{component.role}</div>
+                ) : null}
+                {component.notes ? (
+                  <div className="text-xs font-normal text-muted-foreground">{component.notes}</div>
+                ) : null}
+              </div>
             </TableCell>
             <TableCell className="text-muted-foreground">
               {formatComponentVersion(component.version, component.probe_pending)}

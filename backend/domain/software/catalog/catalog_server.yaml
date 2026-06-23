@@ -53,14 +53,14 @@ components:
   # Traffic edge
   - component_key: reverse-proxy
     target_type: server
-    label: Nginx
+    label: Traefik
     capability: reverse_proxy
     artifact_kind: package
     template_ref: package-systemd
-    binary: nginx
-    service_name: nginx.service
-    package_name: nginx
-    description: Managed reverse proxy service for connected servers.
+    binary: traefik
+    service_name: traefik.service
+    package_name: traefik
+    description: Managed publication gateway service for connected servers.
     readiness_requirements:
       - verified_os_baseline
       - root_privilege

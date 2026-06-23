@@ -10,6 +10,7 @@ export type ComponentItem = {
   criticality: string
   runtime_kind: string
   role: string
+  notes: string
   owned_capability: string
   version: string
   available: boolean
@@ -169,6 +170,7 @@ function coerceComponentItem(input: unknown): ComponentItem {
     criticality: readString(value.criticality),
     runtime_kind: readString(value.runtime_kind),
     role: readString(value.role),
+    notes: readString(value.notes),
     owned_capability: readString(value.owned_capability),
     version: readString(value.version),
     available: readBoolean(value.available),

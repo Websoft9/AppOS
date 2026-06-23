@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +19,7 @@ import (
 	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 	"github.com/websoft9/appos/backend/domain/deploy"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
+	"github.com/websoft9/appos/backend/domain/terminal"
 	"github.com/websoft9/appos/backend/infra/docker"
 	"github.com/websoft9/appos/backend/infra/fileutil"
 	"gopkg.in/yaml.v3"
@@ -27,6 +30,21 @@ var sourceWorkspaceAllowedRoots = []string{"apps", "templates", "workflows"}
 var runtimePullIdleHeartbeatInterval = 20 * time.Second
 var runtimeImagePullTimeout = 3 * time.Minute
 var runtimeMirrorRetryCount = 2
+var publicationDynamicConfigDir = "/etc/traefik/dynamic"
+var publicationServicePath = "/etc/service/traefik"
+var publicationManagedConfigPattern = "app-*.yml"
+var runLocalLifecycleCommand = func(ctx context.Context, command string, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, command, args...)
+	output, err := cmd.CombinedOutput()
+	text := strings.TrimSpace(string(output))
+	if err != nil {
+		if text == "" {
+			return "", err
+		}
+		return text, fmt.Errorf("%w: %s", err, text)
+	}
+	return text, nil
+}
 
 func runtimeExecutorApp(executor Executor) core.App {
 	type appAwareExecutor interface {
@@ -433,10 +451,436 @@ func ExecuteNode(
 		}
 		logf("health check passed")
 		return result, nil
+	case "exposure":
+		switch normalizeOperationType(operation) {
+		case string(model.OperationTypePublish):
+			if err := registerPublicationRoute(ctx, operation, executor, logf); err != nil {
+				return result, err
+			}
+			return result, nil
+		case string(model.OperationTypeUnpublish):
+			if err := removePublicationRoute(ctx, operation, executor, logf); err != nil {
+				return result, err
+			}
+			return result, nil
+		default:
+			return result, fmt.Errorf("unsupported exposure operation type %q", normalizeOperationType(operation))
+		}
+	case "exposure_check":
+		switch normalizeOperationType(operation) {
+		case string(model.OperationTypePublish):
+			if err := verifyPublicationRoutePresent(ctx, operation, executor); err != nil {
+				return result, err
+			}
+			logf("publication route verified")
+			return result, nil
+		case string(model.OperationTypeUnpublish):
+			if err := verifyPublicationRouteRemoved(ctx, operation, executor); err != nil {
+				return result, err
+			}
+			logf("publication removal verified")
+			return result, nil
+		default:
+			return result, fmt.Errorf("unsupported exposure check operation type %q", normalizeOperationType(operation))
+		}
 	default:
 		logf("skipped unsupported node type: " + node.NodeType)
 		return result, nil
 	}
+}
+
+type publicationExposureIntent struct {
+	ExposureType string
+	Domain       string
+	Path         string
+	TargetPort   int
+}
+
+type publicationTraefikConfig struct {
+	HTTP publicationTraefikHTTP `yaml:"http"`
+}
+
+type publicationTraefikHTTP struct {
+	Routers  map[string]publicationTraefikRouter  `yaml:"routers"`
+	Services map[string]publicationTraefikService `yaml:"services"`
+}
+
+type publicationTraefikRouter struct {
+	EntryPoints []string               `yaml:"entryPoints"`
+	Rule        string                 `yaml:"rule"`
+	Service     string                 `yaml:"service"`
+	TLS         map[string]interface{} `yaml:"tls,omitempty"`
+}
+
+type publicationTraefikService struct {
+	LoadBalancer publicationTraefikLoadBalancer `yaml:"loadBalancer"`
+}
+
+type publicationTraefikLoadBalancer struct {
+	PassHostHeader bool                             `yaml:"passHostHeader"`
+	Servers        []publicationTraefikBackendHost `yaml:"servers"`
+}
+
+type publicationTraefikBackendHost struct {
+	URL string `yaml:"url"`
+}
+
+func registerPublicationRoute(ctx context.Context, operation *core.Record, executor Executor, logf func(string)) error {
+	configPath, content, err := renderPublicationRouteConfig(operation)
+	if err != nil {
+		return err
+	}
+	if err := writePublicationConfig(ctx, executor, configPath, content); err != nil {
+		return err
+	}
+	if logf != nil {
+		logf("publication route written: " + configPath)
+	}
+	return setPublicationTraefikActive(ctx, executor, true)
+}
+
+func removePublicationRoute(ctx context.Context, operation *core.Record, executor Executor, logf func(string)) error {
+	configPath := publicationConfigPath(operation)
+	if err := removePublicationConfig(ctx, executor, configPath); err != nil {
+		return err
+	}
+	if logf != nil {
+		logf("publication route removed: " + configPath)
+	}
+	remaining, err := countPublicationConfigs(ctx, executor)
+	if err != nil {
+		return err
+	}
+	if remaining == 0 {
+		return setPublicationTraefikActive(ctx, executor, false)
+	}
+	return nil
+}
+
+func verifyPublicationRoutePresent(ctx context.Context, operation *core.Record, executor Executor) error {
+	configPath := publicationConfigPath(operation)
+	exists, err := publicationConfigExists(ctx, executor, configPath)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("publication route %s is missing", configPath)
+	}
+	return verifyPublicationTraefikState(ctx, executor, true)
+}
+
+func verifyPublicationRouteRemoved(ctx context.Context, operation *core.Record, executor Executor) error {
+	configPath := publicationConfigPath(operation)
+	exists, err := publicationConfigExists(ctx, executor, configPath)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return fmt.Errorf("publication route %s is still present", configPath)
+	}
+	remaining, err := countPublicationConfigs(ctx, executor)
+	if err != nil {
+		return err
+	}
+	if remaining == 0 {
+		return verifyPublicationTraefikState(ctx, executor, false)
+	}
+	return nil
+}
+
+func renderPublicationRouteConfig(operation *core.Record) (string, string, error) {
+	intent, err := publicationIntentFromOperation(operation)
+	if err != nil {
+		return "", "", err
+	}
+	rule, err := publicationTraefikRule(intent)
+	if err != nil {
+		return "", "", err
+	}
+	serviceName := publicationRouteBaseName(operation)
+	config := publicationTraefikConfig{
+		HTTP: publicationTraefikHTTP{
+			Routers: map[string]publicationTraefikRouter{
+				serviceName + "-web": {
+					EntryPoints: []string{"web"},
+					Rule:        rule,
+					Service:     serviceName,
+				},
+				serviceName + "-websecure": {
+					EntryPoints: []string{"websecure"},
+					Rule:        rule,
+					Service:     serviceName,
+					TLS:         map[string]interface{}{},
+				},
+			},
+			Services: map[string]publicationTraefikService{
+				serviceName: {
+					LoadBalancer: publicationTraefikLoadBalancer{
+						PassHostHeader: true,
+						Servers: []publicationTraefikBackendHost{{
+							URL: fmt.Sprintf("http://host.docker.internal:%d", intent.TargetPort),
+						}},
+					},
+				},
+			},
+		},
+	}
+	content, err := yaml.Marshal(config)
+	if err != nil {
+		return "", "", err
+	}
+	return publicationConfigPath(operation), string(content), nil
+}
+
+func publicationIntentFromOperation(operation *core.Record) (publicationExposureIntent, error) {
+	spec, ok := operationSpecMap(operation)
+	if !ok {
+		return publicationExposureIntent{}, fmt.Errorf("operation spec_json is invalid")
+	}
+	raw := spec["exposure_intent"]
+	encoded, err := json.Marshal(raw)
+	if err != nil {
+		return publicationExposureIntent{}, fmt.Errorf("encode exposure_intent: %w", err)
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal(encoded, &parsed); err != nil {
+		return publicationExposureIntent{}, fmt.Errorf("decode exposure_intent: %w", err)
+	}
+	intent := publicationExposureIntent{
+		ExposureType: strings.TrimSpace(fmt.Sprint(parsed["exposure_type"])),
+		Domain:       strings.TrimSpace(fmt.Sprint(parsed["domain"])),
+		Path:         strings.TrimSpace(fmt.Sprint(parsed["path"])),
+		TargetPort:   mapIntValue(parsed["target_port"]),
+	}
+	if intent.ExposureType == "" {
+		return publicationExposureIntent{}, fmt.Errorf("exposure_intent.exposure_type is required")
+	}
+	if intent.TargetPort <= 0 {
+		return publicationExposureIntent{}, fmt.Errorf("exposure_intent.target_port is required")
+	}
+	return intent, nil
+}
+
+func publicationTraefikRule(intent publicationExposureIntent) (string, error) {
+	path := normalizePublicationPath(intent.Path)
+	parts := make([]string, 0, 2)
+	switch intent.ExposureType {
+	case "domain":
+		if intent.Domain == "" {
+			return "", fmt.Errorf("domain exposure requires domain")
+		}
+		parts = append(parts, fmt.Sprintf("Host(`%s`)", intent.Domain))
+		if path != "" {
+			parts = append(parts, fmt.Sprintf("PathPrefix(`%s`)", path))
+		}
+	case "path":
+		if path == "" {
+			return "", fmt.Errorf("path exposure requires path")
+		}
+		if intent.Domain != "" {
+			parts = append(parts, fmt.Sprintf("Host(`%s`)", intent.Domain))
+		}
+		parts = append(parts, fmt.Sprintf("PathPrefix(`%s`)", path))
+	default:
+		return "", fmt.Errorf("unsupported exposure_type %q for Traefik publication", intent.ExposureType)
+	}
+	return strings.Join(parts, " && "), nil
+}
+
+func normalizePublicationPath(path string) string {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return ""
+	}
+	if !strings.HasPrefix(trimmed, "/") {
+		trimmed = "/" + trimmed
+	}
+	return trimmed
+}
+
+func publicationConfigPath(operation *core.Record) string {
+	return filepath.Join(publicationDynamicConfigDir, publicationRouteBaseName(operation)+".yml")
+}
+
+func publicationRouteBaseName(operation *core.Record) string {
+	if operation == nil {
+		return "app-unknown"
+	}
+	primary := strings.TrimSpace(operation.GetString("app"))
+	if primary == "" {
+		primary = strings.TrimSpace(operation.GetString("compose_project_name"))
+	}
+	if primary == "" {
+		primary = strings.TrimSpace(operation.Id)
+	}
+	primary = strings.ToLower(primary)
+	var builder strings.Builder
+	lastDash := false
+	for _, ch := range primary {
+		valid := (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')
+		if valid {
+			builder.WriteRune(ch)
+			lastDash = false
+			continue
+		}
+		if !lastDash {
+			builder.WriteByte('-')
+			lastDash = true
+		}
+	}
+	name := strings.Trim(builder.String(), "-")
+	if name == "" {
+		name = "unknown"
+	}
+	return "app-" + name
+}
+
+func writePublicationConfig(ctx context.Context, executor Executor, configPath string, content string) error {
+	if executor.Name() == "local" {
+		if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+			return err
+		}
+		return os.WriteFile(configPath, []byte(content), 0o644)
+	}
+	sshExec, ok := executor.(sshExecutor)
+	if !ok {
+		return fmt.Errorf("executor %q does not support publication config writes", executor.Name())
+	}
+	cfg, err := sshExec.resolver()(sshExec.app, sshExec.serverID)
+	if err != nil {
+		return err
+	}
+	client, err := sshExec.factory()(ctx, terminalConfigFromServerAccess(cfg))
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+	if err := client.MkdirAll(filepath.Dir(configPath)); err != nil {
+		return err
+	}
+	return client.WriteFile(configPath, content)
+}
+
+func removePublicationConfig(ctx context.Context, executor Executor, configPath string) error {
+	if executor.Name() == "local" {
+		if err := os.Remove(configPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		return nil
+	}
+	sshExec, ok := executor.(sshExecutor)
+	if !ok {
+		return fmt.Errorf("executor %q does not support publication config removal", executor.Name())
+	}
+	return runRemotePublicationCommand(ctx, sshExec, "rm -f "+terminal.ShellQuote(configPath))
+}
+
+func publicationConfigExists(ctx context.Context, executor Executor, configPath string) (bool, error) {
+	if executor.Name() == "local" {
+		_, err := os.Stat(configPath)
+		if err == nil {
+			return true, nil
+		}
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+	sshExec, ok := executor.(sshExecutor)
+	if !ok {
+		return false, fmt.Errorf("executor %q does not support publication checks", executor.Name())
+	}
+	output, err := runRemotePublicationCommandOutput(ctx, sshExec, "if [ -f "+terminal.ShellQuote(configPath)+" ]; then echo yes; else echo no; fi")
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(output) == "yes", nil
+}
+
+func countPublicationConfigs(ctx context.Context, executor Executor) (int, error) {
+	if executor.Name() == "local" {
+		matches, err := filepath.Glob(filepath.Join(publicationDynamicConfigDir, publicationManagedConfigPattern))
+		if err != nil {
+			return 0, err
+		}
+		return len(matches), nil
+	}
+	sshExec, ok := executor.(sshExecutor)
+	if !ok {
+		return 0, fmt.Errorf("executor %q does not support publication route counting", executor.Name())
+	}
+	output, err := runRemotePublicationCommandOutput(ctx, sshExec, "find "+terminal.ShellQuote(publicationDynamicConfigDir)+" -maxdepth 1 -type f -name "+terminal.ShellQuote(publicationManagedConfigPattern)+" | wc -l")
+	if err != nil {
+		return 0, err
+	}
+	count, err := strconv.Atoi(strings.TrimSpace(output))
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func setPublicationTraefikActive(ctx context.Context, executor Executor, active bool) error {
+	command := "down"
+	if active {
+		command = "up"
+	}
+	shellCommand := fmt.Sprintf("if [ ! -e %s ]; then echo 'traefik service path missing' >&2; exit 1; fi; sv %s %s", terminal.ShellQuote(publicationServicePath), command, terminal.ShellQuote(publicationServicePath))
+	if executor.Name() == "local" {
+		_, err := runLocalLifecycleCommand(ctx, "sh", "-lc", shellCommand)
+		return err
+	}
+	sshExec, ok := executor.(sshExecutor)
+	if !ok {
+		return fmt.Errorf("executor %q does not support Traefik service control", executor.Name())
+	}
+	return runRemotePublicationCommand(ctx, sshExec, shellCommand)
+}
+
+func verifyPublicationTraefikState(ctx context.Context, executor Executor, active bool) error {
+	expected := "run"
+	if !active {
+		expected = "down"
+	}
+	command := "if [ ! -e " + terminal.ShellQuote(publicationServicePath) + " ]; then echo missing; else sv status " + terminal.ShellQuote(publicationServicePath) + "; fi"
+	var output string
+	var err error
+	if executor.Name() == "local" {
+		output, err = runLocalLifecycleCommand(ctx, "sh", "-lc", command)
+	} else {
+		sshExec, ok := executor.(sshExecutor)
+		if !ok {
+			return fmt.Errorf("executor %q does not support Traefik state checks", executor.Name())
+		}
+		output, err = runRemotePublicationCommandOutput(ctx, sshExec, command)
+	}
+	if err != nil {
+		return err
+	}
+	if !strings.Contains(strings.ToLower(output), expected) {
+		return fmt.Errorf("unexpected Traefik service status %q, expected %s", output, expected)
+	}
+	return nil
+}
+
+func runRemotePublicationCommand(ctx context.Context, executor sshExecutor, command string) error {
+	_, err := runRemotePublicationCommandOutput(ctx, executor, command)
+	return err
+}
+
+func runRemotePublicationCommandOutput(ctx context.Context, executor sshExecutor, command string) (string, error) {
+	cfg, err := executor.resolver()(executor.app, executor.serverID)
+	if err != nil {
+		return "", err
+	}
+	return terminal.ExecuteSSHCommand(ctx, terminalConfigFromServerAccess(cfg), command, 20*time.Second)
+}
+
+func normalizeOperationType(operation *core.Record) string {
+	if operation == nil {
+		return ""
+	}
+	return strings.TrimSpace(operation.GetString("operation_type"))
 }
 
 func scanStreamLinesAndCarriageReturns(data []byte, atEOF bool) (advance int, token []byte, err error) {
@@ -728,6 +1172,25 @@ func stringMapValue(values map[string]any, key string) string {
 		return ""
 	}
 	return strings.TrimSpace(stringValue)
+}
+
+func mapIntValue(value any) int {
+	switch typed := value.(type) {
+	case int:
+		return typed
+	case int64:
+		return int(typed)
+	case float64:
+		return int(typed)
+	case string:
+		parsed, err := strconv.Atoi(strings.TrimSpace(typed))
+		if err != nil {
+			return 0
+		}
+		return parsed
+	default:
+		return 0
+	}
 }
 
 func placeholderArtifactDigest(imageName, imageTag string) string {

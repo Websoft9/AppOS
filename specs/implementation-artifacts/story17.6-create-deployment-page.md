@@ -169,7 +169,6 @@ GPT-5.4
 - `dashboard/src/pages/deploy/DeployPage.test.tsx`
 - `dashboard/src/pages/deploy/CreateDeploymentPage.test.tsx`
 - `dashboard/src/routeTree.gen.ts`
-- `build/nginx.conf`
 - `backend/domain/routes/deploy.go`
 - `backend/domain/routes/deploy_test.go`
 - `backend/domain/routes/settings.go`

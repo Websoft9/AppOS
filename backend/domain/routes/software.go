@@ -296,6 +296,7 @@ type softwareComponentListItem struct {
 	Criticality     string                               `json:"criticality,omitempty"`
 	RuntimeKind     string                               `json:"runtime_kind,omitempty"`
 	Role            string                               `json:"role,omitempty"`
+	Notes           string                               `json:"notes,omitempty"`
 	OwnedCapability string                               `json:"owned_capability,omitempty"`
 	Version         string                               `json:"version,omitempty"`
 	Available       bool                                 `json:"available"`
@@ -315,6 +316,7 @@ type softwareComponentDetailResponse struct {
 	Criticality      string                      `json:"criticality,omitempty"`
 	RuntimeKind      string                      `json:"runtime_kind,omitempty"`
 	Role             string                      `json:"role,omitempty"`
+	Notes            string                      `json:"notes,omitempty"`
 	OwnedCapability  string                      `json:"owned_capability,omitempty"`
 	Version          string                      `json:"version,omitempty"`
 	Available        bool                        `json:"available"`
@@ -330,6 +332,7 @@ type localRuntimeComponentMetadata struct {
 	Criticality     string
 	RuntimeKind     string
 	Role            string
+	Notes           string
 	OwnedCapability string
 	Available       bool
 	ProbePending    bool
@@ -486,6 +489,7 @@ func loadLocalRuntimeComponentItems(app core.App) ([]softwareComponentListItem, 
 			Criticality:     component.Criticality,
 			RuntimeKind:     component.RuntimeKind,
 			Role:            component.Role,
+			Notes:           component.Notes,
 			OwnedCapability: component.OwnedCapability,
 			Version:         probeState.Version,
 			Available:       probeState.Available,
@@ -558,6 +562,7 @@ func handleLocalSoftwareComponentGet(e *core.RequestEvent) error {
 		Criticality:             runtime.Criticality,
 		RuntimeKind:             runtime.RuntimeKind,
 		Role:                    runtime.Role,
+		Notes:                   runtime.Notes,
 		OwnedCapability:         runtime.OwnedCapability,
 		Version:                 item.Detail.DetectedVersion,
 		Available:               runtime.Available,
@@ -590,6 +595,7 @@ func loadLocalRuntimeComponentMetadata(app core.App) (map[software.ComponentKey]
 			Criticality:     component.Criticality,
 			RuntimeKind:     component.RuntimeKind,
 			Role:            component.Role,
+			Notes:           component.Notes,
 			OwnedCapability: component.OwnedCapability,
 			Available:       probeState.Available,
 			ProbePending:    probeState.ProbePending,

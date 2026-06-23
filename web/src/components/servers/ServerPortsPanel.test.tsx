@@ -34,7 +34,7 @@ describe('ServerPortsPanel', () => {
                 protocol: 'tcp',
                 occupancy: {
                   occupied: true,
-                  process: { name: 'nginx', pid: 101 },
+                  process: { name: 'traefik', pid: 101 },
                   pids: [101, 102],
                   listeners: [
                     {
@@ -42,7 +42,7 @@ describe('ServerPortsPanel', () => {
                       local_address: '0.0.0.0:8080',
                       peer_address: '*:*',
                       raw: 'tcp LISTEN 0 128 0.0.0.0:8080 *:*',
-                      process: { name: 'nginx', pid: 101 },
+                      process: { name: 'traefik', pid: 101 },
                       pids: [101, 102],
                     },
                   ],
@@ -195,7 +195,7 @@ describe('ServerPortsPanel', () => {
               port: 8080,
               occupancy: {
                 occupied: true,
-                process: { name: 'nginx', pid: 101 },
+                process: { name: 'traefik', pid: 101 },
                 pids: [101, 102],
                 listeners: [
                   {
@@ -203,7 +203,7 @@ describe('ServerPortsPanel', () => {
                     local_address: '0.0.0.0:8080',
                     peer_address: '*:*',
                     raw: 'tcp LISTEN 0 128 0.0.0.0:8080 *:*',
-                    process: { name: 'nginx', pid: 101 },
+                    process: { name: 'traefik', pid: 101 },
                     pids: [101, 102],
                   },
                 ],
@@ -316,7 +316,7 @@ describe('ServerPortsPanel', () => {
     expect(within(inventory).getByRole('button', { name: /^53\/UDP$/ })).toBeInTheDocument()
     expect(within(inventory).getAllByText('TCP').length).toBeGreaterThan(0)
     expect(within(inventory).getAllByText('UDP').length).toBeGreaterThan(0)
-    expect(within(inventory).getByText('nginx')).toBeInTheDocument()
+    expect(within(inventory).getByText('traefik')).toBeInTheDocument()
     expect(within(inventory).getByText('101, 102')).toBeInTheDocument()
     expect(
       within(inventory).getByRole('button', { name: /Port actions for 8080\/TCP/i })
@@ -337,7 +337,7 @@ describe('ServerPortsPanel', () => {
     expect(within(inventory).getByRole('button', { name: /^53\/UDP$/ })).toBeInTheDocument()
 
     fireEvent.change(within(inventory).getByPlaceholderText('Search'), {
-      target: { value: 'nginx' },
+      target: { value: 'traefik' },
     })
 
     await waitFor(() => {
@@ -363,7 +363,7 @@ describe('ServerPortsPanel', () => {
     expect(within(detailSection).getByText('Status:')).toBeInTheDocument()
     expect(within(detailSection).getAllByText('Occupied').length).toBeGreaterThan(0)
     expect(within(detailSection).getByText('Process:')).toBeInTheDocument()
-    expect(within(detailSection).getByText('nginx')).toBeInTheDocument()
+    expect(within(detailSection).getByText('traefik')).toBeInTheDocument()
     expect(within(detailSection).getByText('PIDs:')).toBeInTheDocument()
     expect(within(detailSection).getByText('101, 102')).toBeInTheDocument()
     expect(within(detailSection).getByText('Listeners')).toBeInTheDocument()
@@ -385,7 +385,7 @@ describe('ServerPortsPanel', () => {
 
     const inventory = await screen.findByRole('region', { name: 'Port inventory' })
 
-    fireEvent.click(within(inventory).getByText('nginx'))
+    fireEvent.click(within(inventory).getByText('traefik'))
 
     const detailSection = screen.getByRole('heading', { name: 'Selected Port' }).closest('section')
     if (!detailSection) {
@@ -393,7 +393,7 @@ describe('ServerPortsPanel', () => {
     }
 
     expect(within(detailSection).getByText('8080')).toBeInTheDocument()
-    expect(within(detailSection).getByText('nginx')).toBeInTheDocument()
+    expect(within(detailSection).getByText('traefik')).toBeInTheDocument()
 
     fireEvent.pointerDown(
       within(inventory).getByRole('button', { name: /Port actions for 53\/UDP/i })

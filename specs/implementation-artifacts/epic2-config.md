@@ -1,5 +1,7 @@
 # Epic 2: Configuration Management
 
+> Historical note (2026-06-23): References here to supervisord-based internal process reload are outdated for the current container runtime. Current in-container process control is `runit`; bundled publication ingress is Traefik rather than an internal Nginx layer.
+
 ## Overview
 **Objective**: Centralized configuration management for microservices in containerized environment
 

@@ -74,6 +74,59 @@ func TestLoadLocalRegistry_ValidEmbedded(t *testing.T) {
 	}
 }
 
+func TestLoadLocalRegistry_EmbeddedTraefikRuntime(t *testing.T) {
+	reg, err := LoadLocalRegistry()
+	if err != nil {
+		t.Fatalf("embedded local registry should load without error: %v", err)
+	}
+
+	var traefikComponent LocalComponent
+	foundComponent := false
+	for _, component := range reg.Components {
+		if component.ID == "traefik" {
+			traefikComponent = component
+			foundComponent = true
+			break
+		}
+	}
+	if !foundComponent {
+		t.Fatal("expected embedded registry to include traefik component")
+	}
+	if traefikComponent.RuntimeKind != "service" {
+		t.Fatalf("expected traefik runtime_kind service, got %q", traefikComponent.RuntimeKind)
+	}
+	if traefikComponent.UpdateProbe.Path != "/usr/local/bin/traefik" {
+		t.Fatalf("expected traefik update probe path /usr/local/bin/traefik, got %q", traefikComponent.UpdateProbe.Path)
+	}
+
+	service, ok := reg.FindService("traefik")
+	if !ok {
+		t.Fatal("expected embedded registry to include traefik service")
+	}
+	if service.Lifecycle != "on_demand" {
+		t.Fatalf("expected traefik lifecycle on_demand, got %q", service.Lifecycle)
+	}
+	if service.Program != "traefik" {
+		t.Fatalf("expected traefik service program traefik, got %q", service.Program)
+	}
+}
+
+func TestLoadLocalRegistry_EmbeddedNginxRemoved(t *testing.T) {
+	reg, err := LoadLocalRegistry()
+	if err != nil {
+		t.Fatalf("embedded local registry should load without error: %v", err)
+	}
+
+	for _, component := range reg.Components {
+		if component.ID == "nginx" {
+			t.Fatal("expected embedded registry to remove nginx component")
+		}
+	}
+	if _, ok := reg.FindService("nginx"); ok {
+		t.Fatal("expected embedded registry to remove nginx service")
+	}
+}
+
 func TestLoadLocalRegistry_InvalidYAML(t *testing.T) {
 	tmp := t.TempDir()
 	path := filepath.Join(tmp, "bad.yaml")

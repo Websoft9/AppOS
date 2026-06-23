@@ -8,7 +8,7 @@ import {
   ChevronDown,
   Copy,
   File,
-  FileUp,
+  Paperclip,
   Loader2,
   MoreVertical,
   PanelLeft,
@@ -1533,7 +1533,7 @@ export function AICopilotPage() {
                               disabled={sending}
                               aria-label={t('actions.uploadFiles')}
                             >
-                              <FileUp className="h-3 w-3" />
+                              <Paperclip className="h-3 w-3" />
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>

@@ -1,5 +1,7 @@
 # Story 1.1: Container Build & Deployment
 
+> Historical note (2026-06-23): This document describes the old dual-Dockerfile, supervisord, and internal Nginx runtime. The current implementation uses one [build/Dockerfile](/data/dev/appos/build/Dockerfile), Alpine runtime, `runit`, and bundled on-demand Traefik. Treat the remainder of this file as archive context unless explicitly rewritten.
+
 **Epic**: Epic 1 - DevOps  
 **Priority**: P0  
 **Status**: Done

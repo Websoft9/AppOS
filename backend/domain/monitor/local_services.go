@@ -110,7 +110,7 @@ func observeLocalServicesSnapshot(registry *swcatalog.LocalRegistry, includeCPU 
 				memory = fastMemory
 			}
 		} else if procErr == nil {
-			state = "missing"
+			state = missingLocalServiceState(service)
 		}
 		items = append(items, LocalServiceObservation{
 			Name:           service.Name,
@@ -126,6 +126,13 @@ func observeLocalServicesSnapshot(registry *swcatalog.LocalRegistry, includeCPU 
 		})
 	}
 	return items
+}
+
+func missingLocalServiceState(service swcatalog.LocalService) string {
+	if strings.EqualFold(strings.TrimSpace(service.Lifecycle), "on_demand") {
+		return "stopped"
+	}
+	return "missing"
 }
 
 func loadLocalServiceObservationSnapshot() ([]LocalServiceObservation, bool) {

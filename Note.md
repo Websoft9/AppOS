@@ -1,5 +1,9 @@
 ## Bug
 
+## Deploy
+
+部署时，镜像实际已经拉取成功，但是 activity 中滞后，导致activity 流程不能及时完成闭环。
+
 ## 资源
 
 - 增加 strorage

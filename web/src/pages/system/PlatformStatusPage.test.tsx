@@ -118,16 +118,6 @@ function mockPlatformStatusResponses() {
           log_available: true,
         },
         {
-          name: 'nginx',
-          state: 'running',
-          pid: 201,
-          uptime: 8200,
-          cpu: 0.4,
-          memory: 20971520,
-          last_detected_at: '2026-04-21T14:20:00Z',
-          log_available: true,
-        },
-        {
           name: 'redis',
           state: 'running',
           pid: 202,

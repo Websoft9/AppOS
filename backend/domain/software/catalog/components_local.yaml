@@ -66,75 +66,63 @@ components:
       type: file_mtime
       path: /usr/local/bin/appos
     log_access:
-      type: file
-      stdout_path: /var/log/supervisor/appos.log
-      stderr_path: /var/log/supervisor/appos-error.log
-      default_stream: stdout
+      type: stdout
     operations:
       start: false
       stop: false
       restart: false
     notes: Primary backend and API service.
 
-  - id: nginx
-    name: Nginx
+  - id: traefik
+    name: Traefik
     enabled: true
-    criticality: core
+    criticality: optional
     runtime_kind: service
-    role: reverse proxy
-    owned_capability: web ingress
-    software_catalog:
-      component_key: reverse-proxy
-      capability: reverse_proxy
-      readiness_requirements:
-        - bundled_with_appos
-        - local_process
+    role: publication gateway runtime
+    owned_capability: http publication ingress
     version_probe:
       type: command
-      command: ["sh", "-c", "nginx -v 2>&1 | sed 's|.*nginx/||'"]
+      command: ["sh", "-c", "traefik version | sed -n 's/^Version: //p' | head -n 1"]
     availability_probe:
       type: command
-      command: ["nginx", "-t"]
+      command: ["traefik", "version"]
     update_probe:
       type: file_mtime
-      path: /usr/sbin/nginx
+      path: /usr/local/bin/traefik
     log_access:
-      type: file
-      stdout_path: /var/log/supervisor/nginx.log
-      stderr_path: /var/log/supervisor/nginx-error.log
-      default_stream: stdout
+      type: stdout
     operations:
       start: false
       stop: false
       restart: false
-    notes: Reverse proxy and static file server.
+    notes: Optional built-in publication gateway runtime bundled with AppOS and kept off by default until Publish enables it.
 
-  - id: supervisor
-    name: Supervisor
+  - id: runit
+    name: runit
     enabled: true
     criticality: core
     runtime_kind: process_manager
     role: process supervisor
     owned_capability: service orchestration
     software_catalog:
-      component_key: supervisor
+      component_key: runit
       readiness_requirements:
         - bundled_with_appos
         - binary_available
     version_probe:
       type: command
-      command: ["supervisord", "-v"]
+      command: ["sh", "-c", "if command -v apk >/dev/null 2>&1; then apk info -v runit 2>/dev/null | head -n 1 | sed 's/^runit-//'; elif command -v dpkg-query >/dev/null 2>&1; then dpkg-query -W -f='${Version}' runit 2>/dev/null; else command -v runsvdir >/dev/null 2>&1 && echo installed; fi"]
     availability_probe:
-      type: file_exists
-      path: /etc/supervisor/supervisord.conf
+      type: command
+      command: ["sh", "-c", "command -v runsvdir >/dev/null 2>&1"]
     update_probe:
       type: file_mtime
-      path: /usr/local/bin/supervisord
+      path: /usr/bin/runsvdir
     operations:
       start: false
       stop: false
       restart: false
-    notes: Process manager for internal services.
+    notes: Process manager for internal services (runit service directory based).
 
   - id: redis
     name: Redis
@@ -159,69 +147,12 @@ components:
       type: file_mtime
       path: /usr/bin/redis-server
     log_access:
-      type: file
-      stdout_path: /var/log/supervisor/redis.log
-      stderr_path: /var/log/supervisor/redis-error.log
-      default_stream: stdout
+      type: stdout
     operations:
       start: false
       stop: false
       restart: false
     notes: Internal cache/runtime dependency.
-
-  - id: node
-    name: Node.js
-    enabled: true
-    criticality: optional
-    runtime_kind: runtime
-    role: javascript runtime
-    owned_capability: node-based tooling
-    software_catalog:
-      component_key: node
-      readiness_requirements:
-        - bundled_with_appos
-        - binary_available
-    version_probe:
-      type: command
-      command: ["node", "-v"]
-    availability_probe:
-      type: command
-      command: ["node", "-v"]
-    update_probe:
-      type: file_mtime
-      path: /usr/local/bin/node
-    operations:
-      start: false
-      stop: false
-      restart: false
-    notes: Runtime for supporting tooling.
-
-  - id: npm
-    name: npm
-    enabled: true
-    criticality: optional
-    runtime_kind: tool
-    role: node package manager
-    owned_capability: node package delivery
-    software_catalog:
-      component_key: npm
-      readiness_requirements:
-        - bundled_with_appos
-        - binary_available
-    version_probe:
-      type: command
-      command: ["npm", "-v"]
-    availability_probe:
-      type: command
-      command: ["npm", "-v"]
-    update_probe:
-      type: file_mtime
-      path: /usr/local/bin/npm
-    operations:
-      start: false
-      stop: false
-      restart: false
-    notes: Package manager for Node tooling.
 
   - id: victoria-metrics
     name: VictoriaMetrics
@@ -246,10 +177,7 @@ components:
       type: file_mtime
       path: /usr/local/bin/victoria-metrics-prod
     log_access:
-      type: file
-      stdout_path: /var/log/supervisor/victoriametrics.log
-      stderr_path: /var/log/supervisor/victoriametrics-error.log
-      default_stream: stdout
+      type: stdout
     operations:
       start: false
       stop: false
@@ -348,10 +276,7 @@ services:
     lifecycle: always_on
     visibility: default
     log_access:
-      type: file
-      stdout_path: /var/log/supervisor/appos.log
-      stderr_path: /var/log/supervisor/appos-error.log
-      default_stream: stdout
+      type: stdout
     operations:
       start: false
       stop: false
@@ -367,29 +292,23 @@ services:
     lifecycle: always_on
     visibility: diagnostic
     log_access:
-      type: file
-      stdout_path: /var/log/supervisor/redis.log
-      stderr_path: /var/log/supervisor/redis-error.log
-      default_stream: stdout
+      type: stdout
     operations:
       start: false
       stop: false
       restart: false
 
-  - name: nginx
-    component_id: nginx
+  - name: traefik
+    component_id: traefik
     enabled: true
     manager: process
-    program: nginx
+    program: traefik
     declared_in: runtime
-    role: Reverse proxy and static web server.
-    lifecycle: always_on
-    visibility: default
+    role: Optional publication gateway runtime.
+    lifecycle: on_demand
+    visibility: diagnostic
     log_access:
-      type: file
-      stdout_path: /var/log/supervisor/nginx.log
-      stderr_path: /var/log/supervisor/nginx-error.log
-      default_stream: stdout
+      type: stdout
     operations:
       start: false
       stop: false
@@ -405,10 +324,7 @@ services:
     lifecycle: always_on
     visibility: diagnostic
     log_access:
-      type: file
-      stdout_path: /var/log/supervisor/victoriametrics.log
-      stderr_path: /var/log/supervisor/victoriametrics-error.log
-      default_stream: stdout
+      type: stdout
     operations:
       start: false
       stop: false

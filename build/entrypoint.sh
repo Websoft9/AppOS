@@ -5,6 +5,7 @@ DATA_DIR=${DATA_DIR:-/appos/data}
 SECRET_KEY_FILE=$DATA_DIR/.appos_secret_key
 APPOS_CONFIG_DIR=$DATA_DIR/config
 APPOS_CONFIG_FILE=$APPOS_CONFIG_DIR/appos.yaml
+APPOS_WEB_DIR=${APPOS_WEB_DIR:-/appos/web}
 
 export DATA_DIR
 
@@ -21,6 +22,7 @@ mkdir -p \
     "$DATA_DIR/config" \
     "$DATA_DIR/redis" \
     "$DATA_DIR/apps" \
+  "$DATA_DIR/traefik" \
     "$DATA_DIR/victoriametrics" \
     "$DATA_DIR/workflows" \
     "$DATA_DIR/templates/apps" \
@@ -51,10 +53,9 @@ export APPOS_SECRET_KEY
 chmod -R 755 "$DATA_DIR"
 chmod 600 "$SECRET_KEY_FILE"
 
-# Create log directories
-mkdir -p /var/log/supervisor
-mkdir -p /var/log/nginx
-mkdir -p /run/nginx
+# Create directories
+mkdir -p /etc/traefik/dynamic
+mkdir -p "$APPOS_WEB_DIR"
 
 echo "==> Data directories ready"
 
@@ -67,7 +68,8 @@ SUPERUSER_PASSWORD=${SUPERUSER_PASSWORD:-}
 
 cat > "$APPOS_CONFIG_FILE" <<EOF
 data_dir: '$(yaml_quote "$DATA_DIR")'
-http: '127.0.0.1:8090'
+http: '0.0.0.0:9000'
+web_dir: '$(yaml_quote "$APPOS_WEB_DIR")'
 redis_url: '$(yaml_quote "$REDIS_URL")'
 tsdb_url: '$(yaml_quote "$TSDB_URL")'
 tunnel_ssh_port: '$(yaml_quote "$TUNNEL_SSH_PORT")'
@@ -79,7 +81,7 @@ EOF
 chmod 600 "$APPOS_CONFIG_FILE"
 echo "==> Runtime config written to $APPOS_CONFIG_FILE"
 
-echo "==> Starting services via supervisord..."
+echo "==> Starting services via runit..."
 
-# Execute CMD (supervisord)
+# Execute CMD (runsvdir)
 exec "$@"
