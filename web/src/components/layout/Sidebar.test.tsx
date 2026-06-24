@@ -47,16 +47,20 @@ vi.mock('react-i18next', () => ({
         'items.myApps': 'My Apps',
         'items.appStore': 'App Store',
         'items.deploy': 'Deploy',
+        'items.publish': 'Publish',
         'items.actions': 'Activity',
+        'items.groups': 'Groups',
+        'items.feed': 'Feed',
         'items.terminal': 'Terminal',
         'items.aiCopilot': 'AI Copilot',
-        'items.collaboration': 'Collaboration',
-        'items.groups': 'Groups',
         'items.topics': 'Topics',
         'items.feeds': 'Feeds',
         'items.assets': 'Assets',
         'items.space': 'Space',
         'items.resources': 'Resources',
+        'items.network': 'Network',
+        'items.gateway': 'Gateway',
+        'items.traffic': 'Traffic',
         'items.extensions': 'Extensions',
         'items.system': 'System',
         'items.status': 'Status',
@@ -127,7 +131,7 @@ describe('Sidebar', () => {
     expect(within(workspaceNav).queryByText('Dashboard')).not.toBeInTheDocument()
   })
 
-  it('orders Applications children as My Apps, App Store, Deploy, Activity', () => {
+  it('orders Applications children as My Apps, App Store, Deploy, Publish, Activity', () => {
     pathname = '/apps'
     assignMock.mockReset()
     render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
@@ -140,10 +144,10 @@ describe('Sidebar', () => {
     const appLinks = links
       .map(link => link.textContent?.trim())
       .filter((label): label is string =>
-        ['My Apps', 'App Store', 'Deploy', 'Activity'].includes(label ?? '')
+        ['My Apps', 'App Store', 'Deploy', 'Publish', 'Activity'].includes(label ?? '')
       )
 
-    expect(appLinks).toEqual(['My Apps', 'App Store', 'Deploy', 'Activity'])
+    expect(appLinks).toEqual(['My Apps', 'App Store', 'Deploy', 'Publish', 'Activity'])
   })
 
   it('toggles Applications children open and closed', () => {
@@ -184,37 +188,8 @@ describe('Sidebar', () => {
     expect(assignMock).toHaveBeenCalledWith({ to: '/apps' })
   })
 
-  it('opens Collaboration and navigates to Groups when clicked from a collapsed state', () => {
-    pathname = '/overview'
-    assignMock.mockReset()
-
-    render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
-
-    const workspaceNav = screen.getAllByLabelText('Workspace navigation')[0]
-    const collaborationTrigger = within(workspaceNav).getByText('Collaboration').closest('button')
-
-    expect(collaborationTrigger).not.toBeNull()
-
-    fireEvent.click(collaborationTrigger as HTMLButtonElement)
-
-    expect(assignMock).toHaveBeenCalledWith({ to: '/groups' })
-  })
-
-  it('does not show Scripts under Collaboration', () => {
+  it('shows Groups as a standalone workspace entry below Applications', () => {
     pathname = '/groups'
-    assignMock.mockReset()
-
-    render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
-
-    const workspaceNav = screen.getAllByLabelText('Workspace navigation')[0]
-    const collaborationTrigger = within(workspaceNav).getByText('Collaboration')
-
-    expect(collaborationTrigger).toBeInTheDocument()
-    expect(within(workspaceNav).queryByRole('link', { name: 'Scripts' })).toBeNull()
-  })
-
-  it('shows Feeds under Collaboration after Topics', () => {
-    pathname = '/topics'
     assignMock.mockReset()
 
     render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
@@ -225,8 +200,53 @@ describe('Sidebar', () => {
       .map(link => link.textContent)
       .filter(Boolean)
 
-    expect(links.indexOf('Topics')).toBeGreaterThanOrEqual(0)
-    expect(links.indexOf('Feeds')).toBeGreaterThan(links.indexOf('Topics'))
+    expect(links.indexOf('Applications')).toBeGreaterThanOrEqual(0)
+    expect(links.indexOf('Groups')).toBeGreaterThan(links.indexOf('Applications'))
+  })
+
+  it('opens Feed and navigates to Feeds when clicked from a collapsed state', () => {
+    pathname = '/overview'
+    assignMock.mockReset()
+
+    render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
+
+    const workspaceNav = screen.getAllByLabelText('Workspace navigation')[0]
+    const feedTrigger = within(workspaceNav).getByText('Feed').closest('button')
+
+    expect(feedTrigger).not.toBeNull()
+
+    fireEvent.click(feedTrigger as HTMLButtonElement)
+
+    expect(assignMock).toHaveBeenCalledWith({ to: '/feeds' })
+  })
+
+  it('does not show Groups inside Feed', () => {
+    pathname = '/feeds'
+    assignMock.mockReset()
+
+    render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
+
+    const workspaceNav = screen.getAllByLabelText('Workspace navigation')[0]
+    const feedTrigger = within(workspaceNav).getByText('Feed')
+
+    expect(feedTrigger).toBeInTheDocument()
+    expect(within(workspaceNav).queryByRole('link', { name: 'Groups' })).toBeNull()
+  })
+
+  it('shows Topics under Feed after Feeds', () => {
+    pathname = '/feeds'
+    assignMock.mockReset()
+
+    render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
+
+    const workspaceNav = screen.getAllByLabelText('Workspace navigation')[0]
+    const links = within(workspaceNav)
+      .getAllByRole('link')
+      .map(link => link.textContent)
+      .filter(Boolean)
+
+    expect(links.indexOf('Feeds')).toBeGreaterThanOrEqual(0)
+    expect(links.indexOf('Topics')).toBeGreaterThan(links.indexOf('Feeds'))
   })
 
   it('opens Credentials and navigates to Secrets when clicked from a collapsed state', () => {
@@ -289,6 +309,22 @@ describe('Sidebar', () => {
     expect(assignMock).toHaveBeenCalledWith({ to: '/status' })
   })
 
+  it('opens Network and navigates to the default dashboard when clicked from a collapsed state', () => {
+    pathname = '/overview'
+    assignMock.mockReset()
+
+    render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
+
+    const adminNav = screen.getAllByLabelText('Platform navigation')[0]
+    const networkTrigger = within(adminNav).getByText('Network').closest('button')
+
+    expect(networkTrigger).not.toBeNull()
+
+    fireEvent.click(networkTrigger as HTMLButtonElement)
+
+    expect(assignMock).toHaveBeenCalledWith({ to: '/network' })
+  })
+
   it('shows Platform Runtime after Status and keeps the remaining System order for superusers', () => {
     pathname = '/status'
     assignMock.mockReset()
@@ -307,21 +343,47 @@ describe('Sidebar', () => {
     expect(within(adminNav).getByRole('link', { name: 'Orchestration Files' })).toBeInTheDocument()
     expect(within(adminNav).getByRole('link', { name: 'Audit' })).toBeInTheDocument()
     expect(within(adminNav).getByRole('link', { name: 'Logs' })).toBeInTheDocument()
+    expect(within(adminNav).queryByRole('link', { name: 'Tunnels' })).toBeNull()
     expect(links.indexOf('Status')).toBeLessThan(links.indexOf('Platform Runtime'))
-    expect(links.indexOf('Platform Runtime')).toBeLessThan(links.indexOf('Tunnels'))
     expect(links.indexOf('Audit')).toBeLessThan(links.indexOf('Logs'))
     expect(links.indexOf('Platform Crons')).toBeLessThan(links.indexOf('Shared Envs'))
     expect(links.indexOf('Shared Envs')).toBeLessThan(links.indexOf('Orchestration Files'))
+  })
+
+  it('places Network above Extensions and shows Gateway, Tunnels, Traffic in that order', () => {
+    pathname = '/network'
+    assignMock.mockReset()
+
+    render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
+
+    const adminNav = screen.getAllByLabelText('Platform navigation')[0]
+    const links = within(adminNav)
+      .getAllByRole('link')
+      .map(link => link.textContent?.trim())
+      .filter((label): label is string => Boolean(label))
+
+    expect(links.indexOf('Network')).toBeGreaterThanOrEqual(0)
+    expect(links.indexOf('Extensions')).toBeGreaterThan(links.indexOf('Network'))
+    expect(links.indexOf('Gateway')).toBeGreaterThan(links.indexOf('Network'))
+    expect(links.indexOf('Tunnels')).toBeGreaterThan(links.indexOf('Gateway'))
+    expect(links.indexOf('Traffic')).toBeGreaterThan(links.indexOf('Tunnels'))
   })
 
   it('uses Platform Components as the basic system entry', () => {
     const groups = SidebarModule.buildNavGroups(false)
     const platformGroup = groups.find(group => group.label === 'Platform')
     const systemItem = platformGroup?.items.find(item => item.id === 'system')
+    const networkItem = platformGroup?.items.find(item => item.id === 'network')
 
     expect(systemItem?.href).toBe('/platform-components')
     expect(systemItem?.children?.[0]?.label).toBe('Platform Components')
     expect(systemItem?.children?.[0]?.href).toBe('/platform-components')
+    expect(networkItem?.href).toBe('/network')
+    expect(networkItem?.children?.map(child => child.label)).toEqual([
+      'Gateway',
+      'Tunnels',
+      'Traffic',
+    ])
   })
 
   it('closes the mobile drawer when a child link is clicked', () => {

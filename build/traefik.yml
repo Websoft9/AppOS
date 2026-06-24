@@ -14,7 +14,8 @@ providers:
     watch: true
 
 api:
-  dashboard: false
+  basePath: /api/settings/public/traefik
+  dashboard: true
 
 ping: {}
 

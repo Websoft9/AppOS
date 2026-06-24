@@ -71,7 +71,7 @@ tags:
       name: Software
     - description: Workspace and storage-space related operations.
       name: Space & User Files
-    - description: Host metrics and file browser endpoints.
+    - description: Host metrics, file browser, runtime facts, and embedded Traefik dashboard proxy endpoints.
       name: System
     - description: PocketBase scheduled tasks and cron management APIs.
       name: System Cron
@@ -12384,6 +12384,70 @@ paths:
             summary: Get branding metadata
             tags:
                 - Settings
+    /api/settings/public/traefik:
+        get:
+            description: Proxies the embedded Traefik dashboard and API through AppOS under /api/settings/public/traefik. Public route.
+            operationId: get_api_settings_public_traefik
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                type: string
+                    description: OK
+                "502":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Gateway
+                "503":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Service Unavailable
+            security: []
+            summary: Proxy bundled Traefik dashboard
+            tags:
+                - System
+    /api/settings/public/traefik/{path...}:
+        get:
+            description: Proxies the embedded Traefik dashboard and API through AppOS under /api/settings/public/traefik. Public route.
+            operationId: get_api_settings_public_traefik_path
+            parameters:
+                - in: path
+                  name: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                type: string
+                    description: OK
+                "502":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Gateway
+                "503":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Service Unavailable
+            security: []
+            summary: Proxy bundled Traefik dashboard
+            tags:
+                - System
     /api/settings/schema:
         get:
             description: Returns all available settings entries and actions, including their section, source, fields, and action bindings. Superuser only.
@@ -13107,23 +13171,6 @@ paths:
             security:
                 - bearerAuth: []
             summary: Docker exec WebSocket terminal
-            tags:
-                - Terminal
-    /api/terminal/local:
-        get:
-            description: Upgrades to a WebSocket PTY session on the local server. Auth via ?token= or Authorization header. Superuser only.
-            operationId: get_api_terminal_local
-            responses:
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                additionalProperties: true
-                                type: object
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Local WebSocket terminal
             tags:
                 - Terminal
     /api/terminal/sessions:

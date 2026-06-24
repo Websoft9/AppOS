@@ -83,6 +83,42 @@ func scriptTemplate(url, svc string) software.ResolvedTemplate {
 	}
 }
 
+func traefikDockerTemplate() software.ResolvedTemplate {
+	return software.ResolvedTemplate{
+		ComponentKey: software.ComponentKeyReverseProxy,
+		TemplateKind: software.TemplateKindScript,
+		Detect: software.DetectSpec{
+			VersionCommand: `awk -F'image: ' '/image:/{print $2}' /opt/websoft9/traefik/docker-compose.yml 2>/dev/null | sed -E 's#^.*:v?##' | head -n 1`,
+			InstalledHint:  []string{"systemctl cat traefik.service >/dev/null 2>&1 && echo installed"},
+		},
+		Preflight: software.PreflightSpec{
+			RequireRoot:    true,
+			RequireNetwork: true,
+			VerifiedOS:     []string{"ubuntu", "debian", "rocky"},
+			ServiceManager: "systemd",
+		},
+		Install: software.InstallSpec{
+			Strategy:   "script",
+			ScriptPath: "traefik-install.sh",
+		},
+		Upgrade: software.UpgradeSpec{
+			Strategy:   "script",
+			ScriptPath: "traefik-install.sh",
+			Args:       []string{"--upgrade"},
+		},
+		Uninstall: software.UninstallSpec{
+			Strategy:   "script",
+			ScriptPath: "traefik-install.sh",
+			Args:       []string{"--uninstall"},
+		},
+		Verify: software.VerifySpec{
+			Strategy:    "systemd",
+			ServiceName: "traefik.service",
+		},
+		Reinstall: software.ReinstallSpec{Strategy: "reinstall"},
+	}
+}
+
 // ─── buildScriptCommand ───────────────────────────────────────────────────────
 
 func TestBuildScriptCommand_NoArgs(t *testing.T) {
@@ -406,6 +442,30 @@ func TestInstall_ScriptWithEmbeddedPath(t *testing.T) {
 	}
 }
 
+func TestInstall_TraefikDockerScript(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	var capturedCmd string
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		capturedCmd = cmd
+		return "", nil
+	}
+
+	ex := &SSHExecutor{}
+	tpl := traefikDockerTemplate()
+	detail, err := ex.Install(context.Background(), "srv-1", tpl)
+	if err != nil {
+		t.Fatalf("Traefik install error: %v", err)
+	}
+	if !containsSubstring(capturedCmd, "APPOS_EMBEDDED_SCRIPT") {
+		t.Fatalf("expected Traefik install to use embedded script, got: %s", capturedCmd)
+	}
+	if detail.ServiceName != "traefik.service" {
+		t.Fatalf("expected service name traefik.service, got %q", detail.ServiceName)
+	}
+}
+
 func TestReinstall_DoesNotVerifyDuringExecution(t *testing.T) {
 	orig := executeSSHCommand
 	defer func() { executeSSHCommand = orig }()
@@ -447,6 +507,33 @@ func TestUpgrade_EmptyStrategy_ReturnsError(t *testing.T) {
 	}
 }
 
+func TestUpgrade_TraefikDockerScript(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	var capturedCmd string
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		capturedCmd = cmd
+		return "", nil
+	}
+
+	ex := &SSHExecutor{}
+	tpl := traefikDockerTemplate()
+	detail, err := ex.Upgrade(context.Background(), "srv-1", tpl)
+	if err != nil {
+		t.Fatalf("Traefik upgrade error: %v", err)
+	}
+	if !containsSubstring(capturedCmd, "--upgrade") {
+		t.Fatalf("expected Traefik upgrade to pass --upgrade flag, got: %s", capturedCmd)
+	}
+	if !containsSubstring(capturedCmd, "APPOS_EMBEDDED_SCRIPT") {
+		t.Fatalf("expected Traefik upgrade to use embedded script, got: %s", capturedCmd)
+	}
+	if detail.ServiceName != "traefik.service" {
+		t.Fatalf("expected service name traefik.service, got %q", detail.ServiceName)
+	}
+}
+
 func TestUninstall_EmptyStrategy_ReturnsError(t *testing.T) {
 	ex := &SSHExecutor{}
 	tpl := packageTemplate("docker.io", "docker.service")
@@ -463,6 +550,44 @@ func TestUninstall_ScriptWithEmptyURL_ReturnsError(t *testing.T) {
 	_, err := ex.Uninstall(context.Background(), "srv-1", tpl)
 	if err == nil {
 		t.Fatal("expected error when script_url is empty for uninstall")
+	}
+}
+
+func TestUninstall_TraefikDockerScript(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	var capturedCmds []string
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		capturedCmds = append(capturedCmds, cmd)
+		if containsSubstring(cmd, "systemctl stop") {
+			return "", nil
+		}
+		return "", nil
+	}
+
+	ex := &SSHExecutor{}
+	tpl := traefikDockerTemplate()
+	detail, err := ex.Uninstall(context.Background(), "srv-1", tpl)
+	if err != nil {
+		t.Fatalf("Traefik uninstall error: %v", err)
+	}
+
+	var uninstallCmd string
+	for _, cmd := range capturedCmds {
+		if containsSubstring(cmd, "APPOS_EMBEDDED_SCRIPT") {
+			uninstallCmd = cmd
+			break
+		}
+	}
+	if uninstallCmd == "" {
+		t.Fatalf("expected Traefik uninstall to use embedded script, got commands: %v", capturedCmds)
+	}
+	if !containsSubstring(uninstallCmd, "--uninstall") {
+		t.Fatalf("expected Traefik uninstall to pass --uninstall flag, got: %s", uninstallCmd)
+	}
+	if detail.ServiceName != "traefik.service" {
+		t.Fatalf("expected service name traefik.service, got %q", detail.ServiceName)
 	}
 }
 

@@ -190,6 +190,92 @@ func TestBuildComputedComponentsProjectsSnapshotRecord(t *testing.T) {
 	}
 }
 
+func TestBuildComputedComponents_AppliesDependencyReadinessFromCapability(t *testing.T) {
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Cleanup()
+
+	svc := &Service{app: app}
+	executor := &fakeComponentExecutor{
+		detection: software.DetectionResult{
+			InstalledState: software.InstalledStateNotInstalled,
+		},
+		preflight: software.TargetReadinessResult{
+			OK:               true,
+			OSSupported:      true,
+			PrivilegeOK:      true,
+			NetworkOK:        true,
+			DependencyReady:  true,
+			ServiceManagerOK: true,
+			PackageManagerOK: true,
+			Issues:           []string{},
+		},
+		verifyErr: fmt.Errorf("component is not installed"),
+	}
+
+	cat := software.ComponentCatalog{Components: []software.CatalogEntry{
+		{
+			ComponentKey:          software.ComponentKeyDocker,
+			TargetType:            software.TargetTypeServer,
+			Label:                 "Docker",
+			Capability:            software.CapabilityContainerRuntime,
+			TemplateRef:           "tpl-docker",
+			Binary:                "docker",
+			ServiceName:           "docker.service",
+			ReadinessRequirements: []string{"verified_os_baseline", "root_privilege", "network_access"},
+			SupportedActions:      []software.Action{software.ActionInstall, software.ActionVerify},
+		},
+		{
+			ComponentKey:          software.ComponentKeyReverseProxy,
+			TargetType:            software.TargetTypeServer,
+			Label:                 "Traefik",
+			Capability:            software.CapabilityReverseProxy,
+			TemplateRef:           "tpl-traefik",
+			Binary:                "docker",
+			ServiceName:           "traefik.service",
+			ReadinessRequirements: []string{"verified_os_baseline", "root_privilege", "network_access", "container_runtime"},
+			SupportedActions:      []software.Action{software.ActionInstall, software.ActionUpgrade, software.ActionVerify},
+		},
+	}}
+	reg := software.TemplateRegistry{Templates: map[string]software.ComponentTemplate{
+		"tpl-docker": {
+			TemplateKind: software.TemplateKindScript,
+		},
+		"tpl-traefik": {
+			TemplateKind: software.TemplateKindScript,
+		},
+	}}
+
+	items, err := svc.buildComputedComponents(context.Background(), cat, reg, software.TargetTypeServer, "srv-1", executor, nil, map[string]*OperationSummary{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("expected 2 computed items, got %d", len(items))
+	}
+
+	byKey := map[software.ComponentKey]ComputedComponent{}
+	for _, item := range items {
+		byKey[item.Entry.ComponentKey] = item
+	}
+
+	reverseProxy := byKey[software.ComponentKeyReverseProxy]
+	if reverseProxy.Preflight.DependencyReady {
+		t.Fatalf("expected reverse-proxy dependency_ready false when docker is not installed, got %#v", reverseProxy.Preflight)
+	}
+	if reverseProxy.Preflight.OK {
+		t.Fatalf("expected reverse-proxy preflight not OK when docker dependency is missing, got %#v", reverseProxy.Preflight)
+	}
+	if len(reverseProxy.Detail.AvailableActions) != 2 || reverseProxy.Detail.AvailableActions[0] != software.ActionInstall || reverseProxy.Detail.AvailableActions[1] != software.ActionVerify {
+		t.Fatalf("expected reverse-proxy actions [install verify], got %v", reverseProxy.Detail.AvailableActions)
+	}
+	if len(reverseProxy.Preflight.Issues) == 0 {
+		t.Fatalf("expected reverse-proxy dependency issue, got %#v", reverseProxy.Preflight)
+	}
+}
+
 func TestListServerComponentsUsesSnapshotsBeforeExecutor(t *testing.T) {
 	app, err := tests.NewTestApp()
 	if err != nil {

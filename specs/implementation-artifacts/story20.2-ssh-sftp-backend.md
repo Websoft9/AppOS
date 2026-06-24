@@ -161,7 +161,6 @@ backend/go.mod                                          # added github.com/pkg/s
 backend/go.sum                                          # updated
 backend/infra/migrations/1741400000_add_server_shell.go  # servers.shell field
 backend/domain/servers/connector.go                  # Session & Connector interfaces, ConnectorConfig
-backend/domain/servers/terminal.go                   # LocalSession rename (was Session, conflicts with interface)
 backend/domain/servers/ssh.go                        # SSHConnector: dial, auth, PTY relay
 backend/domain/servers/sftp.go                       # SFTPClient: list, download, upload, mkdir, rename, delete
 backend/domain/servers/session.go                    # session registry with idle timeout (30 min)
@@ -173,7 +172,6 @@ backend/domain/routes/routes.go                       # registerServerRoutes add
 
 ### Decisions
 
-- Renamed existing `Session` struct → `LocalSession` to avoid conflict with new `Session` interface
 - SSH shell start: tries `cfg.Shell` first, falls back to `sess.Shell()` if custom shell fails
 - SFTP uses per-request short-lived connections (not pooled) — simple and stateless for MVP
 - `resolveServerConfig` is shared between SSH and SFTP — single point for credential decryption

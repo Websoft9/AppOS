@@ -569,12 +569,14 @@ groups:
         - https://pocketbase.io/docs/api-files/
 
   - group: System
-    description: Host metrics and file browser endpoints.
+    description: Host metrics, file browser, runtime facts, and embedded Traefik dashboard proxy endpoints.
     apiType: Ext
     extSurface:
       - GET /api/system/metrics
       - GET /api/system/files
       - GET /api/system/runtime
+      - GET /api/settings/public/traefik
+      - GET /api/settings/public/traefik/*
     nativeSurface: []
     sources:
       extRouteFiles:

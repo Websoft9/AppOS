@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
@@ -55,13 +54,21 @@ func (buildExecutor) DockerClient() (*docker.Client, error) {
 	return docker.New(buildDockerExecutor{}), nil
 }
 
-type runtimeDockerExecutor struct{}
+type runtimeDockerExecutor struct {
+	available bool
+}
 
-func (runtimeDockerExecutor) Run(_ context.Context, command string, args ...string) (string, error) {
+func (e *runtimeDockerExecutor) Run(_ context.Context, command string, args ...string) (string, error) {
 	joined := command + " " + strings.Join(args, " ")
 	switch {
 	case strings.Contains(joined, "docker image inspect postgres:16"):
+		if e.available {
+			return `[{"Id":"sha256:postgres16local"}]`, nil
+		}
 		return "", errors.New("missing")
+	case strings.Contains(joined, "docker pull postgres:16"):
+		e.available = true
+		return "Pulling postgres:16\nDownloading layer sha256:123\nDownloading layer sha256:123\nPull complete\n", nil
 	case strings.Contains(joined, "docker compose -f /tmp/demo-app/docker-compose.yml up -d"):
 		return "runtime started", nil
 	default:
@@ -69,16 +76,12 @@ func (runtimeDockerExecutor) Run(_ context.Context, command string, args ...stri
 	}
 }
 
-func (runtimeDockerExecutor) RunStream(_ context.Context, command string, args ...string) (io.ReadCloser, error) {
-	joined := command + " " + strings.Join(args, " ")
-	if strings.Contains(joined, "docker compose -f /tmp/demo-app/docker-compose.yml pull") {
-		return io.NopCloser(strings.NewReader("Pulling postgres:16\rDownloading layer sha256:123\rDownloading layer sha256:123\rPull complete\n")), nil
-	}
+func (*runtimeDockerExecutor) RunStream(_ context.Context, command string, args ...string) (io.ReadCloser, error) {
 	return io.NopCloser(strings.NewReader("")), nil
 }
 
-func (runtimeDockerExecutor) Ping(context.Context) error { return nil }
-func (runtimeDockerExecutor) Host() string               { return "local" }
+func (*runtimeDockerExecutor) Ping(context.Context) error { return nil }
+func (*runtimeDockerExecutor) Host() string               { return "local" }
 
 type runtimeNetworkDockerExecutor struct {
 	commands []string
@@ -100,6 +103,10 @@ func (e *runtimeNetworkDockerExecutor) Run(_ context.Context, command string, ar
 		}
 		e.created["websoft9"] = true
 		return "websoft9", nil
+	case strings.Contains(joined, "docker image inspect nginx:alpine"):
+		return `[{"Id":"sha256:nginxlocal"}]`, nil
+	case strings.Contains(joined, "docker pull nginx:alpine"):
+		return "Pull complete\n", nil
 	case strings.Contains(joined, "docker compose -f /tmp/demo-app/docker-compose.yml up -d"):
 		return "runtime started", nil
 	default:
@@ -108,11 +115,6 @@ func (e *runtimeNetworkDockerExecutor) Run(_ context.Context, command string, ar
 }
 
 func (e *runtimeNetworkDockerExecutor) RunStream(_ context.Context, command string, args ...string) (io.ReadCloser, error) {
-	joined := command + " " + strings.Join(args, " ")
-	e.commands = append(e.commands, joined)
-	if strings.Contains(joined, "docker compose -f /tmp/demo-app/docker-compose.yml pull") {
-		return io.NopCloser(strings.NewReader("Pull complete\n")), nil
-	}
 	return io.NopCloser(strings.NewReader("")), nil
 }
 
@@ -132,46 +134,7 @@ type runtimeExecutor struct{}
 func (runtimeExecutor) Name() string                          { return "local" }
 func (runtimeExecutor) PrepareWorkspace(string, string) error { return nil }
 func (runtimeExecutor) DockerClient() (*docker.Client, error) {
-	return docker.New(runtimeDockerExecutor{}), nil
-}
-
-type runtimeHeartbeatDockerExecutor struct{}
-
-func (runtimeHeartbeatDockerExecutor) Run(_ context.Context, command string, args ...string) (string, error) {
-	joined := command + " " + strings.Join(args, " ")
-	if strings.Contains(joined, "docker compose -f /tmp/demo-app/docker-compose.yml up -d") {
-		return "runtime started", nil
-	}
-	if strings.Contains(joined, "docker image inspect postgres:16") {
-		return "", errors.New("missing")
-	}
-	return "", nil
-}
-
-func (runtimeHeartbeatDockerExecutor) RunStream(_ context.Context, command string, args ...string) (io.ReadCloser, error) {
-	joined := command + " " + strings.Join(args, " ")
-	if !strings.Contains(joined, "docker compose -f /tmp/demo-app/docker-compose.yml pull") {
-		return io.NopCloser(strings.NewReader("")), nil
-	}
-	reader, writer := io.Pipe()
-	go func() {
-		_, _ = writer.Write([]byte("Pulling postgres:16\n"))
-		time.Sleep(35 * time.Millisecond)
-		_, _ = writer.Write([]byte("Pull complete\n"))
-		_ = writer.Close()
-	}()
-	return reader, nil
-}
-
-func (runtimeHeartbeatDockerExecutor) Ping(context.Context) error { return nil }
-func (runtimeHeartbeatDockerExecutor) Host() string               { return "local" }
-
-type runtimeHeartbeatExecutor struct{}
-
-func (runtimeHeartbeatExecutor) Name() string                          { return "local" }
-func (runtimeHeartbeatExecutor) PrepareWorkspace(string, string) error { return nil }
-func (runtimeHeartbeatExecutor) DockerClient() (*docker.Client, error) {
-	return docker.New(runtimeHeartbeatDockerExecutor{}), nil
+	return docker.New(&runtimeDockerExecutor{}), nil
 }
 
 type runtimeLocalImageDockerExecutor struct {
@@ -187,14 +150,12 @@ func (e *runtimeLocalImageDockerExecutor) Run(_ context.Context, command string,
 	return "", nil
 }
 
-func (e *runtimeLocalImageDockerExecutor) RunStream(_ context.Context, command string, args ...string) (io.ReadCloser, error) {
-	joined := strings.TrimSpace(command + " " + strings.Join(args, " "))
-	e.commands = append(e.commands, joined)
+func (*runtimeLocalImageDockerExecutor) RunStream(_ context.Context, command string, args ...string) (io.ReadCloser, error) {
 	return io.NopCloser(strings.NewReader("")), nil
 }
 
-func (e *runtimeLocalImageDockerExecutor) Ping(context.Context) error { return nil }
-func (e *runtimeLocalImageDockerExecutor) Host() string               { return "local" }
+func (*runtimeLocalImageDockerExecutor) Ping(context.Context) error { return nil }
+func (*runtimeLocalImageDockerExecutor) Host() string               { return "local" }
 
 type runtimeLocalImageExecutor struct {
 	exec *runtimeLocalImageDockerExecutor
@@ -209,6 +170,8 @@ func (e runtimeLocalImageExecutor) DockerClient() (*docker.Client, error) {
 type mirrorAwareRuntimeDockerExecutor struct {
 	commands   []string
 	pullErrSeq map[string][]error
+	available  map[string]bool
+	upstreamPullErr error
 }
 
 func (e *mirrorAwareRuntimeDockerExecutor) Run(_ context.Context, command string, args ...string) (string, error) {
@@ -216,11 +179,26 @@ func (e *mirrorAwareRuntimeDockerExecutor) Run(_ context.Context, command string
 	e.commands = append(e.commands, joined)
 	switch {
 	case strings.Contains(joined, "docker image inspect nginx:alpine"):
+		if e.available != nil && e.available["nginx:alpine"] {
+			return `[{"Id":"sha256:nginxlocal"}]`, nil
+		}
+		return "", errors.New("missing")
+	case strings.Contains(joined, "docker image inspect postgres:16"):
+		if e.available != nil && e.available["postgres:16"] {
+			return `[{"Id":"sha256:postgreslocal"}]`, nil
+		}
 		return "", errors.New("missing")
 	case strings.Contains(joined, "docker pull "):
+		if strings.Contains(joined, "docker pull nginx:alpine") && e.upstreamPullErr != nil {
+			return "", e.upstreamPullErr
+		}
 		for imageRef, seq := range e.pullErrSeq {
 			if strings.Contains(joined, "docker pull "+imageRef) {
 				if len(seq) == 0 {
+					if e.available == nil {
+						e.available = map[string]bool{}
+					}
+					e.available[imageRef] = true
 					return "Pulling nginx:alpine\nPull complete\n", nil
 				}
 				err := seq[0]
@@ -228,13 +206,33 @@ func (e *mirrorAwareRuntimeDockerExecutor) Run(_ context.Context, command string
 				if err != nil {
 					return "", err
 				}
+				if e.available == nil {
+					e.available = map[string]bool{}
+				}
+				e.available[imageRef] = true
 				return "Pulling nginx:alpine\nPull complete\n", nil
 			}
 		}
+		if e.available == nil {
+			e.available = map[string]bool{}
+		}
+		if strings.Contains(joined, "docker pull postgres:16") {
+			e.available["postgres:16"] = true
+			return "Pulling postgres:16\nPull complete\n", nil
+		}
+		e.available["nginx:alpine"] = true
 		return "Pulling nginx:alpine\nPull complete\n", nil
 	case strings.Contains(joined, "docker image tag mirror.example.com/library/nginx:alpine nginx:alpine"):
+		if e.available == nil {
+			e.available = map[string]bool{}
+		}
+		e.available["nginx:alpine"] = true
 		return "tagged", nil
 	case strings.Contains(joined, "docker image tag mirror-b.example.com/library/nginx:alpine nginx:alpine"):
+		if e.available == nil {
+			e.available = map[string]bool{}
+		}
+		e.available["nginx:alpine"] = true
 		return "tagged", nil
 	default:
 		return "", nil
@@ -242,11 +240,6 @@ func (e *mirrorAwareRuntimeDockerExecutor) Run(_ context.Context, command string
 }
 
 func (e *mirrorAwareRuntimeDockerExecutor) RunStream(_ context.Context, command string, args ...string) (io.ReadCloser, error) {
-	joined := strings.TrimSpace(command + " " + strings.Join(args, " "))
-	e.commands = append(e.commands, joined)
-	if strings.Contains(joined, "docker compose -f /tmp/demo-app/docker-compose.yml pull") {
-		return nil, errors.New("failed to resolve reference \"docker.io/library/nginx:alpine\": dial tcp 1.2.3.4:443: i/o timeout")
-	}
 	return io.NopCloser(strings.NewReader("")), nil
 }
 
@@ -634,17 +627,23 @@ func TestExecuteNodePullsRuntimeImages(t *testing.T) {
 	if result.DockerClient == nil {
 		t.Fatal("expected runtime_pull to retain docker client")
 	}
-	if len(lines) != 3 {
-		t.Fatalf("expected 3 runtime pull log lines, got %v", lines)
+	if len(lines) != 5 {
+		t.Fatalf("expected 5 runtime pull log lines, got %v", lines)
 	}
-	if !strings.Contains(lines[0], "docker runtime pull: Pulling postgres:16") {
+	if !strings.Contains(lines[0], "docker runtime pull started: postgres:16") {
 		t.Fatalf("expected first runtime pull log line, got %v", lines[0])
 	}
-	if !strings.Contains(lines[1], "docker runtime pull: Downloading layer sha256:123") {
+	if !strings.Contains(lines[1], "docker runtime pull: Pulling postgres:16") {
+		t.Fatalf("expected pull begin line, got %v", lines[1])
+	}
+	if !strings.Contains(lines[2], "docker runtime pull: Downloading layer sha256:123") {
 		t.Fatalf("expected incremental layer download line, got %v", lines[1])
 	}
-	if !strings.Contains(lines[2], "docker runtime pull: Pull complete") {
+	if !strings.Contains(lines[3], "docker runtime pull: Pull complete") {
 		t.Fatalf("expected runtime pull log output, got %v", lines)
+	}
+	if !strings.Contains(lines[4], "docker runtime pull succeeded: postgres:16") {
+		t.Fatalf("expected runtime pull success log line, got %v", lines[4])
 	}
 	if result.OperationChanged {
 		t.Fatal("expected runtime_pull not to mutate operation state")
@@ -676,8 +675,8 @@ func TestExecuteNodeSkipsRuntimePullWhenImagesAlreadyExistLocally(t *testing.T) 
 	if !strings.Contains(commands, "docker image inspect postgres:16") {
 		t.Fatalf("expected local image inspect, got commands:\n%s", commands)
 	}
-	if strings.Contains(commands, "docker compose -f /tmp/demo-app/docker-compose.yml pull") {
-		t.Fatalf("expected compose pull to be skipped when image exists locally, got commands:\n%s", commands)
+	if strings.Contains(commands, "docker pull postgres:16") {
+		t.Fatalf("expected docker pull to be skipped when image exists locally, got commands:\n%s", commands)
 	}
 	joinedLines := strings.Join(lines, "\n")
 	if !strings.Contains(joinedLines, "docker runtime image already available locally: postgres:16") {
@@ -685,6 +684,37 @@ func TestExecuteNodeSkipsRuntimePullWhenImagesAlreadyExistLocally(t *testing.T) 
 	}
 	if !strings.Contains(joinedLines, "docker runtime pull skipped because all runtime images are already available locally") {
 		t.Fatalf("expected runtime pull skip log, got %v", lines)
+	}
+}
+
+func TestExecuteNodeRuntimePullOnlyPullsMissingImages(t *testing.T) {
+	operation := core.NewRecord(core.NewBaseCollection("app_operations"))
+	operation.Set("project_dir", "/tmp/demo-app")
+	operation.Set("rendered_compose", "services:\n  db:\n    image: postgres:16\n  web:\n    image: nginx:alpine\n")
+
+	fakeExec := &mirrorAwareRuntimeDockerExecutor{available: map[string]bool{"nginx:alpine": true}}
+	var lines []string
+	_, err := ExecuteNode(
+		context.Background(),
+		operation,
+		model.NodeDefinition{NodeType: "runtime_pull"},
+		mirrorAwareRuntimeExecutor{exec: fakeExec},
+		nil,
+		NodeExecutionHooks{Logf: func(line string) { lines = append(lines, line) }},
+	)
+	if err != nil {
+		t.Fatalf("expected runtime_pull to pull only missing images, got %v", err)
+	}
+	commands := strings.Join(fakeExec.commands, "\n")
+	if strings.Contains(commands, "docker pull nginx:alpine") {
+		t.Fatalf("expected existing nginx image not to be pulled again, got commands:\n%s", commands)
+	}
+	if !strings.Contains(commands, "docker pull postgres:16") {
+		t.Fatalf("expected missing postgres image to be pulled, got commands:\n%s", commands)
+	}
+	joinedLines := strings.Join(lines, "\n")
+	if !strings.Contains(joinedLines, "docker runtime image already available locally: nginx:alpine") {
+		t.Fatalf("expected existing-image reuse log, got %v", lines)
 	}
 }
 
@@ -722,41 +752,6 @@ func TestExecuteNodeRuntimePullCreatesMissingExternalNetwork(t *testing.T) {
 	}
 }
 
-func TestExecuteNodePullsRuntimeImagesEmitsIdleHeartbeat(t *testing.T) {
-	previous := runtimePullIdleHeartbeatInterval
-	runtimePullIdleHeartbeatInterval = 10 * time.Millisecond
-	defer func() { runtimePullIdleHeartbeatInterval = previous }()
-
-	operation := core.NewRecord(core.NewBaseCollection("app_operations"))
-	operation.Set("project_dir", "/tmp/demo-app")
-
-	var lines []string
-	_, err := ExecuteNode(
-		context.Background(),
-		operation,
-		model.NodeDefinition{NodeType: "runtime_pull"},
-		runtimeHeartbeatExecutor{},
-		nil,
-		NodeExecutionHooks{Logf: func(line string) { lines = append(lines, line) }},
-	)
-	if err != nil {
-		t.Fatalf("expected runtime_pull heartbeat path to succeed, got %v", err)
-	}
-	if len(lines) < 3 {
-		t.Fatalf("expected pull log lines plus heartbeat, got %v", lines)
-	}
-	foundHeartbeat := false
-	for _, line := range lines {
-		if strings.Contains(line, "docker runtime pull still waiting for new output after") {
-			foundHeartbeat = true
-			break
-		}
-	}
-	if !foundHeartbeat {
-		t.Fatalf("expected idle heartbeat diagnostic line, got %v", lines)
-	}
-}
-
 func TestExecuteNodePullsRuntimeImagesViaConfiguredMirrors(t *testing.T) {
 	app, err := tests.NewTestApp()
 	if err != nil {
@@ -775,7 +770,7 @@ func TestExecuteNodePullsRuntimeImagesViaConfiguredMirrors(t *testing.T) {
 	operation.Set("project_dir", "/tmp/demo-app")
 	operation.Set("rendered_compose", "services:\n  web:\n    image: nginx:alpine\n")
 
-	fakeExec := &mirrorAwareRuntimeDockerExecutor{}
+	fakeExec := &mirrorAwareRuntimeDockerExecutor{upstreamPullErr: errors.New("failed to resolve reference \"docker.io/library/nginx:alpine\": dial tcp 1.2.3.4:443: i/o timeout")}
 	var lines []string
 	result, err := ExecuteNode(
 		context.Background(),
@@ -792,8 +787,8 @@ func TestExecuteNodePullsRuntimeImagesViaConfiguredMirrors(t *testing.T) {
 		t.Fatal("expected runtime_pull to retain docker client")
 	}
 	commands := strings.Join(fakeExec.commands, "\n")
-	if !strings.Contains(commands, "docker compose -f /tmp/demo-app/docker-compose.yml pull") {
-		t.Fatalf("expected compose pull to run before mirror fallback, got commands:\n%s", commands)
+	if !strings.Contains(commands, "docker pull nginx:alpine") {
+		t.Fatalf("expected upstream pull attempt before mirror fallback, got commands:\n%s", commands)
 	}
 	if !strings.Contains(commands, "docker pull mirror.example.com/library/nginx:alpine") {
 		t.Fatalf("expected mirror pull command, got commands:\n%s", commands)
@@ -831,7 +826,7 @@ func TestExecuteNodeRetriesEachMirrorBeforeMovingOn(t *testing.T) {
 	operation.Set("project_dir", "/tmp/demo-app")
 	operation.Set("rendered_compose", "services:\n  web:\n    image: nginx:alpine\n")
 
-	fakeExec := &mirrorAwareRuntimeDockerExecutor{pullErrSeq: map[string][]error{
+	fakeExec := &mirrorAwareRuntimeDockerExecutor{upstreamPullErr: errors.New("upstream timeout"), pullErrSeq: map[string][]error{
 		"mirror-a.example.com/library/nginx:alpine": {errors.New("attempt1"), errors.New("attempt2"), errors.New("attempt3")},
 		"mirror-b.example.com/library/nginx:alpine": {errors.New("attempt1"), errors.New("attempt2"), nil},
 	}}
@@ -849,6 +844,9 @@ func TestExecuteNodeRetriesEachMirrorBeforeMovingOn(t *testing.T) {
 	}
 
 	commands := strings.Join(fakeExec.commands, "\n")
+	if strings.Count(commands, "docker pull nginx:alpine") != 1 {
+		t.Fatalf("expected a single upstream pull attempt before mirror retries, got commands:\n%s", commands)
+	}
 	if strings.Count(commands, "docker pull mirror-a.example.com/library/nginx:alpine") != 3 {
 		t.Fatalf("expected three attempts for mirror A, got commands:\n%s", commands)
 	}

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/deploy"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	"github.com/websoft9/appos/backend/domain/feeds"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
@@ -101,6 +102,7 @@ func TestAppInstancesCollectionFields(t *testing.T) {
 	assertFieldExists(t, col, "last_operation", core.FieldTypeRelation, false)
 	assertFieldExists(t, col, "primary_exposure", core.FieldTypeRelation, false)
 	assertFieldExists(t, col, "publication_summary", core.FieldTypeSelect, false)
+	assertFieldExists(t, col, "channel", core.FieldTypeSelect, false)
 	assertFieldExists(t, col, "installed_at", core.FieldTypeDate, false)
 	assertFieldExists(t, col, "last_healthy_at", core.FieldTypeDate, false)
 	assertFieldExists(t, col, "retired_at", core.FieldTypeDate, false)
@@ -119,6 +121,7 @@ func TestAppInstancesCollectionFields(t *testing.T) {
 	assertSelectFieldValues(t, col, "desired_state", model.DesiredAppStates)
 	assertSelectFieldValues(t, col, "health_summary", model.HealthSummaries)
 	assertSelectFieldValues(t, col, "publication_summary", model.PublicationSummaries)
+	assertSelectFieldValues(t, col, "channel", model.OperationChannels)
 
 	if col.ListRule == nil || col.ViewRule == nil {
 		t.Fatal("app_instances should be readable by authenticated users")
@@ -136,8 +139,8 @@ func TestAppOperationsCollectionFields(t *testing.T) {
 	assertFieldExists(t, col, "app", core.FieldTypeRelation, true)
 	assertFieldExists(t, col, "server_id", core.FieldTypeText, true)
 	assertFieldExists(t, col, "operation_type", core.FieldTypeSelect, true)
-	assertFieldExists(t, col, "trigger_source", core.FieldTypeSelect, true)
-	assertFieldExists(t, col, "adapter", core.FieldTypeText, false)
+	assertFieldExists(t, col, "trigger", core.FieldTypeSelect, true)
+	assertFieldExists(t, col, "execution_mode", core.FieldTypeText, false)
 	assertFieldExists(t, col, "requested_by", core.FieldTypeRelation, false)
 	assertFieldExists(t, col, "phase", core.FieldTypeSelect, true)
 	assertFieldExists(t, col, "terminal_status", core.FieldTypeSelect, false)
@@ -169,7 +172,7 @@ func TestAppOperationsCollectionFields(t *testing.T) {
 	assertRelationTarget(t, app, col, "result_release", "app_releases")
 	assertRelationTarget(t, app, col, "pipeline_run", "pipeline_runs")
 	assertSelectFieldValues(t, col, "operation_type", model.OperationTypes)
-	assertSelectFieldValues(t, col, "trigger_source", []string{"manualops", "fileops", "gitops", "store", "system"})
+	assertSelectFieldValues(t, col, "trigger", model.OperationTriggers)
 	assertSelectFieldValues(t, col, "phase", model.OperationPhases)
 	assertSelectFieldValues(t, col, "terminal_status", []string{"success", "failed", "cancelled", "compensated", "manual_intervention_required"})
 	assertSelectFieldValues(t, col, "failure_reason", []string{"timeout", "validation_error", "resource_conflict", "dependency_unavailable", "execution_error", "verification_failed", "compensation_failed", "unknown"})
@@ -177,6 +180,42 @@ func TestAppOperationsCollectionFields(t *testing.T) {
 
 	if col.ListRule == nil || col.ViewRule == nil {
 		t.Fatal("app_operations should be readable by authenticated users")
+	}
+}
+
+func TestDeploymentsCollectionFields(t *testing.T) {
+	app := newMigrationsTestApp(t)
+
+	col, err := app.FindCollectionByNameOrId("deployments")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertFieldExists(t, col, "server_id", core.FieldTypeText, false)
+	assertFieldExists(t, col, "source", core.FieldTypeSelect, true)
+	assertFieldExists(t, col, "status", core.FieldTypeSelect, true)
+	assertFieldExists(t, col, "adapter", core.FieldTypeText, false)
+	assertFieldExists(t, col, "compose_project_name", core.FieldTypeText, false)
+	assertFieldExists(t, col, "project_dir", core.FieldTypeText, false)
+	assertFieldExists(t, col, "spec", core.FieldTypeJSON, false)
+	assertFieldExists(t, col, "rendered_compose", core.FieldTypeText, false)
+	assertFieldExists(t, col, "execution_log", core.FieldTypeText, false)
+	assertFieldExists(t, col, "execution_log_truncated", core.FieldTypeBool, false)
+	assertFieldExists(t, col, "error_summary", core.FieldTypeText, false)
+	assertFieldExists(t, col, "current_step", core.FieldTypeText, false)
+	assertFieldExists(t, col, "step_status", core.FieldTypeSelect, false)
+	assertFieldExists(t, col, "last_error", core.FieldTypeJSON, false)
+	assertFieldExists(t, col, "release_snapshot", core.FieldTypeJSON, false)
+	assertFieldExists(t, col, "started_at", core.FieldTypeDate, false)
+	assertFieldExists(t, col, "finished_at", core.FieldTypeDate, false)
+	assertFieldExists(t, col, "created", core.FieldTypeAutodate, false)
+	assertFieldExists(t, col, "updated", core.FieldTypeAutodate, false)
+	assertSelectFieldValues(t, col, "source", []string{"manualops", "fileops", "gitops", "store"})
+	assertSelectFieldValues(t, col, "status", deploy.StatusValues())
+	assertSelectFieldValues(t, col, "step_status", deploy.StepStatusValues())
+
+	if col.ListRule == nil || col.ViewRule == nil {
+		t.Fatal("deployments should be readable by authenticated users")
 	}
 }
 
@@ -209,7 +248,7 @@ func TestAppReleasesCollectionFields(t *testing.T) {
 	assertFieldExists(t, col, "created_by_operation", core.FieldTypeRelation, false)
 	assertFieldExists(t, col, "release_role", core.FieldTypeSelect, true)
 	assertFieldExists(t, col, "version_label", core.FieldTypeText, false)
-	assertFieldExists(t, col, "source_type", core.FieldTypeSelect, true)
+	assertFieldExists(t, col, "channel", core.FieldTypeSelect, true)
 	assertFieldExists(t, col, "source_ref", core.FieldTypeText, false)
 	assertFieldExists(t, col, "rendered_compose", core.FieldTypeText, true)
 	assertFieldExists(t, col, "resolved_env_json", core.FieldTypeJSON, false)
@@ -223,7 +262,7 @@ func TestAppReleasesCollectionFields(t *testing.T) {
 	assertRelationTarget(t, app, col, "app", "app_instances")
 	assertRelationTarget(t, app, col, "created_by_operation", "app_operations")
 	assertSelectFieldValues(t, col, "release_role", []string{"candidate", "active", "last_known_good", "historical"})
-	assertSelectFieldValues(t, col, "source_type", []string{"template", "git", "file", "image", "manual"})
+	assertSelectFieldValues(t, col, "channel", model.OperationChannels)
 }
 
 func TestAppExposuresCollectionFields(t *testing.T) {

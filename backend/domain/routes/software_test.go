@@ -640,6 +640,15 @@ func TestSupportedServerCatalogRoutesExposeReadOnlyCatalogSurface(t *testing.T) 
 		t.Fatalf("expected detail visibility array, got %#v", body["visibility"])
 	}
 
+	rec = te.doSoftware(t, http.MethodGet, "/api/software/server-catalog/reverse-proxy", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected reverse-proxy supported server catalog detail 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body = parseJSON(t, rec)
+	if body["artifact_kind"] != "docker" {
+		t.Fatalf("expected reverse-proxy artifact_kind docker, got %#v", body["artifact_kind"])
+	}
+
 	rec = te.doSoftware(t, http.MethodGet, "/api/software/server-catalog/telegraf", "", true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected telegraf supported server catalog detail 200, got %d: %s", rec.Code, rec.Body.String())

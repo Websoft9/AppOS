@@ -79,6 +79,7 @@ help:
 	@echo ""
 	@printf "\033[36mBuild Image:\033[0m\n"
 	@echo "  make image build          Build the AppOS image from pre-built host artifacts"
+	@echo "  make image pull IMAGE=... Pull an image via docker.1ms.run mirror"
 	@echo ""
 	@printf "\033[36mContainer Management:\033[0m\n"
 	@echo "  make start                Start container (interactive port prompt when attached to a TTY)"
@@ -260,7 +261,11 @@ run:
 	@docker cp backend/appos $(CONTAINER):/usr/local/bin/appos
 	@docker cp web/dist/. $(CONTAINER):/appos/web/
 	@docker cp templates/apps/. $(CONTAINER):/appos/data/templates/apps/
+	@docker exec $(CONTAINER) sh -lc 'mkdir -p /etc/traefik/dynamic'
+	@docker cp build/traefik.yml $(CONTAINER):/etc/traefik/traefik.yml
+	@docker cp build/traefik-dashboard.yml $(CONTAINER):/etc/traefik/dynamic/dashboard.yml
 	@docker exec $(CONTAINER) sh -lc 'if [ -e /etc/service/appos ] && command -v sv >/dev/null 2>&1; then sv restart /etc/service/appos; elif command -v supervisorctl >/dev/null 2>&1 && [ -f /etc/supervisor/supervisord.conf ]; then supervisorctl -c /etc/supervisor/supervisord.conf restart appos; else exit 42; fi' >/dev/null || { status=$$?; if [ "$$status" = "42" ]; then docker restart $(CONTAINER) >/dev/null; else exit $$status; fi; }
+	@docker exec $(CONTAINER) sh -lc 'if [ -e /etc/service/traefik ] && command -v sv >/dev/null 2>&1; then sv up /etc/service/traefik >/dev/null 2>&1 || true; sv restart /etc/service/traefik >/dev/null; fi'
 	@echo "✓ Hot reload complete"
 	@echo "  → http://127.0.0.1:$(PORT_EFFECTIVE)/"
 
@@ -956,8 +961,31 @@ ifeq ($(ARG2),build)
 	@echo "Unknown image subcommand: $(ARG3)"
 	@echo "Usage: make image build"
   endif
+else ifeq ($(ARG2),pull)
+	@if [ -z "$(IMAGE)" ]; then \
+		echo "Usage: make image pull IMAGE=<image>[:<tag>]"; \
+		echo "Examples:"; \
+		echo "  make image pull IMAGE=nginx:alpine"; \
+		echo "  make image pull IMAGE=traefik:v3.4.1"; \
+		echo "  make image pull IMAGE=grafana/grafana:latest"; \
+		echo "  make image pull IMAGE=ghcr.io/some/project:v1"; \
+		exit 1; \
+	fi
+	@mirror="docker.1ms.run"; \
+	image="$(IMAGE)"; \
+	case "$$image" in \
+		*/*) \
+			mirrored="$$mirror/$$image"; \
+			;; \
+		*) \
+			mirrored="$$mirror/library/$$image"; \
+			;; \
+	esac; \
+	echo "Pulling $$mirrored ..."; \
+	docker pull "$$mirrored" && docker tag "$$mirrored" "$$image"
 else
 	@echo "Usage: make image build"
+	@echo "       make image pull IMAGE=<image>[:<tag>]"
 endif
 
 # ============================================================

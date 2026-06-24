@@ -351,12 +351,75 @@ func (s *Service) buildComputedComponents(
 		}
 		resolved := swcatalog.ResolveTemplate(entry, tpl)
 		computed := s.computeComponent(ctx, entry, resolved, targetID, executor, executorErr, latestOps[string(entry.ComponentKey)])
-		if err := swprojection.UpsertInventorySnapshot(s.app, targetType, targetID, snapshotFromComputed(computed)); err != nil {
-			s.app.Logger().Error("failed to write software snapshot", "component", entry.ComponentKey, "target", targetID, "error", err)
-		}
 		items = append(items, computed)
 	}
+	applyDependencyReadiness(items)
+	for _, computed := range items {
+		if err := swprojection.UpsertInventorySnapshot(s.app, targetType, targetID, snapshotFromComputed(computed)); err != nil {
+			s.app.Logger().Error("failed to write software snapshot", "component", computed.Entry.ComponentKey, "target", targetID, "error", err)
+		}
+	}
 	return items, nil
+}
+
+func applyDependencyReadiness(items []ComputedComponent) {
+	if len(items) == 0 {
+		return
+	}
+	byComponent := make(map[software.ComponentKey]ComputedComponent, len(items))
+	for _, item := range items {
+		byComponent[item.Entry.ComponentKey] = item
+	}
+	for index := range items {
+		deps := dependencyCapabilitiesFromRequirements(items[index].Entry.ReadinessRequirements)
+		if len(deps) == 0 {
+			continue
+		}
+		preflight := items[index].Preflight
+		preflight.DependencyReady = true
+		for _, dep := range deps {
+			componentKey, ok := software.CapabilityComponentMap[dep]
+			if !ok {
+				preflight.DependencyReady = false
+				preflight.Issues = append(preflight.Issues, fmt.Sprintf("dependency_missing: capability %q is not mapped to a managed component", dep))
+				continue
+			}
+			depItem, ok := byComponent[componentKey]
+			if !ok || depItem.Detail.InstalledState != software.InstalledStateInstalled || depItem.Detail.VerificationState != software.VerificationStateHealthy || !depItem.Preflight.OK {
+				preflight.DependencyReady = false
+				preflight.Issues = append(preflight.Issues, fmt.Sprintf("dependency_missing: capability %q is not ready", dep))
+			}
+		}
+		preflight.OK = preflight.OSSupported && preflight.PrivilegeOK && preflight.NetworkOK && preflight.DependencyReady && preflight.ServiceManagerOK && preflight.PackageManagerOK
+		items[index].Preflight = preflight
+		items[index].Detail.Preflight = &preflight
+		items[index].Summary.AvailableActions = deriveAvailableActions(items[index].Entry.SupportedActions, items[index].Detail.InstalledState, preflight, items[index].LastOperation)
+		items[index].Detail.AvailableActions = items[index].Summary.AvailableActions
+		items[index].Detail.SoftwareComponentSummary = items[index].Summary
+	}
+}
+
+func dependencyCapabilitiesFromRequirements(requirements []string) []software.Capability {
+	if len(requirements) == 0 {
+		return nil
+	}
+	seen := map[software.Capability]struct{}{}
+	out := make([]software.Capability, 0)
+	for _, requirement := range requirements {
+		capability := software.Capability(strings.TrimSpace(requirement))
+		if capability == "" {
+			continue
+		}
+		if _, ok := software.CapabilityComponentMap[capability]; !ok {
+			continue
+		}
+		if _, ok := seen[capability]; ok {
+			continue
+		}
+		seen[capability] = struct{}{}
+		out = append(out, capability)
+	}
+	return out
 }
 
 func placeholderComponent(

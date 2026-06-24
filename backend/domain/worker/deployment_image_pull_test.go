@@ -18,9 +18,15 @@ type fakeDeploymentImageClient struct {
 	pulls      []string
 	tags       [][2]string
 	blockPull  bool
+	available  map[string]bool
+	disableAutoAvailableOnPull bool
+	disableAutoAvailableOnTag  bool
 }
 
 func (f *fakeDeploymentImageClient) ImageInspect(_ context.Context, id string) (string, error) {
+	if f.available != nil && f.available[id] {
+		return "[]", nil
+	}
 	if err, ok := f.inspectErr[id]; ok {
 		return "", err
 	}
@@ -44,11 +50,25 @@ func (f *fakeDeploymentImageClient) ImagePull(ctx context.Context, name string) 
 	if err, ok := f.pullErr[name]; ok {
 		return "", err
 	}
+	if !f.disableAutoAvailableOnPull {
+		if f.available == nil {
+			f.available = map[string]bool{}
+		}
+		f.available[name] = true
+		delete(f.inspectErr, name)
+	}
 	return "ok", nil
 }
 
 func (f *fakeDeploymentImageClient) ImageTag(_ context.Context, sourceRef string, targetRef string) (string, error) {
 	f.tags = append(f.tags, [2]string{sourceRef, targetRef})
+	if !f.disableAutoAvailableOnTag {
+		if f.available == nil {
+			f.available = map[string]bool{}
+		}
+		f.available[targetRef] = true
+		delete(f.inspectErr, targetRef)
+	}
 	return "ok", nil
 }
 
@@ -164,5 +184,28 @@ func TestPrepareDeploymentImagesRetriesEachMirrorBeforeMovingOn(t *testing.T) {
 	}
 	if !reflect.DeepEqual(client.tags, [][2]string{{"mirror-b.example.com/library/nginx:alpine", "nginx:alpine"}}) {
 		t.Fatalf("unexpected tag operations: %#v", client.tags)
+	}
+}
+
+func TestPrepareDeploymentImagesFailsWhenPulledImageCannotBeVerifiedLocally(t *testing.T) {
+	app := newWorkerTestApp(t)
+	if err := sysconfig.SetGroup(app, "docker", "mirror", map[string]any{
+		"mirrors":                 []any{},
+		"allowInsecureRegistries": false,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	client := &fakeDeploymentImageClient{
+		inspectErr:                 map[string]error{"nginx:alpine": errors.New("missing after pull")},
+		disableAutoAvailableOnPull: true,
+	}
+
+	err := prepareDeploymentImages(context.Background(), app, client, "services:\n  web:\n    image: nginx:alpine\n", func(string) {})
+	if err == nil {
+		t.Fatal("expected local verification failure")
+	}
+	if got := err.Error(); !strings.Contains(got, "image is still unavailable locally") {
+		t.Fatalf("expected local verification error, got %q", got)
 	}
 }

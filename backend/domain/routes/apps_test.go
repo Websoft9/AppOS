@@ -63,6 +63,7 @@ func seedAppInstance(t *testing.T, te *testEnv, name string) *core.Record {
 	record.Set("desired_state", string(model.DesiredStateRunning))
 	record.Set("health_summary", string(model.HealthHealthy))
 	record.Set("publication_summary", string(model.PublicationUnpublished))
+	record.Set("channel", string(model.ChannelCustom))
 	record.Set("state_reason", "seeded for apps route test")
 	record.Set("installed_at", time.Now())
 	if err := te.app.Save(record); err != nil {
@@ -77,7 +78,8 @@ func seedAppInstance(t *testing.T, te *testEnv, name string) *core.Record {
 	operation.Set("app", record.Id)
 	operation.Set("server_id", "local")
 	operation.Set("operation_type", string(model.OperationTypeInstall))
-	operation.Set("trigger_source", string(model.TriggerSourceManualOps))
+	operation.Set("trigger", string(model.TriggerManual))
+	operation.Set("execution_mode", string(model.ExecutionModeCompose))
 	operation.Set("phase", string(model.OperationPhaseQueued))
 	operation.Set("compose_project_name", name)
 	operation.Set("project_dir", projectDir)
@@ -85,7 +87,8 @@ func seedAppInstance(t *testing.T, te *testEnv, name string) *core.Record {
 	operation.Set("queued_at", time.Now())
 	operation.Set("spec_json", map[string]any{
 		"project_dir": projectDir,
-		"source":      string(model.TriggerSourceManualOps),
+		"channel":     string(model.ChannelCustom),
+		"execution_mode": string(model.ExecutionModeCompose),
 		"metadata": map[string]any{
 			"prefill_context": map[string]any{
 				"app_key": name + "-catalog",
@@ -220,8 +223,11 @@ func TestAppInstancesListAndDetail(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected current pipeline selector map, got %T", currentPipeline["selector"])
 	}
-	if selector["operation_type"] != string(model.OperationTypeInstall) || selector["source"] != string(model.TriggerSourceManualOps) {
+	if selector["operation_type"] != string(model.OperationTypeInstall) {
 		t.Fatalf("unexpected current pipeline selector: %v", selector)
+	}
+	if _, exists := selector["channel"]; exists {
+		t.Fatalf("expected current pipeline selector to omit channel, got %v", selector)
 	}
 }
 
@@ -345,8 +351,8 @@ func TestAppInstanceUpgradeCreatesQueuedOperationForExistingProject(t *testing.T
 	if created["compose_project_name"] != record.GetString("name") {
 		t.Fatalf("expected existing compose project name, got %v", created["compose_project_name"])
 	}
-	if created["source"] != operation.GetString("trigger_source") {
-		t.Fatalf("expected source %s, got %v", operation.GetString("trigger_source"), created["source"])
+	if created["channel"] != string(model.ChannelCustom) {
+		t.Fatalf("expected channel %s, got %v", model.ChannelCustom, created["channel"])
 	}
 	if created["enqueued"] != false {
 		t.Fatalf("expected enqueued false without worker client, got %v", created["enqueued"])

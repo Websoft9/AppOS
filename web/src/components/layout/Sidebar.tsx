@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import {
   LayoutDashboard,
   Layers,
+  Network,
   Settings,
   FileCode2,
   PanelLeftClose,
@@ -15,7 +16,8 @@ import {
   Cog,
   TerminalSquare,
   KeyRound,
-  BookOpen,
+  Rss,
+  Shapes,
   Puzzle,
   BotMessageSquare,
 } from 'lucide-react'
@@ -64,16 +66,20 @@ type NavLabels = {
     myApps: string
     appStore: string
     deploy: string
+    publish: string
     actions: string
+    groups: string
+    feed: string
     terminal: string
     aiCopilot: string
-    collaboration: string
-    groups: string
     topics: string
     feeds: string
     assets: string
     space: string
     resources: string
+    network: string
+    gateway: string
+    traffic: string
     extensions: string
     system: string
     status: string
@@ -105,16 +111,20 @@ const DEFAULT_NAV_LABELS: NavLabels = {
     myApps: 'My Apps',
     appStore: 'App Store',
     deploy: 'Deploy',
+    publish: 'Publish',
     actions: 'Activity',
+    groups: 'Groups',
+    feed: 'Feed',
     terminal: 'Terminal',
     aiCopilot: 'AI Copilot',
-    collaboration: 'Collaboration',
-    groups: 'Groups',
     topics: 'Topics',
     feeds: 'Feeds',
     assets: 'Assets',
     space: 'Space',
     resources: 'Resources',
+    network: 'Network',
+    gateway: 'Gateway',
+    traffic: 'Traffic',
     extensions: 'Extensions',
     system: 'System',
     status: 'Status',
@@ -157,8 +167,15 @@ function buildWorkspaceGroup(labels: NavLabels): NavGroup {
           { id: 'installed', label: labels.items.myApps, href: '/apps' },
           { id: 'store', label: labels.items.appStore, href: '/store' },
           { id: 'deploy', label: labels.items.deploy, href: '/deploy' },
+          { id: 'publish', label: labels.items.publish, href: '/publish' },
           { id: 'actions', label: labels.items.actions, href: '/activity' },
         ],
+      },
+      {
+        id: 'groups',
+        label: labels.items.groups,
+        icon: <Shapes className="h-5 w-5" />,
+        href: '/groups',
       },
       {
         id: 'terminal',
@@ -173,14 +190,13 @@ function buildWorkspaceGroup(labels: NavLabels): NavGroup {
         href: '/ai-copilot',
       },
       {
-        id: 'collaboration',
-        label: labels.items.collaboration,
-        icon: <BookOpen className="h-5 w-5" />,
-        href: '/groups',
+        id: 'feed',
+        label: labels.items.feed,
+        icon: <Rss className="h-5 w-5" />,
+        href: '/feeds',
         children: [
-          { id: 'groups', label: labels.items.groups, href: '/groups' },
-          { id: 'topics', label: labels.items.topics, href: '/topics' },
           { id: 'feeds', label: labels.items.feeds, href: '/feeds' },
+          { id: 'topics', label: labels.items.topics, href: '/topics' },
         ],
       },
       {
@@ -214,6 +230,18 @@ function buildPlatformGroup(isSuperuser: boolean, labels: NavLabels): NavGroup {
     href: '/extensions',
   }
 
+  const networkNavItem: NavItem = {
+    id: 'network',
+    label: labels.items.network,
+    icon: <Network className="h-5 w-5" />,
+    href: '/network',
+    children: [
+      { id: 'gateway', label: labels.items.gateway, href: '/gateway' },
+      { id: 'tunnels', label: labels.items.tunnels, href: '/tunnels' },
+      { id: 'traffic', label: labels.items.traffic, href: '/traffic' },
+    ],
+  }
+
   const systemNavItem: NavItem = {
     id: 'system',
     label: labels.items.system,
@@ -222,7 +250,6 @@ function buildPlatformGroup(isSuperuser: boolean, labels: NavLabels): NavGroup {
     children: [
       { id: 'status', label: labels.items.status, href: '/status' },
       { id: 'platform-runtime', label: labels.items.platformRuntime, href: '/platform-runtime' },
-      { id: 'tunnels', label: labels.items.tunnels, href: '/tunnels' },
       { id: 'audit', label: labels.items.audit, href: '/audit' },
       { id: 'logs', label: labels.items.logs, href: '/logs' },
       { id: 'system-tasks', label: labels.items.platformCrons, href: '/system-tasks' },
@@ -242,7 +269,6 @@ function buildPlatformGroup(isSuperuser: boolean, labels: NavLabels): NavGroup {
         label: labels.items.platformComponents,
         href: '/platform-components',
       },
-      { id: 'tunnels', label: labels.items.tunnels, href: '/tunnels' },
       { id: 'audit', label: labels.items.audit, href: '/audit' },
     ],
   }
@@ -287,12 +313,13 @@ function buildPlatformGroup(isSuperuser: boolean, labels: NavLabels): NavGroup {
       ? [
           systemNavItem,
           resourcesNavItem,
+          networkNavItem,
           extensionsNavItem,
           credentialsNavItem,
           usersNavItem,
           settingsNavItem,
         ]
-      : [systemNavItemBasic, resourcesNavItem, extensionsNavItem],
+      : [systemNavItemBasic, resourcesNavItem, networkNavItem, extensionsNavItem],
   }
 }
 
@@ -510,16 +537,20 @@ export function Sidebar({ groups }: SidebarProps) {
         myApps: t('items.myApps'),
         appStore: t('items.appStore'),
         deploy: t('items.deploy'),
+        publish: t('items.publish'),
         actions: t('items.actions'),
+        groups: t('items.groups'),
+        feed: t('items.feed'),
         terminal: t('items.terminal'),
         aiCopilot: t('items.aiCopilot'),
-        collaboration: t('items.collaboration'),
-        groups: t('items.groups'),
         topics: t('items.topics'),
         feeds: t('items.feeds'),
         assets: t('items.assets'),
         space: t('items.space'),
         resources: t('items.resources'),
+        network: t('items.network'),
+        gateway: t('items.gateway'),
+        traffic: t('items.traffic'),
         extensions: t('items.extensions'),
         system: t('items.system'),
         status: t('items.status'),

@@ -26,8 +26,9 @@ type ComposeOperationRequest struct {
 	ServerID       string
 	ProjectName    string
 	Compose        string
-	Source         string
-	Adapter        string
+	Trigger        string
+	Channel        string
+	ExecutionMode  string
 	ResolvedEnv    map[string]any
 	ExposureIntent *ExposureIntent
 	Metadata       map[string]any
@@ -41,8 +42,9 @@ func PreflightAndCreateOperationFromCompose(app core.App, auth *core.Record, req
 			request.ServerID,
 			request.ProjectName,
 			request.Compose,
-			request.Source,
-			request.Adapter,
+			request.Trigger,
+			request.Channel,
+			request.ExecutionMode,
 			InstallIngressOptions{
 				OperationType:      options.OperationType,
 				ProjectDir:         options.ProjectDir,
@@ -72,8 +74,9 @@ func CreateOperationFromCompose(app core.App, auth *core.Record, request Compose
 		request.ServerID,
 		request.ProjectName,
 		request.Compose,
-		request.Source,
-		request.Adapter,
+		request.Trigger,
+		request.Channel,
+		request.ExecutionMode,
 		InstallIngressOptions{
 			OperationType:      options.OperationType,
 			ProjectDir:         options.ProjectDir,
@@ -94,9 +97,8 @@ func CreateOperationFromCompose(app core.App, auth *core.Record, request Compose
 
 func CreateOperationFromNormalizedInstallSpec(app core.App, auth *core.Record, normalizedSpec NormalizedInstallSpec, options ComposeOperationOptions) (*core.Record, error) {
 	pipelineDefinition, err := metadata.DefinitionForSelector(model.DefinitionSelector{
-		OperationType: normalizedSpec.OperationType,
-		Source:        normalizedSpec.Source,
-		Adapter:       normalizedSpec.Adapter,
+		OperationType:  normalizedSpec.OperationType,
+		ExecutionMode: normalizedSpec.ExecutionMode,
 	})
 	if err != nil {
 		return nil, err
@@ -155,6 +157,9 @@ func CreateOperationFromNormalizedInstallSpec(app core.App, auth *core.Record, n
 		if templateKey := normalizedCatalogAppKey(normalizedSpec.Metadata); templateKey != "" && strings.TrimSpace(appRecord.GetString("template_key")) == "" {
 			appRecord.Set("template_key", templateKey)
 		}
+		if normalizedSpec.OperationType == string(model.OperationTypeInstall) || strings.TrimSpace(appRecord.GetString("channel")) == "" {
+			appRecord.Set("channel", normalizedSpec.Channel)
+		}
 		if accessEndpoints := resolveAccessEndpoints(normalizedSpec); accessEndpoints != nil {
 			appRecord.Set("access_endpoints", accessEndpoints)
 		}
@@ -163,8 +168,8 @@ func CreateOperationFromNormalizedInstallSpec(app core.App, auth *core.Record, n
 		operationRecord.Set("app", appRecord.Id)
 		operationRecord.Set("server_id", normalizedSpec.ServerID)
 		operationRecord.Set("operation_type", normalizedSpec.OperationType)
-		operationRecord.Set("trigger_source", normalizedSpec.Source)
-		operationRecord.Set("adapter", normalizedSpec.Adapter)
+		operationRecord.Set("trigger", normalizedSpec.Trigger)
+		operationRecord.Set("execution_mode", normalizedSpec.ExecutionMode)
 		if auth != nil && auth.Collection() != nil && auth.Collection().Name == "users" {
 			operationRecord.Set("requested_by", auth.Id)
 		}

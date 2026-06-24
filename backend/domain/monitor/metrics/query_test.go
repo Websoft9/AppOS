@@ -19,7 +19,7 @@ func TestQueryLatestMetricSeriesReturnsOnlyMostRecentPoint(t *testing.T) {
 		_, _ = w.Write([]byte(`{"status":"success","data":{"result":[{"values":[[1713096000,"32.1"],[1713096010,"30.8"],[1713096020,"31.2"]]}]}}`))
 	}))
 	defer server.Close()
-	t.Setenv(metrics.EnvVictoriaMetricsURL, server.URL)
+	t.Setenv(metrics.EnvTSDBURL, server.URL)
 
 	resp, err := metrics.QueryLatestMetricSeries(context.Background(), "server", "srv_1", []string{"cpu"}, metrics.MetricSeriesQueryOptions{})
 	if err != nil {
@@ -53,7 +53,7 @@ func TestQueryLatestMetricSeriesKeepsOnlyLatestSegmentPoints(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	t.Setenv(metrics.EnvVictoriaMetricsURL, server.URL)
+	t.Setenv(metrics.EnvTSDBURL, server.URL)
 
 	resp, err := metrics.QueryLatestMetricSeries(context.Background(), "server", "srv_4", []string{"network"}, metrics.MetricSeriesQueryOptions{NetworkInterface: "eth0"})
 	if err != nil {
@@ -85,7 +85,7 @@ func TestQueryMetricSeriesQueriesVictoriaMetricsRangeAPI(t *testing.T) {
 		_, _ = w.Write([]byte(`{"status":"success","data":{"result":[{"values":[[1713096000,"32.1"],[1713096060,"30.8"]]}]}}`))
 	}))
 	defer server.Close()
-	t.Setenv(metrics.EnvVictoriaMetricsURL, server.URL)
+	t.Setenv(metrics.EnvTSDBURL, server.URL)
 
 	resp, err := metrics.QueryMetricSeries(context.Background(), "server", "srv_1", "1h", []string{"cpu"}, metrics.MetricSeriesQueryOptions{})
 	if err != nil {
@@ -109,7 +109,7 @@ func TestQueryMetricSeriesQueriesPlatformAppOSCoreCPUExpression(t *testing.T) {
 		_, _ = w.Write([]byte(`{"status":"success","data":{"result":[{"values":[[1713096000,"18.4"]]}]}}`))
 	}))
 	defer server.Close()
-	t.Setenv(metrics.EnvVictoriaMetricsURL, server.URL)
+	t.Setenv(metrics.EnvTSDBURL, server.URL)
 
 	resp, err := metrics.QueryMetricSeries(context.Background(), "platform", "appos-core", "1h", []string{"cpu"}, metrics.MetricSeriesQueryOptions{})
 	if err != nil {
@@ -130,7 +130,7 @@ func TestQueryMetricSeriesQueriesPlatformAppOSCoreMemoryExpression(t *testing.T)
 		_, _ = w.Write([]byte(`{"status":"success","data":{"result":[{"values":[[1713096000,"1"]]}]}}`))
 	}))
 	defer server.Close()
-	t.Setenv(metrics.EnvVictoriaMetricsURL, server.URL)
+	t.Setenv(metrics.EnvTSDBURL, server.URL)
 
 	resp, err := metrics.QueryMetricSeries(context.Background(), "platform", "appos-core", "1h", []string{"memory"}, metrics.MetricSeriesQueryOptions{})
 	if err != nil {
@@ -157,7 +157,7 @@ func TestQueryMetricSeriesUsesAppOSPlatformMetricsForNonCoreTarget(t *testing.T)
 		_, _ = w.Write([]byte(`{"status":"success","data":{"result":[{"values":[[1713096000,"1"]]}]}}`))
 	}))
 	defer server.Close()
-	t.Setenv(metrics.EnvVictoriaMetricsURL, server.URL)
+	t.Setenv(metrics.EnvTSDBURL, server.URL)
 
 	_, err := metrics.QueryMetricSeries(context.Background(), "platform", "scheduler", "1h", []string{"cpu"}, metrics.MetricSeriesQueryOptions{})
 	if err != nil {
@@ -175,7 +175,7 @@ func TestQueryMetricSeriesQueriesPlatformAppOSCoreDiskExpression(t *testing.T) {
 		_, _ = w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
 	}))
 	defer server.Close()
-	t.Setenv(metrics.EnvVictoriaMetricsURL, server.URL)
+	t.Setenv(metrics.EnvTSDBURL, server.URL)
 
 	resp, err := metrics.QueryMetricSeries(context.Background(), "platform", "appos-core", "1h", []string{"disk"}, metrics.MetricSeriesQueryOptions{})
 	if err != nil {
@@ -209,7 +209,7 @@ func TestQueryMetricSeriesQueriesPlatformAppOSCoreNetworkExpression(t *testing.T
 		}
 	}))
 	defer server.Close()
-	t.Setenv(metrics.EnvVictoriaMetricsURL, server.URL)
+	t.Setenv(metrics.EnvTSDBURL, server.URL)
 
 	resp, err := metrics.QueryMetricSeries(context.Background(), "platform", "appos-core", "1h", []string{"network"}, metrics.MetricSeriesQueryOptions{NetworkInterface: "eth0"})
 	if err != nil {
@@ -260,7 +260,7 @@ func TestQueryMetricSeriesQueriesNetdataServerMemoryExpression(t *testing.T) {
 		_, _ = w.Write([]byte(`{"status":"success","data":{"result":[{"values":[[1713096000,"1"]]}]}}`))
 	}))
 	defer server.Close()
-	t.Setenv(metrics.EnvVictoriaMetricsURL, server.URL)
+	t.Setenv(metrics.EnvTSDBURL, server.URL)
 
 	resp, err := metrics.QueryMetricSeries(context.Background(), "server", "srv_2", "1h", []string{"memory"}, metrics.MetricSeriesQueryOptions{})
 	if err != nil {
@@ -287,7 +287,7 @@ func TestQueryMetricSeriesQueriesNetdataServerDiskExpression(t *testing.T) {
 		_, _ = w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
 	}))
 	defer server.Close()
-	t.Setenv(metrics.EnvVictoriaMetricsURL, server.URL)
+	t.Setenv(metrics.EnvTSDBURL, server.URL)
 
 	resp, err := metrics.QueryMetricSeries(context.Background(), "server", "srv_3", "1h", []string{"disk"}, metrics.MetricSeriesQueryOptions{})
 	if err != nil {
@@ -321,7 +321,7 @@ func TestQueryMetricSeriesQueriesNetdataServerNetworkExpression(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	t.Setenv(metrics.EnvVictoriaMetricsURL, server.URL)
+	t.Setenv(metrics.EnvTSDBURL, server.URL)
 
 	resp, err := metrics.QueryMetricSeries(context.Background(), "server", "srv_4", "1h", []string{"network"}, metrics.MetricSeriesQueryOptions{NetworkInterface: "eth0"})
 	if err != nil {
@@ -361,7 +361,7 @@ func TestQueryMetricSeriesQueriesCanonicalServerAggregateNetworkExpressionByDefa
 		}
 	}))
 	defer server.Close()
-	t.Setenv(metrics.EnvVictoriaMetricsURL, server.URL)
+	t.Setenv(metrics.EnvTSDBURL, server.URL)
 
 	resp, err := metrics.QueryMetricSeries(context.Background(), "server", "srv-agg", "1h", []string{"network"}, metrics.MetricSeriesQueryOptions{})
 	if err != nil {
@@ -402,7 +402,7 @@ func TestQueryMetricSeriesQueriesNetdataServerNetworkTrafficExpression(t *testin
 		}
 	}))
 	defer server.Close()
-	t.Setenv(metrics.EnvVictoriaMetricsURL, server.URL)
+	t.Setenv(metrics.EnvTSDBURL, server.URL)
 
 	resp, err := metrics.QueryMetricSeries(context.Background(), "server", "srv_4", "5h", []string{"network_traffic"}, metrics.MetricSeriesQueryOptions{NetworkInterface: "eth0"})
 	if err != nil {
@@ -441,7 +441,7 @@ func TestQueryMetricSeriesQueriesNetdataServerDiskUsageExpression(t *testing.T) 
 		_, _ = w.Write([]byte(`{"status":"success","data":{"result":[{"values":[[1713096000,"1"]]}]}}`))
 	}))
 	defer server.Close()
-	t.Setenv(metrics.EnvVictoriaMetricsURL, server.URL)
+	t.Setenv(metrics.EnvTSDBURL, server.URL)
 
 	resp, err := metrics.QueryMetricSeries(context.Background(), "server", "srv_5", "1h", []string{"disk_usage"}, metrics.MetricSeriesQueryOptions{})
 	if err != nil {
@@ -476,7 +476,7 @@ func TestQueryMetricSeriesAcceptsExtendedFixedWindows(t *testing.T) {
 		_, _ = w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
 	}))
 	defer server.Close()
-	t.Setenv(metrics.EnvVictoriaMetricsURL, server.URL)
+	t.Setenv(metrics.EnvTSDBURL, server.URL)
 
 	for _, window := range []string{"12h", "1d", "7d"} {
 		resp, err := metrics.QueryMetricSeries(context.Background(), "app", "app-1", window, []string{"cpu"}, metrics.MetricSeriesQueryOptions{})
@@ -496,7 +496,7 @@ func TestQueryMetricSeriesUsesCustomRange(t *testing.T) {
 		_, _ = w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
 	}))
 	defer server.Close()
-	t.Setenv(metrics.EnvVictoriaMetricsURL, server.URL)
+	t.Setenv(metrics.EnvTSDBURL, server.URL)
 
 	startAt := time.Date(2026, time.April, 14, 8, 0, 0, 0, time.UTC)
 	endAt := startAt.Add(36 * time.Hour)

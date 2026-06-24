@@ -483,6 +483,53 @@ func TestResolveTemplatePlaceholders(t *testing.T) {
 	}
 }
 
+func TestResolveTemplatePlaceholders_ReverseProxyDockerScript(t *testing.T) {
+	reg, err := catalog.LoadTemplateRegistry()
+	if err != nil {
+		t.Fatalf("LoadTemplateRegistry: %v", err)
+	}
+	cat, err := catalog.LoadServerCatalog()
+	if err != nil {
+		t.Fatalf("LoadServerCatalog: %v", err)
+	}
+
+	var reverseProxyEntry software.CatalogEntry
+	for _, e := range cat.Components {
+		if e.ComponentKey == software.ComponentKeyReverseProxy {
+			reverseProxyEntry = e
+			break
+		}
+	}
+	if reverseProxyEntry.ComponentKey == "" {
+		t.Fatal("reverse-proxy entry not found in server catalog")
+	}
+
+	tpl, ok := reg.Templates[reverseProxyEntry.TemplateRef]
+	if !ok {
+		t.Fatalf("template_ref %q not found in registry", reverseProxyEntry.TemplateRef)
+	}
+	resolved := catalog.ResolveTemplate(reverseProxyEntry, tpl)
+
+	if resolved.TemplateKind != software.TemplateKindScript {
+		t.Fatalf("expected reverse-proxy template kind script, got %q", resolved.TemplateKind)
+	}
+	if resolved.Install.Strategy != "script" {
+		t.Fatalf("expected reverse-proxy install strategy script, got %q", resolved.Install.Strategy)
+	}
+	if resolved.Install.ScriptPath != "traefik-install.sh" {
+		t.Fatalf("expected reverse-proxy script_path traefik-install.sh, got %q", resolved.Install.ScriptPath)
+	}
+	if resolved.Verify.ServiceName != "traefik.service" {
+		t.Fatalf("expected reverse-proxy service_name traefik.service, got %q", resolved.Verify.ServiceName)
+	}
+	if strings.Contains(resolved.Detect.VersionCommand, "{{") {
+		t.Fatalf("reverse-proxy version command still has unresolved placeholder: %q", resolved.Detect.VersionCommand)
+	}
+	if resolved.Detect.InstalledHint[0] != "systemctl cat traefik.service >/dev/null 2>&1 && echo installed" {
+		t.Fatalf("unexpected reverse-proxy installed hint: %q", resolved.Detect.InstalledHint[0])
+	}
+}
+
 // TestResolveTemplateNoUserInput verifies that ResolveTemplate does not accept user-supplied
 // values: all placeholders must come from the catalog entry.
 func TestResolveTemplateNoUserInput(t *testing.T) {

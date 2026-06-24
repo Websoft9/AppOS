@@ -710,8 +710,9 @@ func handleOperationInstallGitCompose(e *core.RequestEvent) error {
 		resolutionRequest.ServerID,
 		resolutionRequest.ProjectName,
 		resolutionRequest.Compose,
-		resolutionRequest.Source,
-		resolutionRequest.Adapter,
+		resolutionRequest.Channel,
+		resolutionRequest.Trigger,
+		resolutionRequest.ExecutionMode,
 		lifecyclesvc.GitComposeAuditDetail(req, rawURL),
 		operationCreateOptions{
 			OperationType:      resolutionRequest.OperationType,
@@ -822,8 +823,9 @@ func handleOperationInstallManualCompose(e *core.RequestEvent) error {
 		resolutionRequest.ServerID,
 		resolutionRequest.ProjectName,
 		resolutionRequest.Compose,
-		resolutionRequest.Source,
-		resolutionRequest.Adapter,
+		resolutionRequest.Channel,
+		resolutionRequest.Trigger,
+		resolutionRequest.ExecutionMode,
 		nil,
 		operationCreateOptions{
 			OperationType:      resolutionRequest.OperationType,
@@ -911,8 +913,9 @@ func handleOperationInstallTemplate(e *core.RequestEvent) error {
 		bodyString(body, "server_id"),
 		rendered.ProjectName,
 		rendered.Compose,
-		string(model.TriggerSourceStore),
-		deploy.AdapterManualCompose,
+		string(model.ChannelStore),
+		string(model.TriggerManual),
+		deploy.ExecutionModeCompose,
 		map[string]any{
 			"template_key": rendered.TemplateKey,
 			"project_name": rendered.ProjectName,
@@ -960,8 +963,9 @@ func handleOperationInstallTemplateCheck(e *core.RequestEvent) error {
 			bodyString(body, "server_id"),
 			rendered.ProjectName,
 			rendered.Compose,
-			deploy.SourceManualOps,
-			deploy.AdapterManualCompose,
+			string(model.TriggerManual),
+			string(model.ChannelStore),
+			deploy.ExecutionModeCompose,
 			ingressOptions,
 		)},
 		newRouteInstallPreflightProbe(e),
@@ -1138,8 +1142,9 @@ func createOperationFromCompose(
 	serverID string,
 	projectName string,
 	compose string,
-	source string,
-	adapter string,
+	channel string,
+	trigger string,
+	executionMode string,
 	auditDetail map[string]any,
 	options operationCreateOptions,
 ) (map[string]any, error) {
@@ -1150,8 +1155,9 @@ func createOperationFromCompose(
 			ServerID:       serverID,
 			ProjectName:    projectName,
 			Compose:        compose,
-			Source:         source,
-			Adapter:        adapter,
+			Trigger:        trigger,
+			Channel:        channel,
+			ExecutionMode:  executionMode,
 			ResolvedEnv:    options.ResolvedEnv,
 			ExposureIntent: options.ExposureIntent,
 			Metadata:       options.Metadata,
@@ -1172,8 +1178,9 @@ func createOperationFromCompose(
 
 	userID, userEmail, ip, ua := clientInfo(e)
 	detail := map[string]any{
-		"source":  source,
-		"adapter": adapter,
+		"trigger":        trigger,
+		"channel":        channel,
+		"execution_mode": executionMode,
 	}
 	composeProjectName := operationRecord.GetString("compose_project_name")
 	for key, value := range auditDetail {
@@ -1309,8 +1316,8 @@ func listOperationRecords(app core.App, col *core.Collection, options operationL
 		if _, blocked := excludedStatus[status]; blocked {
 			continue
 		}
-		source := strings.TrimSpace(record.GetString("trigger_source"))
-		if _, blocked := excludedSource[source]; blocked {
+		channel := operationChannelValue(record)
+		if _, blocked := excludedSource[channel]; blocked {
 			continue
 		}
 		serverID := normalizeOperationServerID(record.GetString("server_id"))
@@ -1362,7 +1369,7 @@ func operationRecordMatchesQuery(record *core.Record, status string, query strin
 	values := []string{
 		record.Id,
 		record.GetString("compose_project_name"),
-		record.GetString("trigger_source"),
+		operationChannelValue(record),
 		normalizeOperationServerID(record.GetString("server_id")),
 		status,
 	}
@@ -1372,6 +1379,18 @@ func operationRecordMatchesQuery(record *core.Record, status string, query strin
 		}
 	}
 	return false
+}
+
+func operationChannelValue(record *core.Record) string {
+	if record == nil {
+		return ""
+	}
+	if spec, ok := operationSpecMap(record.Get("spec_json")); ok {
+		if channel := model.NormalizeOperationChannel(fmt.Sprint(spec["channel"])); channel != "" {
+			return channel
+		}
+	}
+	return string(model.ChannelCustom)
 }
 
 func splitOperationListCSV(raw string) []string {
@@ -1434,9 +1453,10 @@ func operationRecordResponse(app core.App, record *core.Record) (map[string]any,
 		"app_id":                   record.GetString("app"),
 		"server_id":                record.GetString("server_id"),
 		"server_name":              lookupServerName(app, record.GetString("server_id")),
-		"source":                   record.GetString("trigger_source"),
+		"trigger":                  model.NormalizeOperationTrigger(record.GetString("trigger")),
+		"channel":                  operationChannelValue(record),
 		"status":                   operationDisplayStatus(record),
-		"adapter":                  record.GetString("adapter"),
+		"execution_mode":           record.GetString("execution_mode"),
 		"compose_project_name":     record.GetString("compose_project_name"),
 		"project_dir":              record.GetString("project_dir"),
 		"rendered_compose":         record.GetString("rendered_compose"),
@@ -1524,10 +1544,11 @@ func buildPipelineResponse(app core.App, pipelineRunID string, record *core.Reco
 		"node_count":           nodeCount,
 		"completed_node_count": completedNodeCount,
 		"failed_node_key":      failedNodeKey,
+		"trigger":              model.NormalizeOperationTrigger(record.GetString("trigger")),
+		"channel":              operationChannelValue(record),
 		"selector": map[string]any{
-			"operation_type": record.GetString("operation_type"),
-			"source":         record.GetString("trigger_source"),
-			"adapter":        record.GetString("adapter"),
+			"operation_type":  record.GetString("operation_type"),
+			"execution_mode": record.GetString("execution_mode"),
 		},
 		"steps": buildOperationSteps(stepRuns),
 	}

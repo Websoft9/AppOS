@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -30,6 +31,52 @@ func (te *testEnv) doSystem(t *testing.T, method, url, body string, authenticate
 
 	req := httptest.NewRequest(method, url, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	if authenticated {
+		req.Header.Set("Authorization", te.token)
+	}
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	return rec
+}
+
+func (te *testEnv) doPublicTraefik(t *testing.T, method, url string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	r, err := apis.NewRouter(te.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	registerPublicTraefikRoutes(&core.ServeEvent{Router: r})
+
+	mux, err := r.BuildMux()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(method, url, nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	return rec
+}
+
+func (te *testEnv) doFullRegister(t *testing.T, method, url string, authenticated bool) *httptest.ResponseRecorder {
+	t.Helper()
+
+	r, err := apis.NewRouter(te.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	Register(&core.ServeEvent{Router: r})
+
+	mux, err := r.BuildMux()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(method, url, nil)
 	if authenticated {
 		req.Header.Set("Authorization", te.token)
 	}
@@ -139,5 +186,70 @@ func TestNewStructuredCPUQuotaUsesTriStateStatus(t *testing.T) {
 	unknown := newStructuredCPUQuota(0, false, 100000, true)
 	if unknown.Status != systemCPUQuotaUnknown {
 		t.Fatalf("unexpected unknown quota: %+v", unknown)
+	}
+}
+
+func TestPublicTraefikDashboardProxyForwardsWithoutAuth(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	originalURL := systemTraefikDashboardURL
+	originalEnsure := ensureSystemTraefikReady
+	t.Cleanup(func() {
+		systemTraefikDashboardURL = originalURL
+		ensureSystemTraefikReady = originalEnsure
+	})
+
+	ensureSystemTraefikReady = func(_ context.Context) error { return nil }
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/settings/public/traefik/dashboard/" {
+			t.Fatalf("unexpected upstream path %q", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte("<html>traefik dashboard</html>"))
+	}))
+	defer upstream.Close()
+	systemTraefikDashboardURL = upstream.URL
+
+	rec := te.doPublicTraefik(t, http.MethodGet, "/api/settings/public/traefik/dashboard/")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if body := rec.Body.String(); body != "<html>traefik dashboard</html>" {
+		t.Fatalf("unexpected proxied body %q", body)
+	}
+}
+
+func TestPublicTraefikDashboardProxyWithFullRegisterForwardsWithoutAuth(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	originalURL := systemTraefikDashboardURL
+	originalEnsure := ensureSystemTraefikReady
+	originalTunnelHook := startTunnelRuntimeHook
+	t.Cleanup(func() {
+		systemTraefikDashboardURL = originalURL
+		ensureSystemTraefikReady = originalEnsure
+		startTunnelRuntimeHook = originalTunnelHook
+	})
+
+	ensureSystemTraefikReady = func(_ context.Context) error { return nil }
+	startTunnelRuntimeHook = func(*core.ServeEvent) {}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/settings/public/traefik/dashboard/" {
+			t.Fatalf("unexpected upstream path %q", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte("<html>traefik dashboard</html>"))
+	}))
+	defer upstream.Close()
+	systemTraefikDashboardURL = upstream.URL
+
+	rec := te.doFullRegister(t, http.MethodGet, "/api/settings/public/traefik/dashboard/", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if body := rec.Body.String(); body != "<html>traefik dashboard</html>" {
+		t.Fatalf("unexpected proxied body %q", body)
 	}
 }

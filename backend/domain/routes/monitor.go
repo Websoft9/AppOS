@@ -25,7 +25,12 @@ var errMonitorWritePayloadTooLarge = errors.New("monitor write payload too large
 
 // monitorWriteHTTPClient is reused across all monitor write requests to enable
 // TCP connection pooling to the local time-series database.
-var monitorWriteHTTPClient = &http.Client{Timeout: 30 * time.Second}
+var monitorWriteHTTPClient = &http.Client{
+	Timeout: 30 * time.Second,
+	Transport: &http.Transport{
+		Proxy: nil,
+	},
+}
 
 func registerMonitorRoutes(se *core.ServeEvent) {
 	se.Router.POST("/api/monitor/write", handleMonitorWrite)
@@ -182,14 +187,14 @@ func (r *monitorWriteLimitReadCloser) Close() error {
 func monitorInfluxWriteEndpoint() (string, error) {
 	baseURL := strings.TrimRight(strings.TrimSpace(runtimecfg.TSDBURL()), "/")
 	if baseURL == "" {
-		return "", fmt.Errorf("%s is not configured", monitormetrics.EnvVictoriaMetricsURL)
+		return "", fmt.Errorf("%s is not configured", monitormetrics.EnvTSDBURL)
 	}
 	parsed, err := url.Parse(baseURL)
 	if err != nil {
 		return "", err
 	}
 	if parsed.Scheme == "" || parsed.Host == "" {
-		return "", fmt.Errorf("%s must include scheme and host", monitormetrics.EnvVictoriaMetricsURL)
+		return "", fmt.Errorf("%s must include scheme and host", monitormetrics.EnvTSDBURL)
 	}
 	return baseURL + "/write", nil
 }

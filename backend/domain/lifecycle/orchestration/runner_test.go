@@ -150,8 +150,9 @@ func newRunnerTestContext(t *testing.T) (*tests.TestApp, *orchestration.Executio
 			ServerID:    "local",
 			ProjectName: "Demo App",
 			Compose:     "services:\n  web:\n    image: nginx:alpine\n",
-			Source:      "manualops",
-			Adapter:     "manual-compose",
+			Trigger:     string(model.TriggerManual),
+			Channel:     string(model.ChannelCustom),
+			ExecutionMode: string(model.ExecutionModeCompose),
 		},
 		lifecyclesvc.ComposeOperationOptions{ProjectDir: projectDir},
 	)

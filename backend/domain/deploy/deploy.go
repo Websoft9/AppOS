@@ -12,9 +12,6 @@ import (
 )
 
 const (
-	SourceManualOps = "manualops"
-	SourceGitOps    = "gitops"
-
 	StatusQueued                     = "queued"
 	StatusValidating                 = "validating"
 	StatusPreparing                  = "preparing"
@@ -28,10 +25,26 @@ const (
 	StatusTimeout                    = "timeout"
 	StatusManualInterventionRequired = "manual_intervention_required"
 
-	AdapterManualCompose = "manual-compose"
-	AdapterGitCompose    = "git-compose"
-	AdapterSourceBuild   = "source-build"
+	ExecutionModeCompose = "compose"
+	ExecutionModeBuild   = "build"
 	MaxExecutionLogBytes = 64 * 1024
+
+	StepValidateCompose = "validate_compose"
+	StepPrepareWorkspace = "prepare_workspace"
+	StepPrepareImages = "prepare_images"
+	StepComposeUp = "compose_up"
+	StepHealthCheck = "health_check"
+	StepOrphanRecovery = "orphan_recovery"
+)
+
+type StepStatus string
+
+const (
+	StepStatusPending   StepStatus = "pending"
+	StepStatusRunning   StepStatus = "running"
+	StepStatusSucceeded StepStatus = "succeeded"
+	StepStatusFailed    StepStatus = "failed"
+	StepStatusRecovered StepStatus = "recovered"
 )
 
 var activeExecutionStatuses = []string{
@@ -59,6 +72,7 @@ const (
 	EventRollbackStarted            Event = "rollback_started"
 	EventRollbackSucceeded          Event = "rollback_succeeded"
 	EventRollbackFailed             Event = "rollback_failed"
+	EventRecoveryQueued             Event = "recovery_queued"
 	EventCancelled                  Event = "cancelled"
 	EventTimedOut                   Event = "timed_out"
 	EventManualInterventionRequired Event = "manual_intervention_required"
@@ -126,6 +140,10 @@ var eventTransitions = map[Event]transitionDef{
 		From: []string{StatusRollingBack},
 		To:   StatusManualInterventionRequired,
 	},
+	EventRecoveryQueued: {
+		From: []string{StatusPreparing, StatusRunning, StatusVerifying},
+		To:   StatusQueued,
+	},
 	EventCancelled: {
 		From: []string{StatusQueued, StatusValidating, StatusPreparing, StatusRunning, StatusVerifying},
 		To:   StatusCancelled,
@@ -145,6 +163,14 @@ var allowedTransitions = buildAllowedTransitions(eventTransitions)
 type TransitionOptions struct {
 	ErrorSummary      string
 	ClearErrorSummary bool
+}
+
+type ProgressOptions struct {
+	Step         string
+	StepStatus   StepStatus
+	ErrorCode    string
+	ErrorMessage string
+	ClearError   bool
 }
 
 type DeploymentSpec struct {
@@ -193,6 +219,16 @@ func StatusValues() []string {
 
 func ActiveExecutionStatuses() []string {
 	return append([]string(nil), activeExecutionStatuses...)
+}
+
+func StepStatusValues() []string {
+	return []string{
+		string(StepStatusPending),
+		string(StepStatusRunning),
+		string(StepStatusSucceeded),
+		string(StepStatusFailed),
+		string(StepStatusRecovered),
+	}
 }
 
 func IsActiveExecutionStatus(status string) bool {
@@ -298,6 +334,25 @@ func ApplyEventToRecord(app core.App, record *core.Record, event Event, opts Tra
 	}
 	if IsTerminalStatus(next) {
 		record.Set("finished_at", now)
+	}
+	return app.Save(record)
+}
+
+func ApplyProgressToRecord(app core.App, record *core.Record, opts ProgressOptions) error {
+	if step := strings.TrimSpace(opts.Step); step != "" {
+		record.Set("current_step", step)
+	}
+	if opts.StepStatus != "" {
+		record.Set("step_status", string(opts.StepStatus))
+	}
+	if opts.ClearError {
+		record.Set("last_error", nil)
+	}
+	if strings.TrimSpace(opts.ErrorCode) != "" || strings.TrimSpace(opts.ErrorMessage) != "" {
+		record.Set("last_error", map[string]any{
+			"code":    strings.TrimSpace(opts.ErrorCode),
+			"message": strings.TrimSpace(opts.ErrorMessage),
+		})
 	}
 	return app.Save(record)
 }

@@ -387,7 +387,7 @@ export function CreateDeploymentPage({
     const resolveRecommendedExposurePort = async () => {
       setEffectiveRecommendedExposurePort(recommendedExposurePort)
       setRecommendedExposurePortHint(null)
-      const candidates = buildExposurePortCandidates(recommendedExposurePort, 5)
+      const candidates = buildExposurePortCandidates(recommendedExposurePort, 99)
 
       try {
         for (const candidate of candidates) {
@@ -415,9 +415,7 @@ export function CreateDeploymentPage({
       } catch {
         if (cancelled) return
         setEffectiveRecommendedExposurePort(recommendedExposurePort)
-        setRecommendedExposurePortHint(
-          'Could not verify whether the suggested server port is free on this target. Review it before deploying.'
-        )
+        setRecommendedExposurePortHint(null)
       }
     }
 
@@ -1139,7 +1137,7 @@ export function CreateDeploymentPage({
       {notice?.variant === 'destructive' ? (
         <Alert
           variant={notice.variant}
-          className="flex max-w-2xl items-center justify-between py-2"
+          className="flex w-full max-w-[66.75rem] items-center justify-between py-2"
         >
           <AlertDescription>{notice.message}</AlertDescription>
           <Button variant="ghost" size="sm" onClick={() => setNotice(null)}>

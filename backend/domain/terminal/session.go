@@ -2,12 +2,11 @@
 //
 // A terminal session lets a human (or automation) interact with any resource
 // that exposes a CLI: servers (SSH), containers (Docker exec), databases
-// (mysql / psql / redis-cli), cloud CLIs (aws / gcloud / az), or the local host (bash).
+// (mysql / psql / redis-cli), or cloud CLIs (aws / gcloud / az).
 //
 // Supported connectors (current):
 //   - SSHConnector         — SSH PTY for registered managed servers
 //   - SFTPClient           — REST file operations over SSH transport
-//   - LocalSession         — local bash PTY (system terminal)
 package terminal
 
 import "context"

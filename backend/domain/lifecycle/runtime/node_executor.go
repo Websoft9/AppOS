@@ -1,7 +1,6 @@
 package runtime
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -27,7 +26,6 @@ import (
 
 var sourceWorkspaceBasePath = "/appos/data"
 var sourceWorkspaceAllowedRoots = []string{"apps", "templates", "workflows"}
-var runtimePullIdleHeartbeatInterval = 20 * time.Second
 var runtimeImagePullTimeout = 3 * time.Minute
 var runtimeMirrorRetryCount = 2
 var publicationDynamicConfigDir = "/etc/traefik/dynamic"
@@ -63,19 +61,10 @@ func runtimeExecutorApp(executor Executor) core.App {
 	}
 }
 
-func loadRuntimePullIdleHeartbeatInterval(app core.App) time.Duration {
-	group, _ := sysconfig.GetGroup(app, "deploy", "runtime", settingsschema.DefaultGroup("deploy", "runtime"))
-	seconds := sysconfig.Int(group, "runtimePullIdleHeartbeatSeconds", int((20*time.Second)/time.Second))
-	if seconds < 1 {
-		seconds = 1
-	}
-	return time.Duration(seconds) * time.Second
-}
-
 func loadRuntimeHealthCheckTimeout(app core.App) time.Duration {
 	group, _ := sysconfig.GetGroup(app, "deploy", "runtime", settingsschema.DefaultGroup("deploy", "runtime"))
 	seconds := sysconfig.Int(group, "healthCheckTimeoutSeconds", int((2*time.Minute)/time.Second))
-	if seconds < 1 {
+	if seconds < 1 { 
 		seconds = 1
 	}
 	return time.Duration(seconds) * time.Second
@@ -87,7 +76,7 @@ func loadRuntimeImagePullTimeout(app core.App) time.Duration {
 	}
 	group, _ := sysconfig.GetGroup(app, "deploy", "runtime", settingsschema.DefaultGroup("deploy", "runtime"))
 	seconds := sysconfig.Int(group, "imagePullTimeoutSeconds", int(runtimeImagePullTimeout/time.Second))
-	if seconds < 1 {
+	if seconds < 1 { 
 		seconds = 1
 	}
 	return time.Duration(seconds) * time.Second
@@ -353,25 +342,8 @@ func ExecuteNode(
 		if err := ensureComposeExternalNetworks(ctx, client, operation.GetString("rendered_compose"), logf); err != nil {
 			return result, err
 		}
-		allLocal, err := runtimeImagesAvailableLocally(ctx, client, operation.GetString("rendered_compose"), logf)
-		if err != nil {
-			return result, err
-		}
-		if allLocal {
-			logf("docker runtime pull skipped because all runtime images are already available locally")
-			return result, nil
-		}
 		app := runtimeExecutorApp(executor)
-		composePullErr := streamRuntimeComposePull(ctx, client, operation.GetString("project_dir"), app, logf)
-		if composePullErr == nil {
-			return result, nil
-		}
-		mirrors := loadRuntimeDockerMirrors(app)
-		if len(mirrors) == 0 {
-			return result, composePullErr
-		}
-		logf("docker runtime upstream pull failed, switching to configured mirrors")
-		if err := pullRuntimeImagesWithMirrors(ctx, app, client, operation.GetString("rendered_compose"), mirrors, logf); err != nil {
+		if err := pullRuntimeImages(ctx, app, client, operation.GetString("rendered_compose"), logf); err != nil {
 			return result, err
 		}
 		return result, nil
@@ -883,33 +855,6 @@ func normalizeOperationType(operation *core.Record) string {
 	return strings.TrimSpace(operation.GetString("operation_type"))
 }
 
-func scanStreamLinesAndCarriageReturns(data []byte, atEOF bool) (advance int, token []byte, err error) {
-	if atEOF && len(data) == 0 {
-		return 0, nil, nil
-	}
-	for index, b := range data {
-		if b != '\n' && b != '\r' {
-			continue
-		}
-		advance = index + 1
-		if b == '\r' && advance < len(data) && data[advance] == '\n' {
-			advance++
-		}
-		return advance, data[:index], nil
-	}
-	if atEOF {
-		return len(data), data, nil
-	}
-	return 0, nil, nil
-}
-
-func formatRuntimePullIdleDuration(value time.Duration) time.Duration {
-	if value < time.Second {
-		return value.Round(10 * time.Millisecond)
-	}
-	return value.Round(time.Second)
-}
-
 func ensureComposeExternalNetworks(ctx context.Context, client *docker.Client, renderedCompose string, logf func(string)) error {
 	if client == nil {
 		return fmt.Errorf("docker client is required to ensure compose external networks")
@@ -938,30 +883,6 @@ func ensureComposeExternalNetworks(ctx context.Context, client *docker.Client, r
 		}
 	}
 	return nil
-}
-
-func runtimeImagesAvailableLocally(ctx context.Context, client *docker.Client, renderedCompose string, logf func(string)) (bool, error) {
-	if client == nil {
-		return false, fmt.Errorf("docker client is required to inspect runtime images")
-	}
-	images, err := extractRuntimeComposeImageReferences(renderedCompose)
-	if err != nil {
-		return false, err
-	}
-	if len(images) == 0 {
-		return false, nil
-	}
-	allLocal := true
-	for _, image := range images {
-		if _, err := client.ImageInspect(ctx, image); err != nil {
-			allLocal = false
-			continue
-		}
-		if logf != nil {
-			logf("docker runtime image already available locally: " + image)
-		}
-	}
-	return allLocal, nil
 }
 
 func extractComposeExternalNetworkNames(raw string) ([]string, error) {
@@ -1303,94 +1224,11 @@ func ensureDockerClient(executor Executor, current *docker.Client) (*docker.Clie
 	return executor.DockerClient()
 }
 
-func streamRuntimeComposePull(ctx context.Context, client *docker.Client, projectDir string, app core.App, logf func(string)) error {
-	stream, err := client.ComposePullStream(ctx, projectDir)
-	if err != nil {
-		return err
-	}
-
-	lineCh := make(chan string)
-	errCh := make(chan error, 1)
-	go func() {
-		scanner := bufio.NewScanner(stream)
-		buf := make([]byte, 0, 64*1024)
-		scanner.Buffer(buf, 1024*1024)
-		scanner.Split(scanStreamLinesAndCarriageReturns)
-		for scanner.Scan() {
-			lineCh <- scanner.Text()
-		}
-		close(lineCh)
-		errCh <- scanner.Err()
-	}()
-
-	heartbeatInterval := runtimePullIdleHeartbeatInterval
-	if app != nil {
-		heartbeatInterval = loadRuntimePullIdleHeartbeatInterval(app)
-	}
-	ticker := time.NewTicker(heartbeatInterval)
-	defer ticker.Stop()
-	hasOutput := false
-	lastLoggedLine := ""
-	lastActivityAt := time.Now().UTC()
-	lastDiagnosticLine := ""
-	for {
-		select {
-		case rawLine, ok := <-lineCh:
-			if !ok {
-				lineCh = nil
-				continue
-			}
-			line := strings.TrimSpace(rawLine)
-			if line == "" {
-				continue
-			}
-			lastActivityAt = time.Now().UTC()
-			lastDiagnosticLine = line
-			if line == lastLoggedLine {
-				continue
-			}
-			hasOutput = true
-			lastLoggedLine = line
-			logf("docker runtime pull: " + line)
-		case <-ticker.C:
-			rawIdleFor := time.Since(lastActivityAt)
-			if rawIdleFor < heartbeatInterval {
-				continue
-			}
-			idleFor := formatRuntimePullIdleDuration(rawIdleFor)
-			if lastDiagnosticLine != "" {
-				logf(fmt.Sprintf("docker runtime pull still waiting for new output after %s; last event: %s", idleFor, lastDiagnosticLine))
-			} else {
-				logf(fmt.Sprintf("docker runtime pull still waiting for first progress update after %s", idleFor))
-			}
-		case scanErr := <-errCh:
-			if scanErr != nil {
-				return scanErr
-			}
-			if err := stream.Close(); err != nil {
-				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-					idleFor := formatRuntimePullIdleDuration(time.Since(lastActivityAt))
-					if lastDiagnosticLine != "" {
-						return fmt.Errorf("docker runtime pull interrupted after %s without new output; last event: %s: %w", idleFor, lastDiagnosticLine, err)
-					}
-					return fmt.Errorf("docker runtime pull interrupted before any progress output after %s: %w", idleFor, err)
-				}
-				return err
-			}
-			if !hasOutput {
-				logf("docker runtime pull completed with no incremental output")
-			}
-			return nil
-		}
-	}
-}
-
-func pullRuntimeImagesWithMirrors(
+func pullRuntimeImages(
 	ctx context.Context,
 	app core.App,
 	client *docker.Client,
 	rawCompose string,
-	mirrors []string,
 	logf func(string),
 ) error {
 	images, err := extractRuntimeComposeImageReferences(rawCompose)
@@ -1402,18 +1240,51 @@ func pullRuntimeImagesWithMirrors(
 		return nil
 	}
 
+	mirrors := loadRuntimeDockerMirrors(app)
 	pullTimeout := loadRuntimeImagePullTimeout(app)
+	allLocal := true
 	for _, image := range images {
 		if _, err := client.ImageInspect(ctx, image); err == nil {
 			logf("docker runtime image already available locally: " + image)
 			continue
 		}
+		allLocal = false
 
-		if err := pullRuntimeImageWithMirrors(ctx, client, image, mirrors, pullTimeout, logf); err != nil {
+		if err := pullRuntimeImageReady(ctx, client, image, mirrors, pullTimeout, logf); err != nil {
 			return err
 		}
 	}
+	if allLocal {
+		logf("docker runtime pull skipped because all runtime images are already available locally")
+	}
 	return nil
+}
+
+func pullRuntimeImageReady(
+	ctx context.Context,
+	client *docker.Client,
+	image string,
+	mirrors []string,
+	pullTimeout time.Duration,
+	logf func(string),
+) error {
+	logf("docker runtime pull started: " + image)
+	output, pullErr := pullRuntimeImageWithTimeout(ctx, client, image, pullTimeout)
+	if pullErr == nil {
+		logRuntimePullOutput(logf, output)
+		if verifyErr := verifyRuntimeImagePresent(ctx, client, image); verifyErr == nil {
+			logf("docker runtime pull succeeded: " + image)
+			return nil
+		} else {
+			pullErr = verifyErr
+		}
+	}
+	logf("docker runtime upstream pull failed: " + pullErr.Error())
+	if len(mirrors) == 0 {
+		return pullErr
+	}
+	logf("docker runtime upstream pull failed, switching to configured mirrors")
+	return pullRuntimeImageWithMirrors(ctx, client, image, mirrors, pullTimeout, logf)
 }
 
 func pullRuntimeImageWithMirrors(
@@ -1449,6 +1320,11 @@ func pullRuntimeImageWithMirrors(
 				logf(fmt.Sprintf("docker runtime mirror tag failed: %s", err.Error()))
 				continue
 			}
+			if verifyErr := verifyRuntimeImagePresent(ctx, client, image); verifyErr != nil {
+				lastAttemptError = verifyErr
+				logf(fmt.Sprintf("docker runtime mirror verification failed: %s", verifyErr.Error()))
+				continue
+			}
 			logf(fmt.Sprintf("docker runtime mirror pull succeeded: %s via %s", image, mirrorRef))
 			return nil
 		}
@@ -1479,16 +1355,28 @@ func pullRuntimeImageWithTimeout(ctx context.Context, client *docker.Client, ima
 	return output, nil
 }
 
+func verifyRuntimeImagePresent(ctx context.Context, client *docker.Client, image string) error {
+	if _, err := client.ImageInspect(ctx, image); err != nil {
+		return fmt.Errorf("pulled image %s but image is still unavailable locally: %w", image, err)
+	}
+	return nil
+}
+
 func runtimePullTimedOut(err error) bool {
 	return err == context.DeadlineExceeded || err == context.Canceled || strings.Contains(strings.ToLower(err.Error()), "deadline exceeded")
 }
 
 func logRuntimePullOutput(logf func(string), output string) {
+	lastLine := ""
 	for _, rawLine := range strings.Split(output, "\n") {
 		line := strings.TrimSpace(rawLine)
 		if line == "" {
 			continue
 		}
+		if line == lastLine {
+			continue
+		}
+		lastLine = line
 		logf("docker runtime pull: " + line)
 	}
 }

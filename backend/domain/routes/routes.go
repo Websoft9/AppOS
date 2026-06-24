@@ -86,13 +86,14 @@ func Register(se *core.ServeEvent) {
 	softwareGroup := se.Router.Group("/api/software")
 	softwareGroup.Bind(apis.RequireAuth())
 
-	// Terminal session routes (SSH PTY, Docker exec, SFTP, local)
+	// Terminal session routes (SSH PTY, Docker exec, SFTP)
 	terminalGroup := se.Router.Group("/api/terminal")
 	terminalGroup.Bind(wsTokenAuth())
 	terminalGroup.Bind(apis.RequireSuperuserAuth())
 
 	registerProxyRoutes(g)
 	registerSystemRoutes(systemGroup)
+	registerPublicTraefikRoutes(se)
 	registerBackupRoutes(g)
 	registerAIProviderRoutes(se)
 	registerAICopilotRoutes(se)

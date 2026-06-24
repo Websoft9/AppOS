@@ -64,7 +64,7 @@ tags:
   - name: Space & User Files
     description: "Workspace and storage-space related operations."
   - name: System
-    description: "Host metrics and file browser endpoints."
+    description: "Host metrics, file browser, runtime facts, and embedded Traefik dashboard proxy endpoints."
   - name: System Cron
     description: "PocketBase scheduled tasks and cron management APIs."
   - name: Terminal
@@ -10670,6 +10670,68 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
+  /api/settings/public/traefik:
+    get:
+      tags: [System]
+      summary: Proxy bundled Traefik dashboard
+      description: "Proxies the embedded Traefik dashboard and API through AppOS under /api/settings/public/traefik. Public route."
+      operationId: get_api_settings_public_traefik
+      security: []  # public
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: string
+        "502":
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/settings/public/traefik/{path...}:
+    get:
+      tags: [System]
+      summary: Proxy bundled Traefik dashboard
+      description: "Proxies the embedded Traefik dashboard and API through AppOS under /api/settings/public/traefik. Public route."
+      operationId: get_api_settings_public_traefik_path
+      parameters:
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+      security: []  # public
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: string
+        "502":
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
   /api/settings/schema:
     get:
       tags: [Settings]
@@ -11350,22 +11412,6 @@ paths:
                 additionalProperties: true
         "400":
           description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/terminal/local:
-    get:
-      tags: [Terminal]
-      summary: Local WebSocket terminal
-      description: "Upgrades to a WebSocket PTY session on the local server. Auth via ?token= or Authorization header. Superuser only."
-      operationId: get_api_terminal_local
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "401":
-          description: Unauthorized
           content:
             application/json:
               schema:

@@ -18,66 +18,8 @@ definitions:
     family: ProvisionPipeline
     operation_types:
       - install
-    sources:
-      - manualops
-    adapters:
-      - manual-compose
-    initial_phase: validating
-    nodes:
-      - key: validate_spec
-        node_type: validation
-        display_name: Validate Spec
-        phase: validating
-        retryable: false
-        writes_projection:
-          - OperationJob
-      - key: prepare_workspace
-        node_type: workspace
-        display_name: Prepare Workspace
-        phase: preparing
-        retryable: true
-        depends_on:
-          - validate_spec
-      - key: render_runtime_config
-        node_type: runtime_config
-        display_name: Render Runtime Config
-        phase: preparing
-        retryable: true
-        depends_on:
-          - prepare_workspace
-      - key: pull_runtime_images
-        node_type: runtime_pull
-        display_name: Pull Runtime Images
-        phase: executing
-        retryable: true
-        depends_on:
-          - render_runtime_config
-      - key: start_runtime
-        node_type: runtime_start
-        display_name: Start Runtime
-        phase: executing
-        retryable: true
-        depends_on:
-          - pull_runtime_images
-      - key: verify_runtime_health
-        node_type: health_check
-        display_name: Verify Runtime Health
-        phase: verifying
-        retryable: true
-        writes_projection:
-          - AppInstance
-        depends_on:
-          - start_runtime
-
-  - key: provision.install.git_compose
-    version: v1
-    family: ProvisionPipeline
-    operation_types:
-      - install
-    sources:
-      - gitops
-    adapters:
-      - git-compose
+    execution_modes:
+      - compose
     initial_phase: validating
     nodes:
       - key: validate_spec
@@ -130,10 +72,8 @@ definitions:
     family: ProvisionPipeline
     operation_types:
       - install
-    sources:
-      - manualops
-    adapters:
-      - source-build
+    execution_modes:
+      - build
     initial_phase: validating
     nodes:
       - key: validate_source_build_request

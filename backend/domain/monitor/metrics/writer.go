@@ -54,6 +54,9 @@ func defaultMetricWriter() metricWriter {
 	return &victoriaMetricsWriter{
 		service: monitortsdb.NewService(&http.Client{
 			Timeout: 5 * time.Second,
+			Transport: &http.Transport{
+				Proxy: nil,
+			},
 		}, baseURL),
 	}
 }

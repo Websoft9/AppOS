@@ -46,11 +46,6 @@
 - 网关转发...
 
 
-## 每日
-
-- default group 
-- 协作菜单的图标，不够简洁，请采用更合适的
-
 ## 缓存问题
 
 - 如何做？存储到哪里？
@@ -114,15 +109,12 @@ addons 的 netdata restart 报错
 
 ## dockerfile
 
-1. 明确 curl/wget, tar,unzip 等目前是走容器命令，还是走的 golang 包
 
 数据初始化怎么做的？
 
 rss hub 网站
 
 顶部增加一个搜索入口，它搜索主要是搜索页面
-
-docker.1ms.run
 
 数据库的随机密码，不应该太复杂。否则部署应用时，很慢
 
@@ -134,10 +126,6 @@ docker.1ms.run
 3. Uninstall 也在等待一个 install running 的
 
 
-
-docker.m.daocloud.io
-docker.zhai.cm
-docker.1ms.run
 
 
 再更改一下 wordpress 模板
@@ -231,3 +219,34 @@ handleServerPortRelease 仍调用 resolveTerminalConfig（不带 proxy），未�
 
 限制历史消息数量，每次8轮
 捕捉token 超标的错误后，删除最早的2条消息
+
+
+download 有没有专门的组件，可以更好的多线程，加速或异步等操作
+
+
+直接把 settings 前端里的 remote shell mode label 单独改掉
+再把 runtime.go 的 decision object 先实现出来，作为后续反向隧道开发的入口
+
+
+Ask about operations, diagnosis, or AppOS knowledge
+
+如果你要继续，我建议下一步做 1 件事：把页面文案里的原始链接说明也补成更明确的“公开 dashboard 代理入口”，避免后面有人又按旧 /api/system/traefik 去排障。
+
+我把这个 iframe-page framework 再抽一层 registry，让后续消费者不必各自手写 page definition
+
+把这个演示页接到真实 Public Access 数据结构
+给 New Publish Item 弹窗补 type / expiry / visibility / target selector 等真实字段
+
+Publish 菜单
+
+1. 两个子页面，一个是 Hosts 页面，即 Proxy 访问列表；一个是
+
+
+
+2026/6/24 15:03:08
+install
+Timed out
+execute "install" timed out: install docker via script: context deadline exceeded
+
+
+针对于同一个应用，创建新的 activity 时，如何有正在执行的，这个时候可以给一个提示，是否需要 failed 正在执行的

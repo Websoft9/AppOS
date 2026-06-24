@@ -4,7 +4,7 @@ import "time"
 
 const (
 	MetricsBatchLimit     = 200
-	EnvVictoriaMetricsURL = "TSDB_ADDR"
+	EnvTSDBURL            = "TSDB_URL"
 )
 
 type MetricPoint struct {

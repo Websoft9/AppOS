@@ -31,6 +31,23 @@ func main() {
 	}
 	runtimecfg.Set(cfg)
 	os.Args = resolvedArgs
+	secretDataDir := strings.TrimSpace(cfg.DataDir)
+	if secretDataDir == "" {
+		secretDataDir = strings.TrimSpace(os.Getenv("DATA_DIR"))
+	}
+	if secretDataDir == "" {
+		secretDataDir = "/appos/data"
+	}
+	warning, generated, err := secrets.EnsureRuntimeKey(secretDataDir)
+	if err != nil {
+		log.Fatal(fmt.Errorf("secrets runtime key init failed: %w", err))
+	}
+	if warning != "" {
+		log.Printf("[WARN] %s", warning)
+	}
+	if generated {
+		log.Printf("generated and persisted APPOS_SECRET_KEY")
+	}
 
 	if err := secrets.LoadKeyFromEnv(); err != nil {
 		log.Fatal(fmt.Errorf("secrets init failed: %w", err))

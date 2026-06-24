@@ -687,7 +687,7 @@ func (w *Worker) createOrUpdateCandidateRelease(execCtx *lifecycleExecutionConte
 	releaseRecord.Set("created_by_operation", execCtx.Operation.Id)
 	releaseRecord.Set("release_role", "candidate")
 	releaseRecord.Set("version_label", candidateReleaseVersionLabel(execCtx.Operation, now))
-	releaseRecord.Set("source_type", candidateReleaseSourceType(execCtx.Operation))
+	releaseRecord.Set("channel", candidateReleaseChannel(execCtx.Operation))
 	releaseRecord.Set("source_ref", candidateReleaseSourceRef(execCtx.Operation))
 	releaseRecord.Set("rendered_compose", execCtx.Operation.GetString("rendered_compose"))
 	releaseRecord.Set("resolved_env_json", execCtx.Operation.Get("resolved_env_json"))
@@ -973,7 +973,7 @@ func (w *Worker) createReleaseBaseline(execCtx *lifecycleExecutionContext, now t
 	release.Set("created_by_operation", execCtx.Operation.Id)
 	release.Set("release_role", "active")
 	release.Set("version_label", buildReleaseVersionLabel(execCtx.Operation, now))
-	release.Set("source_type", releaseSourceType(execCtx.Operation.GetString("trigger_source")))
+	release.Set("channel", releaseChannel(execCtx.Operation))
 	release.Set("source_ref", "operation://"+execCtx.Operation.Id)
 	release.Set("rendered_compose", execCtx.Operation.GetString("rendered_compose"))
 	release.Set("resolved_env_json", execCtx.Operation.Get("resolved_env_json"))
@@ -1157,17 +1157,16 @@ func buildReleaseVersionLabel(operation *core.Record, now time.Time) string {
 	return fmt.Sprintf("%s-%s", projectName, now.UTC().Format("20060102-150405"))
 }
 
-func releaseSourceType(triggerSource string) string {
-	switch strings.TrimSpace(triggerSource) {
-	case string(model.TriggerSourceGitOps):
-		return "git"
-	case string(model.TriggerSourceFileOps):
-		return "file"
-	case string(model.TriggerSourceStore):
-		return "template"
-	default:
-		return "manual"
+func releaseChannel(operation *core.Record) string {
+	if operation == nil {
+		return string(model.ChannelCustom)
 	}
+	if spec, ok := operation.Get("spec_json").(map[string]any); ok {
+		if channel := model.NormalizeOperationChannel(fmt.Sprint(spec["channel"])); channel != "" {
+			return channel
+		}
+	}
+	return string(model.ChannelCustom)
 }
 
 func candidateReleaseVersionLabel(operation *core.Record, now time.Time) string {
@@ -1180,16 +1179,8 @@ func candidateReleaseVersionLabel(operation *core.Record, now time.Time) string 
 	return buildReleaseVersionLabel(operation, now)
 }
 
-func candidateReleaseSourceType(operation *core.Record) string {
-	sourceKind := strings.ToLower(operationSourceBuildString(operation, "source_kind"))
-	switch sourceKind {
-	case "git":
-		return "git"
-	case "uploaded-package":
-		return "file"
-	default:
-		return releaseSourceType(operation.GetString("trigger_source"))
-	}
+func candidateReleaseChannel(operation *core.Record) string {
+	return releaseChannel(operation)
 }
 
 func candidateReleaseSourceRef(operation *core.Record) string {

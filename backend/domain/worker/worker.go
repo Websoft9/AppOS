@@ -109,6 +109,16 @@ type Snapshot struct {
 	LastDispatchError string
 }
 
+type deploymentHealthClient interface {
+	Exec(context.Context, ...string) (string, error)
+}
+
+var deploymentExecutorFactory = lifecycleruntime.NewDeploymentExecutor
+
+var deploymentHealthCheck = func(ctx context.Context, client deploymentHealthClient, projectDir string) error {
+	return lifecycleruntime.RunDeploymentHealthCheck(ctx, client, projectDir)
+}
+
 var deployServerLocks = struct {
 	mu    sync.Mutex
 	locks map[string]*sync.Mutex
@@ -275,24 +285,45 @@ func (w *Worker) handleDeployApp(_ context.Context, t *asynq.Task) error {
 	defer lock.Unlock()
 	appendDeploymentLog(w.app, record, "job accepted by worker")
 	appendDeploymentLog(w.app, record, "validation started")
+	if err := deploy.ApplyProgressToRecord(w.app, record, deploy.ProgressOptions{
+		Step:       deploy.StepValidateCompose,
+		StepStatus: deploy.StepStatusRunning,
+		ClearError: true,
+	}); err != nil {
+		return err
+	}
 
 	rawSpec := record.Get("spec")
 	data, err := json.Marshal(rawSpec)
 	if err != nil {
-		return markDeploymentFailed(w.app, record, p, "invalid deployment spec")
+		return markDeploymentFailed(w.app, record, p, "invalid_deployment_spec", "invalid deployment spec")
 	}
 
 	var spec deploy.DeploymentSpec
 	if err := json.Unmarshal(data, &spec); err != nil {
 		appendDeploymentLog(w.app, record, "failed to decode deployment spec")
-		return markDeploymentFailed(w.app, record, p, "invalid deployment spec")
+		return markDeploymentFailed(w.app, record, p, "invalid_deployment_spec", "invalid deployment spec")
 	}
 	if err := deploy.ValidateManualCompose(spec.RenderedCompose); err != nil {
 		appendDeploymentLog(w.app, record, "compose validation failed: "+err.Error())
-		return markDeploymentFailed(w.app, record, p, err.Error())
+		return markDeploymentFailed(w.app, record, p, "compose_validation_failed", err.Error())
 	}
 	appendDeploymentLog(w.app, record, "compose validation passed")
+	if err := deploy.ApplyProgressToRecord(w.app, record, deploy.ProgressOptions{
+		Step:       deploy.StepValidateCompose,
+		StepStatus: deploy.StepStatusSucceeded,
+		ClearError: true,
+	}); err != nil {
+		return err
+	}
 	if err := deploy.ApplyEventToRecord(w.app, record, deploy.EventPreparationStarted, deploy.TransitionOptions{}); err != nil {
+		return err
+	}
+	if err := deploy.ApplyProgressToRecord(w.app, record, deploy.ProgressOptions{
+		Step:       deploy.StepPrepareWorkspace,
+		StepStatus: deploy.StepStatusRunning,
+		ClearError: true,
+	}); err != nil {
 		return err
 	}
 
@@ -301,22 +332,31 @@ func (w *Worker) handleDeployApp(_ context.Context, t *asynq.Task) error {
 		projectDir = filepath.Join("/appos/data/apps/deployments", record.Id)
 		record.Set("project_dir", projectDir)
 	}
-	executor := lifecycleruntime.NewDeploymentExecutor(w.app, serverID)
+	executor := deploymentExecutorFactory(w.app, serverID)
 	if err := executor.PrepareWorkspace(projectDir, spec.RenderedCompose); err != nil {
 		appendDeploymentLog(w.app, record, "failed to prepare deployment workspace: "+err.Error())
-		return markDeploymentFailed(w.app, record, p, "failed to prepare deployment workspace")
+		return markDeploymentFailed(w.app, record, p, "prepare_workspace_failed", "failed to prepare deployment workspace")
 	}
 	appendDeploymentLog(w.app, record, executor.Name()+" deployment workspace prepared: "+projectDir)
-
-	if err := deploy.ApplyEventToRecord(w.app, record, deploy.EventExecutionStarted, deploy.TransitionOptions{}); err != nil {
+	if err := deploy.ApplyProgressToRecord(w.app, record, deploy.ProgressOptions{
+		Step:       deploy.StepPrepareWorkspace,
+		StepStatus: deploy.StepStatusSucceeded,
+		ClearError: true,
+	}); err != nil {
 		return err
 	}
-	appendDeploymentLog(w.app, record, "docker compose up started")
+	if err := deploy.ApplyProgressToRecord(w.app, record, deploy.ProgressOptions{
+		Step:       deploy.StepPrepareImages,
+		StepStatus: deploy.StepStatusRunning,
+		ClearError: true,
+	}); err != nil {
+		return err
+	}
 
 	client, err := executor.DockerClient()
 	if err != nil {
 		appendDeploymentLog(w.app, record, "failed to create docker client: "+err.Error())
-		return markDeploymentFailed(w.app, record, p, "failed to connect target docker host")
+		return markDeploymentFailed(w.app, record, p, "docker_client_unavailable", "failed to connect target docker host")
 	}
 	runtimePolicy := loadDeployRuntimePolicy(w.app)
 	if err := prepareDeploymentImages(context.Background(), w.app, client, spec.RenderedCompose, func(line string) {
@@ -324,9 +364,27 @@ func (w *Worker) handleDeployApp(_ context.Context, t *asynq.Task) error {
 	}); err != nil {
 		appendDeploymentLog(w.app, record, "docker image preparation failed: "+err.Error())
 		if isDeploymentTimeoutError(err) || strings.Contains(strings.ToLower(err.Error()), "timed out pulling image") {
-			return markDeploymentTimedOut(w.app, record, p, "deployment image preparation timed out")
+			return markDeploymentTimedOut(w.app, record, p, "image_preparation_timeout", "deployment image preparation timed out")
 		}
-		return markDeploymentFailed(w.app, record, p, err.Error())
+		return markDeploymentFailed(w.app, record, p, "image_preparation_failed", err.Error())
+	}
+	if err := deploy.ApplyProgressToRecord(w.app, record, deploy.ProgressOptions{
+		Step:       deploy.StepPrepareImages,
+		StepStatus: deploy.StepStatusSucceeded,
+		ClearError: true,
+	}); err != nil {
+		return err
+	}
+	if err := deploy.ApplyEventToRecord(w.app, record, deploy.EventExecutionStarted, deploy.TransitionOptions{}); err != nil {
+		return err
+	}
+	appendDeploymentLog(w.app, record, "docker compose up started")
+	if err := deploy.ApplyProgressToRecord(w.app, record, deploy.ProgressOptions{
+		Step:       deploy.StepComposeUp,
+		StepStatus: deploy.StepStatusRunning,
+		ClearError: true,
+	}); err != nil {
+		return err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), runtimePolicy.ComposeUpTimeout)
 	defer cancel()
@@ -340,27 +398,48 @@ func (w *Worker) handleDeployApp(_ context.Context, t *asynq.Task) error {
 			appendDeploymentLog(w.app, record, "cleanup down failed: "+cleanupErr.Error())
 		}
 		if isDeploymentTimeoutError(err) {
-			return markDeploymentTimedOut(w.app, record, p, "deployment execution timed out")
+			return markDeploymentTimedOut(w.app, record, p, "compose_up_timeout", "deployment execution timed out")
 		}
-		return markDeploymentFailed(w.app, record, p, err.Error())
+		return markDeploymentFailed(w.app, record, p, "compose_up_failed", err.Error())
 	}
 	if output != "" {
 		appendDeploymentLog(w.app, record, "docker compose up output:\n"+output)
+	}
+	if err := deploy.ApplyProgressToRecord(w.app, record, deploy.ProgressOptions{
+		Step:       deploy.StepComposeUp,
+		StepStatus: deploy.StepStatusSucceeded,
+		ClearError: true,
+	}); err != nil {
+		return err
 	}
 	if err := deploy.ApplyEventToRecord(w.app, record, deploy.EventVerificationStarted, deploy.TransitionOptions{}); err != nil {
 		return err
 	}
 	appendDeploymentLog(w.app, record, "health check started")
+	if err := deploy.ApplyProgressToRecord(w.app, record, deploy.ProgressOptions{
+		Step:       deploy.StepHealthCheck,
+		StepStatus: deploy.StepStatusRunning,
+		ClearError: true,
+	}); err != nil {
+		return err
+	}
 	healthCtx, healthCancel := context.WithTimeout(context.Background(), runtimePolicy.HealthCheckTimeout)
 	defer healthCancel()
-	if err := lifecycleruntime.RunDeploymentHealthCheck(healthCtx, client, projectDir); err != nil {
+	if err := deploymentHealthCheck(healthCtx, client, projectDir); err != nil {
 		appendDeploymentLog(w.app, record, "health check failed: "+err.Error())
 		if isDeploymentTimeoutError(err) {
-			return markDeploymentTimedOut(w.app, record, p, "deployment verification timed out")
+			return markDeploymentTimedOut(w.app, record, p, "health_check_timeout", "deployment verification timed out")
 		}
-		return markDeploymentFailed(w.app, record, p, "deployment health check failed")
+		return markDeploymentFailed(w.app, record, p, "health_check_failed", "deployment health check failed")
 	}
 	appendDeploymentLog(w.app, record, "health check passed")
+	if err := deploy.ApplyProgressToRecord(w.app, record, deploy.ProgressOptions{
+		Step:       deploy.StepHealthCheck,
+		StepStatus: deploy.StepStatusSucceeded,
+		ClearError: true,
+	}); err != nil {
+		return err
+	}
 
 	if err := deploy.ApplyEventToRecord(w.app, record, deploy.EventDeploymentSucceeded, deploy.TransitionOptions{ClearErrorSummary: true}); err != nil {
 		return err
@@ -382,9 +461,17 @@ func (w *Worker) handleDeployApp(_ context.Context, t *asynq.Task) error {
 	return nil
 }
 
-func markDeploymentFailed(app core.App, record *core.Record, payload DeployAppPayload, message string) error {
+func markDeploymentFailed(app core.App, record *core.Record, payload DeployAppPayload, errorCode string, message string) error {
 	current := record.GetString("status")
 	appendDeploymentLog(app, record, "deployment failed: "+message)
+	if err := deploy.ApplyProgressToRecord(app, record, deploy.ProgressOptions{
+		Step:         record.GetString("current_step"),
+		StepStatus:   deploy.StepStatusFailed,
+		ErrorCode:    errorCode,
+		ErrorMessage: message,
+	}); err != nil {
+		return err
+	}
 	if current != deploy.StatusFailed {
 		event, err := deploy.FailureEventForStatus(current)
 		if err != nil {
@@ -415,8 +502,16 @@ func markDeploymentFailed(app core.App, record *core.Record, payload DeployAppPa
 	return errors.New(message)
 }
 
-func markDeploymentTimedOut(app core.App, record *core.Record, payload DeployAppPayload, message string) error {
+func markDeploymentTimedOut(app core.App, record *core.Record, payload DeployAppPayload, errorCode string, message string) error {
 	appendDeploymentLog(app, record, "deployment timed out: "+message)
+	if err := deploy.ApplyProgressToRecord(app, record, deploy.ProgressOptions{
+		Step:         record.GetString("current_step"),
+		StepStatus:   deploy.StepStatusFailed,
+		ErrorCode:    errorCode,
+		ErrorMessage: message,
+	}); err != nil {
+		return err
+	}
 	if err := deploy.ApplyEventToRecord(app, record, deploy.EventTimedOut, deploy.TransitionOptions{ErrorSummary: message}); err != nil {
 		return err
 	}
@@ -480,32 +575,166 @@ func (w *Worker) recoverOrphanedDeployments() error {
 			continue
 		}
 
-		appendDeploymentLog(w.app, record, "worker startup detected orphaned deployment")
-		event, err := deploy.FailureEventForStatus(current)
+		recovered, err := w.tryRecoverOrphanedDeployment(record)
 		if err != nil {
 			return err
 		}
-		if err := deploy.ApplyEventToRecord(w.app, record, event, deploy.TransitionOptions{
-			ErrorSummary: "deployment orphaned after worker restart",
-		}); err != nil {
-			return err
+		if recovered {
+			continue
 		}
-
-		if deploymentHasReleaseSnapshot(record) {
-			appendDeploymentLog(w.app, record, "release snapshot found during orphan recovery")
-			if err := deploy.ApplyEventToRecord(w.app, record, deploy.EventRollbackStarted, deploy.TransitionOptions{}); err != nil {
-				return err
-			}
-			appendDeploymentLog(w.app, record, "automatic rollback unavailable during orphan recovery")
-			if err := deploy.ApplyEventToRecord(w.app, record, deploy.EventRollbackFailed, deploy.TransitionOptions{
-				ErrorSummary: "deployment orphaned after worker restart; manual recovery required",
-			}); err != nil {
-				return err
-			}
+		if err := w.failOrphanedDeployment(record); err != nil {
+			return err
 		}
 	}
 
 	return nil
+}
+
+func (w *Worker) tryRecoverOrphanedDeployment(record *core.Record) (bool, error) {
+	appendDeploymentLog(w.app, record, "worker startup detected orphaned deployment")
+	if err := deploy.ApplyProgressToRecord(w.app, record, deploy.ProgressOptions{
+		Step:       deploy.StepOrphanRecovery,
+		StepStatus: deploy.StepStatusRunning,
+		ClearError: true,
+	}); err != nil {
+		return false, err
+	}
+
+	healthy, healthErr := w.orphanedDeploymentHealthy(record)
+	if healthErr == nil && healthy {
+		appendDeploymentLog(w.app, record, "orphan recovery verified deployment already healthy")
+		if err := w.completeRecoveredDeployment(record); err != nil {
+			return false, err
+		}
+		if err := deploy.ApplyProgressToRecord(w.app, record, deploy.ProgressOptions{
+			Step:       deploy.StepHealthCheck,
+			StepStatus: deploy.StepStatusRecovered,
+			ClearError: true,
+		}); err != nil {
+			return false, err
+		}
+		if err := syncAppInstanceFromDeployment(w.app, record); err != nil {
+			appendDeploymentLog(w.app, record, "failed to sync app instance after orphan recovery: "+err.Error())
+		}
+		appendDeploymentLog(w.app, record, "deployment completed from orphan recovery facts")
+		return true, nil
+	}
+	if healthErr != nil {
+		appendDeploymentLog(w.app, record, "orphan recovery health verification unavailable: "+healthErr.Error())
+	}
+
+	if canResumeOrphanedDeployment(record) {
+		if err := deploy.ApplyEventToRecord(w.app, record, deploy.EventRecoveryQueued, deploy.TransitionOptions{
+			ClearErrorSummary: true,
+		}); err != nil {
+			return false, err
+		}
+		if err := deploy.ApplyProgressToRecord(w.app, record, deploy.ProgressOptions{
+			Step:       deploy.StepOrphanRecovery,
+			StepStatus: deploy.StepStatusRecovered,
+			ClearError: true,
+		}); err != nil {
+			return false, err
+		}
+		appendDeploymentLog(w.app, record, "deployment requeued for resume after orphan recovery")
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func (w *Worker) failOrphanedDeployment(record *core.Record) error {
+	current := record.GetString("status")
+	if err := deploy.ApplyProgressToRecord(w.app, record, deploy.ProgressOptions{
+		Step:         deploy.StepOrphanRecovery,
+		StepStatus:   deploy.StepStatusFailed,
+		ErrorCode:    "orphaned_after_restart",
+		ErrorMessage: "deployment orphaned after worker restart",
+	}); err != nil {
+		return err
+	}
+	event, err := deploy.FailureEventForStatus(current)
+	if err != nil {
+		return err
+	}
+	if err := deploy.ApplyEventToRecord(w.app, record, event, deploy.TransitionOptions{
+		ErrorSummary: "deployment orphaned after worker restart",
+	}); err != nil {
+		return err
+	}
+
+	if deploymentHasReleaseSnapshot(record) {
+		appendDeploymentLog(w.app, record, "release snapshot found during orphan recovery")
+		if err := deploy.ApplyEventToRecord(w.app, record, deploy.EventRollbackStarted, deploy.TransitionOptions{}); err != nil {
+			return err
+		}
+		appendDeploymentLog(w.app, record, "automatic rollback unavailable during orphan recovery")
+		if err := deploy.ApplyProgressToRecord(w.app, record, deploy.ProgressOptions{
+			Step:         deploy.StepOrphanRecovery,
+			StepStatus:   deploy.StepStatusFailed,
+			ErrorCode:    "orphan_recovery_manual_intervention_required",
+			ErrorMessage: "deployment orphaned after worker restart; manual recovery required",
+		}); err != nil {
+			return err
+		}
+		if err := deploy.ApplyEventToRecord(w.app, record, deploy.EventRollbackFailed, deploy.TransitionOptions{
+			ErrorSummary: "deployment orphaned after worker restart; manual recovery required",
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (w *Worker) orphanedDeploymentHealthy(record *core.Record) (bool, error) {
+	projectDir := strings.TrimSpace(record.GetString("project_dir"))
+	if projectDir == "" {
+		return false, fmt.Errorf("project_dir is empty")
+	}
+	executor := deploymentExecutorFactory(w.app, normalizeDeployServerID(record.GetString("server_id")))
+	client, err := executor.DockerClient()
+	if err != nil {
+		return false, err
+	}
+	healthCtx, cancel := context.WithTimeout(context.Background(), loadDeployRuntimePolicy(w.app).HealthCheckTimeout)
+	defer cancel()
+	if err := deploymentHealthCheck(healthCtx, client, projectDir); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (w *Worker) completeRecoveredDeployment(record *core.Record) error {
+	switch record.GetString("status") {
+	case deploy.StatusPreparing:
+		if err := deploy.ApplyEventToRecord(w.app, record, deploy.EventExecutionStarted, deploy.TransitionOptions{}); err != nil {
+			return err
+		}
+		if err := deploy.ApplyEventToRecord(w.app, record, deploy.EventVerificationStarted, deploy.TransitionOptions{}); err != nil {
+			return err
+		}
+	case deploy.StatusRunning:
+		if err := deploy.ApplyEventToRecord(w.app, record, deploy.EventVerificationStarted, deploy.TransitionOptions{}); err != nil {
+			return err
+		}
+	case deploy.StatusVerifying:
+	default:
+		return fmt.Errorf("cannot complete recovered deployment from status %s", record.GetString("status"))
+	}
+	return deploy.ApplyEventToRecord(w.app, record, deploy.EventDeploymentSucceeded, deploy.TransitionOptions{ClearErrorSummary: true})
+}
+
+func canResumeOrphanedDeployment(record *core.Record) bool {
+	if strings.TrimSpace(record.GetString("project_dir")) == "" {
+		return false
+	}
+	switch record.GetString("status") {
+	case deploy.StatusPreparing, deploy.StatusRunning, deploy.StatusVerifying:
+		return true
+	default:
+		return false
+	}
 }
 
 func activeDeploymentFilter() string {

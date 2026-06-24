@@ -61,7 +61,14 @@ Implement frontend infrastructure only (framework, not features):
   - Color palette and typography
   - Common component primitives (Button, Input, Card, etc.)
   
-- [ ] 7.4: i18n Infrastructure
+- [ ] 7.4: Embedded Iframe Page Framework
+  - Standard contract for AppOS-managed embedded external pages
+  - Same-origin proxied iframe rendering inside the AppOS content area
+  - Top-header breadcrumb pattern for iframe page > current page
+  - Fallback state and open-in-new-window behavior
+  - Minimal Traefik Dashboard consumer
+
+- [ ] 7.4a: i18n Infrastructure
   - Install react-i18next
   - Language detection and switching
   - Translation file structure (`locales/en.json`, `locales/zh.json`)

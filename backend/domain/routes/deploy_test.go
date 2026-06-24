@@ -152,8 +152,8 @@ func TestOperationManualComposeCreateListDetail(t *testing.T) {
 	if created["status"] != string(model.OperationPhaseQueued) {
 		t.Fatalf("expected queued status, got %v", created["status"])
 	}
-	if created["source"] != string(model.TriggerSourceManualOps) {
-		t.Fatalf("expected manualops source, got %v", created["source"])
+	if created["channel"] != string(model.ChannelCustom) {
+		t.Fatalf("expected custom channel, got %v", created["channel"])
 	}
 	if created["pipeline_family"] != "provision" {
 		t.Fatalf("expected provision pipeline family, got %v", created["pipeline_family"])
@@ -178,8 +178,11 @@ func TestOperationManualComposeCreateListDetail(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected pipeline_selector map, got %T", created["pipeline_selector"])
 	}
-	if selector["operation_type"] != string(model.OperationTypeInstall) || selector["source"] != string(model.TriggerSourceManualOps) || selector["adapter"] != string(model.AdapterManualCompose) {
+	if selector["operation_type"] != string(model.OperationTypeInstall) || selector["execution_mode"] != string(model.ExecutionModeCompose) {
 		t.Fatalf("unexpected pipeline selector: %v", selector)
+	}
+	if _, exists := selector["channel"]; exists {
+		t.Fatalf("expected pipeline selector to omit channel, got %v", selector)
 	}
 	if created["spec"].(map[string]any)["operation_type"] != string(model.OperationTypeInstall) {
 		t.Fatalf("expected install operation type, got %v", created["spec"].(map[string]any)["operation_type"])
@@ -190,8 +193,8 @@ func TestOperationManualComposeCreateListDetail(t *testing.T) {
 		t.Fatalf("detail: expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 	detail := parseJSON(t, rec)
-	if detail["adapter"] != string(model.AdapterManualCompose) {
-		t.Fatalf("expected adapter manual-compose, got %v", detail["adapter"])
+	if detail["execution_mode"] != string(model.ExecutionModeCompose) {
+		t.Fatalf("expected compose execution mode, got %v", detail["execution_mode"])
 	}
 	if detail["pipeline_family"] != "provision" {
 		t.Fatalf("expected normalized family in detail, got %v", detail["pipeline_family"])
@@ -210,8 +213,11 @@ func TestOperationManualComposeCreateListDetail(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected detail pipeline_selector map, got %T", detail["pipeline_selector"])
 	}
-	if detailSelector["source"] != string(model.TriggerSourceManualOps) || detailSelector["adapter"] != string(model.AdapterManualCompose) {
+	if detailSelector["execution_mode"] != string(model.ExecutionModeCompose) {
 		t.Fatalf("unexpected detail pipeline selector: %v", detailSelector)
+	}
+	if _, exists := detailSelector["channel"]; exists {
+		t.Fatalf("expected detail pipeline selector to omit channel, got %v", detailSelector)
 	}
 	if detail["has_execution_log"] != false {
 		t.Fatalf("expected has_execution_log false before worker execution, got %v", detail["has_execution_log"])
@@ -539,11 +545,11 @@ func TestOperationTemplateCheckAndCreateWordPress(t *testing.T) {
 		t.Fatalf("create: expected 202, got %d: %s", createRec.Code, createRec.Body.String())
 	}
 	created := parseJSON(t, createRec)
-	if created["source"] != string(model.TriggerSourceManualOps) {
-		t.Fatalf("expected manualops source, got %v", created["source"])
+	if created["channel"] != string(model.ChannelStore) {
+		t.Fatalf("expected store channel, got %v", created["channel"])
 	}
-	if created["adapter"] != "manual-compose" {
-		t.Fatalf("expected manual-compose adapter, got %v", created["adapter"])
+	if created["execution_mode"] != string(model.ExecutionModeCompose) {
+		t.Fatalf("expected compose execution mode, got %v", created["execution_mode"])
 	}
 	opRecord, err := te.app.FindRecordById("app_operations", created["id"].(string))
 	if err != nil {
@@ -945,8 +951,8 @@ func TestOperationManualComposeCheckMatchesCreateNormalization(t *testing.T) {
 	if checkSpec["project_name"] != createSpec["project_name"] {
 		t.Fatalf("expected matching project_name, got check=%v create=%v", checkSpec["project_name"], createSpec["project_name"])
 	}
-	if checkSpec["source"] != createSpec["source"] || checkSpec["adapter"] != createSpec["adapter"] {
-		t.Fatalf("expected matching source/adapter, got check=%v/%v create=%v/%v", checkSpec["source"], checkSpec["adapter"], createSpec["source"], createSpec["adapter"])
+	if checkSpec["channel"] != createSpec["channel"] || checkSpec["execution_mode"] != createSpec["execution_mode"] {
+		t.Fatalf("expected matching channel/execution_mode, got check=%v/%v create=%v/%v", checkSpec["channel"], checkSpec["execution_mode"], createSpec["channel"], createSpec["execution_mode"])
 	}
 
 	checkEnv, ok := checkSpec["resolved_env"].(map[string]any)
@@ -1003,7 +1009,7 @@ func TestOperationManualComposeCheckMatchesCreateNormalization(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected create origin_context map, got %T", createMetadata["origin_context"])
 	}
-	if checkOrigin["source"] != createOrigin["source"] || checkOrigin["adapter"] != createOrigin["adapter"] {
+	if checkOrigin["channel"] != createOrigin["channel"] || checkOrigin["execution_mode"] != createOrigin["execution_mode"] {
 		t.Fatalf("expected matching origin_context, got check=%v create=%v", checkOrigin, createOrigin)
 	}
 }
@@ -1192,8 +1198,8 @@ func TestOperationManualComposeCheckMatchesCreateSourceBuildNormalization(t *tes
 	if checkSpec["mode"] != "source-build" || createSpec["mode"] != "source-build" {
 		t.Fatalf("expected source-build mode in check/create spec, got check=%v create=%v", checkSpec["mode"], createSpec["mode"])
 	}
-	if created["adapter"] != "source-build" {
-		t.Fatalf("expected source-build adapter, got %v", created["adapter"])
+	if created["execution_mode"] != string(model.ExecutionModeBuild) {
+		t.Fatalf("expected build execution mode, got %v", created["execution_mode"])
 	}
 	if created["pipeline_definition_key"] != "provision.install.source_build" {
 		t.Fatalf("expected source-build pipeline definition key, got %v", created["pipeline_definition_key"])
@@ -1367,11 +1373,11 @@ func TestOperationGitComposeCreate(t *testing.T) {
 	}
 
 	created := parseJSON(t, rec)
-	if created["source"] != string(model.TriggerSourceGitOps) {
-		t.Fatalf("expected gitops source, got %v", created["source"])
+	if created["channel"] != string(model.ChannelGit) {
+		t.Fatalf("expected git channel, got %v", created["channel"])
 	}
-	if created["adapter"] != string(model.AdapterGitCompose) {
-		t.Fatalf("expected git-compose adapter, got %v", created["adapter"])
+	if created["execution_mode"] != string(model.ExecutionModeCompose) {
+		t.Fatalf("expected compose execution mode, got %v", created["execution_mode"])
 	}
 	if created["pipeline_family"] != "provision" {
 		t.Fatalf("expected provision pipeline family, got %v", created["pipeline_family"])
@@ -1379,28 +1385,31 @@ func TestOperationGitComposeCreate(t *testing.T) {
 	if created["pipeline_family_internal"] != "ProvisionPipeline" {
 		t.Fatalf("expected internal provision pipeline family, got %v", created["pipeline_family_internal"])
 	}
-	if created["pipeline_definition_key"] != "provision.install.git_compose" {
-		t.Fatalf("expected git compose definition key, got %v", created["pipeline_definition_key"])
+	if created["pipeline_definition_key"] != "provision.install.manual_compose" {
+		t.Fatalf("expected compose definition key, got %v", created["pipeline_definition_key"])
 	}
 	pipeline, ok := created["pipeline"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected pipeline map, got %T", created["pipeline"])
 	}
-	if pipeline["family"] != "provision" || pipeline["definition_key"] != "provision.install.git_compose" {
+	if pipeline["family"] != "provision" || pipeline["definition_key"] != "provision.install.manual_compose" {
 		t.Fatalf("unexpected git pipeline payload: %v", pipeline)
 	}
 	selector, ok := created["pipeline_selector"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected pipeline_selector map, got %T", created["pipeline_selector"])
 	}
-	if selector["operation_type"] != string(model.OperationTypeInstall) || selector["source"] != string(model.TriggerSourceGitOps) || selector["adapter"] != string(model.AdapterGitCompose) {
+	if selector["operation_type"] != string(model.OperationTypeInstall) || selector["execution_mode"] != string(model.ExecutionModeCompose) {
 		t.Fatalf("unexpected pipeline selector: %v", selector)
+	}
+	if _, exists := selector["channel"]; exists {
+		t.Fatalf("expected pipeline selector to omit channel, got %v", selector)
 	}
 	if _, ok := created["lifecycle"]; !ok {
 		t.Fatal("expected lifecycle in operation response")
 	}
-	if spec, ok := created["spec"].(map[string]any); !ok || spec["source"] != string(model.TriggerSourceGitOps) {
-		t.Fatalf("expected gitops spec, got %v", created["spec"])
+	if spec, ok := created["spec"].(map[string]any); !ok || spec["channel"] != string(model.ChannelGit) {
+		t.Fatalf("expected git channel spec, got %v", created["spec"])
 	}
 	if spec, ok := created["spec"].(map[string]any); !ok || spec["operation_type"] != string(model.OperationTypeInstall) {
 		t.Fatalf("expected install operation type, got %v", created["spec"])
@@ -1445,8 +1454,8 @@ func TestOperationGitComposeCheckMatchesCreateNormalization(t *testing.T) {
 	if checkSpec["project_name"] != createSpec["project_name"] {
 		t.Fatalf("expected matching project_name, got check=%v create=%v", checkSpec["project_name"], createSpec["project_name"])
 	}
-	if checkSpec["source"] != createSpec["source"] || checkSpec["adapter"] != createSpec["adapter"] {
-		t.Fatalf("expected matching source/adapter, got check=%v/%v create=%v/%v", checkSpec["source"], checkSpec["adapter"], createSpec["source"], createSpec["adapter"])
+	if checkSpec["channel"] != createSpec["channel"] || checkSpec["execution_mode"] != createSpec["execution_mode"] {
+		t.Fatalf("expected matching channel/execution_mode, got check=%v/%v create=%v/%v", checkSpec["channel"], checkSpec["execution_mode"], createSpec["channel"], createSpec["execution_mode"])
 	}
 
 	checkEnv, ok := checkSpec["resolved_env"].(map[string]any)
@@ -1492,7 +1501,7 @@ func TestOperationGitComposeCheckMatchesCreateNormalization(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected create origin_context map, got %T", createMetadata["origin_context"])
 	}
-	if checkOrigin["source"] != createOrigin["source"] || checkOrigin["adapter"] != createOrigin["adapter"] {
+	if checkOrigin["channel"] != createOrigin["channel"] || checkOrigin["execution_mode"] != createOrigin["execution_mode"] {
 		t.Fatalf("expected matching origin_context, got check=%v create=%v", checkOrigin, createOrigin)
 	}
 	checkPayload, ok := checkMetadata["candidate_payload"].(map[string]any)

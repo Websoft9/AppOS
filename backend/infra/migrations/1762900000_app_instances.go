@@ -40,6 +40,8 @@ func ensureAppInstancesCollection(app core.App) (*core.Collection, error) {
 	addFieldIfMissing(col, &core.TextField{Name: "name", Required: true})
 	addFieldIfMissing(col, &core.TextField{Name: "template_key"})
 	addFieldIfMissing(col, &core.TextField{Name: "server_id", Required: true})
+	removeFieldIfExists(col, "source_type")
+	addFieldIfMissing(col, &core.SelectField{Name: "channel", MaxSelect: 1, Values: append([]string(nil), model.OperationChannels...)})
 	addFieldIfMissing(col, &core.SelectField{Name: "lifecycle_state", Required: true, MaxSelect: 1, Values: append([]string(nil), model.AppLifecycleStates...)})
 	addFieldIfMissing(col, &core.SelectField{Name: "desired_state", MaxSelect: 1, Values: append([]string(nil), model.DesiredAppStates...)})
 	addFieldIfMissing(col, &core.SelectField{Name: "health_summary", Required: true, MaxSelect: 1, Values: append([]string(nil), model.HealthSummaries...)})

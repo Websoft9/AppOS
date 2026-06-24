@@ -61,3 +61,9 @@ func addFieldIfMissing(col *core.Collection, field core.Field) {
 		col.Fields.Add(field)
 	}
 }
+
+func removeFieldIfExists(col *core.Collection, fieldName string) {
+	if col.Fields.GetByName(fieldName) != nil {
+		col.Fields.RemoveByName(fieldName)
+	}
+}

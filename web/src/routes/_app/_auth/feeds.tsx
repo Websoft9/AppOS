@@ -1689,7 +1689,7 @@ function FeedsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Feeds</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Unified hub for RSS feeds, web content and bookmarks.
+            Your feed — RSS subscriptions, web content and bookmarks in one place.
           </p>
         </div>
         <div className="flex items-center gap-2">

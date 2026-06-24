@@ -133,7 +133,7 @@ func newProjectionOperationRecord(appRecord *core.Record, operationType string) 
 	record.Set("app", appRecord.Id)
 	record.Set("server_id", appRecord.GetString("server_id"))
 	record.Set("operation_type", operationType)
-	record.Set("trigger_source", string(model.TriggerSourceManualOps))
+	record.Set("trigger", string(model.TriggerManual))
 	record.Set("phase", string(model.OperationPhaseQueued))
 	record.Set("queued_at", time.Now())
 

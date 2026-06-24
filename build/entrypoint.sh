@@ -2,7 +2,6 @@
 set -e
 
 DATA_DIR=${DATA_DIR:-/appos/data}
-SECRET_KEY_FILE=$DATA_DIR/.appos_secret_key
 APPOS_CONFIG_DIR=$DATA_DIR/config
 APPOS_CONFIG_FILE=$APPOS_CONFIG_DIR/appos.yaml
 APPOS_WEB_DIR=${APPOS_WEB_DIR:-/appos/web}
@@ -31,27 +30,8 @@ mkdir -p \
     "$DATA_DIR/templates/custom/apps" \
     "$DATA_DIR/templates/official/apps"
 
-if [ -f "$SECRET_KEY_FILE" ]; then
-  persisted_secret_key=$(tr -d '\n\r' < "$SECRET_KEY_FILE")
-  if [ -n "$APPOS_SECRET_KEY" ] && [ "$APPOS_SECRET_KEY" != "$persisted_secret_key" ]; then
-    echo "==> [WARN] Ignoring provided APPOS_SECRET_KEY because a persisted key already exists"
-  fi
-  APPOS_SECRET_KEY=$persisted_secret_key
-elif [ -n "$APPOS_SECRET_KEY" ]; then
-  printf '%s' "$APPOS_SECRET_KEY" > "$SECRET_KEY_FILE"
-  chmod 600 "$SECRET_KEY_FILE"
-else
-  APPOS_SECRET_KEY=$(openssl rand -base64 32 | tr -d '\n')
-  printf '%s' "$APPOS_SECRET_KEY" > "$SECRET_KEY_FILE"
-  chmod 600 "$SECRET_KEY_FILE"
-  echo "==> Generated and persisted APPOS_SECRET_KEY"
-fi
-
-export APPOS_SECRET_KEY
-
 # Ensure proper permissions
 chmod -R 755 "$DATA_DIR"
-chmod 600 "$SECRET_KEY_FILE"
 
 # Create directories
 mkdir -p /etc/traefik/dynamic

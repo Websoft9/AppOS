@@ -35,6 +35,7 @@ components:
       - verified_os_baseline
       - root_privilege
       - network_access
+      - container_runtime
       - service_manager
       - package_manager
     visibility:
@@ -53,14 +54,15 @@ components:
   # Traffic edge
   - component_key: reverse-proxy
     target_type: server
-    label: Traefik
+    label: Reverse Proxy (Traefik)
     capability: reverse_proxy
-    artifact_kind: package
-    template_ref: package-systemd
-    binary: traefik
+    artifact_kind: docker
+    template_ref: script-docker-systemd
+    binary: docker
+    version_command: "awk -F'image: ' '/image:/{print $2}' /opt/websoft9/traefik/docker-compose.yml 2>/dev/null | sed -E 's#^.*:v?##' | head -n 1"
     service_name: traefik.service
-    package_name: traefik
-    description: Managed publication gateway service for connected servers.
+    script_path: traefik-install.sh
+    description: Native Traefik agent for application public access.
     readiness_requirements:
       - verified_os_baseline
       - root_privilege
@@ -83,7 +85,7 @@ components:
   # Observability
   - component_key: telegraf
     target_type: server
-    label: Monitor Agent (Native Telegraf)
+    label: Monitor Agent (Telegraf)
     capability: monitor_agent
     artifact_kind: binary
     template_ref: script-systemd

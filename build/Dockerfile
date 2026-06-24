@@ -1,7 +1,7 @@
-FROM alpine:3.21
+FROM alpine:3.24
 
 ARG VICTORIAMETRICS_VERSION=v1.146.0
-ARG TRAEFIK_VERSION=v3.4.1
+ARG TRAEFIK_VERSION=v3.7.5
 ARG TARGETARCH
 
 LABEL maintainer="Websoft9<help@websoft9.com>" \
@@ -13,10 +13,8 @@ LABEL maintainer="Websoft9<help@websoft9.com>" \
 
 # Install runtime dependencies.
 RUN apk add --no-cache \
-		bash \
 		ca-certificates \
 		curl \
-		openssl \
 		redis \
 		runit \
 		tzdata
@@ -50,6 +48,7 @@ COPY --chmod=755 build/runit/victoriametrics/run /etc/sv/victoriametrics/run
 COPY --chmod=755 build/runit/traefik/run /etc/sv/traefik/run
 COPY build/runit/traefik/down /etc/sv/traefik/down
 COPY build/traefik.yml /etc/traefik/traefik.yml
+COPY build/traefik-dashboard.yml /etc/traefik/dynamic/dashboard.yml
 COPY --chmod=755 build/entrypoint.sh /entrypoint.sh
 
 RUN mkdir -p \
@@ -75,7 +74,7 @@ RUN set -eux; \
 ENV DISABLE_TELEMETRY=1 \
     DO_NOT_TRACK=1
 
-# Expose ports for Proxy Gateway(Traefik), AppOS Console, Traefik, and SSH Tunnel
+# Expose ports for Proxy Gateway(Traefik http/https), AppOS Console and SSH Tunnel
 EXPOSE 8081 8443 9000 2222
 
 VOLUME ["/appos/data"]

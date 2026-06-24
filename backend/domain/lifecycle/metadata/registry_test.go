@@ -17,9 +17,8 @@ func TestDefaultRegistryCoversLifecycleOperations(t *testing.T) {
 		family        string
 		definitionKey string
 	}{
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), Source: string(model.TriggerSourceManualOps), Adapter: string(model.AdapterManualCompose)}, family: model.ProvisionPipeline, definitionKey: "provision.install.manual_compose"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), Source: string(model.TriggerSourceGitOps), Adapter: string(model.AdapterGitCompose)}, family: model.ProvisionPipeline, definitionKey: "provision.install.git_compose"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), Source: string(model.TriggerSourceManualOps), Adapter: string(model.AdapterSourceBuild)}, family: model.ProvisionPipeline, definitionKey: "provision.install.source_build"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), ExecutionMode: string(model.ExecutionModeCompose)}, family: model.ProvisionPipeline, definitionKey: "provision.install.manual_compose"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), ExecutionMode: string(model.ExecutionModeBuild)}, family: model.ProvisionPipeline, definitionKey: "provision.install.source_build"},
 		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeStart)}, family: model.ProvisionPipeline, definitionKey: "provision.start"},
 		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeRestart)}, family: model.ProvisionPipeline, definitionKey: "provision.restart"},
 		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeUpgrade)}, family: model.ChangePipeline, definitionKey: "change.upgrade"},
@@ -53,7 +52,7 @@ func TestDefaultRegistryCoversLifecycleOperations(t *testing.T) {
 }
 
 func TestDefinitionForOperationNormalizesInput(t *testing.T) {
-	definition, err := DefinitionForSelector(model.DefinitionSelector{OperationType: "  INSTALL ", Source: " manualops ", Adapter: " manual-compose "})
+	definition, err := DefinitionForSelector(model.DefinitionSelector{OperationType: "  INSTALL ", ExecutionMode: " compose "})
 	if err != nil {
 		t.Fatalf("definition lookup failed: %v", err)
 	}
@@ -78,18 +77,18 @@ func TestDefinitionForOperationNormalizesInput(t *testing.T) {
 	}
 }
 
-func TestDefinitionForSelectorChoosesGitComposeInstall(t *testing.T) {
-	definition, err := DefinitionForSelector(model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), Source: string(model.TriggerSourceGitOps), Adapter: string(model.AdapterGitCompose)})
+func TestDefinitionForSelectorChoosesStoreManualComposeInstall(t *testing.T) {
+	definition, err := DefinitionForSelector(model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), ExecutionMode: string(model.ExecutionModeCompose)})
 	if err != nil {
 		t.Fatalf("definition lookup failed: %v", err)
 	}
-	if definition.Key != "provision.install.git_compose" {
-		t.Fatalf("expected git compose install definition, got %s", definition.Key)
+	if definition.Key != "provision.install.manual_compose" {
+		t.Fatalf("expected store-backed manual compose install definition, got %s", definition.Key)
 	}
 }
 
 func TestDefinitionForSelectorChoosesSourceBuildInstall(t *testing.T) {
-	definition, err := DefinitionForSelector(model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), Source: string(model.TriggerSourceManualOps), Adapter: string(model.AdapterSourceBuild)})
+	definition, err := DefinitionForSelector(model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), ExecutionMode: string(model.ExecutionModeBuild)})
 	if err != nil {
 		t.Fatalf("definition lookup failed: %v", err)
 	}
@@ -334,31 +333,6 @@ definitions:
 `))
 	if err == nil {
 		t.Fatal("expected writes_projection validation error")
-	}
-}
-
-func TestNewRegistryRejectsUnsupportedSource(t *testing.T) {
-	_, err := NewRegistry([]byte(`family: ProvisionPipeline
-description: Broken catalog
-intent: Broken intent
-touches_domains: [AppInstance]
-default_compensation_policy: best_effort
-applies_to: [install]
-definitions:
-	- key: provision.install
-		version: v1
-		family: ProvisionPipeline
-		operation_types: [install]
-		sources: [unknownsource]
-		initial_phase: validating
-		nodes:
-			- key: validate_spec
-				node_type: validation
-				display_name: Validate Spec
-				phase: validating
-`))
-	if err == nil {
-		t.Fatal("expected source validation error")
 	}
 }
 

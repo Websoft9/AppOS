@@ -23,6 +23,8 @@ import (
 // (one SSH server per process).  Tests reinitialize it as needed.
 var tunnelSessions *tunnelcore.Registry
 
+var startTunnelRuntimeHook = startTunnelRuntime
+
 // tunnelTokenCache maps raw token → serverID for O(1) lookup (SEC-3).
 // Populated lazily on first Validate call and kept in sync by handleTunnelToken
 // on create/rotate.  Thread-safe via sync.Map.
@@ -74,7 +76,7 @@ func tunnelSSHPort() string {
 // registerTunnelRoutes wires the tunnel SSH server and exposes the tunnel API.
 // Called from routes.Register.
 func registerTunnelRoutes(se *core.ServeEvent) {
-	startTunnelRuntime(se)
+	startTunnelRuntimeHook(se)
 	registerAuthenticatedTunnelRoutes(se)
 	registerPublicTunnelRoutes(se)
 }

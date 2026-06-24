@@ -1,13 +1,19 @@
 package routes
 
 import (
+	"context"
+	"fmt"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
@@ -18,6 +24,21 @@ var (
 	loadSystemRuntimeComponents = loadLocalRuntimeComponentItems
 	loadSystemRuntimeServices   = loadLocalComponentServiceItems
 	loadSystemRuntimeFacts      = readSystemRuntimeFacts
+	systemTraefikDashboardURL   = "http://127.0.0.1:8081"
+	systemTraefikServicePath    = "/etc/service/traefik"
+	ensureSystemTraefikReady    = ensureSystemTraefikDashboardReady
+	runSystemTraefikCommand     = func(ctx context.Context, command string, args ...string) (string, error) {
+		cmd := exec.CommandContext(ctx, command, args...)
+		output, err := cmd.CombinedOutput()
+		text := strings.TrimSpace(string(output))
+		if err != nil {
+			if text == "" {
+				return "", err
+			}
+			return text, fmt.Errorf("%w: %s", err, text)
+		}
+		return text, nil
+	}
 )
 
 type systemRuntimeResponse struct {
@@ -80,6 +101,11 @@ func registerSystemRoutes(system *router.RouterGroup[*core.RequestEvent]) {
 	system.GET("/metrics", handleSystemMetrics)
 	system.GET("/files", handleFileBrowser)
 	system.GET("/runtime", handleSystemRuntime)
+}
+
+func registerPublicTraefikRoutes(se *core.ServeEvent) {
+	se.Router.GET("/api/settings/public/traefik", handlePublicTraefikDashboard)
+	se.Router.GET("/api/settings/public/traefik/{path...}", handlePublicTraefikDashboard)
 }
 
 // handleSystemMetrics returns host CPU, memory, and disk usage metrics.
@@ -155,6 +181,69 @@ func handleSystemRuntime(e *core.RequestEvent) error {
 		HostKernelFacts: facts,
 		RuntimeLimits:   limits,
 	})
+}
+
+// @Summary Proxy bundled Traefik dashboard
+// @Description Proxies the embedded Traefik dashboard and API through AppOS under /api/settings/public/traefik. Public route.
+// @Tags Runtime Operations
+// @Success 200 {string} string "Traefik dashboard content"
+// @Failure 502 {object} map[string]any
+// @Failure 503 {object} map[string]any
+// @Router /api/settings/public/traefik [get]
+// @Router /api/settings/public/traefik/{path...} [get]
+func handlePublicTraefikDashboard(e *core.RequestEvent) error {
+	if err := ensureSystemTraefikReady(e.Request.Context()); err != nil {
+		return e.JSON(http.StatusServiceUnavailable, map[string]any{
+			"error":   "traefik_dashboard_unavailable",
+			"message": err.Error(),
+		})
+	}
+
+	target, err := url.Parse(systemTraefikDashboardURL)
+	if err != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{
+			"error":   "traefik_dashboard_proxy_invalid",
+			"message": err.Error(),
+		})
+	}
+
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, proxyErr error) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte(fmt.Sprintf(`{"error":"traefik_dashboard_proxy_failed","message":%q}`+"\n", proxyErr.Error())))
+	}
+	proxy.ServeHTTP(e.Response, e.Request)
+	return nil
+}
+
+func ensureSystemTraefikDashboardReady(ctx context.Context) error {
+	if _, err := runSystemTraefikCommand(ctx, "sv", "up", systemTraefikServicePath); err != nil {
+		return fmt.Errorf("start traefik service: %w", err)
+	}
+
+	client := &http.Client{Timeout: 500 * time.Millisecond}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if time.Now().After(deadline) {
+			return fmt.Errorf("traefik dashboard did not become ready in time")
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, systemTraefikDashboardURL+"/ping", nil)
+		if err == nil {
+			resp, reqErr := client.Do(req)
+			if reqErr == nil {
+				_ = resp.Body.Close()
+				if resp.StatusCode >= 200 && resp.StatusCode < 500 {
+					return nil
+				}
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(150 * time.Millisecond):
+		}
+	}
 }
 
 func summarizeSystemRuntime(components []softwareComponentListItem) systemRuntimeSummary {

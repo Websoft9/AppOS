@@ -17,7 +17,6 @@ import (
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/websoft9/appos/backend/domain/audit"
 	appcatalog "github.com/websoft9/appos/backend/domain/catalog"
-	"github.com/websoft9/appos/backend/domain/deploy"
 	"github.com/websoft9/appos/backend/domain/iac"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
@@ -37,7 +36,9 @@ type composeProjectStatus struct {
 
 type appRuntimeContext struct {
 	ProjectDir         string
-	Source             string
+	Channel            string
+	Trigger            string
+	ExecutionMode      string
 	ComposeProjectName string
 }
 
@@ -516,8 +517,9 @@ func handleAppInstanceLifecycleOperationWithMetadata(e *core.RequestEvent, actio
 		serverID,
 		record.GetString("name"),
 		content,
-		normalizeInstalledDeploySource(runtimeContext.Source),
-		deploy.AdapterManualCompose,
+		runtimeContext.Channel,
+		string(model.TriggerManual),
+		string(model.ExecutionModeCompose),
 		map[string]any{
 			"installed_app_id": record.Id,
 			"requested_action": action,
@@ -640,7 +642,9 @@ func appInstanceResponse(app core.App, record *core.Record, runtimeIndex map[str
 		"server_name":             serverName,
 		"name":                    name,
 		"project_dir":             runtimeContext.ProjectDir,
-		"source":                  runtimeContext.Source,
+		"trigger":                 runtimeContext.Trigger,
+		"channel":                 runtimeContext.Channel,
+		"execution_mode":          runtimeContext.ExecutionMode,
 		"status":                  appInstallStatus(record),
 		"runtime_status":          runtimeStatus,
 		"lifecycle_state":         record.GetString("lifecycle_state"),
@@ -898,17 +902,34 @@ func resolveAppRuntimeContext(app core.App, record *core.Record) (appRuntimeCont
 		return context, fmt.Errorf("app runtime context operation not found")
 	}
 	context.ProjectDir = strings.TrimSpace(operationRecord.GetString("project_dir"))
-	context.Source = strings.TrimSpace(operationRecord.GetString("trigger_source"))
+	context.Trigger = model.NormalizeOperationTrigger(operationRecord.GetString("trigger"))
+	context.Channel = model.NormalizeOperationChannel(record.GetString("channel"))
+	context.ExecutionMode = model.NormalizeOperationExecutionMode(operationRecord.GetString("execution_mode"))
+	if context.Channel == "" && strings.TrimSpace(record.GetString("template_key")) != "" {
+		context.Channel = string(model.ChannelStore)
+	}
 	if composeProjectName := strings.TrimSpace(operationRecord.GetString("compose_project_name")); composeProjectName != "" {
 		context.ComposeProjectName = composeProjectName
 	}
 	if context.ProjectDir == "" {
 		if spec, ok := operationRecord.Get("spec_json").(map[string]any); ok {
 			context.ProjectDir = strings.TrimSpace(fmt.Sprint(spec["project_dir"]))
-			if context.Source == "" {
-				context.Source = strings.TrimSpace(fmt.Sprint(spec["source"]))
+			if context.Trigger == "" {
+				context.Trigger = model.NormalizeOperationTrigger(fmt.Sprint(spec["trigger"]))
+			}
+			if context.Channel == "" {
+				context.Channel = model.NormalizeOperationChannel(fmt.Sprint(spec["channel"]))
+			}
+			if context.ExecutionMode == "" {
+				context.ExecutionMode = model.NormalizeOperationExecutionMode(fmt.Sprint(spec["execution_mode"]))
 			}
 		}
+	}
+	if context.Channel == "" {
+		context.Channel = string(model.ChannelCustom)
+	}
+	if context.ExecutionMode == "" {
+		context.ExecutionMode = string(model.ExecutionModeCompose)
 	}
 	if context.ProjectDir == "" {
 		return context, fmt.Errorf("app runtime context is missing project_dir")
@@ -1139,10 +1160,3 @@ func withMapFields(base map[string]any, extra map[string]any) map[string]any {
 	return base
 }
 
-func normalizeInstalledDeploySource(source string) string {
-	source = strings.TrimSpace(source)
-	if source == "" {
-		return deploy.SourceManualOps
-	}
-	return source
-}

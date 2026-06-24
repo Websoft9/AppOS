@@ -474,7 +474,7 @@ function TopicDetailPage() {
           search={{ returnGroup: undefined, returnType: undefined }}
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
-          <ArrowLeft className="h-4 w-4" /> Topics
+          <ArrowLeft className="h-4 w-4" /> Feed
         </Link>
         <p className="text-destructive">{error || 'Topic not found'}</p>
       </div>
@@ -486,6 +486,13 @@ function TopicDetailPage() {
       {/* Breadcrumb */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Link
+            to={'/feeds' as never}
+            className="hover:text-foreground"
+          >
+            Feed
+          </Link>
+          <span>/</span>
           <Link
             to="/topics"
             search={{ returnGroup: undefined, returnType: undefined }}

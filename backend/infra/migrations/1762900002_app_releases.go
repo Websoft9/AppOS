@@ -3,6 +3,7 @@ package migrations
 import (
 	"github.com/pocketbase/pocketbase/core"
 	m "github.com/pocketbase/pocketbase/migrations"
+	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 )
 
 func init() {
@@ -43,7 +44,8 @@ func ensureAppReleasesCollection(app core.App) (*core.Collection, error) {
 	addFieldIfMissing(col, &core.RelationField{Name: "created_by_operation", CollectionId: appOperations.Id, MaxSelect: 1})
 	addFieldIfMissing(col, &core.SelectField{Name: "release_role", Required: true, MaxSelect: 1, Values: []string{"candidate", "active", "last_known_good", "historical"}})
 	addFieldIfMissing(col, &core.TextField{Name: "version_label"})
-	addFieldIfMissing(col, &core.SelectField{Name: "source_type", Required: true, MaxSelect: 1, Values: []string{"template", "git", "file", "image", "manual"}})
+	removeFieldIfExists(col, "source_type")
+	addFieldIfMissing(col, &core.SelectField{Name: "channel", Required: true, MaxSelect: 1, Values: append([]string(nil), model.OperationChannels...)})
 	addFieldIfMissing(col, &core.TextField{Name: "source_ref"})
 	addFieldIfMissing(col, &core.TextField{Name: "rendered_compose", Required: true})
 	addFieldIfMissing(col, &core.JSONField{Name: "resolved_env_json"})

@@ -133,5 +133,4 @@ func registerTerminalRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	registerServerShellRoutes(g)
 	registerServerFileRoutes(g)
 	registerServerContainerRoutes(g)
-	registerLocalTerminalRoutes(g)
 }

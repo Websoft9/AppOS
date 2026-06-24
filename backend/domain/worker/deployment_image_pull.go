@@ -98,14 +98,20 @@ func ensureDeploymentImageReady(
 	}
 
 	logf("docker image pull started: " + image)
+	pullErr := error(nil)
 	if _, err := pullDeploymentImageWithTimeout(ctx, client, image, pullTimeout); err == nil {
+		if verifyErr := verifyDeploymentImagePresent(ctx, client, image); verifyErr != nil {
+			pullErr = verifyErr
+		} else {
 		logf("docker image pull succeeded: " + image)
 		return nil
-	} else {
-		logf("docker image pull failed: " + image + ": " + err.Error())
-		if len(mirrors) == 0 {
-			return err
 		}
+	} else {
+		pullErr = err
+	}
+	logf("docker image pull failed: " + image + ": " + pullErr.Error())
+	if len(mirrors) == 0 {
+		return pullErr
 	}
 
 	if strings.Contains(image, "@") {
@@ -133,6 +139,11 @@ func ensureDeploymentImageReady(
 			if _, err := client.ImageTag(ctx, mirrorRef, image); err != nil {
 				lastAttemptError = fmt.Errorf("tag %s -> %s: %v", mirrorRef, image, err)
 				logf(fmt.Sprintf("docker image mirror tag failed: %s", err.Error()))
+				continue
+			}
+			if verifyErr := verifyDeploymentImagePresent(ctx, client, image); verifyErr != nil {
+				lastAttemptError = verifyErr
+				logf(fmt.Sprintf("docker image mirror verification failed: %s", verifyErr.Error()))
 				continue
 			}
 			logf(fmt.Sprintf("docker image mirror pull succeeded: %s via %s", image, mirrorRef))
@@ -164,6 +175,13 @@ func pullDeploymentImageWithTimeout(ctx context.Context, client deploymentImageC
 		return "", err
 	}
 	return output, nil
+}
+
+func verifyDeploymentImagePresent(ctx context.Context, client deploymentImageClient, image string) error {
+	if _, err := client.ImageInspect(ctx, image); err != nil {
+		return fmt.Errorf("pulled image %s but image is still unavailable locally: %w", image, err)
+	}
+	return nil
 }
 
 func errorsIsTimeout(err error) bool {

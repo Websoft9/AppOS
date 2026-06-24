@@ -239,12 +239,13 @@ func (p *Adapter) CheckDiskSpace(ctx context.Context, serverID string, projectDi
 	if path == "" {
 		path = "/appos/data/apps/operations"
 	}
-	raw, err := p.deps.ExecuteSSHCommand(ctx, target.Config, fmt.Sprintf("df -Pk %s 2>/dev/null | tail -n 1", p.deps.ShellQuote(filepath.Dir(path))), 20*time.Second)
+	diskPath := filepath.Dir(path)
+	raw, err := p.deps.ExecuteSSHCommand(ctx, target.Config, fmt.Sprintf("target_dir=%s; if df -Pk --output=avail,target \"$target_dir\" >/dev/null 2>&1; then df -Pk --output=avail,target \"$target_dir\" 2>/dev/null | tail -n 1; else df -Pk \"$target_dir\" 2>/dev/null | tail -n 1; fi", p.deps.ShellQuote(diskPath)), 20*time.Second)
 	if err != nil {
 		return lifecyclesvc.InstallPreflightDiskSpaceCheck{}, nil, err
 	}
-	fields := strings.Fields(strings.TrimSpace(raw))
-	if len(fields) < 6 {
+	availableBytes, mountPoint, parseErr := parseDiskSpaceOutput(raw)
+	if parseErr != nil {
 		warning := "Disk-space check returned an unexpected response." + diskCheckContextSuffix(minFreeDiskBytes, appRequiredDiskBytes)
 		return lifecyclesvc.InstallPreflightDiskSpaceCheck{
 			InstallPreflightCheck: lifecyclesvc.InstallPreflightCheck{OK: true, Status: "warning", Message: warning},
@@ -252,16 +253,6 @@ func (p *Adapter) CheckDiskSpace(ctx context.Context, serverID string, projectDi
 			RequiredAppBytes:      appRequiredDiskBytes,
 		}, []string{warning}, nil
 	}
-	availableKB, convErr := strconv.ParseInt(fields[3], 10, 64)
-	if convErr != nil {
-		warning := "Disk-space check could not parse available capacity." + diskCheckContextSuffix(minFreeDiskBytes, appRequiredDiskBytes)
-		return lifecyclesvc.InstallPreflightDiskSpaceCheck{
-			InstallPreflightCheck: lifecyclesvc.InstallPreflightCheck{OK: true, Status: "warning", Message: warning},
-			MinFreeBytes:          minFreeDiskBytes,
-			RequiredAppBytes:      appRequiredDiskBytes,
-		}, []string{warning}, nil
-	}
-	availableBytes := availableKB * 1024
 
 	status := "ok"
 	message := "Sufficient disk space detected"
@@ -283,8 +274,25 @@ func (p *Adapter) CheckDiskSpace(ctx context.Context, serverID string, projectDi
 		AvailableBytes:        availableBytes,
 		MinFreeBytes:          minFreeDiskBytes,
 		RequiredAppBytes:      appRequiredDiskBytes,
-		MountPoint:            fields[5],
+		MountPoint:            mountPoint,
 	}, nil, nil
+}
+
+func parseDiskSpaceOutput(raw string) (int64, string, error) {
+	fields := strings.Fields(strings.TrimSpace(raw))
+	if len(fields) >= 2 {
+		if availableKB, err := strconv.ParseInt(fields[0], 10, 64); err == nil {
+			return availableKB * 1024, strings.Join(fields[1:], " "), nil
+		}
+	}
+	if len(fields) >= 6 {
+		availableKB, err := strconv.ParseInt(fields[3], 10, 64)
+		if err != nil {
+			return 0, "", err
+		}
+		return availableKB * 1024, strings.Join(fields[5:], " "), nil
+	}
+	return 0, "", fmt.Errorf("unexpected df output: %q", strings.TrimSpace(raw))
 }
 
 func diskCheckContextSuffix(minFreeDiskBytes int64, appRequiredDiskBytes int64) string {

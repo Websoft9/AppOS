@@ -90,6 +90,48 @@ func TestRecoverOrphanedDeploymentsEscalatesSnapshotToManualIntervention(t *test
 	}
 }
 
+func TestRecoverOrphanedDeploymentsRequeuesResumableRecord(t *testing.T) {
+	app := newWorkerTestApp(t)
+	w, err := New(app)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := app.FindCollectionByNameOrId("deployments"); err != nil {
+		if err := w.recoverOrphanedDeployments(); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+
+	record := seedDeploymentRecord(t, app, "local", deploy.StatusRunning, nil)
+	record.Set("project_dir", "/srv/demo-app")
+	if err := app.Save(record); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := w.recoverOrphanedDeployments(); err != nil {
+		t.Fatal(err)
+	}
+
+	record, err = app.FindRecordById("deployments", record.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := record.GetString("status"); got != deploy.StatusQueued {
+		t.Fatalf("expected queued status after resumable orphan recovery, got %s", got)
+	}
+	if got := record.GetString("current_step"); got != deploy.StepOrphanRecovery {
+		t.Fatalf("expected orphan_recovery current_step, got %q", got)
+	}
+	if got := record.GetString("step_status"); got != string(deploy.StepStatusRecovered) {
+		t.Fatalf("expected recovered step_status, got %q", got)
+	}
+	if !strings.Contains(record.GetString("execution_log"), "deployment requeued for resume after orphan recovery") {
+		t.Fatal("expected requeue log entry")
+	}
+}
+
 func TestClaimQueuedDeploymentRejectsActivePeer(t *testing.T) {
 	app := newWorkerTestApp(t)
 	w, err := New(app)
@@ -167,7 +209,7 @@ func seedLegacyDeploymentLikeRecord(serverID string, status string) *core.Record
 	collection := core.NewBaseCollection("legacy_deployments")
 	record := core.NewRecord(collection)
 	record.Set("server_id", serverID)
-	record.Set("source", deploy.SourceManualOps)
+	record.Set("source", "manualops")
 	record.Set("status", status)
 	record.Set("compose_project_name", "demo-app")
 	record.Set("rendered_compose", "services:\n  web:\n    image: nginx:alpine\n")
@@ -185,9 +227,9 @@ func seedDeploymentRecord(t *testing.T, app core.App, serverID string, status st
 
 	record := core.NewRecord(col)
 	record.Set("server_id", serverID)
-	record.Set("source", deploy.SourceManualOps)
+	record.Set("source", "manualops")
 	record.Set("status", status)
-	record.Set("adapter", deploy.AdapterManualCompose)
+	record.Set("adapter", "manual-compose")
 	record.Set("compose_project_name", "demo-app")
 	record.Set("rendered_compose", "services:\n  web:\n    image: nginx:alpine\n")
 	if releaseSnapshot != nil {

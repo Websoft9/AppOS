@@ -33,7 +33,7 @@ export type TemplateServiceItem = {
 }
 
 export const EXPOSURE_PORT_MIN = 9001
-export const EXPOSURE_PORT_MAX = 9999
+export const EXPOSURE_PORT_MAX = 9099
 
 export function isTemplateFieldBasic(field: CatalogTemplateField) {
   return field.visibility !== 'system' && field.visibility !== 'advanced'

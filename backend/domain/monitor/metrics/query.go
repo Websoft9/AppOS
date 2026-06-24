@@ -10,6 +10,7 @@ import (
 	"time"
 
 	monitortsdb "github.com/websoft9/appos/backend/domain/monitor/metrics/tsdb"
+	"github.com/websoft9/appos/backend/domain/runtimecfg"
 )
 
 type metricQueryOverrideFunc func(context.Context, string, string, string, []string, MetricSeriesQueryOptions) (*MetricSeriesResponse, error)
@@ -29,7 +30,12 @@ const (
 
 // metricsHTTPClient is reused across metric series queries to enable TCP
 // connection pooling to the local VictoriaMetrics instance.
-var metricsHTTPClient = &http.Client{Timeout: 5 * time.Second}
+var metricsHTTPClient = &http.Client{
+	Timeout: 5 * time.Second,
+	Transport: &http.Transport{
+		Proxy: nil,
+	},
+}
 
 func SetMetricQueryFuncForTest(fn metricQueryOverrideFunc) func() {
 	metricQueryOverrideMu.Lock()
@@ -99,7 +105,7 @@ func queryMetricSeriesVM(ctx context.Context, targetType, targetID, window strin
 	if !ok {
 		return nil, fmt.Errorf("target type %q does not support series queries", targetType)
 	}
-	baseURL := strings.TrimSpace(os.Getenv(EnvVictoriaMetricsURL))
+	baseURL := resolveVMURL()
 	response := &MetricSeriesResponse{
 		TargetType:   targetType,
 		TargetID:     targetID,
@@ -181,7 +187,7 @@ func queryLatestMetricSeriesVM(ctx context.Context, targetType, targetID string,
 			return nil, fmt.Errorf("series %q is not allowed for target type %q", requested, targetType)
 		}
 	}
-	baseURL := strings.TrimSpace(os.Getenv(EnvVictoriaMetricsURL))
+	baseURL := resolveVMURL()
 	if baseURL == "" {
 		return response, nil
 	}
@@ -257,4 +263,13 @@ func latestOnlyPoints(points [][]float64) [][]float64 {
 
 func isFiniteMetricValue(value float64) bool {
 	return !((value != value) || value > 1<<62 || value < -(1<<62))
+}
+
+// resolveVMURL resolves the configured VictoriaMetrics base URL.
+func resolveVMURL() string {
+	baseURL := strings.TrimSpace(os.Getenv(EnvTSDBURL))
+	if baseURL != "" {
+		return baseURL
+	}
+	return strings.TrimSpace(runtimecfg.TSDBURL())
 }

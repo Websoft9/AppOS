@@ -42,6 +42,10 @@ func TestApplyEvent(t *testing.T) {
 	if err != nil || next != StatusTimeout {
 		t.Fatalf("expected verifying + timed_out -> timeout, got %q err=%v", next, err)
 	}
+	next, err = ApplyEvent(StatusRunning, EventRecoveryQueued)
+	if err != nil || next != StatusQueued {
+		t.Fatalf("expected running + recovery_queued -> queued, got %q err=%v", next, err)
+	}
 }
 
 func TestFailureEventForStatus(t *testing.T) {

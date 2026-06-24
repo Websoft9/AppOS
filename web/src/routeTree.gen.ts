@@ -18,14 +18,19 @@ import { Route as AppLoginRouteImport } from './routes/_app/login'
 import { Route as AppForgotPasswordRouteImport } from './routes/_app/forgot-password'
 import { Route as AppAuthRouteImport } from './routes/_app/_auth'
 import { Route as ShareTopicTokenRouteImport } from './routes/share/topic.$token'
+import { Route as AppPublishTraefikRouteImport } from './routes/_app/publish/traefik'
+import { Route as AppAuthTrafficRouteImport } from './routes/_app/_auth/traffic'
 import { Route as AppAuthTopicsRouteImport } from './routes/_app/_auth/topics'
 import { Route as AppAuthSpaceRouteImport } from './routes/_app/_auth/space'
 import { Route as AppAuthSharedEnvsRouteImport } from './routes/_app/_auth/shared-envs'
 import { Route as AppAuthSecretsRouteImport } from './routes/_app/_auth/secrets'
+import { Route as AppAuthPublishRouteImport } from './routes/_app/_auth/publish'
 import { Route as AppAuthProfileRouteImport } from './routes/_app/_auth/profile'
 import { Route as AppAuthPlatformComponentsRouteImport } from './routes/_app/_auth/platform-components'
 import { Route as AppAuthOverviewRouteImport } from './routes/_app/_auth/overview'
+import { Route as AppAuthNetworkRouteImport } from './routes/_app/_auth/network'
 import { Route as AppAuthGroupsRouteImport } from './routes/_app/_auth/groups'
+import { Route as AppAuthGatewayRouteImport } from './routes/_app/_auth/gateway'
 import { Route as AppAuthFeedsRouteImport } from './routes/_app/_auth/feeds'
 import { Route as AppAuthExtensionsRouteImport } from './routes/_app/_auth/extensions'
 import { Route as AppAuthDockerRouteImport } from './routes/_app/_auth/docker'
@@ -111,6 +116,16 @@ const ShareTopicTokenRoute = ShareTopicTokenRouteImport.update({
   path: '/share/topic/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppPublishTraefikRoute = AppPublishTraefikRouteImport.update({
+  id: '/publish/traefik',
+  path: '/publish/traefik',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAuthTrafficRoute = AppAuthTrafficRouteImport.update({
+  id: '/traffic',
+  path: '/traffic',
+  getParentRoute: () => AppAuthRoute,
+} as any)
 const AppAuthTopicsRoute = AppAuthTopicsRouteImport.update({
   id: '/topics',
   path: '/topics',
@@ -131,6 +146,11 @@ const AppAuthSecretsRoute = AppAuthSecretsRouteImport.update({
   path: '/secrets',
   getParentRoute: () => AppAuthRoute,
 } as any)
+const AppAuthPublishRoute = AppAuthPublishRouteImport.update({
+  id: '/publish',
+  path: '/publish',
+  getParentRoute: () => AppAuthRoute,
+} as any)
 const AppAuthProfileRoute = AppAuthProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -147,9 +167,19 @@ const AppAuthOverviewRoute = AppAuthOverviewRouteImport.update({
   path: '/overview',
   getParentRoute: () => AppAuthRoute,
 } as any)
+const AppAuthNetworkRoute = AppAuthNetworkRouteImport.update({
+  id: '/network',
+  path: '/network',
+  getParentRoute: () => AppAuthRoute,
+} as any)
 const AppAuthGroupsRoute = AppAuthGroupsRouteImport.update({
   id: '/groups',
   path: '/groups',
+  getParentRoute: () => AppAuthRoute,
+} as any)
+const AppAuthGatewayRoute = AppAuthGatewayRouteImport.update({
+  id: '/gateway',
+  path: '/gateway',
   getParentRoute: () => AppAuthRoute,
 } as any)
 const AppAuthFeedsRoute = AppAuthFeedsRouteImport.update({
@@ -388,14 +418,19 @@ export interface FileRoutesByFullPath {
   '/docker': typeof AppAuthDockerRoute
   '/extensions': typeof AppAuthExtensionsRoute
   '/feeds': typeof AppAuthFeedsRoute
+  '/gateway': typeof AppAuthGatewayRoute
   '/groups': typeof AppAuthGroupsRouteWithChildren
+  '/network': typeof AppAuthNetworkRoute
   '/overview': typeof AppAuthOverviewRoute
   '/platform-components': typeof AppAuthPlatformComponentsRoute
   '/profile': typeof AppAuthProfileRoute
+  '/publish': typeof AppAuthPublishRoute
   '/secrets': typeof AppAuthSecretsRoute
   '/shared-envs': typeof AppAuthSharedEnvsRoute
   '/space': typeof AppAuthSpaceRoute
   '/topics': typeof AppAuthTopicsRouteWithChildren
+  '/traffic': typeof AppAuthTrafficRoute
+  '/publish/traefik': typeof AppPublishTraefikRoute
   '/share/topic/$token': typeof ShareTopicTokenRoute
   '/ai-assets': typeof AppAuthSuperuserAiAssetsRouteWithChildren
   '/iac': typeof AppAuthSuperuserIacRoute
@@ -444,12 +479,17 @@ export interface FileRoutesByTo {
   '/docker': typeof AppAuthDockerRoute
   '/extensions': typeof AppAuthExtensionsRoute
   '/feeds': typeof AppAuthFeedsRoute
+  '/gateway': typeof AppAuthGatewayRoute
+  '/network': typeof AppAuthNetworkRoute
   '/overview': typeof AppAuthOverviewRoute
   '/platform-components': typeof AppAuthPlatformComponentsRoute
   '/profile': typeof AppAuthProfileRoute
+  '/publish': typeof AppAuthPublishRoute
   '/secrets': typeof AppAuthSecretsRoute
   '/shared-envs': typeof AppAuthSharedEnvsRoute
   '/space': typeof AppAuthSpaceRoute
+  '/traffic': typeof AppAuthTrafficRoute
+  '/publish/traefik': typeof AppPublishTraefikRoute
   '/share/topic/$token': typeof ShareTopicTokenRoute
   '/ai-assets': typeof AppAuthSuperuserAiAssetsRouteWithChildren
   '/iac': typeof AppAuthSuperuserIacRoute
@@ -503,14 +543,19 @@ export interface FileRoutesById {
   '/_app/_auth/docker': typeof AppAuthDockerRoute
   '/_app/_auth/extensions': typeof AppAuthExtensionsRoute
   '/_app/_auth/feeds': typeof AppAuthFeedsRoute
+  '/_app/_auth/gateway': typeof AppAuthGatewayRoute
   '/_app/_auth/groups': typeof AppAuthGroupsRouteWithChildren
+  '/_app/_auth/network': typeof AppAuthNetworkRoute
   '/_app/_auth/overview': typeof AppAuthOverviewRoute
   '/_app/_auth/platform-components': typeof AppAuthPlatformComponentsRoute
   '/_app/_auth/profile': typeof AppAuthProfileRoute
+  '/_app/_auth/publish': typeof AppAuthPublishRoute
   '/_app/_auth/secrets': typeof AppAuthSecretsRoute
   '/_app/_auth/shared-envs': typeof AppAuthSharedEnvsRoute
   '/_app/_auth/space': typeof AppAuthSpaceRoute
   '/_app/_auth/topics': typeof AppAuthTopicsRouteWithChildren
+  '/_app/_auth/traffic': typeof AppAuthTrafficRoute
+  '/_app/publish/traefik': typeof AppPublishTraefikRoute
   '/share/topic/$token': typeof ShareTopicTokenRoute
   '/_app/_auth/_superuser/ai-assets': typeof AppAuthSuperuserAiAssetsRouteWithChildren
   '/_app/_auth/_superuser/iac': typeof AppAuthSuperuserIacRoute
@@ -562,14 +607,19 @@ export interface FileRouteTypes {
     | '/docker'
     | '/extensions'
     | '/feeds'
+    | '/gateway'
     | '/groups'
+    | '/network'
     | '/overview'
     | '/platform-components'
     | '/profile'
+    | '/publish'
     | '/secrets'
     | '/shared-envs'
     | '/space'
     | '/topics'
+    | '/traffic'
+    | '/publish/traefik'
     | '/share/topic/$token'
     | '/ai-assets'
     | '/iac'
@@ -618,12 +668,17 @@ export interface FileRouteTypes {
     | '/docker'
     | '/extensions'
     | '/feeds'
+    | '/gateway'
+    | '/network'
     | '/overview'
     | '/platform-components'
     | '/profile'
+    | '/publish'
     | '/secrets'
     | '/shared-envs'
     | '/space'
+    | '/traffic'
+    | '/publish/traefik'
     | '/share/topic/$token'
     | '/ai-assets'
     | '/iac'
@@ -676,14 +731,19 @@ export interface FileRouteTypes {
     | '/_app/_auth/docker'
     | '/_app/_auth/extensions'
     | '/_app/_auth/feeds'
+    | '/_app/_auth/gateway'
     | '/_app/_auth/groups'
+    | '/_app/_auth/network'
     | '/_app/_auth/overview'
     | '/_app/_auth/platform-components'
     | '/_app/_auth/profile'
+    | '/_app/_auth/publish'
     | '/_app/_auth/secrets'
     | '/_app/_auth/shared-envs'
     | '/_app/_auth/space'
     | '/_app/_auth/topics'
+    | '/_app/_auth/traffic'
+    | '/_app/publish/traefik'
     | '/share/topic/$token'
     | '/_app/_auth/_superuser/ai-assets'
     | '/_app/_auth/_superuser/iac'
@@ -789,6 +849,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShareTopicTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/publish/traefik': {
+      id: '/_app/publish/traefik'
+      path: '/publish/traefik'
+      fullPath: '/publish/traefik'
+      preLoaderRoute: typeof AppPublishTraefikRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/_auth/traffic': {
+      id: '/_app/_auth/traffic'
+      path: '/traffic'
+      fullPath: '/traffic'
+      preLoaderRoute: typeof AppAuthTrafficRouteImport
+      parentRoute: typeof AppAuthRoute
+    }
     '/_app/_auth/topics': {
       id: '/_app/_auth/topics'
       path: '/topics'
@@ -817,6 +891,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthSecretsRouteImport
       parentRoute: typeof AppAuthRoute
     }
+    '/_app/_auth/publish': {
+      id: '/_app/_auth/publish'
+      path: '/publish'
+      fullPath: '/publish'
+      preLoaderRoute: typeof AppAuthPublishRouteImport
+      parentRoute: typeof AppAuthRoute
+    }
     '/_app/_auth/profile': {
       id: '/_app/_auth/profile'
       path: '/profile'
@@ -838,11 +919,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthOverviewRouteImport
       parentRoute: typeof AppAuthRoute
     }
+    '/_app/_auth/network': {
+      id: '/_app/_auth/network'
+      path: '/network'
+      fullPath: '/network'
+      preLoaderRoute: typeof AppAuthNetworkRouteImport
+      parentRoute: typeof AppAuthRoute
+    }
     '/_app/_auth/groups': {
       id: '/_app/_auth/groups'
       path: '/groups'
       fullPath: '/groups'
       preLoaderRoute: typeof AppAuthGroupsRouteImport
+      parentRoute: typeof AppAuthRoute
+    }
+    '/_app/_auth/gateway': {
+      id: '/_app/_auth/gateway'
+      path: '/gateway'
+      fullPath: '/gateway'
+      preLoaderRoute: typeof AppAuthGatewayRouteImport
       parentRoute: typeof AppAuthRoute
     }
     '/_app/_auth/feeds': {
@@ -1262,14 +1357,18 @@ interface AppAuthRouteChildren {
   AppAuthDockerRoute: typeof AppAuthDockerRoute
   AppAuthExtensionsRoute: typeof AppAuthExtensionsRoute
   AppAuthFeedsRoute: typeof AppAuthFeedsRoute
+  AppAuthGatewayRoute: typeof AppAuthGatewayRoute
   AppAuthGroupsRoute: typeof AppAuthGroupsRouteWithChildren
+  AppAuthNetworkRoute: typeof AppAuthNetworkRoute
   AppAuthOverviewRoute: typeof AppAuthOverviewRoute
   AppAuthPlatformComponentsRoute: typeof AppAuthPlatformComponentsRoute
   AppAuthProfileRoute: typeof AppAuthProfileRoute
+  AppAuthPublishRoute: typeof AppAuthPublishRoute
   AppAuthSecretsRoute: typeof AppAuthSecretsRoute
   AppAuthSharedEnvsRoute: typeof AppAuthSharedEnvsRoute
   AppAuthSpaceRoute: typeof AppAuthSpaceRoute
   AppAuthTopicsRoute: typeof AppAuthTopicsRouteWithChildren
+  AppAuthTrafficRoute: typeof AppAuthTrafficRoute
   AppAuthResourcesAiProvidersRoute: typeof AppAuthResourcesAiProvidersRoute
   AppAuthResourcesConnectorsRoute: typeof AppAuthResourcesConnectorsRoute
   AppAuthResourcesPlatformAccountsRoute: typeof AppAuthResourcesPlatformAccountsRoute
@@ -1292,14 +1391,18 @@ const AppAuthRouteChildren: AppAuthRouteChildren = {
   AppAuthDockerRoute: AppAuthDockerRoute,
   AppAuthExtensionsRoute: AppAuthExtensionsRoute,
   AppAuthFeedsRoute: AppAuthFeedsRoute,
+  AppAuthGatewayRoute: AppAuthGatewayRoute,
   AppAuthGroupsRoute: AppAuthGroupsRouteWithChildren,
+  AppAuthNetworkRoute: AppAuthNetworkRoute,
   AppAuthOverviewRoute: AppAuthOverviewRoute,
   AppAuthPlatformComponentsRoute: AppAuthPlatformComponentsRoute,
   AppAuthProfileRoute: AppAuthProfileRoute,
+  AppAuthPublishRoute: AppAuthPublishRoute,
   AppAuthSecretsRoute: AppAuthSecretsRoute,
   AppAuthSharedEnvsRoute: AppAuthSharedEnvsRoute,
   AppAuthSpaceRoute: AppAuthSpaceRoute,
   AppAuthTopicsRoute: AppAuthTopicsRouteWithChildren,
+  AppAuthTrafficRoute: AppAuthTrafficRoute,
   AppAuthResourcesAiProvidersRoute: AppAuthResourcesAiProvidersRoute,
   AppAuthResourcesConnectorsRoute: AppAuthResourcesConnectorsRoute,
   AppAuthResourcesPlatformAccountsRoute: AppAuthResourcesPlatformAccountsRoute,
@@ -1321,6 +1424,7 @@ interface AppRouteChildren {
   AppRegisterRoute: typeof AppRegisterRoute
   AppResetPasswordRoute: typeof AppResetPasswordRoute
   AppSetupRoute: typeof AppSetupRoute
+  AppPublishTraefikRoute: typeof AppPublishTraefikRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -1330,6 +1434,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppRegisterRoute: AppRegisterRoute,
   AppResetPasswordRoute: AppResetPasswordRoute,
   AppSetupRoute: AppSetupRoute,
+  AppPublishTraefikRoute: AppPublishTraefikRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

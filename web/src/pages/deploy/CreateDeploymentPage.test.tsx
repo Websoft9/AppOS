@@ -4,7 +4,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { settingsEntryPath } from '@/lib/settings-api'
-import { buildExposurePortCandidates, recommendExposurePort } from './createDeploymentPage.helpers'
+import {
+  EXPOSURE_PORT_MAX,
+  EXPOSURE_PORT_MIN,
+  buildExposurePortCandidates,
+  recommendExposurePort,
+} from './createDeploymentPage.helpers'
 import { CreateDeploymentPage } from './CreateDeploymentPage'
 
 const sendMock = vi.fn()
@@ -1520,6 +1525,55 @@ describe('CreateDeploymentPage', () => {
         `Primary recommended port ${occupiedPort} is already in use or reserved on this server. Suggested ${suggestedPort} instead.`
       )
     ).toBeInTheDocument()
+  })
+
+  it('keeps recommended exposure ports inside the managed 9001-9099 range', () => {
+    const recommendedPort = Number(recommendExposurePort('srv-1:wordpress-prod'))
+    const candidates = buildExposurePortCandidates(String(recommendedPort), 99)
+
+    expect(recommendedPort).toBeGreaterThanOrEqual(EXPOSURE_PORT_MIN)
+    expect(recommendedPort).toBeLessThanOrEqual(EXPOSURE_PORT_MAX)
+    expect(candidates).toHaveLength(EXPOSURE_PORT_MAX - EXPOSURE_PORT_MIN + 1)
+    expect(Math.min(...candidates)).toBe(EXPOSURE_PORT_MIN)
+    expect(Math.max(...candidates)).toBe(EXPOSURE_PORT_MAX)
+  })
+
+  it('suppresses the port verification warning when target port inspection is unavailable', async () => {
+    const fallback = sendMock.getMockImplementation()
+
+    sendMock.mockImplementation((path: string, options?: { method?: string }) => {
+      if (path.includes('/api/servers/local/ops/ports/')) {
+        return Promise.reject(new Error('port inspect unavailable'))
+      }
+      return fallback ? fallback(path, options) : Promise.resolve({})
+    })
+
+    renderCreateDeploymentPage({
+      entryMode: 'template',
+      prefillAppKey: 'wordpress',
+      prefillAppName: 'WordPress',
+    })
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Database Source')).toBeInTheDocument()
+      expect(getTargetLocationField()).toBeInTheDocument()
+    })
+
+    await enablePortAccess()
+    fireEvent.change(getAppNameField(), { target: { value: 'wordpress-prod' } })
+    await selectTargetLocation('local')
+
+    await waitFor(() => {
+      expect(
+        sendMock.mock.calls.some(([path]) => String(path).includes('/api/servers/local/ops/ports/'))
+      ).toBe(true)
+    })
+
+    expect(
+      screen.queryByText(
+        'Could not verify whether the suggested server port is free on this target. Review it before deploying.'
+      )
+    ).toBeNull()
   })
 
   it('starts with exposure cards unselected and lets operators enable port access independently', async () => {
