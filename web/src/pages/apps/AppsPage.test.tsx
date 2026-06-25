@@ -1,9 +1,19 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ClientResponseError } from 'pocketbase'
+import {
+  installAuthRuntimeGuards,
+  resetRuntimeSessionExpiryState,
+  resetSessionExpiryNavigationAdapterForTests,
+  setSessionExpiryNavigationAdapterForTests,
+} from '@/lib/auth-session'
+import { pb } from '@/lib/pb'
 import { AppsPage } from './AppsPage'
 
 const sendMock = vi.fn()
 const navigateMock = vi.fn()
+const authStoreClearMock = vi.fn()
+const sessionExpiryNavigateMock = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
@@ -15,17 +25,27 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('@/lib/pb', () => ({
   pb: {
     send: (...args: unknown[]) => sendMock(...args),
+    authStore: {
+      token: 'token',
+      clear: (...args: unknown[]) => authStoreClearMock(...args),
+    },
   },
 }))
 
 describe('AppsPage', () => {
   afterEach(() => {
+    resetRuntimeSessionExpiryState()
+    resetSessionExpiryNavigationAdapterForTests()
     cleanup()
   })
 
   beforeEach(() => {
     sendMock.mockReset()
     navigateMock.mockReset()
+    authStoreClearMock.mockReset()
+    sessionExpiryNavigateMock.mockReset()
+    setSessionExpiryNavigationAdapterForTests(sessionExpiryNavigateMock)
+    pb.send = (...args: Parameters<typeof pb.send>) => sendMock(...args)
     sendMock.mockImplementation((path: string, options?: { method?: string }) => {
       if (path === '/api/apps' && options?.method === 'GET') {
         return Promise.resolve([
@@ -52,6 +72,25 @@ describe('AppsPage', () => {
         return Promise.resolve({ id: 'op-uninstall-1' })
       }
       return Promise.resolve({})
+    })
+  })
+
+  it('redirects to login when app polling hits expired auth at runtime', async () => {
+    installAuthRuntimeGuards()
+    sendMock.mockRejectedValueOnce(
+      new ClientResponseError({
+        status: 401,
+        response: { message: 'The request requires valid record authorization token.' },
+      })
+    )
+
+    render(<AppsPage />)
+
+    await waitFor(() => {
+      expect(sessionExpiryNavigateMock).toHaveBeenCalledWith(
+        '/login?reason=session-expired&redirect=%2F'
+      )
+      expect(authStoreClearMock).toHaveBeenCalledTimes(1)
     })
   })
 
@@ -92,6 +131,17 @@ describe('AppsPage', () => {
         to: '/activity/$actionId',
         params: { actionId: 'op-uninstall-1' },
         search: { returnTo: 'list' },
+      })
+    })
+  })
+
+  it('disables PocketBase auto-cancellation for app list polling', async () => {
+    render(<AppsPage />)
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/apps', {
+        method: 'GET',
+        requestKey: null,
       })
     })
   })

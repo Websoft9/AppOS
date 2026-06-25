@@ -79,7 +79,7 @@ vi.mock('react-i18next', () => ({
         case 'fields.conversationTitle':
           return 'Conversation title'
         case 'fields.messagePlaceholder':
-          return 'Ask about operations, diagnosis, or AppOS knowledge'
+          return 'Ask any things...'
         case 'fields.fileUpload':
           return 'Chat file upload'
         case 'fields.modelSearchPlaceholder':
@@ -290,7 +290,7 @@ describe('AICopilotPage', () => {
     render(<AICopilotPage />)
 
     const input = await screen.findByPlaceholderText(
-      'Ask about operations, diagnosis, or AppOS knowledge'
+      'Ask any things...'
     )
 
     expect(input).toHaveValue('Refine this prompt')
@@ -315,7 +315,7 @@ describe('AICopilotPage', () => {
   it('disables empty sends and renders streamed assistant output', async () => {
     render(<AICopilotPage />)
     const input = await screen.findByPlaceholderText(
-      'Ask about operations, diagnosis, or AppOS knowledge'
+      'Ask any things...'
     )
     const sendButton = screen.getByRole('button', { name: 'Send message' })
 
@@ -362,7 +362,7 @@ describe('AICopilotPage', () => {
     render(<AICopilotPage />)
 
     const input = await screen.findByPlaceholderText(
-      'Ask about operations, diagnosis, or AppOS knowledge'
+      'Ask any things...'
     )
     const modelTrigger = await screen.findByText('openai/gpt-4.1-mini · OpenRouter')
     fireEvent.click(modelTrigger)
@@ -422,7 +422,7 @@ describe('AICopilotPage', () => {
     render(<AICopilotPage />)
 
     await screen.findByRole('heading', { name: 'Ops chat' })
-    fireEvent.change(screen.getByPlaceholderText('Ask about operations, diagnosis, or AppOS knowledge'), {
+    fireEvent.change(screen.getByPlaceholderText('Ask any things...'), {
       target: { value: 'Check traefik logs and summarize the findings' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Token usage' }))
@@ -436,7 +436,7 @@ describe('AICopilotPage', () => {
   it('shows provider setup errors without erasing persisted history', async () => {
     render(<AICopilotPage />)
     const input = await screen.findByPlaceholderText(
-      'Ask about operations, diagnosis, or AppOS knowledge'
+      'Ask any things...'
     )
     sendMessageMock.mockRejectedValue(new Error('default LLM provider is not configured'))
 
@@ -478,7 +478,7 @@ describe('AICopilotPage', () => {
   it('attaches uploaded files when sending a message', async () => {
     render(<AICopilotPage />)
     const input = await screen.findByPlaceholderText(
-      'Ask about operations, diagnosis, or AppOS knowledge'
+      'Ask any things...'
     )
     const upload = screen.getByLabelText('Chat file upload') as HTMLInputElement
     const sendButton = screen.getByRole('button', { name: 'Send message' })
@@ -534,7 +534,7 @@ describe('AICopilotPage', () => {
   it('reads uploaded pdf files before sending them', async () => {
     render(<AICopilotPage />)
     const input = await screen.findByPlaceholderText(
-      'Ask about operations, diagnosis, or AppOS knowledge'
+      'Ask any things...'
     )
     const upload = screen.getByLabelText('Chat file upload') as HTMLInputElement
     const sendButton = screen.getByRole('button', { name: 'Send message' })
@@ -573,7 +573,7 @@ describe('AICopilotPage', () => {
   it('reads uploaded spreadsheet files before sending them', async () => {
     render(<AICopilotPage />)
     const input = await screen.findByPlaceholderText(
-      'Ask about operations, diagnosis, or AppOS knowledge'
+      'Ask any things...'
     )
     const upload = screen.getByLabelText('Chat file upload') as HTMLInputElement
     const sendButton = screen.getByRole('button', { name: 'Send message' })
@@ -679,7 +679,7 @@ describe('AICopilotPage', () => {
     expect(createSessionMock).not.toHaveBeenCalled()
     expect(screen.getAllByRole('heading', { name: 'AI Copilot' })).toHaveLength(2)
     expect(
-      screen.getByPlaceholderText('Ask about operations, diagnosis, or AppOS knowledge')
+      screen.getByPlaceholderText('Ask any things...')
     ).toBeEnabled()
   })
 
@@ -705,7 +705,7 @@ describe('AICopilotPage', () => {
     render(<AICopilotPage />)
 
     const input = await screen.findByPlaceholderText(
-      'Ask about operations, diagnosis, or AppOS knowledge'
+      'Ask any things...'
     )
     fireEvent.change(input, { target: { value: 'hello from empty state' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { getApiErrorMessage } from '@/lib/api-error'
+import { isSessionExpiredError } from '@/lib/auth-session'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -68,6 +69,7 @@ type SortDir = 'asc' | 'desc'
 const PAGE_SIZE = 12
 const TEMPLATE_FILTER_ALL = '__all__'
 const TEMPLATE_FILTER_UNTEMPLATED = '__untemplated__'
+const noAutoCancel = { requestKey: null }
 
 function normalizeTemplateKey(value?: string | null): string | null {
   const trimmed = value?.trim()
@@ -261,10 +263,17 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
   async function fetchApps(showRefresh = false) {
     if (showRefresh) setRefreshing(true)
     try {
-      const response = await pb.send<AppInstance[]>('/api/apps', { method: 'GET' })
+      const response = await pb.send<AppInstance[]>('/api/apps', {
+        method: 'GET',
+        ...noAutoCancel,
+      })
       setApps(Array.isArray(response) ? response : [])
       setError('')
     } catch (err) {
+      if (isSessionExpiredError(err)) {
+        setError('')
+        return
+      }
       setError(getApiErrorMessage(err, 'Failed to load my apps'))
     } finally {
       setLoading(false)
@@ -308,6 +317,9 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
       setSuccess(`${app.name} ${action} operation created`)
       await fetchApps()
     } catch (err) {
+      if (isSessionExpiredError(err)) {
+        return
+      }
       setError(getApiErrorMessage(err, `Failed to ${action} ${app.name}`))
     } finally {
       setActionLoading('')
@@ -333,6 +345,9 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
       setSuccess(`${app.name} uninstall operation created`)
       await fetchApps()
     } catch (err) {
+      if (isSessionExpiredError(err)) {
+        return
+      }
       setError(getApiErrorMessage(err, `Failed to uninstall ${app.name}`))
     } finally {
       setActionLoading('')

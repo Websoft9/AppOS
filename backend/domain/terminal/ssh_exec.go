@@ -40,7 +40,7 @@ func WrapCommandWithEnv(command string, env map[string]string) string {
 	for _, key := range keys {
 		parts = append(parts, key+"="+ShellQuote(env[key]))
 	}
-	return "env " + strings.Join(parts, " ") + " " + command
+	return "env " + strings.Join(parts, " ") + " sh -lc " + ShellQuote(command)
 }
 
 // DialSSH establishes an SSH client connection for the given config.

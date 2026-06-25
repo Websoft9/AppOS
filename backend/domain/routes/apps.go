@@ -20,8 +20,10 @@ import (
 	"github.com/websoft9/appos/backend/domain/iac"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
+	"github.com/websoft9/appos/backend/domain/monitor"
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
 	"github.com/websoft9/appos/backend/domain/terminal"
+	"github.com/websoft9/appos/backend/infra/collections"
 )
 
 const appComposeConfigMaxBytes int64 = 2 << 20
@@ -40,6 +42,12 @@ type appRuntimeContext struct {
 	Trigger            string
 	ExecutionMode      string
 	ComposeProjectName string
+}
+
+type appRuntimeServerState struct {
+	RuntimeIndex  map[string]string
+	RuntimeReason string
+	ServerName    string
 }
 
 func registerAppsRoutes(g *router.RouterGroup[*core.RequestEvent]) {
@@ -84,34 +92,21 @@ func handleAppInstanceList(e *core.RequestEvent) error {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "failed to list apps"})
 	}
 
-	runtimeByServer := map[string]map[string]string{}
-	runtimeErrByServer := map[string]string{}
+	runtimeByServer := map[string]appRuntimeServerState{}
 	catalogIconByKey := appCatalogIconIndex()
-	serverNameByID := map[string]string{}
 	for _, record := range records {
 		serverID := normalizeAppServerID(record.GetString("server_id"))
-		if _, ok := runtimeByServer[serverID]; ok || runtimeErrByServer[serverID] != "" {
+		if _, ok := runtimeByServer[serverID]; ok {
 			continue
 		}
-		index, runtimeErr := composeStatusIndex(e.App, serverID)
-		if runtimeErr != nil {
-			runtimeErrByServer[serverID] = runtimeErr.Error()
-			continue
-		}
-		runtimeByServer[serverID] = index
-	}
-	for _, record := range records {
-		serverID := normalizeAppServerID(record.GetString("server_id"))
-		if _, ok := serverNameByID[serverID]; ok {
-			continue
-		}
-		serverNameByID[serverID] = appServerName(e.App, serverID)
+		runtimeByServer[serverID] = resolveAppRuntimeServerState(e.App, serverID)
 	}
 
 	result := make([]map[string]any, 0, len(records))
 	for _, record := range records {
 		serverID := normalizeAppServerID(record.GetString("server_id"))
-		result = append(result, appInstanceResponse(e.App, record, runtimeByServer[serverID], runtimeErrByServer[serverID], catalogIconByKey, serverNameByID[serverID]))
+		serverState := runtimeByServer[serverID]
+		result = append(result, appInstanceResponse(e.App, record, serverState.RuntimeIndex, serverState.RuntimeReason, catalogIconByKey, serverState.ServerName))
 	}
 
 	sort.SliceStable(result, func(i, j int) bool {
@@ -138,13 +133,9 @@ func handleAppInstanceDetail(e *core.RequestEvent) error {
 	}
 
 	serverID := normalizeAppServerID(record.GetString("server_id"))
-	runtimeIndex, runtimeErr := composeStatusIndex(e.App, serverID)
-	runtimeReason := ""
-	if runtimeErr != nil {
-		runtimeReason = runtimeErr.Error()
-	}
+	serverState := resolveAppRuntimeServerState(e.App, serverID)
 
-	return e.JSON(http.StatusOK, appInstanceResponse(e.App, record, runtimeIndex, runtimeReason, appCatalogIconIndex(), appServerName(e.App, serverID)))
+	return e.JSON(http.StatusOK, appInstanceResponse(e.App, record, serverState.RuntimeIndex, serverState.RuntimeReason, appCatalogIconIndex(), serverState.ServerName))
 }
 
 // @Summary Get app logs
@@ -630,6 +621,8 @@ func appInstanceResponse(app core.App, record *core.Record, runtimeIndex map[str
 			runtimeStatus = normalizeComposeRuntimeStatus(live)
 			runtimeReason = ""
 		}
+	} else if strings.TrimSpace(runtimeReason) != "" {
+		runtimeStatus = "unknown"
 	}
 	if runtimeStatus == "" {
 		runtimeStatus = "unknown"
@@ -667,7 +660,7 @@ func appInstanceResponse(app core.App, record *core.Record, runtimeIndex map[str
 			result["template_icon_url"] = iconURL
 		}
 	}
-	if strings.TrimSpace(runtimeReason) != "" && runtimeStatus == "unknown" {
+	if strings.TrimSpace(runtimeReason) != "" {
 		result["runtime_reason"] = runtimeReason
 	}
 	if value := record.GetDateTime("installed_at"); !value.IsZero() {
@@ -729,7 +722,10 @@ func decodeMapValue(raw any) map[string]any {
 }
 
 func appServerName(app core.App, serverID string) string {
-	if strings.TrimSpace(serverID) == "" || serverID == "local" {
+	if strings.TrimSpace(serverID) == "local" {
+		return "Local"
+	}
+	if strings.TrimSpace(serverID) == "" {
 		return "Unavailable"
 	}
 	server, err := app.FindRecordById("servers", serverID)
@@ -740,6 +736,101 @@ func appServerName(app core.App, serverID string) string {
 		return name
 	}
 	return serverID
+}
+
+func resolveAppRuntimeServerState(app core.App, serverID string) appRuntimeServerState {
+	state := appRuntimeServerState{ServerName: appServerName(app, serverID)}
+	trimmedServerID := strings.TrimSpace(serverID)
+	if trimmedServerID == "" {
+		state.RuntimeReason = "app server is not assigned"
+		return state
+	}
+	if trimmedServerID == "local" {
+		return state
+	}
+
+	serverRecord, err := app.FindRecordById("servers", trimmedServerID)
+	if err != nil {
+		state.RuntimeReason = "managed server record is unavailable"
+		return state
+	}
+	if serverName := strings.TrimSpace(serverRecord.GetString("name")); serverName != "" {
+		state.ServerName = serverName
+	}
+	if fallbackReason, ok := appServerRuntimeFallbackReason(app, serverRecord); ok {
+		state.RuntimeReason = fallbackReason
+		return state
+	}
+
+	runtimeIndex, runtimeErr := composeStatusIndex(app, trimmedServerID)
+	if runtimeErr != nil {
+		state.RuntimeReason = runtimeErr.Error()
+		return state
+	}
+	state.RuntimeIndex = runtimeIndex
+	return state
+}
+
+func appServerRuntimeFallbackReason(app core.App, serverRecord *core.Record) (string, bool) {
+	if serverRecord == nil {
+		return "managed server record is unavailable", true
+	}
+	connectType := strings.ToLower(strings.TrimSpace(serverRecord.GetString("connect_type")))
+	if connectType == "tunnel" {
+		tunnelStatus := strings.ToLower(strings.TrimSpace(serverRecord.GetString("tunnel_status")))
+		if tunnelStatus != "" && tunnelStatus != string(servers.TunnelStatusOnline) {
+			return describeAppRuntimeFallbackReason(tunnelStatus, strings.TrimSpace(serverRecord.GetString("tunnel_disconnect_reason"))), true
+		}
+	}
+
+	accessStatus := strings.ToLower(strings.TrimSpace(serverRecord.GetString("access_status")))
+	if accessStatus == "unavailable" {
+		return describeAppRuntimeFallbackReason(accessStatus, strings.TrimSpace(serverRecord.GetString("access_reason"))), true
+	}
+
+	monitorRecord, err := app.FindFirstRecordByFilter(
+		collections.MonitorLatestStatus,
+		"target_type = {:targetType} && target_id = {:targetID}",
+		map[string]any{"targetType": monitor.TargetTypeServer, "targetID": serverRecord.Id},
+	)
+	if err != nil {
+		return "", false
+	}
+	monitorStatus := strings.TrimSpace(monitorRecord.GetString("status"))
+	switch monitorStatus {
+	case monitor.StatusOffline, monitor.StatusUnreachable, monitor.StatusCredentialInvalid:
+		return describeAppRuntimeFallbackReason(monitorStatus, strings.TrimSpace(monitorRecord.GetString("reason"))), true
+	default:
+		return "", false
+	}
+}
+
+func describeAppRuntimeFallbackReason(status string, reason string) string {
+	normalizedStatus := strings.ToLower(strings.TrimSpace(status))
+	normalizedReason := strings.ToLower(strings.TrimSpace(reason))
+	switch normalizedReason {
+	case "control_unreachable":
+		return "Server is unreachable from the control plane."
+	case "credential_auth_failed":
+		return "Server credentials are invalid."
+	case "tcp_connect_failed":
+		return "Server TCP connectivity failed."
+	}
+	switch normalizedStatus {
+	case monitor.StatusOffline:
+		return "Server is offline."
+	case monitor.StatusUnreachable, "unavailable":
+		return "Server is unreachable."
+	case monitor.StatusCredentialInvalid:
+		return "Server credentials are invalid."
+	}
+	if strings.TrimSpace(reason) != "" {
+		return strings.TrimSpace(reason)
+	}
+	if strings.TrimSpace(status) != "" {
+		return strings.TrimSpace(status)
+	}
+	return "Server runtime status is unavailable."
 }
 
 func appCatalogIconIndex() map[string]string {
@@ -1159,4 +1250,3 @@ func withMapFields(base map[string]any, extra map[string]any) map[string]any {
 	}
 	return base
 }
-

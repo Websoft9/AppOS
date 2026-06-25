@@ -56,6 +56,7 @@ import {
 } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { getApiErrorMessage } from '@/lib/api-error'
+import { authenticatedFetch } from '@/lib/auth-session'
 import {
   sftpList,
   sftpSearch,
@@ -455,7 +456,7 @@ export function FileManagerPanel({
     const a = document.createElement('a')
     a.download = entry.name
     // Use fetch with auth token; check HTTP status before creating blob
-    fetch(url, { headers: { Authorization: pb.authStore.token } })
+    authenticatedFetch(url)
       .then(r => {
         if (!r.ok) throw new Error(`Download failed: ${r.status} ${r.statusText}`)
         return r.blob()
@@ -587,9 +588,7 @@ export function FileManagerPanel({
         await sftpMove(serverId, from, to)
       } else {
         const url = sftpCopyStreamUrl(serverId, from, to)
-        const res = await fetch(url, {
-          headers: { Authorization: pb.authStore.token },
-        })
+        const res = await authenticatedFetch(url)
         if (!res.ok || !res.body) {
           throw new Error(`Copy failed: ${res.status}`)
         }
@@ -679,9 +678,7 @@ export function FileManagerPanel({
     setCopied(false)
     setShareRecordId(null)
     try {
-      const quotaRes = await fetch('/api/space/quota', {
-        headers: { Authorization: pb.authStore.token },
-      })
+      const quotaRes = await authenticatedFetch('/api/space/quota')
       if (quotaRes.ok) {
         const quota = (await quotaRes.json()) as {
           share_default_minutes?: number
@@ -707,7 +704,7 @@ export function FileManagerPanel({
     setBusyMessage('Preparing share link...')
     try {
       const downloadUrl = sftpDownloadUrl(serverId, fullPath)
-      const res = await fetch(downloadUrl, { headers: { Authorization: pb.authStore.token } })
+      const res = await authenticatedFetch(downloadUrl)
       if (!res.ok) throw new Error(`Download failed: ${res.status}`)
       const blob = await res.blob()
 
@@ -720,10 +717,9 @@ export function FileManagerPanel({
 
       const created = (await pb.collection('user_files').create(form)) as { id: string }
       setShareRecordId(created.id)
-      const shareRes = await fetch(`/api/space/share/${created.id}`, {
+      const shareRes = await authenticatedFetch(`/api/space/share/${created.id}`, {
         method: 'POST',
         headers: {
-          Authorization: pb.authStore.token,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ minutes: shareMinutes }),
@@ -755,9 +751,8 @@ export function FileManagerPanel({
   const handleRevokeShare = async () => {
     if (!shareRecordId) return
     try {
-      await fetch(`/api/space/share/${shareRecordId}`, {
+      await authenticatedFetch(`/api/space/share/${shareRecordId}`, {
         method: 'DELETE',
-        headers: { Authorization: pb.authStore.token },
       })
       setShareUrl(null)
       setCopied(false)

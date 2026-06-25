@@ -1,4 +1,5 @@
 import { pb } from '@/lib/pb'
+import { authenticatedFetch } from '@/lib/auth-session'
 
 export type AICopilotSession = {
   id: string
@@ -114,13 +115,12 @@ export async function sendAICopilotMessage(
   attachments: AICopilotAttachment[] = [],
   options: SendAICopilotMessageOptions = {}
 ): Promise<void> {
-  const response = await fetch(
+  const response = await authenticatedFetch(
     `/api/ai/copilot/sessions/${encodeURIComponent(sessionId)}/messages`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: pb.authStore.token,
       },
       body: JSON.stringify({ content, provider_id: providerId, model, attachments }),
       signal: options.signal,

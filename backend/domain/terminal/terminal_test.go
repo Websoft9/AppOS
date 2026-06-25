@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -170,6 +171,19 @@ func TestAppendReplayBufferRetainsRecentOutput(t *testing.T) {
 	}
 	if buffer[0] != 'b' || buffer[len(buffer)-1] != 'b' {
 		t.Fatalf("expected buffer to retain newest payload tail, got first=%q last=%q", buffer[0], buffer[len(buffer)-1])
+	}
+}
+
+func TestWrapCommandWithEnvWrapsCompoundCommandInShell(t *testing.T) {
+	wrapped := WrapCommandWithEnv("(sudo -n shutdown -h +5 || shutdown -h +5)", map[string]string{
+		"HTTP_PROXY": "http://proxy.example.com:8080",
+	})
+	want := "env HTTP_PROXY='http://proxy.example.com:8080' sh -lc '(sudo -n shutdown -h +5 || shutdown -h +5)'"
+	if wrapped != want {
+		t.Fatalf("unexpected wrapped command:\nwant: %s\n got: %s", want, wrapped)
+	}
+	if strings.Contains(wrapped, " HTTP_PROXY='http://proxy.example.com:8080' (sudo") {
+		t.Fatalf("expected compound command to be wrapped by sh -lc, got %q", wrapped)
 	}
 }
 

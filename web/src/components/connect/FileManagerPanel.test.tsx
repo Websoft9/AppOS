@@ -2,6 +2,12 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import type { ComponentProps, FormEvent, ReactNode } from 'react'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  installAuthRuntimeGuards,
+  resetRuntimeSessionExpiryState,
+  resetSessionExpiryNavigationAdapterForTests,
+  setSessionExpiryNavigationAdapterForTests,
+} from '@/lib/auth-session'
 import { FileManagerPanel } from './FileManagerPanel'
 
 const mockSftpList = vi.fn()
@@ -11,6 +17,9 @@ const mockSftpChmod = vi.fn()
 const mockSftpChown = vi.fn()
 const mockSftpSymlink = vi.fn()
 const mockSftpMove = vi.fn()
+const authStoreClearMock = vi.fn()
+const originalFetch = globalThis.fetch
+const sessionExpiryNavigateMock = vi.fn()
 
 vi.mock('@/lib/connect-api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/connect-api')>('@/lib/connect-api')
@@ -42,7 +51,12 @@ vi.mock('@/lib/connect-api', async () => {
 
 vi.mock('@/lib/pb', () => ({
   pb: {
-    authStore: { token: 'token', record: { id: 'u1' } },
+    authStore: {
+      token: 'token',
+      record: { id: 'u1' },
+      clear: (...args: unknown[]) => authStoreClearMock(...args),
+    },
+    send: vi.fn(async () => ({})),
     collection: vi.fn(() => ({ create: vi.fn(async () => ({ id: 'file-1' })) })),
   },
 }))
@@ -75,11 +89,18 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
 
 describe('FileManagerPanel', () => {
   afterEach(() => {
+    resetRuntimeSessionExpiryState()
+    resetSessionExpiryNavigationAdapterForTests()
+    globalThis.fetch = originalFetch
     cleanup()
   })
 
   beforeEach(() => {
     vi.clearAllMocks()
+    authStoreClearMock.mockReset()
+    sessionExpiryNavigateMock.mockReset()
+    setSessionExpiryNavigationAdapterForTests(sessionExpiryNavigateMock)
+    globalThis.fetch = vi.fn() as typeof fetch
     mockSftpConstraints.mockResolvedValue({ max_upload_files: 1 })
     mockSftpList.mockResolvedValue({
       path: '/',
@@ -108,6 +129,24 @@ describe('FileManagerPanel', () => {
     })
     mockSftpSymlink.mockResolvedValue(undefined)
     mockSftpMove.mockResolvedValue(undefined)
+  })
+
+  it('redirects to login when authenticated fetch returns 401 during file sharing', async () => {
+    ;(globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+      new Response('', { status: 401, statusText: 'Unauthorized' })
+    )
+    installAuthRuntimeGuards()
+
+    render(<FileManagerPanel serverId="s1" />)
+
+    fireEvent.click((await screen.findAllByText('Share'))[0])
+
+    await waitFor(() => {
+      expect(sessionExpiryNavigateMock).toHaveBeenCalledWith(
+        '/login?reason=session-expired&redirect=%2F'
+      )
+      expect(authStoreClearMock).toHaveBeenCalledTimes(1)
+    })
   })
 
   it('enforces max upload files from settings (AC4)', async () => {

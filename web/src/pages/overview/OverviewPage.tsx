@@ -14,6 +14,7 @@ import {
   Waypoints,
 } from 'lucide-react'
 import { pb } from '@/lib/pb'
+import { isSessionExpiredError } from '@/lib/auth-session'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -23,6 +24,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { getRejectedSections, warnDegradedSections } from '@/lib/degraded-sections'
 import { type AppInstance, formatTime, runtimeVariant } from '@/pages/apps/types'
 import type { TunnelOverviewResponse } from '@/pages/system/tunnel-types'
+
+const noAutoCancel = { requestKey: null }
 
 type MonitorOverviewItem = {
   targetType?: string
@@ -538,9 +541,15 @@ export function OverviewPage() {
           secretsResult,
           certificatesResult,
         ] = await Promise.allSettled([
-          pb.send<AppInstance[]>('/api/apps', { method: 'GET' }),
-          pb.send<MonitorOverviewResponse>('/api/monitor/overview', { method: 'GET' }),
-          pb.send<TunnelOverviewResponse>('/api/tunnel/overview', { method: 'GET' }),
+          pb.send<AppInstance[]>('/api/apps', { method: 'GET', ...noAutoCancel }),
+          pb.send<MonitorOverviewResponse>('/api/monitor/overview', {
+            method: 'GET',
+            ...noAutoCancel,
+          }),
+          pb.send<TunnelOverviewResponse>('/api/tunnel/overview', {
+            method: 'GET',
+            ...noAutoCancel,
+          }),
           isSuperuser
             ? pb.collection('servers').getFullList<ServerOverviewRecord>({ sort: 'name' })
             : Promise.resolve<ServerOverviewRecord[]>([]),
@@ -588,7 +597,7 @@ export function OverviewPage() {
                   window: '1h',
                   series: APPOS_CORE_OVERVIEW_SERIES_QUERY,
                 }).toString()}`,
-                { method: 'GET' }
+                { method: 'GET', ...noAutoCancel }
               )
             : Promise.resolve(null),
         ])
@@ -623,6 +632,11 @@ export function OverviewPage() {
             : null
         )
       } catch (err) {
+        if (isSessionExpiredError(err)) {
+          setTrendSeries(null)
+          setError('')
+          return
+        }
         setTrendSeries(null)
         setError(err instanceof Error ? err.message : 'Failed to load overview')
       } finally {

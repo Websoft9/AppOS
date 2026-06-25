@@ -611,6 +611,7 @@ func TestServersViewMarksTunnelSetupRequired(t *testing.T) {
 func TestResolveTerminalExecutionPlanBuildsSelfProxyEnv(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
+	ensureConnectorSecretRuntime(t)
 
 	server := createServerRecord(t, te, "self-proxy-shell", "203.0.113.10", 22, "root", "password")
 	server.Set("connect_type", "direct")
@@ -667,6 +668,7 @@ func TestResolveTerminalExecutionPlanBuildsSelfProxyEnv(t *testing.T) {
 func TestResolveTerminalExecutionPlanWarnsWhenSelfProxyBaseURLUnavailable(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
+	ensureConnectorSecretRuntime(t)
 
 	server := createServerRecord(t, te, "self-proxy-fallback", "203.0.113.11", 22, "root", "password")
 	server.Set("connect_type", "direct")
@@ -710,6 +712,7 @@ func TestResolveTerminalExecutionPlanWarnsWhenSelfProxyBaseURLUnavailable(t *tes
 func TestResolveTerminalExecutionPlanUsesAppOSEndpointForExternalProxyMode(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
+	ensureConnectorSecretRuntime(t)
 
 	server := createServerRecord(t, te, "external-proxy-shell", "203.0.113.12", 22, "root", "password")
 	server.Set("connect_type", "direct")
@@ -754,6 +757,54 @@ func TestResolveTerminalExecutionPlanUsesAppOSEndpointForExternalProxyMode(t *te
 	}
 	if len(plan.Warnings) != 0 {
 		t.Fatalf("expected no warning when AppOS endpoint is available, got %#v", plan.Warnings)
+	}
+}
+
+func TestResolveTerminalExecutionPlanSkipsProxyEnvWhenExternalProxyIsDisabled(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+	ensureConnectorSecretRuntime(t)
+
+	server := createServerRecord(t, te, "external-proxy-disabled-shell", "203.0.113.13", 22, "root", "password")
+	server.Set("connect_type", "direct")
+	if err := te.app.Save(server); err != nil {
+		t.Fatal(err)
+	}
+
+	proxyConnector := createDockerRouteConnector(t, te, connectors.SaveInput{
+		Name:       "office-proxy-disabled",
+		Kind:       connectors.KindProxy,
+		TemplateID: "http-proxy",
+		Endpoint:   "http://proxy.example.com:3128",
+		Config:     map[string]any{"protocol": "http"},
+	})
+	if err := sysconfig.SetGroup(te.app, "proxy", "network", map[string]any{
+		"source":            "external",
+		"enabled":           false,
+		"socks5ConnectorId": "",
+		"httpConnectorId":   proxyConnector.Id,
+		"httpsConnectorId":  "",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sysconfig.SetGroup(te.app, "proxy", "policies", map[string]any{
+		"items": []map[string]any{{
+			"consumerKey": "remote_shell.global",
+			"mode":        "always",
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	plan, err := resolveTerminalExecutionPlanWithAppOSBaseURL(te.app, nil, server.Id, "https://console.example.com:9443")
+	if err != nil {
+		t.Fatalf("resolve terminal execution plan: %v", err)
+	}
+	if len(plan.Env) != 0 {
+		t.Fatalf("expected no remote shell proxy env when external proxy is disabled, got %#v", plan.Env)
+	}
+	if got := strings.TrimSpace(plan.Config.Shell); strings.Contains(got, "HTTP_PROXY") || strings.Contains(got, "ALL_PROXY") {
+		t.Fatalf("expected shell to remain unwrapped when proxy is disabled, got %q", got)
 	}
 }
 

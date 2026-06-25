@@ -351,12 +351,18 @@ describe('OverviewPage', () => {
     ).toBeGreaterThan(0)
 
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith('/api/apps', { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith('/api/monitor/overview', { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith('/api/tunnel/overview', { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith('/api/apps', { method: 'GET', requestKey: null })
+      expect(sendMock).toHaveBeenCalledWith('/api/monitor/overview', {
+        method: 'GET',
+        requestKey: null,
+      })
+      expect(sendMock).toHaveBeenCalledWith('/api/tunnel/overview', {
+        method: 'GET',
+        requestKey: null,
+      })
       expect(sendMock).toHaveBeenCalledWith(
         '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
-        { method: 'GET' }
+        { method: 'GET', requestKey: null }
       )
     })
     expectAppOSCorePlatformSeriesRequests()

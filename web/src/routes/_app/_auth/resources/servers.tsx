@@ -532,6 +532,7 @@ export function ServersPage() {
   const [powerAction, setPowerAction] = useState<'restart' | 'shutdown'>('restart')
   const [powerSubmitting, setPowerSubmitting] = useState(false)
   const [powerError, setPowerError] = useState('')
+  const [powerDelayMinutes, setPowerDelayMinutes] = useState(0)
   const [pingResults, setPingResults] = useState<Record<string, 'online' | 'offline'>>({})
   const [activeTerminalSessionCount, setActiveTerminalSessionCount] = useState(0)
 
@@ -884,6 +885,7 @@ export function ServersPage() {
       setPowerTarget(item)
       setPowerAction(action)
       setPowerError('')
+      setPowerDelayMinutes(0)
       setPowerDialogOpen(true)
     },
     []
@@ -896,7 +898,7 @@ export function ServersPage() {
     setPowerSubmitting(true)
     setPowerError('')
     try {
-      await serverPower(id, powerAction)
+      await serverPower(id, powerAction, powerAction === 'shutdown' ? powerDelayMinutes : undefined)
       setPowerDialogOpen(false)
       void checkServerStatus(powerTarget)
     } catch (error) {
@@ -905,7 +907,7 @@ export function ServersPage() {
     } finally {
       setPowerSubmitting(false)
     }
-  }, [checkServerStatus, powerAction, powerTarget])
+  }, [checkServerStatus, powerAction, powerDelayMinutes, powerTarget])
 
   const handleOpenServer = useCallback(
     (item: Record<string, unknown> | null, nextTab: ServerDetailTab = 'overview') => {
@@ -2080,6 +2082,34 @@ export function ServersPage() {
                 : 'Confirm server operation'}
             </DialogDescription>
           </DialogHeader>
+          {powerAction === 'shutdown' && (
+            <div className="flex items-center gap-3">
+              <label
+                htmlFor="power-delay-minutes"
+                className="text-sm font-medium text-foreground whitespace-nowrap"
+              >
+                Delay (min)
+              </label>
+              <input
+                id="power-delay-minutes"
+                type="number"
+                min={0}
+                max={1440}
+                step={1}
+                className="w-24 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                value={powerDelayMinutes}
+                onChange={e => {
+                  const parsed = Number.parseInt(e.target.value, 10)
+                  setPowerDelayMinutes(Number.isNaN(parsed) ? 0 : Math.max(0, Math.min(1440, parsed)))
+                }}
+              />
+              <span className="text-xs text-muted-foreground">
+                {powerDelayMinutes === 0
+                  ? 'Immediate'
+                  : `${powerDelayMinutes} min from now`}
+              </span>
+            </div>
+          )}
           {powerError && <div className="text-sm text-destructive">{powerError}</div>}
           <DialogFooter>
             <Button

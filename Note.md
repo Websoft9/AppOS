@@ -2,7 +2,21 @@
 
 ## Deploy
 
-部署时，镜像实际已经拉取成功，但是 activity 中滞后，导致activity 流程不能及时完成闭环。
+1. 部署时，镜像实际已经拉取成功，但是 activity 中滞后，导致activity 流程不能及时完成闭环。
+2. 针对于同一个应用，创建新的 activity 时，如何有正在执行的，这个时候可以给一个提示，是否需要 failed 正在执行的
+
+
+手工部署应该有一个完整的体验过程：
+
+1. 采集部署数据
+2. 检查和确认部署
+3. 确认通过后才可以加入 pipeline
+
+如果没有确认过的，是否可以保存下来？
+
+
+给 target-based deploy 再补一层 .env 和参数表单预填
+给私有 Git 再补 Secret 引用模式，避免每次手填 token
 
 ## 资源
 
@@ -11,7 +25,6 @@
 ### 服务器
 
 - 服务器特殊环境配置：Docker 仓库地址、Docker 加速地址、代理地址
-
 
 ## Workflow
 
@@ -35,7 +48,6 @@
 
 免登录访问 saas 系统的控制台
 
-
 ## LLM
 - 本地小模型内嵌？
 
@@ -45,29 +57,15 @@
 - 隧道连接
 - 网关转发...
 
-
 ## 缓存问题
 
 - 如何做？存储到哪里？
 
-
 给 App detail 再接一层 compose 校验与 diff 预览，避免直接保存时改坏配置。
 
-## 部署
+## 其他
 
-手工部署应该有一个完整的体验过程：
-
-1. 采集部署数据
-2. 检查和确认部署
-3. 确认通过后才可以加入 pipeline
-
-如果没有确认过的，是否可以保存下来？
-
-
-
-给 target-based deploy 再补一层 .env 和参数表单预填
-给私有 Git 再补 Secret 引用模式，避免每次手填 token
-
+## Resource
 
 但它们不等于宇宙完备分类。将来还可能出现这些不太适合硬塞进去的类型：
 
@@ -76,16 +74,7 @@ storage/：S3、OSS、NAS、对象存储
 messaging/：Kafka、RabbitMQ、NATS、MQTT
 mail/：SMTP、邮件服务商
 dns/：DNS provider、域名解析
-llm/：如果后续有模型、用量、流式响应、工具调用等专属语义
 artifact/：如果你未来不只管镜像，还管 Helm Chart、包仓库、插件源
-所以答案是：
-
-这四个能覆盖“当前大多数外联资源”，但不应被当成最终固定全集。
-
-我更建议你这样理解：
-
-resource/  server/  database/  integration/  registry/  ...
-这里的 resource/ 是“外部资源命名空间”，而不是“只有这四类”。
 
 
 1. 如果你要把“网络可达性”再升级成应用层探测，我下一步可以把 MySQL/PostgreSQL/Redis/Kafka 从 TCP 通断扩展到协议握手级检查。
@@ -105,14 +94,10 @@ addons 的 netdata restart 报错
 
 去掉所有与 docker.sock 的强依赖与硬编码
 
-## 去nginx 改造
-
 ## dockerfile
-
 
 数据初始化怎么做的？
 
-rss hub 网站
 
 顶部增加一个搜索入口，它搜索主要是搜索页面
 
@@ -224,23 +209,12 @@ handleServerPortRelease 仍调用 resolveTerminalConfig（不带 proxy），未�
 download 有没有专门的组件，可以更好的多线程，加速或异步等操作
 
 
-直接把 settings 前端里的 remote shell mode label 单独改掉
-再把 runtime.go 的 decision object 先实现出来，作为后续反向隧道开发的入口
-
-
-Ask about operations, diagnosis, or AppOS knowledge
-
 如果你要继续，我建议下一步做 1 件事：把页面文案里的原始链接说明也补成更明确的“公开 dashboard 代理入口”，避免后面有人又按旧 /api/system/traefik 去排障。
 
 我把这个 iframe-page framework 再抽一层 registry，让后续消费者不必各自手写 page definition
 
 把这个演示页接到真实 Public Access 数据结构
 给 New Publish Item 弹窗补 type / expiry / visibility / target selector 等真实字段
-
-Publish 菜单
-
-1. 两个子页面，一个是 Hosts 页面，即 Proxy 访问列表；一个是
-
 
 
 2026/6/24 15:03:08
@@ -249,4 +223,3 @@ Timed out
 execute "install" timed out: install docker via script: context deadline exceeded
 
 
-针对于同一个应用，创建新的 activity 时，如何有正在执行的，这个时候可以给一个提示，是否需要 failed 正在执行的

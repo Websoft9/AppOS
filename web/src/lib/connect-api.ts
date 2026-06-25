@@ -472,11 +472,15 @@ export async function updateTerminalSessionWorkspace(
 
 // ─── Server ops (Story 15.5) ─────────────────────────────────────────────────
 
-export async function serverPower(serverId: string, action: 'restart' | 'shutdown'): Promise<void> {
+export async function serverPower(
+  serverId: string,
+  action: 'restart' | 'shutdown',
+  delayMinutes?: number
+): Promise<void> {
   await pb.send(`/api/servers/${serverId}/ops/power`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action }),
+    body: JSON.stringify({ action, delay_minutes: delayMinutes ?? 0 }),
   })
 }
 

@@ -21,12 +21,32 @@ func TestNormalizePowerAction(t *testing.T) {
 }
 
 func TestPowerCommand(t *testing.T) {
-	command, err := PowerCommand("shutdown")
+	command, err := PowerCommand("shutdown", 0)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 	if command != "(sudo -n systemctl poweroff || sudo -n shutdown -h now || systemctl poweroff || shutdown -h now)" {
 		t.Fatalf("unexpected command: %q", command)
+	}
+
+	command, err = PowerCommand("shutdown", 5)
+	if err != nil {
+		t.Fatalf("expected no error for delayed shutdown, got %v", err)
+	}
+	if command != "(sudo -n shutdown -h +5 || shutdown -h +5)" {
+		t.Fatalf("unexpected command for delayed shutdown: %q", command)
+	}
+
+	if _, err := PowerCommand("restart", 3); !errors.Is(err, ErrDelayNotSupported) {
+		t.Fatalf("expected ErrDelayNotSupported for restart with delay, got %v", err)
+	}
+
+	if _, err := PowerCommand("shutdown", -1); !errors.Is(err, ErrDelayOutOfRange) {
+		t.Fatalf("expected ErrDelayOutOfRange for negative delay, got %v", err)
+	}
+
+	if _, err := PowerCommand("shutdown", 1441); !errors.Is(err, ErrDelayOutOfRange) {
+		t.Fatalf("expected ErrDelayOutOfRange for delay over 1440, got %v", err)
 	}
 }
 
@@ -52,7 +72,7 @@ func TestPowerRuntimeServiceExecuteRestart(t *testing.T) {
 		},
 	}
 
-	result, err := service.Execute(context.Background(), "restart")
+	result, err := service.Execute(context.Background(), "restart", 0)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -68,7 +88,7 @@ func TestPowerRuntimeServiceExecuteExpectedDisconnect(t *testing.T) {
 		},
 	}
 
-	result, err := service.Execute(context.Background(), "restart")
+	result, err := service.Execute(context.Background(), "restart", 0)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -85,7 +105,7 @@ func TestPowerRuntimeServiceExecutePropagatesRunnerError(t *testing.T) {
 		},
 	}
 
-	result, err := service.Execute(context.Background(), "shutdown")
+	result, err := service.Execute(context.Background(), "shutdown", 0)
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("expected propagated error %v, got %v", wantErr, err)
 	}

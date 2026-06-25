@@ -241,7 +241,8 @@ func handleServerPower(e *core.RequestEvent) error {
 	}
 
 	var body struct {
-		Action string `json:"action"`
+		Action       string `json:"action"`
+		DelayMinutes int    `json:"delay_minutes"`
 	}
 	if err := e.BindBody(&body); err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": "invalid request body"})
@@ -257,7 +258,7 @@ func handleServerPower(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	result, runErr := serversvc.PowerRuntimeService{Run: directSSHCommandAdapter(cfg, proxyEnv)}.Execute(e.Request.Context(), action)
+	result, runErr := serversvc.PowerRuntimeService{Run: directSSHCommandAdapter(cfg, proxyEnv)}.Execute(e.Request.Context(), action, body.DelayMinutes)
 	userID, _, ip, _ := clientInfo(e)
 	status := audit.StatusSuccess
 	if runErr != nil {

@@ -13,6 +13,8 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
+	"github.com/websoft9/appos/backend/domain/monitor"
+	monitorstore "github.com/websoft9/appos/backend/domain/monitor/status/store"
 )
 
 func (te *testEnv) doApps(t *testing.T, method, url, body string, authenticated bool) *httptest.ResponseRecorder {
@@ -86,8 +88,8 @@ func seedAppInstance(t *testing.T, te *testEnv, name string) *core.Record {
 	operation.Set("rendered_compose", compose)
 	operation.Set("queued_at", time.Now())
 	operation.Set("spec_json", map[string]any{
-		"project_dir": projectDir,
-		"channel":     string(model.ChannelCustom),
+		"project_dir":    projectDir,
+		"channel":        string(model.ChannelCustom),
 		"execution_mode": string(model.ExecutionModeCompose),
 		"metadata": map[string]any{
 			"prefill_context": map[string]any{
@@ -154,6 +156,70 @@ func seedAppOperation(t *testing.T, te *testEnv, appRecord *core.Record) *core.R
 	}
 
 	return operation
+}
+
+func seedManagedAppInstanceForServer(t *testing.T, te *testEnv, serverID string, name string) *core.Record {
+	t.Helper()
+
+	projectDir := t.TempDir()
+	compose := "services:\n  web:\n    image: nginx:alpine\n"
+	if err := os.WriteFile(filepath.Join(projectDir, "docker-compose.yml"), []byte(compose), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	col, err := te.app.FindCollectionByNameOrId("app_instances")
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := core.NewRecord(col)
+	record.Set("key", name+"-key")
+	record.Set("server_id", serverID)
+	record.Set("name", name)
+	record.Set("template_key", name+"-catalog")
+	record.Set("lifecycle_state", string(model.AppStateRunningHealthy))
+	record.Set("desired_state", string(model.DesiredStateRunning))
+	record.Set("health_summary", string(model.HealthHealthy))
+	record.Set("publication_summary", string(model.PublicationUnpublished))
+	record.Set("channel", string(model.ChannelCustom))
+	record.Set("state_reason", "seeded for offline managed apps route test")
+	record.Set("installed_at", time.Now())
+	if err := te.app.Save(record); err != nil {
+		t.Fatal(err)
+	}
+
+	operationsCol, err := te.app.FindCollectionByNameOrId("app_operations")
+	if err != nil {
+		t.Fatal(err)
+	}
+	operation := core.NewRecord(operationsCol)
+	operation.Set("app", record.Id)
+	operation.Set("server_id", serverID)
+	operation.Set("operation_type", string(model.OperationTypeInstall))
+	operation.Set("trigger", string(model.TriggerManual))
+	operation.Set("execution_mode", string(model.ExecutionModeCompose))
+	operation.Set("phase", string(model.OperationPhaseQueued))
+	operation.Set("compose_project_name", name)
+	operation.Set("project_dir", projectDir)
+	operation.Set("rendered_compose", compose)
+	operation.Set("queued_at", time.Now())
+	operation.Set("spec_json", map[string]any{
+		"project_dir":    projectDir,
+		"channel":        string(model.ChannelCustom),
+		"execution_mode": string(model.ExecutionModeCompose),
+		"metadata": map[string]any{
+			"prefill_context": map[string]any{
+				"app_key": name + "-catalog",
+			},
+		},
+	})
+	if err := te.app.Save(operation); err != nil {
+		t.Fatal(err)
+	}
+
+	record.Set("last_operation", operation.Id)
+	if err := te.app.Save(record); err != nil {
+		t.Fatal(err)
+	}
+	return record
 }
 
 func TestAppInstancesListAndDetail(t *testing.T) {
@@ -260,6 +326,99 @@ func TestAppInstancesCatalogAppKeyFallsBackToOperationSpec(t *testing.T) {
 	item := parseJSON(t, rec)
 	if item["catalog_app_key"] != "legacy-app-catalog" {
 		t.Fatalf("expected detail fallback catalog_app_key legacy-app-catalog, got %v", item["catalog_app_key"])
+	}
+}
+
+func TestAppInstancesListFallsBackWhenDirectServerAccessIsUnavailable(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	server := createServerRecord(t, te, "direct-offline", "10.0.0.99", 22, "root", "password")
+	server.Set("connect_type", "direct")
+	server.Set("access_status", "unavailable")
+	server.Set("access_reason", "control_unreachable")
+	server.Set("access_checked_at", "2026-06-25 10:00:00.000Z")
+	if err := te.app.Save(server); err != nil {
+		t.Fatal(err)
+	}
+
+	record := seedManagedAppInstanceForServer(t, te, server.Id, "offline-app")
+
+	rec := te.doApps(t, http.MethodGet, "/api/apps", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	items := parseJSONArray(t, rec)
+	if len(items) != 1 {
+		t.Fatalf("expected 1 app instance, got %d", len(items))
+	}
+	if items[0]["id"] != record.Id {
+		t.Fatalf("expected app %s, got %v", record.Id, items[0]["id"])
+	}
+	if items[0]["runtime_status"] != "unknown" {
+		t.Fatalf("expected runtime_status unknown, got %v", items[0]["runtime_status"])
+	}
+	if items[0]["runtime_reason"] != "Server is unreachable from the control plane." {
+		t.Fatalf("expected control-plane runtime reason, got %v", items[0]["runtime_reason"])
+	}
+	if items[0]["server_name"] != "direct-offline" {
+		t.Fatalf("expected server_name direct-offline, got %v", items[0]["server_name"])
+	}
+
+	detailRec := te.doApps(t, http.MethodGet, "/api/apps/"+record.Id, "", true)
+	if detailRec.Code != http.StatusOK {
+		t.Fatalf("detail: expected 200, got %d: %s", detailRec.Code, detailRec.Body.String())
+	}
+	item := parseJSON(t, detailRec)
+	if item["runtime_status"] != "unknown" {
+		t.Fatalf("expected detail runtime_status unknown, got %v", item["runtime_status"])
+	}
+	if item["runtime_reason"] != "Server is unreachable from the control plane." {
+		t.Fatalf("expected detail control-plane runtime reason, got %v", item["runtime_reason"])
+	}
+}
+
+func TestAppInstancesListFallsBackWhenMonitorProjectsServerUnreachable(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	server := createServerRecord(t, te, "monitor-unreachable", "10.0.0.100", 22, "root", "password")
+	server.Set("connect_type", "direct")
+	server.Set("access_status", "available")
+	if err := te.app.Save(server); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	zeroFailures := 0
+	if _, err := monitorstore.UpsertLatestStatus(te.app, monitorstore.LatestStatusUpsert{
+		TargetType:          monitor.TargetTypeServer,
+		TargetID:            server.Id,
+		DisplayName:         server.GetString("name"),
+		Status:              monitor.StatusUnreachable,
+		Reason:              "control plane timed out",
+		SignalSource:        monitor.SignalSourceAppOS,
+		LastTransitionAt:    now,
+		LastFailureAt:       &now,
+		LastReportedAt:      &now,
+		ConsecutiveFailures: &zeroFailures,
+		Summary:             map[string]any{"reason_code": "control_unreachable"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	record := seedManagedAppInstanceForServer(t, te, server.Id, "monitor-offline-app")
+
+	rec := te.doApps(t, http.MethodGet, "/api/apps/"+record.Id, "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("detail: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	item := parseJSON(t, rec)
+	if item["runtime_status"] != "unknown" {
+		t.Fatalf("expected runtime_status unknown, got %v", item["runtime_status"])
+	}
+	if item["runtime_reason"] != "Server is unreachable." {
+		t.Fatalf("expected projected unreachable runtime reason, got %v", item["runtime_reason"])
 	}
 }
 

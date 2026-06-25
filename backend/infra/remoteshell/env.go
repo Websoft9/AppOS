@@ -117,6 +117,18 @@ func BuildTunnelProxyEnv(app core.App, serverID string, apposBaseURL string) (ma
 	if plan.Decision.Mode == egress.ModeDisabled {
 		return nil, "", nil
 	}
+	network := egress.LoadNetworkSettings(app)
+	source := strings.TrimSpace(network.Source)
+	switch source {
+	case "self":
+		// Self proxy is explicitly enabled for remote shell and uses the AppOS endpoint below.
+	case "external":
+		if !network.Enabled || !plan.Decision.UseProxy {
+			return nil, "", nil
+		}
+	default:
+		return nil, "", nil
+	}
 	serverID = strings.TrimSpace(serverID)
 	apposBaseURL = strings.TrimRight(strings.TrimSpace(apposBaseURL), "/")
 	if app == nil || serverID == "" || apposBaseURL == "" {

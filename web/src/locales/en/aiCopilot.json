@@ -34,7 +34,7 @@
   },
   "fields": {
     "conversationTitle": "Conversation title",
-    "messagePlaceholder": "Ask about operations, diagnosis, or AppOS knowledge",
+    "messagePlaceholder": "Ask any things...",
     "fileUpload": "Chat file upload",
     "modelSearchPlaceholder": "Search models...",
     "noModelsAvailable": "No AI models available",

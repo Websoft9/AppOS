@@ -41,6 +41,7 @@ import {
   RotateCcw,
 } from 'lucide-react'
 import { pb } from '@/lib/pb'
+import { authenticatedFetch, isSessionExpiredError } from '@/lib/auth-session'
 import { normalizeExtToken, formatExtListHint } from '@/lib/ext-normalize'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -656,9 +657,12 @@ function FilesPage() {
     setError(null)
     try {
       const [quotaRes, listRes] = await Promise.all([
-        fetch('/api/space/quota', {
-          headers: { Authorization: pb.authStore.token },
-        }).then(r => r.json()),
+        authenticatedFetch('/api/space/quota').then(async response => {
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`)
+          }
+          return response.json()
+        }),
         pb.collection('user_files').getFullList<UserFile>({
           sort: 'is_folder,name',
           requestKey: 'files-list',
@@ -667,6 +671,9 @@ function FilesPage() {
       setQuota(quotaRes)
       setItems(listRes)
     } catch (e: unknown) {
+      if (isSessionExpiredError(e)) {
+        return
+      }
       setError(e instanceof Error ? e.message : 'Failed to load files')
     } finally {
       setLoading(false)
@@ -889,7 +896,7 @@ function FilesPage() {
     try {
       const downloadUrl = buildDownloadUrl(file)
       if (!downloadUrl) return
-      const res = await fetch(downloadUrl, { headers: { Authorization: pb.authStore.token } })
+      const res = await authenticatedFetch(downloadUrl)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const blob = await res.blob()
       const ext = file.name.includes('.') ? '.' + file.name.split('.').pop() : ''
@@ -903,16 +910,18 @@ function FilesPage() {
       form.append('is_folder', 'false')
       form.append('size', String(blob.size))
       form.append('content', new File([blob], copyName, { type: file.mime_type }), copyName)
-      await fetch('/api/collections/user_files/records', {
+      await authenticatedFetch('/api/collections/user_files/records', {
         method: 'POST',
         headers: {
-          Authorization: pb.authStore.token,
           'X-Space-Batch-Size': '1',
         },
         body: form,
       })
       fetchAll()
     } catch (e: unknown) {
+      if (isSessionExpiredError(e)) {
+        return
+      }
       alert(e instanceof Error ? e.message : 'Failed to duplicate file')
     }
   }
@@ -987,11 +996,10 @@ function FilesPage() {
     setFetching(true)
     setFetchError(null)
     try {
-      const res = await fetch('/api/space/fetch', {
+      const res = await authenticatedFetch('/api/space/fetch', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: pb.authStore.token,
         },
         body: JSON.stringify({
           url,
@@ -1012,6 +1020,9 @@ function FilesPage() {
       setFetchOpen(false)
       fetchAll()
     } catch (e: unknown) {
+      if (isSessionExpiredError(e)) {
+        return
+      }
       setFetchError(e instanceof Error ? e.message : 'Network error')
     } finally {
       setFetching(false)
@@ -1204,10 +1215,13 @@ function FilesPage() {
       try {
         const url = buildDownloadUrl(file)
         if (!url) throw new Error('No file content')
-        const res = await fetch(url, { headers: { Authorization: pb.authStore.token } })
+        const res = await authenticatedFetch(url)
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         setPreviewText(await res.text())
       } catch (e: unknown) {
+        if (isSessionExpiredError(e)) {
+          return
+        }
         setPreviewError(e instanceof Error ? e.message : 'Failed to load preview')
       } finally {
         setPreviewLoading(false)
@@ -1233,10 +1247,13 @@ function FilesPage() {
     try {
       const url = buildDownloadUrl(file)
       if (!url) throw new Error('No file content')
-      const res = await fetch(url, { headers: { Authorization: pb.authStore.token } })
+      const res = await authenticatedFetch(url)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setEditContent(await res.text())
     } catch (e: unknown) {
+      if (isSessionExpiredError(e)) {
+        return
+      }
       setEditError(e instanceof Error ? e.message : 'Failed to load content')
     } finally {
       setEditLoading(false)
@@ -1330,11 +1347,10 @@ function FilesPage() {
     if (!shareFile) return
     setSharing(true)
     try {
-      const res = await fetch(`/api/space/share/${shareFile.id}`, {
+      const res = await authenticatedFetch(`/api/space/share/${shareFile.id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: pb.authStore.token,
         },
         body: JSON.stringify({ minutes: shareMinutes }),
       })
@@ -1351,6 +1367,9 @@ function FilesPage() {
       setQrError(null)
       fetchAll()
     } catch (e: unknown) {
+      if (isSessionExpiredError(e)) {
+        return
+      }
       alert(e instanceof Error ? e.message : 'Share failed')
     } finally {
       setSharing(false)
@@ -1360,9 +1379,8 @@ function FilesPage() {
   async function handleRevoke() {
     if (!shareFile) return
     try {
-      const res = await fetch(`/api/space/share/${shareFile.id}`, {
+      const res = await authenticatedFetch(`/api/space/share/${shareFile.id}`, {
         method: 'DELETE',
-        headers: { Authorization: pb.authStore.token },
       })
       if (!res.ok) {
         const body = await res.json().catch(() => null)
@@ -1373,6 +1391,9 @@ function FilesPage() {
       setQrError(null)
       fetchAll()
     } catch (e: unknown) {
+      if (isSessionExpiredError(e)) {
+        return
+      }
       alert(e instanceof Error ? e.message : 'Revoke failed')
     }
   }
