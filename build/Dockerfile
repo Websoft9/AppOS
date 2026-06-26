@@ -80,7 +80,7 @@ EXPOSE 8081 8443 9000 2222
 VOLUME ["/appos/data"]
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost/api/health || exit 1
+    CMD curl -f http://localhost:9000/api/health || exit 1
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["runsvdir", "-P", "/etc/service"]

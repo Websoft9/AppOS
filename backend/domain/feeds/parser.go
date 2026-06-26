@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/websoft9/appos/backend/infra/safefetch"
+	"github.com/websoft9/appos/backend/infra/egress"
 )
 
 const maxFeedFetchBytes int64 = 2 * 1024 * 1024
@@ -117,11 +117,15 @@ func fetchFeedBytes(ctx context.Context, rawURL string, client HTTPDoer) ([]byte
 	if strings.TrimSpace(rawURL) == "" {
 		return nil, "", fmt.Errorf("feed source url is required")
 	}
-	if _, err := safefetch.ValidateURL(rawURL); err != nil {
+	if _, err := egress.ValidateFetchURL(rawURL); err != nil {
 		return nil, "", err
 	}
 	if client == nil {
-		client = safefetch.NewClient()
+		fetchClient, err := egress.NewFetchHTTPClient(nil, "http.general", 180*time.Second, false)
+		if err != nil {
+			return nil, "", err
+		}
+		client = &fetchClient
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -198,7 +202,7 @@ func AnalyzeFeedBytes(feedURL string, data []byte) (SourceAnalysis, error) {
 	if analysis.SiteTitle == "" {
 		analysis.SiteTitle = analysis.Name
 	}
-	if siteBase, err := safefetch.ValidateURL(analysis.SiteURL); err == nil {
+	if siteBase, err := egress.ValidateFetchURL(analysis.SiteURL); err == nil {
 		analysis.FaviconURL = defaultFaviconURL(siteBase)
 	}
 
@@ -375,7 +379,7 @@ func deriveSourceName(feedURL string) string {
 	if trimmed == "" {
 		return ""
 	}
-	parsed, err := safefetch.ValidateURL(trimmed)
+	parsed, err := egress.ValidateFetchURL(trimmed)
 	if err != nil {
 		return trimmed
 	}
@@ -391,7 +395,7 @@ func deriveSiteURL(feedURL string) string {
 	if trimmed == "" {
 		return ""
 	}
-	parsed, err := safefetch.ValidateURL(trimmed)
+	parsed, err := egress.ValidateFetchURL(trimmed)
 	if err != nil {
 		return ""
 	}

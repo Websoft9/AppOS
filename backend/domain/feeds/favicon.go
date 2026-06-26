@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/websoft9/appos/backend/infra/safefetch"
+	"github.com/websoft9/appos/backend/infra/egress"
 )
 
 const maxFaviconFetchBytes int64 = 256 * 1024
@@ -25,9 +25,12 @@ const faviconCacheTTL = 24 * time.Hour
 // uncached favicon fetches so connections can be pooled and reused.
 // 10 s total timeout is generous for a small icon image.
 var faviconClient = func() *http.Client {
-	c := safefetch.NewClient()
-	c.Timeout = 3 * time.Second
-	return c
+	c, err := egress.NewFetchHTTPClient(nil, "download.general", 3*time.Second, false)
+	if err != nil {
+		fallback := egress.NewDirectHTTPClient(3*time.Second, false)
+		return &fallback
+	}
+	return &c
 }()
 
 type FaviconAsset struct {
@@ -54,7 +57,7 @@ var faviconCache = struct {
 
 func FetchFavicon(ctx context.Context, rawURL string, client HTTPDoer) (FaviconAsset, error) {
 	trimmedURL := strings.TrimSpace(rawURL)
-	parsedURL, err := safefetch.ValidateURL(trimmedURL)
+	parsedURL, err := egress.ValidateFetchURL(trimmedURL)
 	if err != nil {
 		return FaviconAsset{}, err
 	}

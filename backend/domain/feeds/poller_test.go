@@ -2,6 +2,7 @@ package feeds
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -229,20 +230,27 @@ func TestPollSourceForceFetchesSingleSourceEvenWhenNotDue(t *testing.T) {
 	}
 }
 
-func TestPollDueSourcesDoesNotRunRetentionTrimDuringIngest(t *testing.T) {
+func TestPollDueSourcesTrimsSourceItemsToConfiguredRetentionCap(t *testing.T) {
 	app := newFeedsTestApp(t)
-	seedFeedSourceRecord(t, app, "Vendor feed", "https://example.com/feed.xml", FormatRSS, StatusActive)
+	source := seedFeedSourceRecord(t, app, "Vendor feed", "https://example.com/feed.xml", FormatRSS, StatusActive)
 
 	if err := sysconfig.SetGroup(app, SettingsModule, PolicySettingsKey, map[string]any{
 		"pollIntervalHours":      3,
 		"failureBackoffMaxHours": 24,
-		"perSourceRetentionCap":  1,
-		"globalRetentionCap":     1,
+		"perSourceRetentionCap":  20,
+		"globalRetentionCap":     5000,
 	}); err != nil {
 		t.Fatalf("set feeds policy: %v", err)
 	}
 
-	data := readFeedFixture(t, "rss.xml")
+	var feedBuilder strings.Builder
+	feedBuilder.WriteString(`<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>Vendor feed</title><link>https://example.com</link><description>Release notes</description>`)
+	for i := range 25 {
+		publishedAt := time.Date(2026, 5, 27, i, 0, 0, 0, time.UTC).Format(time.RFC1123Z)
+		feedBuilder.WriteString(fmt.Sprintf(`<item><title>Release %d</title><link>https://example.com/releases/%d</link><guid>release-%d</guid><description>Patch update %d</description><pubDate>%s</pubDate></item>`, i+1, i+1, i+1, i+1, publishedAt))
+	}
+	feedBuilder.WriteString(`</channel></rss>`)
+	data := []byte(feedBuilder.String())
 	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(string(data))), Header: make(http.Header)}, nil
 	})}
@@ -251,15 +259,33 @@ func TestPollDueSourcesDoesNotRunRetentionTrimDuringIngest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("poll due sources: %v", err)
 	}
-	if summary.CreatedItems != 2 {
-		t.Fatalf("expected 2 created items, got %#v", summary)
+	if summary.CreatedItems != 25 {
+		t.Fatalf("expected 25 created items before retention trim, got %#v", summary)
 	}
 
 	items, err := app.FindAllRecords(CollectionItems)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(items) != 2 {
-		t.Fatalf("expected ingest to keep both feed items before scheduled retention sweep, got %d", len(items))
+	if len(items) != 20 {
+		t.Fatalf("expected ingest to trim source items to the configured cap immediately, got %d", len(items))
+	}
+	oldestRetained, err := app.FindFirstRecordByFilter(CollectionItems, "source_id = {:source_id} && external_id = {:external_id}", map[string]any{"source_id": source.Id, "external_id": "release-6"})
+	if err != nil {
+		t.Fatalf("expected release-6 to remain after trim: %v", err)
+	}
+	if oldestRetained.GetString("title") != "Release 6" {
+		t.Fatalf("expected oldest retained feed item to be Release 6, got %q", oldestRetained.GetString("title"))
+	}
+	if _, err := app.FindFirstRecordByFilter(CollectionItems, "source_id = {:source_id} && external_id = {:external_id}", map[string]any{"source_id": source.Id, "external_id": "release-5"}); err == nil {
+		t.Fatal("expected release-5 to be trimmed")
+	}
+
+	storedSource, err := app.FindRecordById(CollectionSources, source.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if storedSource.GetInt("item_count") != 20 {
+		t.Fatalf("expected source item_count to reflect immediate trim, got %d", storedSource.GetInt("item_count"))
 	}
 }

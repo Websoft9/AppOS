@@ -79,3 +79,49 @@ func TestDefaultRegistryIncludesRemoteBypassOnlyServerControls(t *testing.T) {
 		}
 	}
 }
+
+func TestDefaultRegistryAnnotatesWorkloads(t *testing.T) {
+	registry, err := DefaultRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cases := map[string]Workload{
+		"http.general":               WorkloadFetchParse,
+		"http.ai":                    WorkloadAPI,
+		"download.general":           WorkloadFetchStore,
+		"git.general":                WorkloadSubprocess,
+		"remote_shell.env":           WorkloadFetchExecute,
+		"remote_shell.tunnel_http":   WorkloadTunnel,
+		"remote_shell.tunnel_dialer": WorkloadTunnel,
+		"control_plane.reachability": WorkloadFetchProbe,
+	}
+
+	for key, expected := range cases {
+		definition, err := registry.Require(key)
+		if err != nil {
+			t.Fatalf("expected %s to exist: %v", key, err)
+		}
+		if definition.Workload != expected {
+			t.Fatalf("expected %s workload %q, got %q", key, expected, definition.Workload)
+		}
+	}
+}
+
+func TestRegistryRejectsInvalidWorkload(t *testing.T) {
+	_, err := NewRegistry(Definition{
+		Key:            "example.global",
+		Title:          "Example",
+		Location:       LocationLocal,
+		Scope:          ScopeModule,
+		Workload:       Workload("invalid"),
+		Adapter:        AdapterHTTPClient,
+		TrafficClass:   TrafficClassPublicEgress,
+		Support:        SupportProxyCapable,
+		DefaultMode:    ModeAlways,
+		AllowDirectUse: false,
+	})
+	if err == nil {
+		t.Fatal("expected invalid workload to be rejected")
+	}
+}

@@ -21,6 +21,8 @@ type EinoModelFactory struct {
 	App core.App
 }
 
+var newCopilotHTTPClientPlan = egress.NewHTTPClientPlan
+
 func (f EinoModelFactory) ValidateProvider(ctx context.Context, provider *ProviderConfig) error {
 	if provider == nil {
 		return fmt.Errorf("provider is required")
@@ -33,10 +35,11 @@ func (f EinoModelFactory) ValidateProvider(ctx context.Context, provider *Provid
 	}
 	var client *http.Client
 	if f.App != nil {
-		plan, err := egress.NewHTTPClientPlan(f.App, "http.ai", 90*time.Second, false)
+		plan, err := newCopilotHTTPClientPlan(f.App, "http.ai", 90*time.Second, false)
 		if err != nil {
 			f.App.Logger().Warn("copilot proxy resolution failed", "consumer", "http.ai", "error", err)
-			client = &plan.Client
+			direct := egress.NewDirectHTTPClient(90*time.Second, false)
+			client = &direct
 		} else {
 			for _, warning := range plan.Decision.Warnings {
 				if strings.TrimSpace(warning.Message) == "" {
@@ -78,10 +81,11 @@ func (f EinoModelFactory) NewStreamer(ctx context.Context, provider *ProviderCon
 
 func (f EinoModelFactory) providerHTTPClient(provider *ProviderConfig) *http.Client {
 	if f.App != nil {
-		plan, err := egress.NewHTTPClientPlan(f.App, "http.ai", 90*time.Second, false)
+		plan, err := newCopilotHTTPClientPlan(f.App, "http.ai", 90*time.Second, false)
 		if err != nil {
 			f.App.Logger().Warn("copilot proxy resolution failed", "consumer", "http.ai", "error", err)
-			return &plan.Client
+			direct := egress.NewDirectHTTPClient(90*time.Second, false)
+			return &direct
 		}
 		for _, warning := range plan.Decision.Warnings {
 			if strings.TrimSpace(warning.Message) == "" {
@@ -134,17 +138,20 @@ func withProviderHeaders(client *http.Client, provider *ProviderConfig) *http.Cl
 		if client != nil {
 			return client
 		}
-		return &http.Client{Timeout: 90 * time.Second}
+		direct := egress.NewDirectHTTPClient(90*time.Second, false)
+		return &direct
 	}
 	headers := providerHeaders(provider)
 	if len(headers) == 0 {
 		if client != nil {
 			return client
 		}
-		return &http.Client{Timeout: 90 * time.Second}
+		direct := egress.NewDirectHTTPClient(90*time.Second, false)
+		return &direct
 	}
 	if client == nil {
-		client = &http.Client{Timeout: 90 * time.Second}
+		direct := egress.NewDirectHTTPClient(90*time.Second, false)
+		client = &direct
 	}
 	clone := *client
 	base := clone.Transport
@@ -244,7 +251,8 @@ type anthropicStreamer struct {
 
 func newAnthropicStreamer(client *http.Client, provider *ProviderConfig) *anthropicStreamer {
 	if client == nil {
-		client = &http.Client{Timeout: 90 * time.Second}
+		direct := egress.NewDirectHTTPClient(90*time.Second, false)
+		client = &direct
 	}
 	return &anthropicStreamer{client: client, provider: provider}
 }

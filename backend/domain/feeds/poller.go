@@ -97,9 +97,35 @@ func pollSourceRecord(ctx context.Context, app core.App, client HTTPDoer, now ti
 	if err := RefreshSourceItemCount(app, sourceRecord.Id); err != nil {
 		return summary, fmt.Errorf("refresh source item count: %w", err)
 	}
+	if err := trimSourceToConfiguredRetention(app, sourceRecord.Id); err != nil {
+		return summary, fmt.Errorf("trim source retention after poll: %w", err)
+	}
 	summary.CreatedItems = created
 	summary.UpdatedItems = updated
 	return summary, nil
+}
+
+func trimSourceToConfiguredRetention(app core.App, sourceID string) error {
+	policy := LoadPolicySettings(app)
+	if policy.PerSourceCap <= 0 {
+		return nil
+	}
+
+	currentCount, err := CountSourceItems(app, sourceID)
+	if err != nil {
+		return fmt.Errorf("count source items: %w", err)
+	}
+
+	excess := currentCount - policy.PerSourceCap
+	if excess <= 0 {
+		return nil
+	}
+
+	if _, err := DeleteSourceItems(app, sourceID, excess); err != nil {
+		return fmt.Errorf("delete %d excess source items: %w", excess, err)
+	}
+
+	return nil
 }
 
 func UpsertSourceItems(app core.App, sourceRecord *core.Record, candidates []ItemCandidate) (int, int, error) {

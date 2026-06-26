@@ -14,6 +14,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	swcatalog "github.com/websoft9/appos/backend/domain/software/catalog"
+	"github.com/websoft9/appos/backend/infra/egress"
 )
 
 func DetectVersion(app core.App, probe swcatalog.LocalInventoryProbe) (string, error) {
@@ -91,7 +92,8 @@ func CheckAvailability(app core.App, probe swcatalog.LocalInventoryProbe) (bool,
 		if err != nil {
 			return false, err
 		}
-		resp, err := http.DefaultClient.Do(req)
+		client := egress.NewDirectHTTPClient(3*time.Second, false)
+		resp, err := client.Do(req)
 		if err != nil {
 			return false, nil
 		}

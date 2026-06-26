@@ -195,13 +195,13 @@ describe('Sidebar', () => {
     render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
 
     const workspaceNav = screen.getAllByLabelText('Workspace navigation')[0]
-    const links = within(workspaceNav)
-      .getAllByRole('link')
-      .map(link => link.textContent)
-      .filter(Boolean)
+    const items = Array.from(workspaceNav.querySelectorAll('a, button'))
+      .map(item => item.textContent?.trim())
+      .filter((label): label is string => Boolean(label))
 
-    expect(links.indexOf('Applications')).toBeGreaterThanOrEqual(0)
-    expect(links.indexOf('Groups')).toBeGreaterThan(links.indexOf('Applications'))
+    expect(items.indexOf('Applications')).toBeGreaterThanOrEqual(0)
+    expect(items.indexOf('Groups')).toBeGreaterThan(items.indexOf('Applications'))
+    expect(items.indexOf('Groups')).toBeLessThan(items.indexOf('Feed'))
   })
 
   it('opens Feed and navigates to Feeds when clicked from a collapsed state', () => {
@@ -227,10 +227,14 @@ describe('Sidebar', () => {
     render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
 
     const workspaceNav = screen.getAllByLabelText('Workspace navigation')[0]
-    const feedTrigger = within(workspaceNav).getByText('Feed')
+    const items = Array.from(workspaceNav.querySelectorAll('a, button'))
+      .map(item => item.textContent?.trim())
+      .filter((label): label is string => Boolean(label))
 
-    expect(feedTrigger).toBeInTheDocument()
-    expect(within(workspaceNav).queryByRole('link', { name: 'Groups' })).toBeNull()
+    expect(items.indexOf('Groups')).toBeGreaterThanOrEqual(0)
+    expect(items.indexOf('Groups')).toBeLessThan(items.indexOf('Feed'))
+    expect(items.indexOf('Feeds')).toBeGreaterThan(items.indexOf('Feed'))
+    expect(items.indexOf('Topics')).toBeGreaterThan(items.indexOf('Feeds'))
   })
 
   it('shows Topics under Feed after Feeds', () => {
@@ -322,7 +326,7 @@ describe('Sidebar', () => {
 
     fireEvent.click(networkTrigger as HTMLButtonElement)
 
-    expect(assignMock).toHaveBeenCalledWith({ to: '/network' })
+    expect(assignMock).toHaveBeenCalledWith({ to: '/gateway' })
   })
 
   it('shows Platform Runtime after Status and keeps the remaining System order for superusers', () => {
@@ -351,22 +355,21 @@ describe('Sidebar', () => {
   })
 
   it('places Network above Extensions and shows Gateway, Tunnels, Traffic in that order', () => {
-    pathname = '/network'
+    pathname = '/gateway'
     assignMock.mockReset()
 
     render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
 
     const adminNav = screen.getAllByLabelText('Platform navigation')[0]
-    const links = within(adminNav)
-      .getAllByRole('link')
-      .map(link => link.textContent?.trim())
+    const items = Array.from(adminNav.querySelectorAll('a, button'))
+      .map(item => item.textContent?.trim())
       .filter((label): label is string => Boolean(label))
 
-    expect(links.indexOf('Network')).toBeGreaterThanOrEqual(0)
-    expect(links.indexOf('Extensions')).toBeGreaterThan(links.indexOf('Network'))
-    expect(links.indexOf('Gateway')).toBeGreaterThan(links.indexOf('Network'))
-    expect(links.indexOf('Tunnels')).toBeGreaterThan(links.indexOf('Gateway'))
-    expect(links.indexOf('Traffic')).toBeGreaterThan(links.indexOf('Tunnels'))
+    expect(items.indexOf('Network')).toBeGreaterThanOrEqual(0)
+    expect(items.indexOf('Extensions')).toBeGreaterThan(items.indexOf('Network'))
+    expect(items.indexOf('Gateway')).toBeGreaterThan(items.indexOf('Network'))
+    expect(items.indexOf('Tunnels')).toBeGreaterThan(items.indexOf('Gateway'))
+    expect(items.indexOf('Traffic')).toBeGreaterThan(items.indexOf('Tunnels'))
   })
 
   it('uses Platform Components as the basic system entry', () => {

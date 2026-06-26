@@ -342,7 +342,7 @@ describe('ConnectorsPage', () => {
 
     expect(select.value).toBe('ses-smtp')
     expect(within(dialog).getByText(/Add a SMTP service using Amazon SES SMTP/)).toBeInTheDocument()
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Advanced' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: /Advanced/ }))
     expect(within(dialog).getByText('AWS Region')).toBeInTheDocument()
   })
 

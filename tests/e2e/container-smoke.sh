@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 IMAGE_REF="${APPOS_E2E_IMAGE:-websoft9dev/appos:latest}"
 CONTAINER_NAME="appos-e2e-${RANDOM}-$$"
+HTTP_PORT="${APPOS_E2E_HTTP_PORT:-9000}"
 HEALTH_PATH="${APPOS_E2E_HEALTH_PATH:-/api/health}"
 WAIT_SECONDS="${APPOS_E2E_WAIT_SECONDS:-180}"
 SECRET_KEY="${APPOS_E2E_SECRET_KEY:-MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}"
@@ -76,11 +77,11 @@ docker run -d \
   --name "${CONTAINER_NAME}" \
   -e APPOS_SECRET_KEY="${SECRET_KEY}" \
   -e APPOS_ENCRYPTION_KEY="${ENCRYPTION_KEY}" \
-  -p 127.0.0.1::80 \
+  -p "127.0.0.1::${HTTP_PORT}" \
   "${IMAGE_REF}" >/dev/null
 container_started=1
 
-host_port="$(docker port "${CONTAINER_NAME}" 80/tcp | awk -F: 'NR==1 {print $NF}')"
+host_port="$(docker port "${CONTAINER_NAME}" "${HTTP_PORT}/tcp" | awk -F: 'NR==1 {print $NF}')"
 if [[ -z "${host_port}" ]]; then
   echo "e2e: failed to resolve published HTTP port" >&2
   docker logs "${CONTAINER_NAME}" || true

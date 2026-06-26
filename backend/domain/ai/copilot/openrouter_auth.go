@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/websoft9/appos/backend/infra/egress"
 )
 
 func IsOpenRouterEndpoint(endpoint string) bool {
@@ -70,9 +72,8 @@ func validateOpenRouterCredentialWithClient(ctx context.Context, client *http.Cl
 }
 
 func newDirectOpenRouterValidationClient() *http.Client {
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.Proxy = nil
-	return &http.Client{Timeout: 15 * time.Second, Transport: transport}
+	client := egress.NewDirectHTTPClient(15*time.Second, false)
+	return &client
 }
 
 func isOpenRouterCredentialRejected(err error) bool {

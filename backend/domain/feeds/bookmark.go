@@ -7,10 +7,11 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"golang.org/x/net/html"
 
-	"github.com/websoft9/appos/backend/infra/safefetch"
+	"github.com/websoft9/appos/backend/infra/egress"
 )
 
 const maxBookmarkFetchBytes int64 = 1 * 1024 * 1024
@@ -40,11 +41,15 @@ func fetchBookmarkBytes(ctx context.Context, rawURL string, client HTTPDoer) ([]
 	if strings.TrimSpace(rawURL) == "" {
 		return nil, "", fmt.Errorf("bookmark url is required")
 	}
-	if _, err := safefetch.ValidateURL(rawURL); err != nil {
+	if _, err := egress.ValidateFetchURL(rawURL); err != nil {
 		return nil, "", err
 	}
 	if client == nil {
-		client = safefetch.NewClient()
+		fetchClient, err := egress.NewFetchHTTPClient(nil, "http.general", 180*time.Second, false)
+		if err != nil {
+			return nil, "", err
+		}
+		client = &fetchClient
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -81,7 +86,7 @@ func fetchBookmarkBytes(ctx context.Context, rawURL string, client HTTPDoer) ([]
 }
 
 func AnalyzeBookmarkBytes(pageURL string, data []byte) (BookmarkAnalysis, error) {
-	base, err := safefetch.ValidateURL(pageURL)
+	base, err := egress.ValidateFetchURL(pageURL)
 	if err != nil {
 		return BookmarkAnalysis{}, err
 	}

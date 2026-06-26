@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	swinventory "github.com/websoft9/appos/backend/domain/software/inventory"
 	"github.com/websoft9/appos/backend/domain/worker"
 	"github.com/websoft9/appos/backend/infra/cronutil"
+	"github.com/websoft9/appos/backend/infra/egress"
 	"github.com/websoft9/appos/backend/infra/persistence"
 
 	"github.com/pocketbase/pocketbase"
@@ -33,6 +35,8 @@ const feedsPollCronJobID = "feeds_poll"
 const feedsRetentionCronJobID = "feeds_retention_sweep"
 const aiProviderEnabledModelsPruneCronJobID = "ai_provider_enabled_models_prune"
 
+var newAIProviderPruneHTTPClientPlan = egress.NewHTTPClientPlan
+
 func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 	app.Cron().MustAdd(
 		componentsInventoryCronJobID,
@@ -48,7 +52,11 @@ func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 		feedsPollCronJobID,
 		"*/5 * * * *",
 		cronutil.Wrap(app, feedsPollCronJobID, func() {
-			if _, err := feeds.PollDueSources(context.TODO(), app, nil, time.Now().UTC()); err != nil {
+			client, err := egress.NewFetchHTTPClient(app, "http.general", 30*time.Second, false)
+			if err != nil {
+				panic(err)
+			}
+			if _, err := feeds.PollDueSources(context.TODO(), app, &client, time.Now().UTC()); err != nil {
 				panic(err)
 			}
 		}),
@@ -223,6 +231,10 @@ func runAIProviderEnabledModelsPrune(app *pocketbase.PocketBase) error {
 			}
 			return secrets.FirstStringFromPayload(resolved.Payload, "apiKey", "api_key", "token", "value"), nil
 		},
+		func(ctx context.Context, provider *aiproviders.AIProvider, apiKey string) (aiproviders.FetchModelsResponse, error) {
+			client := newAIProviderPruneHTTPClient(app, provider)
+			return aiproviders.FetchModels(ctx, aiproviders.ActiveEndpoint(provider), apiKey, strings.TrimSpace(provider.TemplateID()), aiproviders.ProviderDefaultProtocol(provider), &client)
+		},
 	)
 	app.Logger().Info(
 		"ai provider enabled model prune completed",
@@ -231,4 +243,22 @@ func runAIProviderEnabledModelsPrune(app *pocketbase.PocketBase) error {
 		"models_removed", result.ModelsRemoved,
 	)
 	return err
+}
+
+func newAIProviderPruneHTTPClient(app *pocketbase.PocketBase, provider *aiproviders.AIProvider) http.Client {
+	tpl, _ := aiproviders.FindTemplate(strings.TrimSpace(provider.TemplateID()))
+	plan, err := newAIProviderPruneHTTPClientPlan(app, "http.ai", 8*time.Second, tpl.SkipTLSCertVerify)
+	if err != nil {
+		if app != nil {
+			app.Logger().Warn("ai provider proxy resolution failed", "consumer", "http.ai", "error", err)
+		}
+		return egress.NewDirectHTTPClient(8*time.Second, tpl.SkipTLSCertVerify)
+	}
+	for _, warning := range plan.Decision.Warnings {
+		if strings.TrimSpace(warning.Message) == "" {
+			continue
+		}
+		app.Logger().Warn("ai provider proxy warning", "consumer", "http.ai", "code", string(warning.Code), "message", warning.Message)
+	}
+	return plan.Client
 }

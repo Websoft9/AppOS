@@ -41,6 +41,7 @@ type ConsumerDefinitionView struct {
 	Description  string   `json:"description,omitempty"`
 	Location     string   `json:"location"`
 	ModuleKey    string   `json:"moduleKey,omitempty"`
+	Workload     string   `json:"workload"`
 	Scope        string   `json:"scope"`
 	Adapter      string   `json:"adapter"`
 	TrafficClass string   `json:"trafficClass"`
@@ -814,6 +815,7 @@ func serializeDefinitionViews(definitions []Definition) []ConsumerDefinitionView
 			Description:  definition.Description,
 			Location:     string(definition.Location),
 			ModuleKey:    definition.ModuleKey,
+			Workload:     string(definition.Workload),
 			Scope:        string(definition.Scope),
 			Adapter:      string(definition.Adapter),
 			TrafficClass: string(definition.TrafficClass),

@@ -13,6 +13,7 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/feeds"
+	"github.com/websoft9/appos/backend/infra/egress"
 )
 
 var pollFeedsNow = feeds.PollSources
@@ -539,8 +540,12 @@ func handleFeedFavicon(e *core.RequestEvent) error {
 	// not tie up a browser connection for longer than necessary.
 	ctx, cancel := context.WithTimeout(e.Request.Context(), 2*time.Second)
 	defer cancel()
+	client, err := egress.NewFetchHTTPClient(e.App, "download.general", 2*time.Second, false)
+	if err != nil {
+		return e.BadRequestError("failed to prepare favicon fetch", err)
+	}
 
-	asset, err := fetchFaviconAsset(ctx, faviconURL, nil)
+	asset, err := fetchFaviconAsset(ctx, faviconURL, &client)
 	if err != nil {
 		return e.BadRequestError("failed to fetch favicon", err)
 	}
@@ -752,7 +757,11 @@ func handleAnalyzeBookmark(e *core.RequestEvent) error {
 		return e.BadRequestError(feedURLSchemeMessage, err)
 	}
 
-	analysis, err := analyzeBookmarkURL(nil, url, nil)
+	client, err := egress.NewFetchHTTPClient(e.App, "http.general", 15*time.Second, false)
+	if err != nil {
+		return e.BadRequestError("failed to prepare bookmark analysis", err)
+	}
+	analysis, err := analyzeBookmarkURL(nil, url, &client)
 	if err != nil {
 		return e.BadRequestError("failed to analyze bookmark url", err)
 	}
@@ -924,7 +933,11 @@ func handleFeedSourceAnalyze(e *core.RequestEvent) error {
 		return e.BadRequestError(feedURLSchemeMessage, err)
 	}
 
-	analysis, err := analyzeFeedSource(nil, url, nil)
+	client, err := egress.NewFetchHTTPClient(e.App, "http.general", 15*time.Second, false)
+	if err != nil {
+		return e.BadRequestError("failed to prepare feed analysis", err)
+	}
+	analysis, err := analyzeFeedSource(nil, url, &client)
 	if err != nil {
 		return e.BadRequestError("failed to analyze feed source", err)
 	}
@@ -1284,7 +1297,11 @@ func handleFeedSourcePoll(e *core.RequestEvent) error {
 		return e.BadRequestError("feed source id is required", nil)
 	}
 
-	summary, err := feeds.PollSourceNow(context.TODO(), e.App, nil, time.Now().UTC(), id, pollFeedSourceNow)
+	client, err := egress.NewFetchHTTPClient(e.App, "http.general", 30*time.Second, false)
+	if err != nil {
+		return e.InternalServerError("failed to prepare feed poll client", err)
+	}
+	summary, err := feeds.PollSourceNow(context.TODO(), e.App, &client, time.Now().UTC(), id, pollFeedSourceNow)
 	if err != nil {
 		return handleFeedSourceServiceError(e, err, "failed to poll feed source")
 	}

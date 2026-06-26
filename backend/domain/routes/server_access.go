@@ -18,14 +18,6 @@ func resolveTerminalConfig(app core.App, auth *core.Record, serverID string) (te
 	return plan.Config, nil
 }
 
-func resolveTerminalConfigWithProxy(app core.App, auth *core.Record, serverID string) (terminal.ConnectorConfig, map[string]string, error) {
-	plan, err := resolveTerminalExecutionPlan(app, auth, serverID)
-	if err != nil {
-		return terminal.ConnectorConfig{}, nil, err
-	}
-	return plan.Config, plan.Env, nil
-}
-
 func resolveTerminalConfigWithProxyForRequest(e *core.RequestEvent, serverID string) (terminal.ConnectorConfig, map[string]string, error) {
 	plan, err := resolveTerminalExecutionPlanForRequest(e, serverID)
 	if err != nil {

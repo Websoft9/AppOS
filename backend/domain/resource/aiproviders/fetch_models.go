@@ -32,7 +32,11 @@ type FetchModelsResponse struct {
 	Groups []FetchModelsGroup
 }
 
-func FetchModels(ctx context.Context, endpoint string, apiKey string, templateID string, protocol string) (FetchModelsResponse, error) {
+type HTTPDoer interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
+func FetchModels(ctx context.Context, endpoint string, apiKey string, templateID string, protocol string, client HTTPDoer) (FetchModelsResponse, error) {
 	endpoint = strings.TrimSpace(endpoint)
 	if endpoint == "" {
 		return FetchModelsResponse{}, errors.New("endpoint is required")
@@ -73,17 +77,18 @@ func FetchModels(ctx context.Context, endpoint string, apiKey string, templateID
 		useBearerAuth = true
 	}
 
-	var client http.Client
-	if hasTemplate && tpl.SkipTLSCertVerify {
-		client = http.Client{
-			Timeout: 8 * time.Second,
-			Transport: &http.Transport{
-				// #nosec G402 -- explicit template option for self-hosted providers with custom/self-signed certificates.
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			},
+	if client == nil {
+		if hasTemplate && tpl.SkipTLSCertVerify {
+			client = &http.Client{
+				Timeout: 8 * time.Second,
+				Transport: &http.Transport{
+					// #nosec G402 -- explicit template option for self-hosted providers with custom/self-signed certificates.
+					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+				},
+			}
+		} else {
+			client = &http.Client{Timeout: 8 * time.Second}
 		}
-	} else {
-		client = http.Client{Timeout: 8 * time.Second}
 	}
 	request, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, modelsURL, nil)
 	if reqErr != nil {

@@ -19,7 +19,7 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/assets"
-	"github.com/websoft9/appos/backend/infra/safefetch"
+	"github.com/websoft9/appos/backend/infra/egress"
 )
 
 const scriptPullMaxBytes int64 = 1024 * 1024
@@ -273,7 +273,7 @@ func handleAssetScriptPull(e *core.RequestEvent) error {
 	if body.Reference == "" {
 		return e.BadRequestError("reference is required", nil)
 	}
-	content, err := fetchRemoteScriptContent(e.Request.Context(), body.Reference)
+	content, err := fetchRemoteScriptContent(e.Request.Context(), e.App, body.Reference)
 	if err != nil {
 		return e.BadRequestError(err.Error(), nil)
 	}
@@ -304,7 +304,7 @@ func handleAssetSkillPull(e *core.RequestEvent) error {
 		return e.BadRequestError("reference is required", nil)
 	}
 
-	result, err := fetchGitHubSkillContent(e.Request.Context(), body.Reference)
+	result, err := fetchGitHubSkillContent(e.Request.Context(), e.App, body.Reference)
 	if err != nil {
 		return e.BadRequestError(err.Error(), nil)
 	}
@@ -606,11 +606,11 @@ type skillPullResult struct {
 	Files      map[string]string
 }
 
-func pullRemoteTextContent(ctx context.Context, reference string) (string, error) {
-	if _, err := safefetch.ValidateURL(reference); err != nil {
-		return "", err
+func pullRemoteTextContent(ctx context.Context, app core.App, reference string) (string, error) {
+	client, err := egress.NewFetchHTTPClient(app, "http.general", 30*time.Second, false)
+	if err != nil {
+		return "", fmt.Errorf("failed to prepare request: %w", err)
 	}
-
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
@@ -618,7 +618,7 @@ func pullRemoteTextContent(ctx context.Context, reference string) (string, error
 	if err != nil {
 		return "", fmt.Errorf("failed to build request: %w", err)
 	}
-	resp, err := safefetch.NewClient().Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch reference: %w", err)
 	}
@@ -641,10 +641,14 @@ func pullRemoteTextContent(ctx context.Context, reference string) (string, error
 	return string(data), nil
 }
 
-func pullGitHubSkillContent(ctx context.Context, reference string) (skillPullResult, error) {
+func pullGitHubSkillContent(ctx context.Context, app core.App, reference string) (skillPullResult, error) {
 	archiveURL, subdir, err := parseGitHubArchiveURL(reference)
 	if err != nil {
 		return skillPullResult{}, err
+	}
+	client, err := egress.NewFetchHTTPClient(app, "http.general", 60*time.Second, false)
+	if err != nil {
+		return skillPullResult{}, fmt.Errorf("failed to prepare request: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
@@ -654,7 +658,7 @@ func pullGitHubSkillContent(ctx context.Context, reference string) (skillPullRes
 	if err != nil {
 		return skillPullResult{}, fmt.Errorf("failed to build request: %w", err)
 	}
-	resp, err := safefetch.NewClient().Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return skillPullResult{}, fmt.Errorf("failed to fetch GitHub repository: %w", err)
 	}
@@ -684,9 +688,12 @@ func pullGitHubSkillContent(ctx context.Context, reference string) (skillPullRes
 }
 
 func validateGitHubReference(reference string) error {
-	parsed, err := safefetch.ValidateURL(reference)
+	parsed, err := url.ParseRequestURI(reference)
 	if err != nil {
-		return err
+		return errors.New("only http and https URLs are supported")
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return errors.New("only http and https URLs are supported")
 	}
 	host := strings.ToLower(parsed.Hostname())
 	if host != "github.com" && host != "www.github.com" {
@@ -700,9 +707,12 @@ func validateGitHubReference(reference string) error {
 }
 
 func parseGitHubArchiveURL(reference string) (string, string, error) {
-	parsed, err := safefetch.ValidateURL(reference)
+	parsed, err := url.ParseRequestURI(reference)
 	if err != nil {
-		return "", "", err
+		return "", "", errors.New("only http and https URLs are supported")
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return "", "", errors.New("only http and https URLs are supported")
 	}
 	host := strings.ToLower(parsed.Hostname())
 	if host != "github.com" && host != "www.github.com" {

@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/websoft9/appos/backend/infra/egress"
 )
 
 type Client struct {
@@ -29,7 +31,8 @@ type QueryRangeMatrixSeries struct {
 
 func New(httpClient *http.Client) *Client {
 	if httpClient == nil {
-		httpClient = http.DefaultClient
+		direct := egress.NewDirectHTTPClient(30*time.Second, false)
+		httpClient = &direct
 	}
 	return &Client{httpClient: httpClient}
 }

@@ -319,6 +319,8 @@ type aiProviderReachabilityResponse struct {
 	Items []aiProviderReachabilityItem `json:"items"`
 }
 
+var newAIProviderHTTPClientPlan = egress.NewHTTPClientPlan
+
 type fetchModelsItem struct {
 	ID               string `json:"id"`
 	Vendor           string `json:"vendor,omitempty"`
@@ -615,10 +617,12 @@ func fetchProviderModels(app core.App, ctx context.Context, endpoint string, api
 }
 
 func newAIProviderHTTPClient(app core.App, skipTLSVerify bool) http.Client {
-	plan, err := egress.NewHTTPClientPlan(app, "http.ai", 8*time.Second, skipTLSVerify)
+	plan, err := newAIProviderHTTPClientPlan(app, "http.ai", 8*time.Second, skipTLSVerify)
 	if err != nil {
-		app.Logger().Warn("ai provider proxy resolution failed", "consumer", "http.ai", "error", err)
-		return plan.Client
+		if app != nil {
+			app.Logger().Warn("ai provider proxy resolution failed", "consumer", "http.ai", "error", err)
+		}
+		return egress.NewDirectHTTPClient(8*time.Second, skipTLSVerify)
 	}
 	for _, warning := range plan.Decision.Warnings {
 		if strings.TrimSpace(warning.Message) == "" {

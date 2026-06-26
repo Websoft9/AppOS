@@ -517,6 +517,120 @@ describe('FeedsPage', () => {
     })
   })
 
+  it('loads more feed items when the app content container scrolls near the bottom', async () => {
+    const feedRecords = Array.from({ length: 25 }, (_, index) => ({
+      id: `item-${index + 1}`,
+      source_id: 'feed-1',
+      origin_type: 'feed' as const,
+      external_id: `release-${index + 1}`,
+      title: `Security Release ${index + 1}`,
+      link: `https://example.com/releases/${index + 1}`,
+      published_at: `2026-05-${String(27 + Math.floor(index / 24)).padStart(2, '0')}T${String(index % 24).padStart(2, '0')}:00:00Z`,
+      summary: `Patch update ${index + 1}`,
+      content_raw: `<p>Patch update ${index + 1}</p>`,
+      tags_json: ['security'],
+      read_state: 'unread' as const,
+      is_starred: false,
+      expand: {
+        source_id: {
+          id: 'feed-1',
+          name: 'Vendor Releases',
+          url: 'https://example.com/releases.xml',
+          favicon_url: 'https://example.com/favicon.ico',
+          format: 'rss',
+          status: 'active',
+        },
+      },
+    }))
+
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/feeds/sources') {
+        return Promise.resolve({
+          items: [
+            {
+              id: 'feed-1',
+              name: 'Vendor Releases',
+              url: 'https://example.com/releases.xml',
+              favicon_url: 'https://example.com/favicon.ico',
+              format: 'rss',
+              status: 'active',
+              item_count: feedRecords.length,
+              last_fetched_at: '2026-05-27T08:00:00Z',
+              last_success_at: '2026-05-27T08:00:00Z',
+              last_error: '',
+            },
+          ],
+        })
+      }
+      if (path === '/api/feeds/summary') {
+        return Promise.resolve({
+          totalItems: feedRecords.length,
+          starredItems: 0,
+          sourceCounts: [{ sourceId: 'feed-1', count: feedRecords.length }],
+        })
+      }
+      if (path.startsWith('/api/feeds/items?')) {
+        const parsed = new URL(path, 'https://appos.local')
+        const page = Number(parsed.searchParams.get('page') || '1') || 1
+        const perPage = Number(parsed.searchParams.get('perPage') || '20') || 20
+        const start = (page - 1) * perPage
+        return Promise.resolve({
+          items: feedRecords.slice(start, start + perPage),
+          page,
+          perPage,
+          totalItems: feedRecords.length,
+        })
+      }
+      if (path.startsWith('/api/feeds/bookmarks?')) {
+        return Promise.resolve({
+          items: [],
+          page: 1,
+          perPage: 10,
+          totalItems: 0,
+          totalBookmarks: 0,
+        })
+      }
+      return Promise.resolve({})
+    })
+
+    const Component = (Route as unknown as { component: React.ComponentType }).component
+    render(
+      <main data-app-scroll-container>
+        <Component />
+      </main>
+    )
+
+    const scrollContainer = document.querySelector('[data-app-scroll-container]') as HTMLElement
+    Object.defineProperty(scrollContainer, 'clientHeight', {
+      configurable: true,
+      value: 400,
+    })
+    Object.defineProperty(scrollContainer, 'scrollHeight', {
+      configurable: true,
+      value: 1001,
+    })
+    Object.defineProperty(scrollContainer, 'scrollTop', {
+      configurable: true,
+      writable: true,
+      value: 0,
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Security Release 20')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Security Release 21')).not.toBeInTheDocument()
+
+    scrollContainer.scrollTop = 700
+    fireEvent.scroll(scrollContainer)
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/feeds/items?page=2&perPage=20', {})
+    })
+    await waitFor(() => {
+      expect(screen.getByText('Security Release 25')).toBeInTheDocument()
+    })
+  })
+
   it('loads feed sources, shows items, and persists reader actions', async () => {
     const Component = (Route as unknown as { component: React.ComponentType }).component
     render(<Component />)
@@ -528,7 +642,7 @@ describe('FeedsPage', () => {
     expect(screen.getByRole('button', { name: 'Add Source' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open article search' })).toBeInTheDocument()
     expect(
-      screen.getByText('Unified hub for RSS feeds, web content and bookmarks.')
+      screen.getByText('Your feed — RSS subscriptions, web content and bookmarks in one place.')
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /All/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Bookmark/ })).toBeInTheDocument()
@@ -860,20 +974,7 @@ describe('FeedsPage', () => {
     expect(within(bookmarkRow).getByAltText(/favicon/i)).toBeInTheDocument()
   })
 
-  it('loads more articles when the browser scroll reaches the page bottom', async () => {
-    Object.defineProperty(document.documentElement, 'scrollHeight', {
-      value: 4000,
-      configurable: true,
-    })
-    Object.defineProperty(window, 'innerHeight', {
-      value: 900,
-      configurable: true,
-    })
-    Object.defineProperty(window, 'scrollY', {
-      value: 0,
-      configurable: true,
-    })
-
+  it('loads more articles when the app content container scroll reaches the bottom', async () => {
     sendMock.mockImplementation((path: string) => {
       if (path === '/api/feeds/sources') {
         return Promise.resolve({
@@ -943,23 +1044,238 @@ describe('FeedsPage', () => {
     })
 
     const Component = (Route as unknown as { component: React.ComponentType }).component
-    render(<Component />)
+    render(
+      <main data-app-scroll-container>
+        <Component />
+      </main>
+    )
+
+    const scrollContainer = document.querySelector('[data-app-scroll-container]') as HTMLElement
+    Object.defineProperty(scrollContainer, 'clientHeight', {
+      value: 900,
+      configurable: true,
+    })
+    Object.defineProperty(scrollContainer, 'scrollHeight', {
+      value: 4000,
+      configurable: true,
+    })
+    Object.defineProperty(scrollContainer, 'scrollTop', {
+      value: 0,
+      configurable: true,
+      writable: true,
+    })
 
     await waitFor(() => {
       expect(screen.getByText('Security Release 20')).toBeInTheDocument()
     })
     expect(screen.queryByText('Security Release 21')).not.toBeInTheDocument()
 
-    Object.defineProperty(window, 'scrollY', {
-      value: 3200,
-      configurable: true,
-    })
-    fireEvent.scroll(window)
+    scrollContainer.scrollTop = 3200
+    fireEvent.scroll(scrollContainer)
 
     await waitFor(() => {
       expect(screen.getByText('Security Release 21')).toBeInTheDocument()
     })
   })
+
+  it('loads the next page when the Load more button is clicked', async () => {
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/feeds/sources') {
+        return Promise.resolve({
+          items: [
+            {
+              id: 'feed-1',
+              name: 'Vendor Releases',
+              url: 'https://example.com/releases.xml',
+              favicon_url: 'https://example.com/favicon.ico',
+              format: 'rss',
+              status: 'active',
+              item_count: 25,
+            },
+          ],
+        })
+      }
+      if (path === '/api/feeds/summary') {
+        return Promise.resolve({
+          totalItems: 25,
+          starredItems: 0,
+          sourceCounts: [{ sourceId: 'feed-1', count: 25 }],
+        })
+      }
+      if (path.startsWith('/api/feeds/items?')) {
+        const parsed = new URL(path, 'https://appos.local')
+        const page = Number(parsed.searchParams.get('page') || '1') || 1
+        const perPage = Number(parsed.searchParams.get('perPage') || '20') || 20
+        const allItems = Array.from({ length: 25 }, (_, index) => ({
+          id: `item-${index + 1}`,
+          source_id: 'feed-1',
+          origin_type: 'feed',
+          external_id: `release-${index + 1}`,
+          title: `Security Release ${index + 1}`,
+          link: `https://example.com/releases/${index + 1}`,
+          published_at: `2026-05-${String((index % 28) + 1).padStart(2, '0')}T08:00:00Z`,
+          summary: `Patch maintenance update ${index + 1}.`,
+          read_state: 'unread',
+          is_starred: false,
+          expand: {
+            source_id: {
+              id: 'feed-1',
+              name: 'Vendor Releases',
+              url: 'https://example.com/releases.xml',
+              favicon_url: 'https://example.com/favicon.ico',
+              format: 'rss',
+              status: 'active',
+            },
+          },
+        }))
+        const start = (page - 1) * perPage
+        return Promise.resolve({
+          items: allItems.slice(start, start + perPage),
+          page,
+          perPage,
+          totalItems: allItems.length,
+        })
+      }
+      if (path.startsWith('/api/feeds/bookmarks?')) {
+        return Promise.resolve({
+          items: [],
+          page: 1,
+          perPage: 10,
+          totalItems: 0,
+          totalBookmarks: 0,
+        })
+      }
+      return Promise.resolve({})
+    })
+
+    const Component = (Route as unknown as { component: React.ComponentType }).component
+    render(<Component />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Security Release 20')).toBeInTheDocument()
+    })
+    expect(screen.getByText('Loaded 20 of 25. Scroll to load more')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Security Release 25')).toBeInTheDocument()
+    })
+  })
+
+  it('can load all 148 paged feed items across repeated bottom scrolls', async () => {
+    const totalItems = 148
+    const feedRecords = Array.from({ length: totalItems }, (_, index) => ({
+      id: `item-${index + 1}`,
+      source_id: 'feed-1',
+      origin_type: 'feed' as const,
+      external_id: `release-${index + 1}`,
+      title: `Security Release ${index + 1}`,
+      link: `https://example.com/releases/${index + 1}`,
+      published_at: `2026-05-${String((index % 28) + 1).padStart(2, '0')}T${String(index % 24).padStart(2, '0')}:00:00Z`,
+      summary: `Patch maintenance update ${index + 1}.`,
+      content_raw: `<p>Patch maintenance update ${index + 1}.</p>`,
+      read_state: 'unread' as const,
+      is_starred: false,
+      expand: {
+        source_id: {
+          id: 'feed-1',
+          name: 'Vendor Releases',
+          url: 'https://example.com/releases.xml',
+          favicon_url: 'https://example.com/favicon.ico',
+          format: 'rss',
+          status: 'active',
+        },
+      },
+    }))
+
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/feeds/sources') {
+        return Promise.resolve({
+          items: [
+            {
+              id: 'feed-1',
+              name: 'Vendor Releases',
+              url: 'https://example.com/releases.xml',
+              favicon_url: 'https://example.com/favicon.ico',
+              format: 'rss',
+              status: 'active',
+              item_count: totalItems,
+            },
+          ],
+        })
+      }
+      if (path === '/api/feeds/summary') {
+        return Promise.resolve({
+          totalItems,
+          starredItems: 0,
+          sourceCounts: [{ sourceId: 'feed-1', count: totalItems }],
+        })
+      }
+      if (path.startsWith('/api/feeds/items?')) {
+        const parsed = new URL(path, 'https://appos.local')
+        const page = Number(parsed.searchParams.get('page') || '1') || 1
+        const perPage = Number(parsed.searchParams.get('perPage') || '20') || 20
+        const start = (page - 1) * perPage
+        return Promise.resolve({
+          items: feedRecords.slice(start, start + perPage),
+          page,
+          perPage,
+          totalItems,
+        })
+      }
+      if (path.startsWith('/api/feeds/bookmarks?')) {
+        return Promise.resolve({
+          items: [],
+          page: 1,
+          perPage: 10,
+          totalItems: 0,
+          totalBookmarks: 0,
+        })
+      }
+      return Promise.resolve({})
+    })
+
+    const Component = (Route as unknown as { component: React.ComponentType }).component
+    render(
+      <main data-app-scroll-container>
+        <Component />
+      </main>
+    )
+
+    const scrollContainer = document.querySelector('[data-app-scroll-container]') as HTMLElement
+    Object.defineProperty(scrollContainer, 'clientHeight', {
+      value: 900,
+      configurable: true,
+    })
+    let simulatedScrollHeight = 8000
+    Object.defineProperty(scrollContainer, 'scrollHeight', {
+      configurable: true,
+      get: () => simulatedScrollHeight,
+    })
+    Object.defineProperty(scrollContainer, 'scrollTop', {
+      value: 0,
+      configurable: true,
+      writable: true,
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Security Release 20')).toBeInTheDocument()
+    })
+
+    for (let loadedCount = 20; loadedCount < totalItems; loadedCount += 20) {
+      scrollContainer.scrollTop = scrollContainer.scrollHeight - scrollContainer.clientHeight - 400
+      fireEvent.scroll(scrollContainer)
+      await waitFor(() => {
+        expect(screen.getByText(`Security Release ${Math.min(loadedCount + 20, totalItems)}`)).toBeInTheDocument()
+      })
+      simulatedScrollHeight += 1200
+    }
+
+    expect(screen.getByText('Security Release 148')).toBeInTheDocument()
+    expect(screen.queryByText(/Scroll to load more/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Loaded 148 of 148/i)).not.toBeInTheDocument()
+  }, 30000)
 
   it('analyzes a feed URL before subscribing a new source', async () => {
     const Component = (Route as unknown as { component: React.ComponentType }).component
@@ -1383,5 +1699,51 @@ describe('FeedsPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss notification' }))
     expect(screen.queryByText('Deleted source Vendor Releases.')).not.toBeInTheDocument()
+  })
+
+  it('submits the edit source dialog with all required fields including format', async () => {
+    const Component = (Route as unknown as { component: React.ComponentType }).component
+    render(<Component />)
+
+    await screen.findByRole('heading', { name: 'Feeds' })
+
+    // Open source detail
+    fireEvent.click(screen.getAllByRole('button', { name: /Vendor Releases/ })[0])
+    expect(screen.getByRole('heading', { name: 'Vendor Releases' })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Edit selected source' })).toBeInTheDocument()
+    })
+
+    // Open edit dialog
+    fireEvent.click(screen.getByRole('button', { name: 'Edit selected source' }))
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Edit Feed Source' })).toBeInTheDocument()
+    })
+
+    // Change the name
+    fireEvent.change(screen.getByLabelText('Name'), {
+      target: { value: 'Updated Vendor Releases' },
+    })
+
+    // Submit the form
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+    // Verify the PATCH request includes all required fields
+    await waitFor(() => {
+      const patchCall = sendMock.mock.calls.find(
+        (callArgs: unknown[]) => {
+          const callPath = (callArgs as [string, { method?: string | undefined; body?: Record<string, unknown> | undefined }])[0]
+          const callOpts = (callArgs as [string, { method?: string | undefined; body?: Record<string, unknown> | undefined }])[1]
+          return callPath === '/api/feeds/sources/feed-1' && callOpts?.method === 'PATCH'
+        }
+      )
+      expect(patchCall).toBeTruthy()
+      const body = (patchCall as unknown as [string, { body: Record<string, unknown> }])[1].body
+      expect(body.name).toBe('Updated Vendor Releases')
+      expect(body.url).toBe('https://example.com/releases.xml')
+      expect(body.format).toBe('rss')
+      expect(body).toHaveProperty('favicon_url')
+      expect(body).toHaveProperty('status')
+    })
   })
 })

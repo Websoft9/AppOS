@@ -443,7 +443,7 @@ func TestAssetsSkillPullUsesGitHubSnapshot(t *testing.T) {
 	defer te.cleanup()
 
 	original := fetchGitHubSkillContent
-	fetchGitHubSkillContent = func(_ context.Context, reference string) (skillPullResult, error) {
+	fetchGitHubSkillContent = func(_ context.Context, _ core.App, reference string) (skillPullResult, error) {
 		if reference != "https://github.com/example/skill-repo" {
 			t.Fatalf("unexpected reference %s", reference)
 		}

@@ -38,6 +38,7 @@ so that lifecycle execution is observable without pushing status logic into unre
 - Keep `AppInstance` lifecycle projection and raw operation execution detail distinct; they serve different operator needs.
 - `app_operations`, `pipeline_runs`, and `pipeline_node_runs` are the primary persistence sources for this story.
 - Installed-app management may consume these APIs later, but that integration belongs to Epic 18.
+- Companion planning artifact: `story17.3-instance-state-matrix.md` owns the product-facing AppInstance state contract; this story only exposes execution observability and must not become the owner of app-state semantics.
 
 ### References
 
@@ -47,6 +48,7 @@ so that lifecycle execution is observable without pushing status logic into unre
 - [Source: specs/adr/app-lifecycle-pocketbase-collections.md#3.2 `app_operations`]
 - [Source: specs/adr/app-lifecycle-pocketbase-collections.md#3.5 `pipeline_runs`]
 - [Source: specs/adr/app-lifecycle-pocketbase-collections.md#3.6 `pipeline_node_runs`]
+- [Source: specs/implementation-artifacts/story17.3-instance-state-matrix.md]
 
 ## Dev Agent Record
 

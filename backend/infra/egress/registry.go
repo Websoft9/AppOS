@@ -59,6 +59,19 @@ const (
 	ModeAlways   Mode = "always"
 )
 
+type Workload string
+
+const (
+	WorkloadAPI          Workload = "api"
+	WorkloadFetchStore   Workload = "fetch_store"
+	WorkloadFetchParse   Workload = "fetch_parse"
+	WorkloadFetchProbe   Workload = "fetch_probe"
+	WorkloadFetchExecute Workload = "fetch_execute"
+	WorkloadSubprocess   Workload = "subprocess"
+	WorkloadTunnel       Workload = "tunnel"
+	WorkloadControlPlane Workload = "control_plane"
+)
+
 type Definition struct {
 	Key         string
 	Title       string
@@ -66,6 +79,7 @@ type Definition struct {
 	Location    Location
 	Scope       Scope
 	ModuleKey   string
+	Workload    Workload
 
 	AllowDirectUse bool
 
@@ -215,6 +229,7 @@ func normalizeDefinition(definition Definition) (Definition, error) {
 	definition.Title = strings.TrimSpace(definition.Title)
 	definition.Description = strings.TrimSpace(definition.Description)
 	definition.ModuleKey = strings.TrimSpace(definition.ModuleKey)
+	definition.Workload = Workload(strings.TrimSpace(string(definition.Workload)))
 	definition.Tags = normalizeTags(definition.Tags)
 
 	if definition.Key == "" {
@@ -240,6 +255,9 @@ func normalizeDefinition(definition Definition) (Definition, error) {
 	}
 	if !isValidSupport(definition.Support) {
 		return Definition{}, fmt.Errorf("proxy consumer %q has invalid support %q", definition.Key, definition.Support)
+	}
+	if !isValidWorkload(definition.Workload) {
+		return Definition{}, fmt.Errorf("proxy consumer %q has invalid workload %q", definition.Key, definition.Workload)
 	}
 	if !definition.SupportsMode(definition.DefaultMode) {
 		return Definition{}, fmt.Errorf("proxy consumer %q has invalid default mode %q", definition.Key, definition.DefaultMode)
@@ -294,6 +312,15 @@ func isValidScope(scope Scope) bool {
 func isValidAdapter(adapter Adapter) bool {
 	switch adapter {
 	case AdapterHTTPClient, AdapterEnv, AdapterDialer:
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidWorkload(workload Workload) bool {
+	switch workload {
+	case WorkloadAPI, WorkloadFetchStore, WorkloadFetchParse, WorkloadFetchProbe, WorkloadFetchExecute, WorkloadSubprocess, WorkloadTunnel, WorkloadControlPlane:
 		return true
 	default:
 		return false

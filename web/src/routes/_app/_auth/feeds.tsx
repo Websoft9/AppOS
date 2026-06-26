@@ -197,6 +197,7 @@ interface BookmarkConflictError {
 
 const BOOKMARKS_PER_PAGE = 10
 const FEED_ITEMS_PER_PAGE = 20
+const FEED_LOAD_MORE_THRESHOLD_PX = 600
 
 function clampDeleteCount(value: number, maxCount: number): number {
   if (!Number.isFinite(value)) {
@@ -754,6 +755,7 @@ function FeedsPage() {
   const bookmarkCopyResetTimer = useRef<number | null>(null)
   const shareCopyResetTimer = useRef<number | null>(null)
   const skipFirstFeedQueryEffect = useRef(true)
+  const feedLoadMoreSentinelRef = useRef<HTMLDivElement | null>(null)
 
   const shareURL = useMemo(
     () => (shareTarget ? buildTrackedShareURL(shareTarget.url) : ''),
@@ -899,6 +901,33 @@ function FeedsPage() {
     },
     []
   )
+
+  const loadNextFeedPage = useCallback(() => {
+    if (
+      loading ||
+      feedLoadingMore ||
+      itemSourceFilter === 'bookmark' ||
+      items.length >= feedTotalItems
+    ) {
+      return
+    }
+
+    void fetchFeedItems({
+      filter: itemSourceFilter,
+      query: searchQuery,
+      page: feedPage + 1,
+      append: true,
+    })
+  }, [
+    feedLoadingMore,
+    feedPage,
+    feedTotalItems,
+    fetchFeedItems,
+    itemSourceFilter,
+    items.length,
+    loading,
+    searchQuery,
+  ])
 
   const fetchBookmarks = useCallback(async (page: number, query: string) => {
     const params = new URLSearchParams({
@@ -1646,41 +1675,53 @@ function FeedsPage() {
   }
 
   useEffect(() => {
-    if (
-      loading ||
-      feedLoadingMore ||
-      itemSourceFilter === 'bookmark' ||
-      items.length >= feedTotalItems
-    )
+    if (loading || feedLoadingMore || itemSourceFilter === 'bookmark' || items.length >= feedTotalItems)
       return
 
-    const maybeLoadMore = () => {
-      const doc = document.documentElement
-      const remaining = doc.scrollHeight - (window.scrollY + window.innerHeight)
-      if (remaining > 160) return
-      void fetchFeedItems({
-        filter: itemSourceFilter,
-        query: searchQuery,
-        page: feedPage + 1,
-        append: true,
-      })
+    const scrollContainer = document.querySelector<HTMLElement>('[data-app-scroll-container]')
+    const sentinel = feedLoadMoreSentinelRef.current
+    if (!scrollContainer || !sentinel) return
+
+    if (typeof IntersectionObserver === 'function') {
+      const observer = new IntersectionObserver(
+        entries => {
+          if (entries.some(entry => entry.isIntersecting)) {
+            loadNextFeedPage()
+          }
+        },
+        {
+          root: scrollContainer,
+          rootMargin: `0px 0px ${FEED_LOAD_MORE_THRESHOLD_PX}px 0px`,
+        }
+      )
+
+      observer.observe(sentinel)
+      return () => {
+        observer.disconnect()
+      }
     }
 
-    window.addEventListener('scroll', maybeLoadMore, { passive: true })
+    const maybeLoadMore = () => {
+      const remaining =
+        scrollContainer.scrollHeight -
+        (scrollContainer.scrollTop + scrollContainer.clientHeight)
+      if (remaining > FEED_LOAD_MORE_THRESHOLD_PX) return
+      loadNextFeedPage()
+    }
+
+    scrollContainer.addEventListener('scroll', maybeLoadMore, { passive: true })
     window.addEventListener('resize', maybeLoadMore)
+    maybeLoadMore()
     return () => {
-      window.removeEventListener('scroll', maybeLoadMore)
+      scrollContainer.removeEventListener('scroll', maybeLoadMore)
       window.removeEventListener('resize', maybeLoadMore)
     }
   }, [
     feedLoadingMore,
-    feedPage,
-    feedTotalItems,
-    fetchFeedItems,
+    loading,
+    loadNextFeedPage,
     itemSourceFilter,
     items.length,
-    loading,
-    searchQuery,
   ])
 
   return (
@@ -2325,7 +2366,22 @@ function FeedsPage() {
             )}
             {!loading && items.length < feedTotalItems ? (
               <div className="pb-2 pt-1 text-center text-xs text-muted-foreground">
-                Scroll to load more
+                <div className="flex flex-col items-center gap-2">
+                  {feedLoadingMore ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Loading more... ({items.length}/{feedTotalItems})
+                    </span>
+                  ) : (
+                    <span>Loaded {items.length} of {feedTotalItems}. Scroll to load more</span>
+                  )}
+                  {!feedLoadingMore ? (
+                    <Button type="button" variant="outline" size="sm" onClick={loadNextFeedPage}>
+                      Load more
+                    </Button>
+                  ) : null}
+                  <div ref={feedLoadMoreSentinelRef} aria-hidden="true" className="h-px w-full" />
+                </div>
               </div>
             ) : null}
           </div>

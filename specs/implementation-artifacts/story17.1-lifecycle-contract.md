@@ -39,6 +39,7 @@ so that every lifecycle action enters one deterministic, auditable execution mod
 - This story is the contract anchor for Epic 17. It is not a UI story.
 - The shared queue boundary is already normalized around operation records, not Store or Git payloads.
 - Legacy deploy-era compatibility remains out of scope.
+- Companion planning artifact: `story17.3-instance-state-matrix.md` freezes the product-facing AppInstance state vocabulary and projection precedence that later execution and management stories must consume.
 
 ### MVP Control Semantics
 
@@ -59,6 +60,7 @@ so that every lifecycle action enters one deterministic, auditable execution mod
 - [Source: specs/adr/app-lifecycle-pocketbase-collections.md#Decisions]
 - [Source: specs/adr/app-lifecycle-pipeline-execution-engine.md]
 - [Source: specs/adr/app-lifecycle-install-resolution.md]
+- [Source: specs/implementation-artifacts/story17.3-instance-state-matrix.md]
 
 ## Dev Agent Record
 

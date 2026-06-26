@@ -192,10 +192,10 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 		case "proxy-policies":
 			items, _ := value["items"].([]any)
 			definitions, _ := value["definitions"].([]any)
-			foundProxyConsumers = items != nil && len(items) == 3 && len(definitions) == 3
+			foundProxyConsumers = len(items) == 3 && len(definitions) == 3
 		case "proxy-remote-shell":
 			items, _ := value["items"].([]any)
-			foundProxyRemoteShell = items != nil && len(items) == 0
+			foundProxyRemoteShell = len(items) == 0
 		case "deploy-runtime":
 			foundDeployRuntime = value != nil && int(value["imagePullTimeoutSeconds"].(float64)) == 180 && int(value["composeUpTimeoutSeconds"].(float64)) == 600 && int(value["healthCheckTimeoutSeconds"].(float64)) == 120 && int(value["runtimePullIdleHeartbeatSeconds"].(float64)) == 20
 		case "deploy-git-defaults":

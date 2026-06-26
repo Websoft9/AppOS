@@ -3,6 +3,8 @@ package egress
 import (
 	"context"
 	"net"
+	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -111,6 +113,44 @@ func TestNewHTTPClientPlanFallsBackDirectWithWarningWhenSelfSource(t *testing.T)
 	}
 	if !strings.Contains(plan.Decision.Warnings[0].Message, "http_client") {
 		t.Fatalf("expected http_client warning, got %q", plan.Decision.Warnings[0].Message)
+	}
+}
+
+func TestNewFetchHTTPClientPlanRejectsLoopbackRequest(t *testing.T) {
+	plan, err := NewFetchHTTPClientPlan(nil, "download.general", 5*time.Second, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, err := http.NewRequest(http.MethodGet, "http://127.0.0.1:65535", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = plan.Client.Do(req)
+	if err == nil {
+		t.Fatal("expected loopback request to be rejected")
+	}
+	if !strings.Contains(err.Error(), "private/loopback") {
+		t.Fatalf("expected loopback rejection, got %q", err.Error())
+	}
+	if plan.Decision.ConsumerKey != "" {
+		t.Fatalf("expected empty decision for nil app, got %#v", plan.Decision)
+	}
+}
+
+func TestNewFetchHTTPClientPlanRejectsLoopbackRedirect(t *testing.T) {
+	plan, err := NewFetchHTTPClientPlan(nil, "download.general", 5*time.Second, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, err := url.Parse("http://127.0.0.1/redirect")
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := &http.Request{URL: target}
+	if err := plan.Client.CheckRedirect(req, nil); err == nil {
+		t.Fatal("expected loopback redirect to be rejected")
+	} else if !strings.Contains(err.Error(), "private/loopback") {
+		t.Fatalf("expected loopback redirect rejection, got %q", err.Error())
 	}
 }
 

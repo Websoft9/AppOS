@@ -42,6 +42,8 @@ This document reuses Epic 6 for the infrastructure-module planning surface that 
 | [6.1](story6.1-files-service.md) | Files Service Foundation | ✅ Done |
 | [6.2](story6.2-system-media-service.md) | System Media Service | Planned |
 | [6.3](story6.3-network-proxy.md) | Unified Network Proxy Runtime | Planned |
+| [6.4](story6.4-egress-domain-consolidation.md) | Egress Domain Consolidation | ✅ Done |
+| [6.5](story6.5-fetch-store-runtime.md) | Fetch-Store Download Runtime | Planned |
 
 ## Notes
 
@@ -50,3 +52,5 @@ This document reuses Epic 6 for the infrastructure-module planning surface that 
 - The first story intentionally formalizes code that already exists in `backend/infra/fileutil`, but positions it as the first layer of a broader shared file service.
 - Story 6.2 must reuse Story 6.1 as the path-safety and file-operation substrate. Media metadata, validation, public/private access, and lifecycle rules must remain in the system-media layer.
 - `/appos/data` is already the persisted runtime data root in deployment. Media storage should live under a stable subpath such as `/appos/data/media` rather than introducing an unpersisted side path.
+- Story 6.4 is the canonical consolidation point for `egress` as the parent outbound-network domain; legacy `safefetch` and empty `downloader` shims should not be reintroduced.
+- Story 6.5 should keep network-governance concerns in `infra/egress`, put large-file fetch-for-store execution in an `infra/egress/fetchstore` subpackage, and reuse `infra/filesvc` only as the local persistence substrate.

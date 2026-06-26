@@ -2036,4 +2036,103 @@ describe('SettingsPage shared settings paths', () => {
       expect(screen.getByText('No editor available for this entry.')).toBeInTheDocument()
     })
   })
+
+  it('toggles a proxy consumer off and saves the updated enrollment list', async () => {
+    const defaultImpl = sendMock.getMockImplementation()
+    sendMock.mockImplementation((path: string, options?: { method?: string; body?: any }) => {
+      if (path === SETTINGS_ENTRIES_API_PATH) {
+        return defaultImpl
+          ? defaultImpl(path, options).then((res: { items: any[] }) => {
+              const items = Array.isArray(res?.items) ? [...res.items] : []
+              const upsertEntry = (id: string, value: Record<string, unknown>) => {
+                const idx = items.findIndex(
+                  i => typeof i === 'object' && i !== null && (i as { id?: string }).id === id
+                )
+                const next = { id, value }
+                if (idx >= 0) { items[idx] = next; return }
+                items.push(next)
+              }
+              upsertEntry('proxy-network', {
+                source: 'external',
+                enabled: true,
+                socks5ConnectorId: 'proxy-1',
+                httpConnectorId: '',
+                httpsConnectorId: '',
+              })
+              upsertEntry('proxy-policies', {
+                items: [
+                  { consumerKey: 'outbound_http.global', mode: 'always' },
+                  { consumerKey: 'git.global', mode: 'always' },
+                  { consumerKey: 'remote_shell.global', mode: 'always' },
+                ],
+                definitions: [
+                  { key: 'outbound_http.global', title: 'Outbound HTTP', description: 'AppOS web APIs', enrollable: true, allowedModes: ['disabled', 'always'], defaultMode: 'always' },
+                  { key: 'git.global', title: 'Git', description: 'Git clone and fetch', enrollable: true, allowedModes: ['disabled', 'always'], defaultMode: 'always' },
+                  { key: 'remote_shell.global', title: 'Remote Shell', description: 'Remote shell commands', enrollable: true, allowedModes: ['disabled', 'always'], defaultMode: 'always' },
+                ],
+              })
+              upsertEntry('proxy-remote-shell', { items: [] })
+              return { ...(res as Record<string, unknown>), items }
+            })
+          : Promise.resolve({ items: [] })
+      }
+      if (path === '/api/connectors?kind=proxy') {
+        return Promise.resolve([{ id: 'proxy-1', name: 'Office Proxy' }])
+      }
+      if (path === settingsEntryPath('proxy-policies') && options?.method === 'PATCH') {
+        return Promise.resolve({ items: options.body?.items ?? [] })
+      }
+      return defaultImpl ? defaultImpl(path, options) : Promise.resolve({})
+    })
+
+    listServersMock.mockResolvedValue([])
+
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      expect(
+        within(nav as HTMLElement).getByRole('button', { name: 'Proxy' })
+      ).toBeInTheDocument()
+    })
+
+    const nav = container.querySelector('nav') as HTMLElement | null
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+
+    fireEvent.click(within(nav).getByRole('button', { name: 'Proxy' }))
+
+    // Find the "Outbound HTTP" consumer toggle
+    await waitFor(() => {
+      expect(screen.getByText('Outbound HTTP')).toBeInTheDocument()
+    })
+
+    const outboundToggle = screen.getByRole('switch', { name: 'Toggle Outbound HTTP proxy usage' })
+    expect(outboundToggle).toBeInTheDocument()
+
+    // Disable the consumer
+    fireEvent.click(outboundToggle)
+
+    // Click the Save button in the consumers section
+    const saveButtons = screen.getAllByRole('button', { name: 'Save' })
+    fireEvent.click(saveButtons[saveButtons.length - 1])
+
+    await waitFor(() => {
+      const patchCall = sendMock.mock.calls.find(
+        (callArgs: unknown[]) => {
+          const callPath = (callArgs as [string, { method?: string | undefined; body?: Record<string, unknown> | undefined }])[0]
+          const callOpts = (callArgs as [string, { method?: string | undefined; body?: Record<string, unknown> | undefined }])[1]
+          return callPath === settingsEntryPath('proxy-policies') && callOpts?.method === 'PATCH'
+        }
+      )
+      expect(patchCall).toBeTruthy()
+      const callOpts = (patchCall as unknown as [string, { body: Record<string, unknown> }])[1]
+      const items = (callOpts.body.items ?? []) as Array<{ consumerKey: string; mode: string }>
+      const outboundItem = items.find(item => item.consumerKey === 'outbound_http.global')
+      expect(outboundItem).toBeTruthy()
+      expect(outboundItem!.mode).toBe('disabled')
+    })
+  })
 })

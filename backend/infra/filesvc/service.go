@@ -89,6 +89,10 @@ func (s *LocalService) AllowedRoots() []string {
 	return append([]string(nil), s.allowedRoots...)
 }
 
+func (s *LocalService) ReadOnly() bool {
+	return s.readOnly
+}
+
 func (s *LocalService) Resolve(path string) (string, error) {
 	abs, err := fileutil.ResolveSafePath(s.basePath, strings.TrimSpace(path), s.allowedRoots)
 	if errors.Is(err, fileutil.ErrForbiddenPath) {

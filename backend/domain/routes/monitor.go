@@ -16,6 +16,7 @@ import (
 	monitormetrics "github.com/websoft9/appos/backend/domain/monitor/metrics"
 	monitorstatus "github.com/websoft9/appos/backend/domain/monitor/status"
 	"github.com/websoft9/appos/backend/domain/runtimecfg"
+	"github.com/websoft9/appos/backend/infra/egress"
 )
 
 const maxMonitorWriteBodyBytes int64 = 100 << 20
@@ -25,12 +26,10 @@ var errMonitorWritePayloadTooLarge = errors.New("monitor write payload too large
 
 // monitorWriteHTTPClient is reused across all monitor write requests to enable
 // TCP connection pooling to the local time-series database.
-var monitorWriteHTTPClient = &http.Client{
-	Timeout: 30 * time.Second,
-	Transport: &http.Transport{
-		Proxy: nil,
-	},
-}
+var monitorWriteHTTPClient = func() *http.Client {
+	client := egress.NewDirectHTTPClient(30*time.Second, false)
+	return &client
+}()
 
 func registerMonitorRoutes(se *core.ServeEvent) {
 	se.Router.POST("/api/monitor/write", handleMonitorWrite)

@@ -18,6 +18,7 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
+	"github.com/websoft9/appos/backend/infra/egress"
 )
 
 var (
@@ -222,7 +223,7 @@ func ensureSystemTraefikDashboardReady(ctx context.Context) error {
 		return fmt.Errorf("start traefik service: %w", err)
 	}
 
-	client := &http.Client{Timeout: 500 * time.Millisecond}
+	client := egress.NewDirectHTTPClient(500*time.Millisecond, false)
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		if time.Now().After(deadline) {

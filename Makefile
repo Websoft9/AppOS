@@ -264,10 +264,15 @@ run:
 	@docker exec $(CONTAINER) sh -lc 'mkdir -p /etc/traefik/dynamic'
 	@docker cp build/traefik.yml $(CONTAINER):/etc/traefik/traefik.yml
 	@docker cp build/traefik-dashboard.yml $(CONTAINER):/etc/traefik/dynamic/dashboard.yml
-	@docker exec $(CONTAINER) sh -lc 'if [ -e /etc/service/appos ] && command -v sv >/dev/null 2>&1; then sv restart /etc/service/appos; elif command -v supervisorctl >/dev/null 2>&1 && [ -f /etc/supervisor/supervisord.conf ]; then supervisorctl -c /etc/supervisor/supervisord.conf restart appos; else exit 42; fi' >/dev/null || { status=$$?; if [ "$$status" = "42" ]; then docker restart $(CONTAINER) >/dev/null; else exit $$status; fi; }
-	@docker exec $(CONTAINER) sh -lc 'if [ -e /etc/service/traefik ] && command -v sv >/dev/null 2>&1; then sv up /etc/service/traefik >/dev/null 2>&1 || true; sv restart /etc/service/traefik >/dev/null; fi'
+	@docker exec $(CONTAINER) sh -lc 'if [ -e /etc/service/appos ] && command -v sv >/dev/null 2>&1; then sv up /etc/service/appos >/dev/null 2>&1 || true; sv restart /etc/service/appos >/dev/null 2>&1 || sv start /etc/service/appos >/dev/null 2>&1; elif command -v supervisorctl >/dev/null 2>&1 && [ -f /etc/supervisor/supervisord.conf ]; then supervisorctl -c /etc/supervisor/supervisord.conf restart appos >/dev/null 2>&1; else exit 42; fi' || { status=$$?; if [ "$$status" = "42" ]; then docker restart $(CONTAINER) >/dev/null; else exit $$status; fi; }
+	@docker exec $(CONTAINER) sh -lc 'if [ -e /etc/service/traefik ] && command -v sv >/dev/null 2>&1; then sv up /etc/service/traefik >/dev/null 2>&1 || true; sv restart /etc/service/traefik >/dev/null 2>&1 || sv start /etc/service/traefik >/dev/null 2>&1; fi'
 	@echo "✓ Hot reload complete"
-	@echo "  → http://127.0.0.1:$(PORT_EFFECTIVE)/"
+	@HOST_PORT=$$(docker port $(CONTAINER) 9000/tcp 2>/dev/null | head -n 1 | sed 's/.*://'); \
+	if [ -n "$$HOST_PORT" ]; then \
+		echo "  → http://127.0.0.1:$$HOST_PORT/"; \
+	else \
+		echo "  → http://127.0.0.1/"; \
+	fi
 
 tl:
 ifeq ($(ARG2),validate)

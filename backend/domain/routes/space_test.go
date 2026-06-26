@@ -1,7 +1,9 @@
 package routes
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,6 +12,8 @@ import (
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/infra/egress/fetchstore"
+	"github.com/websoft9/appos/backend/infra/filesvc"
 	"github.com/websoft9/appos/backend/domain/space"
 )
 
@@ -142,5 +146,76 @@ func TestFileShareResolveRejectsExpiredShare(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "share link has expired") {
 		t.Fatalf("expected expired share message, got %s", rec.Body.String())
+	}
+}
+
+func TestSpaceFetchUsesFetchStoreAndPersistsFile(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	original := spaceFetchStoreDownload
+	spaceFetchStoreDownload = func(_ context.Context, _ core.App, service *filesvc.LocalService, req fetchstore.Request) (fetchstore.Result, error) {
+		if req.RetryCount != 2 {
+			return fetchstore.Result{}, fmt.Errorf("unexpected retry count %d", req.RetryCount)
+		}
+		if req.RetryBackoff <= 0 {
+			return fetchstore.Result{}, fmt.Errorf("expected positive retry backoff")
+		}
+		entry, err := service.WriteFile(req.DestinationPath, []byte("hello from fetchstore"), true)
+		if err != nil {
+			return fetchstore.Result{}, err
+		}
+		return fetchstore.Result{
+			Path:         entry.Path,
+			BytesWritten: int64(len("hello from fetchstore")),
+			ContentType:  "text/plain",
+			SourceURL:    req.URL,
+		}, nil
+	}
+	defer func() { spaceFetchStoreDownload = original }()
+
+	rec := te.doSpace(t, http.MethodPost, "/api/space/fetch", `{"url":"https://example.com/demo.txt","name":"demo.txt"}`, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for space fetch, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("expected JSON response, got error: %v", err)
+	}
+	name, _ := payload["name"].(string)
+	mimeType, _ := payload["mime_type"].(string)
+	if name != "demo.txt" || mimeType != "text/plain" {
+		t.Fatalf("unexpected payload: %#v", payload)
+	}
+	fileID, _ := payload["id"].(string)
+	stored, err := te.app.FindRecordById(space.Collection, fileID)
+	if err != nil {
+		t.Fatalf("expected stored file record: %v", err)
+	}
+	if stored.GetString("content") == "" {
+		t.Fatalf("expected saved pocketbase file content, got empty content field")
+	}
+	if stored.GetInt("size") != len("hello from fetchstore") {
+		t.Fatalf("unexpected stored size: %d", stored.GetInt("size"))
+	}
+}
+
+func TestSpaceFetchMapsFetchStoreSizeErrors(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	original := spaceFetchStoreDownload
+	spaceFetchStoreDownload = func(_ context.Context, _ core.App, _ *filesvc.LocalService, _ fetchstore.Request) (fetchstore.Result, error) {
+		return fetchstore.Result{}, fmt.Errorf("remote content exceeds 1048576 bytes")
+	}
+	defer func() { spaceFetchStoreDownload = original }()
+
+	rec := te.doSpace(t, http.MethodPost, "/api/space/fetch", `{"url":"https://example.com/demo.txt","name":"demo.txt"}`, true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for oversized fetch, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(strings.ToLower(rec.Body.String()), "remote file exceeds size limit") {
+		t.Fatalf("expected size limit message, got %s", rec.Body.String())
 	}
 }

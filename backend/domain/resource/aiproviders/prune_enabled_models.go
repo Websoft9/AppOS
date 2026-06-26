@@ -8,6 +8,7 @@ import (
 )
 
 type APIKeyResolver func(context.Context, *AIProvider) (string, error)
+type ModelsFetcher func(context.Context, *AIProvider, string) (FetchModelsResponse, error)
 
 type PruneUnavailableEnabledModelsResult struct {
 	ProvidersScanned int
@@ -19,6 +20,7 @@ func PruneUnavailableEnabledModels(
 	ctx context.Context,
 	repo Repository,
 	resolveAPIKey APIKeyResolver,
+	fetchModels ModelsFetcher,
 ) (PruneUnavailableEnabledModelsResult, error) {
 	var result PruneUnavailableEnabledModelsResult
 	items, err := List(repo)
@@ -39,8 +41,13 @@ func PruneUnavailableEnabledModels(
 			pruneErrors = append(pruneErrors, fmt.Errorf("provider %s resolve api key: %w", item.ID(), resolveErr))
 			continue
 		}
+		if fetchModels == nil {
+			fetchModels = func(ctx context.Context, item *AIProvider, apiKey string) (FetchModelsResponse, error) {
+				return FetchModels(ctx, ActiveEndpoint(item), apiKey, strings.TrimSpace(item.TemplateID()), ProviderDefaultProtocol(item), nil)
+			}
+		}
 
-		fetched, fetchErr := FetchModels(ctx, ActiveEndpoint(item), apiKey, strings.TrimSpace(item.TemplateID()), ProviderDefaultProtocol(item))
+		fetched, fetchErr := fetchModels(ctx, item, apiKey)
 		if fetchErr != nil {
 			pruneErrors = append(pruneErrors, fmt.Errorf("provider %s fetch models: %w", item.ID(), fetchErr))
 			continue

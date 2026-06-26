@@ -60,6 +60,7 @@ func TestPruneUnavailableEnabledModelsRemovesInvalidSelections(t *testing.T) {
 		context.Background(),
 		repo,
 		func(context.Context, *AIProvider) (string, error) { return "test-key", nil },
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("prune unavailable enabled models: %v", err)
@@ -107,6 +108,7 @@ func TestPruneUnavailableEnabledModelsClearsConfigWhenInventoryIsEmpty(t *testin
 		context.Background(),
 		repo,
 		func(context.Context, *AIProvider) (string, error) { return "test-key", nil },
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("prune unavailable enabled models: %v", err)

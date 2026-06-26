@@ -21,6 +21,7 @@ import (
 	"github.com/websoft9/appos/backend/domain/lifecycle/projection"
 	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
 	"github.com/websoft9/appos/backend/domain/worker"
+	"github.com/websoft9/appos/backend/infra/egress"
 	"gopkg.in/yaml.v3"
 )
 
@@ -699,7 +700,7 @@ func handleOperationInstallGitCompose(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 	}
 
-	compose, err := fetchRemoteCompose(rawURL, req.AuthHeaderName, req.AuthHeaderValue)
+	compose, err := fetchRemoteCompose(e.App, rawURL, req.AuthHeaderName, req.AuthHeaderValue)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 	}
@@ -780,7 +781,7 @@ func handleOperationInstallGitComposeCheck(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 	}
 
-	compose, err := fetchRemoteCompose(rawURL, req.AuthHeaderName, req.AuthHeaderValue)
+	compose, err := fetchRemoteCompose(e.App, rawURL, req.AuthHeaderName, req.AuthHeaderValue)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 	}
@@ -1773,7 +1774,11 @@ func resolveGitComposeRawURL(req deploy.GitComposeRequest) (string, error) {
 	return fmt.Sprintf("%s/%s/raw/branch/%s/%s", base, ownerRepo, ref, composePath), nil
 }
 
-func fetchRemoteCompose(rawURL string, authHeaderName string, authHeaderValue string) (string, error) {
+func fetchRemoteCompose(app core.App, rawURL string, authHeaderName string, authHeaderValue string) (string, error) {
+	client, err := egress.NewFetchHTTPClient(app, "http.general", 20*time.Second, false)
+	if err != nil {
+		return "", fmt.Errorf("failed to prepare compose download: %w", err)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
@@ -1783,7 +1788,7 @@ func fetchRemoteCompose(rawURL string, authHeaderName string, authHeaderValue st
 	if strings.TrimSpace(authHeaderName) != "" && strings.TrimSpace(authHeaderValue) != "" {
 		req.Header.Set(authHeaderName, authHeaderValue)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to download compose file")
 	}

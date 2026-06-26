@@ -109,6 +109,8 @@ Implement first install end-to-end on the shared lifecycle execution core with v
 
 Implement upgrade, redeploy, reconfigure, recover, and rollback on the shared execution core using release baselines and deterministic failure handling.
 
+Companion planning artifact: `story17.3-instance-state-matrix.md` freezes the product-facing AppInstance state vocabulary and projection rules that change/recovery work must reuse rather than redefining per action.
+
 ### Story 17.4 Input Adapters (MVP Scope)
 
 Add adapter entry slices that normalize into the shared execution contract without redefining runtime behavior.
@@ -138,6 +140,7 @@ Extract platform-owned deploy guardrails and runtime defaults into workspace set
 | 17.1 Lifecycle Contract and Scheduler Core | review |
 | 17.2 First Install Closed Loop (MVP) | review |
 | 17.3 Change and Recovery Operations | backlog |
+| 17.3 Companion: AppInstance State Matrix and Projection Contract | proposed |
 | 17.4a Store Compose Prefill | review |
 | 17.4b Git Compose Adapter | review |
 | 17.4e Install Input Resolution | in-progress |
@@ -149,6 +152,8 @@ Extract platform-owned deploy guardrails and runtime defaults into workspace set
 
 - `story17.1-lifecycle-contract.md`
 - `story17.2-first-install.md`
+- `story17.3-instance-state-matrix.md`
+- `implementation-note-epic17-appinstance-projection-convergence.md`
 - `story17.4a-store-prefill.md`
 - `story17.4b-git-compose-adapter.md`
 - `story17.4e-install-input-resolution.md`
@@ -161,6 +166,7 @@ Extract platform-owned deploy guardrails and runtime defaults into workspace set
 1. Finish backend-owned install input convergence so adapter-specific install flows resolve through one explicit normalizer and previewable ingress contract.
 2. Continue refining the create-deployment surface only after the install resolver contract is stabilized.
 3. Move change/recovery operations onto the shared core.
-4. Finish Installed-side convergence so lifecycle action entry points stop bypassing Epic 17.
-5. Expand compensation and manual-intervention behavior beyond the first install slice.
-6. Extract platform-owned deploy settings so preflight and runtime policy no longer depend on scattered hardcoded defaults.
+4. Freeze AppInstance projection semantics so change, recovery, runtime, and management surfaces converge on one state contract.
+5. Finish Installed-side convergence so lifecycle action entry points stop bypassing Epic 17.
+6. Expand compensation and manual-intervention behavior beyond the first install slice.
+7. Extract platform-owned deploy settings so preflight and runtime policy no longer depend on scattered hardcoded defaults.
