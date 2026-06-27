@@ -44,6 +44,30 @@ vi.mock('@/lib/connect-api', () => ({
   listServers: (...args: unknown[]) => listServersMock(...args),
 }))
 
+function isSettingsEntriesPath(path: string) {
+  return path === SETTINGS_ENTRIES_API_PATH || path.startsWith(`${SETTINGS_ENTRIES_API_PATH}?`)
+}
+
+function filterSettingsEntriesForPath<T extends { id: string }>(path: string, items: T[]): T[] {
+  if (!isSettingsEntriesPath(path)) {
+    return items
+  }
+  const queryIndex = path.indexOf('?')
+  if (queryIndex < 0) {
+    return items
+  }
+  const params = new URLSearchParams(path.slice(queryIndex + 1))
+  const idsParam = params.get('ids')
+  if (!idsParam) {
+    return items
+  }
+  const allowed = new Set(idsParam.split(',').map(value => value.trim()).filter(Boolean))
+  if (allowed.size === 0) {
+    return items
+  }
+  return items.filter(item => allowed.has(item.id))
+}
+
 describe('SettingsPage shared settings paths', () => {
   beforeEach(() => {
     sendMock.mockReset()
@@ -410,9 +434,9 @@ describe('SettingsPage shared settings paths', () => {
           actions: [],
         })
       }
-      if (path === SETTINGS_ENTRIES_API_PATH) {
+      if (isSettingsEntriesPath(path)) {
         return Promise.resolve({
-          items: [
+          items: filterSettingsEntriesForPath(path, [
             { id: 'basic', value: { appName: 'AppOS', appURL: 'https://appos.test' } },
             { id: 'smtp', value: {} },
             {
@@ -507,7 +531,7 @@ describe('SettingsPage shared settings paths', () => {
             },
             { id: 'docker-mirror', value: { mirrors: [], allowInsecureRegistries: false } },
             { id: 'docker-registries', value: {} },
-          ],
+          ]),
         })
       }
       if (path === '/api/connectors') {
@@ -602,6 +626,7 @@ describe('SettingsPage shared settings paths', () => {
         return Promise.resolve([
           {
             id: 'provider-1',
+            created: '2026-06-01T00:00:00Z',
             name: 'Workspace OpenAI',
             kind: 'llm',
             is_default: true,
@@ -611,6 +636,34 @@ describe('SettingsPage shared settings paths', () => {
             credential: 'secret-1',
             config: { defaultModel: 'gpt-4.1-mini' },
             description: '',
+          },
+          {
+            id: 'provider-2',
+            created: '2026-06-02T00:00:00Z',
+            name: 'Backup OpenAI',
+            kind: 'llm',
+            is_default: false,
+            template_id: 'openai',
+            endpoint: 'https://api.openai.com/v1',
+            auth_scheme: 'api_key',
+            credential: 'secret-2',
+            config: { defaultModel: 'gpt-4.1-mini' },
+            description: '',
+          },
+        ])
+      }
+      if (path === '/api/connectors?kind=smtp') {
+        return Promise.resolve([
+          {
+            id: 'smtp-1',
+            created: '2026-06-01T00:00:00Z',
+            name: 'Primary SMTP',
+            kind: 'smtp',
+            template_id: 'generic-smtp',
+            endpoint: 'smtp://smtp.example.com:587',
+            auth_scheme: 'basic',
+            credential: 'secret-1',
+            config: { username: 'mailer' },
           },
         ])
       }
@@ -633,8 +686,34 @@ describe('SettingsPage shared settings paths', () => {
     render(<SettingsPage />)
 
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith(SETTINGS_SCHEMA_API_PATH, { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith(SETTINGS_ENTRIES_API_PATH, { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith(
+        SETTINGS_SCHEMA_API_PATH,
+        expect.objectContaining({ method: 'GET' })
+      )
+      expect(sendMock).toHaveBeenCalledWith(
+        expect.stringMatching(/^\/api\/settings\/entries(?:\?|$)/),
+        expect.objectContaining({ method: 'GET' })
+      )
+    })
+  })
+
+  it('loads the initial settings section only once without PocketBase auto-cancel', async () => {
+    render(<SettingsPage />)
+
+    await waitFor(() => {
+      const initialSectionCalls = sendMock.mock.calls.filter(
+        ([path]) => path === '/api/settings/entries?ids=basic'
+      )
+      expect(initialSectionCalls).toHaveLength(1)
+    })
+
+    expect(sendMock).toHaveBeenCalledWith(SETTINGS_SCHEMA_API_PATH, {
+      method: 'GET',
+      requestKey: null,
+    })
+    expect(sendMock).toHaveBeenCalledWith('/api/settings/entries?ids=basic', {
+      method: 'GET',
+      requestKey: null,
     })
   })
 
@@ -647,7 +726,10 @@ describe('SettingsPage shared settings paths', () => {
       expect(nav).toBeTruthy()
       const navQueries = within(nav as HTMLElement)
       expect(navQueries.getByText('Tunnel')).toBeInTheDocument()
-      expect(sendMock).toHaveBeenCalledWith(SETTINGS_ENTRIES_API_PATH, { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith(
+        expect.stringMatching(/^\/api\/settings\/entries(?:\?|$)/),
+        expect.objectContaining({ method: 'GET' })
+      )
     })
 
     if (!nav) {
@@ -675,7 +757,10 @@ describe('SettingsPage shared settings paths', () => {
       const navQueries = within(nav as HTMLElement)
       expect(navQueries.getByText('Deploy')).toBeInTheDocument()
       expect(navQueries.queryByText('Deploy Preflight')).not.toBeInTheDocument()
-      expect(sendMock).toHaveBeenCalledWith(SETTINGS_ENTRIES_API_PATH, { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith(
+        expect.stringMatching(/^\/api\/settings\/entries(?:\?|$)/),
+        expect.objectContaining({ method: 'GET' })
+      )
     })
 
     const nav = container.querySelector('nav') as HTMLElement | null
@@ -720,9 +805,9 @@ describe('SettingsPage shared settings paths', () => {
       target: { value: '1.5' },
     })
     const preflightInput = screen.getByLabelText('Minimum Free Disk (GiB)')
-    const preflightCard = preflightInput.closest('[data-slot="card"]') as HTMLElement | null
+    const preflightCard = preflightInput.closest('.rounded-lg.border') as HTMLElement | null
     if (!preflightCard) {
-      throw new Error('expected deploy preflight card to be rendered')
+      throw new Error('expected deploy preflight section box to be rendered')
     }
     fireEvent.click(within(preflightCard).getByRole('button', { name: 'Save' }))
 
@@ -737,9 +822,9 @@ describe('SettingsPage shared settings paths', () => {
       target: { value: '240' },
     })
     const runtimeInput = screen.getByLabelText('Image Pull Timeout Seconds')
-    const runtimeCard = runtimeInput.closest('[data-slot="card"]') as HTMLElement | null
+    const runtimeCard = runtimeInput.closest('.rounded-lg.border') as HTMLElement | null
     if (!runtimeCard) {
-      throw new Error('expected deploy runtime card to be rendered')
+      throw new Error('expected deploy runtime section box to be rendered')
     }
     fireEvent.click(within(runtimeCard).getByRole('button', { name: 'Save' }))
 
@@ -754,9 +839,9 @@ describe('SettingsPage shared settings paths', () => {
       target: { value: 'release' },
     })
     const gitDefaultsInput = screen.getByLabelText('Default Ref')
-    const gitDefaultsCard = gitDefaultsInput.closest('[data-slot="card"]') as HTMLElement | null
+    const gitDefaultsCard = gitDefaultsInput.closest('.rounded-lg.border') as HTMLElement | null
     if (!gitDefaultsCard) {
-      throw new Error('expected deploy git defaults card to be rendered')
+      throw new Error('expected deploy git defaults section box to be rendered')
     }
     fireEvent.click(within(gitDefaultsCard).getByRole('button', { name: 'Save' }))
 
@@ -776,7 +861,10 @@ describe('SettingsPage shared settings paths', () => {
       expect(nav).toBeTruthy()
       const navQueries = within(nav as HTMLElement)
       expect(navQueries.getByText('IaC Files')).toBeInTheDocument()
-      expect(sendMock).toHaveBeenCalledWith(SETTINGS_ENTRIES_API_PATH, { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith(
+        expect.stringMatching(/^\/api\/settings\/entries(?:\?|$)/),
+        expect.objectContaining({ method: 'GET' })
+      )
     })
   })
 
@@ -868,9 +956,9 @@ describe('SettingsPage shared settings paths', () => {
       target: { value: '2' },
     })
     const schedulingInput = screen.getByLabelText('Reachability Interval Minutes')
-    const schedulingCard = schedulingInput.closest('[data-slot="card"]') as HTMLElement | null
+    const schedulingCard = schedulingInput.closest('.rounded-lg.border') as HTMLElement | null
     if (!schedulingCard) {
-      throw new Error('expected monitor scheduling card to be rendered')
+      throw new Error('expected monitor scheduling section box to be rendered')
     }
     fireEvent.click(within(schedulingCard).getByRole('button', { name: 'Save' }))
 
@@ -910,9 +998,9 @@ describe('SettingsPage shared settings paths', () => {
       target: { value: '600' },
     })
     const policyInput = screen.getByLabelText('Metrics Freshness Lookback Seconds')
-    const policyCard = policyInput.closest('[data-slot="card"]') as HTMLElement | null
+    const policyCard = policyInput.closest('.rounded-lg.border') as HTMLElement | null
     if (!policyCard) {
-      throw new Error('expected monitor policy card to be rendered')
+      throw new Error('expected monitor policy section box to be rendered')
     }
     fireEvent.click(within(policyCard).getByRole('button', { name: 'Save' }))
 
@@ -951,9 +1039,9 @@ describe('SettingsPage shared settings paths', () => {
     })
 
     const pollInput = screen.getByLabelText('Poll Interval (hours)')
-    const feedsCard = pollInput.closest('[data-slot="card"]') as HTMLElement | null
+    const feedsCard = pollInput.closest('.rounded-lg.border') as HTMLElement | null
     if (!feedsCard) {
-      throw new Error('expected feeds policy card to be rendered')
+      throw new Error('expected feeds policy section box to be rendered')
     }
     fireEvent.click(within(feedsCard).getByRole('button', { name: 'Save' }))
 
@@ -972,7 +1060,7 @@ describe('SettingsPage shared settings paths', () => {
     sendMock.mockImplementation((path: string, options?: { method?: string; body?: unknown }) => {
       if (
         path === SETTINGS_SCHEMA_API_PATH ||
-        path === SETTINGS_ENTRIES_API_PATH ||
+        isSettingsEntriesPath(path) ||
         path === '/api/connectors' ||
         path === '/api/connectors/templates'
       ) {
@@ -1056,10 +1144,10 @@ describe('SettingsPage shared settings paths', () => {
 
     const defaultGuestNameInput = screen.getByLabelText('Default Guest Name')
     const commentPolicyCard = defaultGuestNameInput.closest(
-      '[data-slot="card"]'
+      '.rounded-lg.border'
     ) as HTMLElement | null
     if (!commentPolicyCard) {
-      throw new Error('expected topic comment policy card to be rendered')
+      throw new Error('expected topic comment policy section box to be rendered')
     }
     fireEvent.click(within(commentPolicyCard).getByRole('button', { name: 'Save' }))
 
@@ -1103,9 +1191,9 @@ describe('SettingsPage shared settings paths', () => {
     })
 
     const shareInput = screen.getByLabelText('Share Default Minutes')
-    const shareCard = shareInput.closest('[data-slot="card"]') as HTMLElement | null
+    const shareCard = shareInput.closest('.rounded-lg.border') as HTMLElement | null
     if (!shareCard) {
-      throw new Error('expected topic share card to be rendered')
+      throw new Error('expected topic share section box to be rendered')
     }
     fireEvent.click(within(shareCard).getByRole('button', { name: 'Save' }))
 
@@ -1147,9 +1235,9 @@ describe('SettingsPage shared settings paths', () => {
     fireEvent.click(screen.getByLabelText('Text-only Imports'))
 
     const importInput = screen.getByLabelText('Max Description Import (KB)')
-    const importCard = importInput.closest('[data-slot="card"]') as HTMLElement | null
+    const importCard = importInput.closest('.rounded-lg.border') as HTMLElement | null
     if (!importCard) {
-      throw new Error('expected topic import policy card to be rendered')
+      throw new Error('expected topic import policy section box to be rendered')
     }
     fireEvent.click(within(importCard).getByRole('button', { name: 'Save' }))
 
@@ -1192,9 +1280,9 @@ describe('SettingsPage shared settings paths', () => {
     fireEvent.click(screen.getByLabelText('Enable Host Telemetry'))
 
     const platformInput = screen.getByLabelText('Platform Observer Interval Seconds')
-    const platformCard = platformInput.closest('[data-slot="card"]') as HTMLElement | null
+    const platformCard = platformInput.closest('.rounded-lg.border') as HTMLElement | null
     if (!platformCard) {
-      throw new Error('expected platform self-observation card to be rendered')
+      throw new Error('expected platform self-observation section box to be rendered')
     }
     fireEvent.click(within(platformCard).getByRole('button', { name: 'Save' }))
 
@@ -1239,9 +1327,9 @@ describe('SettingsPage shared settings paths', () => {
     })
 
     const collectorInput = screen.getByLabelText('Collection Interval Seconds')
-    const collectorCard = collectorInput.closest('[data-slot="card"]') as HTMLElement | null
+    const collectorCard = collectorInput.closest('.rounded-lg.border') as HTMLElement | null
     if (!collectorCard) {
-      throw new Error('expected managed collector policy card to be rendered')
+      throw new Error('expected managed collector policy section box to be rendered')
     }
     fireEvent.click(within(collectorCard).getByRole('button', { name: 'Save' }))
 
@@ -1280,14 +1368,14 @@ describe('SettingsPage shared settings paths', () => {
           actions: [],
         })
       }
-      if (path === SETTINGS_ENTRIES_API_PATH) {
+      if (isSettingsEntriesPath(path)) {
         return Promise.resolve({
-          items: [
+          items: filterSettingsEntriesForPath(path, [
             { id: 'basic', value: { appName: 'AppOS', appURL: 'https://appos.test' } },
             { id: 'logs', value: { maxDays: 7, minLevel: 5, logIP: false, logAuthId: false } },
             { id: 'secrets-policy', value: {} },
             { id: 'space-quota', value: {} },
-          ],
+          ]),
         })
       }
       if (path === '/api/connectors') {
@@ -1376,7 +1464,7 @@ describe('SettingsPage shared settings paths', () => {
     })
   })
 
-  it('renders AI settings with default model selection and in-page create action', async () => {
+  it('renders AI settings with provider-grouped account selection', async () => {
     const { container } = render(<SettingsPage />)
 
     await waitFor(() => {
@@ -1393,17 +1481,36 @@ describe('SettingsPage shared settings paths', () => {
     within(nav).getByRole('button', { name: 'AI' }).click()
 
     await waitFor(() => {
-      expect(screen.getByText('Preferred provider for endpoint')).toBeInTheDocument()
+      expect(screen.getByText('AI Provider')).toBeInTheDocument()
+      expect(screen.getByText('Provider Name')).toBeInTheDocument()
+      expect(screen.getAllByText('Default Account')).toHaveLength(2)
+      expect(screen.getByText('OpenAI')).toBeInTheDocument()
       expect(screen.getByText('https://api.openai.com/v1')).toBeInTheDocument()
       expect(screen.getByRole('combobox')).toBeInTheDocument()
     })
 
+    expect(screen.getByRole('button', { name: 'Default Account help' })).toBeInTheDocument()
+
+    expect(screen.getByRole('link', { name: 'Open AI Providers' })).toHaveAttribute(
+      'href',
+      '/resources/ai-providers'
+    )
     expect(
-      screen.getByRole('option', { name: 'Workspace OpenAI / OpenAI / gpt-4.1-mini' })
+      screen.getByRole('option', { name: 'Workspace OpenAI · gpt-4.1-mini' })
     ).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: '+ Add a new model...' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('option', { name: 'Backup OpenAI · gpt-4.1-mini' })
+    ).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Save' })[0]).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Open AI Providers' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(
+        'AppOS uses the earliest created account by default until you choose a different account for this provider.'
+      )
+    ).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole('combobox'), {
+      target: { value: 'provider-2' },
+    })
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[0])
 
@@ -1414,20 +1521,52 @@ describe('SettingsPage shared settings paths', () => {
           items: [
             {
               endpoint: 'https://api.openai.com/v1',
-              provider_id: 'provider-1',
+              provider_id: 'provider-2',
             },
           ],
         },
       })
     })
+  })
 
-    fireEvent.change(screen.getByRole('combobox'), {
-      target: { value: '__add_model__' },
+  it('shows AI provider creation guidance when no provider accounts exist', async () => {
+    const defaultImpl = sendMock.getMockImplementation()
+    sendMock.mockImplementation((path: string, options?: { method?: string; body?: any }) => {
+      if (path === '/api/ai-providers') {
+        return Promise.resolve([])
+      }
+      return defaultImpl ? defaultImpl(path, options) : Promise.resolve({})
     })
+
+    const { container } = render(<SettingsPage />)
 
     await waitFor(() => {
-      expect(screen.getByRole('dialog')).toBeInTheDocument()
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      expect(within(nav as HTMLElement).getByRole('button', { name: 'AI' })).toBeInTheDocument()
     })
+
+    const nav = container.querySelector('nav') as HTMLElement | null
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+
+    within(nav).getByRole('button', { name: 'AI' }).click()
+
+    await waitFor(() => {
+      expect(screen.getByText('AI Provider')).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          'No AI Provider accounts are available yet. Create one in Resources so AppOS can choose a default provider account here.'
+        )
+      ).toBeInTheDocument()
+    })
+
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open AI Providers' })).toHaveAttribute(
+      'href',
+      '/resources/ai-providers'
+    )
   })
 
   it('shows proxy prerequisites when no external proxy resources exist', async () => {
@@ -1495,7 +1634,7 @@ describe('SettingsPage shared settings paths', () => {
   it('shows bypass-only remote controls and allows selecting a remote server override', async () => {
     const defaultImpl = sendMock.getMockImplementation()
     sendMock.mockImplementation(async (path: string, options?: { method?: string; body?: any }) => {
-      if (path === SETTINGS_ENTRIES_API_PATH) {
+      if (isSettingsEntriesPath(path)) {
         const response = defaultImpl ? await defaultImpl(path, options) : { items: [] }
         const items = Array.isArray((response as { items?: unknown[] }).items)
           ? [...((response as { items?: unknown[] }).items ?? [])]
@@ -1579,9 +1718,9 @@ describe('SettingsPage shared settings paths', () => {
   it('warns when a saved proxy resource was deleted and blocks save until a valid option is chosen or proxy is disabled', async () => {
     const defaultImpl = sendMock.getMockImplementation()
     sendMock.mockImplementation((path: string, options?: { method?: string; body?: any }) => {
-      if (path === SETTINGS_ENTRIES_API_PATH) {
+      if (isSettingsEntriesPath(path)) {
         return Promise.resolve({
-          items: [
+          items: filterSettingsEntriesForPath(path, [
             { id: 'basic', value: { appName: 'AppOS', appURL: 'https://appos.test' } },
             { id: 'smtp', value: {} },
             {
@@ -1670,7 +1809,7 @@ describe('SettingsPage shared settings paths', () => {
               },
             },
             {
-              id: 'proxy-consumers',
+              id: 'proxy-policies',
               value: { items: [], definitions: [] },
             },
             {
@@ -1679,7 +1818,7 @@ describe('SettingsPage shared settings paths', () => {
             },
             { id: 'docker-mirror', value: { mirrors: [], allowInsecureRegistries: false } },
             { id: 'docker-registries', value: {} },
-          ],
+          ]),
         })
       }
       if (path === '/api/connectors?kind=proxy') {
@@ -1764,7 +1903,7 @@ describe('SettingsPage shared settings paths', () => {
     })
   })
 
-  it('shows smtp connector reference and keeps Docker focused on mirrors only', async () => {
+  it('shows smtp connector details and keeps Docker focused on mirrors only', async () => {
     const { container } = render(<SettingsPage />)
 
     await waitFor(() => {
@@ -1788,13 +1927,15 @@ describe('SettingsPage shared settings paths', () => {
     within(nav).getByRole('button', { name: 'SMTP' }).click()
 
     await waitFor(() => {
-      expect(
-        screen.getByText(
-          /This section now references external services\. Create and edit SMTP services/i
-        )
-      ).toBeInTheDocument()
-      const links = screen.getAllByRole('link', { name: 'Open External Services' })
-      expect(links[0]).toHaveAttribute('href', '/resources/connectors')
+      expect(screen.getByText('Primary SMTP')).toBeInTheDocument()
+      expect(screen.getByText('smtp://smtp.example.com:587')).toBeInTheDocument()
+      expect(screen.getByText('mailer')).toBeInTheDocument()
+      expect(screen.queryByLabelText('SMTP Service')).not.toBeInTheDocument()
+      expect(screen.queryByText(/This section now references external services/i)).not.toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Add SMTP Service' })).toHaveAttribute(
+        'href',
+        '/resources/connectors'
+      )
     })
 
     nav = container.querySelector('nav') as HTMLElement | null
@@ -1806,7 +1947,14 @@ describe('SettingsPage shared settings paths', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Open Docker Mirrors help' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Allow Insecure Registries help' })).toBeInTheDocument()
     })
+
+    expect(
+      screen.queryByText(
+        'Allow AppOS to pull from insecure registries when a mirror or upstream endpoint requires it.'
+      )
+    ).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Open Docker Mirrors help' }))
 
@@ -1827,6 +1975,104 @@ describe('SettingsPage shared settings paths', () => {
       expect(screen.getByLabelText('Allow Insecure Registries')).toBeInTheDocument()
       expect(screen.queryByText('Docker Registries')).not.toBeInTheDocument()
       expect(screen.queryByText(/registry connectors/i)).not.toBeInTheDocument()
+    })
+  })
+
+  it('shows smtp creation guidance when no smtp services exist', async () => {
+    const defaultImpl = sendMock.getMockImplementation()
+    sendMock.mockImplementation((path: string, options?: { method?: string; body?: any }) => {
+      if (path === '/api/connectors?kind=smtp') {
+        return Promise.resolve([])
+      }
+      return defaultImpl ? defaultImpl(path, options) : Promise.resolve({})
+    })
+
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      expect(within(nav as HTMLElement).getByRole('button', { name: 'SMTP' })).toBeInTheDocument()
+    })
+
+    const nav = container.querySelector('nav') as HTMLElement | null
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+
+    within(nav).getByRole('button', { name: 'SMTP' }).click()
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'No SMTP services are available yet. Create one in Resources so AppOS can use it for outbound email delivery.'
+        )
+      ).toBeInTheDocument()
+    })
+
+    expect(screen.queryByLabelText('SMTP Service')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Add SMTP Service' })).toHaveAttribute(
+      'href',
+      '/resources/connectors'
+    )
+  })
+
+  it('shows smtp selector when multiple smtp services exist and defaults to earliest created', async () => {
+    const defaultImpl = sendMock.getMockImplementation()
+    sendMock.mockImplementation((path: string, options?: { method?: string; body?: any }) => {
+      if (path === '/api/connectors?kind=smtp') {
+        return Promise.resolve([
+          {
+            id: 'smtp-2',
+            created: '2026-06-02T00:00:00Z',
+            name: 'Backup SMTP',
+            kind: 'smtp',
+            template_id: 'generic-smtp',
+            endpoint: 'smtp://backup.example.com:587',
+            auth_scheme: 'basic',
+            config: { username: 'backup-user' },
+          },
+          {
+            id: 'smtp-1',
+            created: '2026-06-01T00:00:00Z',
+            name: 'Primary SMTP',
+            kind: 'smtp',
+            template_id: 'generic-smtp',
+            endpoint: 'smtp://smtp.example.com:587',
+            auth_scheme: 'basic',
+            config: { username: 'mailer' },
+          },
+        ])
+      }
+      return defaultImpl ? defaultImpl(path, options) : Promise.resolve({})
+    })
+
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      expect(within(nav as HTMLElement).getByRole('button', { name: 'SMTP' })).toBeInTheDocument()
+    })
+
+    const nav = container.querySelector('nav') as HTMLElement | null
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+
+    within(nav).getByRole('button', { name: 'SMTP' }).click()
+
+    const selector = await screen.findByLabelText('SMTP Service')
+    expect(selector).toHaveValue('smtp-1')
+    expect(screen.getByText('Primary SMTP')).toBeInTheDocument()
+    expect(screen.getByText('smtp://smtp.example.com:587')).toBeInTheDocument()
+
+    fireEvent.change(selector, { target: { value: 'smtp-2' } })
+
+    await waitFor(() => {
+      expect(screen.getByText('Backup SMTP')).toBeInTheDocument()
+      expect(screen.getByText('smtp://backup.example.com:587')).toBeInTheDocument()
+      expect(screen.getByText('backup-user')).toBeInTheDocument()
     })
   })
 
@@ -1871,9 +2117,9 @@ describe('SettingsPage shared settings paths', () => {
           actions: [],
         })
       }
-      if (path === SETTINGS_ENTRIES_API_PATH) {
+      if (isSettingsEntriesPath(path)) {
         return Promise.resolve({
-          items: [
+          items: filterSettingsEntriesForPath(path, [
             { id: 'basic', value: { appName: 'AppOS', appURL: 'https://appos.test' } },
             {
               id: 'docker-mirror',
@@ -1883,7 +2129,7 @@ describe('SettingsPage shared settings paths', () => {
               },
             },
             { id: 'docker-registries', value: {} },
-          ],
+          ]),
         })
       }
       return Promise.resolve({})
@@ -2004,12 +2250,12 @@ describe('SettingsPage shared settings paths', () => {
           actions: [],
         })
       }
-      if (path === SETTINGS_ENTRIES_API_PATH) {
+      if (isSettingsEntriesPath(path)) {
         return Promise.resolve({
-          items: [
+          items: filterSettingsEntriesForPath(path, [
             { id: 'basic', value: { appName: 'AppOS', appURL: 'https://appos.test' } },
             { id: 'custom-unmapped', value: {} },
-          ],
+          ]),
         })
       }
       return Promise.resolve({})
@@ -2040,7 +2286,7 @@ describe('SettingsPage shared settings paths', () => {
   it('toggles a proxy consumer off and saves the updated enrollment list', async () => {
     const defaultImpl = sendMock.getMockImplementation()
     sendMock.mockImplementation((path: string, options?: { method?: string; body?: any }) => {
-      if (path === SETTINGS_ENTRIES_API_PATH) {
+      if (isSettingsEntriesPath(path)) {
         return defaultImpl
           ? defaultImpl(path, options).then((res: { items: any[] }) => {
               const items = Array.isArray(res?.items) ? [...res.items] : []

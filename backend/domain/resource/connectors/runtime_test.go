@@ -151,16 +151,22 @@ func TestLoadSMTPUsesDefaultNamedConnector(t *testing.T) {
 	}
 }
 
-func TestLoadSMTPFailsForAmbiguousConnectors(t *testing.T) {
+func TestLoadSMTPFallsBackToEarliestCreatedConnector(t *testing.T) {
 	app := newRuntimeTestApp(t)
 	defer app.Cleanup()
 
 	createConnectorRecord(t, app, connectors.SaveInput{Name: "One", Kind: connectors.KindSMTP, IsDefault: false, TemplateID: "generic-smtp", Endpoint: "smtp://one.example.com:587"})
 	createConnectorRecord(t, app, connectors.SaveInput{Name: "Two", Kind: connectors.KindSMTP, IsDefault: false, TemplateID: "generic-smtp", Endpoint: "smtp://two.example.com:587"})
 
-	_, err := connectors.LoadSMTPWith(persistence.NewConnectorRepository(app), connectors.NewSecretResolver(app))
-	if err == nil {
-		t.Fatal("expected ambiguous smtp connectors to fail")
+	cfg, err := connectors.LoadSMTPWith(persistence.NewConnectorRepository(app), connectors.NewSecretResolver(app))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Name != "One" {
+		t.Fatalf("expected earliest-created connector to be selected, got %q", cfg.Name)
+	}
+	if cfg.Host != "one.example.com" || cfg.Port != 587 {
+		t.Fatalf("unexpected smtp endpoint after fallback: %+v", cfg)
 	}
 }
 

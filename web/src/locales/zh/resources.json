@@ -2,10 +2,9 @@
   "hub": {
     "title": "资源",
     "subtitle": "用于管理应用运行位置、运行依赖以及 AppOS 对外连接方式的共享平台资源。",
-    "sectionCount": "{{count}} 个分组区域",
-    "familyCount": "{{count}} 个标准资源族",
-    "resourceGroups": "资源分组",
+    "groupCount": "{{count}} 个分组",
     "addResource": "添加资源",
+    "refresh": "刷新",
     "openFamily": "打开资源族",
     "refreshingCount": "正在刷新数量",
     "itemsCount": "{{count}} 项",
@@ -87,6 +86,7 @@
     },
     "fields": {
       "connectionType": "连接类型",
+      "enableIt": "启用它",
       "enabled": "启用",
       "name": "名称",
       "host": "主机",
@@ -113,7 +113,11 @@
       "connection": "连接",
       "components": "组件",
       "monitor": "监控",
+      "addNow": "立即添加",
       "docker": "Docker",
+      "dialogDescription": "搜索你要创建的资源，然后直接进入对应列表页并自动打开创建弹窗。",
+      "resourceSearchPlaceholder": "搜索 mysql、webhook、OpenAI、server 等关键词...",
+      "noResourceMatches": "没有匹配的资源。",
       "runtime": "运行时",
       "ports": "端口",
       "crontab": "计划任务",
@@ -982,25 +986,28 @@
   "serviceInstances": {
     "page": {
       "title": "服务实例",
-      "description": "MySQL、PostgreSQL、Redis、Kafka、S3 存储和模型服务等基于资料模板的实例。",
+      "description": "应用启动所需的运行时依赖实例，包括数据库、缓存、消息、存储、流量网关、制品和模型服务。",
       "favoritesOnly": "仅收藏",
       "addInstance": "添加实例",
       "searchPlaceholder": "搜索任意实例",
       "cancel": "取消"
     },
     "selection": {
-      "title": "选择产品",
-      "description": "先选择一个产品，再填写连接详情。",
-      "searchPlaceholder": "搜索 MySQL、Redis、Aurora、PostgreSQL 等产品...",
-      "emptyMessage": "未找到匹配的产品。"
+      "title": "选择类别",
+      "description": "先选择类别，再在创建弹窗中选择 Profile。",
+      "searchPlaceholder": "搜索 Database、MQ、S3 兼容性存储等类别...",
+      "emptyMessage": "未找到匹配的类别。",
+      "profileCount": "{{count}} 个 Profile"
     },
     "fields": {
+      "category": "类别",
       "kind": "类型",
-      "template": "模板",
+      "template": "Profile",
       "selectedProduct": "已选产品",
       "selectedProductMeta": "已选产品元信息",
       "selectedProductDescription": "已选产品描述",
       "name": "名称",
+      "enableIt": "启用它",
       "username": "用户名",
       "connectionTimeout": "连接超时",
       "titleNameEditing": "标题名称编辑",
@@ -1029,10 +1036,11 @@
       "sslCertificateMysql": "仅当 MySQL 连接要求双向 SSL 时才需要选择证书。"
     },
     "categories": {
-      "database": "数据库",
-      "cache": "缓存",
-      "message-queue": "消息队列",
-      "storage": "存储",
+      "database": "Database",
+      "cache": "Cache",
+      "message-queue": "MQ",
+      "storage": "S3 兼容性存储",
+      "traffic-gateway": "Traffic Gateway",
       "artifact": "制品仓库",
       "ai": "AI 服务",
       "other": "其他"
@@ -1042,7 +1050,11 @@
       "postgres": "PostgreSQL",
       "redis": "Redis",
       "kafka": "Kafka",
+      "rabbitmq": "RabbitMQ",
+      "nats": "NATS",
+      "mqtt": "MQTT",
       "s3": "S3 存储",
+      "gateway": "Traffic Gateway",
       "registry": "镜像仓库",
       "ollama": "Ollama",
       "unknown": "未知"
@@ -1055,7 +1067,10 @@
       "database": "数据库",
       "region": "区域",
       "clusterIdentifier": "集群标识符",
-      "clusterId": "集群 ID"
+      "clusterId": "集群 ID",
+      "resourceGroup": "资源组",
+      "gatewayName": "网关名称",
+      "accountId": "账号 ID"
     },
     "columns": {
       "name": "名称",
@@ -1063,6 +1078,7 @@
       "kind": "类型",
       "profile": "资料",
       "host": "主机",
+      "reachability": "可达性",
       "monitor": "监控",
       "lastChecked": "最近检查",
       "created": "创建时间",
@@ -1090,11 +1106,25 @@
       "oneWay": "单向 SSL",
       "mutual": "双向 SSL"
     },
+    "credential": {
+      "enterPassword": "输入密码",
+      "showPassword": "显示密码",
+      "hidePassword": "隐藏密码",
+      "enterCredential": "输入凭据",
+      "showCredential": "显示凭据",
+      "hideCredential": "隐藏凭据",
+      "generateCredentialTitle": "生成凭据",
+      "generateCredentialDescription": "先选择凭据长度，再填入字段。",
+      "generateCredentialLengthLabel": "凭据长度",
+      "generateCredentialConfirmLabel": "填入凭据"
+    },
     "dialog": {
       "instanceTitle": "实例标题",
       "applyTitle": "应用标题",
       "newInstance": "新建服务实例",
       "editTitle": "编辑标题",
+      "createCategory": "创建 {{category}} 实例",
+      "updateCategory": "更新 {{category}} 实例",
       "create": "创建",
       "update": "更新",
       "suffix": "服务实例"

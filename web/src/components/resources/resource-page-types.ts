@@ -48,6 +48,7 @@ export interface FieldDef {
     | 'relation'
     | 'file-textarea'
   required?: boolean
+  maxLength?: number
   placeholder?: string
   rows?: number
   options?: SelectOption[]

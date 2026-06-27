@@ -84,6 +84,8 @@ import {
   type AppOperationResponse,
   type AppRelease,
   buildUnifiedDiff,
+  getServerConnectionReason,
+  hasBlockingServerConnectionIssue,
 } from '@/pages/apps/types'
 
 type ValidationState = {
@@ -286,6 +288,19 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const fetchLogs = useCallback(
     async (showSpinner = false) => {
       if (showSpinner) setLogsLoading(true)
+      const serverConnectionReason = getServerConnectionReason(app)
+      if (hasBlockingServerConnectionIssue(app)) {
+        setLogs({
+          id: appId,
+          name: app?.name || appId,
+          server_id: app?.server_id || 'local',
+          project_dir: app?.project_dir || '-',
+          runtime_status: 'error',
+          output: serverConnectionReason || 'Server runtime status is unavailable.',
+        })
+        if (showSpinner) setLogsLoading(false)
+        return
+      }
       try {
         const response = await pb.send<AppLogsResponse>(`/api/apps/${appId}/logs`, {
           method: 'GET',
@@ -310,6 +325,11 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const fetchConfig = useCallback(
     async (force = false) => {
       if (!force && originalConfig) return
+      const serverConnectionReason = getServerConnectionReason(app)
+      if (hasBlockingServerConnectionIssue(app)) {
+        setError(serverConnectionReason || 'Server runtime status is unavailable.')
+        return
+      }
       setConfigLoading(true)
       try {
         const response = await pb.send<AppConfigResponse>(`/api/apps/${appId}/config`, {
@@ -334,7 +354,7 @@ export function AppDetailPage({ appId }: { appId: string }) {
         setConfigLoading(false)
       }
     },
-    [appId, originalConfig]
+    [app, appId, originalConfig]
   )
 
   const fetchActionHistory = useCallback(async () => {
@@ -381,6 +401,15 @@ export function AppDetailPage({ appId }: { appId: string }) {
   }, [appId])
 
   const fetchRuntimeInventory = useCallback(async () => {
+    const serverConnectionReason = getServerConnectionReason(app)
+    if (hasBlockingServerConnectionIssue(app)) {
+      setRuntimeContainers([])
+      setRuntimeStats({})
+      setRuntimeInspectMap({})
+      setRuntimeLoaded(true)
+      setError(serverConnectionReason || 'Server runtime status is unavailable.')
+      return
+    }
     setRuntimeLoading(true)
     try {
       const [containersResponse, statsResponse] = await Promise.all([
@@ -403,7 +432,7 @@ export function AppDetailPage({ appId }: { appId: string }) {
     } finally {
       setRuntimeLoading(false)
     }
-  }, [app?.server_id])
+  }, [app])
 
   const fetchRuntimeInspect = useCallback(
     async (containerIds: string[]) => {
@@ -436,9 +465,14 @@ export function AppDetailPage({ appId }: { appId: string }) {
     setDataLoading(true)
     setDataError('')
 
+    const serverConnectionReason = getServerConnectionReason(app)
+    const blockServerRuntime = hasBlockingServerConnectionIssue(app)
+
     const [instanceResult, volumeResult, backupResult] = await Promise.allSettled([
       pb.send<unknown>('/api/instances', { method: 'GET' }),
-      pb.send<{ output?: string }>(dockerApiPath(app?.server_id, '/volumes'), { method: 'GET' }),
+      blockServerRuntime
+        ? Promise.resolve({ output: '' })
+        : pb.send<{ output?: string }>(dockerApiPath(app?.server_id, '/volumes'), { method: 'GET' }),
       pb.send<unknown>('/api/ext/backup/list', { method: 'GET' }),
     ])
 
@@ -473,7 +507,9 @@ export function AppDetailPage({ appId }: { appId: string }) {
       setInstanceResources([])
     }
 
-    if (volumeResult.status === 'fulfilled') {
+    if (blockServerRuntime) {
+      setDataVolumes([])
+    } else if (volumeResult.status === 'fulfilled') {
       setDataVolumes(parseDockerJsonLines<DockerVolume>(volumeResult.value.output || ''))
     } else {
       setDataVolumes([])
@@ -489,13 +525,15 @@ export function AppDetailPage({ appId }: { appId: string }) {
       })
     }
 
-    if (instanceResult.status === 'rejected' && volumeResult.status === 'rejected') {
+    if (blockServerRuntime) {
+      setDataError(serverConnectionReason || 'Server runtime status is unavailable.')
+    } else if (instanceResult.status === 'rejected' && volumeResult.status === 'rejected') {
       setDataError('Failed to load app-scoped data resources')
     }
 
     setDataLoaded(true)
     setDataLoading(false)
-  }, [app?.server_id])
+  }, [app])
 
   const fetchEnvFile = useCallback(async (path: string) => {
     if (!path) return
@@ -805,6 +843,11 @@ export function AppDetailPage({ appId }: { appId: string }) {
 
   const runAction = useCallback(
     async (action: AppAction) => {
+      const serverConnectionReason = getServerConnectionReason(app)
+      if (hasBlockingServerConnectionIssue(app)) {
+        setError(serverConnectionReason || 'Server runtime status is unavailable.')
+        return
+      }
       setActionLoading(action)
       setError('')
       setSuccess('')
@@ -827,12 +870,17 @@ export function AppDetailPage({ appId }: { appId: string }) {
         setActionLoading('')
       }
     },
-    [app?.name, appId, fetchDetail, navigateToActionDetail]
+    [app, app?.name, appId, fetchDetail, navigateToActionDetail]
   )
 
   const triggerOperation = useCallback(
     async (action: 'redeploy' | 'upgrade') => {
       if (!app) return
+      const serverConnectionReason = getServerConnectionReason(app)
+      if (hasBlockingServerConnectionIssue(app)) {
+        setError(serverConnectionReason || 'Server runtime status is unavailable.')
+        return
+      }
       setDeploying(action)
       setError('')
       setSuccess('')
@@ -908,10 +956,30 @@ export function AppDetailPage({ appId }: { appId: string }) {
     )
   )
   const hasBusyAction = Boolean(actionLoading || deploying || pendingUninstall || hasActivePipeline)
+  const normalizedInstanceState = (app?.instance_state || '').toLowerCase()
   const normalizedRuntimeStatus = (app?.runtime_status || '').toLowerCase()
-  const canStartAction = Boolean(app) && !['running', 'starting'].includes(normalizedRuntimeStatus)
-  const canStopAction = Boolean(app) && ['running', 'starting'].includes(normalizedRuntimeStatus)
-  const canRestartAction = Boolean(app) && normalizedRuntimeStatus === 'running'
+  const hasServerConnectionBlock = hasBlockingServerConnectionIssue(app)
+  const canStartAction =
+    Boolean(app) &&
+    !hasServerConnectionBlock &&
+    (normalizedInstanceState
+      ? ['stopped', 'attention_required'].includes(normalizedInstanceState)
+      : !['running', 'starting'].includes(normalizedRuntimeStatus))
+  const canStopAction =
+    Boolean(app) &&
+    !hasServerConnectionBlock &&
+    (normalizedInstanceState
+      ? ['running', 'degraded', 'attention_required'].includes(normalizedInstanceState)
+      : ['running', 'starting'].includes(normalizedRuntimeStatus))
+  const canRestartAction =
+    Boolean(app) &&
+    !hasServerConnectionBlock &&
+    (normalizedInstanceState
+      ? ['running', 'degraded'].includes(normalizedInstanceState)
+      : normalizedRuntimeStatus === 'running')
+  const canRedeployAction = Boolean(app) && !hasServerConnectionBlock
+  const canUpgradeAction = Boolean(app) && !hasServerConnectionBlock
+  const canUninstallAction = Boolean(app) && !hasServerConnectionBlock
   const primaryExposure = exposures.find(item => item.is_primary)
   const accessExposure =
     primaryExposure || exposures.find(item => item.target_port || item.path || item.domain)
@@ -1391,14 +1459,14 @@ export function AppDetailPage({ appId }: { appId: string }) {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={() => void triggerOperation('redeploy')}
-            disabled={hasBusyAction || !app}
+            disabled={hasBusyAction || !canRedeployAction}
           >
             <RotateCcw className="h-4 w-4" />
             {deploying === 'redeploy' ? 'Redeploying...' : 'Redeploy'}
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => void triggerOperation('upgrade')}
-            disabled={hasBusyAction || !app}
+            disabled={hasBusyAction || !canUpgradeAction}
           >
             <ArrowUp className="h-4 w-4" />
             {deploying === 'upgrade' ? 'Upgrading...' : 'Upgrade'}
@@ -1406,7 +1474,7 @@ export function AppDetailPage({ appId }: { appId: string }) {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={() => setPendingUninstall(true)}
-            disabled={hasBusyAction || loading}
+            disabled={hasBusyAction || loading || !canUninstallAction}
             variant="destructive"
           >
             <Trash2 className="h-4 w-4" />
@@ -1633,7 +1701,11 @@ export function AppDetailPage({ appId }: { appId: string }) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => void runAction('uninstall')}>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => void runAction('uninstall')}
+              disabled={!canUninstallAction}
+            >
               Confirm Uninstall
             </AlertDialogAction>
           </AlertDialogFooter>

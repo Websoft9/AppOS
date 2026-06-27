@@ -3,7 +3,18 @@ import { Link } from '@tanstack/react-router'
 import { Boxes, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { runtimeVariant } from '@/pages/apps/types'
+import {
+  effectiveInstanceStateVariant,
+  formatEffectiveInstanceStateLabel,
+  formatInstanceStateLabel,
+  formatServerConnectionLabel,
+  formatEffectiveRuntimeLabel,
+  hasBlockingServerConnectionIssue,
+  instanceStateVariant,
+  normalizeServerConnectionStatus,
+  runtimeVariant,
+  serverConnectionVariant,
+} from '@/pages/apps/types'
 import type { AppInstance } from '@/pages/apps/types'
 
 type AppDetailHeaderProps = {
@@ -43,6 +54,10 @@ export function AppDetailHeader({
   actionMenu,
   breadcrumb,
 }: AppDetailHeaderProps) {
+  const serverConnectionBlocked = hasBlockingServerConnectionIssue(app)
+  const showServerConnectionBadge =
+    app?.server_id !== 'local' && normalizeServerConnectionStatus(app?.server_connection_status) !== 'online'
+
   return (
     <div className="space-y-4">
       {breadcrumb ? breadcrumb : null}
@@ -53,7 +68,24 @@ export function AppDetailHeader({
             {app ? (
               <>
                 <Badge variant="outline">{app.status}</Badge>
-                <Badge variant={runtimeVariant(app.runtime_status)}>{app.runtime_status}</Badge>
+                <Badge
+                  variant={serverConnectionBlocked ? effectiveInstanceStateVariant(app) : instanceStateVariant(app.instance_state)}
+                >
+                  {serverConnectionBlocked
+                    ? formatEffectiveInstanceStateLabel(app)
+                    : formatInstanceStateLabel(app.instance_state)}
+                </Badge>
+                <Badge variant={serverConnectionBlocked ? 'outline' : runtimeVariant(app.runtime_status)}>
+                  {formatEffectiveRuntimeLabel(app)}
+                </Badge>
+                {showServerConnectionBadge ? (
+                  <Badge
+                    variant={serverConnectionVariant(app?.server_connection_status)}
+                    title={app?.server_connection_reason || app?.runtime_reason || undefined}
+                  >
+                    {formatServerConnectionLabel(app?.server_connection_status)}
+                  </Badge>
+                ) : null}
               </>
             ) : null}
           </div>

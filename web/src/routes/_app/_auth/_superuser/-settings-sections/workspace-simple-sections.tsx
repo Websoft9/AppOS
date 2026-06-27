@@ -7,7 +7,6 @@ import { type SettingsSchemaEntry } from '@/lib/settings-api'
 import type { SecretPolicy } from '@/lib/secrets-policy'
 import { SECRET_ACCESS_MODE_OPTIONS } from '@/lib/secrets-policy'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -189,12 +188,13 @@ export function SpaceQuotaSection({
   save: () => void
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Space</CardTitle>
-        <CardDescription>Per-user private space limits</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h3 className="text-base font-semibold text-foreground">Space</h3>
+        <p className="text-sm text-muted-foreground">Per-user private space limits</p>
+      </div>
+      <div className="rounded-lg border border-border/40 bg-background p-4">
+        <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1">
             <Label htmlFor="maxSizeMB">Max File Size (MB)</Label>
@@ -314,8 +314,9 @@ export function SpaceQuotaSection({
           </div>
         </div>
         <SaveButton onClick={save} saving={saving} />
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -1257,15 +1258,16 @@ export function TopicsSection({
   saveImportPolicy: () => void
 }) {
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Topic Share</CardTitle>
-          <CardDescription>
+    <div className="space-y-6">
+      <div className="space-y-6">
+        <div className="space-y-1">
+          <h3 className="text-base font-semibold text-foreground">Topic Share</h3>
+          <p className="text-sm text-muted-foreground">
             Control the default and maximum lifetime of public topic share links.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          </p>
+        </div>
+        <div className="rounded-lg border border-border/40 bg-background p-4">
+          <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             {renderSchemaNumberFields<TopicShare, keyof TopicShare & string>({
               entry: shareEntry,
@@ -1279,17 +1281,19 @@ export function TopicsSection({
             })}
           </div>
           <SaveButton onClick={saveShare} saving={shareSaving} />
-        </CardContent>
-      </Card>
+          </div>
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Topic Comment Policy</CardTitle>
-          <CardDescription>
+      <div className="space-y-6">
+        <div className="space-y-1">
+          <h3 className="text-base font-semibold text-foreground">Topic Comment Policy</h3>
+          <p className="text-sm text-muted-foreground">
             Configure guest comment availability and text limits for shared topics.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          </p>
+        </div>
+        <div className="rounded-lg border border-border/40 bg-background p-4">
+          <div className="space-y-4">
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/30 px-4 py-3">
               <div className="space-y-1">
@@ -1333,18 +1337,20 @@ export function TopicsSection({
             </div>
           </div>
           <SaveButton onClick={saveCommentPolicy} saving={commentPolicySaving} />
-        </CardContent>
-      </Card>
+          </div>
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Topic Description Import</CardTitle>
-          <CardDescription>
+      <div className="space-y-6">
+        <div className="space-y-1">
+          <h3 className="text-base font-semibold text-foreground">Topic Description Import</h3>
+          <p className="text-sm text-muted-foreground">
             Control the maximum imported file size and whether topic description imports must stay
             text-only.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          </p>
+        </div>
+        <div className="rounded-lg border border-border/40 bg-background p-4">
+          <div className="space-y-4">
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4">
               {renderSchemaNumberFields<TopicImportPolicy, keyof TopicImportPolicy & string>({
@@ -1378,8 +1384,9 @@ export function TopicsSection({
             )}
           </div>
           <SaveButton onClick={saveImportPolicy} saving={importPolicySaving} />
-        </CardContent>
-      </Card>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1400,12 +1407,13 @@ export function ConnectTerminalSection({
   save: () => void
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{entry.title}</CardTitle>
-        <CardDescription>Connection policy for Connect terminal sessions</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h3 className="text-base font-semibold text-foreground">{entry.title}</h3>
+        <p className="text-sm text-muted-foreground">Connection policy for Connect terminal sessions</p>
+      </div>
+      <div className="rounded-lg border border-border/40 bg-background p-4">
+        <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           {renderSchemaNumberFields({
             entry,
@@ -1425,8 +1433,9 @@ export function ConnectTerminalSection({
           })}
         </div>
         <SaveButton onClick={save} saving={saving} />
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -1446,12 +1455,13 @@ export function ConnectSftpSection({
   save: () => void
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{entry.title}</CardTitle>
-        <CardDescription>File upload limits for SFTP connections</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h3 className="text-base font-semibold text-foreground">{entry.title}</h3>
+        <p className="text-sm text-muted-foreground">File upload limits for SFTP connections</p>
+      </div>
+      <div className="rounded-lg border border-border/40 bg-background p-4">
+        <div className="space-y-4">
         {renderSchemaNumberFields({
           entry,
           form,
@@ -1465,8 +1475,9 @@ export function ConnectSftpSection({
           },
         })}
         <SaveButton onClick={save} saving={saving} />
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -1488,12 +1499,13 @@ export function DeployPreflightSection({
   const minFreeDiskField = entry.fields.find(field => field.id === 'minFreeDiskGiB')
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{entry.title}</CardTitle>
-        <CardDescription>Reserve free disk before deploy starts.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h3 className="text-base font-semibold text-foreground">{entry.title}</h3>
+        <p className="text-sm text-muted-foreground">Reserve free disk before deploy starts.</p>
+      </div>
+      <div className="rounded-lg border border-border/40 bg-background p-4">
+        <div className="space-y-4">
         <div className="max-w-sm space-y-1">
           <Label htmlFor="deployMinFreeDiskGiB">
             {minFreeDiskField?.label ?? 'Minimum Free Disk (GiB)'}
@@ -1519,8 +1531,9 @@ export function DeployPreflightSection({
           )}
         </div>
         <SaveButton onClick={save} saving={saving} />
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -1540,12 +1553,13 @@ export function DeployRuntimeSection({
   save: () => void
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{entry.title}</CardTitle>
-        <CardDescription>Set pull, startup, and health-check waits.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h3 className="text-base font-semibold text-foreground">{entry.title}</h3>
+        <p className="text-sm text-muted-foreground">Set pull, startup, and health-check waits.</p>
+      </div>
+      <div className="rounded-lg border border-border/40 bg-background p-4">
+        <div className="space-y-4">
         <div className="grid gap-4 md:grid-cols-2">
           {renderSchemaNumberFields({
             entry,
@@ -1564,8 +1578,9 @@ export function DeployRuntimeSection({
           })}
         </div>
         <SaveButton onClick={save} saving={saving} />
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -1585,12 +1600,13 @@ export function DeployGitDefaultsSection({
   save: () => void
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{entry.title}</CardTitle>
-        <CardDescription>Set the default ref and compose path.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h3 className="text-base font-semibold text-foreground">{entry.title}</h3>
+        <p className="text-sm text-muted-foreground">Set the default ref and compose path.</p>
+      </div>
+      <div className="rounded-lg border border-border/40 bg-background p-4">
+        <div className="space-y-4">
         <div className="grid gap-4 md:grid-cols-2">
           {renderSchemaTextFields({
             entry,
@@ -1607,8 +1623,9 @@ export function DeployGitDefaultsSection({
           })}
         </div>
         <SaveButton onClick={save} saving={saving} />
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -1628,14 +1645,15 @@ export function IacFilesSection({
   save: () => void
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{entry.title}</CardTitle>
-        <CardDescription>
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h3 className="text-base font-semibold text-foreground">{entry.title}</h3>
+        <p className="text-sm text-muted-foreground">
           Limits for IaC file reading and uploads in the workspace browser.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+        </p>
+      </div>
+      <div className="rounded-lg border border-border/40 bg-background p-4">
+        <div className="space-y-4">
         <div className="grid gap-4">
           {renderSchemaNumberFields({
             entry,
@@ -1667,14 +1685,10 @@ export function IacFilesSection({
           })}
         </div>
 
-        <div className="flex justify-end">
-          <Button onClick={() => void save()} disabled={saving}>
-            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save
-          </Button>
+        <SaveButton onClick={() => void save()} saving={saving} />
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }
 
@@ -1694,12 +1708,13 @@ export function TunnelSection({
   save: () => void
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{entry.title}</CardTitle>
-        <CardDescription>Port pool range for reverse tunnel allocation</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h3 className="text-base font-semibold text-foreground">{entry.title}</h3>
+        <p className="text-sm text-muted-foreground">Port pool range for reverse tunnel allocation</p>
+      </div>
+      <div className="rounded-lg border border-border/40 bg-background p-4">
+        <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           {renderSchemaNumberFields({
             entry,
@@ -1725,8 +1740,9 @@ export function TunnelSection({
           reconfigured in place.
         </p>
         <SaveButton onClick={save} saving={saving} />
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -1744,12 +1760,13 @@ export function SecretsSection({
   saveSecretPolicy: () => void
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Secrets</CardTitle>
-        <CardDescription>Global reveal restrictions and default secret behavior</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h3 className="text-base font-semibold text-foreground">Secrets</h3>
+        <p className="text-sm text-muted-foreground">Global reveal restrictions and default secret behavior</p>
+      </div>
+      <div className="rounded-lg border border-border/40 bg-background p-4">
+        <div className="space-y-4">
         <div className="flex items-center gap-3">
           <Toggle
             id="secretsRevealDisabled"
@@ -1846,7 +1863,8 @@ export function SecretsSection({
         </div>
 
         <SaveButton onClick={saveSecretPolicy} saving={secretPolicySaving} />
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    </div>
   )
 }

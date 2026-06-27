@@ -1,7 +1,6 @@
 import { Loader2, Minus, Plus, Trash2 } from 'lucide-react'
 import { type SettingsSchemaEntry } from '@/lib/settings-api'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,14 +54,16 @@ export function FeedsPolicySection({
   const tier2 = Math.max(1, Math.floor(backoffMax / 4))
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Feeds</CardTitle>
-        <CardDescription>
+    <>
+      <div className="space-y-6">
+        <div className="space-y-1">
+          <h3 className="text-base font-semibold text-foreground">Feeds</h3>
+          <p className="text-sm text-muted-foreground">
           Control feed polling cadence, failure backoff, and article retention limits.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+          </p>
+        </div>
+        <div className="rounded-lg border border-border/40 bg-background p-4">
+          <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1">
             <Label htmlFor="pollIntervalHours">Poll Interval (hours)</Label>
@@ -135,15 +136,17 @@ export function FeedsPolicySection({
           </div>
         </div>
         <SaveButton onClick={save} saving={saving} />
-
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
-          <div className="space-y-1">
-            <div className="text-sm font-medium text-destructive">Delete All Articles</div>
-            <p className="text-xs text-muted-foreground">
-              Manually delete pulled feed articles globally. If you choose fewer than the total, the
-              oldest articles are deleted first.
-            </p>
           </div>
+        </div>
+
+        <div className="space-y-1">
+          <h3 className="text-base font-semibold text-destructive">Delete All Articles</h3>
+          <p className="text-sm text-muted-foreground">
+            Manually delete pulled feed articles globally. If you choose fewer than the total, the
+            oldest articles are deleted first.
+          </p>
+        </div>
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
           <div className="mt-4 flex items-center justify-between gap-3">
             <p className="text-xs text-muted-foreground">
               This only deletes articles. Feed sources and automated retention remain unchanged.
@@ -164,7 +167,7 @@ export function FeedsPolicySection({
             </Button>
           </div>
         </div>
-      </CardContent>
+      </div>
 
       <AlertDialog
         open={deleteDialogOpen}
@@ -234,6 +237,6 @@ export function FeedsPolicySection({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+    </>
   )
 }

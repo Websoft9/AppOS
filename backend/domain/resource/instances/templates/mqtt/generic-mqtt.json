@@ -1,0 +1,6 @@
+{
+  "id": "generic-mqtt",
+  "title": "Generic MQTT",
+  "description": "MQTT-compatible message broker instance.",
+  "defaultEndpoint": "mqtt://broker.internal:1883"
+}

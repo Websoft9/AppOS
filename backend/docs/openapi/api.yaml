@@ -1872,7 +1872,7 @@ paths:
                 - AI Chat
     /api/apps:
         get:
-            description: Returns installed app inventory with normalized runtime status. Superuser only.
+            description: Returns installed app inventory with canonical instance_state and normalized runtime status. Superuser only.
             operationId: get_api_apps
             responses:
                 "200":
@@ -1960,7 +1960,7 @@ paths:
             tags:
                 - Apps
         get:
-            description: Returns one installed app with normalized runtime status. Superuser only.
+            description: Returns one installed app with canonical instance_state and normalized runtime status. Superuser only.
             operationId: get_api_apps_id
             parameters:
                 - description: app instance ID
@@ -8965,7 +8965,7 @@ paths:
                 - Secrets
     /api/servers/{serverId}/docker/compose/config:
         get:
-            description: Returns the raw docker-compose.yml content for the specified project directory (local server only). Superuser only.
+            description: Returns the raw docker-compose.yml content for the specified project directory on the selected server. Superuser only.
             operationId: get_api_servers_serverid_docker_compose_config
             parameters:
                 - description: server ID
@@ -10378,7 +10378,7 @@ paths:
                 - Docker
     /api/servers/{serverId}/docker/images:
         get:
-            description: Returns all local images on the specified server. Superuser only.
+            description: Returns all Docker images on the specified server. Superuser only.
             operationId: get_api_servers_serverid_docker_images
             parameters:
                 - description: server ID
@@ -12238,6 +12238,12 @@ paths:
         get:
             description: Returns all settings entries with their current masked or normalized values. Superuser only.
             operationId: get_api_settings_entries
+            parameters:
+                - in: query
+                  name: ids
+                  required: false
+                  schema:
+                    type: string
             responses:
                 "200":
                     content:

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import {
@@ -7,12 +7,9 @@ import {
   Bot,
   Cloud,
   Plug,
-  CircleQuestionMark,
-  Plus,
-  ChevronDown,
+  Search,
   Loader2,
   ChevronRight,
-  Layers,
 } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { Button } from '@/components/ui/button'
@@ -24,8 +21,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+import { RefreshButton } from '@/components/shared/RefreshButton'
 
 // ─── Resource definitions ────────────────────────────────
 
@@ -43,6 +41,7 @@ interface ResourceDef {
     collection: string
     filter?: string
   }
+  createSearchKeywords?: string[]
 }
 
 interface ResourceSection {
@@ -75,6 +74,23 @@ const RUNTIME_INFRASTRUCTURE: ResourceDef[] = [
       'resources.serviceInstances.examples.queue',
       'resources.serviceInstances.examples.objectStorage',
     ],
+    createSearchKeywords: [
+      'mysql',
+      'postgres',
+      'postgresql',
+      'redis',
+      'kafka',
+      'rabbitmq',
+      'nats',
+      'mqtt',
+      's3',
+      'database',
+      'cache',
+      'mq',
+      'message',
+      'storage',
+      'gateway',
+    ],
     apiPath: '/api/instances',
   },
 ]
@@ -93,6 +109,7 @@ const EXTERNAL_INTEGRATIONS: ResourceDef[] = [
       'resources.aiProviders.examples.openrouter',
       'resources.aiProviders.examples.ollama',
     ],
+    createSearchKeywords: ['openai', 'anthropic', 'openrouter', 'ollama', 'llm', 'model'],
     apiPath: '/api/ai-providers',
   },
   {
@@ -111,6 +128,7 @@ const EXTERNAL_INTEGRATIONS: ResourceDef[] = [
       'resources.connectors.examples.registry',
       'resources.connectors.examples.dns',
     ],
+    createSearchKeywords: ['webhook', 'smtp', 'dns', 'mcp', 'proxy', 'registry', 'rest api'],
     apiPath: '/api/connectors?kind=rest_api,webhook,mcp,proxy,smtp,registry,dns',
   },
   {
@@ -126,6 +144,7 @@ const EXTERNAL_INTEGRATIONS: ResourceDef[] = [
       'resources.platformAccounts.examples.tenant',
       'resources.platformAccounts.examples.installation',
     ],
+    createSearchKeywords: ['aws', 'azure', 'google cloud', 'github', 'cloudflare'],
     apiPath: '/api/provider-accounts',
   },
 ]
@@ -147,19 +166,35 @@ const RESOURCE_SECTIONS: ResourceSection[] = [
 
 const ALL_RESOURCES = [...RUNTIME_INFRASTRUCTURE, ...EXTERNAL_INTEGRATIONS]
 
+function buildCreateSearchText(resource: ResourceDef, t: (key: string) => string) {
+  return [
+    t(resource.titleKey),
+    t(resource.createDescriptionKey ?? resource.descriptionKey),
+    ...(resource.exampleItemKeys ?? []).map(key => t(key)),
+    ...(resource.createSearchKeywords ?? []),
+  ]
+    .join(' ')
+    .toLowerCase()
+}
+
 // ─── Component ───────────────────────────────────────────
 
 export function ResourceHub() {
   const { t } = useTranslation('resources')
   const navigate = useNavigate()
   const [counts, setCounts] = useState<Record<string, number>>({})
+  const [groupCount, setGroupCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [createChooserOpen, setCreateChooserOpen] = useState(false)
-
-  const resourceFamilyCount = ALL_RESOURCES.length
-  const sectionCount = RESOURCE_SECTIONS.length
+  const [createSearchQuery, setCreateSearchQuery] = useState('')
 
   useEffect(() => {
+    void fetchCounts()
+  }, [])
+
+  async function fetchCounts() {
+    setRefreshing(true)
     const promises = ALL_RESOURCES.map(r => {
       if (r.countQuery) {
         return pb
@@ -183,20 +218,37 @@ export function ResourceHub() {
         })
         .catch(() => ({ key: r.key, count: 0 }))
     })
-    Promise.allSettled(promises).then(results => {
-      const c: Record<string, number> = {}
-      for (const r of results) {
-        if (r.status === 'fulfilled') c[r.value.key] = r.value.count
-      }
-      setCounts(c)
-      setLoading(false)
-    })
-  }, [])
+    const groupPromise = pb
+      .collection('groups')
+      .getList(1, 1)
+      .then(data => data.totalItems ?? 0)
+      .catch(() => 0)
+
+    const [results, nextGroupCount] = await Promise.all([Promise.allSettled(promises), groupPromise])
+    const c: Record<string, number> = {}
+    for (const r of results) {
+      if (r.status === 'fulfilled') c[r.value.key] = r.value.count
+    }
+    setCounts(c)
+    setGroupCount(nextGroupCount)
+    setLoading(false)
+    setRefreshing(false)
+  }
 
   function goToCreate(href: string) {
     setCreateChooserOpen(false)
+    setCreateSearchQuery('')
     navigate({ to: href as never, search: { create: '1' } as never })
   }
+
+  const filteredCreateResources = useMemo(() => {
+    const normalizedQuery = createSearchQuery.trim().toLowerCase()
+    if (!normalizedQuery) return ALL_RESOURCES.filter(resource => !resource.readOnly)
+    return ALL_RESOURCES.filter(resource => {
+      if (resource.readOnly) return false
+      return buildCreateSearchText(resource, t).includes(normalizedQuery)
+    })
+  }, [createSearchQuery, t])
 
   return (
     <div className="space-y-6">
@@ -206,105 +258,109 @@ export function ResourceHub() {
           <h1 className="text-2xl font-bold tracking-tight">{t('hub.title')}</h1>
           <p className="text-muted-foreground mt-1">{t('hub.subtitle')}</p>
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span className="rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 font-medium text-foreground/80">
-              {t('hub.sectionCount', { count: sectionCount })}
-            </span>
-            <span className="rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 font-medium text-foreground/80">
-              {t('hub.familyCount', { count: resourceFamilyCount })}
-            </span>
+            <Link
+              to="/groups"
+              className="rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 font-medium text-foreground/80 transition-colors hover:bg-muted/70"
+            >
+              {t('hub.groupCount', { count: groupCount })}
+            </Link>
           </div>
         </div>
 
         {/* Hub actions */}
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap md:justify-end">
-          <Button variant="outline" asChild className="w-full sm:w-auto">
-            <Link to="/groups">
-              <Layers className="h-4 w-4 mr-2" />
-              {t('hub.resourceGroups')}
-            </Link>
-          </Button>
+          <RefreshButton
+            onClick={() => {
+              void fetchCounts()
+            }}
+            title={t('hub.refresh')}
+            spinning={refreshing}
+            chrome="boxed"
+            className="self-end"
+          />
 
           <Button className="w-full sm:w-auto" onClick={() => setCreateChooserOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
             {t('hub.addResource')}
-            <ChevronDown className="h-4 w-4 ml-2" />
           </Button>
         </div>
       </div>
 
-      <Dialog open={createChooserOpen} onOpenChange={setCreateChooserOpen}>
+      <Dialog
+        open={createChooserOpen}
+        onOpenChange={open => {
+          setCreateChooserOpen(open)
+          if (!open) setCreateSearchQuery('')
+        }}
+      >
         <DialogContent className="sm:max-w-2xl" aria-describedby={undefined}>
           <DialogHeader className="text-left">
             <DialogTitle className="text-2xl font-semibold tracking-tight">
               {t('dialog.title')}
             </DialogTitle>
+            <p className="text-sm text-muted-foreground">{t('hub.dialogDescription')}</p>
           </DialogHeader>
 
-          <div className="max-h-[70vh] space-y-6 overflow-y-auto pr-1">
-            {RESOURCE_SECTIONS.map(section => (
-              <section key={section.key} className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base font-semibold tracking-tight text-foreground">
-                    {t(section.titleKey)}
-                  </h3>
-                  <Tooltip delayDuration={100}>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
-                        aria-label={t('dialog.sectionDescriptionAria', {
-                          title: t(section.titleKey),
-                        })}
-                      >
-                        <CircleQuestionMark className="h-4 w-4" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="max-w-xs leading-5">
-                      {t(section.descriptionKey)}
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
+          <div className="space-y-4">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={createSearchQuery}
+                onChange={event => setCreateSearchQuery(event.target.value)}
+                placeholder={t('hub.resourceSearchPlaceholder')}
+                className="pl-9"
+                aria-label={t('hub.resourceSearchPlaceholder')}
+              />
+            </div>
 
-                <div className="space-y-3">
-                  {section.resources.map(r =>
-                    r.readOnly ? null : (
-                      <button
-                        key={r.key}
-                        type="button"
-                        onClick={() => goToCreate(r.href)}
-                        className="block w-full rounded-xl border border-border/70 bg-background p-4 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                      >
-                        <div className="flex min-w-0 gap-3">
-                          <div className="mt-0.5 shrink-0 text-muted-foreground">{r.icon}</div>
-                          <div className="min-w-0 space-y-2">
-                            <div>
-                              <p className="text-base font-medium leading-tight">{t(r.titleKey)}</p>
-                              <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                                {t(r.createDescriptionKey ?? r.descriptionKey)}
-                              </p>
-                            </div>
-                            {r.exampleItemKeys && r.exampleItemKeys.length > 0 && (
-                              <ul className="flex flex-wrap gap-2">
-                                {r.exampleItemKeys.map(exampleKey => (
-                                  <li
-                                    key={exampleKey}
-                                    className={cn(
-                                      'rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground'
-                                    )}
-                                  >
-                                    {t(exampleKey)}
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
-                        </div>
-                      </button>
-                    )
-                  )}
+            <div className="max-h-[62vh] space-y-3 overflow-y-auto pr-1">
+              {filteredCreateResources.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
+                  {t('hub.noResourceMatches')}
                 </div>
-              </section>
-            ))}
+              ) : (
+                filteredCreateResources.map(r => (
+                  <button
+                    key={r.key}
+                    type="button"
+                    onClick={() => goToCreate(r.href)}
+                    className="block w-full rounded-xl border border-border/70 bg-background p-4 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                  >
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div className="mt-0.5 shrink-0 rounded-lg bg-muted p-2 text-muted-foreground">
+                        {r.icon}
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-base font-medium leading-tight">{t(r.titleKey)}</p>
+                            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                              {t(r.createDescriptionKey ?? r.descriptionKey)}
+                            </p>
+                          </div>
+                          <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground">
+                            {t('hub.addNow')}
+                          </span>
+                        </div>
+                        {r.exampleItemKeys && r.exampleItemKeys.length > 0 && (
+                          <ul className="flex flex-wrap gap-2">
+                            {r.exampleItemKeys.map(exampleKey => (
+                              <li
+                                key={exampleKey}
+                                className={cn(
+                                  'rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground'
+                                )}
+                              >
+                                {t(exampleKey)}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
           </div>
 
           <DialogFooter>

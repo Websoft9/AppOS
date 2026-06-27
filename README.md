@@ -11,5 +11,5 @@ OS for Your self-hosted Apps
 ## Install
 
 ```
-docker run -d --name appos-demo --restart unless-stopped -p 9092:80 -p 9223:2222 -v /var/run/docker.sock:/var/run/docker.sock -v appos_data:/appos/data websoft9dev/appos:dev
+docker run -d --name appos-demo --restart unless-stopped -p 9092:80 -p 9223:2222 -v appos_data:/appos/data websoft9dev/appos:dev
 ```

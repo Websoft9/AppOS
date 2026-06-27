@@ -49,6 +49,7 @@ export interface SettingsSchemaResponse {
 export interface SettingsEntryResponse<T = unknown> {
   id: SettingsEntryId
   value: T
+  error?: string | null
 }
 
 export interface SettingsEntriesListResponse {

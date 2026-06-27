@@ -58,6 +58,7 @@ describe('AppsPage', () => {
             project_dir: '/tmp/demo-app',
             source: 'manualops',
             status: 'installed',
+            instance_state: 'running',
             runtime_status: 'running',
             created: '2026-03-30T10:00:00Z',
             updated: '2026-03-30T10:10:00Z',
@@ -95,6 +96,32 @@ describe('AppsPage', () => {
   })
 
   it('navigates to action detail after start is requested from the action menu', async () => {
+    sendMock.mockImplementation((path: string, options?: { method?: string }) => {
+      if (path === '/api/apps' && options?.method === 'GET') {
+        return Promise.resolve([
+          {
+            id: 'app-1',
+            name: 'Demo App',
+            template_icon_url: 'https://example.com/wordpress.png',
+            server_id: 'local',
+            server_name: 'Local',
+            project_dir: '/tmp/demo-app',
+            source: 'manualops',
+            status: 'installed',
+            instance_state: 'stopped',
+            runtime_status: 'stopped',
+            created: '2026-03-30T10:00:00Z',
+            updated: '2026-03-30T10:10:00Z',
+            last_operation: 'op-last',
+          },
+        ])
+      }
+      if (path === '/api/apps/app-1/start' && options?.method === 'POST') {
+        return Promise.resolve({ id: 'op-start-1' })
+      }
+      return Promise.resolve({})
+    })
+
     render(<AppsPage />)
 
     await waitFor(() => {
@@ -135,6 +162,49 @@ describe('AppsPage', () => {
     })
   })
 
+  it('shows managed server connectivity reasons and disables live actions for unreachable servers', async () => {
+    sendMock.mockImplementation((path: string, options?: { method?: string }) => {
+      if (path === '/api/apps' && options?.method === 'GET') {
+        return Promise.resolve([
+          {
+            id: 'app-1',
+            name: 'Demo App',
+            server_id: 'srv-1',
+            server_name: 'Remote Alpha',
+            source: 'manualops',
+            status: 'installed',
+            instance_state: 'running',
+            runtime_status: 'running',
+            server_connection_status: 'unreachable',
+            server_connection_reason: 'Server is unreachable from the control plane.',
+            runtime_reason: 'Server is unreachable from the control plane.',
+            created: '2026-03-30T10:00:00Z',
+            updated: '2026-03-30T10:10:00Z',
+          },
+        ])
+      }
+      return Promise.resolve({})
+    })
+
+    render(<AppsPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Server is unreachable from the control plane.')).toBeInTheDocument()
+    })
+
+    expect(screen.getByRole('button', { name: /Unavailable/i })).toBeInTheDocument()
+    expect(screen.getAllByText('Unavailable').length).toBeGreaterThan(0)
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Open activity for Demo App' }))
+
+    expect(await screen.findByRole('menuitem', { name: 'Redeploy' })).toHaveAttribute('data-disabled')
+    expect(screen.getByRole('menuitem', { name: 'Upgrade' })).toHaveAttribute('data-disabled')
+    expect(screen.getByRole('menuitem', { name: 'Start' })).toHaveAttribute('data-disabled')
+    expect(screen.getByRole('menuitem', { name: 'Stop' })).toHaveAttribute('data-disabled')
+    expect(screen.getByRole('menuitem', { name: 'Restart' })).toHaveAttribute('data-disabled')
+    expect(screen.getByRole('menuitem', { name: 'Uninstall' })).toHaveAttribute('data-disabled')
+  })
+
   it('disables PocketBase auto-cancellation for app list polling', async () => {
     render(<AppsPage />)
 
@@ -166,9 +236,13 @@ describe('AppsPage', () => {
     fireEvent.change(searchInput, { target: { value: 'abcdefghijklmnop' } })
 
     expect(searchInput).toHaveValue('abcdefghijklmno')
+    expect(screen.getByText('Unavailable')).toBeInTheDocument()
     expect(screen.getByText('Running')).toBeInTheDocument()
     expect(screen.getByText('Stopped')).toBeInTheDocument()
-    expect(screen.getByText('Error')).toBeInTheDocument()
+    expect(screen.getByText('Degraded')).toBeInTheDocument()
+    expect(screen.getByText('Attention Required')).toBeInTheDocument()
+    expect(screen.getByText('Updating')).toBeInTheDocument()
+    expect(screen.getByText('Unknown')).toBeInTheDocument()
     expect(screen.getByText('Total')).toBeInTheDocument()
   })
 
@@ -226,6 +300,7 @@ describe('AppsPage', () => {
             project_dir: '/tmp/demo-app',
             source: 'manualops',
             status: 'installed',
+            instance_state: 'running',
             runtime_status: 'running',
             created: '2026-03-30T10:00:00Z',
             updated: '2026-03-30T10:10:00Z',
@@ -241,6 +316,7 @@ describe('AppsPage', () => {
             project_dir: '/tmp/ghost-app',
             source: 'manualops',
             status: 'installed',
+            instance_state: 'stopped',
             runtime_status: 'stopped',
             created: '2026-03-31T10:00:00Z',
             updated: '2026-03-31T10:10:00Z',
@@ -255,6 +331,7 @@ describe('AppsPage', () => {
             project_dir: '/tmp/local-compose-app',
             source: 'docker',
             status: 'installed',
+            instance_state: 'updating',
             runtime_status: 'running',
             created: '2026-03-29T10:00:00Z',
             updated: '2026-03-29T10:10:00Z',
@@ -304,5 +381,213 @@ describe('AppsPage', () => {
 
     expect(screen.getByText('Demo App')).toBeInTheDocument()
     expect(screen.queryByText('Ghost App')).not.toBeInTheDocument()
+  })
+
+  it('filters the summary cards by canonical instance_state', async () => {
+    sendMock.mockImplementation((path: string, options?: { method?: string }) => {
+      if (path === '/api/apps' && options?.method === 'GET') {
+        return Promise.resolve([
+          {
+            id: 'app-1',
+            name: 'Demo App',
+            server_id: 'local',
+            server_name: 'Local',
+            project_dir: '/tmp/demo-app',
+            source: 'manualops',
+            status: 'installed',
+            instance_state: 'running',
+            runtime_status: 'running',
+            created: '2026-03-30T10:00:00Z',
+            updated: '2026-03-30T10:10:00Z',
+          },
+          {
+            id: 'app-2',
+            name: 'Ghost App',
+            server_id: 'server-2',
+            server_name: 'Production Alpha',
+            project_dir: '/tmp/ghost-app',
+            source: 'manualops',
+            status: 'installed',
+            instance_state: 'stopped',
+            runtime_status: 'stopped',
+            created: '2026-03-31T10:00:00Z',
+            updated: '2026-03-31T10:10:00Z',
+          },
+          {
+            id: 'app-3',
+            name: 'Local Compose App',
+            server_id: 'local',
+            server_name: 'Local',
+            project_dir: '/tmp/local-compose-app',
+            source: 'docker',
+            status: 'installed',
+            instance_state: 'updating',
+            runtime_status: 'running',
+            created: '2026-03-29T10:00:00Z',
+            updated: '2026-03-29T10:10:00Z',
+          },
+        ])
+      }
+      return Promise.resolve({})
+    })
+
+    render(<AppsPage />)
+
+    await screen.findByText('Demo App')
+    await screen.findByText('Ghost App')
+    await screen.findByText('Local Compose App')
+
+    fireEvent.click(screen.getByRole('button', { name: /Updating/i }))
+
+    expect(screen.queryByText('Demo App')).not.toBeInTheDocument()
+    expect(screen.queryByText('Ghost App')).not.toBeInTheDocument()
+    expect(screen.getByText('Local Compose App')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Updating/i }))
+
+    expect(screen.getByText('Demo App')).toBeInTheDocument()
+    expect(screen.getByText('Ghost App')).toBeInTheDocument()
+    expect(screen.getByText('Local Compose App')).toBeInTheDocument()
+  })
+
+  it('filters attention-required apps via the dedicated summary state', async () => {
+    sendMock.mockImplementation((path: string, options?: { method?: string }) => {
+      if (path === '/api/apps' && options?.method === 'GET') {
+        return Promise.resolve([
+          {
+            id: 'app-1',
+            name: 'Demo App',
+            server_id: 'local',
+            server_name: 'Local',
+            project_dir: '/tmp/demo-app',
+            source: 'manualops',
+            status: 'installed',
+            instance_state: 'running',
+            runtime_status: 'running',
+            created: '2026-03-30T10:00:00Z',
+            updated: '2026-03-30T10:10:00Z',
+          },
+          {
+            id: 'app-2',
+            name: 'Needs Manual Fix',
+            server_id: 'local',
+            server_name: 'Local',
+            project_dir: '/tmp/manual-fix-app',
+            source: 'manualops',
+            status: 'installed',
+            instance_state: 'attention_required',
+            runtime_status: 'running',
+            created: '2026-03-31T10:00:00Z',
+            updated: '2026-03-31T10:10:00Z',
+          },
+        ])
+      }
+      return Promise.resolve({})
+    })
+
+    render(<AppsPage />)
+
+    await screen.findByText('Demo App')
+    await screen.findByText('Needs Manual Fix')
+
+    fireEvent.click(screen.getByRole('button', { name: /Attention Required/i }))
+
+    expect(screen.queryByText('Demo App')).not.toBeInTheDocument()
+    expect(screen.getByText('Needs Manual Fix')).toBeInTheDocument()
+  })
+
+  it('filters unknown apps via the dedicated summary state', async () => {
+    sendMock.mockImplementation((path: string, options?: { method?: string }) => {
+      if (path === '/api/apps' && options?.method === 'GET') {
+        return Promise.resolve([
+          {
+            id: 'app-1',
+            name: 'Demo App',
+            server_id: 'local',
+            server_name: 'Local',
+            project_dir: '/tmp/demo-app',
+            source: 'manualops',
+            status: 'installed',
+            instance_state: 'running',
+            runtime_status: 'running',
+            created: '2026-03-30T10:00:00Z',
+            updated: '2026-03-30T10:10:00Z',
+          },
+          {
+            id: 'app-2',
+            name: 'Unknown App',
+            server_id: 'local',
+            server_name: 'Local',
+            project_dir: '/tmp/unknown-app',
+            source: 'manualops',
+            status: 'installed',
+            instance_state: 'unknown',
+            runtime_status: 'unknown',
+            created: '2026-03-31T10:00:00Z',
+            updated: '2026-03-31T10:10:00Z',
+          },
+        ])
+      }
+      return Promise.resolve({})
+    })
+
+    render(<AppsPage />)
+
+    await screen.findByText('Demo App')
+    await screen.findByText('Unknown App')
+
+    fireEvent.click(screen.getAllByRole('button', { name: /Unknown/i })[0])
+
+    expect(screen.queryByText('Demo App')).not.toBeInTheDocument()
+    expect(screen.getByText('Unknown App')).toBeInTheDocument()
+  })
+
+  it('filters unreachable managed apps via the Unavailable summary state', async () => {
+    sendMock.mockImplementation((path: string, options?: { method?: string }) => {
+      if (path === '/api/apps' && options?.method === 'GET') {
+        return Promise.resolve([
+          {
+            id: 'app-1',
+            name: 'Demo App',
+            server_id: 'local',
+            server_name: 'Local',
+            project_dir: '/tmp/demo-app',
+            source: 'manualops',
+            status: 'installed',
+            instance_state: 'running',
+            runtime_status: 'running',
+            created: '2026-03-30T10:00:00Z',
+            updated: '2026-03-30T10:10:00Z',
+          },
+          {
+            id: 'app-2',
+            name: 'Ghost App',
+            server_id: 'server-2',
+            server_name: 'Production Alpha',
+            project_dir: '/tmp/ghost-app',
+            source: 'manualops',
+            status: 'installed',
+            instance_state: 'running',
+            runtime_status: 'running',
+            server_connection_status: 'unreachable',
+            server_connection_reason: 'Server is unreachable from the control plane.',
+            runtime_reason: 'Server is unreachable from the control plane.',
+            created: '2026-03-31T10:00:00Z',
+            updated: '2026-03-31T10:10:00Z',
+          },
+        ])
+      }
+      return Promise.resolve({})
+    })
+
+    render(<AppsPage />)
+
+    await screen.findByText('Demo App')
+    await screen.findByText('Ghost App')
+
+    fireEvent.click(screen.getByRole('button', { name: /Unavailable/i }))
+
+    expect(screen.queryByText('Demo App')).not.toBeInTheDocument()
+    expect(screen.getByText('Ghost App')).toBeInTheDocument()
   })
 })

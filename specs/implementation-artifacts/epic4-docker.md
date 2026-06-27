@@ -6,10 +6,10 @@
 
 **Docker control-plane API** — AppOS exposes authenticated Docker inventory and action routes for one explicit server scope at a time. All five Docker resource types (compose, images, containers, networks, volumes) remain available, but the API should model server scope directly instead of hiding it behind optional query parameters.
 
-All routes use a unified execution abstraction, but the product contract is server-scoped first:
+All routes use a unified execution abstraction, and the product contract is managed-server scoped first:
 
-- `local` means AppOS manages the host Docker daemon through the mounted host `docker.sock`
-- non-local server ids resolve to SSH or tunnel-backed Docker execution on that managed server
+- every Docker route targets an explicit managed server id
+- execution resolves to SSH or tunnel-backed Docker commands on that managed server
 
 Epic 4 is the Docker control-plane surface for AppOS.
 It answers:
@@ -32,10 +32,10 @@ Planning rules:
 
 - remove the legacy `ext` prefix from the product-facing contract
 - do not hide execution scope in optional `server_id` query parameters
-- treat `local` as a first-class `serverId`, not as an omitted default
+- require an explicit managed `serverId` for every Docker route
 - keep server-discovery or capability-list routes outside the Docker object tree when practical
 
-Current implementation still uses `/api/ext/docker/...` plus optional `server_id` in many places. That is a compatibility shape, not the target product contract.
+Current implementation uses `/api/servers/{serverId}/docker/...` and does not keep a local socket-backed control-plane branch.
 
 ## Product Boundary
 
@@ -62,26 +62,20 @@ Dashboard (PB JS SDK)
   → pb.send('/api/servers/{serverId}/docker/...', ...)
   → PB auth middleware (RequireAuth)
   → Route handler → server-scoped docker client
-        → local: host docker.sock-backed execution from inside AppOS container
-        → remote: SSH/tunnel-backed execution on managed server
+        → SSH/tunnel-backed execution on managed server
 ```
 
 **This epic is a thin control-plane wrapper.** No app store, no deployment orchestration, no task queues. Business logic (app management, async deploy) belongs in a future epic that _consumes_ these APIs.
 
 ## Execution Model
 
-Epic 4 has two execution substrates, but one product contract:
+Epic 4 now has one execution substrate:
 
-1. `local`
-    - AppOS runs in a container with the host `/var/run/docker.sock` mounted in
-    - local Docker inventory and actions therefore target the host Docker daemon directly
-    - some features may use Docker CLI, others may use raw Docker Engine API over the same socket
-
-2. `managed server`
+1. `managed server`
     - Docker inventory and actions run through SSH or tunnel-backed access to the target server
     - the server record is the source of truth for host, auth, and tunnel resolution
 
-The UI should not expose these as two different product modes. It should expose one server-scoped Docker workspace whose backend execution path depends on `serverId`.
+The UI should expose one server-scoped Docker workspace. There is no local socket-backed control-plane mode.
 
 ## Routes
 
@@ -90,7 +84,6 @@ Target route family:
 - `/api/servers/{serverId}/docker/...`
 
 All object and action routes should include `serverId` in the path.
-`local` is the canonical local scope.
 List responses may still include `host` or `server_id` fields for operator clarity, but routing should not depend on query-time server selection.
 
 ### Compose
@@ -176,7 +169,7 @@ List responses may still include `host` or `server_id` fields for operator clari
 
 ### 4.3: Frontend — Docker Resource Dashboard ✅
 
-Historical delivery note: the originally implemented standalone `/docker` dashboard remains recorded in `story4.3-history-docker-dashboard.md`, but the current product-facing IA replan for Story 4.3 now lives in `story4.3-canonical-docker-workspace-replan.md`.
+Historical delivery note: the originally implemented standalone `/docker` dashboard remains recorded in `story4.3-history-docker-dashboard.md`, but the current product-facing IA replan for Story 4.3 now lives in `story4.3-docker-workspace-replan.md`.
 
 - Tabbed page: Containers | Images | Volumes | Networks | Compose
 - Single toolbar row: server selector → TabsList → Refresh → Run Command button
@@ -192,7 +185,7 @@ Historical delivery note: the originally implemented standalone `/docker` dashbo
 - replace dense overview dashboard sections with five resource cards, `Needs Attention`, and compact quick actions
 - remove duplicate `Container Health`, `Compose Stacks`, and `Inventory Split` overview sections
 - keep Overview inventory-first, not monitoring-first
-- Depends on: Story 4.3 canonical replan (`story4.3-canonical-docker-workspace-replan.md`), Story 4.3 UI supplement (`story4.3-supplement-docker-tabs-ui.md`), Story 28.6
+- Depends on: Story 4.3 canonical replan (`story4.3-docker-workspace-replan.md`), Story 4.3 UI supplement (`story4.3-docker-tabs-ui.md`), Story 28.6
 
 ### 4.5: Remote Execution (Future)
 - `RemoteExecutor` via `crypto/ssh` with connection pooling
@@ -309,7 +302,7 @@ type Executor interface {
     Run(ctx context.Context, command string, args ...string) (string, error)
     RunStream(ctx context.Context, command string, args ...string) (io.Reader, error)
     Ping(ctx context.Context) error
-    Host() string  // returns server identifier ("local" for LocalExecutor)
+    Host() string  // returns the resolved execution target label
 }
 ```
 
@@ -317,13 +310,13 @@ type Executor interface {
 - `docker compose ls --format json` returns a JSON **array**, unlike other `--format json` commands which return NDJSON
 - Image IDs with `sha256:` prefix break standard path routing → use PocketBase `/{id...}` wildcard
 - All Docker routes should be server-scoped in the path; `server_id` query support is a compatibility layer, not the target design
-- `local` is not a hidden default mode. It is a first-class server scope backed by the host-mounted Docker socket
+- managed server is the only supported Docker execution scope
 - All list endpoints may still return `host` or `server_id` fields in response — anticipates multi-server UI and audit clarity
 - Frontend UX: command execution via dialog popup (not inline or tab) — cleanest separation of concerns
 - Dialog sizes standardized in `coding-decisions.md#dialog-sizes` (sm/default/md/lg/xl/full tiers)
-- Container image requires `docker-cli` + `docker-cli-compose` packages (both `Dockerfile` and `Dockerfile.local`)
+- Container image requires `docker-cli` + `docker-cli-compose` packages in the current single runtime image
 - **Sudo escalation**: `LocalExecutor.SudoEnabled` set when process uid ≠ 0; `SSHExecutor.SudoEnabled` set when `user ≠ root`. Password-auth servers reuse the same credential as sudo password; key-auth servers require NOPASSWD in sudoers.
-- Some local Docker features may use raw Docker Engine API over `/var/run/docker.sock` instead of Docker CLI; both still belong to the same Epic 4 control-plane contract
+- Docker routes execute through the shared executor abstraction; local socket-backed control-plane access is intentionally unsupported
 
 **What moved OUT of Epic 4:**
 - Asynq async tasks → future business epic (app management)

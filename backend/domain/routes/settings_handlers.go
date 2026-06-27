@@ -2,6 +2,7 @@ package routes
 
 import (
 	"net/http"
+	"strings"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/pocketbase/pocketbase/apis"
@@ -68,12 +69,18 @@ func handleSettingsSchema(e *core.RequestEvent) error {
 // @Failure 500 {object} map[string]any
 // @Router /api/settings/entries [get]
 func handleSettingsEntriesList(e *core.RequestEvent) error {
-	entries := settingsschema.Entries()
+	entries := filterSettingsEntriesByIDs(settingsschema.Entries(), parseSettingsEntryIDs(e.Request.URL.Query().Get("ids")))
 	items := make([]map[string]any, 0, len(entries))
 	for _, entry := range entries {
 		value, err := loadSettingsEntryValue(e.App, entry)
 		if err != nil {
-			return e.InternalServerError("failed to load settings entry "+entry.ID, err)
+			e.App.Logger().Warn("settings entry load degraded", "entryId", entry.ID, "error", err)
+			items = append(items, map[string]any{
+				"id":    entry.ID,
+				"value": nil,
+				"error": err.Error(),
+			})
+			continue
 		}
 		items = append(items, map[string]any{
 			"id":    entry.ID,
@@ -81,6 +88,38 @@ func handleSettingsEntriesList(e *core.RequestEvent) error {
 		})
 	}
 	return e.JSON(http.StatusOK, map[string]any{"items": items})
+}
+
+func parseSettingsEntryIDs(raw string) map[string]struct{} {
+	parts := strings.Split(raw, ",")
+	ids := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		id := strings.TrimSpace(part)
+		if id == "" {
+			continue
+		}
+		ids[id] = struct{}{}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	return ids
+}
+
+func filterSettingsEntriesByIDs(
+	entries []settingsschema.EntrySchema,
+	allowedIDs map[string]struct{},
+) []settingsschema.EntrySchema {
+	if len(allowedIDs) == 0 {
+		return entries
+	}
+	filtered := make([]settingsschema.EntrySchema, 0, len(allowedIDs))
+	for _, entry := range entries {
+		if _, ok := allowedIDs[entry.ID]; ok {
+			filtered = append(filtered, entry)
+		}
+	}
+	return filtered
 }
 
 // handleSettingsEntryGet returns one settings entry by its unified identifier.

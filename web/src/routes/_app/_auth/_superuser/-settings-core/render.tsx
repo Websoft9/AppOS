@@ -12,7 +12,7 @@ import {
   TunnelSection,
 } from '../-settings-sections/workspace-simple-sections'
 import { DockerMirrorsSection } from '../-settings-sections/workspace-list-sections'
-import { ConnectorReferenceSection } from '../-settings-sections/shared'
+import { SMTPSettingsSection } from '../-settings-sections/shared'
 import { AISettingsSection } from '../-settings-sections/ai-section'
 import {
   BasicSection,
@@ -85,7 +85,7 @@ function renderTerminalSection(
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {terminalEntry ? (
         <ConnectTerminalSection
           entry={terminalEntry}
@@ -161,11 +161,11 @@ function renderAISection(
 ) {
   return (
     <AISettingsSection
-      title="AI"
+      title="AI Provider"
       description={connectorSectionDescription(
         controller,
         'ai',
-        'Choose the platform default AI model and create new AI providers without leaving Settings.'
+        'Choose which AI Provider account AppOS should prefer when one provider has multiple accounts.'
       )}
       showToast={controller.showToast}
     />
@@ -177,14 +177,14 @@ function renderSMTPSection(
   _options?: RegisteredSectionRenderOptions
 ) {
   return (
-    <ConnectorReferenceSection
+    <SMTPSettingsSection
       title="SMTP"
       description={connectorSectionDescription(
         controller,
         'smtp',
         'Outgoing email delivery is managed as reusable external services.'
       )}
-      connectorKinds="SMTP services"
+      showToast={controller.showToast}
     />
   )
 }
@@ -201,7 +201,7 @@ function renderDeploySection(
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <DeployPreflightSection
         entry={preflightEntry}
         form={controller.deployPreflightForm}

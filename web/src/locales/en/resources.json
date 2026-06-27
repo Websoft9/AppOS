@@ -2,10 +2,13 @@
   "hub": {
     "title": "Resources",
     "subtitle": "Shared platform resources for where applications run, what they depend on, and how AppOS connects outward.",
-    "sectionCount": "{{count}} grouped areas",
-    "familyCount": "{{count}} canonical families",
-    "resourceGroups": "Resource Groups",
+    "groupCount": "{{count}} groups",
     "addResource": "Add Resource",
+    "addNow": "Add now",
+    "refresh": "Refresh",
+    "dialogDescription": "Search for the resource you want, then jump into its list page with the create dialog open.",
+    "resourceSearchPlaceholder": "Search resources like mysql, webhook, OpenAI, or server...",
+    "noResourceMatches": "No matching resources found.",
     "openFamily": "Open family",
     "refreshingCount": "Refreshing count",
     "itemsCount": "{{count}} items",
@@ -82,25 +85,28 @@
   "serviceInstances": {
     "page": {
       "title": "Runtime Instances",
-      "description": "Runtime dependencies required for application startup, including DB, middleware, and storage instances such as Postgres, Kafka, and S3.",
+      "description": "Runtime dependencies required for application startup, including database, cache, messaging, storage, traffic gateway, artifact, and model service instances.",
       "favoritesOnly": "Favorites only",
       "addInstance": "Add Instance",
       "searchPlaceholder": "Search any instances",
       "cancel": "Cancel"
     },
     "selection": {
-      "title": "Choose a Product",
-      "description": "Choose a product, then enter connection details.",
-      "searchPlaceholder": "Search products like MySQL, Redis, Aurora, PostgreSQL...",
-      "emptyMessage": "No matching products found."
+      "title": "Choose a Category",
+      "description": "Choose a category, then pick a profile in the create dialog.",
+      "searchPlaceholder": "Search categories like Database, MQ, or S3-compatible storage...",
+      "emptyMessage": "No matching categories found.",
+      "profileCount": "{{count}} profiles"
     },
     "fields": {
+      "category": "Category",
       "kind": "Kind",
-      "template": "Template",
+      "template": "Profile",
       "selectedProduct": "Selected Product",
       "selectedProductMeta": "Selected Product Meta",
       "selectedProductDescription": "Selected Product Description",
       "name": "Name",
+      "enableIt": "Enable it",
       "username": "Username",
       "connectionTimeout": "Connection Timeout",
       "titleNameEditing": "Title Name Editing",
@@ -129,10 +135,11 @@
       "sslCertificateMysql": "Choose a certificate only when your MySQL connection requires mutual SSL."
     },
     "categories": {
-      "database": "Databases",
-      "cache": "Caches",
-      "message-queue": "Messaging",
-      "storage": "Storage",
+      "database": "Database",
+      "cache": "Cache",
+      "message-queue": "MQ",
+      "storage": "S3-Compatible Storage",
+      "traffic-gateway": "Traffic Gateway",
       "artifact": "Registries",
       "ai": "AI Services",
       "other": "Other"
@@ -142,7 +149,11 @@
       "postgres": "PostgreSQL",
       "redis": "Redis",
       "kafka": "Kafka",
+      "rabbitmq": "RabbitMQ",
+      "nats": "NATS",
+      "mqtt": "MQTT",
       "s3": "S3 Storage",
+      "gateway": "Traffic Gateway",
       "registry": "Registry",
       "ollama": "Ollama",
       "unknown": "Unknown"
@@ -155,7 +166,10 @@
       "database": "Database",
       "region": "Region",
       "clusterIdentifier": "Cluster Identifier",
-      "clusterId": "Cluster ID"
+      "clusterId": "Cluster ID",
+      "resourceGroup": "Resource Group",
+      "gatewayName": "Gateway Name",
+      "accountId": "Account ID"
     },
     "columns": {
       "name": "Name",
@@ -163,6 +177,7 @@
       "kind": "Kind",
       "profile": "Profile",
       "host": "Host",
+      "reachability": "Reachability",
       "monitor": "Monitor",
       "lastChecked": "Last Checked",
       "created": "Created",
@@ -190,11 +205,25 @@
       "oneWay": "One-way SSL",
       "mutual": "Mutual SSL"
     },
+    "credential": {
+      "enterPassword": "Enter password",
+      "showPassword": "Show password",
+      "hidePassword": "Hide password",
+      "enterCredential": "Enter credential",
+      "showCredential": "Show credential",
+      "hideCredential": "Hide credential",
+      "generateCredentialTitle": "Generate Credential",
+      "generateCredentialDescription": "Choose the credential length before filling the field.",
+      "generateCredentialLengthLabel": "Credential Length",
+      "generateCredentialConfirmLabel": "Fill Credential"
+    },
     "dialog": {
       "instanceTitle": "Instance title",
       "applyTitle": "Apply title",
       "newInstance": "New Service Instance",
       "editTitle": "Edit title",
+      "createCategory": "Create {{category}} instance",
+      "updateCategory": "Update {{category}} instance",
       "create": "Create",
       "update": "Update",
       "suffix": "Runtime Instance"
@@ -233,6 +262,7 @@
     },
     "fields": {
       "connectionType": "Connection Type",
+      "enableIt": "Enable it",
       "enabled": "Enabled",
       "name": "Name",
       "host": "Host",

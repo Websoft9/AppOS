@@ -37,14 +37,20 @@ vi.mock('react-i18next', () => ({
           return 'Resources'
         case 'hub.subtitle':
           return 'Shared platform resources for where applications run, what they depend on, and how AppOS connects outward.'
-        case 'hub.sectionCount':
-          return `${options?.count ?? 0} grouped areas`
-        case 'hub.familyCount':
-          return `${options?.count ?? 0} canonical families`
-        case 'hub.resourceGroups':
-          return 'Resource Groups'
+        case 'hub.groupCount':
+          return `${options?.count ?? 0} groups`
         case 'hub.addResource':
           return 'Add Resource'
+        case 'hub.addNow':
+          return 'Add now'
+        case 'hub.refresh':
+          return 'Refresh'
+        case 'hub.dialogDescription':
+          return 'Search for the resource you want, then jump into its list page with the create dialog open.'
+        case 'hub.resourceSearchPlaceholder':
+          return 'Search resources like mysql, webhook, OpenAI, or server...'
+        case 'hub.noResourceMatches':
+          return 'No matching resources found.'
         case 'hub.openFamily':
           return 'Open family'
         case 'hub.refreshingCount':
@@ -70,7 +76,7 @@ vi.mock('react-i18next', () => ({
         case 'resources.serviceInstances.title':
           return 'Runtime Instances'
         case 'resources.serviceInstances.description':
-          return 'Runtime dependencies required for application startup, including DB, middleware, and storage instances such as Postgres, Kafka, and S3.'
+          return 'Runtime dependencies required for application startup, including database, cache, messaging, storage, traffic gateway, artifact, and model service instances.'
         case 'resources.serviceInstances.createDescription':
           return 'Runtime dependencies such as Postgres, Kafka, and S3-backed services.'
         case 'resources.serviceInstances.examples.database':
@@ -131,8 +137,6 @@ vi.mock('react-i18next', () => ({
           return 'Installation'
         case 'dialog.title':
           return 'Add Resource'
-        case 'dialog.sectionDescriptionAria':
-          return `${options?.title ?? ''} description`
         default:
           return key
       }
@@ -214,8 +218,7 @@ describe('ResourceHub', () => {
         'Shared platform resources for where applications run, what they depend on, and how AppOS connects outward.'
       )
     ).toBeInTheDocument()
-    expect(screen.getByText('2 grouped areas')).toBeInTheDocument()
-    expect(screen.getByText('5 canonical families')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Runtime Infrastructure' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Shared Configuration' })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Software Delivery' })).not.toBeInTheDocument()
@@ -238,7 +241,7 @@ describe('ResourceHub', () => {
     ).toBeInTheDocument()
     expect(
       screen.getByText(
-        'Runtime dependencies required for application startup, including DB, middleware, and storage instances such as Postgres, Kafka, and S3.'
+        'Runtime dependencies required for application startup, including database, cache, messaging, storage, traffic gateway, artifact, and model service instances.'
       )
     ).toBeInTheDocument()
     expect(
@@ -266,6 +269,7 @@ describe('ResourceHub', () => {
     ).toBeInTheDocument()
 
     await waitFor(() => {
+      expect(screen.getByRole('link', { name: '3 groups' })).toHaveAttribute('href', '/groups')
       expect(screen.getAllByText('3 items').length).toBeGreaterThan(0)
       expect(screen.getAllByText('2 items').length).toBeGreaterThan(0)
       expect(screen.getAllByText('2 items').length).toBeGreaterThan(0)
@@ -301,10 +305,9 @@ describe('ResourceHub', () => {
   it('shows intent-first create actions mapped to current routes', async () => {
     render(<ResourceHub />)
 
-    expect(screen.getByRole('link', { name: /Resource Groups/i })).toHaveAttribute(
-      'href',
-      '/groups'
-    )
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: '3 groups' })).toHaveAttribute('href', '/groups')
+    })
     expect(screen.getByRole('button', { name: /Add Resource/i })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Add Resource/i }))
@@ -313,17 +316,17 @@ describe('ResourceHub', () => {
 
     expect(within(dialog).getByRole('heading', { name: 'Add Resource' })).toBeInTheDocument()
     expect(
-      within(dialog).queryByText(/Choose the canonical resource family first/i)
-    ).not.toBeInTheDocument()
-    expect(
-      within(dialog).queryByText(
-        'Where applications run and the startup-critical dependencies they cannot run without.'
+      within(dialog).getByText(
+        'Search for the resource you want, then jump into its list page with the create dialog open.'
       )
-    ).not.toBeInTheDocument()
-    expect(within(dialog).getByText('Runtime Infrastructure')).toBeInTheDocument()
-    expect(within(dialog).queryByText('Shared Configuration')).not.toBeInTheDocument()
-    expect(within(dialog).queryByText('Software Delivery')).toBeNull()
-    expect(within(dialog).getByText('External Integrations')).toBeInTheDocument()
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).getByRole('textbox', {
+        name: 'Search resources like mysql, webhook, OpenAI, or server...',
+      })
+    ).toBeInTheDocument()
+    expect(within(dialog).queryByText('Runtime Infrastructure')).not.toBeInTheDocument()
+    expect(within(dialog).queryByText('External Integrations')).not.toBeInTheDocument()
     expect(within(dialog).getByText('Servers')).toBeInTheDocument()
     expect(within(dialog).getByText('Runtime Instances')).toBeInTheDocument()
     expect(within(dialog).queryByText('Shared Envs')).toBeNull()
@@ -356,7 +359,18 @@ describe('ResourceHub', () => {
     expect(within(dialog).getByText('Database')).toBeInTheDocument()
     expect(within(dialog).getByText('Cache')).toBeInTheDocument()
     expect(within(dialog).queryByText('Health Check')).toBeNull()
-    expect(within(dialog).queryByRole('button', { name: /Add Now/i })).toBeNull()
+    expect(within(dialog).getAllByText('Add now').length).toBeGreaterThan(0)
+
+    fireEvent.change(
+      within(dialog).getByRole('textbox', {
+        name: 'Search resources like mysql, webhook, OpenAI, or server...',
+      }),
+      { target: { value: 'mysql' } }
+    )
+
+    expect(within(dialog).getByText('Runtime Instances')).toBeInTheDocument()
+    expect(within(dialog).queryByText('AI Providers')).not.toBeInTheDocument()
+    expect(within(dialog).queryByText('External Services')).not.toBeInTheDocument()
 
     const serviceInstanceCard = within(dialog).getByText('Runtime Instances').closest('button')
 

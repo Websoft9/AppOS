@@ -116,7 +116,6 @@ default_config() {
 [[inputs.net]]
 
 [[inputs.docker]]
-  endpoint = "unix:///var/run/docker.sock"
   gather_services = false
 
 [[outputs.file]]

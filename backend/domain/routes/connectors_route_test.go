@@ -159,7 +159,7 @@ func TestConnectorUpdateMissingReturnsNotFound(t *testing.T) {
 	}
 }
 
-func TestLoadConnectorBackedSettingsReturnsErrorForBrokenSMTPConnector(t *testing.T) {
+func TestLoadConnectorBackedSettingsReturnsDisplayedSMTPSnapshot(t *testing.T) {
 	ensureConnectorSecretRuntime(t)
 	te := newTestEnv(t)
 	defer te.cleanup()
@@ -180,14 +180,20 @@ func TestLoadConnectorBackedSettingsReturnsErrorForBrokenSMTPConnector(t *testin
 	}
 
 	value, handled, err := loadConnectorBackedSettingsEntryValue(te.app, "smtp")
-	if err == nil {
-		t.Fatal("expected broken smtp connector to return error")
+	if err != nil {
+		t.Fatalf("expected displayed smtp snapshot, got error: %v", err)
 	}
 	if !handled {
 		t.Fatal("expected smtp connector entry to be marked handled")
 	}
-	if value != nil {
-		t.Fatalf("expected nil value on error, got %#v", value)
+	if value == nil {
+		t.Fatal("expected displayed smtp value")
+	}
+	if value["host"] != "smtp.example.com" {
+		t.Fatalf("expected parsed display host, got %#v", value["host"])
+	}
+	if value["port"] != 587 {
+		t.Fatalf("expected default display port 587, got %#v", value["port"])
 	}
 }
 

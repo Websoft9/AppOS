@@ -164,7 +164,13 @@ export function SettingsScreen({ controller }: SettingsScreenProps) {
           </nav>
 
           <div className="min-w-0 lg:max-w-[760px] xl:max-w-[820px] space-y-4">
-            {renderSection(controller, { onOpenHelp: () => setHelpOpen(current => !current) })}
+            {controller.sectionLoading ? (
+              <div className="flex min-h-48 items-center justify-center rounded-lg border border-border/40 bg-background">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              renderSection(controller, { onOpenHelp: () => setHelpOpen(current => !current) })
+            )}
           </div>
 
           {helpOpen ? (

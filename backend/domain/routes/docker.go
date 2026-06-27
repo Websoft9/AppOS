@@ -140,7 +140,7 @@ func proxyURLWithCredentials(rawValue, username, password string) string {
 	return connectors.ProxyURLWithCredentials(rawValue, username, password)
 }
 
-// handleDockerServers lists local + managed server Docker targets with their online/offline ping status.
+// handleDockerServers lists managed-server Docker targets with their online/offline ping status.
 //
 // @Summary List Docker servers
 // @Description Returns all configured servers with concurrent online/offline ping status. Superuser only.
@@ -866,10 +866,10 @@ func handleComposePs(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
-// handleComposeConfigGet reads the docker-compose.yml content for a project (local only).
+// handleComposeConfigGet reads the docker-compose.yml content for a project on the selected server.
 //
 // @Summary Get Compose config
-// @Description Returns the raw docker-compose.yml content for the specified project directory (local server only). Superuser only.
+// @Description Returns the raw docker-compose.yml content for the specified project directory on the selected server. Superuser only.
 // @Tags Resource
 // @Security BearerAuth
 // @Param serverId path string true "server ID"
@@ -892,7 +892,7 @@ func handleComposeConfigGet(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"content": content})
 }
 
-// handleComposeConfigWrite writes updated content to docker-compose.yml for a project (local only).
+// handleComposeConfigWrite writes updated content to docker-compose.yml for a project on the selected server.
 //
 // @Summary Write Compose config
 // @Description Overwrites docker-compose.yml for the specified project directory. Writes audit entry. Superuser only.
@@ -943,7 +943,7 @@ func handleComposeConfigWrite(e *core.RequestEvent) error {
 // handleImageList returns all Docker images on the target server.
 //
 // @Summary List Docker images
-// @Description Returns all local images on the specified server. Superuser only.
+// @Description Returns all Docker images on the specified server. Superuser only.
 // @Tags Resource
 // @Security BearerAuth
 // @Param serverId path string true "server ID"
@@ -1096,9 +1096,6 @@ func handleImagePull(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "name is required"})
 	}
 	serverID := strings.TrimSpace(e.Request.PathValue("serverId"))
-	if serverID == "" {
-		serverID = "local"
-	}
 	normalizedName := worker.NormalizeDockerImageReference(name)
 	inFlight, err := worker.FindInFlightDockerImagePullOperation(e.App, serverID, normalizedName)
 	if err != nil {
@@ -1161,11 +1158,7 @@ func handleImagePullOperation(e *core.RequestEvent) error {
 }
 
 func dockerImagePullServerIDFromRequest(e *core.RequestEvent) string {
-	serverID := strings.TrimSpace(e.Request.PathValue("serverId"))
-	if serverID == "" {
-		return "local"
-	}
-	return serverID
+	return strings.TrimSpace(e.Request.PathValue("serverId"))
 }
 
 func findDockerImagePullOperationForServer(e *core.RequestEvent) (*core.Record, int, string, error) {

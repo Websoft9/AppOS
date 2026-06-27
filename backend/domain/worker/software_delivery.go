@@ -605,7 +605,6 @@ func buildSoftwareTelegrafConfig(settings monitor.ManagedCollectorPolicySettings
 		"[[inputs.net]]",
 		"",
 		"[[inputs.docker]]",
-		"  endpoint = \"unix:///var/run/docker.sock\"",
 		"  gather_services = false",
 		"  source_tag = true",
 		"  container_state_include = [\"running\"]",

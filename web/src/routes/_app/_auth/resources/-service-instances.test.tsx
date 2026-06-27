@@ -35,23 +35,26 @@ vi.mock('react-i18next', () => ({
         'resources.serviceInstances.title': 'Service Instances',
         'serviceInstances.page.title': 'Service Instances',
         'serviceInstances.page.description':
-          'MySQL, PostgreSQL, Redis, Kafka, S3 storage, and model services with profile-based templates.',
+          'Runtime dependencies required for application startup, including database, cache, messaging, storage, traffic gateway, artifact, and model service instances.',
         'serviceInstances.page.favoritesOnly': 'Favorites only',
         'serviceInstances.page.addInstance': 'Add Instance',
         'serviceInstances.page.searchPlaceholder': 'Search any instances',
         'serviceInstances.page.cancel': 'Cancel',
-        'serviceInstances.selection.title': 'Choose a Product',
+        'serviceInstances.selection.title': 'Choose a Category',
         'serviceInstances.selection.description':
-          'Choose a product, then enter connection details.',
+          'Choose a category, then pick a profile in the create dialog.',
         'serviceInstances.selection.searchPlaceholder':
-          'Search products like MySQL, Redis, Aurora, PostgreSQL...',
-        'serviceInstances.selection.emptyMessage': 'No matching products found.',
+          'Search categories like Database, MQ, or S3-compatible storage...',
+        'serviceInstances.selection.emptyMessage': 'No matching categories found.',
+        'serviceInstances.selection.profileCount': `${String(options?.count ?? '')} profiles`,
+        'serviceInstances.fields.category': 'Category',
         'serviceInstances.fields.kind': 'Kind',
-        'serviceInstances.fields.template': 'Template',
+        'serviceInstances.fields.template': 'Profile',
         'serviceInstances.fields.selectedProduct': 'Selected Product',
         'serviceInstances.fields.selectedProductMeta': 'Selected Product Meta',
         'serviceInstances.fields.selectedProductDescription': 'Selected Product Description',
         'serviceInstances.fields.name': 'Name',
+        'serviceInstances.fields.enableIt': 'Enable it',
         'serviceInstances.fields.username': 'Username',
         'serviceInstances.fields.connectionTimeout': 'Connection Timeout',
         'serviceInstances.fields.titleNameEditing': 'Title Name Editing',
@@ -78,10 +81,11 @@ vi.mock('react-i18next', () => ({
           'Choose a certificate only when your PostgreSQL connection requires mutual SSL.',
         'serviceInstances.help.sslCertificateMysql':
           'Choose a certificate only when your MySQL connection requires mutual SSL.',
-        'serviceInstances.categories.database': 'Databases',
-        'serviceInstances.categories.cache': 'Caches',
-        'serviceInstances.categories.message-queue': 'Messaging',
-        'serviceInstances.categories.storage': 'Storage',
+        'serviceInstances.categories.database': 'Database',
+        'serviceInstances.categories.cache': 'Cache',
+        'serviceInstances.categories.message-queue': 'MQ',
+        'serviceInstances.categories.storage': 'S3-Compatible Storage',
+        'serviceInstances.categories.traffic-gateway': 'Traffic Gateway',
         'serviceInstances.categories.artifact': 'Registries',
         'serviceInstances.categories.ai': 'AI Services',
         'serviceInstances.categories.other': 'Other',
@@ -89,7 +93,11 @@ vi.mock('react-i18next', () => ({
         'serviceInstances.kinds.postgres': 'PostgreSQL',
         'serviceInstances.kinds.redis': 'Redis',
         'serviceInstances.kinds.kafka': 'Kafka',
+        'serviceInstances.kinds.rabbitmq': 'RabbitMQ',
+        'serviceInstances.kinds.nats': 'NATS',
+        'serviceInstances.kinds.mqtt': 'MQTT',
         'serviceInstances.kinds.s3': 'S3 Storage',
+        'serviceInstances.kinds.gateway': 'Traffic Gateway',
         'serviceInstances.kinds.registry': 'Registry',
         'serviceInstances.kinds.ollama': 'Ollama',
         'serviceInstances.kinds.unknown': 'Unknown',
@@ -99,10 +107,14 @@ vi.mock('react-i18next', () => ({
         'serviceInstances.templateFields.region': 'Region',
         'serviceInstances.templateFields.clusterIdentifier': 'Cluster Identifier',
         'serviceInstances.templateFields.clusterId': 'Cluster ID',
+        'serviceInstances.templateFields.resourceGroup': 'Resource Group',
+        'serviceInstances.templateFields.gatewayName': 'Gateway Name',
+        'serviceInstances.templateFields.accountId': 'Account ID',
         'serviceInstances.columns.name': 'Name',
         'serviceInstances.columns.kind': 'Kind',
         'serviceInstances.columns.profile': 'Profile',
         'serviceInstances.columns.host': 'Host',
+        'serviceInstances.columns.reachability': 'Reachability',
         'serviceInstances.columns.monitor': 'Monitor',
         'serviceInstances.columns.lastChecked': 'Last Checked',
         'serviceInstances.columns.created': 'Created',
@@ -115,10 +127,23 @@ vi.mock('react-i18next', () => ({
         'serviceInstances.monitor.status.degraded': 'Degraded',
         'serviceInstances.ssl.oneWay': 'One-way SSL',
         'serviceInstances.ssl.mutual': 'Mutual SSL',
+        'serviceInstances.credential.enterPassword': 'Enter password',
+        'serviceInstances.credential.showPassword': 'Show password',
+        'serviceInstances.credential.hidePassword': 'Hide password',
+        'serviceInstances.credential.enterCredential': 'Enter credential',
+        'serviceInstances.credential.showCredential': 'Show credential',
+        'serviceInstances.credential.hideCredential': 'Hide credential',
+        'serviceInstances.credential.generateCredentialTitle': 'Generate Credential',
+        'serviceInstances.credential.generateCredentialDescription':
+          'Choose the credential length before filling the field.',
+        'serviceInstances.credential.generateCredentialLengthLabel': 'Credential Length',
+        'serviceInstances.credential.generateCredentialConfirmLabel': 'Fill Credential',
         'serviceInstances.dialog.instanceTitle': 'Instance title',
         'serviceInstances.dialog.applyTitle': 'Apply title',
         'serviceInstances.dialog.newInstance': 'New Service Instance',
         'serviceInstances.dialog.editTitle': 'Edit title',
+        'serviceInstances.dialog.createCategory': `Create ${String(options?.category ?? '')} instance`,
+        'serviceInstances.dialog.updateCategory': `Update ${String(options?.category ?? '')} instance`,
         'serviceInstances.dialog.create': 'Create',
         'serviceInstances.dialog.update': 'Update',
         'serviceInstances.dialog.suffix': 'Service Instance',
@@ -305,6 +330,88 @@ describe('ServiceInstancesPage', () => {
               defaultEndpoint: 'kafka.internal:9092',
               fields: [{ id: 'clusterId', label: 'Backend Cluster ID Label', type: 'text' }],
             },
+            {
+              id: 'generic-rabbitmq',
+              category: 'message-queue',
+              kind: 'rabbitmq',
+              title: 'Generic RabbitMQ',
+              defaultEndpoint: 'amqp://rabbitmq.internal:5672',
+              fields: [{ id: 'vhost', label: 'Backend Virtual Host Label', type: 'text', default: '/' }],
+            },
+            {
+              id: 'generic-nats',
+              category: 'message-queue',
+              kind: 'nats',
+              title: 'Generic NATS',
+              defaultEndpoint: 'nats://nats.internal:4222',
+              fields: [{ id: 'cluster', label: 'Backend Cluster Label', type: 'text' }],
+            },
+            {
+              id: 'generic-mqtt',
+              category: 'message-queue',
+              kind: 'mqtt',
+              title: 'Generic MQTT',
+              defaultEndpoint: 'mqtt://broker.internal:1883',
+              fields: [
+                { id: 'clientId', label: 'Backend Client ID Label', type: 'text' },
+                { id: 'protocol', label: 'Backend Protocol Label', type: 'text', default: 'mqtt' },
+              ],
+            },
+            {
+              id: 'generic-s3',
+              category: 'storage',
+              kind: 's3',
+              title: 'Generic S3',
+              defaultEndpoint: 'https://s3.example.com',
+              fields: [{ id: 'region', label: 'Backend Region Label', type: 'text' }],
+            },
+            {
+              id: 'generic-traffic-gateway',
+              category: 'traffic-gateway',
+              kind: 'gateway',
+              title: 'Generic Traffic Gateway',
+              defaultEndpoint: 'https://gateway.example.com',
+              fields: [],
+            },
+            {
+              id: 'azure-application-gateway',
+              category: 'traffic-gateway',
+              kind: 'gateway',
+              title: 'Azure Application Gateway',
+              vendor: 'Azure',
+              fields: [
+                { id: 'region', label: 'Backend Region Label', type: 'text' },
+                { id: 'resourceGroup', label: 'Backend Resource Group Label', type: 'text' },
+                { id: 'gatewayName', label: 'Backend Gateway Name Label', type: 'text' },
+              ],
+            },
+            {
+              id: 'cloudflare-traffic-gateway',
+              category: 'traffic-gateway',
+              kind: 'gateway',
+              title: 'Cloudflare Traffic Gateway',
+              vendor: 'Cloudflare',
+              fields: [
+                { id: 'accountId', label: 'Backend Account ID Label', type: 'text' },
+                { id: 'gatewayName', label: 'Backend Gateway Name Label', type: 'text' },
+              ],
+            },
+            {
+              id: 'generic-registry',
+              category: 'artifact',
+              kind: 'registry',
+              title: 'Generic Registry',
+              defaultEndpoint: 'registry.internal:5000',
+              fields: [],
+            },
+            {
+              id: 'generic-ollama',
+              category: 'ai',
+              kind: 'ollama',
+              title: 'Generic Ollama',
+              defaultEndpoint: 'http://ollama.internal:11434',
+              fields: [],
+            },
           ])
         }
         if (path === '/api/secrets/templates') {
@@ -368,33 +475,56 @@ describe('ServiceInstancesPage', () => {
 
     await screen.findByRole('dialog')
 
-    expect(screen.getByText('Choose a Product')).toBeInTheDocument()
+    expect(screen.getByText('Choose a Category')).toBeInTheDocument()
     expect(
-      screen.getByPlaceholderText('Search products like MySQL, Redis, Aurora, PostgreSQL...')
+      screen.getByPlaceholderText(
+        'Search categories like Database, MQ, or S3-compatible storage...'
+      )
     ).toBeInTheDocument()
-    expect(screen.getByText('MySQL')).toBeInTheDocument()
-    expect(screen.getByText('Amazon Aurora MySQL')).toBeInTheDocument()
+    expect(screen.getByText('Database')).toBeInTheDocument()
+    expect(screen.getByText('MQ')).toBeInTheDocument()
+    expect(screen.getByText('S3-Compatible Storage')).toBeInTheDocument()
+    expect(screen.getByText('Traffic Gateway')).toBeInTheDocument()
+    expect(screen.queryByText('Registry')).toBeNull()
+    expect(screen.queryByText('Ollama')).toBeNull()
 
     fireEvent.change(
-      screen.getByPlaceholderText('Search products like MySQL, Redis, Aurora, PostgreSQL...'),
+      screen.getByPlaceholderText(
+        'Search categories like Database, MQ, or S3-compatible storage...'
+      ),
       {
-        target: { value: 'aurora' },
+        target: { value: 'storage' },
       }
     )
 
-    expect(screen.getByText('Amazon Aurora MySQL')).toBeInTheDocument()
-    expect(screen.queryByText('MySQL')).not.toBeInTheDocument()
+    expect(screen.getByText('S3-Compatible Storage')).toBeInTheDocument()
+    expect(screen.queryByText('Database')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /Amazon Aurora MySQL/i }))
+    fireEvent.change(
+      screen.getByPlaceholderText(
+        'Search categories like Database, MQ, or S3-compatible storage...'
+      ),
+      {
+        target: { value: '' },
+      }
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /^Database/i }))
+
+    const profileSelect = await screen.findByLabelText(/^Profile/)
+    expect(profileSelect).toHaveValue('')
+    expect(screen.queryByLabelText(/^Database/)).not.toBeInTheDocument()
+    fireEvent.change(profileSelect, { target: { value: 'aurora-mysql' } })
+    fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
 
     await waitFor(() => {
-      expect(screen.getByText('Region')).toBeInTheDocument()
-      expect(screen.getByText('Cluster Identifier')).toBeInTheDocument()
+      expect(screen.getByLabelText('Region')).toBeInTheDocument()
+      expect(screen.getByLabelText('Cluster Identifier')).toBeInTheDocument()
     })
 
     expect(screen.queryByText('Selected Product')).not.toBeInTheDocument()
     expect(
-      screen.getByText('Create Amazon Aurora MySQL Databases Service Instance')
+      screen.getByText('Create Database instance - Amazon Aurora MySQL')
     ).toBeInTheDocument()
     expect(screen.queryByText('Editable')).not.toBeInTheDocument()
 
@@ -410,10 +540,12 @@ describe('ServiceInstancesPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^MySQL/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /^Database/i }))
 
     expect(screen.queryByLabelText(/^Name/)).not.toBeInTheDocument()
-    expect(screen.getByTitle('Edit title')).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Profile/)).toHaveValue('')
+    expect(screen.queryByLabelText(/^Database/)).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText(/^Profile/), { target: { value: 'generic-mysql' } })
     expect(screen.getByLabelText(/^Database/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Username/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Database/)).toHaveValue('MySQL')
@@ -425,7 +557,7 @@ describe('ServiceInstancesPage', () => {
     expect(screen.getByLabelText(/^Port/)).toBeInTheDocument()
     expect(screen.queryByText('Selected Product')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('Select a Secret'))
+    fireEvent.click(screen.getByTitle('Use a saved secret'))
     expect(screen.getByPlaceholderText('Search secrets...')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument()
 
@@ -464,7 +596,10 @@ describe('ServiceInstancesPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^PostgreSQL/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /^Database/i }))
+    fireEvent.change(await screen.findByLabelText(/^Profile/), {
+      target: { value: 'generic-postgres' },
+    })
 
     expect(await screen.findByLabelText(/^Database/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Database/)).toHaveValue('postgres')
@@ -476,6 +611,44 @@ describe('ServiceInstancesPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
     expect(screen.getByText('Use SSL')).toBeInTheDocument()
+  })
+
+  it('renders gateway profiles only after explicit selection and uses credential-style controls', async () => {
+    render(<ServiceInstancesPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add Instance' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
+    fireEvent.click(await screen.findByRole('button', { name: /^Traffic Gateway/i }))
+
+    const profileSelect = await screen.findByLabelText(/^Profile/)
+    expect(profileSelect).toHaveValue('')
+    expect(screen.queryByLabelText(/^Credential/)).not.toBeInTheDocument()
+
+    fireEvent.change(profileSelect, { target: { value: 'generic-traffic-gateway' } })
+
+    expect(await screen.findByLabelText(/^Credential/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Generate' })).toBeInTheDocument()
+  })
+
+  it('covers all messaging instance catalogs in the MQ category', async () => {
+    render(<ServiceInstancesPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add Instance' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
+    fireEvent.click(await screen.findByRole('button', { name: /^MQ/i }))
+
+    const profileSelect = (await screen.findByLabelText(/^Profile/)) as HTMLSelectElement
+    const optionLabels = Array.from(profileSelect.options).map(option => option.text)
+
+    expect(optionLabels).toEqual(
+      expect.arrayContaining(['Kafka', 'RabbitMQ', 'NATS', 'MQTT'])
+    )
   })
 
   it('keeps secret-only password editing and remembers ssl mode for existing instances', async () => {
@@ -572,7 +745,7 @@ describe('ServiceInstancesPage', () => {
     expect(screen.queryByPlaceholderText('Search secrets...')).not.toBeInTheDocument()
     expect(screen.queryByTitle('Show password')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Edit Secret' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit secret' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
     expect(screen.getByLabelText('One-way SSL')).toBeChecked()
@@ -587,9 +760,10 @@ describe('ServiceInstancesPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^MySQL/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /^Database/i }))
+    fireEvent.change(await screen.findByLabelText(/^Profile/), { target: { value: 'generic-mysql' } })
 
-    fireEvent.click(screen.getByText('Select a Secret'))
+    fireEvent.click(screen.getByTitle('Use a saved secret'))
     fireEvent.click(screen.getByRole('button', { name: 'New Secret' }))
 
     expect(
@@ -698,10 +872,10 @@ describe('ServiceInstancesPage', () => {
     fireEvent.click(await screen.findByText('Edit'))
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Edit Secret' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Edit secret' })).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Secret' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit secret' }))
 
     expect(
       await screen.findByText(
@@ -740,7 +914,7 @@ describe('ServiceInstancesPage', () => {
     })
   }, 15000)
 
-  it('stores a generated password in secrets automatically when creating mysql', async () => {
+  it('stores a typed password in secrets automatically when creating mysql', async () => {
     render(<ServiceInstancesPage />)
 
     await waitFor(() => {
@@ -748,14 +922,14 @@ describe('ServiceInstancesPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^MySQL/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /^Database/i }))
+    fireEvent.change(await screen.findByLabelText(/^Profile/), { target: { value: 'generic-mysql' } })
 
     fireEvent.change(screen.getByLabelText(/^Database/), { target: { value: 'appdb' } })
     fireEvent.change(screen.getByLabelText(/^Username/), { target: { value: 'appuser' } })
+    fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 's3cr3t-pass' } })
     fireEvent.change(screen.getByLabelText(/^Host/), { target: { value: 'db.internal' } })
     fireEvent.change(screen.getByLabelText(/^Port/), { target: { value: '3306' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Fill Password' }))
     fireEvent.click(screen.getAllByRole('button', { name: 'Create' }).at(-1) as HTMLElement)
 
     await waitFor(() => {
@@ -789,11 +963,13 @@ describe('ServiceInstancesPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^Redis/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /^Cache/i }))
+    fireEvent.change(await screen.findByLabelText(/^Profile/), { target: { value: 'generic-redis' } })
+    fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
 
-    expect(await screen.findByLabelText(/^Credential|^Password/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Generate' })).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Select a Secret'))
+    expect(await screen.findByLabelText(/^Password/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByTitle('Use a saved secret'))
     expect(screen.getByPlaceholderText('Search secrets...')).toBeInTheDocument()
 
     await waitFor(() => {
@@ -802,11 +978,13 @@ describe('ServiceInstancesPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^Kafka/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /^MQ/i }))
+    fireEvent.change(await screen.findByLabelText(/^Profile/), { target: { value: 'generic-kafka' } })
+    fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
 
     expect(await screen.findByLabelText(/^Credential/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Generate' })).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Select a Secret'))
+    expect(screen.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByTitle('Use a saved secret'))
     expect(screen.getByPlaceholderText('Search secrets...')).toBeInTheDocument()
 
     await waitFor(() => {

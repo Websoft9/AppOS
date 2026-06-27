@@ -1,6 +1,6 @@
 # Story 17.3: AppInstance State Matrix and Projection Contract
 
-Status: proposed
+Status: implemented
 
 ## Story
 
@@ -111,7 +111,8 @@ GPT-5.4
 ### Completion Notes List
 
 - Freezes a compact but complete AppInstance state contract without mixing it into execution-state vocabulary.
-- Records the main implementation gap: AppInstance state is still updated mostly from operation outcomes instead of a unified projection decision model.
+- The backend now exposes `instance_state` as the primary app API state and no longer returns `lifecycle_state` on app list/detail responses.
+- The main app list and detail consumers now use `instance_state` and `state_reason` as their primary user-facing state narrative.
 
 
 ### File List

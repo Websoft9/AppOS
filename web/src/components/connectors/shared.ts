@@ -137,8 +137,12 @@ export function buildProxyAuthOptions(t?: Translate): SelectOption[] {
   ]
 }
 
-export function buildDefaultConnectorName() {
-  return `connector-${Date.now().toString().slice(-6)}`
+export function buildDefaultConnectorName(kind?: string) {
+  const prefix =
+    (kind ? KIND_LABELS[kind as (typeof SUPPORTED_KINDS)[number]] : undefined) ||
+    kind?.trim() ||
+    'connector'
+  return `${prefix}-${Date.now().toString().slice(-6)}`
 }
 
 function slugifyNamePart(value: string) {

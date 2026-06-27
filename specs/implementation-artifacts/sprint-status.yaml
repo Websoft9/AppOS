@@ -110,7 +110,7 @@ development_status:
   epic9: in-progress
   9.1-space-core-operations: done       # Includes legacy 9.1 + 9.2 + 9.10
   9.2-space-content-operations: done    # Includes legacy 9.3 (+ rename/duplicate actions)
-  9.3-space-sharing-and-access: done    # Includes legacy 9.4 + 9.7 + 9.9
+  9.3-space-sharing-access: done    # Includes legacy 9.4 + 9.7 + 9.9
   9.4-space-lifecycle-management: done  # Includes legacy 9.8; 9.5 resolved by Epic13
   9.5-settings-ui-resolved-by-epic13: done
   9.6-file-version-history: backlog

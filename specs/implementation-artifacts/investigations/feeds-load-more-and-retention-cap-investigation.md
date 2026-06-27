@@ -6,9 +6,9 @@
    - **(Confirmed)** Per-source retention cap (默认 100) 未在首次拉取/手动拉取时生效：`UpsertSourceItems` 无上限逻辑，retention 仅由 cron（每小时）执行，因此新增 source 初次 poll 会全量入库（如 1021 条），直到下次 cron sweep 才裁剪到 ~100。
    - **(Confirmed)** 前端「Scroll to load more」失效的根因是滚动监听对象绑错：Feeds 页面实际滚动的是 AppShell 的 `main` 内容容器，而代码把 listener 绑在 `window`，并用 `document.documentElement` 计算剩余高度，因此不会随着实际列表滚动触发加载。
 
-2. **Where the case stands.** Issue 1 与 Issue 2 根因均已确认。
+2. **Where the case stands.** Investigation concluded. Both root causes confirmed. Fixes handed off to implementation.
 
-3. **What's needed next.** Issue 2 需在 `UpsertSourceItems` 中接入 per-source cap 或在 poll 后立即运行 retention；Issue 1 需把 scroll listener 和高度计算迁到实际滚动容器。
+3. **What's needed next.** （已转为开发任务）Issue 2 需在 `UpsertSourceItems` 中接入 per-source cap 或在 poll 后立即运行 retention；Issue 1 需把 scroll listener 和高度计算迁到实际滚动容器。
 
 ## Case Info
 
@@ -16,7 +16,8 @@
 | ---------------- | ---------------------------------------- |
 | Ticket           | N/A                                      |
 | Date opened      | 2026-06-26                               |
-| Status           | Active                                   |
+| Date closed      | 2026-06-27                               |
+| Status           | Concluded                                |
 | System           | appos (backend Go + frontend React/TS)   |
 | Evidence sources | Source code, repo memory entries         |
 
@@ -49,7 +50,7 @@
 | 2 | cron retention sweep 调用链确认                       | High     | Done   | `0 * * * *` 每小时执行                    |
 | 3 | 页面实际滚动容器与 listener 绑定对象是否一致          | High     | Done   | 已确认不一致：容器滚动，代码监听 `window`   |
 | 4 | `maybeLoadMore` 闭包中 `feedPage` 陈旧引用排查        | Medium   | Done   | 不是主因                                    |
-| 5 | `handleSourcePoll` 后 `fetchFeedItems` 时序问题       | Medium   | Open   | poll 后立即 fetch，无 cap 限制             |
+| 5 | `handleSourcePoll` 后 `fetchFeedItems` 时序问题       | Medium   | Done   | 非主因，UpsertSourceItems 无 cap 已覆盖此问题 |
 
 ## Timeline of Events
 

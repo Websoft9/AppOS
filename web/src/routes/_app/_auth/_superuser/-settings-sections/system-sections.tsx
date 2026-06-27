@@ -2,7 +2,6 @@ import { useRef, useState } from 'react'
 import { Loader2, Upload } from 'lucide-react'
 import { uploadMedia } from '@/lib/media-api'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { SaveButton, Toggle, selectClass } from './shared'
@@ -23,12 +22,13 @@ export function BasicSection({
   saveApp: () => void
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Basic</CardTitle>
-        <CardDescription>Platform basic information</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h3 className="text-base font-semibold text-foreground">Basic</h3>
+        <p className="text-sm text-muted-foreground">Platform basic information</p>
+      </div>
+      <div className="rounded-lg border border-border/40 bg-background p-4">
+        <div className="space-y-4">
         <div className="space-y-1">
           <Label htmlFor="appName">Platform Title</Label>
           <Input
@@ -49,8 +49,9 @@ export function BasicSection({
           />
         </div>
         <SaveButton onClick={saveApp} saving={appSaving} />
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -129,12 +130,13 @@ export function BrandingSection({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Branding</CardTitle>
-        <CardDescription>Configure your organization branding</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h3 className="text-base font-semibold text-foreground">Branding</h3>
+        <p className="text-sm text-muted-foreground">Configure your organization branding</p>
+      </div>
+      <div className="rounded-lg border border-border/40 bg-background p-4">
+        <div className="space-y-4">
         {uploadError ? <p className="text-sm text-destructive">{uploadError}</p> : null}
         <div className="space-y-1">
           <div className="space-y-1">
@@ -229,8 +231,9 @@ export function BrandingSection({
           />
         </div>
         <SaveButton onClick={saveBranding} saving={brandingSaving} />
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -274,12 +277,13 @@ export function S3Section({
   testS3: () => void
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>S3 Storage</CardTitle>
-        <CardDescription>External S3-compatible storage configuration</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h3 className="text-base font-semibold text-foreground">S3 Storage</h3>
+        <p className="text-sm text-muted-foreground">External S3-compatible storage configuration</p>
+      </div>
+      <div className="rounded-lg border border-border/40 bg-background p-4">
+        <div className="space-y-4">
         <div className="flex items-center gap-3">
           <Toggle id="s3Enabled" checked={s3Enabled} onChange={setS3Enabled} />
           <Label htmlFor="s3Enabled">Enable S3</Label>
@@ -337,8 +341,9 @@ export function S3Section({
             )}
           </Button>
         </div>
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -366,12 +371,13 @@ export function LogsSection({
   saveLogs: () => void
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Logs</CardTitle>
-        <CardDescription>Log retention and filtering options</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h3 className="text-base font-semibold text-foreground">Logs</h3>
+        <p className="text-sm text-muted-foreground">Log retention and filtering options</p>
+      </div>
+      <div className="rounded-lg border border-border/40 bg-background p-4">
+        <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1">
             <Label htmlFor="logsMaxDays">Max Days</Label>
@@ -407,7 +413,8 @@ export function LogsSection({
           <Label htmlFor="logsLogAuthId">Log Auth ID</Label>
         </div>
         <SaveButton onClick={saveLogs} saving={logsSaving} />
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    </div>
   )
 }

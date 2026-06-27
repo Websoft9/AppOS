@@ -1,5 +1,4 @@
 import { type SettingsSchemaEntry } from '@/lib/settings-api'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { SaveButton, Toggle } from './shared'
@@ -59,18 +58,20 @@ export function MonitorSchedulingSection({
   save: () => void
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Monitor Scheduling</CardTitle>
-        <CardDescription>Global scheduling intervals for monitoring sweeps.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h3 className="text-base font-semibold text-foreground">Monitor Scheduling</h3>
+        <p className="text-sm text-muted-foreground">Global scheduling intervals for monitoring sweeps.</p>
+      </div>
+      <div className="rounded-lg border border-border/40 bg-background p-4">
+        <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           {renderMonitorNumberFields({ entry, form, errors, setForm })}
         </div>
         <SaveButton onClick={save} saving={saving} />
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -90,20 +91,22 @@ export function MonitorPolicySection({
   save: () => void
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Monitor Policy</CardTitle>
-        <CardDescription>
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h3 className="text-base font-semibold text-foreground">Monitor Policy</h3>
+        <p className="text-sm text-muted-foreground">
           Freshness thresholds and probe runtime limits for monitoring.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+        </p>
+      </div>
+      <div className="rounded-lg border border-border/40 bg-background p-4">
+        <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           {renderMonitorNumberFields({ entry, form, errors, setForm })}
         </div>
         <SaveButton onClick={save} saving={saving} />
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -123,14 +126,15 @@ export function MonitorPlatformSelfObservationSection({
   save: () => void
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Platform Self-Observation</CardTitle>
-        <CardDescription>
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h3 className="text-base font-semibold text-foreground">Platform Self-Observation</h3>
+        <p className="text-sm text-muted-foreground">
           Control AppOS-local platform observer cadence and optional self-telemetry sources.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+        </p>
+      </div>
+      <div className="rounded-lg border border-border/40 bg-background p-4">
+        <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           {renderMonitorNumberFields({ entry, form, errors, setForm }).filter(field =>
             ['platformObserverIntervalSeconds', 'platformSchedulerStaleThresholdSeconds'].includes(
@@ -172,8 +176,9 @@ export function MonitorPlatformSelfObservationSection({
           ) : null}
         </div>
         <SaveButton onClick={save} saving={saving} />
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -193,20 +198,22 @@ export function MonitorManagedCollectorPolicySection({
   save: () => void
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Managed Collector Policy</CardTitle>
-        <CardDescription>
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h3 className="text-base font-semibold text-foreground">Managed Collector Policy</h3>
+        <p className="text-sm text-muted-foreground">
           Control the Telegraf-based monitor-agent cadence and batching policy on managed servers.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+        </p>
+      </div>
+      <div className="rounded-lg border border-border/40 bg-background p-4">
+        <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           {renderMonitorNumberFields({ entry, form, errors, setForm })}
         </div>
         <SaveButton onClick={save} saving={saving} />
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    </div>
   )
 }
 

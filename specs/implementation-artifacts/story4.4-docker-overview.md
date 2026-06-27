@@ -3,7 +3,7 @@
 **Epic**: Epic 4 - Docker Operations Layer  
 **Priority**: P1  
 **Status**: Complete  
-**Depends on**: Story 4.3 canonical replan (`story4.3-canonical-docker-workspace-replan.md`), Story 4.3 UI supplement (`story4.3-supplement-docker-tabs-ui.md`), Story 28.6 Container Stats UI
+**Depends on**: Story 4.3 canonical replan (`story4.3-docker-workspace-replan.md`), Story 4.3 UI supplement (`story4.3-docker-tabs-ui.md`), Story 28.6 Container Stats UI
 
 ---
 
@@ -409,8 +409,8 @@ GitHub Copilot / GPT-5.5
 
 ## References
 
-- `specs/implementation-artifacts/story4.3-canonical-docker-workspace-replan.md`
-- `specs/implementation-artifacts/story4.3-supplement-docker-tabs-ui.md`
+- `specs/implementation-artifacts/story4.3-docker-workspace-replan.md`
+- `specs/implementation-artifacts/story4.3-docker-tabs-ui.md`
 - `specs/implementation-artifacts/story28.6-container-stats-ui.md`
 - `web/src/components/connect/DockerPanel.tsx`
 - `web/src/components/docker/OverviewTab.tsx` if created during implementation

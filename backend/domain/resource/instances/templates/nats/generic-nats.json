@@ -1,0 +1,6 @@
+{
+  "id": "generic-nats",
+  "title": "Generic NATS",
+  "description": "NATS-compatible message broker instance.",
+  "defaultEndpoint": "nats://nats.internal:4222"
+}

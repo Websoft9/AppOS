@@ -1,6 +1,6 @@
 # Implementation Note: Epic 17 AppInstance Projection Convergence
 
-Status: proposed
+Status: implemented
 
 ## Purpose
 
@@ -37,6 +37,88 @@ The module should expose a small deterministic API:
 2. normalize technical evidence into shared vocabularies
 3. decide the canonical `instance_state`
 4. write the resulting AppInstance projection fields and reason text
+
+## Executable Engineering Checklist
+
+1. [x] Add a centralized AppInstance projection decision module under `backend/domain/lifecycle/projection/`.
+2. [x] Move runtime-status normalization out of `backend/domain/routes/apps.go` into the projection package.
+3. [x] Route existing updater entry points through one shared lifecycle-state decision function instead of assigning broad states inline.
+4. [x] Keep write-path `lifecycle_state`, `health_summary`, and `publication_summary` persistence centralized while converging read-path precedence.
+5. [x] Add dedicated unit tests for runtime normalization and lifecycle-state decisions before expanding mixed-evidence read/write integration.
+6. [x] Move the main app route read-path runtime fallback onto the shared projection helper instead of route-local normalization logic.
+7. [x] Expand full read/write convergence beyond sparse monitor-status fallback by preserving degraded stored evidence on successful write-path projection and by fixing terminal-pipeline activity misclassification when `current_phase` is retained.
+8. [x] Introduce an explicit canonical `instance_state` read-path field for API consumers.
+9. [x] Remove `lifecycle_state` from app list/detail API responses and from the primary app UI consumers.
+
+## Planned Go Modules
+
+1. `backend/domain/lifecycle/projection/app_instance_state.go`
+2. `backend/domain/lifecycle/projection/app_instance_state_test.go`
+3. existing integration points:
+   - `backend/domain/lifecycle/projection/updater.go`
+   - `backend/domain/routes/apps.go`
+
+## Planned Function Signatures
+
+```go
+type RuntimeStatus string
+
+type ActivityStatus string
+
+type AppStateDecisionInput struct {
+	Current            model.AppInstanceProjection
+	ExistingApp        bool
+	ActivityAction     model.OperationType
+	ActivityStatus     ActivityStatus
+	RuntimeStatus      RuntimeStatus
+	HealthSummary      model.HealthSummary
+	PublicationSummary model.PublicationSummary
+}
+
+func NormalizeRuntimeStatus(raw string) RuntimeStatus
+
+func DecideAppLifecycleState(input AppStateDecisionInput) model.AppLifecycleState
+```
+
+The first slice keeps these signatures intentionally small. They are enough to centralize updater behavior and route runtime normalization without prematurely redesigning the whole aggregate.
+
+Current code after the first refactor slice also includes:
+
+```go
+func RuntimeStatusFromProjection(current model.AppInstanceProjection) RuntimeStatus
+
+func ResolveRuntimeStatus(current model.AppInstanceProjection, liveRaw string, runtimeReason string) RuntimeStatus
+```
+
+## Test Matrix
+
+| Area | Cases |
+| --- | --- |
+| runtime normalization | `running`, `exited`, `stopped`, `restarting`, `starting`, `dead/error`, empty/unknown |
+| queued activity | new install -> `installing`, existing change -> `updating`, recover/rollback -> `recovering`, maintain -> `maintenance` |
+| succeeded activity | stop -> `stopped`, uninstall -> `retired`, maintain -> `maintenance`, publish/unpublish preserve lifecycle while publication changes, generic success -> running or degraded based on evidence |
+| failed activity | failure -> `attention_required` with preserved reason handling |
+| cancelled activity | first install without release -> `registered`; otherwise preserve prior lifecycle |
+| observed evidence fallback | runtime stopped -> `stopped`, runtime running + healthy -> `running_healthy`, runtime restarting/error or degraded health/publication -> `running_degraded` |
+
+## Current Refactor Status
+
+The first convergence slice is now implemented:
+
+1. `backend/domain/lifecycle/projection/app_instance_state.go` owns shared runtime normalization and lifecycle decision helpers.
+2. `backend/domain/lifecycle/projection/updater.go` now calls the shared lifecycle decision function instead of hardcoding most broad lifecycle assignments inline.
+3. `backend/domain/routes/apps.go` now resolves `runtime_status` through the shared projection helpers instead of route-local normalization logic.
+4. Route-side shaping now merges primary exposure evidence and app monitor latest-summary evidence before final runtime and summary output.
+5. App responses now compute an effective `lifecycle_state` from current pipeline activity plus merged observed evidence instead of only echoing the stored projection field.
+6. Focused tests cover runtime normalization, state-decision paths, mixed evidence, and route integration compatibility.
+7. The main app route now calls one unified projection-package resolver for effective lifecycle and runtime output instead of assembling those decisions inline in the route layer.
+8. Pipeline-response to activity mapping and exposure-plus-monitor evidence interpretation now also live in the projection package; the route layer only loads raw records and summaries, then passes them into shared helpers.
+9. The route layer now passes one unified raw-source contract into the projection package, which resolves activity, observed evidence, effective runtime, and effective lifecycle in one place.
+10. `state_reason` is now resolved through the same effective projection path for read responses, so in-flight activity and runtime fallback no longer show stale write-path reasons such as `operation completed`.
+11. App API responses now expose an explicit canonical `instance_state` field mapped from the effective projection and no longer return `lifecycle_state` on list/detail responses.
+12. The main app list and detail pages now use `instance_state` as the primary user-facing state for badges, summary filtering, action gating, overview narration, and diagnostics.
+
+The main remaining gap is no longer basic centralization. Read-path projection now consumes app monitor latest-status `status/reason` when summary payloads are sparse, successful write-path projection no longer blindly overwrites degraded stored evidence, and terminal pipelines are no longer misclassified as queued only because `current_phase` was retained. The remaining work is narrower: deeper mixed-evidence regression coverage and any future write-path inputs that should consume fresh monitor/exposure records directly instead of only respecting the stored projection fields.
 
 ## Recommended Inputs
 

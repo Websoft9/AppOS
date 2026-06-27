@@ -51,6 +51,7 @@ vi.mock('react-i18next', () => ({
         'servers.page.searchPlaceholder': 'Search server',
         'servers.page.detailDrawerTitle': 'Server Detail',
         'servers.fields.connectionType': 'Connection Type',
+        'servers.fields.enableIt': 'Enable it',
         'servers.fields.enabled': 'Enabled',
         'servers.fields.name': 'Name',
         'servers.fields.host': 'Host',
@@ -1387,6 +1388,9 @@ describe('ServersPage layout', () => {
     const hostInput = within(duplicateDialog).getByLabelText(/^Host\*/) as HTMLInputElement
     const portInput = within(duplicateDialog).getByLabelText(/^Port\*/) as HTMLInputElement
     const userInput = within(duplicateDialog).getByLabelText(/^User\*/) as HTMLInputElement
+
+    fireEvent.click(within(duplicateDialog).getByRole('button', { name: /Advanced/ }))
+
     const descriptionInput = within(duplicateDialog).getByLabelText(
       /^Description/
     ) as HTMLTextAreaElement
@@ -1890,6 +1894,14 @@ describe('ServersPage layout', () => {
       'false'
     )
     expect(screen.getByDisplayValue(/^server-\d{6}$/)).toBeInTheDocument()
+    expect(screen.queryByLabelText('Description')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
+
+    expect(screen.getByText('Enable it')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Yes' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('radio', { name: 'No' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByLabelText('Description')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Credential (Secret)' }))
     expect(await screen.findByRole('button', { name: 'New credential' })).toBeInTheDocument()

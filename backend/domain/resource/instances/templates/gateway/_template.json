@@ -1,0 +1,12 @@
+{
+  "kind": "gateway",
+  "category": "traffic-gateway",
+  "fields": [
+    {
+      "id": "provider",
+      "label": "Provider",
+      "type": "text",
+      "default": "gateway"
+    }
+  ]
+}

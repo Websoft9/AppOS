@@ -26,7 +26,16 @@ import {
   formatActionType,
   parseReleaseAttribution,
 } from '@/pages/apps/app-detail-utils'
-import { formatTime, formatUptime } from '@/pages/apps/types'
+import {
+  formatEffectiveHealthLabel,
+  formatEffectiveRuntimeLabel,
+  formatServerConnectionLabel,
+  formatTime,
+  formatUptime,
+  getServerConnectionReason,
+  hasBlockingServerConnectionIssue,
+  normalizeServerConnectionStatus,
+} from '@/pages/apps/types'
 import {
   actionStatusLabel,
   formatDurationCompact,
@@ -81,26 +90,48 @@ export function AppDetailOverviewTab({
   const operationState = [app.current_pipeline?.status, app.current_pipeline?.current_phase]
     .filter(Boolean)
     .join(' · ')
+  const normalizedInstanceState = (app.instance_state || '').toLowerCase()
+  const normalizedServerConnectionStatus = normalizeServerConnectionStatus(
+    app.server_connection_status
+  )
+  const serverConnectionBlocked = hasBlockingServerConnectionIssue(app)
+  const serverConnectionReason = getServerConnectionReason(app)
   const lastOperationValue =
     operationLabel === '-'
       ? '-'
       : operationState
         ? `${operationLabel} · ${operationState}`
         : operationLabel
-  const healthValue = app.health_summary || app.runtime_status || '-'
+  const healthValue = formatEffectiveHealthLabel(app)
+  const runtimeValue = formatEffectiveRuntimeLabel(app)
+  const stateReasonValue = app.state_reason || app.runtime_reason || '-'
   const publicationValue = app.publication_summary || primaryExposure?.publication_state || '-'
+  const serverConnectionValue =
+    app.server_id === 'local'
+      ? 'Local server'
+      : formatServerConnectionLabel(app.server_connection_status)
   const certificateAlert =
     primaryExposure?.domain && !primaryExposure.certificate_id
       ? 'Primary domain does not have a bound certificate.'
       : ''
-  const healthAlert =
-    app.runtime_status === 'error'
-      ? app.runtime_reason || 'Runtime reported an error.'
-      : app.current_pipeline?.status === 'failed'
-        ? 'Latest pipeline failed. Review Activity for details.'
-        : app.health_summary && /healthy|running|available|ok/i.test(app.health_summary)
-          ? ''
-          : app.health_summary || ''
+  let healthAlert = ''
+  if (app.server_id !== 'local' && normalizedServerConnectionStatus !== 'online') {
+    healthAlert =
+      serverConnectionReason || 'Application status cannot be verified because server connectivity is unavailable.'
+  } else if (normalizedInstanceState === 'attention_required') {
+    healthAlert = app.state_reason || app.runtime_reason || 'Manual intervention is required.'
+  } else if (normalizedInstanceState === 'unknown') {
+    healthAlert =
+      app.state_reason || app.runtime_reason || 'Application runtime status is unavailable.'
+  } else if (normalizedInstanceState === 'degraded') {
+    healthAlert = app.state_reason || app.runtime_reason || 'Application is degraded.'
+  } else if (app.runtime_status === 'error') {
+    healthAlert = app.runtime_reason || 'Runtime reported an error.'
+  } else if (app.current_pipeline?.status === 'failed') {
+    healthAlert = 'Latest pipeline failed. Review Activity for details.'
+  } else if (app.health_summary && !/healthy|running|available|ok/i.test(app.health_summary)) {
+    healthAlert = app.health_summary
+  }
   const alertValue = healthAlert || certificateAlert
 
   const accessNode =
@@ -188,10 +219,23 @@ export function AppDetailOverviewTab({
     },
     { label: 'Health', value: healthValue },
     {
+      label: 'Container runtime',
+      value: serverConnectionBlocked && serverConnectionReason
+        ? `${runtimeValue} · ${serverConnectionReason}`
+        : runtimeValue,
+    },
+    { label: 'State reason', value: stateReasonValue },
+    {
       label: 'Uptime',
       value: <span className="font-medium tabular-nums">{formatUptime(app)}</span>,
     },
     { label: 'Publication', value: publicationValue },
+    {
+      label: 'Server connection',
+      value: serverConnectionReason
+        ? `${serverConnectionValue} · ${serverConnectionReason}`
+        : serverConnectionValue,
+    },
     {
       label: 'Server',
       value: serverNode,

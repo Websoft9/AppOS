@@ -69,6 +69,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/
 import { type PBList, pbFilterValue } from '@/lib/groups'
 import { getDrawerTierStyle } from '@/lib/drawer-tiers'
 import { cn } from '@/lib/utils'
+import { RefreshButton } from '@/components/shared/RefreshButton'
 import { ResourceDialogForm } from './ResourceDialogForm'
 import type {
   FieldDef,
@@ -1215,44 +1216,34 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
         </div>
         <div className="flex items-center justify-end gap-2 self-end sm:self-auto">
           {config.showRefreshButton && (
-            <Button
-              variant="outline"
-              size={
-                compactHeaderActionsOnMobile
-                  ? 'icon'
-                  : config.refreshButtonIconOnly === false
-                    ? 'default'
-                    : 'icon'
-              }
-              className={cn(
-                compactHeaderActionsOnMobile &&
-                  config.refreshButtonIconOnly === false &&
-                  'sm:w-auto sm:px-4'
-              )}
-              onClick={() => {
-                void handleRefresh()
-              }}
-              title={config.refreshButtonLabel ?? 'Refresh'}
-            >
-              {(config.refreshButtonShowIcon ?? true) && (
-                <RefreshCw
-                  className={cn(
-                    'h-4 w-4',
+            config.refreshButtonIconOnly === false ? (
+              <Button
+                variant="outline"
+                size={compactHeaderActionsOnMobile ? 'icon' : 'default'}
+                className={cn(
+                  compactHeaderActionsOnMobile &&
                     config.refreshButtonIconOnly === false &&
-                      !compactHeaderActionsOnMobile &&
-                      'mr-2',
-                    compactHeaderActionsOnMobile &&
-                      config.refreshButtonIconOnly === false &&
-                      'sm:mr-2'
-                  )}
-                />
-              )}
-              {config.refreshButtonIconOnly === false && (
+                    'sm:w-auto sm:px-4'
+                )}
+                onClick={() => {
+                  void handleRefresh()
+                }}
+                title={config.refreshButtonLabel ?? 'Refresh'}
+              >
+                {(config.refreshButtonShowIcon ?? true) && <RefreshCw className="mr-2 h-4 w-4" />}
                 <span className={cn(compactHeaderActionsOnMobile && 'hidden sm:inline')}>
                   {config.refreshButtonLabel ?? 'Refresh'}
                 </span>
-              )}
-            </Button>
+              </Button>
+            ) : (
+              <RefreshButton
+                onClick={() => {
+                  void handleRefresh()
+                }}
+                title={config.refreshButtonLabel ?? 'Refresh'}
+                chrome="boxed"
+              />
+            )
           )}
           <Button
             onClick={triggerCreate}

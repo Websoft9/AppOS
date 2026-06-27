@@ -387,7 +387,7 @@ export function ConnectorsPage() {
           : getDefaultConnectorTemplate(kind, connectorTemplates)
       const initialData: Record<string, unknown> = {
         kind,
-        name: buildDefaultConnectorName(),
+        name: buildDefaultConnectorName(kind),
         template_id: defaultTemplate?.id ?? '',
         title_name_editing: false,
       }
@@ -504,7 +504,7 @@ export function ConnectorsPage() {
               ),
               description: t('connectors.dialog.createDescription', {
                 kind: getConnectorKindLabel(kind, t),
-                profile: selectedTemplate?.title || '',
+                profile: selectedTemplate?.title ? ` - ${selectedTemplate.title}` : '',
               }),
             }
           },

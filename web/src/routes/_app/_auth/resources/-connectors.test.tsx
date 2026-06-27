@@ -89,7 +89,7 @@ vi.mock('react-i18next', () => ({
         'connectors.dialog.applyTitle': 'Apply title',
         'connectors.dialog.newExternalService': 'New External Service',
         'connectors.dialog.editTitle': 'Edit title',
-        'connectors.dialog.createDescription': `Add a ${String(options?.kind ?? '')} service${String(options?.profile ?? '') ? ` using ${String(options?.profile ?? '')}` : ''}`,
+        'connectors.dialog.createDescription': `Add a ${String(options?.kind ?? '')} service${String(options?.profile ?? '')}`,
         'connectors.secretTemplates.single_value': 'Token / Single Value',
         'connectors.errors.profileRequired': 'Connector profile is required',
         'connectors.errors.fieldRequired': `${String(options?.field ?? 'Field')} is required`,

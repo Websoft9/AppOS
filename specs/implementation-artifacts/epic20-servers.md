@@ -56,7 +56,7 @@ dashboard/src/components/connect/
 |-----------|------|-----------|
 | `SSHConnector` | `ssh.go` | Implements `Connector` (streaming PTY) |
 | `SFTPConnector` | `sftp.go` | Does NOT implement `Connector` — stateless REST per-request |
-| `DockerExecConnector` | `docker_exec.go` | Implements `Connector` (streaming PTY) |
+| Docker container terminal | `terminal_containers.go` route + `SSHConnector` | Reuses SSH-backed PTY transport with `docker exec -it` |
 
 **Tech Stack:**
 
@@ -67,7 +67,7 @@ dashboard/src/components/connect/
 | PTY | `creack/pty` |
 | SSH | `golang.org/x/crypto/ssh` |
 | SFTP | `github.com/pkg/sftp` |
-| Docker Exec | Docker Engine API (`/containers/:id/exec`) |
+| Docker Exec | Managed-server SSH transport running `docker exec -it` |
 
 **Go structure:**
 
@@ -76,13 +76,12 @@ backend/domain/servers/
   connector.go        # ConnectError, ConnectErrorCategory, Connector/Session interfaces
   ssh.go              # SSHConnector: dial, auth, PTY relay, classifyDialError
   sftp.go             # SFTPConnector: file list/read/write/transfer via SFTP
-  docker_exec.go      # DockerExecConnector: exec + PTY relay
   session.go          # session lifecycle, idle timeout, cleanup
 backend/domain/routes/
   server_shell.go     # WS: SSH PTY handler
   server_files.go     # REST: SFTP-backed file operations
   server_ops.go       # REST: connectivity, power, ports, systemd, cron
-  server_containers.go  # WS: Docker exec PTY handler
+  terminal_containers.go  # WS: Docker exec PTY handler via managed server SSH
 ```
 
 ---
@@ -246,7 +245,7 @@ Docker exec PTY session on a container running on the server.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| WS | `/api/servers/containers/:containerId/shell` | Docker exec PTY (`?shell=/bin/sh`) |
+| WS | `/api/terminal/docker/:containerId?server_id=:serverId` | Docker exec PTY (`&shell=/bin/sh`) |
 
 Same WebSocket protocol as Server Shell.
 
@@ -470,7 +469,7 @@ Establish the `servers` collection and its full CRUD surface. This is a pure dat
 |-------|-------|-----------------|
 | 20.1 | Server Registry | `servers` collection migration, PB native CRUD, frontend list/form pages |
 | 20.2 | SSH + SFTP | `connector.go`, `ssh.go`, `sftp.go`, all routes, audit log; Connect workspace UI, FileManagerPanel |
-| 20.3 | Docker Terminal | `docker_exec.go`, container shell route, shell strategy |
+| 20.3 | Docker Terminal | `terminal_containers.go`, container shell route, shell strategy |
 | 20.4 | SFTP Enhancements | file properties, symlink, copy/move progress, upload limits |
 | 20.5 | Server Ops | connectivity check (with error category), power, ports, systemd backend route family |
 | 20.8 | Server Detail Systemd Tab | server-detail `Systemd` tab UX, paginated service inventory, search, featured services |

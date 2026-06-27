@@ -242,7 +242,11 @@ func TestTemplatesCoverAllInstanceKinds(t *testing.T) {
 		KindPostgres,
 		KindRedis,
 		KindKafka,
+		KindRabbitMQ,
+		KindNATS,
+		KindMQTT,
 		KindS3,
+		KindGateway,
 		KindRegistry,
 		KindOllama,
 	} {

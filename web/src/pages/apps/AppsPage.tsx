@@ -6,7 +6,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
-  Filter,
   LayoutGrid,
   List,
   MoreVertical,
@@ -56,9 +55,15 @@ import {
   type AppOperationResponse,
   appIconClass,
   appInitials,
+  effectiveInstanceStateVariant,
+  formatEffectiveInstanceStateLabel,
+  formatServerConnectionLabel,
   formatTime,
   formatUptime,
-  runtimeVariant,
+  formatInstanceStateLabel,
+  getServerConnectionReason,
+  hasBlockingServerConnectionIssue,
+  instanceStateVariant,
 } from '@/pages/apps/types'
 
 type AppAction = 'start' | 'stop' | 'restart' | 'uninstall'
@@ -71,6 +76,15 @@ const TEMPLATE_FILTER_ALL = '__all__'
 const TEMPLATE_FILTER_UNTEMPLATED = '__untemplated__'
 const noAutoCancel = { requestKey: null }
 
+type AppListHealthState =
+  | 'unavailable'
+  | 'running'
+  | 'stopped'
+  | 'degraded'
+  | 'attention_required'
+  | 'updating'
+  | 'unknown'
+
 function normalizeTemplateKey(value?: string | null): string | null {
   const trimmed = value?.trim()
   if (!trimmed) return null
@@ -78,6 +92,53 @@ function normalizeTemplateKey(value?: string | null): string | null {
   if (lowered === 'nil' || lowered === '<nil>' || lowered === 'null' || lowered === 'none')
     return null
   return trimmed
+}
+
+function appListHealthState(app: AppInstance): AppListHealthState {
+  if (hasBlockingServerConnectionIssue(app)) return 'unavailable'
+  switch ((app.instance_state || '').trim().toLowerCase()) {
+    case 'running':
+      return 'running'
+    case 'stopped':
+      return 'stopped'
+    case 'degraded':
+      return 'degraded'
+    case 'attention_required':
+      return 'attention_required'
+    case 'updating':
+    case 'installing':
+    case 'uninstalling':
+      return 'updating'
+    default:
+      return 'unknown'
+  }
+}
+
+function getListActionAvailability(app: AppInstance) {
+  const normalizedInstanceState = (app.instance_state || '').toLowerCase()
+  const blockedByServer = hasBlockingServerConnectionIssue(app)
+
+  return {
+    blockedByServer,
+    start:
+      !blockedByServer &&
+      (normalizedInstanceState
+        ? ['stopped', 'attention_required'].includes(normalizedInstanceState)
+        : false),
+    stop:
+      !blockedByServer &&
+      (normalizedInstanceState
+        ? ['running', 'degraded', 'attention_required'].includes(normalizedInstanceState)
+        : false),
+    restart:
+      !blockedByServer &&
+      (normalizedInstanceState
+        ? ['running', 'degraded'].includes(normalizedInstanceState)
+        : false),
+    redeploy: !blockedByServer,
+    upgrade: !blockedByServer,
+    uninstall: !blockedByServer,
+  }
 }
 
 function SortableHeader({
@@ -111,59 +172,6 @@ function SortableHeader({
         <ArrowUp className="h-3.5 w-3.5 opacity-40" />
       )}
     </button>
-  )
-}
-
-function FilterHeader({
-  label,
-  options,
-  excluded,
-  onChange,
-}: {
-  label: string
-  options: Array<{ value: string; label: string }>
-  excluded: Set<string>
-  onChange: (next: Set<string>) => void
-}) {
-  const active = excluded.size > 0
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button type="button" className="flex items-center gap-1 hover:text-foreground">
-          {label}
-          <Filter className={cn('h-3.5 w-3.5', active ? 'text-primary' : 'opacity-40')} />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-[150px] space-y-1 p-2">
-        {options.map(option => (
-          <label
-            key={option.value}
-            className="flex cursor-pointer items-center gap-2 px-1 py-0.5 text-sm"
-          >
-            <input
-              type="checkbox"
-              checked={!excluded.has(option.value)}
-              onChange={event => {
-                const next = new Set(excluded)
-                if (event.target.checked) next.delete(option.value)
-                else next.add(option.value)
-                onChange(next)
-              }}
-            />
-            {option.label}
-          </label>
-        ))}
-        {active ? (
-          <button
-            type="button"
-            className="mt-1 w-full text-center text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => onChange(new Set())}
-          >
-            Reset
-          </button>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
   )
 }
 
@@ -246,7 +254,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
   const [selectedServer, setSelectedServer] = useState<string | null>(null)
   const [sortField, setSortField] = useState<SortField | null>('updated')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
-  const [excludeRuntime, setExcludeRuntime] = useState<Set<string>>(new Set())
+  const [selectedInstanceState, setSelectedInstanceState] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [actionLoading, setActionLoading] = useState('')
   const [deployLoading, setDeployLoading] = useState('')
@@ -298,6 +306,11 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
   }
 
   async function runAction(app: AppInstance, action: AppAction) {
+    const serverConnectionReason = getServerConnectionReason(app)
+    if (hasBlockingServerConnectionIssue(app)) {
+      setError(serverConnectionReason || 'Server runtime status is unavailable.')
+      return
+    }
     if (action === 'uninstall') {
       setPendingUninstall(app)
       return
@@ -329,6 +342,12 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
   async function confirmUninstall() {
     if (!pendingUninstall) return
     const app = pendingUninstall
+    const serverConnectionReason = getServerConnectionReason(app)
+    if (hasBlockingServerConnectionIssue(app)) {
+      setError(serverConnectionReason || 'Server runtime status is unavailable.')
+      setPendingUninstall(null)
+      return
+    }
     const actionKey = `${app.id}:uninstall`
     setActionLoading(actionKey)
     setError('')
@@ -357,9 +376,13 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
   const summary = useMemo(
     () => ({
       total: apps.length,
-      running: apps.filter(item => item.runtime_status === 'running').length,
-      stopped: apps.filter(item => item.runtime_status === 'stopped').length,
-      error: apps.filter(item => item.runtime_status === 'error').length,
+      unavailable: apps.filter(item => appListHealthState(item) === 'unavailable').length,
+      running: apps.filter(item => appListHealthState(item) === 'running').length,
+      stopped: apps.filter(item => appListHealthState(item) === 'stopped').length,
+      updating: apps.filter(item => appListHealthState(item) === 'updating').length,
+      degraded: apps.filter(item => appListHealthState(item) === 'degraded').length,
+      attentionRequired: apps.filter(item => appListHealthState(item) === 'attention_required').length,
+      unknown: apps.filter(item => appListHealthState(item) === 'unknown').length,
     }),
     [apps]
   )
@@ -374,9 +397,6 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
 
     const noTemplateCount = apps.filter(item => !normalizeTemplateKey(item.catalog_app_key)).length
     return {
-      runtime: Array.from(new Set(apps.map(item => item.runtime_status).filter(Boolean)))
-        .sort()
-        .map(value => ({ value, label: value })),
       server: Array.from(
         new Map(apps.map(item => [item.server_id || 'local', appServerLabel(item)])).entries()
       )
@@ -399,7 +419,9 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
     const query = search.trim().toLowerCase()
     return apps.filter(item => {
       const templateKey = normalizeTemplateKey(item.catalog_app_key)
-      if (excludeRuntime.has(item.runtime_status)) return false
+      if (selectedInstanceState && appListHealthState(item) !== selectedInstanceState) {
+        return false
+      }
       if (selectedServer && (item.server_id || 'local') !== selectedServer) return false
       if (effectiveTemplate === TEMPLATE_FILTER_UNTEMPLATED && templateKey) return false
       if (
@@ -414,7 +436,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
         .filter(Boolean)
         .some(value => String(value).toLowerCase().includes(query))
     })
-  }, [apps, effectiveTemplate, excludeRuntime, search, selectedServer])
+  }, [apps, effectiveTemplate, search, selectedInstanceState, selectedServer])
 
   const sortedItems = useMemo(() => {
     if (!sortField) return filteredItems
@@ -434,7 +456,15 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
 
   useEffect(() => {
     setPage(1)
-  }, [effectiveTemplate, excludeRuntime, search, selectedServer, sortDir, sortField, view])
+  }, [
+    effectiveTemplate,
+    search,
+    selectedInstanceState,
+    selectedServer,
+    sortDir,
+    sortField,
+    view,
+  ])
 
   function handleTemplateFilterChange(value: string) {
     setSelectedTemplate(value || TEMPLATE_FILTER_ALL)
@@ -443,25 +473,8 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
     }
   }
 
-  const activeRuntime = useMemo(() => {
-    const includedStatuses = filterOptions.runtime.filter(
-      option => !excludeRuntime.has(option.value)
-    )
-    return includedStatuses.length === 1 ? (includedStatuses[0]?.value ?? null) : null
-  }, [excludeRuntime, filterOptions.runtime])
-
-  function handleRuntimeSummaryClick(runtime: string | null) {
-    if (!runtime) {
-      setExcludeRuntime(new Set())
-      return
-    }
-    if (activeRuntime === runtime) {
-      setExcludeRuntime(new Set())
-      return
-    }
-    setExcludeRuntime(
-      new Set(filterOptions.runtime.map(option => option.value).filter(value => value !== runtime))
-    )
+  function handleInstanceStateSummaryClick(instanceState: string | null) {
+    setSelectedInstanceState(current => (current === instanceState ? null : instanceState))
   }
 
   function renderAppAvatar(app: AppInstance, sizeClass: string, radiusClass: string) {
@@ -478,6 +491,11 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
   }
 
   async function triggerOperation(app: AppInstance, action: 'redeploy' | 'upgrade') {
+    const serverConnectionReason = getServerConnectionReason(app)
+    if (hasBlockingServerConnectionIssue(app)) {
+      setError(serverConnectionReason || 'Server runtime status is unavailable.')
+      return
+    }
     const key = `${app.id}:${action}`
     setDeployLoading(key)
     setError('')
@@ -514,6 +532,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
     const currentOperationAction = deployLoading.startsWith(`${app.id}:`)
       ? deployLoading.split(':')[1]
       : ''
+    const availability = getListActionAvailability(app)
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -544,14 +563,14 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={() => void triggerOperation(app, 'redeploy')}
-            disabled={Boolean(deployLoading || actionLoading)}
+            disabled={Boolean(deployLoading || actionLoading) || !availability.redeploy}
           >
             <RotateCcw className="h-4 w-4" />
             {currentOperationAction === 'redeploy' ? 'Redeploying...' : 'Redeploy'}
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => void triggerOperation(app, 'upgrade')}
-            disabled={Boolean(deployLoading || actionLoading)}
+            disabled={Boolean(deployLoading || actionLoading) || !availability.upgrade}
           >
             <ArrowUp className="h-4 w-4" />
             {currentOperationAction === 'upgrade' ? 'Upgrading...' : 'Upgrade'}
@@ -559,21 +578,21 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={() => void runAction(app, 'start')}
-            disabled={Boolean(actionLoading)}
+            disabled={Boolean(actionLoading) || !availability.start}
           >
             <Play className="h-4 w-4" />
             {currentAction === 'start' ? 'Starting...' : 'Start'}
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => void runAction(app, 'stop')}
-            disabled={Boolean(actionLoading)}
+            disabled={Boolean(actionLoading) || !availability.stop}
           >
             <Square className="h-4 w-4" />
             {currentAction === 'stop' ? 'Stopping...' : 'Stop'}
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => void runAction(app, 'restart')}
-            disabled={Boolean(actionLoading)}
+            disabled={Boolean(actionLoading) || !availability.restart}
           >
             <RotateCcw className="h-4 w-4" />
             {currentAction === 'restart' ? 'Restarting...' : 'Restart'}
@@ -581,7 +600,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={() => void runAction(app, 'uninstall')}
-            disabled={Boolean(actionLoading)}
+            disabled={Boolean(actionLoading) || !availability.uninstall}
             variant="destructive"
           >
             <Trash2 className="h-4 w-4" />
@@ -639,7 +658,23 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                         </div>
                       </div>
                     </div>
-                    <Badge variant={runtimeVariant(app.runtime_status)}>{app.runtime_status}</Badge>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge
+                        variant={hasBlockingServerConnectionIssue(app)
+                          ? effectiveInstanceStateVariant(app)
+                          : instanceStateVariant(app.instance_state)}
+                      >
+                        {hasBlockingServerConnectionIssue(app)
+                          ? formatEffectiveInstanceStateLabel(app)
+                          : formatInstanceStateLabel(app.instance_state)}
+                      </Badge>
+                      {hasBlockingServerConnectionIssue(app) ? (
+                        <span className="max-w-[170px] text-right text-[10px] text-destructive">
+                          {getServerConnectionReason(app) ||
+                            formatServerConnectionLabel(app.server_connection_status)}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
 
                   <div className="rounded-2xl bg-muted/55 px-3 py-3 ring-1 ring-border/70 dark:bg-muted/35 dark:ring-border/60">
@@ -699,14 +734,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                   onSort={handleSort}
                 />
               </TableHead>
-              <TableHead>
-                <FilterHeader
-                  label="Runtime"
-                  options={filterOptions.runtime}
-                  excluded={excludeRuntime}
-                  onChange={setExcludeRuntime}
-                />
-              </TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>Server</TableHead>
               <TableHead>Uptime</TableHead>
               <TableHead>Latest Action</TableHead>
@@ -742,9 +770,23 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={runtimeVariant(item.runtime_status)}>
-                      {item.runtime_status}
-                    </Badge>
+                    <div className="flex flex-col items-start gap-1">
+                      <Badge
+                        variant={hasBlockingServerConnectionIssue(item)
+                          ? effectiveInstanceStateVariant(item)
+                          : instanceStateVariant(item.instance_state)}
+                      >
+                        {hasBlockingServerConnectionIssue(item)
+                          ? formatEffectiveInstanceStateLabel(item)
+                          : formatInstanceStateLabel(item.instance_state)}
+                      </Badge>
+                      {hasBlockingServerConnectionIssue(item) ? (
+                        <span className="max-w-[220px] text-xs text-destructive">
+                          {getServerConnectionReason(item) ||
+                            formatServerConnectionLabel(item.server_connection_status)}
+                        </span>
+                      ) : null}
+                    </div>
                   </TableCell>
                   <TableCell>{appServerLabel(item)}</TableCell>
                   <TableCell>{formatUptime(item)}</TableCell>
@@ -836,9 +878,9 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                 type="button"
                 className={cn(
                   'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
-                  !activeRuntime ? 'bg-muted/55 text-foreground' : 'hover:bg-muted/70'
+                  !selectedInstanceState ? 'bg-muted/55 text-foreground' : 'hover:bg-muted/70'
                 )}
-                onClick={() => handleRuntimeSummaryClick(null)}
+                onClick={() => handleInstanceStateSummaryClick(null)}
               >
                 <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
                   Total
@@ -852,9 +894,29 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                 type="button"
                 className={cn(
                   'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
-                  activeRuntime === 'running' ? 'bg-muted/55 text-foreground' : 'hover:bg-muted/70'
+                  selectedInstanceState === 'unavailable'
+                    ? 'bg-muted/55 text-foreground'
+                    : 'hover:bg-muted/70'
                 )}
-                onClick={() => handleRuntimeSummaryClick('running')}
+                onClick={() => handleInstanceStateSummaryClick('unavailable')}
+              >
+                <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                  Unavailable
+                </span>
+                <span className="font-semibold text-foreground underline-offset-2 hover:underline">
+                  {summary.unavailable}
+                </span>
+              </button>
+              <span className="mx-0.5 hidden h-4 w-px bg-border/55 md:block" aria-hidden="true" />
+              <button
+                type="button"
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
+                  selectedInstanceState === 'running'
+                    ? 'bg-muted/55 text-foreground'
+                    : 'hover:bg-muted/70'
+                )}
+                onClick={() => handleInstanceStateSummaryClick('running')}
               >
                 <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
                   Running
@@ -868,9 +930,11 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                 type="button"
                 className={cn(
                   'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
-                  activeRuntime === 'stopped' ? 'bg-muted/55 text-foreground' : 'hover:bg-muted/70'
+                  selectedInstanceState === 'stopped'
+                    ? 'bg-muted/55 text-foreground'
+                    : 'hover:bg-muted/70'
                 )}
-                onClick={() => handleRuntimeSummaryClick('stopped')}
+                onClick={() => handleInstanceStateSummaryClick('stopped')}
               >
                 <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
                   Stopped
@@ -884,15 +948,71 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                 type="button"
                 className={cn(
                   'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
-                  activeRuntime === 'error' ? 'bg-muted/55 text-foreground' : 'hover:bg-muted/70'
+                  selectedInstanceState === 'degraded'
+                    ? 'bg-muted/55 text-foreground'
+                    : 'hover:bg-muted/70'
                 )}
-                onClick={() => handleRuntimeSummaryClick('error')}
+                onClick={() => handleInstanceStateSummaryClick('degraded')}
               >
                 <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
-                  Error
+                  Degraded
                 </span>
                 <span className="font-semibold text-foreground underline-offset-2 hover:underline">
-                  {summary.error}
+                  {summary.degraded}
+                </span>
+              </button>
+              <span className="mx-0.5 hidden h-4 w-px bg-border/55 md:block" aria-hidden="true" />
+              <button
+                type="button"
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
+                  selectedInstanceState === 'attention_required'
+                    ? 'bg-muted/55 text-foreground'
+                    : 'hover:bg-muted/70'
+                )}
+                onClick={() => handleInstanceStateSummaryClick('attention_required')}
+              >
+                <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                  Attention Required
+                </span>
+                <span className="font-semibold text-foreground underline-offset-2 hover:underline">
+                  {summary.attentionRequired}
+                </span>
+              </button>
+              <span className="mx-0.5 hidden h-4 w-px bg-border/55 md:block" aria-hidden="true" />
+              <button
+                type="button"
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
+                  selectedInstanceState === 'updating'
+                    ? 'bg-muted/55 text-foreground'
+                    : 'hover:bg-muted/70'
+                )}
+                onClick={() => handleInstanceStateSummaryClick('updating')}
+              >
+                <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                  Updating
+                </span>
+                <span className="font-semibold text-foreground underline-offset-2 hover:underline">
+                  {summary.updating}
+                </span>
+              </button>
+              <span className="mx-0.5 hidden h-4 w-px bg-border/55 md:block" aria-hidden="true" />
+              <button
+                type="button"
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
+                  selectedInstanceState === 'unknown'
+                    ? 'bg-muted/55 text-foreground'
+                    : 'hover:bg-muted/70'
+                )}
+                onClick={() => handleInstanceStateSummaryClick('unknown')}
+              >
+                <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                  Unknown
+                </span>
+                <span className="font-semibold text-foreground underline-offset-2 hover:underline">
+                  {summary.unknown}
                 </span>
               </button>
             </div>

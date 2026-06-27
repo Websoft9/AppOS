@@ -126,8 +126,10 @@ describe('AppDetailPage', () => {
       project_dir: '/tmp/demo-app',
       source: 'manualops',
       status: 'installed',
+      instance_state: 'running',
       runtime_status: 'running',
       lifecycle_state: 'running_healthy',
+      state_reason: 'application is healthy',
       publication_summary: 'unpublished',
       access_username: 'admin',
       access_secret_hint: 'initial password from welcome page',
@@ -561,7 +563,7 @@ describe('AppDetailPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
 
-    const accessLink = screen.getByRole('link', { name: /http:\/\/demo\.example\.com:8080/i })
+    const accessLink = await screen.findByRole('link', { name: /http:\/\/demo\.example\.com:8080/i })
     expect(accessLink).toHaveAttribute('href', 'http://demo.example.com:8080')
   })
 
@@ -751,11 +753,13 @@ describe('AppDetailPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
 
-    const accessLink = screen.getByRole('link', { name: /http:\/\/10\.0\.0\.8:8080/i })
+    const accessLink = await screen.findByRole('link', { name: /http:\/\/10\.0\.0\.8:8080/i })
     expect(accessLink).toHaveAttribute('href', 'http://10.0.0.8:8080')
-    expect(
-      screen.queryByRole('link', { name: /https:\/\/demo\.example\.com:8080/i })
-    ).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('link', { name: /https:\/\/demo\.example\.com:8080/i })
+      ).not.toBeInTheDocument()
+    })
   })
 
   it('shows app name, deployment details, and a template detail link in overview', async () => {
@@ -938,6 +942,7 @@ describe('AppDetailPage', () => {
   it('navigates to action detail after start creates an operation', async () => {
     appDetailResponse = {
       ...appDetailResponse,
+      instance_state: 'stopped',
       runtime_status: 'stopped',
       lifecycle_state: 'stopped',
     }
@@ -1570,7 +1575,7 @@ describe('AppDetailPage', () => {
     })
   })
 
-  it('disables lifecycle actions that conflict with the current runtime state', async () => {
+  it('disables lifecycle actions that conflict with the canonical instance state', async () => {
     render(<AppDetailPage appId="app-1" />)
 
     await waitFor(() => {
@@ -1589,8 +1594,10 @@ describe('AppDetailPage', () => {
     cleanup()
     appDetailResponse = {
       ...appDetailResponse,
-      runtime_status: 'stopped',
+      instance_state: 'stopped',
+      runtime_status: 'running',
       lifecycle_state: 'stopped',
+      state_reason: 'desired state stopped',
     }
 
     render(<AppDetailPage appId="app-1" />)
@@ -1607,6 +1614,61 @@ describe('AppDetailPage', () => {
     expect(startWhileStopped).not.toHaveAttribute('data-disabled')
     expect(stopWhileStopped).toHaveAttribute('data-disabled')
     expect(restartWhileStopped).toHaveAttribute('data-disabled')
+  })
+
+  it('surfaces managed server connectivity and disables live actions when the server is unreachable', async () => {
+    appDetailResponse = {
+      ...appDetailResponse,
+      server_id: 'srv-1',
+      instance_state: 'running',
+      runtime_status: 'running',
+      server_connection_status: 'unreachable',
+      server_connection_reason: 'Server is unreachable from the control plane.',
+      runtime_reason: 'Server is unreachable from the control plane.',
+    }
+
+    render(<AppDetailPage appId="app-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Server Unreachable')).toBeInTheDocument()
+    })
+
+    expect(screen.getAllByText('Unavailable').length).toBeGreaterThan(0)
+    expect(screen.getByText('Container runtime')).toBeInTheDocument()
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Actions' }))
+
+    expect(await screen.findByRole('menuitem', { name: 'Start' })).toHaveAttribute('data-disabled')
+    expect(screen.getByRole('menuitem', { name: 'Stop' })).toHaveAttribute('data-disabled')
+    expect(screen.getByRole('menuitem', { name: 'Restart' })).toHaveAttribute('data-disabled')
+    expect(screen.getByRole('menuitem', { name: 'Redeploy' })).toHaveAttribute('data-disabled')
+    expect(screen.getByRole('menuitem', { name: 'Upgrade' })).toHaveAttribute('data-disabled')
+    expect(screen.getByRole('menuitem', { name: 'Uninstall' })).toHaveAttribute('data-disabled')
+    expect(screen.getByText('Server is unreachable from the control plane.')).toBeInTheDocument()
+  })
+
+  it('shows instance_state and state_reason as the primary overview status narrative', async () => {
+    appDetailResponse = {
+      ...appDetailResponse,
+      instance_state: 'degraded',
+      runtime_status: 'running',
+      health_summary: 'healthy',
+      publication_summary: 'degraded',
+      state_reason: 'publication degraded',
+    }
+
+    render(<AppDetailPage appId="app-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
+    })
+
+    expect(screen.getByText('Health')).toBeInTheDocument()
+    expect(screen.getAllByText('Container runtime').length).toBeGreaterThan(0)
+    expect(screen.getByText('State reason')).toBeInTheDocument()
+    expect(screen.getAllByText('Degraded').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('running').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('publication degraded').length).toBeGreaterThan(0)
   })
 
   it('supports access hints display mode and edit mode', async () => {

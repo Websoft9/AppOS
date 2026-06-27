@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, Plus } from 'lucide-react'
+import { CircleHelp, Loader2 } from 'lucide-react'
 import { pb } from '@/lib/pb'
-import { AIProviderCreateFlowDialog as SharedAIProviderCreateFlowDialog } from '@/components/ai/AIProviderCreateFlowDialog'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { selectClass } from './shared'
 
 type AIProviderRecord = {
   id: string
+  created?: string
   name?: string
   kind?: string
   is_default?: boolean
@@ -34,8 +34,6 @@ type AIProviderDefaultSelection = {
   provider_id: string
 }
 
-const ADD_MODEL_OPTION_VALUE = '__add_model__'
-
 function humanizeTemplateId(templateId: string) {
   return templateId
     .split('-')
@@ -57,19 +55,40 @@ function buildProviderOptionLabel(
   templatesById: Map<string, AIProviderTemplate>
 ) {
   const template = templatesById.get(String(provider.template_id ?? ''))
+  const recordName = String(provider.name ?? '').trim()
   const model = String(provider.config?.defaultModel ?? provider.config?.model ?? '').trim()
-  const providerName = template
-    ? chooserTitle(template)
-    : humanizeTemplateId(String(provider.template_id ?? ''))
-  const recordName = String(provider.name ?? '').trim() || providerName
-  const parts = [recordName]
-  if (providerName && providerName !== recordName) {
-    parts.push(providerName)
-  }
-  if (model) {
-    parts.push(model)
-  }
-  return parts.join(' / ')
+  const providerName = template ? chooserTitle(template) : humanizeTemplateId(String(provider.template_id ?? ''))
+  if (recordName && model) return `${recordName} · ${model}`
+  if (recordName) return recordName
+  if (model) return `${providerName} · ${model}`
+  return providerName || 'Unnamed AI Provider'
+}
+
+function InlineTooltip({
+  label,
+  content,
+}: {
+  label: string
+  content: string
+}) {
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label={label}
+            className="inline-flex h-4 w-4 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <CircleHelp className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-xs text-xs leading-5">
+          {content}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
 }
 
 export function AISettingsSection({
@@ -86,7 +105,6 @@ export function AISettingsSection({
   const [defaultSelections, setDefaultSelections] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [createOpen, setCreateOpen] = useState(false)
 
   const templatesById = useMemo(
     () => new Map(templates.map(template => [template.id, template])),
@@ -134,7 +152,7 @@ export function AISettingsSection({
     void loadData()
   }, [loadData])
 
-  const endpointGroups = useMemo(() => {
+  const providerGroups = useMemo(() => {
     const groups = new Map<string, AIProviderRecord[]>()
     for (const provider of providers) {
       const endpoint = String(provider.endpoint ?? '').trim()
@@ -146,28 +164,37 @@ export function AISettingsSection({
     return Array.from(groups.entries())
       .map(([endpoint, items]) => ({
         endpoint,
+        providerName: (() => {
+          const template = templatesById.get(String(items[0]?.template_id ?? ''))
+          return template
+            ? chooserTitle(template)
+            : humanizeTemplateId(String(items[0]?.template_id ?? ''))
+        })(),
         items: [...items].sort((left, right) => {
-          const leftPreferred = left.is_default ? 1 : 0
-          const rightPreferred = right.is_default ? 1 : 0
-          if (leftPreferred !== rightPreferred) {
-            return rightPreferred - leftPreferred
+          const leftCreated = String(left.created ?? '')
+          const rightCreated = String(right.created ?? '')
+          if (leftCreated && rightCreated && leftCreated !== rightCreated) {
+            return leftCreated.localeCompare(rightCreated)
           }
           return String(left.name ?? '').localeCompare(String(right.name ?? ''))
         }),
       }))
-      .sort((left, right) => left.endpoint.localeCompare(right.endpoint))
-  }, [providers])
+      .sort(
+        (left, right) =>
+          left.providerName.localeCompare(right.providerName) ||
+          left.endpoint.localeCompare(right.endpoint)
+      )
+  }, [providers, templatesById])
 
   const resolvedSelections = useMemo(
     () =>
-      endpointGroups.reduce<Record<string, string>>((accumulator, group) => {
+      providerGroups.reduce<Record<string, string>>((accumulator, group) => {
         const configured = defaultSelections[group.endpoint]
         const existing = group.items.find(item => item.id === configured)
-        accumulator[group.endpoint] =
-          existing?.id ?? group.items.find(item => item.is_default)?.id ?? group.items[0]?.id ?? ''
+        accumulator[group.endpoint] = existing?.id ?? group.items[0]?.id ?? ''
         return accumulator
       }, {}),
-    [defaultSelections, endpointGroups]
+    [defaultSelections, providerGroups]
   )
 
   const handleSave = async () => {
@@ -176,7 +203,7 @@ export function AISettingsSection({
       await pb.send('/api/ai-providers/defaults', {
         method: 'PUT',
         body: {
-          items: endpointGroups
+          items: providerGroups
             .map(group => ({
               endpoint: group.endpoint,
               provider_id: resolvedSelections[group.endpoint] ?? '',
@@ -194,78 +221,87 @@ export function AISettingsSection({
   }
 
   return (
-    <>
-      <Card>
-        <CardHeader>
-          <CardTitle>{title}</CardTitle>
-          <CardDescription>{description}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h3 className="text-base font-semibold text-foreground">{title}</h3>
+        <p className="text-sm text-muted-foreground">{description}</p>
+      </div>
+      <div className="rounded-lg border border-border/40 bg-background p-4">
+        <div className="space-y-4">
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading AI providers...
             </div>
-          ) : providers.length === 0 ? (
-            <div className="space-y-3 rounded-lg border border-dashed p-4">
+          ) : providerGroups.length === 0 ? (
+            <div className="space-y-3 rounded-lg border border-dashed border-border/60 bg-muted/10 p-4">
               <p className="text-sm text-muted-foreground">
-                No AI models available yet. Create one here and set it as the platform default.
+                No AI Provider accounts are available yet. Create one in Resources so AppOS can
+                choose a default provider account here.
               </p>
-              <Button type="button" onClick={() => setCreateOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Model
-              </Button>
+              <div>
+                <Button type="button" variant="outline" asChild>
+                  <a href="/resources/ai-providers">Open AI Providers</a>
+                </Button>
+              </div>
             </div>
           ) : (
             <>
-              <div className="space-y-4">
-                {endpointGroups.map(group => (
-                  <div key={group.endpoint} className="space-y-1 rounded-lg border p-3">
-                    <Label htmlFor={`settings-ai-provider-${group.endpoint}`}>
-                      Preferred provider for endpoint
-                    </Label>
-                    <div className="text-xs text-muted-foreground">{group.endpoint}</div>
-                    <select
-                      id={`settings-ai-provider-${group.endpoint}`}
-                      className={selectClass}
-                      value={resolvedSelections[group.endpoint] ?? ''}
-                      onChange={event => {
-                        const nextValue = event.target.value
-                        if (nextValue === ADD_MODEL_OPTION_VALUE) {
-                          setCreateOpen(true)
-                          return
-                        }
-                        setDefaultSelections(current => ({
-                          ...current,
-                          [group.endpoint]: nextValue,
-                        }))
-                      }}
-                    >
-                      <optgroup label="Available providers">
+              <div className="hidden grid-cols-[minmax(0,220px)_minmax(0,1fr)] gap-3 px-1 text-sm font-medium text-muted-foreground md:grid">
+                <div>Provider Name</div>
+                <div className="flex items-center gap-1.5">
+                  <span>Default Account</span>
+                  <InlineTooltip
+                    label="Default Account help"
+                    content="AppOS uses the earliest created account by default until you choose a different account for this provider."
+                  />
+                </div>
+              </div>
+              <div className="space-y-3">
+                {providerGroups.map(group => (
+                  <div
+                    key={group.endpoint}
+                    className="grid gap-3 rounded-lg border border-border/60 p-4 md:grid-cols-[minmax(0,220px)_minmax(0,1fr)]"
+                  >
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-sm font-medium text-foreground">{group.providerName}</p>
+                      <p className="text-xs text-muted-foreground">{group.endpoint}</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label
+                        className="md:sr-only"
+                        htmlFor={`settings-ai-provider-${group.endpoint}`}
+                      >
+                        Default Account
+                      </Label>
+                      <select
+                        id={`settings-ai-provider-${group.endpoint}`}
+                        className={selectClass}
+                        value={resolvedSelections[group.endpoint] ?? ''}
+                        onChange={event => {
+                          const nextValue = event.target.value
+                          setDefaultSelections(current => ({
+                            ...current,
+                            [group.endpoint]: nextValue,
+                          }))
+                        }}
+                      >
                         {group.items.map(provider => (
                           <option key={provider.id} value={provider.id}>
                             {buildProviderOptionLabel(provider, templatesById)}
                           </option>
                         ))}
-                      </optgroup>
-                      <optgroup label="Actions">
-                        <option value={ADD_MODEL_OPTION_VALUE}>+ Add a new model...</option>
-                      </optgroup>
-                    </select>
-                    <p className="text-xs text-muted-foreground">
-                      When multiple AI Provider records share this endpoint, chat uses this
-                      preferred record first. If no preference is saved, the earliest matching
-                      provider remains the fallback.
-                    </p>
+                      </select>
+                    </div>
                   </div>
                 ))}
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap justify-end gap-2">
                 <Button
                   type="button"
                   onClick={handleSave}
-                  disabled={saving || endpointGroups.length === 0}
+                  disabled={saving || providerGroups.length === 0}
                 >
                   {saving ? (
                     <>
@@ -277,20 +313,22 @@ export function AISettingsSection({
                   )}
                 </Button>
               </div>
+
+              <p className="text-sm text-muted-foreground">
+                Need to add or manage accounts first?
+                {' '}
+                <a
+                  className="font-medium text-foreground underline underline-offset-4"
+                  href="/resources/ai-providers"
+                >
+                  Open AI Providers
+                </a>
+                .
+              </p>
             </>
           )}
-        </CardContent>
-      </Card>
-
-      <SharedAIProviderCreateFlowDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        onCreated={() => {
-          void loadData().then(() => {
-            showToast('AI model created')
-          })
-        }}
-      />
-    </>
+        </div>
+      </div>
+    </div>
   )
 }

@@ -3,6 +3,7 @@ package connectors
 import (
 	"fmt"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -100,7 +101,11 @@ func LoadSMTPWith(repo Repository, secrets SecretResolvePort) (*SMTPConfig, erro
 	}
 	item, err := selectDefaultConnector(items, KindSMTP)
 	if err != nil {
-		return nil, err
+		if IsRuntimeReason(err, RuntimeReasonDefaultRequired) {
+			item = earliestCreatedConnector(items)
+		} else {
+			return nil, err
+		}
 	}
 	return smtpConfigFromConnector(secrets, item)
 }
@@ -249,6 +254,33 @@ func selectDefaultConnector(items []*Connector, kind string) (*Connector, error)
 		return items[0], nil
 	}
 	return nil, &RuntimeConfigError{Kind: kind, Reason: RuntimeReasonDefaultRequired}
+}
+
+func earliestCreatedConnector(items []*Connector) *Connector {
+	if len(items) == 0 {
+		return nil
+	}
+	candidates := append([]*Connector(nil), items...)
+	sort.SliceStable(candidates, func(i, j int) bool {
+		leftCreated := strings.TrimSpace(candidates[i].Created())
+		rightCreated := strings.TrimSpace(candidates[j].Created())
+		switch {
+		case leftCreated == "" && rightCreated != "":
+			return false
+		case leftCreated != "" && rightCreated == "":
+			return true
+		case leftCreated != rightCreated:
+			return leftCreated < rightCreated
+		}
+
+		leftName := strings.TrimSpace(candidates[i].Name())
+		rightName := strings.TrimSpace(candidates[j].Name())
+		if leftName != rightName {
+			return leftName < rightName
+		}
+		return candidates[i].ID() < candidates[j].ID()
+	})
+	return candidates[0]
 }
 
 func smtpConfigFromConnector(secrets SecretResolvePort, connector *Connector) (*SMTPConfig, error) {

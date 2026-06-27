@@ -1,0 +1,13 @@
+{
+  "kind": "rabbitmq",
+  "category": "message-queue",
+  "fields": [
+    {
+      "id": "vhost",
+      "label": "Virtual Host",
+      "type": "text",
+      "default": "/",
+      "placeholder": "/"
+    }
+  ]
+}

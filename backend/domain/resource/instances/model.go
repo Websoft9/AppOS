@@ -10,7 +10,11 @@ const (
 	KindPostgres = "postgres"
 	KindRedis    = "redis"
 	KindKafka    = "kafka"
+	KindRabbitMQ = "rabbitmq"
+	KindNATS     = "nats"
+	KindMQTT     = "mqtt"
 	KindS3       = "s3"
+	KindGateway  = "gateway"
 	KindRegistry = "registry"
 	KindOllama   = "ollama"
 )
@@ -20,7 +24,11 @@ var declaredKinds = []string{
 	KindPostgres,
 	KindRedis,
 	KindKafka,
+	KindRabbitMQ,
+	KindNATS,
+	KindMQTT,
 	KindS3,
+	KindGateway,
 	KindRegistry,
 	KindOllama,
 }

@@ -417,9 +417,64 @@ function buildServerBaseFields(t: Translate): FieldDef[] {
     },
     {
       key: 'is_enabled',
-      label: t('servers.fields.enabled'),
+      label: t('servers.fields.enableIt'),
       type: 'boolean',
       defaultValue: true,
+      advanced: true,
+      render: ({ field, value, setValue }) => {
+        const currentValue = resolveServerEnabled(value)
+        const options = [
+          { label: t('servers.enabled.yes'), value: true },
+          { label: t('servers.enabled.no'), value: false },
+        ]
+
+        return (
+          <div className="space-y-3">
+            <label className="text-sm font-medium text-foreground">{field.label}</label>
+            <div className="grid gap-3 md:grid-cols-2">
+              {options.map(option => {
+                const selected = option.value === currentValue
+                return (
+                  <button
+                    key={option.label}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    className={cn(
+                      'cursor-pointer select-none rounded-2xl border px-4 py-3 text-left transition-colors',
+                      selected
+                        ? 'border-foreground bg-accent/40 shadow-sm'
+                        : 'border-border bg-background hover:bg-muted/50'
+                    )}
+                    onMouseDown={event => event.preventDefault()}
+                    onClick={event => {
+                      setValue(option.value)
+                      event.currentTarget.blur()
+                    }}
+                  >
+                    <div className="flex items-center gap-3 text-sm font-medium text-foreground">
+                      <span
+                        className={cn(
+                          'flex h-4 w-4 items-center justify-center rounded-full border',
+                          selected ? 'border-foreground' : 'border-muted-foreground/50'
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            'h-2 w-2 rounded-full bg-foreground transition-opacity',
+                            selected ? 'opacity-100' : 'opacity-0'
+                          )}
+                        />
+                      </span>
+                      {option.label}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )
+      },
     },
     {
       key: 'name',
@@ -466,7 +521,12 @@ function buildServerBaseFields(t: Translate): FieldDef[] {
       relationLabelKey: 'name',
       relationFormatLabel: formatSecretLabel,
     },
-    { key: 'description', label: t('servers.fields.description'), type: 'textarea' },
+    {
+      key: 'description',
+      label: t('servers.fields.description'),
+      type: 'textarea',
+      advanced: true,
+    },
   ]
 }
 

@@ -108,7 +108,7 @@ Cockpit Container
   - inotify-based config.ini watcher (watchdog library)
   - Config transformation engine (INI → service-specific format)
   - Service reload capability:
-    - External containers: Docker API restart (via docker.sock)
+    - External containers: Docker runtime restart through the selected server execution path
     - Internal processes: supervisord XML-RPC API restart
     - Graceful reload via service HTTP APIs (zero downtime)
   - Thread-safe implementation with proper locking

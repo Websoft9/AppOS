@@ -19,8 +19,10 @@ import (
 	appcatalog "github.com/websoft9/appos/backend/domain/catalog"
 	"github.com/websoft9/appos/backend/domain/iac"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
+	"github.com/websoft9/appos/backend/domain/lifecycle/projection"
 	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
 	"github.com/websoft9/appos/backend/domain/monitor"
+	monitorstore "github.com/websoft9/appos/backend/domain/monitor/status/store"
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
 	"github.com/websoft9/appos/backend/domain/terminal"
 	"github.com/websoft9/appos/backend/infra/collections"
@@ -48,6 +50,13 @@ type appRuntimeServerState struct {
 	RuntimeIndex  map[string]string
 	RuntimeReason string
 	ServerName    string
+	ConnectionStatus string
+	ConnectionReason string
+}
+
+type appServerConnectionState struct {
+	Status string
+	Reason string
 }
 
 func registerAppsRoutes(g *router.RouterGroup[*core.RequestEvent]) {
@@ -74,7 +83,7 @@ func registerAppsRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 }
 
 // @Summary List installed apps
-// @Description Returns installed app inventory with normalized runtime status. Superuser only.
+// @Description Returns installed app inventory with canonical instance_state and normalized runtime status. Superuser only.
 // @Tags Apps
 // @Security BearerAuth
 // @Success 200 {object} map[string]any
@@ -106,7 +115,7 @@ func handleAppInstanceList(e *core.RequestEvent) error {
 	for _, record := range records {
 		serverID := normalizeAppServerID(record.GetString("server_id"))
 		serverState := runtimeByServer[serverID]
-		result = append(result, appInstanceResponse(e.App, record, serverState.RuntimeIndex, serverState.RuntimeReason, catalogIconByKey, serverState.ServerName))
+		result = append(result, appInstanceResponse(e.App, record, serverState, catalogIconByKey))
 	}
 
 	sort.SliceStable(result, func(i, j int) bool {
@@ -117,7 +126,7 @@ func handleAppInstanceList(e *core.RequestEvent) error {
 }
 
 // @Summary Get app detail
-// @Description Returns one installed app with normalized runtime status. Superuser only.
+// @Description Returns one installed app with canonical instance_state and normalized runtime status. Superuser only.
 // @Tags Apps
 // @Security BearerAuth
 // @Param id path string true "app instance ID"
@@ -135,7 +144,7 @@ func handleAppInstanceDetail(e *core.RequestEvent) error {
 	serverID := normalizeAppServerID(record.GetString("server_id"))
 	serverState := resolveAppRuntimeServerState(e.App, serverID)
 
-	return e.JSON(http.StatusOK, appInstanceResponse(e.App, record, serverState.RuntimeIndex, serverState.RuntimeReason, appCatalogIconIndex(), serverState.ServerName))
+	return e.JSON(http.StatusOK, appInstanceResponse(e.App, record, serverState, appCatalogIconIndex()))
 }
 
 // @Summary Get app logs
@@ -158,6 +167,9 @@ func handleAppInstanceLogs(e *core.RequestEvent) error {
 	runtimeContext, err := resolveAppRuntimeContext(e.App, record)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
+	}
+	if reason, blocked := requireManagedServerRuntimeAccess(e.App, record); blocked {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": reason})
 	}
 
 	client, err := servers.NewDockerClient(e.App, normalizeAppServerID(record.GetString("server_id")))
@@ -210,6 +222,9 @@ func handleAppInstanceConfigGet(e *core.RequestEvent) error {
 	serverID := normalizeAppServerID(record.GetString("server_id"))
 	if serverID == "" || serverID == "local" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "managed server is required for app compose config"})
+	}
+	if reason, blocked := requireManagedServerRuntimeAccess(e.App, record); blocked {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": reason})
 	}
 	content, err := readAppComposeConfig(e, serverID, runtimeContext.ProjectDir)
 	if err != nil {
@@ -298,6 +313,9 @@ func handleAppInstanceConfigValidate(e *core.RequestEvent) error {
 	if serverID == "" || serverID == "local" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "managed server is required for app compose config"})
 	}
+	if reason, blocked := requireManagedServerRuntimeAccess(e.App, record); blocked {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": reason})
+	}
 	if err := validateAppComposeConfig(e, serverID, runtimeContext.ProjectDir, content); err != nil {
 		return e.JSON(http.StatusOK, withMapFields(map[string]any{
 			"id":       record.Id,
@@ -348,6 +366,9 @@ func handleAppInstanceConfigWrite(e *core.RequestEvent) error {
 	serverID := normalizeAppServerID(record.GetString("server_id"))
 	if serverID == "" || serverID == "local" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "managed server is required for app compose config"})
+	}
+	if reason, blocked := requireManagedServerRuntimeAccess(e.App, record); blocked {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": reason})
 	}
 	if err := validateAppComposeConfig(e, serverID, runtimeContext.ProjectDir, content); err != nil {
 		writeAppAudit(e, record, "app.config.validate", audit.StatusFailed, map[string]any{"errorMessage": err.Error()})
@@ -417,6 +438,9 @@ func handleAppInstanceConfigRollback(e *core.RequestEvent) error {
 	serverID := normalizeAppServerID(record.GetString("server_id"))
 	if serverID == "" || serverID == "local" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "managed server is required for app compose config"})
+	}
+	if reason, blocked := requireManagedServerRuntimeAccess(e.App, record); blocked {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": reason})
 	}
 	currentContent, err := readAppComposeConfig(e, serverID, runtimeContext.ProjectDir)
 	if err != nil {
@@ -497,6 +521,10 @@ func handleAppInstanceLifecycleOperationWithMetadata(e *core.RequestEvent, actio
 	}
 
 	serverID := normalizeAppServerID(record.GetString("server_id"))
+	if reason, blocked := requireManagedServerRuntimeAccess(e.App, record); blocked {
+		writeAppAudit(e, record, "app."+action+".create", audit.StatusFailed, map[string]any{"errorMessage": reason, "requestedAction": action})
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": reason})
+	}
 	content, err := readAppComposeConfig(e, serverID, runtimeContext.ProjectDir)
 	if err != nil {
 		writeAppAudit(e, record, "app."+action+".create", audit.StatusFailed, map[string]any{"errorMessage": err.Error(), "requestedAction": action})
@@ -610,20 +638,23 @@ func findAppInstance(e *core.RequestEvent, id string) (*core.Record, error) {
 	return record, nil
 }
 
-func appInstanceResponse(app core.App, record *core.Record, runtimeIndex map[string]string, runtimeReason string, catalogIconByKey map[string]string, serverName string) map[string]any {
+func appInstanceResponse(app core.App, record *core.Record, serverState appRuntimeServerState, catalogIconByKey map[string]string) map[string]any {
 	name := record.GetString("name")
 	serverID := normalizeAppServerID(record.GetString("server_id"))
 	runtimeContext, _ := resolveAppRuntimeContext(app, record)
 	currentPipeline, _ := appCurrentPipelineResponse(app, record)
-	runtimeStatus := appRuntimeStatus(record)
-	if runtimeIndex != nil {
-		if live, ok := runtimeIndex[name]; ok && strings.TrimSpace(live) != "" {
-			runtimeStatus = normalizeComposeRuntimeStatus(live)
+	currentProjection := projection.ReadAppInstanceProjection(record)
+	runtimeReason := serverState.RuntimeReason
+	liveRuntimeStatus := ""
+	if serverState.RuntimeIndex != nil {
+		if live, ok := serverState.RuntimeIndex[name]; ok && strings.TrimSpace(live) != "" {
+			liveRuntimeStatus = live
 			runtimeReason = ""
 		}
-	} else if strings.TrimSpace(runtimeReason) != "" {
-		runtimeStatus = "unknown"
 	}
+	effective := projection.ResolveEffectiveAppProjectionFromSources(currentProjection, loadAppProjectionSources(app, record, currentPipeline, liveRuntimeStatus, runtimeReason))
+	effectiveProjection := effective.Projection
+	runtimeStatus := string(effective.RuntimeStatus)
 	if runtimeStatus == "" {
 		runtimeStatus = "unknown"
 	}
@@ -632,18 +663,19 @@ func appInstanceResponse(app core.App, record *core.Record, runtimeIndex map[str
 		"id":                      record.Id,
 		"iac_path":                appInstanceIACPath(record.Id, name),
 		"server_id":               serverID,
-		"server_name":             serverName,
+		"server_name":             serverState.ServerName,
 		"name":                    name,
 		"project_dir":             runtimeContext.ProjectDir,
 		"trigger":                 runtimeContext.Trigger,
 		"channel":                 runtimeContext.Channel,
 		"execution_mode":          runtimeContext.ExecutionMode,
+		"server_connection_status": normalizeServerConnectionStatus(serverState.ConnectionStatus),
 		"status":                  appInstallStatus(record),
+		"instance_state":          string(effective.InstanceState),
 		"runtime_status":          runtimeStatus,
-		"lifecycle_state":         record.GetString("lifecycle_state"),
-		"health_summary":          record.GetString("health_summary"),
-		"publication_summary":     record.GetString("publication_summary"),
-		"state_reason":            record.GetString("state_reason"),
+		"health_summary":          string(effectiveProjection.HealthSummary),
+		"publication_summary":     string(effectiveProjection.PublicationSummary),
+		"state_reason":            effectiveProjection.StateReason,
 		"access_username":         record.GetString("access_username"),
 		"access_secret_hint":      record.GetString("access_secret_hint"),
 		"access_retrieval_method": record.GetString("access_retrieval_method"),
@@ -662,6 +694,9 @@ func appInstanceResponse(app core.App, record *core.Record, runtimeIndex map[str
 	}
 	if strings.TrimSpace(runtimeReason) != "" {
 		result["runtime_reason"] = runtimeReason
+	}
+	if strings.TrimSpace(serverState.ConnectionReason) != "" {
+		result["server_connection_reason"] = serverState.ConnectionReason
 	}
 	if value := record.GetDateTime("installed_at"); !value.IsZero() {
 		result["installed_at"] = value.String()
@@ -743,22 +778,30 @@ func resolveAppRuntimeServerState(app core.App, serverID string) appRuntimeServe
 	trimmedServerID := strings.TrimSpace(serverID)
 	if trimmedServerID == "" {
 		state.RuntimeReason = "app server is not assigned"
+		state.ConnectionStatus = "unknown"
+		state.ConnectionReason = "App server is not assigned."
 		return state
 	}
 	if trimmedServerID == "local" {
+		state.ConnectionStatus = "online"
 		return state
 	}
 
 	serverRecord, err := app.FindRecordById("servers", trimmedServerID)
 	if err != nil {
 		state.RuntimeReason = "managed server record is unavailable"
+		state.ConnectionStatus = "unknown"
+		state.ConnectionReason = "Managed server record is unavailable."
 		return state
 	}
 	if serverName := strings.TrimSpace(serverRecord.GetString("name")); serverName != "" {
 		state.ServerName = serverName
 	}
-	if fallbackReason, ok := appServerRuntimeFallbackReason(app, serverRecord); ok {
-		state.RuntimeReason = fallbackReason
+	connection := resolveAppServerConnectionState(app, serverRecord)
+	state.ConnectionStatus = normalizeServerConnectionStatus(connection.Status)
+	state.ConnectionReason = connection.Reason
+	if strings.TrimSpace(connection.Reason) != "" {
+		state.RuntimeReason = connection.Reason
 		return state
 	}
 
@@ -772,20 +815,56 @@ func resolveAppRuntimeServerState(app core.App, serverID string) appRuntimeServe
 }
 
 func appServerRuntimeFallbackReason(app core.App, serverRecord *core.Record) (string, bool) {
+	connection := resolveAppServerConnectionState(app, serverRecord)
+	if normalizeServerConnectionStatus(connection.Status) == "online" || strings.TrimSpace(connection.Reason) == "" {
+		return "", false
+	}
+	return connection.Reason, true
+}
+
+func requireManagedServerRuntimeAccess(app core.App, record *core.Record) (string, bool) {
+	if app == nil || record == nil {
+		return "app instance is unavailable", true
+	}
+	serverID := normalizeAppServerID(record.GetString("server_id"))
+	if serverID == "" || serverID == "local" {
+		return "", false
+	}
+	serverRecord, err := app.FindRecordById("servers", serverID)
+	if err != nil {
+		return "Managed server record is unavailable.", true
+	}
+	connection := resolveAppServerConnectionState(app, serverRecord)
+	if normalizeServerConnectionStatus(connection.Status) == "online" {
+		return "", false
+	}
+	if strings.TrimSpace(connection.Reason) != "" {
+		return connection.Reason, true
+	}
+	return "Server runtime status is unavailable.", true
+}
+
+func resolveAppServerConnectionState(app core.App, serverRecord *core.Record) appServerConnectionState {
 	if serverRecord == nil {
-		return "managed server record is unavailable", true
+		return appServerConnectionState{Status: "unknown", Reason: "Managed server record is unavailable."}
 	}
 	connectType := strings.ToLower(strings.TrimSpace(serverRecord.GetString("connect_type")))
 	if connectType == "tunnel" {
 		tunnelStatus := strings.ToLower(strings.TrimSpace(serverRecord.GetString("tunnel_status")))
 		if tunnelStatus != "" && tunnelStatus != string(servers.TunnelStatusOnline) {
-			return describeAppRuntimeFallbackReason(tunnelStatus, strings.TrimSpace(serverRecord.GetString("tunnel_disconnect_reason"))), true
+			return appServerConnectionState{
+				Status: "tunnel_disconnected",
+				Reason: describeAppRuntimeFallbackReason(tunnelStatus, strings.TrimSpace(serverRecord.GetString("tunnel_disconnect_reason"))),
+			}
 		}
 	}
 
 	accessStatus := strings.ToLower(strings.TrimSpace(serverRecord.GetString("access_status")))
 	if accessStatus == "unavailable" {
-		return describeAppRuntimeFallbackReason(accessStatus, strings.TrimSpace(serverRecord.GetString("access_reason"))), true
+		return appServerConnectionState{
+			Status: "unreachable",
+			Reason: describeAppRuntimeFallbackReason(accessStatus, strings.TrimSpace(serverRecord.GetString("access_reason"))),
+		}
 	}
 
 	monitorRecord, err := app.FindFirstRecordByFilter(
@@ -794,14 +873,34 @@ func appServerRuntimeFallbackReason(app core.App, serverRecord *core.Record) (st
 		map[string]any{"targetType": monitor.TargetTypeServer, "targetID": serverRecord.Id},
 	)
 	if err != nil {
-		return "", false
+		return appServerConnectionState{Status: "online"}
 	}
 	monitorStatus := strings.TrimSpace(monitorRecord.GetString("status"))
 	switch monitorStatus {
 	case monitor.StatusOffline, monitor.StatusUnreachable, monitor.StatusCredentialInvalid:
-		return describeAppRuntimeFallbackReason(monitorStatus, strings.TrimSpace(monitorRecord.GetString("reason"))), true
+		return appServerConnectionState{
+			Status: normalizeServerConnectionStatus(monitorStatus),
+			Reason: describeAppRuntimeFallbackReason(monitorStatus, strings.TrimSpace(monitorRecord.GetString("reason"))),
+		}
 	default:
-		return "", false
+		return appServerConnectionState{Status: "online"}
+	}
+}
+
+func normalizeServerConnectionStatus(status string) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "", "online", "healthy", "available":
+		return "online"
+	case monitor.StatusOffline:
+		return "offline"
+	case monitor.StatusCredentialInvalid:
+		return "credential_invalid"
+	case "tunnel_disconnected":
+		return "tunnel_disconnected"
+	case "unknown":
+		return "unknown"
+	default:
+		return "unreachable"
 	}
 }
 
@@ -931,20 +1030,6 @@ func appCurrentPipelineResponse(app core.App, record *core.Record) (map[string]a
 	return buildPipelineResponse(app, pipelineRunID, operationRecord, stepRuns)
 }
 
-func normalizeComposeRuntimeStatus(raw string) string {
-	value := strings.ToLower(strings.TrimSpace(raw))
-	switch {
-	case strings.Contains(value, "running"):
-		return "running"
-	case strings.Contains(value, "exited"), strings.Contains(value, "stopped"):
-		return "stopped"
-	case strings.Contains(value, "dead"), strings.Contains(value, "error"):
-		return "error"
-	default:
-		return value
-	}
-}
-
 func normalizeAppServerID(serverID string) string {
 	return strings.TrimSpace(serverID)
 }
@@ -1038,16 +1123,40 @@ func appInstallStatus(record *core.Record) string {
 }
 
 func appRuntimeStatus(record *core.Record) string {
-	switch strings.TrimSpace(record.GetString("lifecycle_state")) {
-	case string(model.AppStateRunningHealthy), string(model.AppStateRunningDegraded):
-		return "running"
-	case string(model.AppStateStopped), string(model.AppStateRetired):
-		return "stopped"
-	case string(model.AppStateAttentionRequired):
-		return "error"
-	default:
-		return "unknown"
+	return string(projection.RuntimeStatusFromProjection(projection.ReadAppInstanceProjection(record)))
+}
+
+func loadAppProjectionSources(app core.App, record *core.Record, currentPipeline map[string]any, liveRuntimeStatus string, runtimeReason string) projection.AppProjectionSources {
+	sources := projection.AppProjectionSources{
+		CurrentPipeline:   currentPipeline,
+		LiveRuntimeStatus: liveRuntimeStatus,
+		RuntimeReason:     runtimeReason,
 	}
+	if app == nil || record == nil {
+		return sources
+	}
+	primaryPublicationState := ""
+	primaryHealthState := ""
+	if exposureID := strings.TrimSpace(record.GetString("primary_exposure")); exposureID != "" {
+		if exposureRecord, err := app.FindRecordById("app_exposures", exposureID); err == nil {
+			primaryPublicationState = exposureRecord.GetString("publication_state")
+			primaryHealthState = exposureRecord.GetString("health_state")
+		}
+	}
+	sources.PrimaryExposurePublicationState = primaryPublicationState
+	sources.PrimaryExposureHealthState = primaryHealthState
+	if monitorRecord, err := app.FindFirstRecordByFilter(
+		collections.MonitorLatestStatus,
+		"target_type = {:targetType} && target_id = {:targetID}",
+		map[string]any{"targetType": monitor.TargetTypeApp, "targetID": record.Id},
+	); err == nil {
+		sources.MonitorStatus = strings.TrimSpace(monitorRecord.GetString("status"))
+		sources.MonitorReason = strings.TrimSpace(monitorRecord.GetString("reason"))
+		sources.MonitorSummary = monitorstore.LoadExistingSummary(app, monitor.TargetTypeApp, record.Id)
+	} else {
+		sources.MonitorSummary = monitorstore.LoadExistingSummary(app, monitor.TargetTypeApp, record.Id)
+	}
+	return sources
 }
 
 func writeAppAudit(e *core.RequestEvent, record *core.Record, action string, status string, detail map[string]any) {

@@ -193,6 +193,7 @@ export function ResourceFormField({
             onChange={e => updateField(field.key, e.target.value)}
             placeholder={field.placeholder}
             required={field.required}
+            maxLength={field.maxLength}
             rows={field.rows ?? 5}
           />
         </div>
@@ -225,6 +226,7 @@ export function ResourceFormField({
           onChange={e => handleChange(field, e.target.value)}
           placeholder={field.placeholder}
           required={field.required}
+          maxLength={field.maxLength}
           readOnly={field.readOnly}
         />
       )}

@@ -64,29 +64,14 @@ docker image 下载完成后，记得镜像更名
 但它们不等于宇宙完备分类。将来还可能出现这些不太适合硬塞进去的类型：
 
 identity/：OAuth Provider、OIDC、LDAP、SSO
-storage/：S3、OSS、NAS、对象存储
-messaging/：Kafka、RabbitMQ、NATS、MQTT
-mail/：SMTP、邮件服务商
-dns/：DNS provider、域名解析
-artifact/：如果你未来不只管镜像，还管 Helm Chart、包仓库、插件源
 
 
-1. 如果你要把“网络可达性”再升级成应用层探测，我下一步可以把 MySQL/PostgreSQL/Redis/Kafka 从 TCP 通断扩展到协议握手级检查。
 2. 把 connectors 和 servers 里还保留的旧版 “新建 Secret” 对话框也完全切到 SecretCreateDialog.tsx。
 
-add resource 统一入口，仍然没有链接到具体的创建弹窗，而仅仅是列表页。除了 server 之外
 
-tunnul 的Port Forward  Effective Mappings 区域没有显示具体的内容了
+If you want, I can continue by adding vendor-specific profiles for these new messaging kinds, such as CloudAMQP, Redpanda, EMQX, or Mosquitto.
+If you want to tighten the domain model, I can do the next pass to shift messaging from product-kind modeling toward protocol-family modeling.
 
-请将 epic29 下的几个 story 名称更改一下
-
-除了 story29.xx 名称的前缀之外，文件名称最多不超过3个单词
-
-ports tab 不稳定，经常打开显示  somethins wrong
-
-addons 的 netdata restart 报错
-
-去掉所有与 docker.sock 的强依赖与硬编码
 
 ## resource - external service
 
@@ -96,13 +81,31 @@ edit external service 流程优化
 -如果是新增，应该可直接填写值或选择已有
 -如果是修改，应该点击编辑按钮后天呢或选择已有
 
+
+## server detail
+
+ports tab 不稳定，经常打开显示  somethins wrong
+
+addons 的 netdata restart 报错
+
+
+## system
+
+getconf 是唯一硬编码的 OS 命令，Linux 基本都有。其余命令由 catalog 模板定义，非后端硬编码。
+
 ### 服务器
 
 - 服务器特殊环境配置：Docker 仓库地址、Docker 加速地址、代理地址
 
+## Tunnel 
+
+tunnul 的Port Forward  Effective Mappings 区域没有显示具体的内容了
+
 ## 浏览器
 
 提供一个轻量级的浏览器，它可以通过服务器的网络访问网站
+
+基于 Webcontainer 技术，在浏览器网页上运行
 
 ## AI Copit
 
@@ -113,6 +116,7 @@ edit external service 流程优化
 免登录访问 saas 系统的控制台
 
 ## LLM
+
 - 本地小模型内嵌？
 
 ## 监控
@@ -125,45 +129,18 @@ edit external service 流程优化
 
 - 如何做？存储到哪里？
 
-## dockerfile
-
 ## dashboard
 
 顶部增加一个搜索入口，它搜索主要是搜索页面
-frame 嵌入页面实施，我把这个 iframe-page framework 再抽一层 registry，让后续消费者不必各自手写 page definition
 
+frame 嵌入页面实施，我把这个 iframe-page framework 再抽一层 registry，让后续消费者不必各自手写 page definition
 
 如果你要继续，我建议下一步做 1 件事：把页面文案里的原始链接说明也补成更明确的“公开 dashboard 代理入口”，避免后面有人又按旧 /api/system/traefik 去排障。
 
 
-## settings
-
-AI settings 哪里，应该是禁用哪些厂商。默认全部启用
-
-
-每个区域一个独立的框，标题和说明放在框之外。所有的设置tab 今后都采用这种策略
-
-
-
 ## ai provider
 
-唯一需要持久化的偏好是"上次用的是什么"，这样用户打开 chat 不用每次都重选。但这只是一个 UI 状态记录（localStorage 或 user preference），不会污染 provider 的业务数据。
-
-所以最终模型是：
-
-层	职责	存储
-Provider	endpoint + credential + kind	数据库
-模型列表	fetch-models 运行时拉取	不存
-默认偏好	上次用哪个 model	前端 localStorage 或用户偏好字段
-
-getconf 是唯一硬编码的 OS 命令，Linux 基本都有。其余命令由 catalog 模板定义，非后端硬编码。
-
 认证方式，原数据化
-
-ai provider 元数据优化
-
-
-
 
 限制历史消息数量，每次8轮
 捕捉token 超标的错误后，删除最早的2条消息
@@ -171,11 +148,3 @@ ai provider 元数据优化
 ## Infra
 
 数据库增加 external json 结构，便于未来拓展？
-
-
-
-
-
-## feeds
-
-帮你把 investigation 文档收尾成 concluded 状态

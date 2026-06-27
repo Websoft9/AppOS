@@ -269,6 +269,54 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 	}
 }
 
+func TestSettingsEntriesListFiltersRequestedIDs(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	res := doSettingsRoute(t, te, http.MethodGet, "/api/settings/entries?ids=basic,logs,missing-entry", "", true)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected 200 for filtered entry payloads, got %d: %s", res.Code, res.Body.String())
+	}
+
+	var body map[string][]map[string]any
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+
+	items := body["items"]
+	if len(items) == 0 {
+		t.Fatal("expected entry payloads")
+	}
+
+	if len(items) != 2 {
+		t.Fatalf("expected only requested known entries, got %d", len(items))
+	}
+
+	var foundBasic bool
+	var foundLogs bool
+	for _, item := range items {
+		id, _ := item["id"].(string)
+		switch id {
+		case "basic":
+			foundBasic = true
+			if item["value"] == nil {
+				t.Fatal("expected non-failing entries to still load values")
+			}
+		case "logs":
+			foundLogs = true
+			if item["value"] == nil {
+				t.Fatal("expected requested logs entry to load")
+			}
+		}
+	}
+	if !foundBasic {
+		t.Fatal("expected unaffected basic entry in response")
+	}
+	if !foundLogs {
+		t.Fatal("expected requested logs entry in response")
+	}
+}
+
 func TestSettingsEntryPatchValidation(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
