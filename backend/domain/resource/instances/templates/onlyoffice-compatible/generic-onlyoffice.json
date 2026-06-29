@@ -1,0 +1,6 @@
+{
+  "id": "generic-onlyoffice",
+  "title": "Generic ONLYOFFICE",
+  "description": "ONLYOFFICE-compatible document service dependency.",
+  "defaultEndpoint": "https://onlyoffice.internal"
+}

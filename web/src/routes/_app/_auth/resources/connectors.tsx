@@ -6,6 +6,7 @@ import { useOptionalLayout } from '@/contexts/LayoutContext'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import {
   ResourcePage,
   type Column,
@@ -15,6 +16,7 @@ import {
 import { ResourcesBreadcrumb } from '@/components/resources/ResourcesBreadcrumb'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { pb } from '@/lib/pb'
+import { cn } from '@/lib/utils'
 import {
   CONNECTOR_KIND_QUERY,
   SUPPORTED_KINDS,
@@ -30,15 +32,111 @@ import {
   mapConnectorRow,
   mapTemplateFieldToResourceField,
   resolveConnectorEnabled,
+  saveEditedConnectorSecrets,
   type Translate,
   type ConnectorRecord,
   type ConnectorTemplateField,
   type ConnectorTemplate,
 } from '@/components/connectors/shared'
 
-function buildColumns(t: Translate, onToggleEnabled: (item: Record<string, unknown>) => void): Column[] {
+function formatDateTime(value: unknown) {
+  const raw = String(value ?? '').trim()
+  if (!raw) return '—'
+  const date = new Date(raw)
+  if (Number.isNaN(date.getTime())) return raw
+  return new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date)
+}
+
+function translateStatus(t: Translate, key: string, fallback: string) {
+  const value = t(key)
+  return value === key ? fallback : value
+}
+
+function normalizeConnectorReachability(value: unknown, t: Translate) {
+  const normalized = String(value ?? '')
+    .trim()
+    .toLowerCase()
+  if (normalized === 'reachable') return translateStatus(t, 'connectors.status.reachable', 'Reachable')
+  if (normalized === 'unreachable') return translateStatus(t, 'connectors.status.unreachable', 'Unreachable')
+  return translateStatus(t, 'connectors.status.unknown', 'Unknown')
+}
+
+function reachabilityVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
+  if (status === 'Reachable') return 'default'
+  if (status === 'Unreachable') return 'destructive'
+  return 'outline'
+}
+
+function renderConnectorEnabledField(field: { label: string }, value: unknown, setValue: (value: boolean) => void, t: Translate) {
+  const currentValue = resolveConnectorEnabled(value)
+  const options = [
+    { label: t('connectors.enabled.yes'), value: true },
+    { label: t('connectors.enabled.no'), value: false },
+  ]
+
+  return (
+    <div className="space-y-3">
+      <label className="text-sm font-medium text-foreground">{field.label}</label>
+      <div className="flex flex-wrap items-center gap-5" role="radiogroup" aria-label={field.label}>
+        {options.map(option => {
+          const selected = option.value === currentValue
+          return (
+            <button
+              key={option.label}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              className={cn(
+                'cursor-pointer select-none text-left transition-colors',
+                selected ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
+              )}
+              onMouseDown={event => event.preventDefault()}
+              onClick={event => {
+                setValue(option.value)
+                event.currentTarget.blur()
+              }}
+            >
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <span
+                  className={cn(
+                    'flex h-4 w-4 items-center justify-center rounded-full border',
+                    selected ? 'border-foreground' : 'border-muted-foreground/40'
+                  )}
+                >
+                  {selected ? <span className="h-2 w-2 rounded-full bg-foreground" /> : null}
+                </span>
+                {option.label}
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function buildColumns(
+  t: Translate,
+  onToggleEnabled: (item: Record<string, unknown>) => void,
+  connectorKinds: string[],
+  connectorTemplates: ConnectorTemplate[],
+  reachabilityOverrides: Map<string, { status: string; reason: string }>
+): Column[] {
+  const authFilterOptions: SelectOption[] = [
+    { label: getConnectorAuthSchemeLabel('none', t), value: 'none' },
+    { label: getConnectorAuthSchemeLabel('basic', t), value: 'basic' },
+    { label: getConnectorAuthSchemeLabel('bearer', t), value: 'bearer' },
+    { label: getConnectorAuthSchemeLabel('api_key', t), value: 'api_key' },
+  ]
   return [
-    { key: 'name', label: t('connectors.columns.name'), searchable: true },
+    { key: 'name', label: t('connectors.columns.name'), searchable: true, sortable: true },
     {
       key: 'enabled_status',
       label: t('connectors.columns.enabled'),
@@ -71,36 +169,82 @@ function buildColumns(t: Translate, onToggleEnabled: (item: Record<string, unkno
       },
     },
     {
-      key: 'is_default',
-      label: t('connectors.columns.default'),
-      render: value =>
-        value ? (
-          <Badge>{t('connectors.badges.default')}</Badge>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        ),
-    },
-    {
       key: 'kind_label',
       label: t('connectors.columns.kind'),
+      sortable: true,
+      filterOptions: connectorKinds.map(kind => ({
+        label: getConnectorKindLabel(kind, t),
+        value: getConnectorKindLabel(kind, t),
+      })),
+      filterValue: row => String(row.kind_label ?? ''),
       render: value => <Badge variant="outline">{String(value || '—')}</Badge>,
     },
-    { key: 'profile', label: t('connectors.columns.profile') },
+    {
+      key: 'profile',
+      label: t('connectors.columns.profile'),
+      sortable: true,
+      searchable: true,
+      filterOptions: connectorTemplates.map(template => ({
+        label: template.title,
+        value: template.title,
+      })),
+      filterValue: row => String(row.profile ?? ''),
+    },
     {
       key: 'endpoint',
       label: t('connectors.columns.url'),
-      render: value => (
-        <span className="max-w-[200px] truncate block" title={String(value || '')}>
-          {String(value || '—')}
-        </span>
-      ),
+      searchable: true,
+      sortable: true,
+      render: (value, row) => {
+        const endpointDisplay =
+          String(row.kind ?? '') === 'smtp'
+            ? `${Boolean(row.tls) ? 'smtps' : 'smtp'}://${String(value || '')}${row.port ? `:${String(row.port)}` : ''}`
+            : String(value || '')
+        return (
+          <span className="max-w-[200px] truncate block" title={endpointDisplay}>
+            {endpointDisplay || '—'}
+          </span>
+        )
+      },
     },
     {
       key: 'auth_type',
       label: t('connectors.columns.auth'),
+      sortable: true,
+      filterOptions: authFilterOptions,
+      filterValue: row => String(row.auth_type ?? ''),
       render: value => (
         <Badge variant="secondary">{getConnectorAuthSchemeLabel(String(value ?? ''), t)}</Badge>
       ),
+    },
+    {
+      key: 'reachability',
+      label: translateStatus(t, 'connectors.columns.reachability', 'Reachability'),
+      sortable: true,
+      filterOptions: [
+        { label: normalizeConnectorReachability('reachable', t), value: normalizeConnectorReachability('reachable', t) },
+        { label: normalizeConnectorReachability('unreachable', t), value: normalizeConnectorReachability('unreachable', t) },
+        { label: normalizeConnectorReachability('unknown', t), value: normalizeConnectorReachability('unknown', t) },
+      ],
+      filterValue: row => String(row.reachability ?? ''),
+      render: (value, row) => {
+        const override = reachabilityOverrides.get(String(row.id ?? ''))
+        const status = String(override?.status ?? value ?? '').trim()
+        const reason = String(override?.reason ?? row.reachability_reason ?? '').trim()
+        return <Badge variant={reachabilityVariant(status)} title={reason || undefined}>{status || '—'}</Badge>
+      },
+    },
+    {
+      key: 'created',
+      label: translateStatus(t, 'connectors.columns.created', 'Created'),
+      sortable: true,
+      render: value => <span className="text-sm text-muted-foreground">{formatDateTime(value)}</span>,
+    },
+    {
+      key: 'updated',
+      label: translateStatus(t, 'connectors.columns.updated', 'Updated'),
+      sortable: true,
+      render: value => <span className="text-sm text-muted-foreground">{formatDateTime(value)}</span>,
     },
   ]
 }
@@ -114,6 +258,9 @@ export function ConnectorsPage() {
   const forcedKind = searchParams.get('kind') ?? ''
   const forcedTemplateID = searchParams.get('template') ?? ''
   const [refreshKey, setRefreshKey] = useState(0)
+  const [reachabilityOverrides, setReachabilityOverrides] = useState<
+    Map<string, { status: string; reason: string }>
+  >(new Map())
   const [secretDialogOpen, setSecretDialogOpen] = useState(false)
   const [connectorTemplates, setConnectorTemplates] = useState<ConnectorTemplate[]>([])
   const [secretAddOption, setSecretAddOption] = useState<
@@ -199,6 +346,7 @@ export function ConnectorsPage() {
           ...schemaField,
           required: Boolean(selectedField?.required),
           placeholder: selectedField?.placeholder || schemaField.placeholder,
+          helpUrl: selectedField?.helpUrl || schemaField.helpUrl,
           helpText: selectedField?.helpText || schemaField.helpText,
           secretTemplate: selectedField?.secretTemplate || schemaField.secretTemplate,
           default: selectedField?.default ?? schemaField.default,
@@ -219,9 +367,15 @@ export function ConnectorsPage() {
           effectiveField.id === 'endpoint' ||
           effectiveField.id === 'credential' ||
           effectiveField.id === 'auth_mode' ||
+          effectiveField.id === 'tls' ||
           (kind === 'proxy' && effectiveField.id === 'username')
         return {
           ...mapped,
+          render:
+            mapped.key === 'is_enabled'
+              ? ({ field, value, setValue }: any) =>
+                  renderConnectorEnabledField(field, value, setValue, t)
+              : mapped.render,
           advanced: forcePrimary ? false : true,
         }
       })
@@ -252,9 +406,21 @@ export function ConnectorsPage() {
         },
         ...dynamicFields,
         {
+          key: 'is_enabled',
+          label:
+            t('connectors.fields.enableIt') === 'connectors.fields.enableIt'
+              ? 'Enable it'
+              : t('connectors.fields.enableIt'),
+          type: 'boolean',
+          defaultValue: true,
+          advanced: true,
+          render: ({ field, value, setValue }: any) =>
+            renderConnectorEnabledField(field, value, setValue, t),
+        },
+        {
           key: 'description',
           label: t('connectors.fields.description'),
-          type: 'textarea',
+          type: 'text',
           advanced: true,
         },
         {
@@ -308,8 +474,15 @@ export function ConnectorsPage() {
     async (item: Record<string, unknown>) => {
       const connectorId = String(item.id ?? '')
       if (!connectorId) return
+      const current = await pb.send<ConnectorRecord>(`/api/connectors/${connectorId}`, {
+        method: 'GET',
+      })
+      const currentFormData = mapConnectorRow(current, connectorTemplatesById, t)
       const body = await buildConnectorPayload(
-        { ...item, is_enabled: !resolveConnectorEnabled(item.is_enabled) },
+        {
+          ...currentFormData,
+          is_enabled: !resolveConnectorEnabled(current.is_enabled),
+        },
         connectorTemplatesById,
         t
       )
@@ -319,7 +492,40 @@ export function ConnectorsPage() {
     [connectorTemplatesById, t]
   )
 
-  const columns = useMemo(() => buildColumns(t, handleToggleEnabled), [handleToggleEnabled, t])
+  const fetchReachabilityStatuses = useCallback(
+    async (ids: string[]) => {
+      if (ids.length === 0) {
+        setReachabilityOverrides(new Map())
+        return
+      }
+
+      try {
+        const params = new URLSearchParams({ ids: ids.join(',') })
+        const reachability = await pb.send<{
+          items?: Array<{ id: string; status: string; reason?: string }>
+        }>(`/api/connectors/reachability?${params.toString()}`, { method: 'GET' })
+        setReachabilityOverrides(
+          new Map(
+            (reachability.items ?? []).map(entry => [
+              String(entry.id ?? ''),
+              {
+                status: normalizeConnectorReachability(entry.status, t),
+                reason: String(entry.reason ?? ''),
+              },
+            ])
+          )
+        )
+      } catch {
+        setReachabilityOverrides(new Map())
+      }
+    },
+    [t]
+  )
+
+  const columnsWithFilters = useMemo(
+    () => buildColumns(t, handleToggleEnabled, connectorKinds, connectorTemplates, reachabilityOverrides),
+    [connectorKinds, connectorTemplates, handleToggleEnabled, reachabilityOverrides, t]
+  )
 
   const validateConnectorForm = useCallback(
     ({
@@ -414,7 +620,7 @@ export function ConnectorsPage() {
           descriptionClassName: 'hidden sm:block',
           showRefreshButton: true,
           refreshButtonIconOnly: true,
-          columns,
+          columns: columnsWithFilters,
           fields: baseConnectorFields,
           resolveFields: resolveConnectorFields,
           validateForm: validateConnectorForm,
@@ -513,9 +719,16 @@ export function ConnectorsPage() {
               `/api/connectors?kind=${CONNECTOR_KIND_QUERY}`,
               { method: 'GET' }
             )
-            return Array.isArray(items)
-              ? items.map(item => mapConnectorRow(item, connectorTemplatesById, t))
-              : []
+            if (!Array.isArray(items)) {
+              return []
+            }
+            const rows = items.map(item => mapConnectorRow(item, connectorTemplatesById, t))
+            void fetchReachabilityStatuses(rows.map(row => String(row.id ?? '')))
+            return rows.map(row => ({
+              ...row,
+              reachability: normalizeConnectorReachability('unknown', t),
+              reachability_reason: '',
+            }))
           },
           createItem: async payload => {
             const body = await buildConnectorPayload(payload, connectorTemplatesById, t)
@@ -526,8 +739,30 @@ export function ConnectorsPage() {
             return mapConnectorRow(created, connectorTemplatesById, t)
           },
           updateItem: async (id, payload) => {
-            const body = await buildConnectorPayload(payload, connectorTemplatesById, t)
+            const template = connectorTemplatesById.get(String(payload.template_id ?? ''))
+            if (!template) {
+              throw new Error(t('connectors.errors.profileRequired'))
+            }
+            const nextPayload = { ...payload }
+            await saveEditedConnectorSecrets(nextPayload, template)
+            const body = await buildConnectorPayload(nextPayload, connectorTemplatesById, t)
             await pb.send(`/api/connectors/${id}`, { method: 'PUT', body })
+          },
+          extraActions: item => {
+            const enabled = resolveConnectorEnabled(item.is_enabled)
+            return [
+              <DropdownMenuItem
+                key="toggle-enabled"
+                onClick={() => {
+                  void handleToggleEnabled(item)
+                }}
+              >
+                {enabled ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
+                {enabled
+                  ? translateStatus(t, 'connectors.actions.disable', 'Disable')
+                  : translateStatus(t, 'connectors.actions.enable', 'Enable')}
+              </DropdownMenuItem>,
+            ]
           },
           deleteItem: async id => {
             await pb.send(`/api/connectors/${id}`, { method: 'DELETE' })

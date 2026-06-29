@@ -33,6 +33,7 @@ type instanceResponseDocument struct {
 	Updated           string         `json:"updated"`
 	Name              string         `json:"name"`
 	Kind              string         `json:"kind"`
+	Traits            []string       `json:"traits,omitempty"`
 	IsEnabled         bool           `json:"is_enabled"`
 	TemplateID        string         `json:"template_id"`
 	Endpoint          string         `json:"endpoint"`
@@ -433,12 +434,17 @@ func writeInstanceAudit(e *core.RequestEvent, action string, beforeSnap *instanc
 }
 
 func instanceResponse(item *instances.Instance) map[string]any {
+	traits, err := instances.ResolveTraits(item)
+	if err != nil {
+		traits = nil
+	}
 	return map[string]any{
 		"id":               item.ID(),
 		"created":          item.Created(),
 		"updated":          item.Updated(),
 		"name":             item.Name(),
 		"kind":             item.Kind(),
+		"traits":           traits,
 		"is_enabled":       item.IsEnabled(),
 		"template_id":      item.TemplateID(),
 		"endpoint":         item.Endpoint(),
@@ -464,10 +470,15 @@ func instanceInputMap(input instances.SaveInput) map[string]any {
 }
 
 func instanceSnapshotMap(snap *instances.Snapshot) map[string]any {
+	traits, err := instances.ResolveTraits(instances.RestoreInstance(*snap))
+	if err != nil {
+		traits = nil
+	}
 	return map[string]any{
 		"id":               snap.ID,
 		"name":             snap.Name,
 		"kind":             snap.Kind,
+		"traits":           traits,
 		"is_enabled":       snap.IsEnabled,
 		"template_id":      snap.TemplateID,
 		"endpoint":         snap.Endpoint,

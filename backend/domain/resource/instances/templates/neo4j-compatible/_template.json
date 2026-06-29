@@ -1,0 +1,20 @@
+{
+  "kind": "neo4j-compatible",
+  "category": "database",
+  "fields": [
+    {
+      "id": "database",
+      "label": "Database",
+      "type": "text",
+      "default": "neo4j",
+      "placeholder": "neo4j"
+    },
+    {
+      "id": "username",
+      "label": "Username",
+      "type": "text",
+      "default": "neo4j",
+      "placeholder": "neo4j"
+    }
+  ]
+}

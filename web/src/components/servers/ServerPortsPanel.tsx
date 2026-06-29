@@ -39,6 +39,7 @@ import {
 } from '@/lib/connect-api'
 import { getApiErrorMessage, isRequestCancellation } from '@/lib/api-error'
 import { cn } from '@/lib/utils'
+import { runWithServerRealtimeBusyRetry } from './server-realtime-busy-retry'
 
 type PortRow = ServerPortItem & { protocol: ServerPortProtocol }
 type PortsSortColumn = 'port' | 'status' | 'protocol' | 'process'
@@ -166,17 +167,20 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
     setLoading(true)
     setError('')
     try {
-      const response = await listServerPorts(serverId, 'all', protocol)
-      if (requestSeqRef.current !== requestSeq) return
-      const nextRows = (Array.isArray(response.ports) ? response.ports : []).map(row => ({
-        ...row,
-        protocol: row.protocol || (response.protocol === 'all' ? 'tcp' : response.protocol),
-      }))
-      if (requestSeqRef.current !== requestSeq) return
-      setRows(nextRows)
-    } catch (loadError) {
-      if (requestSeqRef.current !== requestSeq || isRequestCancellation(loadError)) return
-      setError(getApiErrorMessage(loadError, 'Failed to load ports'))
+    const response = await runWithServerRealtimeBusyRetry(
+      () => listServerPorts(serverId, 'all', protocol),
+      { shouldRetry: () => requestSeqRef.current === requestSeq }
+    )
+    if (requestSeqRef.current !== requestSeq) return
+    const nextRows = (Array.isArray(response.ports) ? response.ports : []).map(row => ({
+      ...row,
+      protocol: row.protocol || (response.protocol === 'all' ? 'tcp' : response.protocol),
+    }))
+    if (requestSeqRef.current !== requestSeq) return
+    setRows(nextRows)
+  } catch (loadError) {
+    if (requestSeqRef.current !== requestSeq || isRequestCancellation(loadError)) return
+    setError(getApiErrorMessage(loadError, 'Failed to load ports'))
     } finally {
       if (requestSeqRef.current === requestSeq) {
         setLoading(false)
@@ -370,6 +374,7 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
                   aria-label="Port protocol"
                   value={protocol}
                   onChange={event => setProtocol(event.target.value as ServerPortProtocolFilter)}
+                  disabled={loading || releaseSubmitting}
                   className="h-8 w-28 rounded-md border bg-background px-2 text-sm"
                 >
                   <option value="all">All Protocol</option>

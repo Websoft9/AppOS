@@ -1,5 +1,9 @@
 # Story 8.3: Instance Foundation
 
+> Superseded note
+>
+> This story records the original backend foundation work. The current canonical instance model is defined by [specs/adr/runtime-instance-compatibility-contract.md](specs/adr/runtime-instance-compatibility-contract.md). References below to product-family `kind` values such as `mysql`, `postgres`, `redis`, `rabbitmq`, `s3`, or `gateway` are historical and no longer describe the active domain model.
+
 **Epic**: Epic 8 - Resources
 **Priority**: P1
 **Status**: in-progress

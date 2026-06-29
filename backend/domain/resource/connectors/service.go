@@ -136,15 +136,7 @@ func saveRecord(repo Repository, connector *Connector, input SaveInput, deps Sav
 		if exists {
 			return newConflictError("connector name already exists", nil)
 		}
-		if err := txRepo.Save(connector); err != nil {
-			return err
-		}
-		if connector.IsDefault() {
-			if err := txRepo.ClearDefaultsByKind(connector.Kind(), connector.ID()); err != nil {
-				return err
-			}
-		}
-		return nil
+		return txRepo.Save(connector)
 	})
 }
 

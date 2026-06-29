@@ -87,6 +87,10 @@ func loadTemplates() error {
 			if err != nil {
 				return fmt.Errorf("merge instance template %s: %w", filePath, err)
 			}
+			template, err = applyKindContractTemplate(template)
+			if err != nil {
+				return fmt.Errorf("apply instance kind contract %s: %w", filePath, err)
+			}
 			if err := validateTemplate(template); err != nil {
 				return fmt.Errorf("invalid instance template %s: %w", filePath, err)
 			}
@@ -111,6 +115,7 @@ type templateFile struct {
 	ID                  *string             `json:"id,omitempty"`
 	Category            *string             `json:"category,omitempty"`
 	Kind                *string             `json:"kind,omitempty"`
+	Traits              []string            `json:"traits,omitempty"`
 	Title               *string             `json:"title,omitempty"`
 	Vendor              *string             `json:"vendor,omitempty"`
 	Description         *string             `json:"description,omitempty"`
@@ -143,6 +148,10 @@ func loadKindBaseTemplate(kind string) (Template, error) {
 	if err != nil {
 		return Template{}, fmt.Errorf("merge instance base template %s: %w", filePath, err)
 	}
+	base, err = applyKindContractTemplate(base)
+	if err != nil {
+		return Template{}, fmt.Errorf("apply instance kind contract %s: %w", filePath, err)
+	}
 	if strings.TrimSpace(base.Kind) != kind {
 		return Template{}, fmt.Errorf("base template kind %q does not match directory %q", base.Kind, kind)
 	}
@@ -172,6 +181,9 @@ func applyTemplateOverlay(base Template, file templateFile) (Template, error) {
 	}
 	if file.Kind != nil {
 		result.Kind = strings.TrimSpace(*file.Kind)
+	}
+	if file.Traits != nil {
+		result.Traits = normalizeStringList(file.Traits)
 	}
 	if file.Title != nil {
 		result.Title = strings.TrimSpace(*file.Title)
@@ -273,6 +285,13 @@ func validateTemplate(template Template) error {
 	if strings.TrimSpace(template.Kind) == "" {
 		return fmt.Errorf("template kind is required")
 	}
+	contract, ok := FindKindContract(template.Kind)
+	if !ok {
+		return fmt.Errorf("template kind %q is not supported", template.Kind)
+	}
+	if strings.TrimSpace(template.Category) != contract.Category {
+		return fmt.Errorf("template category %q does not match kind contract category %q", template.Category, contract.Category)
+	}
 	if strings.TrimSpace(template.Title) == "" {
 		return fmt.Errorf("template title is required")
 	}
@@ -288,4 +307,16 @@ func validateTemplate(template Template) error {
 		}
 	}
 	return nil
+}
+
+func applyKindContractTemplate(template Template) (Template, error) {
+	contract, ok := FindKindContract(template.Kind)
+	if !ok {
+		return Template{}, fmt.Errorf("template kind %q is not supported", template.Kind)
+	}
+	if strings.TrimSpace(template.Category) == "" {
+		template.Category = contract.Category
+	}
+	template.Traits = normalizeStringList(append(contract.Traits, template.Traits...))
+	return template, nil
 }

@@ -1,0 +1,18 @@
+{
+  "kind": "elasticsearch-compatible",
+  "category": "search",
+  "fields": [
+    {
+      "id": "indexPrefix",
+      "label": "Index Prefix",
+      "type": "text",
+      "placeholder": "app"
+    },
+    {
+      "id": "username",
+      "label": "Username",
+      "type": "text",
+      "placeholder": "elastic"
+    }
+  ]
+}

@@ -2,6 +2,7 @@ package routes
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"time"
@@ -14,6 +15,8 @@ type routeSSHCommandRunner func(context.Context, string, time.Duration) (string,
 var (
 	dialRouteSSHClient = terminal.DialSSH
 	runRouteSSHSession = terminal.RunSSHSession
+
+	errServerRealtimeSSHBusy = errors.New("server already processing request")
 
 	serverRealtimeSSHGateMu sync.Mutex
 	serverRealtimeSSHGates  = map[string]chan struct{}{}
@@ -48,6 +51,8 @@ func acquireServerRealtimeSSHRead(ctx context.Context, serverID string) (func(),
 	select {
 	case gate <- struct{}{}:
 		return func() { <-gate }, nil
+	default:
+		return nil, errServerRealtimeSSHBusy
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}

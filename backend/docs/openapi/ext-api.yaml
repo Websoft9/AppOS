@@ -288,6 +288,13 @@ components:
           type: integer
         totalBookmarks:
           type: integer
+    ConnectorReachabilityResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConnectorReachabilityItem'
     ConnectorResponseDocument:
       type: object
       properties:
@@ -302,8 +309,6 @@ components:
         kind:
           type: string
         is_enabled:
-          type: boolean
-        is_default:
           type: boolean
         template_id:
           type: string
@@ -328,8 +333,6 @@ components:
         kind:
           type: string
         is_enabled:
-          type: boolean
-        is_default:
           type: boolean
         template_id:
           type: string
@@ -486,6 +489,10 @@ components:
           type: string
         kind:
           type: string
+        traits:
+          type: array
+          items:
+            type: string
         is_enabled:
           type: boolean
         template_id:
@@ -3866,6 +3873,47 @@ paths:
                 additionalProperties: true
         "403":
           description: Forbidden
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/connectors/reachability:
+    get:
+      tags: [Connectors]
+      summary: Probe connector reachability
+      description: "Probes TCP reachability for one or more external services visible to the authenticated user."
+      operationId: get_api_connectors_reachability
+      parameters:
+        - name: ids
+          in: query
+          description: "comma-separated connector ids"
+          required: false
+          schema:
+            type: string
+        - name: kind
+          in: query
+          required: false
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectorReachabilityResponse'
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:

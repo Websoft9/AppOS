@@ -1,3 +1,4 @@
+import { ClientResponseError } from 'pocketbase'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -526,5 +527,72 @@ describe('ServerServicesPanel', () => {
     }
 
     expect(within(detailSection).queryByText('ssh failed')).toBeNull()
+  })
+
+  it('retries transient busy errors for inventory and detail loads', async () => {
+    const inventoryBusyError = new ClientResponseError({
+      url: '/api/servers/server-1/ops/systemd/services',
+      status: 503,
+      response: { message: 'server already processing request' },
+    })
+
+    listSystemdServicesMock
+      .mockRejectedValueOnce(inventoryBusyError)
+      .mockResolvedValueOnce([
+        {
+          name: 'docker.service',
+          load_state: 'loaded',
+          active_state: 'active',
+          sub_state: 'running',
+          description: 'Docker Application Container Engine',
+        },
+      ])
+
+    render(<ServerServicesPanel serverId="server-1" />)
+
+    await waitFor(() => {
+      expect(listSystemdServicesMock).toHaveBeenCalledTimes(2)
+    })
+
+    const detailBusyError = new ClientResponseError({
+      url: '/api/servers/server-1/ops/systemd/services/docker.service/status',
+      status: 503,
+      response: { message: 'server already processing request' },
+    })
+
+    getSystemdStatusMock.mockReset()
+    getSystemdStatusMock
+      .mockRejectedValueOnce(detailBusyError)
+      .mockResolvedValueOnce({
+        server_id: 'server-1',
+        service: 'docker.service',
+        status: {
+          Id: 'docker.service',
+          Description: 'Docker Application Container Engine',
+          ActiveState: 'active',
+          SubState: 'running',
+          UnitFileState: 'enabled',
+          MainPID: '2184',
+          FragmentPath: '/etc/systemd/system/docker.service',
+        },
+        status_text: 'active (running)',
+      })
+
+    fireEvent.click(await screen.findByRole('button', { name: /^docker$/i }))
+
+    await waitFor(() => {
+      expect(getSystemdStatusMock).toHaveBeenCalledTimes(2)
+    })
+
+    expect(screen.queryByText('server already processing request')).toBeNull()
+    const detailSection = screen
+      .getByRole('heading', { name: 'Selected Service' })
+      .closest('section')
+    if (!detailSection) {
+      throw new Error('Expected selected service section')
+    }
+    expect(
+      await within(detailSection).findByText('Docker Application Container Engine')
+    ).toBeInTheDocument()
   })
 })

@@ -1,3 +1,4 @@
+import { ClientResponseError } from 'pocketbase'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -237,5 +238,34 @@ describe('ServerMonitorTab', () => {
       expect(getSystemdStatusMock).toHaveBeenCalledTimes(2)
       expect(sendMock).toHaveBeenCalledTimes(2)
     })
+  })
+
+  it('retries transient busy errors for monitor agent status', async () => {
+    const busyError = new ClientResponseError({
+      url: '/api/servers/server-1/ops/systemd/services/appos-monitor.service/status',
+      status: 503,
+      response: { message: 'server already processing request' },
+    })
+
+    getSystemdStatusMock
+      .mockRejectedValueOnce(busyError)
+      .mockResolvedValueOnce({
+        server_id: 'server-1',
+        service: 'appos-monitor.service',
+        status: {
+          ActiveState: 'active',
+          SubState: 'running',
+          UnitFileState: 'enabled',
+        },
+        status_text: 'appos-monitor.service - Native Telegraf agent for AppOS metrics collector',
+      })
+
+    render(<ServerMonitorTab serverId="server-1" serverName="alpha" connectionStatus="online" />)
+
+    await waitFor(() => {
+      expect(getSystemdStatusMock).toHaveBeenCalledTimes(2)
+    })
+
+    expect(await screen.findByText('Monitoring active · running')).toBeInTheDocument()
   })
 })

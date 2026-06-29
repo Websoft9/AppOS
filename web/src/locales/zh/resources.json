@@ -50,13 +50,13 @@
     },
     "connectors": {
       "title": "外部服务",
-      "description": "SMTP、DNS、Webhook、MCP、代理、镜像仓库等可复用的外部服务连接。",
-      "createDescription": "SMTP、DNS、Webhook、MCP、代理、镜像仓库等可复用外部服务。",
+      "description": "SMTP、DNS、Webhook、MCP Server、HTTP Gateway、出站代理、镜像仓库等可复用的外部服务连接。",
+      "createDescription": "SMTP、DNS、Webhook、MCP Server、HTTP Gateway、出站代理、镜像仓库等可复用外部服务。",
       "examples": {
         "restApi": "REST API",
         "webhook": "Webhook",
-        "mcp": "MCP",
-        "proxy": "代理",
+        "mcp": "MCP Server",
+        "proxy": "Outbound Proxy",
         "smtp": "SMTP",
         "registry": "镜像仓库",
         "dns": "DNS"
@@ -986,17 +986,17 @@
   "serviceInstances": {
     "page": {
       "title": "服务实例",
-      "description": "应用启动所需的运行时依赖实例，包括数据库、缓存、消息、存储、流量网关、制品和模型服务。",
+      "description": "应用启动所需的运行时依赖契约实例，包括数据库、缓存、消息与存储。",
       "favoritesOnly": "仅收藏",
       "addInstance": "添加实例",
       "searchPlaceholder": "搜索任意实例",
       "cancel": "取消"
     },
     "selection": {
-      "title": "选择类别",
-      "description": "先选择类别，再在创建弹窗中选择 Profile。",
-      "searchPlaceholder": "搜索 Database、MQ、S3 兼容性存储等类别...",
-      "emptyMessage": "未找到匹配的类别。",
+      "title": "选择 Kind",
+      "description": "先按产品或能力搜索，再选择依赖 Kind。",
+      "searchPlaceholder": "搜索 Aurora、Redis、RabbitMQ 或 MinIO...",
+      "emptyMessage": "没有匹配的 Kind。",
       "profileCount": "{{count}} 个 Profile"
     },
     "fields": {
@@ -1041,22 +1041,25 @@
       "message-queue": "MQ",
       "storage": "S3 兼容性存储",
       "traffic-gateway": "Traffic Gateway",
-      "artifact": "制品仓库",
-      "ai": "AI 服务",
+      "search": "搜索",
+      "application-service": "应用服务",
       "other": "其他"
     },
     "kinds": {
-      "mysql": "MySQL",
-      "postgres": "PostgreSQL",
-      "redis": "Redis",
-      "kafka": "Kafka",
-      "rabbitmq": "RabbitMQ",
-      "nats": "NATS",
-      "mqtt": "MQTT",
-      "s3": "S3 存储",
-      "gateway": "Traffic Gateway",
-      "registry": "镜像仓库",
-      "ollama": "Ollama",
+      "mysql-compatible": "MySQL 兼容",
+      "postgres-compatible": "PostgreSQL 兼容",
+      "redis-compatible": "Redis 兼容",
+      "kafka-compatible": "Kafka 兼容",
+      "amqp-compatible": "AMQP 兼容",
+      "nats-compatible": "NATS 兼容",
+      "mqtt-compatible": "MQTT 兼容",
+      "s3-compatible": "S3 兼容存储",
+      "mongodb-compatible": "MongoDB 兼容",
+      "clickhouse-compatible": "ClickHouse 兼容",
+      "neo4j-compatible": "Neo4j 兼容",
+      "influxdb-compatible": "InfluxDB 兼容",
+      "elasticsearch-compatible": "Elasticsearch 兼容",
+      "onlyoffice-compatible": "ONLYOFFICE 兼容",
       "unknown": "未知"
     },
     "product": {
@@ -1123,8 +1126,8 @@
       "applyTitle": "应用标题",
       "newInstance": "新建服务实例",
       "editTitle": "编辑标题",
-      "createCategory": "创建 {{category}} 实例",
-      "updateCategory": "更新 {{category}} 实例",
+      "createKind": "创建 {{kind}} 实例",
+      "updateKind": "更新 {{kind}} 实例",
       "create": "创建",
       "update": "更新",
       "suffix": "服务实例"
@@ -1214,7 +1217,7 @@
   "connectors": {
     "page": {
       "title": "外部服务",
-      "description": "由分组资料支撑的可复用 API、Webhook、MCP、代理、SMTP、镜像仓库和 DNS 外部服务",
+      "description": "由分组资料支撑的可复用 API、Webhook、MCP、HTTP Gateway、出站代理、SMTP、镜像仓库和 DNS 外部服务",
       "addConnector": "添加外部服务",
       "searchPlaceholder": "搜索外部服务",
       "totalItems": "共 {{count}} 项"
@@ -1222,7 +1225,7 @@
     "selection": {
       "title": "选择外部服务类型",
       "description": "先选择服务类型，再选择用于预填共享 schema 的厂商模板。",
-      "searchPlaceholder": "搜索 SMTP、DNS、代理、镜像仓库等服务类型...",
+      "searchPlaceholder": "搜索 SMTP、DNS、出站代理或 HTTP Gateway 等服务类型...",
       "emptyMessage": "未找到匹配的外部服务类型。"
     },
     "fields": {
@@ -1259,8 +1262,9 @@
     "kinds": {
       "rest_api": "REST API",
       "webhook": "Webhook",
-      "mcp": "MCP",
-      "proxy": "代理",
+      "mcp": "MCP Server",
+      "http-gateway": "HTTP 网关",
+      "proxy": "Outbound Proxy",
       "smtp": "SMTP",
       "registry": "镜像仓库",
       "dns": "DNS"

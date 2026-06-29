@@ -91,18 +91,7 @@ func (r *pocketBaseConnectorRepository) ListByKind(kind string) ([]*domainconnec
 }
 
 func (r *pocketBaseConnectorRepository) ClearDefaultsByKind(kind string, excludeID string) error {
-	kind = strings.TrimSpace(kind)
-	if kind == "" {
-		return nil
-	}
-	query := "UPDATE " + collections.Connectors + " SET is_default = false WHERE kind = {:kind} AND is_default = true"
-	params := map[string]any{"kind": kind}
-	if strings.TrimSpace(excludeID) != "" {
-		query += " AND id != {:excludeId}"
-		params["excludeId"] = excludeID
-	}
-	_, err := r.app.DB().NewQuery(query).Bind(params).Execute()
-	return err
+	return nil
 }
 
 func (r *pocketBaseConnectorRepository) RunInTransaction(run func(domainconnectors.Repository) error) error {
@@ -133,12 +122,11 @@ func (r *pocketBaseConnectorRepository) recordForSave(connector *domainconnector
 func connectorFromRecord(record *core.Record) *domainconnectors.Connector {
 	return domainconnectors.RestoreConnector(domainconnectors.Snapshot{
 		ID:                record.Id,
-		Created:           record.GetString("created"),
-		Updated:           record.GetString("updated"),
+		Created:           record.GetDateTime("created").String(),
+		Updated:           record.GetDateTime("updated").String(),
 		Name:              record.GetString("name"),
 		Kind:              record.GetString("kind"),
 		IsEnabled:         recordEnabledValue(record),
-		IsDefault:         record.GetBool("is_default"),
 		TemplateID:        record.GetString("template_id"),
 		Endpoint:          record.GetString("endpoint"),
 		AuthScheme:        record.GetString("auth_scheme"),
@@ -154,7 +142,6 @@ func applyConnectorToRecord(record *core.Record, connector *domainconnectors.Con
 	record.Set("name", snapshot.Name)
 	record.Set("kind", snapshot.Kind)
 	record.Set("is_enabled", snapshot.IsEnabled)
-	record.Set("is_default", snapshot.IsDefault)
 	record.Set("template_id", snapshot.TemplateID)
 	record.Set("endpoint", snapshot.Endpoint)
 	record.Set("auth_scheme", snapshot.AuthScheme)

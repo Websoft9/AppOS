@@ -26,8 +26,8 @@ func TestLoadResourceCheckSummaryMergesExistingSummary(t *testing.T) {
 	summary := store.BuildResourceCheckSummary(
 		map[string]any{"existing": "value"},
 		monitor.CheckKindReachability,
-		"resource-redis-generic",
-		"redis",
+		"resource-redis-compatible-generic",
+		"redis-compatible",
 		"generic-redis",
 		"127.0.0.1:6379",
 	)
@@ -37,7 +37,7 @@ func TestLoadResourceCheckSummaryMergesExistingSummary(t *testing.T) {
 	if summary["check_kind"] != monitor.CheckKindReachability {
 		t.Fatalf("expected check_kind to be set, got %+v", summary)
 	}
-	if summary["registry_entry_id"] != "resource-redis-generic" {
+	if summary["registry_entry_id"] != "resource-redis-compatible-generic" {
 		t.Fatalf("expected registry_entry_id to be set, got %+v", summary)
 	}
 	if summary["endpoint"] != "127.0.0.1:6379" {

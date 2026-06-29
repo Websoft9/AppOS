@@ -10,6 +10,7 @@ import { MonitorTargetPanel } from '@/components/monitor/MonitorTargetPanel'
 import { getSystemdStatus } from '@/lib/connect-api'
 import { getLocale } from '@/lib/i18n'
 import { pb } from '@/lib/pb'
+import { runWithServerRealtimeBusyRetry } from './server-realtime-busy-retry'
 
 const MONITOR_COLLECTOR_SERVICE = 'appos-monitor.service'
 const noAutoCancel = { requestKey: null }
@@ -150,7 +151,9 @@ function useMonitorAgentStatus(serverId: string, t: Translate) {
     setLoadingStatus(true)
     setStatusError('')
     try {
-      const response = await getSystemdStatus(serverId, MONITOR_COLLECTOR_SERVICE)
+      const response = await runWithServerRealtimeBusyRetry(() =>
+        getSystemdStatus(serverId, MONITOR_COLLECTOR_SERVICE)
+      )
       setStatus(response.status)
     } catch (error) {
       setStatus(null)

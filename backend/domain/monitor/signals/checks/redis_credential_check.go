@@ -6,12 +6,13 @@ import (
 	"time"
 
 	"github.com/websoft9/appos/backend/domain/monitor"
+	"github.com/websoft9/appos/backend/domain/resource/instances"
 	"github.com/websoft9/appos/backend/domain/secrets"
 )
 
 func checkRedisInstanceCredential(target monitor.ResolvedInstanceTarget, resolved *secrets.ResolveResult) CredentialCheckResult {
 	item := target.Item
-	host, port, err := InstanceProbeTarget(item.Endpoint(), item.Kind())
+	probeTarget, err := instances.ResolveProbeTarget(item)
 	if err != nil {
 		return CredentialCheckResult{
 			Status:             target.CredentialStatusFor("unknown"),
@@ -33,8 +34,8 @@ func checkRedisInstanceCredential(target monitor.ResolvedInstanceTarget, resolve
 
 	config := item.Config()
 	err = ProbeRedisCredential(context.Background(), RedisCredentialProbeInput{
-		Host:     host,
-		Port:     port,
+		Host:     probeTarget.Host,
+		Port:     probeTarget.Port,
 		Username: stringConfigValue(config, "username", "user"),
 		Password: password,
 		DB:       intConfigValue(config, 0, "database", "database_index", "db"),

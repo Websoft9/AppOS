@@ -54,13 +54,13 @@
     },
     "connectors": {
       "title": "External Services",
-      "description": "SMTP, DNS, webhook, MCP, proxy, registry, and other reusable external service connections.",
-      "createDescription": "SMTP, DNS, webhook, MCP, proxy, registry, and other reusable external services.",
+      "description": "SMTP, DNS, webhook, MCP server, HTTP gateway, outbound proxy, registry, and other reusable external service connections.",
+      "createDescription": "SMTP, DNS, webhook, MCP server, HTTP gateway, outbound proxy, registry, and other reusable external services.",
       "examples": {
         "restApi": "REST API",
         "webhook": "Webhook",
-        "mcp": "MCP",
-        "proxy": "Proxy",
+        "mcp": "MCP Server",
+        "proxy": "Outbound Proxy",
         "smtp": "SMTP",
         "registry": "Registry",
         "dns": "DNS"
@@ -85,17 +85,17 @@
   "serviceInstances": {
     "page": {
       "title": "Runtime Instances",
-      "description": "Runtime dependencies required for application startup, including database, cache, messaging, storage, traffic gateway, artifact, and model service instances.",
+      "description": "Runtime dependency contracts required for application startup, including database, cache, messaging, and storage instances.",
       "favoritesOnly": "Favorites only",
       "addInstance": "Add Instance",
       "searchPlaceholder": "Search any instances",
       "cancel": "Cancel"
     },
     "selection": {
-      "title": "Choose a Category",
-      "description": "Choose a category, then pick a profile in the create dialog.",
-      "searchPlaceholder": "Search categories like Database, MQ, or S3-compatible storage...",
-      "emptyMessage": "No matching categories found.",
+      "title": "Choose a Kind",
+      "description": "Search by product or capability, then choose the dependency kind.",
+      "searchPlaceholder": "Search Aurora, Redis, RabbitMQ, or MinIO...",
+      "emptyMessage": "No matching kinds found.",
       "profileCount": "{{count}} profiles"
     },
     "fields": {
@@ -140,22 +140,25 @@
       "message-queue": "MQ",
       "storage": "S3-Compatible Storage",
       "traffic-gateway": "Traffic Gateway",
-      "artifact": "Registries",
-      "ai": "AI Services",
+      "search": "Search",
+      "application-service": "Application Service",
       "other": "Other"
     },
     "kinds": {
-      "mysql": "MySQL",
-      "postgres": "PostgreSQL",
-      "redis": "Redis",
-      "kafka": "Kafka",
-      "rabbitmq": "RabbitMQ",
-      "nats": "NATS",
-      "mqtt": "MQTT",
-      "s3": "S3 Storage",
-      "gateway": "Traffic Gateway",
-      "registry": "Registry",
-      "ollama": "Ollama",
+      "mysql-compatible": "MySQL-Compatible",
+      "postgres-compatible": "PostgreSQL-Compatible",
+      "redis-compatible": "Redis-Compatible",
+      "kafka-compatible": "Kafka-Compatible",
+      "amqp-compatible": "AMQP-Compatible",
+      "nats-compatible": "NATS-Compatible",
+      "mqtt-compatible": "MQTT-Compatible",
+      "s3-compatible": "S3-Compatible Storage",
+      "mongodb-compatible": "MongoDB-Compatible",
+      "clickhouse-compatible": "ClickHouse-Compatible",
+      "neo4j-compatible": "Neo4j-Compatible",
+      "influxdb-compatible": "InfluxDB-Compatible",
+      "elasticsearch-compatible": "Elasticsearch-Compatible",
+      "onlyoffice-compatible": "ONLYOFFICE-Compatible",
       "unknown": "Unknown"
     },
     "product": {
@@ -222,8 +225,8 @@
       "applyTitle": "Apply title",
       "newInstance": "New Service Instance",
       "editTitle": "Edit title",
-      "createCategory": "Create {{category}} instance",
-      "updateCategory": "Update {{category}} instance",
+      "createKind": "Create {{kind}} instance",
+      "updateKind": "Update {{kind}} instance",
       "create": "Create",
       "update": "Update",
       "suffix": "Runtime Instance"
@@ -1218,7 +1221,7 @@
   "connectors": {
     "page": {
       "title": "External Services",
-      "description": "Reusable API, webhook, MCP, proxy, SMTP, registry, and DNS services backed by grouped profiles",
+      "description": "Reusable API, webhook, MCP, HTTP gateway, outbound proxy, SMTP, registry, and DNS services backed by grouped profiles",
       "addConnector": "Add External Service",
       "searchPlaceholder": "Search external services",
       "totalItems": "Total {{count}} items"
@@ -1226,7 +1229,7 @@
     "selection": {
       "title": "Choose an External Service Type",
       "description": "Start with the service type, then choose a vendor profile to prefill the shared schema.",
-      "searchPlaceholder": "Search service types like SMTP, DNS, proxy, or registry...",
+      "searchPlaceholder": "Search service types like SMTP, DNS, outbound proxy, or HTTP gateway...",
       "emptyMessage": "No matching external service types found."
     },
     "fields": {
@@ -1263,8 +1266,9 @@
     "kinds": {
       "rest_api": "REST API",
       "webhook": "Webhook",
-      "mcp": "MCP",
-      "proxy": "Proxy",
+      "mcp": "MCP Server",
+      "http-gateway": "HTTP Gateway",
+      "proxy": "Outbound Proxy",
       "smtp": "SMTP",
       "registry": "Registry",
       "dns": "DNS"

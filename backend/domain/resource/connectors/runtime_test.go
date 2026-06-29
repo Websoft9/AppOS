@@ -74,7 +74,6 @@ func createConnectorRecord(t *testing.T, app core.App, spec connectors.SaveInput
 	}
 	rec.Set("name", spec.Name)
 	rec.Set("kind", persistedKind)
-	rec.Set("is_default", spec.IsDefault)
 	rec.Set("template_id", spec.TemplateID)
 	rec.Set("endpoint", spec.Endpoint)
 	rec.Set("auth_scheme", spec.AuthScheme)
@@ -96,7 +95,7 @@ func createConnectorRecord(t *testing.T, app core.App, spec connectors.SaveInput
 	return rec
 }
 
-func TestLoadSMTPUsesDefaultNamedConnector(t *testing.T) {
+func TestLoadSMTPUsesEarliestConnector(t *testing.T) {
 	app := newRuntimeTestApp(t)
 	defer app.Cleanup()
 
@@ -105,7 +104,6 @@ func TestLoadSMTPUsesDefaultNamedConnector(t *testing.T) {
 	createConnectorRecord(t, app, connectors.SaveInput{
 		Name:         "Marketing SMTP",
 		Kind:         connectors.KindSMTP,
-		IsDefault:    false,
 		TemplateID:   "generic-smtp",
 		Endpoint:     "smtp://smtp.alt.example.com:587",
 		AuthScheme:   connectors.AuthSchemeBasic,
@@ -113,9 +111,8 @@ func TestLoadSMTPUsesDefaultNamedConnector(t *testing.T) {
 		Config:       map[string]any{"username": "mailer", "fromAddress": "alt@example.com", "tls": false},
 	})
 	createConnectorRecord(t, app, connectors.SaveInput{
-		Name:         "default",
+		Name:         "Secondary SMTP",
 		Kind:         connectors.KindSMTP,
-		IsDefault:    true,
 		TemplateID:   "generic-smtp",
 		Endpoint:     "smtps://smtp.example.com:465",
 		AuthScheme:   connectors.AuthSchemeBasic,
@@ -131,23 +128,26 @@ func TestLoadSMTPUsesDefaultNamedConnector(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Name != "default" {
-		t.Fatalf("expected default connector, got %q", cfg.Name)
+	if cfg.Name != "Marketing SMTP" {
+		t.Fatalf("expected earliest connector, got %q", cfg.Name)
 	}
-	if cfg.Host != "smtp.example.com" || cfg.Port != 465 {
+	if cfg.Host != "smtp.alt.example.com" || cfg.Port != 587 {
 		t.Fatalf("unexpected smtp endpoint: %+v", cfg)
 	}
-	if !cfg.ImplicitTLS {
-		t.Fatal("expected implicit TLS for smtps endpoint")
+	if cfg.ImplicitTLS {
+		t.Fatal("expected plain SMTP connector to avoid implicit TLS")
 	}
 	if cfg.Username != "mailer" || cfg.Password != "s3cr3t" {
 		t.Fatalf("unexpected smtp credential payload: %+v", cfg)
 	}
-	if cfg.FromAddress != "noreply@example.com" || cfg.LocalName != "appos.local" {
+	if cfg.FromAddress != "alt@example.com" {
 		t.Fatalf("unexpected smtp config mapping: %+v", cfg)
 	}
+	if cfg.LocalName != "" {
+		t.Fatalf("expected empty local name for earliest connector, got %q", cfg.LocalName)
+	}
 	if cfg.TLS {
-		t.Fatal("expected STARTTLS flag to stay false for implicit TLS connector")
+		t.Fatal("expected STARTTLS flag to stay false for earliest connector")
 	}
 }
 
@@ -155,8 +155,8 @@ func TestLoadSMTPFallsBackToEarliestCreatedConnector(t *testing.T) {
 	app := newRuntimeTestApp(t)
 	defer app.Cleanup()
 
-	createConnectorRecord(t, app, connectors.SaveInput{Name: "One", Kind: connectors.KindSMTP, IsDefault: false, TemplateID: "generic-smtp", Endpoint: "smtp://one.example.com:587"})
-	createConnectorRecord(t, app, connectors.SaveInput{Name: "Two", Kind: connectors.KindSMTP, IsDefault: false, TemplateID: "generic-smtp", Endpoint: "smtp://two.example.com:587"})
+	createConnectorRecord(t, app, connectors.SaveInput{Name: "One", Kind: connectors.KindSMTP, TemplateID: "generic-smtp", Endpoint: "smtp://one.example.com:587"})
+	createConnectorRecord(t, app, connectors.SaveInput{Name: "Two", Kind: connectors.KindSMTP, TemplateID: "generic-smtp", Endpoint: "smtp://two.example.com:587"})
 
 	cfg, err := connectors.LoadSMTPWith(persistence.NewConnectorRepository(app), connectors.NewSecretResolver(app))
 	if err != nil {
@@ -179,7 +179,6 @@ func TestListRegistryResolvesBasicAuthAndFlags(t *testing.T) {
 	createConnectorRecord(t, app, connectors.SaveInput{
 		Name:         "GHCR",
 		Kind:         connectors.KindRegistry,
-		IsDefault:    true,
 		TemplateID:   "ghcr",
 		Endpoint:     "https://ghcr.io",
 		AuthScheme:   connectors.AuthSchemeBasic,
@@ -216,7 +215,6 @@ func TestLoadSMTPRejectsUnsupportedScheme(t *testing.T) {
 	createConnectorRecord(t, app, connectors.SaveInput{
 		Name:       "Broken SMTP",
 		Kind:       connectors.KindSMTP,
-		IsDefault:  true,
 		TemplateID: "generic-smtp",
 		Endpoint:   "http://smtp.example.com",
 	})
@@ -248,7 +246,6 @@ func TestLoadSMTPFailsForRevokedSecret(t *testing.T) {
 	createConnectorRecord(t, app, connectors.SaveInput{
 		Name:         "SMTP",
 		Kind:         connectors.KindSMTP,
-		IsDefault:    true,
 		TemplateID:   "generic-smtp",
 		Endpoint:     "smtp://smtp.example.com:587",
 		AuthScheme:   connectors.AuthSchemeBasic,
@@ -275,7 +272,6 @@ func TestLoadSMTPFailsForDeletedSecret(t *testing.T) {
 	createConnectorRecord(t, app, connectors.SaveInput{
 		Name:         "SMTP",
 		Kind:         connectors.KindSMTP,
-		IsDefault:    true,
 		TemplateID:   "generic-smtp",
 		Endpoint:     "smtp://smtp.example.com:587",
 		AuthScheme:   connectors.AuthSchemeBasic,

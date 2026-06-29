@@ -19,7 +19,7 @@ func createProviderAccountReferenceInstance(t *testing.T, app *tests.TestApp, ac
 	}
 	rec := core.NewRecord(col)
 	rec.Set("name", "ref-instance")
-	rec.Set("kind", "redis")
+	rec.Set("kind", "redis-compatible")
 	rec.Set("template_id", "generic-redis")
 	rec.Set("provider_account", accountID)
 	if err := app.Save(rec); err != nil {

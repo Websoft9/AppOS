@@ -1,0 +1,6 @@
+{
+  "id": "generic-clickhouse",
+  "title": "Generic ClickHouse",
+  "description": "ClickHouse-compatible analytical database dependency.",
+  "defaultEndpoint": "https://clickhouse.internal:8123"
+}

@@ -3,12 +3,15 @@
   "title": "Generic SMTP",
   "vendor": "Generic",
   "description": "Reusable SMTP connector for outbound email delivery.",
+  "helpUrl": "https://support.websoft9.com/docs/smtps",
   "defaultEndpoint": "smtp://localhost:587",
   "aliases": ["smtp", "mail", "generic-smtp"],
   "fields": [
     {
-      "id": "endpoint",
-      "label": "SMTP Endpoint"
+      "id": "endpoint"
+    },
+    {
+      "id": "port"
     },
     {
       "id": "fromAddress",
@@ -18,9 +21,7 @@
     },
     {
       "id": "tls",
-      "label": "Use TLS",
-      "type": "boolean",
-      "default": true
+      "default": false
     }
   ]
 }

@@ -1,17 +1,21 @@
-import { createElement } from 'react'
+import { createElement, useState } from 'react'
 import { pb } from '@/lib/pb'
 import type { FieldDef, SelectOption } from '@/components/resources/ResourcePage'
+import { ReferenceSelect } from '@/components/resources/ReferenceSelect'
 import { SecretCredentialField } from '@/components/secrets/SecretCredentialField'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { type ResourceSecretVisibleTo } from '@/components/secrets/SecretVisibilityField'
 import { buildUserVisibleSecretRelationApiPath as buildSharedUserVisibleSecretRelationApiPath } from '@/components/secrets/resource-secret-relations'
+import { Pencil, X } from 'lucide-react'
 
 export type ConnectorRecord = {
   id: string
+  created?: string
+  updated?: string
   name?: string
   kind?: string
   is_enabled?: boolean
-  is_default?: boolean
   template_id?: string
   endpoint?: string
   auth_scheme?: string
@@ -27,6 +31,7 @@ export type ConnectorTemplateField = {
   required?: boolean
   secretTemplate?: string
   placeholder?: string
+  helpUrl?: string
   helpText?: string
   default?: unknown
 }
@@ -55,6 +60,7 @@ export const SUPPORTED_KINDS = [
   'rest_api',
   'webhook',
   'mcp',
+  'http-gateway',
   'proxy',
   'smtp',
   'registry',
@@ -64,8 +70,9 @@ export const SUPPORTED_KINDS = [
 export const KIND_LABELS: Record<(typeof SUPPORTED_KINDS)[number], string> = {
   rest_api: 'REST API',
   webhook: 'Webhook',
-  mcp: 'MCP',
-  proxy: 'Proxy',
+  mcp: 'MCP Server',
+  'http-gateway': 'HTTP Gateway',
+  proxy: 'Outbound Proxy',
   smtp: 'SMTP',
   registry: 'Registry',
   dns: 'DNS',
@@ -87,6 +94,107 @@ function secretFieldManualValueKey(fieldID: string) {
 
 function secretFieldEditModeKey(fieldID: string) {
   return `${fieldID}__editing`
+}
+
+function secretFieldInlineValueKey(fieldID: string) {
+	return `${fieldID}__inline_value`
+}
+
+function InlineSecretEditorField({
+  inputId,
+  referenceValue,
+  referenceOptions,
+  inlineEditing,
+  inlineValue,
+  onReferenceValueChange,
+  onStartInlineEdit,
+  onInlineValueChange,
+  onCancelInlineEdit,
+}: {
+  inputId: string
+  referenceValue: string
+  referenceOptions: Array<{ id: string; label: string }>
+  inlineEditing: boolean
+  inlineValue: string
+  onReferenceValueChange: (value: string) => void
+  onStartInlineEdit: () => void
+  onInlineValueChange: (value: string) => void
+  onCancelInlineEdit: () => void
+}) {
+  const [referencePickerOpen, setReferencePickerOpen] = useState(false)
+
+  if (inlineEditing) {
+    return createElement(
+      'div',
+      { className: 'space-y-1.5' },
+      createElement(
+        'div',
+        { className: 'flex items-center gap-2' },
+        createElement(Input, {
+          id: inputId,
+          type: 'password',
+          value: inlineValue,
+          onChange: (event: { target: { value: string } }) => onInlineValueChange(event.target.value),
+          placeholder: 'Enter a new secret value to update the current secret',
+          autoFocus: true,
+        }),
+        createElement(
+          Button,
+          {
+            type: 'button',
+            variant: 'ghost',
+            size: 'icon',
+            title: 'Cancel secret edit',
+            onClick: onCancelInlineEdit,
+          },
+          createElement(X, { className: 'h-3.5 w-3.5' })
+        )
+      ),
+      createElement(
+        'div',
+        { className: 'text-xs text-muted-foreground' },
+        'Saving this external service will update the current secret value in place.'
+      )
+    )
+  }
+
+  return createElement(
+    'div',
+    { className: 'flex flex-wrap items-start gap-3' },
+    createElement(
+      'div',
+      { className: 'min-w-[220px] flex-1' },
+      createElement(ReferenceSelect, {
+        id: `${inputId}-reference`,
+        value: referenceValue,
+        options: referenceOptions,
+        onSelect: value => {
+          onReferenceValueChange(value)
+          onCancelInlineEdit()
+        },
+        placeholder: 'Select a Secret',
+        searchPlaceholder: 'Search secrets...',
+        emptyMessage: 'No matching secrets.',
+        showNoneOption: false,
+        borderlessMenu: true,
+        onOpenChange: setReferencePickerOpen,
+      })
+    ),
+    referenceValue
+      ? createElement(
+          Button,
+          {
+            type: 'button',
+            variant: 'ghost',
+            size: 'icon',
+            className: `h-10 w-10 shrink-0 ${referencePickerOpen ? 'self-start' : 'self-center'}`,
+            title: 'Edit Secret',
+            onClick: onStartInlineEdit,
+          },
+          createElement(Pencil, { className: 'h-3.5 w-3.5' })
+        )
+      : null
+  )
 }
 
 function translateOrFallback(
@@ -197,6 +305,7 @@ function mergeConnectorField(
     type: current.type || incoming.type,
     secretTemplate: current.secretTemplate || incoming.secretTemplate,
     placeholder: current.placeholder || incoming.placeholder,
+    helpUrl: current.helpUrl || incoming.helpUrl,
     helpText: current.helpText || incoming.helpText,
     default: current.default !== undefined ? current.default : incoming.default,
   }
@@ -231,10 +340,18 @@ export function applyConnectorTemplateDefaults(
   if (!template) {
     return
   }
-  if (template.defaultEndpoint) {
+  if (template.kind === 'smtp') {
+    const parsedDefault = parseConnectorEndpoint(template.defaultEndpoint)
+    update('endpoint', parsedDefault.host)
+    update('port', parsedDefault.port || 587)
+    update('tls', parsedDefault.scheme === 'smtps' || parsedDefault.port === 465)
+  } else if (template.defaultEndpoint) {
     update('endpoint', template.defaultEndpoint)
   }
   for (const field of template.fields ?? []) {
+    if (template.kind === 'smtp' && (field.id === 'endpoint' || field.id === 'port' || field.id === 'tls')) {
+      continue
+    }
     if (field.default !== undefined) {
       update(field.id, normalizeTemplateFieldDefault(field))
     }
@@ -280,6 +397,25 @@ export function normalizeTemplateFieldDefault(field: ConnectorTemplateField) {
     return JSON.stringify(field.default, null, 2)
   }
   return field.default
+}
+
+function parseConnectorEndpoint(endpoint: string | undefined) {
+  const raw = String(endpoint ?? '').trim()
+  if (!raw) {
+    return { scheme: '', host: '', port: 0 }
+  }
+
+  const normalized = raw.includes('://') ? raw : `tcp://${raw}`
+  try {
+    const parsed = new URL(normalized)
+    return {
+      scheme: parsed.protocol.replace(/:$/, '').toLowerCase(),
+      host: parsed.hostname,
+      port: parsed.port ? Number(parsed.port) : 0,
+    }
+  } catch {
+    return { scheme: '', host: raw, port: 0 }
+  }
 }
 
 export function resolveConnectorEnabled(value: unknown) {
@@ -390,51 +526,51 @@ export function mapTemplateFieldToResourceField(
         relationOptions,
         addRelationOption,
       }) => {
-        const lockedForEdit =
-          Boolean(editingItem) && !Boolean(formData[secretFieldEditModeKey(field.id)])
         const referenceValue = String(formData[field.id] ?? '')
-        const selectedLabel =
-          relationOptions.find(option => option.id === referenceValue)?.label ??
-          referenceValue ??
-          ''
         const useSecretValue = formData[secretFieldUseSecretKey(field.id)]
         const useSecret =
           typeof useSecretValue === 'boolean' ? useSecretValue : referenceValue.trim() !== ''
 
-        if (lockedForEdit) {
+        if (editingItem) {
           return createElement(
-            'div',
-            { className: 'flex flex-wrap items-center gap-3' },
-            createElement(
-              'div',
-              {
-                className:
-                  'min-w-[220px] flex-1 rounded-md border border-input bg-muted/30 px-3 py-2 text-sm text-foreground',
+            InlineSecretEditorField,
+            {
+              inputId,
+              referenceValue,
+              referenceOptions: relationOptions,
+              inlineEditing: Boolean(formData[secretFieldEditModeKey(field.id)]),
+              inlineValue: String(formData[secretFieldInlineValueKey(field.id)] ?? ''),
+              onReferenceValueChange: (value: string) => {
+                updateField(field.id, value)
+                updateField(secretFieldEditModeKey(field.id), false)
+                updateField(secretFieldInlineValueKey(field.id), '')
               },
-              selectedLabel ||
-                translateOrFallback(t, 'connectors.secret.noneSelected', 'No secret selected')
-            ),
-            createElement(
-              Button,
-              {
-                type: 'button',
-                variant: 'outline',
-                className: 'h-10',
-                onClick: () => {
-                  updateField(secretFieldEditModeKey(field.id), true)
-                  updateField(secretFieldUseSecretKey(field.id), referenceValue.trim() !== '')
-                },
-                title: translateOrFallback(t, 'connectors.secret.editValue', 'Edit secret value'),
+              onStartInlineEdit: () => {
+                updateField(secretFieldEditModeKey(field.id), true)
+                updateField(secretFieldInlineValueKey(field.id), '')
               },
-              translateOrFallback(t, 'connectors.secret.edit', 'Edit Secret')
-            )
+              onInlineValueChange: (value: string) => {
+                updateField(secretFieldInlineValueKey(field.id), value)
+              },
+              onCancelInlineEdit: () => {
+                updateField(secretFieldEditModeKey(field.id), false)
+                updateField(secretFieldInlineValueKey(field.id), '')
+              },
+            }
           )
         }
 
         return createElement(SecretCredentialField, {
           inputId,
-          manualValue: String(formData[secretFieldManualValueKey(field.id)] ?? ''),
-          onManualValueChange: value => updateField(secretFieldManualValueKey(field.id), value),
+          manualValue: String(
+            formData[secretFieldInlineValueKey(field.id)] ??
+              formData[secretFieldManualValueKey(field.id)] ??
+              ''
+          ),
+          onManualValueChange: value => {
+            updateField(secretFieldInlineValueKey(field.id), value)
+            updateField(secretFieldManualValueKey(field.id), value)
+          },
           useReference: useSecret,
           onUseReferenceChange: checked => {
             updateField(secretFieldUseSecretKey(field.id), checked)
@@ -472,6 +608,21 @@ export function mapTemplateFieldToResourceField(
     }
   }
 
+  if (template.kind === 'smtp' && field.id === 'tls') {
+    return {
+      key: field.id,
+      label: field.label,
+      type: 'boolean',
+      required: field.required,
+      defaultValue: normalizeTemplateFieldDefault(field),
+      helpUrl: field.helpUrl,
+      helpText: field.helpText,
+      onValueChange: (value, update) => {
+        update('port', value ? 465 : 587)
+      },
+    }
+  }
+
   return {
     key: field.id,
     label: field.label,
@@ -486,7 +637,35 @@ export function mapTemplateFieldToResourceField(
     required: field.required,
     placeholder: field.placeholder,
     defaultValue: normalizeTemplateFieldDefault(field),
+    helpUrl: field.helpUrl,
     helpText: field.helpText,
+  }
+}
+
+export async function saveEditedConnectorSecrets(
+  payload: Record<string, unknown>,
+  template: ConnectorTemplate
+) {
+  for (const field of template.fields ?? []) {
+    if (field.type !== 'secret_ref') {
+      continue
+    }
+    const inlineValue = String(payload[secretFieldInlineValueKey(field.id)] ?? '').trim()
+    if (!inlineValue) {
+      continue
+    }
+    const secretId = String(payload[field.id] ?? '').trim()
+    if (!secretId) {
+      throw new Error(`${field.label} secret must be selected before editing it.`)
+    }
+    await pb.send(`/api/secrets/${secretId}/payload`, {
+      method: 'PUT',
+      body: { payload: { value: inlineValue } },
+    })
+    payload[secretFieldInlineValueKey(field.id)] = ''
+    payload[secretFieldManualValueKey(field.id)] = ''
+    payload[secretFieldEditModeKey(field.id)] = false
+    payload[secretFieldUseSecretKey(field.id)] = true
   }
 }
 
@@ -568,14 +747,21 @@ export async function buildConnectorPayload(
     config = typeof extra === 'string' ? JSON.parse(extra) : (extra as Record<string, unknown>)
   }
 
-  const normalizedEndpoint = normalizeEndpointValue(
-    String(body.endpoint ?? template.defaultEndpoint ?? ''),
-    template,
-    body
-  )
+  const normalizedEndpoint =
+    template.kind === 'smtp'
+      ? buildSMTPConnectorEndpoint(
+          String(body.endpoint ?? ''),
+          Number(body.port ?? 0),
+          Boolean(body.tls)
+        )
+      : normalizeEndpointValue(String(body.endpoint ?? template.defaultEndpoint ?? ''), template, body)
 
   for (const field of template.fields ?? []) {
-    if (field.id === 'endpoint' || field.id === 'credential') {
+    if (
+      field.id === 'endpoint' ||
+      field.id === 'credential' ||
+      (template.kind === 'smtp' && field.id === 'port')
+    ) {
       continue
     }
     const value = body[field.id]
@@ -619,6 +805,15 @@ export async function buildConnectorPayload(
   }
 }
 
+function buildSMTPConnectorEndpoint(host: string, port: number, sslEnabled: boolean) {
+  const trimmedHost = host.trim()
+  if (!trimmedHost) {
+    return ''
+  }
+  const normalizedPort = Number.isFinite(port) && port > 0 ? port : sslEnabled ? 465 : 587
+  return `${sslEnabled ? 'smtps' : 'smtp'}://${trimmedHost}:${normalizedPort}`
+}
+
 export function mapConnectorRow(
   item: ConnectorRecord,
   templatesById: Map<string, ConnectorTemplate>,
@@ -628,9 +823,14 @@ export function mapConnectorRow(
   const template = templatesById.get(String(item.template_id ?? ''))
   const flattenedConfig: Record<string, unknown> = {}
   const knownFieldIDs = new Set((template?.fields ?? []).map(field => field.id))
+  const parsedEndpoint = parseConnectorEndpoint(String(item.endpoint ?? ''))
 
   for (const field of template?.fields ?? []) {
-    if (field.id === 'endpoint' || field.id === 'credential') {
+    if (
+      field.id === 'endpoint' ||
+      field.id === 'credential' ||
+      (template?.kind === 'smtp' && (field.id === 'port' || field.id === 'tls'))
+    ) {
       continue
     }
     const value = item.config?.[field.id]
@@ -646,21 +846,28 @@ export function mapConnectorRow(
 
   return {
     id: item.id,
+    created: String(item.created ?? ''),
+    updated: String(item.updated ?? ''),
     name: String(item.name ?? ''),
     kind,
     is_enabled: resolveConnectorEnabled(item.is_enabled),
     enabled_status: resolveConnectorEnabled(item.is_enabled) ? 'Enabled' : 'Disabled',
-    is_default: Boolean(item.is_default),
     template_id: String(item.template_id ?? ''),
     kind_label: getConnectorKindLabel(kind, t),
     profile: template?.title ?? humanizeTemplateId(String(item.template_id ?? '')),
-    endpoint: String(item.endpoint ?? ''),
+    endpoint: template?.kind === 'smtp' ? parsedEndpoint.host : String(item.endpoint ?? ''),
+    port: template?.kind === 'smtp' ? parsedEndpoint.port || 587 : undefined,
     auth_type: String(item.auth_scheme ?? 'none'),
     credential: String(item.credential ?? ''),
     [secretFieldUseSecretKey('credential')]: true,
     [secretFieldManualValueKey('credential')]: '',
+    [secretFieldInlineValueKey('credential')]: '',
     description: String(item.description ?? ''),
     [secretFieldEditModeKey('credential')]: false,
+    tls:
+      template?.kind === 'smtp'
+        ? parsedEndpoint.scheme === 'smtps' || parsedEndpoint.port === 465
+        : flattenedConfig.tls,
     advanced_config:
       Object.keys(advancedConfig).length > 0 ? JSON.stringify(advancedConfig, null, 2) : '',
     ...flattenedConfig,

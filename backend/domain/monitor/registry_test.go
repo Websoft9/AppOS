@@ -10,7 +10,7 @@ func TestResolveInstanceTargetMatchesRegistryOverlay(t *testing.T) {
 	item := instances.RestoreInstance(instances.Snapshot{
 		ID:           "inst-1",
 		Name:         "redis-primary",
-		Kind:         instances.KindRedis,
+		Kind:         instances.KindRedisCompatible,
 		TemplateID:   "generic-redis",
 		Endpoint:     "127.0.0.1:6379",
 		CredentialID: "secret-1",
@@ -23,7 +23,7 @@ func TestResolveInstanceTargetMatchesRegistryOverlay(t *testing.T) {
 	if !ok {
 		t.Fatal("expected redis instance to resolve into monitoring target registry")
 	}
-	if target.Entry.ID != "resource-redis-generic" {
+	if target.Entry.ID != "resource-redis-compatible-generic" {
 		t.Fatalf("expected redis registry entry, got %q", target.Entry.ID)
 	}
 	if !target.SupportsCheck(CheckKindReachability) {
@@ -160,7 +160,7 @@ func TestResolveInstanceTargetSkipsKindsOutsideRegistry(t *testing.T) {
 	item := instances.RestoreInstance(instances.Snapshot{
 		ID:         "inst-2",
 		Name:       "s3-primary",
-		Kind:       instances.KindS3,
+		Kind:       instances.KindS3Compatible,
 		TemplateID: "generic-s3",
 		Endpoint:   "https://s3.example.com",
 	})
@@ -178,7 +178,7 @@ func TestResolvedInstanceTargetReachabilityRequiresEndpoint(t *testing.T) {
 	item := instances.RestoreInstance(instances.Snapshot{
 		ID:         "inst-3",
 		Name:       "redis-secondary",
-		Kind:       instances.KindRedis,
+		Kind:       instances.KindRedisCompatible,
 		TemplateID: "generic-redis",
 	})
 

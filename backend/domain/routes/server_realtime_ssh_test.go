@@ -2,23 +2,24 @@ package routes
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
 )
 
-func TestAcquireServerRealtimeSSHReadSerializesSameServer(t *testing.T) {
+func TestAcquireServerRealtimeSSHReadRejectsConcurrentSameServer(t *testing.T) {
 	release, err := acquireServerRealtimeSSHRead(context.Background(), "srv-serial")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer release()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
-	defer cancel()
-	if blockedRelease, blockedErr := acquireServerRealtimeSSHRead(ctx, "srv-serial"); blockedErr == nil {
+	if blockedRelease, blockedErr := acquireServerRealtimeSSHRead(context.Background(), "srv-serial"); blockedErr == nil {
 		blockedRelease()
-		t.Fatal("expected second same-server realtime SSH read to wait until context expires")
+		t.Fatal("expected second same-server realtime SSH read to fail fast")
+	} else if !errors.Is(blockedErr, errServerRealtimeSSHBusy) {
+		t.Fatalf("expected busy error, got %v", blockedErr)
 	}
 }
 

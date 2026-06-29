@@ -1,0 +1,27 @@
+{
+  "kind": "clickhouse-compatible",
+  "category": "database",
+  "fields": [
+    {
+      "id": "database",
+      "label": "Database",
+      "type": "text",
+      "default": "default",
+      "placeholder": "analytics"
+    },
+    {
+      "id": "username",
+      "label": "Username",
+      "type": "text",
+      "default": "default",
+      "placeholder": "default"
+    },
+    {
+      "id": "protocol",
+      "label": "Protocol",
+      "type": "text",
+      "default": "http",
+      "placeholder": "http"
+    }
+  ]
+}

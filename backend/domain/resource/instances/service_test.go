@@ -93,26 +93,11 @@ func (v *stubAccountValidator) ValidateProviderAccountRef(providerAccountID stri
 	return v.err
 }
 
-func TestCreateAppliesTemplateDefaultEndpoint(t *testing.T) {
-	repo := newStubRepository()
-	item, err := Create(repo, SaveInput{
-		Name:       "Local Ollama",
-		Kind:       KindOllama,
-		TemplateID: "generic-ollama",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if item.Endpoint() != "http://localhost:11434" {
-		t.Fatalf("expected template default endpoint, got %q", item.Endpoint())
-	}
-}
-
 func TestCreateRejectsTemplateKindMismatch(t *testing.T) {
 	repo := newStubRepository()
 	_, err := Create(repo, SaveInput{
 		Name:       "Bad Redis",
-		Kind:       KindRedis,
+		Kind:       KindRedisCompatible,
 		TemplateID: "generic-postgres",
 	})
 	if err == nil {
@@ -133,11 +118,11 @@ func TestCreateRejectsUnsupportedKind(t *testing.T) {
 
 func TestCreateRejectsDuplicateName(t *testing.T) {
 	repo := newStubRepository()
-	_, err := Create(repo, SaveInput{Name: "Primary Redis", Kind: KindRedis, TemplateID: "generic-redis"})
+	_, err := Create(repo, SaveInput{Name: "Primary Redis", Kind: KindRedisCompatible, TemplateID: "generic-redis"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = Create(repo, SaveInput{Name: "Primary Redis", Kind: KindKafka, TemplateID: "generic-kafka"})
+	_, err = Create(repo, SaveInput{Name: "Primary Redis", Kind: KindKafkaCompatible, TemplateID: "generic-kafka"})
 	if err == nil {
 		t.Fatal("expected duplicate name to fail")
 	}
@@ -152,7 +137,7 @@ func TestCreateValidatesCredentialReference(t *testing.T) {
 	validator := &stubCredentialValidator{}
 	_, err := CreateWithDeps(repo, SaveInput{
 		Name:         "Primary Redis",
-		Kind:         KindRedis,
+		Kind:         KindRedisCompatible,
 		TemplateID:   "generic-redis",
 		CredentialID: "secret-1",
 	}, SaveDeps{
@@ -174,7 +159,7 @@ func TestCreateRejectsCredentialWithoutValidator(t *testing.T) {
 	repo := newStubRepository()
 	_, err := Create(repo, SaveInput{
 		Name:         "Primary Redis",
-		Kind:         KindRedis,
+		Kind:         KindRedisCompatible,
 		TemplateID:   "generic-redis",
 		CredentialID: "secret-1",
 	})
@@ -192,7 +177,7 @@ func TestCreateValidatesProviderAccountReference(t *testing.T) {
 	validator := &stubAccountValidator{}
 	_, err := CreateWithDeps(repo, SaveInput{
 		Name:              "Primary Redis",
-		Kind:              KindRedis,
+		Kind:              KindRedisCompatible,
 		TemplateID:        "generic-redis",
 		ProviderAccountID: "acc-1",
 	}, SaveDeps{
@@ -214,7 +199,7 @@ func TestCreateRejectsProviderAccountWithoutValidator(t *testing.T) {
 	repo := newStubRepository()
 	_, err := Create(repo, SaveInput{
 		Name:              "Primary Redis",
-		Kind:              KindRedis,
+		Kind:              KindRedisCompatible,
 		TemplateID:        "generic-redis",
 		ProviderAccountID: "acc-1",
 	})
@@ -238,20 +223,62 @@ func TestTemplatesCoverAllInstanceKinds(t *testing.T) {
 	}
 
 	for _, kind := range []string{
-		KindMySQL,
-		KindPostgres,
-		KindRedis,
-		KindKafka,
-		KindRabbitMQ,
-		KindNATS,
-		KindMQTT,
-		KindS3,
-		KindGateway,
-		KindRegistry,
-		KindOllama,
+		KindMySQLCompatible,
+		KindPostgresCompatible,
+		KindMongoDBCompatible,
+		KindClickHouseCompatible,
+		KindNeo4jCompatible,
+		KindInfluxDBCompatible,
+		KindRedisCompatible,
+		KindElasticsearchCompatible,
+		KindKafkaCompatible,
+		KindAMQPCompatible,
+		KindNATSCompatible,
+		KindMQTTCompatible,
+		KindS3Compatible,
+		KindOnlyOfficeCompatible,
 	} {
 		if counts[kind] == 0 {
 			t.Fatalf("expected at least one template for kind %q", kind)
 		}
+	}
+}
+
+func TestCreateAcceptsAllGenericContractKinds(t *testing.T) {
+	repo := newStubRepository()
+	tests := []struct {
+		name       string
+		kind       string
+		templateID string
+	}{
+		{name: "mysql-primary", kind: KindMySQLCompatible, templateID: "generic-mysql"},
+		{name: "postgres-primary", kind: KindPostgresCompatible, templateID: "generic-postgres"},
+		{name: "mongodb-primary", kind: KindMongoDBCompatible, templateID: "generic-mongodb"},
+		{name: "clickhouse-primary", kind: KindClickHouseCompatible, templateID: "generic-clickhouse"},
+		{name: "neo4j-primary", kind: KindNeo4jCompatible, templateID: "generic-neo4j"},
+		{name: "influxdb-primary", kind: KindInfluxDBCompatible, templateID: "generic-influxdb"},
+		{name: "redis-primary", kind: KindRedisCompatible, templateID: "generic-redis"},
+		{name: "elastic-primary", kind: KindElasticsearchCompatible, templateID: "generic-elasticsearch"},
+		{name: "kafka-primary", kind: KindKafkaCompatible, templateID: "generic-kafka"},
+		{name: "amqp-primary", kind: KindAMQPCompatible, templateID: "generic-rabbitmq"},
+		{name: "nats-primary", kind: KindNATSCompatible, templateID: "generic-nats"},
+		{name: "mqtt-primary", kind: KindMQTTCompatible, templateID: "generic-mqtt"},
+		{name: "s3-primary", kind: KindS3Compatible, templateID: "generic-s3"},
+		{name: "onlyoffice-primary", kind: KindOnlyOfficeCompatible, templateID: "generic-onlyoffice"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.kind, func(t *testing.T) {
+			item, err := Create(repo, SaveInput{Name: tt.name, Kind: tt.kind, TemplateID: tt.templateID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if item.Kind() != tt.kind {
+				t.Fatalf("expected kind %q, got %q", tt.kind, item.Kind())
+			}
+			if item.TemplateID() != tt.templateID {
+				t.Fatalf("expected template %q, got %q", tt.templateID, item.TemplateID())
+			}
+		})
 	}
 }

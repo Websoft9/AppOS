@@ -93,18 +93,6 @@ func selectDisplayedConnector(items []*connectors.Connector, kind string) (*conn
 	if len(items) == 0 {
 		return nil, &connectors.RuntimeConfigError{Kind: kind, Reason: connectors.RuntimeReasonNoConnectorConfigured}
 	}
-	defaults := make([]*connectors.Connector, 0, len(items))
-	for _, item := range items {
-		if item.IsDefault() {
-			defaults = append(defaults, item)
-		}
-	}
-	if len(defaults) == 1 {
-		return defaults[0], nil
-	}
-	if len(defaults) > 1 {
-		return earliestDisplayedConnector(defaults), nil
-	}
 	return earliestDisplayedConnector(items), nil
 }
 

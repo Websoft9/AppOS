@@ -1,0 +1,19 @@
+{
+  "kind": "mqtt-compatible",
+  "category": "message-queue",
+  "fields": [
+    {
+      "id": "clientId",
+      "label": "Client ID",
+      "type": "text",
+      "placeholder": "appos-client"
+    },
+    {
+      "id": "protocol",
+      "label": "Protocol",
+      "type": "text",
+      "default": "mqtt",
+      "placeholder": "mqtt"
+    }
+  ]
+}

@@ -70,41 +70,6 @@ func TestConnectorRepositorySaveGetDelete(t *testing.T) {
 	}
 }
 
-func TestConnectorRepositoryClearDefaultsByKind(t *testing.T) {
-	app := newPersistenceTestApp(t)
-
-	repo := NewConnectorRepository(app)
-	first, _ := repo.New()
-	first.ApplySaveInput(domainconnectors.SaveInput{Name: "One", Kind: domainconnectors.KindLLM, IsDefault: true, TemplateID: "openai"})
-	if err := repo.Save(first); err != nil {
-		t.Fatal(err)
-	}
-	second, _ := repo.New()
-	second.ApplySaveInput(domainconnectors.SaveInput{Name: "Two", Kind: domainconnectors.KindLLM, IsDefault: true, TemplateID: "anthropic"})
-	if err := repo.Save(second); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := repo.ClearDefaultsByKind(domainconnectors.KindLLM, second.ID()); err != nil {
-		t.Fatal(err)
-	}
-
-	loadedFirst, err := repo.Get(first.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
-	loadedSecond, err := repo.Get(second.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if loadedFirst.IsDefault() {
-		t.Fatal("expected excluded default clear to unset first connector")
-	}
-	if !loadedSecond.IsDefault() {
-		t.Fatal("expected excluded connector to remain default")
-	}
-}
-
 func TestConnectorRepositorySaveMapsDuplicateNameToConflict(t *testing.T) {
 	app := newPersistenceTestApp(t)
 	var err error

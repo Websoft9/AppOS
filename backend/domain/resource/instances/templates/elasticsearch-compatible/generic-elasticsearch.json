@@ -1,0 +1,6 @@
+{
+  "id": "generic-elasticsearch",
+  "title": "Generic Elasticsearch",
+  "description": "Elasticsearch-compatible search dependency.",
+  "defaultEndpoint": "https://elasticsearch.internal:9200"
+}

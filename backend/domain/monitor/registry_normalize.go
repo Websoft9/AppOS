@@ -11,6 +11,7 @@ func normalizeTargetRegistryEntry(entry TargetRegistryEntry) (TargetRegistryEntr
 	entry.ID = strings.TrimSpace(entry.ID)
 	entry.TargetType = strings.TrimSpace(strings.ToLower(entry.TargetType))
 	entry.Kind = strings.TrimSpace(strings.ToLower(entry.Kind))
+	entry.Traits = normalizeStringSlice(entry.Traits)
 	entry.SignalSources = normalizeStringSlice(entry.SignalSources)
 	entry.EnabledChecks = normalizeStringSlice(entry.EnabledChecks)
 	entry.TemplateIDs = normalizeTemplateIDs(entry.TemplateIDs)

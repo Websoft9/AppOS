@@ -2,8 +2,12 @@ package routes
 
 import (
 	"errors"
+	"net"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
@@ -18,7 +22,6 @@ type connectorUpsertRequest struct {
 	Name              string         `json:"name"`
 	Kind              string         `json:"kind"`
 	IsEnabled         *bool          `json:"is_enabled,omitempty"`
-	IsDefault         *bool          `json:"is_default"`
 	TemplateID        string         `json:"template_id"`
 	Endpoint          string         `json:"endpoint"`
 	AuthScheme        string         `json:"auth_scheme"`
@@ -35,7 +38,6 @@ type connectorResponseDocument struct {
 	Name              string         `json:"name"`
 	Kind              string         `json:"kind"`
 	IsEnabled         bool           `json:"is_enabled"`
-	IsDefault         bool           `json:"is_default"`
 	TemplateID        string         `json:"template_id"`
 	Endpoint          string         `json:"endpoint"`
 	AuthScheme        string         `json:"auth_scheme"`
@@ -47,6 +49,19 @@ type connectorResponseDocument struct {
 
 var _ = connectorResponseDocument{}
 
+type connectorReachabilityItem struct {
+	ID        string `json:"id"`
+	Status    string `json:"status"`
+	LatencyMS int64  `json:"latency_ms,omitempty"`
+	Reason    string `json:"reason,omitempty"`
+	Host      string `json:"host,omitempty"`
+	Port      int    `json:"port,omitempty"`
+}
+
+type connectorReachabilityResponse struct {
+	Items []connectorReachabilityItem `json:"items"`
+}
+
 // registerConnectorRoutes registers authenticated read routes and superuser-only
 // mutation routes for connector resources.
 
@@ -56,6 +71,7 @@ func registerConnectorRoutes(se *core.ServeEvent) {
 	group.GET("/templates", handleConnectorTemplateList)
 	group.GET("/templates/{id}", handleConnectorTemplateGet)
 	group.GET("", handleConnectorList)
+	group.GET("/reachability", handleConnectorReachability)
 	group.GET("/{id}", handleConnectorGet)
 
 	mutations := se.Router.Group("/api/connectors")
@@ -64,6 +80,44 @@ func registerConnectorRoutes(se *core.ServeEvent) {
 	mutations.POST("", handleConnectorCreate)
 	mutations.PUT("/{id}", handleConnectorUpdate)
 	mutations.DELETE("/{id}", handleConnectorDelete)
+}
+
+// handleConnectorReachability probes network reachability from AppOS to one or more external services.
+//
+// @Summary Probe connector reachability
+// @Description Probes TCP reachability for one or more external services visible to the authenticated user.
+// @Tags Resource
+// @Security BearerAuth
+// @Param ids query string false "comma-separated connector ids"
+// @Success 200 {object} connectorReachabilityResponse
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/connectors/reachability [get]
+func handleConnectorReachability(e *core.RequestEvent) error {
+	filterIDs := make(map[string]struct{})
+	for _, id := range strings.Split(e.Request.URL.Query().Get("ids"), ",") {
+		normalized := strings.TrimSpace(id)
+		if normalized == "" {
+			continue
+		}
+		filterIDs[normalized] = struct{}{}
+	}
+
+	items, err := connectors.List(persistence.NewConnectorRepository(e.App), parseConnectorKindFilter(e.Request.URL.Query().Get("kind")))
+	if err != nil {
+		return e.InternalServerError("failed to list connectors", err)
+	}
+
+	result := make([]connectorReachabilityItem, 0, len(items))
+	for _, item := range items {
+		if len(filterIDs) > 0 {
+			if _, ok := filterIDs[item.ID()]; !ok {
+				continue
+			}
+		}
+		result = append(result, probeConnectorReachability(item))
+	}
+	return e.JSON(http.StatusOK, connectorReachabilityResponse{Items: result})
 }
 
 // handleConnectorTemplateList lists built-in connector templates.
@@ -259,13 +313,6 @@ func bindConnectorUpsertRequest(e *core.RequestEvent, existing *connectors.Conne
 	if strings.TrimSpace(body.Kind) == connectors.KindLLM {
 		return connectors.SaveInput{}, e.BadRequestError("llm connectors are no longer supported on /api/connectors; use /api/ai-providers instead", nil)
 	}
-	isDefault := false
-	if existing != nil {
-		isDefault = existing.IsDefault()
-	}
-	if body.IsDefault != nil {
-		isDefault = *body.IsDefault
-	}
 	isEnabled := true
 	if existing != nil {
 		isEnabled = existing.IsEnabled()
@@ -277,7 +324,6 @@ func bindConnectorUpsertRequest(e *core.RequestEvent, existing *connectors.Conne
 		Name:              body.Name,
 		Kind:              body.Kind,
 		IsEnabled:         isEnabled,
-		IsDefault:         isDefault,
 		TemplateID:        body.TemplateID,
 		Endpoint:          body.Endpoint,
 		AuthScheme:        body.AuthScheme,
@@ -316,7 +362,6 @@ func connectorResponse(item *connectors.Connector) map[string]any {
 		"name":             item.Name(),
 		"kind":             item.Kind(),
 		"is_enabled":       item.IsEnabled(),
-		"is_default":       item.IsDefault(),
 		"template_id":      item.TemplateID(),
 		"endpoint":         item.Endpoint(),
 		"auth_scheme":      item.AuthScheme(),
@@ -346,6 +391,70 @@ func parseConnectorKindFilter(raw string) []string {
 func isConnectorNotFound(err error) bool {
 	var notFoundErr *connectors.NotFoundError
 	return errors.As(err, &notFoundErr)
+}
+
+func probeConnectorReachability(item *connectors.Connector) connectorReachabilityItem {
+	host, port, err := connectorProbeTarget(item)
+	result := connectorReachabilityItem{ID: item.ID(), Host: host, Port: port}
+	if err != nil {
+		result.Status = "unknown"
+		result.Reason = err.Error()
+		return result
+	}
+
+	start := time.Now()
+	conn, dialErr := net.DialTimeout("tcp", net.JoinHostPort(host, strconv.Itoa(port)), 3*time.Second)
+	if dialErr != nil {
+		result.Status = "unreachable"
+		result.Reason = dialErr.Error()
+		return result
+	}
+	_ = conn.Close()
+	result.Status = "reachable"
+	result.LatencyMS = time.Since(start).Milliseconds()
+	return result
+}
+
+func connectorProbeTarget(item *connectors.Connector) (string, int, error) {
+	raw := strings.TrimSpace(item.Endpoint())
+	if raw == "" {
+		return "", 0, errors.New("endpoint is empty")
+	}
+	parsedRaw := raw
+	if !strings.Contains(parsedRaw, "://") {
+		parsedRaw = "tcp://" + parsedRaw
+	}
+	parsed, err := url.Parse(parsedRaw)
+	if err != nil {
+		return "", 0, err
+	}
+	host := strings.TrimSpace(parsed.Hostname())
+	if host == "" {
+		return "", 0, errors.New("endpoint host is empty")
+	}
+	port := 0
+	if rawPort := strings.TrimSpace(parsed.Port()); rawPort != "" {
+		port, err = strconv.Atoi(rawPort)
+		if err != nil {
+			return host, 0, err
+		}
+	} else {
+		switch strings.ToLower(strings.TrimSpace(parsed.Scheme)) {
+		case "http":
+			port = 80
+		case "https":
+			port = 443
+		case "smtp", "tcp":
+			port = 587
+		case "smtps":
+			port = 465
+		case "socks5":
+			port = 1080
+		default:
+			return host, 0, errors.New("endpoint port is required")
+		}
+	}
+	return host, port, nil
 }
 
 type connectorCredentialValidator struct {
@@ -426,7 +535,6 @@ func connectorInputMap(input connectors.SaveInput) map[string]any {
 		"name":             input.Name,
 		"kind":             input.Kind,
 		"is_enabled":       input.IsEnabled,
-		"is_default":       input.IsDefault,
 		"template_id":      input.TemplateID,
 		"endpoint":         input.Endpoint,
 		"auth_scheme":      input.AuthScheme,
@@ -443,7 +551,6 @@ func connectorSnapshotMap(snap *connectors.Snapshot) map[string]any {
 		"name":             snap.Name,
 		"kind":             snap.Kind,
 		"is_enabled":       snap.IsEnabled,
-		"is_default":       snap.IsDefault,
 		"template_id":      snap.TemplateID,
 		"endpoint":         snap.Endpoint,
 		"auth_scheme":      snap.AuthScheme,

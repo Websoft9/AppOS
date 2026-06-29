@@ -89,18 +89,7 @@ func (r *appConnectorRepository) ListByKind(kind string) ([]*connectors.Connecto
 }
 
 func (r *appConnectorRepository) ClearDefaultsByKind(kind string, excludeID string) error {
-	kind = strings.TrimSpace(kind)
-	if kind == "" {
-		return nil
-	}
-	query := "UPDATE " + collections.Connectors + " SET is_default = false WHERE kind = {:kind} AND is_default = true"
-	params := map[string]any{"kind": kind}
-	if strings.TrimSpace(excludeID) != "" {
-		query += " AND id != {:excludeId}"
-		params["excludeId"] = excludeID
-	}
-	_, err := r.app.DB().NewQuery(query).Bind(params).Execute()
-	return err
+	return nil
 }
 
 func (r *appConnectorRepository) RunInTransaction(run func(connectors.Repository) error) error {
@@ -134,7 +123,6 @@ func connectorFromRecord(record *core.Record) *connectors.Connector {
 		Updated:           record.GetString("updated"),
 		Name:              record.GetString("name"),
 		Kind:              record.GetString("kind"),
-		IsDefault:         record.GetBool("is_default"),
 		TemplateID:        record.GetString("template_id"),
 		Endpoint:          record.GetString("endpoint"),
 		AuthScheme:        record.GetString("auth_scheme"),
@@ -149,7 +137,6 @@ func applyConnectorToRecord(record *core.Record, connector *connectors.Connector
 	snapshot := connector.Snapshot()
 	record.Set("name", snapshot.Name)
 	record.Set("kind", snapshot.Kind)
-	record.Set("is_default", snapshot.IsDefault)
 	record.Set("template_id", snapshot.TemplateID)
 	record.Set("endpoint", snapshot.Endpoint)
 	record.Set("auth_scheme", snapshot.AuthScheme)

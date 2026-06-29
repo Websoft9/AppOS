@@ -209,6 +209,13 @@ components:
                 totalItems:
                     type: integer
             type: object
+        ConnectorReachabilityResponse:
+            properties:
+                items:
+                    items:
+                        $ref: '#/components/schemas/ConnectorReachabilityItem'
+                    type: array
+            type: object
         ConnectorResponseDocument:
             properties:
                 auth_scheme:
@@ -226,8 +233,6 @@ components:
                     type: string
                 id:
                     type: string
-                is_default:
-                    type: boolean
                 is_enabled:
                     type: boolean
                 kind:
@@ -254,8 +259,6 @@ components:
                     type: string
                 endpoint:
                     type: string
-                is_default:
-                    type: boolean
                 is_enabled:
                     type: boolean
                 kind:
@@ -432,6 +435,10 @@ components:
                     type: string
                 template_id:
                     type: string
+                traits:
+                    items:
+                        type: string
+                    type: array
                 updated:
                     type: string
             type: object
@@ -5425,6 +5432,48 @@ paths:
             security:
                 - bearerAuth: []
             summary: Update connector
+            tags:
+                - Connectors
+    /api/connectors/reachability:
+        get:
+            description: Probes TCP reachability for one or more external services visible to the authenticated user.
+            operationId: get_api_connectors_reachability
+            parameters:
+                - description: comma-separated connector ids
+                  in: query
+                  name: ids
+                  required: false
+                  schema:
+                    type: string
+                - in: query
+                  name: kind
+                  required: false
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ConnectorReachabilityResponse'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Probe connector reachability
             tags:
                 - Connectors
     /api/connectors/templates:

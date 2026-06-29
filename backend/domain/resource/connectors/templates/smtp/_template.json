@@ -7,10 +7,18 @@
   "fields": [
     {
       "id": "endpoint",
-      "label": "Endpoint",
+      "label": "SMTP Server",
       "type": "string",
       "required": true,
-      "placeholder": "smtp://smtp.example.com:587"
+      "placeholder": "smtp.example.com",
+      "helpUrl": "https://support.websoft9.com/docs/smtps"
+    },
+    {
+      "id": "port",
+      "label": "Port",
+      "type": "number",
+      "required": true,
+      "default": 587
     },
     {
       "id": "username",
@@ -25,6 +33,13 @@
       "type": "secret_ref",
       "secretTemplate": "single_value",
       "placeholder": "secretRef:..."
+    },
+    {
+      "id": "tls",
+      "label": "Use SSL",
+      "type": "boolean",
+      "default": false,
+      "helpText": "Port 465 is usually used with SSL enabled; port 587 is usually used without implicit SSL."
     }
   ]
 }

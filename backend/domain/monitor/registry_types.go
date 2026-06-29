@@ -49,6 +49,7 @@ type TargetRegistryEntry struct {
 	ID             string              `json:"id"`
 	TargetType     string              `json:"targetType"`
 	Kind           string              `json:"kind,omitempty"`
+	Traits         []string            `json:"traits,omitempty"`
 	TemplateIDs    []string            `json:"templateIds,omitempty"`
 	SignalSources  []string            `json:"signalSources,omitempty"`
 	EnabledChecks  []string            `json:"enabledChecks,omitempty"`

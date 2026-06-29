@@ -10,6 +10,7 @@ const (
 	KindRESTAPI  = "rest_api"
 	KindWebhook  = "webhook"
 	KindMCP      = "mcp"
+	KindHTTPGateway = "http-gateway"
 	KindSMTP     = "smtp"
 	KindDNS      = "dns"
 	KindRegistry = "registry"
@@ -25,6 +26,7 @@ var declaredKinds = []string{
 	KindRESTAPI,
 	KindWebhook,
 	KindMCP,
+	KindHTTPGateway,
 	KindSMTP,
 	KindDNS,
 	KindRegistry,
@@ -56,7 +58,6 @@ const (
 var EditableFields = []string{
 	"name",
 	"kind",
-	"is_default",
 	"template_id",
 	"endpoint",
 	"auth_scheme",
@@ -155,13 +156,12 @@ func (c *Connector) ApplySaveInput(input SaveInput) {
 	c.config = cloneMap(input.Config)
 	c.description = strings.TrimSpace(input.Description)
 }
+func (c *Connector) SetTemplateID(value string) {
+	c.templateID = value
+}
 
 func (c *Connector) SetIsDefault(value bool) {
 	c.isDefault = value
-}
-
-func (c *Connector) SetTemplateID(value string) {
-	c.templateID = value
 }
 
 func (c *Connector) SetEndpoint(value string) {

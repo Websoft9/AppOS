@@ -1,0 +1,20 @@
+{
+  "kind": "mongodb-compatible",
+  "category": "database",
+  "fields": [
+    {
+      "id": "database",
+      "label": "Database",
+      "type": "text",
+      "default": "appdb",
+      "placeholder": "appdb"
+    },
+    {
+      "id": "authSource",
+      "label": "Auth Source",
+      "type": "text",
+      "default": "admin",
+      "placeholder": "admin"
+    }
+  ]
+}

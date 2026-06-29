@@ -1,0 +1,18 @@
+{
+  "kind": "influxdb-compatible",
+  "category": "database",
+  "fields": [
+    {
+      "id": "organization",
+      "label": "Organization",
+      "type": "text",
+      "placeholder": "appos"
+    },
+    {
+      "id": "bucket",
+      "label": "Bucket",
+      "type": "text",
+      "placeholder": "metrics"
+    }
+  ]
+}

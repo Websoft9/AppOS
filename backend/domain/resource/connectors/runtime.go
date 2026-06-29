@@ -101,11 +101,7 @@ func LoadSMTPWith(repo Repository, secrets SecretResolvePort) (*SMTPConfig, erro
 	}
 	item, err := selectDefaultConnector(items, KindSMTP)
 	if err != nil {
-		if IsRuntimeReason(err, RuntimeReasonDefaultRequired) {
-			item = earliestCreatedConnector(items)
-		} else {
-			return nil, err
-		}
+		return nil, err
 	}
 	return smtpConfigFromConnector(secrets, item)
 }
@@ -236,24 +232,7 @@ func selectDefaultConnector(items []*Connector, kind string) (*Connector, error)
 	if len(items) == 0 {
 		return nil, &RuntimeConfigError{Kind: kind, Reason: RuntimeReasonNoConnectorConfigured}
 	}
-
-	defaults := make([]*Connector, 0, len(items))
-	for _, item := range items {
-		if item.IsDefault() {
-			defaults = append(defaults, item)
-		}
-	}
-	if len(defaults) == 1 {
-		return defaults[0], nil
-	}
-	if len(defaults) > 1 {
-		return nil, &RuntimeConfigError{Kind: kind, Reason: RuntimeReasonMultipleDefaults}
-	}
-
-	if len(items) == 1 {
-		return items[0], nil
-	}
-	return nil, &RuntimeConfigError{Kind: kind, Reason: RuntimeReasonDefaultRequired}
+	return earliestCreatedConnector(items), nil
 }
 
 func earliestCreatedConnector(items []*Connector) *Connector {

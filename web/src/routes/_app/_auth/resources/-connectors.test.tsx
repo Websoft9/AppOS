@@ -40,14 +40,14 @@ vi.mock('react-i18next', () => ({
         'hub.title': 'Resources',
         'connectors.page.title': 'External Services',
         'connectors.page.description':
-          'Reusable API, webhook, MCP, proxy, SMTP, registry, and DNS services backed by grouped profiles',
+          'Reusable API, webhook, MCP, HTTP gateway, outbound proxy, SMTP, registry, and DNS services backed by grouped profiles',
         'connectors.page.addConnector': 'Add External Service',
         'connectors.page.searchPlaceholder': 'Search external services',
         'connectors.selection.title': 'Choose an External Service Type',
         'connectors.selection.description':
           'Start with the service type, then choose a vendor profile to prefill the shared schema.',
         'connectors.selection.searchPlaceholder':
-          'Search service types like SMTP, DNS, proxy, or registry...',
+          'Search service types like SMTP, DNS, outbound proxy, or HTTP gateway...',
         'connectors.selection.emptyMessage': 'No matching external service types found.',
         'connectors.fields.name': 'Name',
         'connectors.fields.profile': 'Profile',
@@ -57,16 +57,21 @@ vi.mock('react-i18next', () => ({
         'connectors.placeholders.name': 'my-connector',
         'connectors.placeholders.advancedConfig': '{"headers": {"X-Custom": "value"}}',
         'connectors.columns.name': 'Name',
+        'connectors.columns.enabled': 'Enabled',
         'connectors.columns.default': 'Default',
         'connectors.columns.kind': 'Kind',
         'connectors.columns.profile': 'Profile',
         'connectors.columns.url': 'URL',
         'connectors.columns.auth': 'Auth',
+        'connectors.columns.reachability': 'Reachability',
+        'connectors.columns.created': 'Created',
+        'connectors.columns.updated': 'Updated',
         'connectors.badges.default': 'Default',
         'connectors.kinds.rest_api': 'REST API',
         'connectors.kinds.webhook': 'Webhook',
-        'connectors.kinds.mcp': 'MCP',
-        'connectors.kinds.proxy': 'Proxy',
+        'connectors.kinds.mcp': 'MCP Server',
+        'connectors.kinds.http-gateway': 'HTTP Gateway',
+        'connectors.kinds.proxy': 'Outbound Proxy',
         'connectors.kinds.smtp': 'SMTP',
         'connectors.kinds.registry': 'Registry',
         'connectors.kinds.dns': 'DNS',
@@ -76,6 +81,15 @@ vi.mock('react-i18next', () => ({
         'connectors.authValues.none': 'none',
         'connectors.authValues.basic': 'basic',
         'connectors.authValues.bearer': 'bearer',
+        'connectors.authValues.api_key': 'api_key',
+        'connectors.enabled.yes': 'Enabled',
+        'connectors.enabled.no': 'Disabled',
+        'connectors.status.reachable': 'Reachable',
+        'connectors.status.unreachable': 'Unreachable',
+        'connectors.status.unknown': 'Unknown',
+        'connectors.actions.enable': 'Enable',
+        'connectors.actions.disable': 'Disable',
+        'connectors.fields.enableIt': 'Enable it',
         'connectors.secret.new': 'New Secret',
         'connectors.secret.edit': 'Edit Secret',
         'connectors.secret.newTitle': 'New Secret',
@@ -153,6 +167,21 @@ describe('ConnectorsPage', () => {
             fields: [{ id: 'endpoint', label: 'Server URL', type: 'url', required: true }],
           },
           {
+            id: 'generic-http-gateway',
+            kind: 'http-gateway',
+            title: 'Generic HTTP Gateway',
+            defaultEndpoint: 'https://gateway.example.com',
+            fields: [
+              { id: 'endpoint', label: 'Gateway Endpoint', type: 'url', required: true },
+              {
+                id: 'credential',
+                label: 'Access Token Secret',
+                type: 'secret_ref',
+                secretTemplate: 'single_value',
+              },
+            ],
+          },
+          {
             id: 'http-proxy',
             kind: 'proxy',
             title: 'HTTP Proxy',
@@ -215,6 +244,7 @@ describe('ConnectorsPage', () => {
                 required: true,
                 secretTemplate: 'single_value',
               },
+              { id: 'tls', label: 'Use SSL', type: 'boolean', default: false },
             ],
           },
           {
@@ -233,7 +263,7 @@ describe('ConnectorsPage', () => {
                 required: true,
                 secretTemplate: 'single_value',
               },
-              { id: 'region', label: 'AWS Region', type: 'string', placeholder: 'us-east-1' },
+              { id: 'tls', label: 'Use SSL', type: 'boolean', default: false },
             ],
           },
           {
@@ -284,8 +314,11 @@ describe('ConnectorsPage', () => {
           },
         ])
       }
-      if (path === '/api/connectors?kind=rest_api,webhook,mcp,proxy,smtp,registry,dns') {
+      if (path === '/api/connectors?kind=rest_api,webhook,mcp,http-gateway,proxy,smtp,registry,dns') {
         return Promise.resolve([])
+      }
+      if (path.startsWith('/api/connectors/reachability?')) {
+        return Promise.resolve({ items: [] })
       }
       if (path === '/api/collections/groups/records?perPage=500&sort=name') {
         return Promise.resolve({ items: [] })
@@ -326,7 +359,7 @@ describe('ConnectorsPage', () => {
     clickChooserOption(chooser, 'SMTP')
 
     const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByText(/^connector-\d{6}$/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/^SMTP-\d{6}$/)).toBeInTheDocument()
     const select = dialog.querySelector('select') as HTMLSelectElement | null
     if (!select) {
       throw new Error('expected profile select to be rendered')
@@ -341,9 +374,8 @@ describe('ConnectorsPage', () => {
     fireEvent.change(select, { target: { value: 'ses-smtp' } })
 
     expect(select.value).toBe('ses-smtp')
-    expect(within(dialog).getByText(/Add a SMTP service using Amazon SES SMTP/)).toBeInTheDocument()
-    fireEvent.click(within(dialog).getByRole('button', { name: /Advanced/ }))
-    expect(within(dialog).getByText('AWS Region')).toBeInTheDocument()
+    expect(within(dialog).getByText(/Add a SMTP service - Amazon SES SMTP/)).toBeInTheDocument()
+    expect(within(dialog).getByLabelText(/^Use SSL/)).toBeInTheDocument()
   })
 
   it('loads relation options once when opening the create dialog', async () => {
@@ -383,7 +415,7 @@ describe('ConnectorsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add External Service' }))
 
     const chooser = await screen.findByRole('dialog')
-    clickChooserOption(chooser, 'Proxy')
+    clickChooserOption(chooser, 'Outbound Proxy')
 
     const dialog = await screen.findByRole('dialog')
     const profileSelect = dialog.querySelector('select') as HTMLSelectElement | null
@@ -421,7 +453,7 @@ describe('ConnectorsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add External Service' }))
 
     const chooser = await screen.findByRole('dialog')
-    clickChooserOption(chooser, 'Proxy')
+    clickChooserOption(chooser, 'Outbound Proxy')
 
     const dialog = await screen.findByRole('dialog')
     fireEvent.change(within(dialog).getByLabelText(/^Authentication/), {
@@ -481,7 +513,7 @@ describe('ConnectorsPage', () => {
           },
         ])
       }
-      if (path === '/api/connectors?kind=rest_api,webhook,mcp,proxy,smtp,registry,dns') {
+      if (path === '/api/connectors?kind=rest_api,webhook,mcp,http-gateway,proxy,smtp,registry,dns') {
         return Promise.resolve([
           {
             id: 'connector-1',
@@ -495,6 +527,11 @@ describe('ConnectorsPage', () => {
           },
         ])
       }
+      if (path.startsWith('/api/connectors/reachability?')) {
+        return Promise.resolve({
+          items: [{ id: 'connector-1', status: 'reachable' }],
+        })
+      }
       if (path === '/api/collections/groups/records?perPage=500&sort=name') {
         return Promise.resolve({ items: [] })
       }
@@ -505,6 +542,9 @@ describe('ConnectorsPage', () => {
         return Promise.resolve({
           items: [{ id: 'secret-1', name: 'smtp-password', template_id: 'single_value' }],
         })
+      }
+      if (path === '/api/secrets/secret-1/payload') {
+        return Promise.resolve({ ok: true })
       }
       return Promise.resolve({ items: [] })
     })
@@ -520,14 +560,15 @@ describe('ConnectorsPage', () => {
     fireEvent.click(await screen.findByText('Edit'))
 
     await screen.findByRole('dialog')
-    expect(screen.queryByPlaceholderText('Enter a secret value')).not.toBeInTheDocument()
+    expect(
+      screen.queryByPlaceholderText('Enter a new secret value to update the current secret')
+    ).not.toBeInTheDocument()
     expect(screen.getByText('smtp-password')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Edit Secret' }))
 
-    const directInputToggle = await screen.findByTitle('Use direct API key input')
-    fireEvent.click(directInputToggle)
-
-    expect(await screen.findByPlaceholderText('Enter a secret value')).toBeInTheDocument()
+    expect(
+      await screen.findByPlaceholderText('Enter a new secret value to update the current secret')
+    ).toBeInTheDocument()
   })
 
   it('opens the settings-generated proxy deep link directly in the External Services form', async () => {

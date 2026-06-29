@@ -1,0 +1,32 @@
+{
+  "id": "azure-application-gateway",
+  "title": "Azure Application Gateway",
+  "vendor": "Azure",
+  "description": "Azure Application Gateway reference for publication handoff.",
+  "fields": [
+    {
+      "id": "provider",
+      "label": "Provider",
+      "type": "string",
+      "default": "azure"
+    },
+    {
+      "id": "region",
+      "label": "Region",
+      "type": "string",
+      "placeholder": "eastus"
+    },
+    {
+      "id": "resourceGroup",
+      "label": "Resource Group",
+      "type": "string",
+      "placeholder": "rg-appos-prod"
+    },
+    {
+      "id": "gatewayName",
+      "label": "Gateway Name",
+      "type": "string",
+      "placeholder": "agw-prod"
+    }
+  ]
+}

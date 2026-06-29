@@ -1,0 +1,14 @@
+{
+  "id": "generic-mongodb",
+  "title": "Generic MongoDB",
+  "description": "MongoDB-compatible document database dependency.",
+  "defaultEndpoint": "mongodb://mongo.internal:27017",
+  "fields": [
+    {
+      "id": "engine",
+      "label": "Engine",
+      "type": "text",
+      "default": "mongodb"
+    }
+  ]
+}

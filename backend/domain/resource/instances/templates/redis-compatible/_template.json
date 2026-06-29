@@ -1,0 +1,12 @@
+{
+  "kind": "redis-compatible",
+  "category": "cache",
+  "fields": [
+    {
+      "id": "database",
+      "label": "Database Index",
+      "type": "number",
+      "default": 0
+    }
+  ]
+}

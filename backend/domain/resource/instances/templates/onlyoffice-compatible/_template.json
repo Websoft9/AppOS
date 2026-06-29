@@ -1,0 +1,20 @@
+{
+  "kind": "onlyoffice-compatible",
+  "category": "application-service",
+  "fields": [
+    {
+      "id": "callbackPath",
+      "label": "Callback Path",
+      "type": "text",
+      "default": "/",
+      "placeholder": "/"
+    },
+    {
+      "id": "documentPath",
+      "label": "Document Path",
+      "type": "text",
+      "default": "/",
+      "placeholder": "/"
+    }
+  ]
+}

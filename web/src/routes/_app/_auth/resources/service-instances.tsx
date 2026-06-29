@@ -6,6 +6,7 @@ import { Check, Loader2, Pencil, Power, PowerOff } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import {
   Dialog,
   DialogContent,
@@ -87,36 +88,60 @@ const CATEGORY_LABELS: Record<string, string> = {
   cache: 'Caches',
   'message-queue': 'MQ',
   storage: 'Storage',
-  'traffic-gateway': 'Traffic Gateway',
-  artifact: 'Registries',
-  ai: 'AI Services',
+  search: 'Search',
+  'application-service': 'Application Service',
 }
 
 const KIND_LABELS: Record<string, string> = {
-  mysql: 'MySQL',
-  postgres: 'PostgreSQL',
-  redis: 'Redis',
-  kafka: 'Kafka',
-  rabbitmq: 'RabbitMQ',
-  nats: 'NATS',
-  mqtt: 'MQTT',
-  s3: 'S3 Storage',
-  gateway: 'Traffic Gateway',
-  registry: 'Registry',
-  ollama: 'Ollama',
+  'mysql-compatible': 'MySQL-Compatible',
+  'postgres-compatible': 'PostgreSQL-Compatible',
+  'mongodb-compatible': 'MongoDB-Compatible',
+  'clickhouse-compatible': 'ClickHouse-Compatible',
+  'neo4j-compatible': 'Neo4j-Compatible',
+  'influxdb-compatible': 'InfluxDB-Compatible',
+  'redis-compatible': 'Redis-Compatible',
+  'elasticsearch-compatible': 'Elasticsearch-Compatible',
+  'kafka-compatible': 'Kafka-Compatible',
+  'amqp-compatible': 'AMQP-Compatible',
+  'nats-compatible': 'NATS-Compatible',
+  'mqtt-compatible': 'MQTT-Compatible',
+  's3-compatible': 'S3-Compatible Storage',
+  'onlyoffice-compatible': 'ONLYOFFICE-Compatible',
 }
 
 const CREATABLE_INSTANCE_KINDS = [
-  'mysql',
-  'postgres',
-  'redis',
-  'kafka',
-  'rabbitmq',
-  'nats',
-  'mqtt',
-  's3',
-  'gateway',
+  'mysql-compatible',
+  'postgres-compatible',
+  'mongodb-compatible',
+  'clickhouse-compatible',
+  'neo4j-compatible',
+  'influxdb-compatible',
+  'redis-compatible',
+  'elasticsearch-compatible',
+  'kafka-compatible',
+  'amqp-compatible',
+  'nats-compatible',
+  'mqtt-compatible',
+  's3-compatible',
+  'onlyoffice-compatible',
 ] as const
+
+const KIND_SEARCH_HINTS: Partial<Record<(typeof CREATABLE_INSTANCE_KINDS)[number], string[]>> = {
+  'mysql-compatible': ['mysql', 'aurora', 'mariadb'],
+  'postgres-compatible': ['postgres', 'postgresql', 'aurora', 'rds'],
+  'mongodb-compatible': ['mongodb', 'mongo', 'atlas', 'document database'],
+  'clickhouse-compatible': ['clickhouse', 'analytic', 'analytics', 'columnar'],
+  'neo4j-compatible': ['neo4j', 'graph'],
+  'influxdb-compatible': ['influxdb', 'timeseries', 'time series', 'metrics'],
+  'redis-compatible': ['redis', 'valkey'],
+  'elasticsearch-compatible': ['elasticsearch', 'elastic', 'opensearch', 'search'],
+  'kafka-compatible': ['kafka', 'redpanda'],
+  'amqp-compatible': ['rabbitmq', 'amqp'],
+  'nats-compatible': ['nats'],
+  'mqtt-compatible': ['mqtt', 'mosquitto', 'emqx'],
+  's3-compatible': ['s3', 'minio', 'r2', 'object storage'],
+  'onlyoffice-compatible': ['onlyoffice', 'docs', 'document server'],
+}
 
 const TEMPLATE_FIELD_OVERRIDE_KEYS: Record<string, string> = {
   database: 'serviceInstances.templateFields.database',
@@ -147,7 +172,7 @@ const INSTANCE_CANONICAL_FIELD_META: Record<
   string,
   Partial<Record<CanonicalFieldKey, CanonicalFieldMeta>>
 > = {
-  mysql: {
+  'mysql-compatible': {
     host: { required: true },
     port: { required: true },
     credential: { required: true },
@@ -156,7 +181,7 @@ const INSTANCE_CANONICAL_FIELD_META: Record<
     description: { advanced: true },
     groups: { advanced: true },
   },
-  postgres: {
+  'postgres-compatible': {
     host: { required: true },
     port: { required: true },
     credential: { required: true },
@@ -165,7 +190,7 @@ const INSTANCE_CANONICAL_FIELD_META: Record<
     description: { advanced: true },
     groups: { advanced: true },
   },
-  redis: {
+  'mongodb-compatible': {
     endpoint: { required: true },
     credential: { advanced: true },
     provider_account: { advanced: true },
@@ -173,7 +198,7 @@ const INSTANCE_CANONICAL_FIELD_META: Record<
     description: { advanced: true },
     groups: { advanced: true },
   },
-  kafka: {
+  'clickhouse-compatible': {
     endpoint: { required: true },
     credential: { advanced: true },
     provider_account: { advanced: true },
@@ -181,7 +206,7 @@ const INSTANCE_CANONICAL_FIELD_META: Record<
     description: { advanced: true },
     groups: { advanced: true },
   },
-  rabbitmq: {
+  'neo4j-compatible': {
     endpoint: { required: true },
     credential: { advanced: true },
     provider_account: { advanced: true },
@@ -189,7 +214,7 @@ const INSTANCE_CANONICAL_FIELD_META: Record<
     description: { advanced: true },
     groups: { advanced: true },
   },
-  nats: {
+  'influxdb-compatible': {
     endpoint: { required: true },
     credential: { advanced: true },
     provider_account: { advanced: true },
@@ -197,7 +222,7 @@ const INSTANCE_CANONICAL_FIELD_META: Record<
     description: { advanced: true },
     groups: { advanced: true },
   },
-  mqtt: {
+  'redis-compatible': {
     endpoint: { required: true },
     credential: { advanced: true },
     provider_account: { advanced: true },
@@ -205,7 +230,7 @@ const INSTANCE_CANONICAL_FIELD_META: Record<
     description: { advanced: true },
     groups: { advanced: true },
   },
-  s3: {
+  'elasticsearch-compatible': {
     endpoint: { required: true },
     credential: { advanced: true },
     provider_account: { advanced: true },
@@ -213,9 +238,49 @@ const INSTANCE_CANONICAL_FIELD_META: Record<
     description: { advanced: true },
     groups: { advanced: true },
   },
-  gateway: {
+  'kafka-compatible': {
     endpoint: { required: true },
-    credential: { required: true },
+    credential: { advanced: true },
+    provider_account: { advanced: true },
+    is_enabled: { advanced: true },
+    description: { advanced: true },
+    groups: { advanced: true },
+  },
+  'amqp-compatible': {
+    endpoint: { required: true },
+    credential: { advanced: true },
+    provider_account: { advanced: true },
+    is_enabled: { advanced: true },
+    description: { advanced: true },
+    groups: { advanced: true },
+  },
+  'nats-compatible': {
+    endpoint: { required: true },
+    credential: { advanced: true },
+    provider_account: { advanced: true },
+    is_enabled: { advanced: true },
+    description: { advanced: true },
+    groups: { advanced: true },
+  },
+  'mqtt-compatible': {
+    endpoint: { required: true },
+    credential: { advanced: true },
+    provider_account: { advanced: true },
+    is_enabled: { advanced: true },
+    description: { advanced: true },
+    groups: { advanced: true },
+  },
+  's3-compatible': {
+    endpoint: { required: true },
+    credential: { advanced: true },
+    provider_account: { advanced: true },
+    is_enabled: { advanced: true },
+    description: { advanced: true },
+    groups: { advanced: true },
+  },
+  'onlyoffice-compatible': {
+    endpoint: { required: true },
+    credential: { advanced: true },
     provider_account: { advanced: true },
     is_enabled: { advanced: true },
     description: { advanced: true },
@@ -322,22 +387,40 @@ function compareTemplatesForCreate(left: InstanceTemplate, right: InstanceTempla
   return productTitle(left, t).localeCompare(productTitle(right, t))
 }
 
-function listTemplatesForCategory(
-  category: string,
+function listTemplatesForKind(
+  kind: string,
   templates: InstanceTemplate[],
   t: Translate
 ): InstanceTemplate[] {
   return templates
-    .filter(template => isCreatableTemplate(template) && template.category === category)
+    .filter(template => isCreatableTemplate(template) && template.kind === kind)
     .sort((left, right) => compareTemplatesForCreate(left, right, t))
 }
 
-function getDefaultTemplateForCategory(
-  category: string,
+function getDefaultTemplateForKind(
+  kind: string,
   templates: InstanceTemplate[],
   t: Translate
 ) {
-  return listTemplatesForCategory(category, templates, t)[0] ?? null
+  return listTemplatesForKind(kind, templates, t)[0] ?? null
+}
+
+function kindSearchText(kind: string, templates: InstanceTemplate[], t: Translate) {
+  const kindTemplates = listTemplatesForKind(kind, templates, t)
+  return [
+    kindLabel(kind, t),
+    ...(KIND_SEARCH_HINTS[kind as (typeof CREATABLE_INSTANCE_KINDS)[number]] ?? []),
+    ...kindTemplates.flatMap(template => [
+      template.id,
+      productTitle(template, t),
+      template.title,
+      template.vendor ?? '',
+      template.description ?? '',
+      categoryLabel(template.category, t),
+    ]),
+  ]
+    .filter(Boolean)
+    .join(' ')
 }
 
 function buildDefaultInstanceName(template: InstanceTemplate, t: Translate) {
@@ -461,19 +544,24 @@ function buildEndpoint(host: unknown, port: unknown, fallback: string) {
 }
 
 function isDatabaseConnectionKind(template: InstanceTemplate | null | undefined) {
-  return template?.kind === 'mysql' || template?.kind === 'postgres'
+  return template?.kind === 'mysql-compatible' || template?.kind === 'postgres-compatible'
 }
 
 function isSecretBackedConnectionKind(template: InstanceTemplate | null | undefined) {
   return (
-    template?.kind === 'mysql' ||
-    template?.kind === 'postgres' ||
-    template?.kind === 'redis' ||
-    template?.kind === 'kafka' ||
-    template?.kind === 'rabbitmq' ||
-    template?.kind === 'nats' ||
-    template?.kind === 'mqtt' ||
-    template?.kind === 'gateway'
+    template?.kind === 'mysql-compatible' ||
+    template?.kind === 'postgres-compatible' ||
+    template?.kind === 'mongodb-compatible' ||
+    template?.kind === 'clickhouse-compatible' ||
+    template?.kind === 'neo4j-compatible' ||
+    template?.kind === 'influxdb-compatible' ||
+    template?.kind === 'redis-compatible' ||
+    template?.kind === 'elasticsearch-compatible' ||
+    template?.kind === 'kafka-compatible' ||
+    template?.kind === 'amqp-compatible' ||
+    template?.kind === 'nats-compatible' ||
+	 template?.kind === 'mqtt-compatible' ||
+	 template?.kind === 'onlyoffice-compatible'
   )
 }
 
@@ -488,12 +576,12 @@ function resolveCanonicalFieldMeta(
 }
 
 function defaultPortForTemplate(template: InstanceTemplate | null | undefined) {
-  if (template?.kind === 'postgres') return 5432
+  if (template?.kind === 'postgres-compatible') return 5432
   return 3306
 }
 
 function databaseCertificateHelpText(template: InstanceTemplate | null | undefined, t: Translate) {
-  if (template?.kind === 'postgres') {
+  if (template?.kind === 'postgres-compatible') {
     return t('serviceInstances.help.sslCertificatePostgres')
   }
   return t('serviceInstances.help.sslCertificateMysql')
@@ -771,6 +859,7 @@ function mapInstanceRow(
   const sslEnabled = parseBooleanValue(flattenedConfig.ssl_enabled)
   const sslCertificate = String(flattenedConfig.ssl_ca_certificate ?? '').trim()
   flattenedConfig.ssl_mode = sslEnabled ? (sslCertificate ? 'mutual' : 'one_way') : ''
+  const fallbackProfile = normalizeInstanceTemplateTitle(String(item.template_id ?? ''))
 
   return {
     id: item.id,
@@ -782,7 +871,7 @@ function mapInstanceRow(
     enabled_status: resolveInstanceEnabled(item.is_enabled) ? 'Enabled' : 'Disabled',
     kind_label: kindLabel(String(item.kind ?? ''), t),
     template_id: String(item.template_id ?? ''),
-    profile: template?.title ?? String(item.template_id ?? ''),
+    profile: template?.title ?? fallbackProfile,
     endpoint: String(item.endpoint ?? ''),
     host: endpointParts.host,
     port: endpointParts.port,
@@ -796,6 +885,35 @@ function mapInstanceRow(
     description: String(item.description ?? ''),
     ...flattenedConfig,
   }
+}
+
+function normalizeInstanceTemplateTitle(templateId: string) {
+  const tokenLabels: Record<string, string> = {
+    generic: 'Generic',
+    mysql: 'MySQL',
+    postgres: 'PostgreSQL',
+    redis: 'Redis',
+    kafka: 'Kafka',
+    amqp: 'AMQP',
+    nats: 'NATS',
+    mqtt: 'MQTT',
+    s3: 'S3',
+    mongodb: 'MongoDB',
+    clickhouse: 'ClickHouse',
+    neo4j: 'Neo4j',
+    influxdb: 'InfluxDB',
+    elasticsearch: 'Elasticsearch',
+    onlyoffice: 'ONLYOFFICE',
+    minio: 'MinIO',
+    mariadb: 'MariaDB',
+    sqlserver: 'SQL Server',
+  }
+
+  return templateId
+    .split('-')
+    .filter(Boolean)
+    .map(part => tokenLabels[part.toLowerCase()] ?? `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(' ')
 }
 
 function buildColumns(t: Translate, onToggleEnabled: (item: Record<string, unknown>) => void): Column[] {
@@ -962,28 +1080,38 @@ export function ServiceInstancesPage() {
     [instanceTemplates]
   )
 
-  const categoryOptions = useMemo(
+  const kindOptions = useMemo(
     () =>
       Array.from(
         new Set(
           creatableTemplates
-            .map(template => String(template.category ?? '').trim())
+            .map(template => String(template.kind ?? '').trim())
             .filter(Boolean)
         )
       )
-        .sort((left, right) => categoryLabel(left, t).localeCompare(categoryLabel(right, t)))
-        .map(category => {
-          const templates = listTemplatesForCategory(category, creatableTemplates, t)
-          const exampleProfiles = templates.slice(0, 3).map(template => productTitle(template, t))
+        .sort((left, right) => {
+          const leftCategory = categoryLabel(
+            listTemplatesForKind(left, creatableTemplates, t)[0]?.category,
+            t
+          )
+          const rightCategory = categoryLabel(
+            listTemplatesForKind(right, creatableTemplates, t)[0]?.category,
+            t
+          )
+          const categoryCompare = leftCategory.localeCompare(rightCategory)
+          if (categoryCompare !== 0) {
+            return categoryCompare
+          }
+          return kindLabel(left, t).localeCompare(kindLabel(right, t))
+        })
+        .map(kind => {
+          const templates = listTemplatesForKind(kind, creatableTemplates, t)
           return {
-            id: category,
-            title: categoryLabel(category, t),
-            description: exampleProfiles.join(', '),
-            meta: t('serviceInstances.selection.profileCount', { count: templates.length }),
-            searchText: [
-              categoryLabel(category, t),
-              ...templates.map(template => `${productTitle(template, t)} ${template.vendor ?? ''}`),
-            ].join(' '),
+            id: kind,
+            title: kindLabel(kind, t),
+            description: undefined,
+            meta: categoryLabel(templates[0]?.category, t),
+            searchText: kindSearchText(kind, creatableTemplates, t),
           }
         }),
     [creatableTemplates, t]
@@ -1004,19 +1132,19 @@ export function ServiceInstancesPage() {
   )
 
   const buildInitialCreateData = useCallback(
-    (category: string, templateOverride?: string) => {
+    (kind: string, templateOverride?: string) => {
       const overrideTemplate = templatesById.get(templateOverride ?? '')
       const defaultTemplate =
         overrideTemplate &&
-        overrideTemplate.category === category &&
+        overrideTemplate.kind === kind &&
         isCreatableTemplate(overrideTemplate)
           ? overrideTemplate
-          : getDefaultTemplateForCategory(category, creatableTemplates, t)
+          : getDefaultTemplateForKind(kind, creatableTemplates, t)
 
       const initialData: Record<string, unknown> = {
-        selected_category: category,
+        selected_category: defaultTemplate?.category ?? '',
         template_id: '',
-        kind: '',
+        kind,
         name: '',
         is_enabled: true,
         title_name_editing: false,
@@ -1029,7 +1157,14 @@ export function ServiceInstancesPage() {
       }
 
       if (defaultTemplate) {
-        initialData.default_template_id = defaultTemplate.id
+        applyInstanceTemplateDefaults(
+          defaultTemplate,
+          (key, value) => {
+            initialData[key] = value
+          },
+          t
+        )
+        initialData.name = buildDefaultInstanceName(defaultTemplate, t)
       }
 
       return initialData
@@ -1175,9 +1310,6 @@ export function ServiceInstancesPage() {
     }: Parameters<NonNullable<FieldDef['render']>>[0]) => {
       const editMode = Boolean(editingItem)
       const useSecret = editMode ? true : Boolean(formData.credential_use_secret)
-      const currentKind = String(formData.kind ?? '').trim()
-      const gatewayMode = currentKind === 'gateway'
-
       return (
         <SecretCredentialField
           inputId={inputId}
@@ -1204,45 +1336,13 @@ export function ServiceInstancesPage() {
           }}
           onEditReference={openSecretEditor}
           editMode={editMode}
-          manualPlaceholder={
-            gatewayMode
-              ? t('serviceInstances.credential.enterCredential')
-              : t('serviceInstances.credential.enterPassword')
-          }
-          showLabel={
-            gatewayMode
-              ? t('serviceInstances.credential.showCredential')
-              : t('serviceInstances.credential.showPassword')
-          }
-          hideLabel={
-            gatewayMode
-              ? t('serviceInstances.credential.hideCredential')
-              : t('serviceInstances.credential.hidePassword')
-          }
-          allowGenerate={gatewayMode}
+          manualPlaceholder={t('serviceInstances.credential.enterPassword')}
+          showLabel={t('serviceInstances.credential.showPassword')}
+          hideLabel={t('serviceInstances.credential.hidePassword')}
+          allowGenerate={false}
           referenceToggleMode="icon"
           editReferenceMode="icon"
-          generateValue={gatewayMode ? buildApiKeyValue : undefined}
-          generatorTitle={
-            gatewayMode
-              ? t('serviceInstances.credential.generateCredentialTitle')
-              : undefined
-          }
-          generatorDescription={
-            gatewayMode
-              ? t('serviceInstances.credential.generateCredentialDescription')
-              : undefined
-          }
-          generatorLengthLabel={
-            gatewayMode
-              ? t('serviceInstances.credential.generateCredentialLengthLabel')
-              : undefined
-          }
-          generatorConfirmLabel={
-            gatewayMode
-              ? t('serviceInstances.credential.generateCredentialConfirmLabel')
-              : undefined
-          }
+          generateValue={buildApiKeyValue}
         />
       )
     },
@@ -1373,7 +1473,7 @@ export function ServiceInstancesPage() {
   )
 
   const buildBaseFields = useCallback(
-    (selectedCategory: string, selectedTemplate: InstanceTemplate | null) => {
+    (selectedCategory: string, selectedKind: string, selectedTemplate: InstanceTemplate | null) => {
       const endpointMeta = resolveCanonicalFieldMeta(selectedTemplate, 'endpoint')
       const hostMeta = resolveCanonicalFieldMeta(selectedTemplate, 'host')
       const portMeta = resolveCanonicalFieldMeta(selectedTemplate, 'port')
@@ -1384,10 +1484,10 @@ export function ServiceInstancesPage() {
       const groupsMeta = resolveCanonicalFieldMeta(selectedTemplate, 'groups')
       const profileTemplates = selectedTemplate
         ? isCreatableTemplate(selectedTemplate)
-          ? listTemplatesForCategory(selectedTemplate.category ?? '', creatableTemplates, t)
+          ? listTemplatesForKind(selectedTemplate.kind, creatableTemplates, t)
           : [selectedTemplate]
-        : selectedCategory
-          ? listTemplatesForCategory(selectedCategory, creatableTemplates, t)
+        : selectedKind
+          ? listTemplatesForKind(selectedKind, creatableTemplates, t)
           : []
 
       return [
@@ -1403,13 +1503,14 @@ export function ServiceInstancesPage() {
           label: t('serviceInstances.fields.kind'),
           type: 'text',
           hidden: true,
-          defaultValue: selectedTemplate?.kind ?? '',
+          defaultValue: selectedKind || selectedTemplate?.kind || '',
         },
         {
           key: 'template_id',
           label: t('serviceInstances.fields.template'),
           type: 'select',
           required: true,
+          hidden: profileTemplates.length <= 1,
           options: profileTemplates.map(template => ({
             label: productTitle(template, t),
             value: template.id,
@@ -1418,11 +1519,12 @@ export function ServiceInstancesPage() {
             const template = templatesById.get(String(value ?? ''))
             if (!template) {
               update('template_id', '')
-              update('kind', '')
+              update('kind', selectedKind)
               update('name', '')
               update('selected_product', '')
               update('selected_product_meta', '')
               update('selected_product_description', '')
+              update('selected_category', selectedCategory)
               update('endpoint', '')
               update('host', '')
               update('port', '')
@@ -1436,7 +1538,7 @@ export function ServiceInstancesPage() {
             applyInstanceTemplateDefaults(template, update, t)
             update('name', buildDefaultInstanceName(template, t))
           },
-          defaultValue: '',
+          defaultValue: selectedTemplate?.id ?? '',
         },
         {
           key: 'selected_product',
@@ -1528,11 +1630,9 @@ export function ServiceInstancesPage() {
         {
           key: 'credential',
           label:
-            selectedTemplate?.kind === 'redis'
+            selectedTemplate?.kind === 'redis-compatible'
               ? t('serviceInstances.fields.password')
-              : selectedTemplate?.kind === 'gateway'
-                ? t('serviceInstances.fields.credential')
-              : selectedTemplate?.kind === 'kafka'
+              : selectedTemplate?.kind === 'kafka-compatible'
                 ? t('serviceInstances.fields.credential')
                 : isDatabaseConnectionKind(selectedTemplate)
                   ? t('serviceInstances.fields.password')
@@ -1627,8 +1727,11 @@ export function ServiceInstancesPage() {
     }) => {
       const selectedTemplateId = String(formData.template_id ?? '')
       const selectedCategory = resolveSelectedCategory(formData, editingItem)
+      const selectedKind = String(
+        formData.kind ?? editingItem?.kind ?? templatesById.get(selectedTemplateId)?.kind ?? ''
+      ).trim()
       const selectedTemplate = selectedTemplateId ? (templatesById.get(selectedTemplateId) ?? null) : null
-      const baseFields = buildBaseFields(selectedCategory, selectedTemplate)
+      const baseFields = buildBaseFields(selectedCategory, selectedKind, selectedTemplate)
       const baseFieldByKey = new Map(baseFields.map(field => [field.key, field]))
       const dynamicFields = mergeDatabaseTemplateFields(selectedTemplate, t).map(field =>
         mapTemplateFieldToResourceField(field, selectedTemplate!, t)
@@ -1707,13 +1810,19 @@ export function ServiceInstancesPage() {
     [buildBaseFields, creatableTemplates, resolveSelectedCategory, t, templatesById]
   )
 
-  const bootstrapFields = useMemo(() => buildBaseFields('', null), [buildBaseFields])
+  const bootstrapFields = useMemo(() => buildBaseFields('', '', null), [buildBaseFields])
   const handleToggleEnabled = useCallback(
     async (item: Record<string, unknown>) => {
       const instanceId = String(item.id ?? '')
       if (!instanceId) return
+      const current = await pb.send<InstanceRecord>(`/api/instances/${instanceId}`, { method: 'GET' })
       const body = await buildInstancePayload(
-        { ...item, is_enabled: !resolveInstanceEnabled(item.is_enabled) },
+        {
+          ...current,
+          credential_use_secret: Boolean(String(current.credential ?? '').trim()),
+          password_value: '',
+          is_enabled: !resolveInstanceEnabled(current.is_enabled),
+        },
         templatesById,
         t
       )
@@ -1753,7 +1862,7 @@ export function ServiceInstancesPage() {
             description: t('serviceInstances.selection.description'),
             searchPlaceholder: t('serviceInstances.selection.searchPlaceholder'),
             emptyMessage: t('serviceInstances.selection.emptyMessage'),
-            options: categoryOptions,
+            options: kindOptions,
             onSelect: optionId => buildInitialCreateData(String(optionId)),
           },
           dialogContentClassName: 'sm:max-w-4xl',
@@ -1766,11 +1875,11 @@ export function ServiceInstancesPage() {
             }
 
             const actionLabel = editingItem
-              ? t('serviceInstances.dialog.updateCategory', {
-                  category: categoryLabel(selectedTemplate.category, t),
+              ? t('serviceInstances.dialog.updateKind', {
+                  kind: kindLabel(selectedTemplate.kind, t),
                 })
-              : t('serviceInstances.dialog.createCategory', {
-                  category: categoryLabel(selectedTemplate.category, t),
+              : t('serviceInstances.dialog.createKind', {
+                  kind: kindLabel(selectedTemplate.kind, t),
                 })
 
             return {
@@ -1821,7 +1930,7 @@ export function ServiceInstancesPage() {
                   )}
                 </div>
               ),
-              description: `${actionLabel} - ${productTitle(selectedTemplate, t)}`,
+              description: actionLabel,
               hideSelectedProductSummary: true,
             }
           },
@@ -1844,6 +1953,20 @@ export function ServiceInstancesPage() {
           updateItem: async (id, payload) => {
             const body = await buildInstancePayload(payload, templatesById, t)
             await pb.send(`/api/instances/${id}`, { method: 'PUT', body })
+          },
+          extraActions: item => {
+            const enabled = resolveInstanceEnabled(item.is_enabled)
+            return [
+              <DropdownMenuItem
+                key="toggle-enabled"
+                onClick={() => {
+                  void handleToggleEnabled(item)
+                }}
+              >
+                {enabled ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
+                {enabled ? t('serviceInstances.actions.disable', { defaultValue: 'Disable' }) : t('serviceInstances.actions.enable', { defaultValue: 'Enable' })}
+              </DropdownMenuItem>,
+            ]
           },
           deleteItem: async id => {
             await pb.send(`/api/instances/${id}`, { method: 'DELETE' })

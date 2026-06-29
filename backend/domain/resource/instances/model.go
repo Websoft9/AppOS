@@ -6,46 +6,33 @@ import (
 )
 
 const (
-	KindMySQL    = "mysql"
-	KindPostgres = "postgres"
-	KindRedis    = "redis"
-	KindKafka    = "kafka"
-	KindRabbitMQ = "rabbitmq"
-	KindNATS     = "nats"
-	KindMQTT     = "mqtt"
-	KindS3       = "s3"
-	KindGateway  = "gateway"
-	KindRegistry = "registry"
-	KindOllama   = "ollama"
+	KindMySQLCompatible         = "mysql-compatible"
+	KindPostgresCompatible      = "postgres-compatible"
+	KindMongoDBCompatible       = "mongodb-compatible"
+	KindClickHouseCompatible    = "clickhouse-compatible"
+	KindNeo4jCompatible         = "neo4j-compatible"
+	KindInfluxDBCompatible      = "influxdb-compatible"
+	KindRedisCompatible         = "redis-compatible"
+	KindElasticsearchCompatible = "elasticsearch-compatible"
+	KindKafkaCompatible         = "kafka-compatible"
+	KindAMQPCompatible          = "amqp-compatible"
+	KindNATSCompatible          = "nats-compatible"
+	KindMQTTCompatible          = "mqtt-compatible"
+	KindS3Compatible            = "s3-compatible"
+	KindOnlyOfficeCompatible    = "onlyoffice-compatible"
 )
 
-var declaredKinds = []string{
-	KindMySQL,
-	KindPostgres,
-	KindRedis,
-	KindKafka,
-	KindRabbitMQ,
-	KindNATS,
-	KindMQTT,
-	KindS3,
-	KindGateway,
-	KindRegistry,
-	KindOllama,
-}
-
 func AllowedKinds() []string {
-	result := make([]string, len(declaredKinds))
-	copy(result, declaredKinds)
+	result := make([]string, 0, len(declaredKindContracts))
+	for _, contract := range declaredKindContracts {
+		result = append(result, contract.Kind)
+	}
 	return result
 }
 
 func IsAllowedKind(kind string) bool {
-	for _, item := range declaredKinds {
-		if item == strings.TrimSpace(kind) {
-			return true
-		}
-	}
-	return false
+	_, ok := FindKindContract(kind)
+	return ok
 }
 
 // Instance is the canonical registration-only service dependency shape.
@@ -177,6 +164,7 @@ type Template struct {
 	// It is not the resource identity axis; kind remains the canonical instance identity.
 	Category            string          `json:"category,omitempty"`
 	Kind                string          `json:"kind"`
+	Traits              []string        `json:"traits,omitempty"`
 	Title               string          `json:"title"`
 	Vendor              string          `json:"vendor,omitempty"`
 	Description         string          `json:"description,omitempty"`

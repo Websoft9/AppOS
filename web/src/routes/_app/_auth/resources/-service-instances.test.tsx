@@ -35,17 +35,17 @@ vi.mock('react-i18next', () => ({
         'resources.serviceInstances.title': 'Service Instances',
         'serviceInstances.page.title': 'Service Instances',
         'serviceInstances.page.description':
-          'Runtime dependencies required for application startup, including database, cache, messaging, storage, traffic gateway, artifact, and model service instances.',
+          'Runtime dependency contracts required for application startup, including database, cache, messaging, and storage instances.',
         'serviceInstances.page.favoritesOnly': 'Favorites only',
         'serviceInstances.page.addInstance': 'Add Instance',
         'serviceInstances.page.searchPlaceholder': 'Search any instances',
         'serviceInstances.page.cancel': 'Cancel',
-        'serviceInstances.selection.title': 'Choose a Category',
+        'serviceInstances.selection.title': 'Choose a Kind',
         'serviceInstances.selection.description':
-          'Choose a category, then pick a profile in the create dialog.',
+          'Search by product or capability, then choose the dependency kind.',
         'serviceInstances.selection.searchPlaceholder':
-          'Search categories like Database, MQ, or S3-compatible storage...',
-        'serviceInstances.selection.emptyMessage': 'No matching categories found.',
+          'Search Aurora, Redis, RabbitMQ, or MinIO...',
+        'serviceInstances.selection.emptyMessage': 'No matching kinds found.',
         'serviceInstances.selection.profileCount': `${String(options?.count ?? '')} profiles`,
         'serviceInstances.fields.category': 'Category',
         'serviceInstances.fields.kind': 'Kind',
@@ -85,21 +85,25 @@ vi.mock('react-i18next', () => ({
         'serviceInstances.categories.cache': 'Cache',
         'serviceInstances.categories.message-queue': 'MQ',
         'serviceInstances.categories.storage': 'S3-Compatible Storage',
-        'serviceInstances.categories.traffic-gateway': 'Traffic Gateway',
+        'serviceInstances.categories.search': 'Search',
+        'serviceInstances.categories.application-service': 'Application Service',
         'serviceInstances.categories.artifact': 'Registries',
         'serviceInstances.categories.ai': 'AI Services',
         'serviceInstances.categories.other': 'Other',
-        'serviceInstances.kinds.mysql': 'MySQL',
-        'serviceInstances.kinds.postgres': 'PostgreSQL',
-        'serviceInstances.kinds.redis': 'Redis',
-        'serviceInstances.kinds.kafka': 'Kafka',
-        'serviceInstances.kinds.rabbitmq': 'RabbitMQ',
-        'serviceInstances.kinds.nats': 'NATS',
-        'serviceInstances.kinds.mqtt': 'MQTT',
-        'serviceInstances.kinds.s3': 'S3 Storage',
-        'serviceInstances.kinds.gateway': 'Traffic Gateway',
-        'serviceInstances.kinds.registry': 'Registry',
-        'serviceInstances.kinds.ollama': 'Ollama',
+        'serviceInstances.kinds.mysql-compatible': 'MySQL-Compatible',
+        'serviceInstances.kinds.postgres-compatible': 'PostgreSQL-Compatible',
+        'serviceInstances.kinds.redis-compatible': 'Redis-Compatible',
+        'serviceInstances.kinds.kafka-compatible': 'Kafka-Compatible',
+        'serviceInstances.kinds.amqp-compatible': 'AMQP-Compatible',
+        'serviceInstances.kinds.nats-compatible': 'NATS-Compatible',
+        'serviceInstances.kinds.mqtt-compatible': 'MQTT-Compatible',
+        'serviceInstances.kinds.s3-compatible': 'S3-Compatible Storage',
+        'serviceInstances.kinds.mongodb-compatible': 'MongoDB-Compatible',
+        'serviceInstances.kinds.clickhouse-compatible': 'ClickHouse-Compatible',
+        'serviceInstances.kinds.neo4j-compatible': 'Neo4j-Compatible',
+        'serviceInstances.kinds.influxdb-compatible': 'InfluxDB-Compatible',
+        'serviceInstances.kinds.elasticsearch-compatible': 'Elasticsearch-Compatible',
+        'serviceInstances.kinds.onlyoffice-compatible': 'ONLYOFFICE-Compatible',
         'serviceInstances.kinds.unknown': 'Unknown',
         'serviceInstances.product.standardTemplate': 'Standard template',
         'serviceInstances.product.profileDescription': '{{vendorPrefix}}{{category}} profile.',
@@ -108,8 +112,6 @@ vi.mock('react-i18next', () => ({
         'serviceInstances.templateFields.clusterIdentifier': 'Cluster Identifier',
         'serviceInstances.templateFields.clusterId': 'Cluster ID',
         'serviceInstances.templateFields.resourceGroup': 'Resource Group',
-        'serviceInstances.templateFields.gatewayName': 'Gateway Name',
-        'serviceInstances.templateFields.accountId': 'Account ID',
         'serviceInstances.columns.name': 'Name',
         'serviceInstances.columns.kind': 'Kind',
         'serviceInstances.columns.profile': 'Profile',
@@ -130,20 +132,12 @@ vi.mock('react-i18next', () => ({
         'serviceInstances.credential.enterPassword': 'Enter password',
         'serviceInstances.credential.showPassword': 'Show password',
         'serviceInstances.credential.hidePassword': 'Hide password',
-        'serviceInstances.credential.enterCredential': 'Enter credential',
-        'serviceInstances.credential.showCredential': 'Show credential',
-        'serviceInstances.credential.hideCredential': 'Hide credential',
-        'serviceInstances.credential.generateCredentialTitle': 'Generate Credential',
-        'serviceInstances.credential.generateCredentialDescription':
-          'Choose the credential length before filling the field.',
-        'serviceInstances.credential.generateCredentialLengthLabel': 'Credential Length',
-        'serviceInstances.credential.generateCredentialConfirmLabel': 'Fill Credential',
         'serviceInstances.dialog.instanceTitle': 'Instance title',
         'serviceInstances.dialog.applyTitle': 'Apply title',
         'serviceInstances.dialog.newInstance': 'New Service Instance',
         'serviceInstances.dialog.editTitle': 'Edit title',
-        'serviceInstances.dialog.createCategory': `Create ${String(options?.category ?? '')} instance`,
-        'serviceInstances.dialog.updateCategory': `Update ${String(options?.category ?? '')} instance`,
+        'serviceInstances.dialog.createKind': `Create ${String(options?.kind ?? '')} instance`,
+        'serviceInstances.dialog.updateKind': `Update ${String(options?.kind ?? '')} instance`,
         'serviceInstances.dialog.create': 'Create',
         'serviceInstances.dialog.update': 'Update',
         'serviceInstances.dialog.suffix': 'Service Instance',
@@ -262,7 +256,7 @@ describe('ServiceInstancesPage', () => {
             {
               id: 'generic-mysql',
               category: 'database',
-              kind: 'mysql',
+              kind: 'mysql-compatible',
               title: 'Generic MySQL',
               commonFieldDefaults: { username: 'root' },
               fields: [
@@ -277,23 +271,9 @@ describe('ServiceInstancesPage', () => {
               ],
             },
             {
-              id: 'aurora-mysql',
-              category: 'database',
-              kind: 'mysql',
-              title: 'Amazon Aurora MySQL',
-              fields: [
-                { id: 'region', label: 'Backend Region Label', type: 'text' },
-                {
-                  id: 'clusterIdentifier',
-                  label: 'Backend Cluster Identifier Label',
-                  type: 'text',
-                },
-              ],
-            },
-            {
               id: 'generic-postgres',
               category: 'database',
-              kind: 'postgres',
+              kind: 'postgres-compatible',
               title: 'Generic PostgreSQL',
               commonFieldDefaults: { username: 'postgres' },
               fields: [
@@ -308,9 +288,53 @@ describe('ServiceInstancesPage', () => {
               ],
             },
             {
+              id: 'generic-mongodb',
+              category: 'database',
+              kind: 'mongodb-compatible',
+              title: 'Generic MongoDB',
+              defaultEndpoint: 'mongodb://mongo.internal:27017',
+              fields: [
+                { id: 'database', label: 'Backend Database Label', type: 'text', default: 'appdb' },
+                { id: 'authSource', label: 'Backend Auth Source Label', type: 'text', default: 'admin' },
+              ],
+            },
+            {
+              id: 'generic-clickhouse',
+              category: 'database',
+              kind: 'clickhouse-compatible',
+              title: 'Generic ClickHouse',
+              defaultEndpoint: 'https://clickhouse.internal:8123',
+              fields: [
+                { id: 'database', label: 'Backend Database Label', type: 'text', default: 'default' },
+                { id: 'username', label: 'Backend Username Label', type: 'text', default: 'default' },
+              ],
+            },
+            {
+              id: 'generic-neo4j',
+              category: 'database',
+              kind: 'neo4j-compatible',
+              title: 'Generic Neo4j',
+              defaultEndpoint: 'neo4j://neo4j.internal:7687',
+              fields: [
+                { id: 'database', label: 'Backend Database Label', type: 'text', default: 'neo4j' },
+                { id: 'username', label: 'Backend Username Label', type: 'text', default: 'neo4j' },
+              ],
+            },
+            {
+              id: 'generic-influxdb',
+              category: 'database',
+              kind: 'influxdb-compatible',
+              title: 'Generic InfluxDB',
+              defaultEndpoint: 'https://influxdb.internal:8086',
+              fields: [
+                { id: 'organization', label: 'Backend Organization Label', type: 'text' },
+                { id: 'bucket', label: 'Backend Bucket Label', type: 'text' },
+              ],
+            },
+            {
               id: 'generic-redis',
               category: 'cache',
-              kind: 'redis',
+              kind: 'redis-compatible',
               title: 'Generic Redis',
               defaultEndpoint: 'redis.internal:6379',
               fields: [
@@ -323,9 +347,20 @@ describe('ServiceInstancesPage', () => {
               ],
             },
             {
+              id: 'generic-elasticsearch',
+              category: 'search',
+              kind: 'elasticsearch-compatible',
+              title: 'Generic Elasticsearch',
+              defaultEndpoint: 'https://elasticsearch.internal:9200',
+              fields: [
+                { id: 'indexPrefix', label: 'Backend Index Prefix Label', type: 'text' },
+                { id: 'username', label: 'Backend Username Label', type: 'text' },
+              ],
+            },
+            {
               id: 'generic-kafka',
               category: 'message-queue',
-              kind: 'kafka',
+              kind: 'kafka-compatible',
               title: 'Generic Kafka',
               defaultEndpoint: 'kafka.internal:9092',
               fields: [{ id: 'clusterId', label: 'Backend Cluster ID Label', type: 'text' }],
@@ -333,7 +368,7 @@ describe('ServiceInstancesPage', () => {
             {
               id: 'generic-rabbitmq',
               category: 'message-queue',
-              kind: 'rabbitmq',
+              kind: 'amqp-compatible',
               title: 'Generic RabbitMQ',
               defaultEndpoint: 'amqp://rabbitmq.internal:5672',
               fields: [{ id: 'vhost', label: 'Backend Virtual Host Label', type: 'text', default: '/' }],
@@ -341,7 +376,7 @@ describe('ServiceInstancesPage', () => {
             {
               id: 'generic-nats',
               category: 'message-queue',
-              kind: 'nats',
+              kind: 'nats-compatible',
               title: 'Generic NATS',
               defaultEndpoint: 'nats://nats.internal:4222',
               fields: [{ id: 'cluster', label: 'Backend Cluster Label', type: 'text' }],
@@ -349,7 +384,7 @@ describe('ServiceInstancesPage', () => {
             {
               id: 'generic-mqtt',
               category: 'message-queue',
-              kind: 'mqtt',
+              kind: 'mqtt-compatible',
               title: 'Generic MQTT',
               defaultEndpoint: 'mqtt://broker.internal:1883',
               fields: [
@@ -360,57 +395,21 @@ describe('ServiceInstancesPage', () => {
             {
               id: 'generic-s3',
               category: 'storage',
-              kind: 's3',
+              kind: 's3-compatible',
               title: 'Generic S3',
               defaultEndpoint: 'https://s3.example.com',
               fields: [{ id: 'region', label: 'Backend Region Label', type: 'text' }],
             },
             {
-              id: 'generic-traffic-gateway',
-              category: 'traffic-gateway',
-              kind: 'gateway',
-              title: 'Generic Traffic Gateway',
-              defaultEndpoint: 'https://gateway.example.com',
-              fields: [],
-            },
-            {
-              id: 'azure-application-gateway',
-              category: 'traffic-gateway',
-              kind: 'gateway',
-              title: 'Azure Application Gateway',
-              vendor: 'Azure',
+              id: 'generic-onlyoffice',
+              category: 'application-service',
+              kind: 'onlyoffice-compatible',
+              title: 'Generic ONLYOFFICE',
+              defaultEndpoint: 'https://onlyoffice.internal',
               fields: [
-                { id: 'region', label: 'Backend Region Label', type: 'text' },
-                { id: 'resourceGroup', label: 'Backend Resource Group Label', type: 'text' },
-                { id: 'gatewayName', label: 'Backend Gateway Name Label', type: 'text' },
+                { id: 'callbackPath', label: 'Backend Callback Path Label', type: 'text', default: '/' },
+                { id: 'documentPath', label: 'Backend Document Path Label', type: 'text', default: '/' },
               ],
-            },
-            {
-              id: 'cloudflare-traffic-gateway',
-              category: 'traffic-gateway',
-              kind: 'gateway',
-              title: 'Cloudflare Traffic Gateway',
-              vendor: 'Cloudflare',
-              fields: [
-                { id: 'accountId', label: 'Backend Account ID Label', type: 'text' },
-                { id: 'gatewayName', label: 'Backend Gateway Name Label', type: 'text' },
-              ],
-            },
-            {
-              id: 'generic-registry',
-              category: 'artifact',
-              kind: 'registry',
-              title: 'Generic Registry',
-              defaultEndpoint: 'registry.internal:5000',
-              fields: [],
-            },
-            {
-              id: 'generic-ollama',
-              category: 'ai',
-              kind: 'ollama',
-              title: 'Generic Ollama',
-              defaultEndpoint: 'http://ollama.internal:11434',
-              fields: [],
             },
           ])
         }
@@ -433,7 +432,7 @@ describe('ServiceInstancesPage', () => {
           return Promise.resolve({
             id: 'instance-created',
             name: options.body?.name ?? 'created-instance',
-            kind: 'mysql',
+            kind: 'mysql-compatible',
             template_id: 'generic-mysql',
             endpoint: options.body?.endpoint ?? 'db.example.com:3306',
             provider_account: options.body?.provider_account ?? '',
@@ -463,7 +462,7 @@ describe('ServiceInstancesPage', () => {
     cleanup()
   })
 
-  it('opens a product picker before showing the selected service instance form', async () => {
+  it('opens a kind picker before showing the selected service instance form', async () => {
     render(<ServiceInstancesPage />)
 
     await waitFor(() => {
@@ -475,57 +474,48 @@ describe('ServiceInstancesPage', () => {
 
     await screen.findByRole('dialog')
 
-    expect(screen.getByText('Choose a Category')).toBeInTheDocument()
-    expect(
-      screen.getByPlaceholderText(
-        'Search categories like Database, MQ, or S3-compatible storage...'
-      )
-    ).toBeInTheDocument()
-    expect(screen.getByText('Database')).toBeInTheDocument()
-    expect(screen.getByText('MQ')).toBeInTheDocument()
-    expect(screen.getByText('S3-Compatible Storage')).toBeInTheDocument()
-    expect(screen.getByText('Traffic Gateway')).toBeInTheDocument()
+    expect(screen.getByText('Choose a Kind')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Search Aurora, Redis, RabbitMQ, or MinIO...')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^MySQL-Compatible/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^MongoDB-Compatible/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Elasticsearch-Compatible/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^AMQP-Compatible/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^S3-Compatible Storage/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^HTTP Gateway/i })).not.toBeInTheDocument()
     expect(screen.queryByText('Registry')).toBeNull()
     expect(screen.queryByText('Ollama')).toBeNull()
 
-    fireEvent.change(
-      screen.getByPlaceholderText(
-        'Search categories like Database, MQ, or S3-compatible storage...'
-      ),
-      {
-        target: { value: 'storage' },
-      }
-    )
-
-    expect(screen.getByText('S3-Compatible Storage')).toBeInTheDocument()
-    expect(screen.queryByText('Database')).not.toBeInTheDocument()
-
-    fireEvent.change(
-      screen.getByPlaceholderText(
-        'Search categories like Database, MQ, or S3-compatible storage...'
-      ),
-      {
-        target: { value: '' },
-      }
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: /^Database/i }))
-
-    const profileSelect = await screen.findByLabelText(/^Profile/)
-    expect(profileSelect).toHaveValue('')
-    expect(screen.queryByLabelText(/^Database/)).not.toBeInTheDocument()
-    fireEvent.change(profileSelect, { target: { value: 'aurora-mysql' } })
-    fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
-
-    await waitFor(() => {
-      expect(screen.getByLabelText('Region')).toBeInTheDocument()
-      expect(screen.getByLabelText('Cluster Identifier')).toBeInTheDocument()
+    fireEvent.change(screen.getByPlaceholderText('Search Aurora, Redis, RabbitMQ, or MinIO...'), {
+      target: { value: 'rabbitmq' },
     })
 
+    expect(screen.getByRole('button', { name: /^AMQP-Compatible/i })).toBeInTheDocument()
+    expect(screen.queryByText('MySQL-Compatible')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText('Search Aurora, Redis, RabbitMQ, or MinIO...'), {
+      target: { value: 'aurora' },
+    })
+
+    expect(screen.getByRole('button', { name: /^MySQL-Compatible/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^PostgreSQL-Compatible/i })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText('Search Aurora, Redis, RabbitMQ, or MinIO...'), {
+      target: { value: 'opensearch' },
+    })
+
+    expect(screen.getByRole('button', { name: /^Elasticsearch-Compatible/i })).toBeInTheDocument()
+    expect(screen.queryByText('AMQP-Compatible')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText('Search Aurora, Redis, RabbitMQ, or MinIO...'), {
+      target: { value: '' },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /^MySQL-Compatible/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
+
+    expect(screen.queryByLabelText(/^Profile/)).not.toBeInTheDocument()
     expect(screen.queryByText('Selected Product')).not.toBeInTheDocument()
-    expect(
-      screen.getByText('Create Database instance - Amazon Aurora MySQL')
-    ).toBeInTheDocument()
+    expect(screen.getByText('Create MySQL-Compatible instance')).toBeInTheDocument()
     expect(screen.queryByText('Editable')).not.toBeInTheDocument()
 
     const formDialog = await screen.findByRole('dialog')
@@ -540,12 +530,10 @@ describe('ServiceInstancesPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^Database/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /^MySQL-Compatible/i }))
 
     expect(screen.queryByLabelText(/^Name/)).not.toBeInTheDocument()
-    expect(screen.getByLabelText(/^Profile/)).toHaveValue('')
-    expect(screen.queryByLabelText(/^Database/)).not.toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText(/^Profile/), { target: { value: 'generic-mysql' } })
+    expect(screen.queryByLabelText(/^Profile/)).not.toBeInTheDocument()
     expect(screen.getByLabelText(/^Database/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Username/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Database/)).toHaveValue('MySQL')
@@ -596,10 +584,7 @@ describe('ServiceInstancesPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^Database/i }))
-    fireEvent.change(await screen.findByLabelText(/^Profile/), {
-      target: { value: 'generic-postgres' },
-    })
+    fireEvent.click(await screen.findByRole('button', { name: /^PostgreSQL-Compatible/i }))
 
     expect(await screen.findByLabelText(/^Database/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Database/)).toHaveValue('postgres')
@@ -613,7 +598,7 @@ describe('ServiceInstancesPage', () => {
     expect(screen.getByText('Use SSL')).toBeInTheDocument()
   })
 
-  it('renders gateway profiles only after explicit selection and uses credential-style controls', async () => {
+  it('searches by product alias before selecting the kafka-compatible kind', async () => {
     render(<ServiceInstancesPage />)
 
     await waitFor(() => {
@@ -621,34 +606,17 @@ describe('ServiceInstancesPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^Traffic Gateway/i }))
 
-    const profileSelect = await screen.findByLabelText(/^Profile/)
-    expect(profileSelect).toHaveValue('')
-    expect(screen.queryByLabelText(/^Credential/)).not.toBeInTheDocument()
-
-    fireEvent.change(profileSelect, { target: { value: 'generic-traffic-gateway' } })
-
-    expect(await screen.findByLabelText(/^Credential/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Generate' })).toBeInTheDocument()
-  })
-
-  it('covers all messaging instance catalogs in the MQ category', async () => {
-    render(<ServiceInstancesPage />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Add Instance' })).toBeInTheDocument()
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^MQ/i }))
-
-    const profileSelect = (await screen.findByLabelText(/^Profile/)) as HTMLSelectElement
-    const optionLabels = Array.from(profileSelect.options).map(option => option.text)
-
-    expect(optionLabels).toEqual(
-      expect.arrayContaining(['Kafka', 'RabbitMQ', 'NATS', 'MQTT'])
+    fireEvent.change(
+      await screen.findByPlaceholderText('Search Aurora, Redis, RabbitMQ, or MinIO...'),
+      { target: { value: 'redpanda' } }
     )
+
+    fireEvent.click(await screen.findByRole('button', { name: /^Kafka-Compatible/i }))
+
+    expect(screen.queryByLabelText(/^Profile/)).not.toBeInTheDocument()
+    expect(await screen.findByText('Create Kafka-Compatible instance')).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Endpoint/)).toBeInTheDocument()
   })
 
   it('keeps secret-only password editing and remembers ssl mode for existing instances', async () => {
@@ -659,7 +627,7 @@ describe('ServiceInstancesPage', () => {
             {
               id: 'generic-mysql',
               category: 'database',
-              kind: 'mysql',
+              kind: 'mysql-compatible',
               title: 'Generic MySQL',
               commonFieldDefaults: { username: 'root' },
               fields: [
@@ -682,7 +650,7 @@ describe('ServiceInstancesPage', () => {
               created: '2026-04-11T08:30:00Z',
               updated: '2026-04-11T09:45:00Z',
               name: 'mysql-prod',
-              kind: 'mysql',
+              kind: 'mysql-compatible',
               template_id: 'generic-mysql',
               endpoint: 'db.example.com:3306',
               credential: 'secret-1',
@@ -760,8 +728,7 @@ describe('ServiceInstancesPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^Database/i }))
-    fireEvent.change(await screen.findByLabelText(/^Profile/), { target: { value: 'generic-mysql' } })
+    fireEvent.click(await screen.findByRole('button', { name: /^MySQL-Compatible/i }))
 
     fireEvent.click(screen.getByTitle('Use a saved secret'))
     fireEvent.click(screen.getByRole('button', { name: 'New Secret' }))
@@ -796,7 +763,7 @@ describe('ServiceInstancesPage', () => {
             {
               id: 'generic-mysql',
               category: 'database',
-              kind: 'mysql',
+              kind: 'mysql-compatible',
               title: 'Generic MySQL',
               commonFieldDefaults: { username: 'root' },
               fields: [
@@ -828,7 +795,7 @@ describe('ServiceInstancesPage', () => {
               created: '2026-04-11T08:30:00Z',
               updated: '2026-04-11T09:45:00Z',
               name: 'mysql-prod',
-              kind: 'mysql',
+              kind: 'mysql-compatible',
               template_id: 'generic-mysql',
               endpoint: 'db.example.com:3306',
               credential: 'secret-1',
@@ -922,8 +889,7 @@ describe('ServiceInstancesPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^Database/i }))
-    fireEvent.change(await screen.findByLabelText(/^Profile/), { target: { value: 'generic-mysql' } })
+    fireEvent.click(await screen.findByRole('button', { name: /^MySQL-Compatible/i }))
 
     fireEvent.change(screen.getByLabelText(/^Database/), { target: { value: 'appdb' } })
     fireEvent.change(screen.getByLabelText(/^Username/), { target: { value: 'appuser' } })
@@ -963,8 +929,7 @@ describe('ServiceInstancesPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^Cache/i }))
-    fireEvent.change(await screen.findByLabelText(/^Profile/), { target: { value: 'generic-redis' } })
+    fireEvent.click(await screen.findByRole('button', { name: /^Redis-Compatible/i }))
     fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
 
     expect(await screen.findByLabelText(/^Password/)).toBeInTheDocument()
@@ -978,8 +943,7 @@ describe('ServiceInstancesPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^MQ/i }))
-    fireEvent.change(await screen.findByLabelText(/^Profile/), { target: { value: 'generic-kafka' } })
+    fireEvent.click(await screen.findByRole('button', { name: /^Kafka-Compatible/i }))
     fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
 
     expect(await screen.findByLabelText(/^Credential/)).toBeInTheDocument()

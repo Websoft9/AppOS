@@ -1,0 +1,23 @@
+{
+  "kind": "postgres-compatible",
+  "category": "database",
+  "commonFieldDefaults": {
+    "username": "postgres"
+  },
+  "fields": [
+    {
+      "id": "database",
+      "label": "Database",
+      "type": "text",
+      "required": true,
+      "default": "postgres",
+      "placeholder": "appdb"
+    },
+    {
+      "id": "ssl_ca_certificate",
+      "label": "SSL Root CA Certificate",
+      "type": "text",
+      "helpText": "Choose a CA certificate only when your PostgreSQL server requires custom SSL trust."
+    }
+  ]
+}

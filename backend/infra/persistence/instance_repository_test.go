@@ -39,7 +39,7 @@ func TestInstanceRepositorySaveGetDelete(t *testing.T) {
 	}
 	item.ApplySaveInput(domaininstances.SaveInput{
 		Name:              "Primary Redis",
-		Kind:              domaininstances.KindRedis,
+		Kind:              domaininstances.KindRedisCompatible,
 		TemplateID:        "generic-redis",
 		Endpoint:          "redis://cache.internal:6379",
 		ProviderAccountID: providerAccount.Id,
@@ -61,8 +61,8 @@ func TestInstanceRepositorySaveGetDelete(t *testing.T) {
 	if loaded.Name() != "Primary Redis" {
 		t.Fatalf("expected saved name, got %q", loaded.Name())
 	}
-	if loaded.Kind() != domaininstances.KindRedis {
-		t.Fatalf("expected kind %q, got %q", domaininstances.KindRedis, loaded.Kind())
+	if loaded.Kind() != domaininstances.KindRedisCompatible {
+		t.Fatalf("expected kind %q, got %q", domaininstances.KindRedisCompatible, loaded.Kind())
 	}
 	if loaded.ProviderAccountID() != providerAccount.Id {
 		t.Fatalf("expected provider_account %q, got %q", providerAccount.Id, loaded.ProviderAccountID())
@@ -87,7 +87,7 @@ func TestInstanceRepositorySaveMapsDuplicateNameToConflict(t *testing.T) {
 	}
 	first.ApplySaveInput(domaininstances.SaveInput{
 		Name:       "Primary Redis",
-		Kind:       domaininstances.KindRedis,
+		Kind:       domaininstances.KindRedisCompatible,
 		TemplateID: "generic-redis",
 	})
 	if err := repo.Save(first); err != nil {
@@ -100,7 +100,7 @@ func TestInstanceRepositorySaveMapsDuplicateNameToConflict(t *testing.T) {
 	}
 	second.ApplySaveInput(domaininstances.SaveInput{
 		Name:       "Primary Redis",
-		Kind:       domaininstances.KindKafka,
+		Kind:       domaininstances.KindKafkaCompatible,
 		TemplateID: "generic-kafka",
 	})
 	err = repo.Save(second)

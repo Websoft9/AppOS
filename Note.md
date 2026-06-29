@@ -1,4 +1,4 @@
-## Bug
+## Quick Issue
 
 ## App 发布
 
@@ -57,45 +57,16 @@ docker image 下载完成后，记得镜像更名
 给 App detail 再接一层 compose 校验与 diff 预览，避免直接保存时改坏配置。
 
 
-## Resource
+## server
 
-- 增加 strorage
-
-但它们不等于宇宙完备分类。将来还可能出现这些不太适合硬塞进去的类型：
-
-identity/：OAuth Provider、OIDC、LDAP、SSO
-
-
-2. 把 connectors 和 servers 里还保留的旧版 “新建 Secret” 对话框也完全切到 SecretCreateDialog.tsx。
-
-
-If you want, I can continue by adding vendor-specific profiles for these new messaging kinds, such as CloudAMQP, Redpanda, EMQX, or Mosquitto.
-If you want to tighten the domain model, I can do the next pass to shift messaging from product-kind modeling toward protocol-family modeling.
-
-
-## resource - external service
-
-edit external service 流程优化
-1. Name 仍然作为标题栏重新，节省空间
-2. Password Secret 处
--如果是新增，应该可直接填写值或选择已有
--如果是修改，应该点击编辑按钮后天呢或选择已有
-
-
-## server detail
-
-ports tab 不稳定，经常打开显示  somethins wrong
-
-addons 的 netdata restart 报错
+- ports tab 不稳定，经常打开显示  somethins wrong
+- addons 的 netdata restart 报错
+- 服务器特殊环境配置：Docker 仓库地址、Docker 加速地址、代理地址
 
 
 ## system
 
 getconf 是唯一硬编码的 OS 命令，Linux 基本都有。其余命令由 catalog 模板定义，非后端硬编码。
-
-### 服务器
-
-- 服务器特殊环境配置：Docker 仓库地址、Docker 加速地址、代理地址
 
 ## Tunnel 
 
@@ -110,14 +81,17 @@ tunnul 的Port Forward  Effective Mappings 区域没有显示具体的内容了
 ## AI Copit
 
 - AI 连通云和应用，AI 基于 cli 与应用交付
+- 认证方式，原数据化
+- 限制历史消息数量，每次8轮
+- 捕捉token 超标的错误后，删除最早的2条消息
 
 ## Access Portal
 
 免登录访问 saas 系统的控制台
 
-## LLM
+## Backup
 
-- 本地小模型内嵌？
+## Subscription  Plan
 
 ## 监控
 
@@ -137,14 +111,29 @@ frame 嵌入页面实施，我把这个 iframe-page framework 再抽一层 regis
 
 如果你要继续，我建议下一步做 1 件事：把页面文案里的原始链接说明也补成更明确的“公开 dashboard 代理入口”，避免后面有人又按旧 /api/system/traefik 去排障。
 
-
-## ai provider
-
-认证方式，原数据化
-
-限制历史消息数量，每次8轮
-捕捉token 超标的错误后，删除最早的2条消息
-
 ## Infra
 
 数据库增加 external json 结构，便于未来拓展？
+
+## Small issue
+
+- Secret 列中的 Action 列，缺乏列名 Action 
+
+
+connector api 路径
+
+
+Runtime Instances 列表页
+
+1. Enabled 列仍然不能操作，Action 中的 Disable/Enable 也不能操作
+3. Profile 列的内容在点击刷新按钮后，	Generic Mysql 变成了 Generic MySQL,  导致界面跳动。 这个问题请彻底解决，最好从元数据层面有一个固定的 Profile 名称
+
+External Services 列表页
+
+1. Created 和 Updated 时间列没有显示数据，schema 中有么？
+4. Enable it 改为一个单选项呈现方式： Yes/No.
+5. Enable it， Description 移至 Advanced 区域
+
+5. SMTP 类别的设置，
+- 帮助地址元数据化
+- Port 从 Endpoint 中分离出来，SSL 改为开关形态，放在 Port 项下面，开启后，Port 或 STMP server 要自动发生变化

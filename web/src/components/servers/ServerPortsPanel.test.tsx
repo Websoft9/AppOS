@@ -1,3 +1,4 @@
+import { ClientResponseError } from 'pocketbase'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -418,5 +419,35 @@ describe('ServerPortsPanel', () => {
     }
 
     expect(within(detailSection).queryByText('ssh failed')).toBeNull()
+  })
+
+  it('retries server-busy load errors before surfacing an error', async () => {
+    const busyError = new ClientResponseError({
+      url: '/api/servers/server-1/ops/ports',
+      status: 503,
+      response: { message: 'server already processing request' },
+    })
+    listServerPortsMock
+      .mockRejectedValueOnce(busyError)
+      .mockResolvedValueOnce({
+        server_id: 'server-1',
+        protocol: 'all',
+        view: 'all',
+        detected_at: '2026-05-09T09:00:00Z',
+        ports: [],
+        total: 0,
+        reservation_meta: {
+          container_probe: { available: true, status: 'ok' },
+        },
+      })
+
+    render(<ServerPortsPanel serverId="server-1" />)
+
+    await waitFor(() => {
+      expect(listServerPortsMock).toHaveBeenCalledTimes(2)
+    })
+
+    expect(screen.queryByText('server already processing request')).toBeNull()
+    expect(screen.getByText('No ports match the current filters.')).toBeInTheDocument()
   })
 })

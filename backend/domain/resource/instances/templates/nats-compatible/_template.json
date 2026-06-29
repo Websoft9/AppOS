@@ -1,0 +1,12 @@
+{
+  "kind": "nats-compatible",
+  "category": "message-queue",
+  "fields": [
+    {
+      "id": "cluster",
+      "label": "Cluster",
+      "type": "text",
+      "placeholder": "primary"
+    }
+  ]
+}

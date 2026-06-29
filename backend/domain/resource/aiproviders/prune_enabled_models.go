@@ -78,7 +78,6 @@ func PruneUnavailableEnabledModels(
 		item.ApplySaveInput(SaveInput{
 			Name:              snapshot.Name,
 			Kind:              snapshot.Kind,
-			IsDefault:         snapshot.IsDefault,
 			TemplateID:        snapshot.TemplateID,
 			Endpoint:          snapshot.Endpoint,
 			AuthScheme:        snapshot.AuthScheme,

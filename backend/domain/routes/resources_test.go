@@ -911,6 +911,15 @@ func TestConnectorTemplateGet(t *testing.T) {
 		t.Fatalf("expected template kind webhook, got %v", template["kind"])
 	}
 
+	rec = te.do(t, http.MethodGet, "/api/connectors/templates/generic-http-gateway", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get generic-http-gateway template: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	template = parseJSON(t, rec)
+	if template["kind"] != connectors.KindHTTPGateway {
+		t.Fatalf("expected template kind %q, got %v", connectors.KindHTTPGateway, template["kind"])
+	}
+
 	rec = te.do(t, http.MethodGet, "/api/connectors/templates/not-found", "", true)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected missing template to return 404, got %d: %s", rec.Code, rec.Body.String())
@@ -953,7 +962,7 @@ func TestConnectorsCRUD(t *testing.T) {
 	defer te.cleanup()
 
 	rec := te.do(t, http.MethodPost, "/api/connectors",
-		`{"name":"workspace-webhook","kind":"webhook","is_default":true,"template_id":"generic-webhook","endpoint":"https://hooks.example.com/workspace","config":{"event":"deploy.finished"}}`, true)
+		`{"name":"workspace-webhook","kind":"webhook","template_id":"generic-webhook","endpoint":"https://hooks.example.com/workspace","config":{"event":"deploy.finished"}}`, true)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create connector: expected 201, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -965,9 +974,6 @@ func TestConnectorsCRUD(t *testing.T) {
 	}
 	if created["auth_scheme"] != connectors.AuthSchemeNone {
 		t.Fatalf("expected template default auth scheme %q, got %v", connectors.AuthSchemeNone, created["auth_scheme"])
-	}
-	if created["is_default"] != true {
-		t.Fatalf("expected is_default true, got %v", created["is_default"])
 	}
 
 	rec = te.do(t, http.MethodGet, "/api/connectors/"+id, "", true)
@@ -981,7 +987,7 @@ func TestConnectorsCRUD(t *testing.T) {
 	}
 
 	rec = te.do(t, http.MethodPut, "/api/connectors/"+id,
-		`{"name":"workspace-webhook-updated","kind":"webhook","is_default":false,"template_id":"generic-webhook","endpoint":"https://hooks.example.com/updated","auth_scheme":"none","config":{"event":"deploy.succeeded"}}`, true)
+		`{"name":"workspace-webhook-updated","kind":"webhook","template_id":"generic-webhook","endpoint":"https://hooks.example.com/updated","auth_scheme":"none","config":{"event":"deploy.succeeded"}}`, true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("update connector: expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -990,24 +996,13 @@ func TestConnectorsCRUD(t *testing.T) {
 	if updated["template_id"] != "generic-webhook" {
 		t.Fatalf("expected template_id generic-webhook after update, got %v", updated["template_id"])
 	}
-	if updated["is_default"] != false {
-		t.Fatalf("expected is_default false after update, got %v", updated["is_default"])
-	}
 
 	rec = te.do(t, http.MethodPost, "/api/connectors",
-		`{"name":"fallback-webhook","kind":"webhook","is_default":true,"template_id":"generic-webhook","endpoint":"https://hooks.example.com/fallback"}`, true)
+		`{"name":"fallback-webhook","kind":"webhook","template_id":"generic-webhook","endpoint":"https://hooks.example.com/fallback"}`, true)
 	if rec.Code != http.StatusCreated {
-		t.Fatalf("create second default connector: expected 201, got %d: %s", rec.Code, rec.Body.String())
+		t.Fatalf("create second connector: expected 201, got %d: %s", rec.Code, rec.Body.String())
 	}
 	otherID := parseJSON(t, rec)["id"].(string)
-
-	rec = te.do(t, http.MethodGet, "/api/connectors/"+id, "", true)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("get first connector after second default: expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-	if parseJSON(t, rec)["is_default"] != false {
-		t.Fatalf("expected first connector default flag to be cleared")
-	}
 
 	rec = te.do(t, http.MethodGet, "/api/connectors", "", true)
 	if rec.Code != http.StatusOK {
@@ -1068,8 +1063,22 @@ func TestInstanceTemplateGet(t *testing.T) {
 	if template["id"] != "generic-postgres" {
 		t.Fatalf("expected template id generic-postgres, got %v", template["id"])
 	}
-	if template["kind"] != instances.KindPostgres {
-		t.Fatalf("expected template kind %q, got %v", instances.KindPostgres, template["kind"])
+	if template["kind"] != instances.KindPostgresCompatible {
+		t.Fatalf("expected template kind %q, got %v", instances.KindPostgresCompatible, template["kind"])
+	}
+	traits, ok := template["traits"].([]any)
+	if !ok || len(traits) == 0 {
+		t.Fatalf("expected template traits, got %v", template["traits"])
+	}
+	hasSQLTrait := false
+	for _, trait := range traits {
+		if trait == "sql" {
+			hasSQLTrait = true
+			break
+		}
+	}
+	if !hasSQLTrait {
+		t.Fatalf("expected generic-postgres traits to include sql, got %v", template["traits"])
 	}
 
 	rec = te.do(t, http.MethodGet, "/api/instances/templates/not-found", "", true)
@@ -1083,47 +1092,60 @@ func TestInstancesCRUD(t *testing.T) {
 	defer te.cleanup()
 
 	rec := te.do(t, http.MethodPost, "/api/instances",
-		`{"name":"local-ollama","kind":"ollama","template_id":"generic-ollama","config":{"model":"llama3.1"}}`, true)
+		`{"name":"primary-rabbit","kind":"amqp-compatible","template_id":"generic-rabbitmq"}`, true)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create instance: expected 201, got %d: %s", rec.Code, rec.Body.String())
 	}
 
 	created := parseJSON(t, rec)
 	id := created["id"].(string)
-	if created["endpoint"] != "http://localhost:11434" {
+	if created["endpoint"] != "amqp://rabbitmq.internal:5672" {
 		t.Fatalf("expected template default endpoint, got %v", created["endpoint"])
 	}
-	if created["template_id"] != "generic-ollama" {
-		t.Fatalf("expected template_id generic-ollama, got %v", created["template_id"])
+	if created["template_id"] != "generic-rabbitmq" {
+		t.Fatalf("expected template_id generic-rabbitmq, got %v", created["template_id"])
+	}
+	createdTraits, ok := created["traits"].([]any)
+	if !ok || len(createdTraits) == 0 {
+		t.Fatalf("expected created instance traits, got %v", created["traits"])
 	}
 
 	rec = te.do(t, http.MethodGet, "/api/instances/"+id, "", true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("get instance: expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
+	got := parseJSON(t, rec)
+	gotTraits, ok := got["traits"].([]any)
+	if !ok || len(gotTraits) == 0 {
+		t.Fatalf("expected fetched instance traits, got %v", got["traits"])
+	}
 
 	rec = te.do(t, http.MethodPut, "/api/instances/"+id,
-		`{"name":"primary-postgres","kind":"postgres","template_id":"generic-postgres","endpoint":"postgres://db.internal:5432/app","config":{"database":"app","username":"appuser"}}`, true)
+		`{"name":"primary-postgres","kind":"postgres-compatible","template_id":"generic-postgres","endpoint":"postgres://db.internal:5432/app","config":{"database":"app","username":"appuser"}}`, true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("update instance: expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 
 	updated := parseJSON(t, rec)
-	if updated["kind"] != instances.KindPostgres {
-		t.Fatalf("expected updated kind %q, got %v", instances.KindPostgres, updated["kind"])
+	if updated["kind"] != instances.KindPostgresCompatible {
+		t.Fatalf("expected updated kind %q, got %v", instances.KindPostgresCompatible, updated["kind"])
+	}
+	updatedTraits, ok := updated["traits"].([]any)
+	if !ok || len(updatedTraits) == 0 {
+		t.Fatalf("expected updated instance traits, got %v", updated["traits"])
 	}
 	if updated["template_id"] != "generic-postgres" {
 		t.Fatalf("expected updated template_id generic-postgres, got %v", updated["template_id"])
 	}
 
 	rec = te.do(t, http.MethodPost, "/api/instances",
-		`{"name":"primary-redis","kind":"redis","template_id":"generic-redis","endpoint":"redis://cache.internal:6379"}`, true)
+		`{"name":"primary-redis","kind":"redis-compatible","template_id":"generic-redis","endpoint":"redis://cache.internal:6379"}`, true)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create second instance: expected 201, got %d: %s", rec.Code, rec.Body.String())
 	}
 	otherID := parseJSON(t, rec)["id"].(string)
 
-	rec = te.do(t, http.MethodGet, "/api/instances?kind=postgres,kafka", "", true)
+	rec = te.do(t, http.MethodGet, "/api/instances?kind=postgres-compatible,kafka-compatible", "", true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("filter instances: expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -1131,18 +1153,22 @@ func TestInstancesCRUD(t *testing.T) {
 	if len(list) != 1 {
 		t.Fatalf("expected 1 filtered instance, got %d", len(list))
 	}
-	if list[0]["kind"] != instances.KindPostgres {
+	if list[0]["kind"] != instances.KindPostgresCompatible {
 		t.Fatalf("expected postgres instance, got %v", list[0]["kind"])
+	}
+	listTraits, ok := list[0]["traits"].([]any)
+	if !ok || len(listTraits) == 0 {
+		t.Fatalf("expected filtered instance traits, got %v", list[0]["traits"])
 	}
 
 	rec = te.do(t, http.MethodPost, "/api/instances",
-		`{"name":"bad-instance","kind":"redis","template_id":"generic-postgres"}`, true)
+		`{"name":"bad-instance","kind":"redis-compatible","template_id":"generic-postgres"}`, true)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("mismatched template kind: expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
 
 	rec = te.do(t, http.MethodPost, "/api/instances",
-		`{"name":"primary-postgres","kind":"redis","template_id":"generic-redis"}`, true)
+		`{"name":"primary-postgres","kind":"redis-compatible","template_id":"generic-redis"}`, true)
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("duplicate instance name: expected 409, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -1175,7 +1201,7 @@ func TestInstanceReachability(t *testing.T) {
 	_ = closedListener.Close()
 
 	rec := te.do(t, http.MethodPost, "/api/instances",
-		fmt.Sprintf(`{"name":"reachable-redis","kind":"redis","template_id":"generic-redis","endpoint":"%s"}`,
+		fmt.Sprintf(`{"name":"reachable-redis","kind":"redis-compatible","template_id":"generic-redis","endpoint":"%s"}`,
 			listener.Addr().String(),
 		), true)
 	if rec.Code != http.StatusCreated {
@@ -1184,7 +1210,7 @@ func TestInstanceReachability(t *testing.T) {
 	reachableID := parseJSON(t, rec)["id"].(string)
 
 	rec = te.do(t, http.MethodPost, "/api/instances",
-		fmt.Sprintf(`{"name":"offline-redis","kind":"redis","template_id":"generic-redis","endpoint":"%s"}`,
+		fmt.Sprintf(`{"name":"offline-redis","kind":"redis-compatible","template_id":"generic-redis","endpoint":"%s"}`,
 			closedAddr,
 		), true)
 	if rec.Code != http.StatusCreated {
@@ -1330,7 +1356,7 @@ func TestProviderAccountsCRUD(t *testing.T) {
 	}
 
 	rec = te.do(t, http.MethodPost, "/api/instances",
-		`{"name":"redis-with-account","kind":"redis","template_id":"generic-redis","provider_account":"`+accountID+`"}`, true)
+		`{"name":"redis-with-account","kind":"redis-compatible","template_id":"generic-redis","provider_account":"`+accountID+`"}`, true)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create instance with provider account: expected 201, got %d: %s", rec.Code, rec.Body.String())
 	}

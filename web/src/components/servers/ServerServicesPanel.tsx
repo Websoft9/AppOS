@@ -58,6 +58,7 @@ import {
 import { getApiErrorMessage, isRequestCancellation } from '@/lib/api-error'
 import { listSupportedServerSoftware, type SupportedServerSoftwareEntry } from '@/lib/software-api'
 import { cn } from '@/lib/utils'
+import { runWithServerRealtimeBusyRetry } from './server-realtime-busy-retry'
 
 type SystemdDetailTab = 'overview' | 'logs' | 'unit'
 type StatusFilter = 'all' | 'running' | 'exited' | 'failed' | 'inactive'
@@ -336,7 +337,9 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
     setInventoryLoading(true)
     setError('')
     try {
-      const response = await listSystemdServices(serverId, '')
+      const response = await runWithServerRealtimeBusyRetry(() => listSystemdServices(serverId, ''), {
+        shouldRetry: () => requestSeqRef.current === requestSeq,
+      })
       if (requestSeqRef.current !== requestSeq) return
       setServices(response)
     } catch (loadError) {
@@ -451,7 +454,10 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
         setUnitResult('')
       }
       try {
-        const statusResponse = await getSystemdStatus(serverId, serviceName)
+        const statusResponse = await runWithServerRealtimeBusyRetry(
+          () => getSystemdStatus(serverId, serviceName),
+          { shouldRetry: () => requestSeqRef.current === requestSeq }
+        )
         if (requestSeqRef.current !== requestSeq) return
         const nextStatusDetails = statusResponse.status || {}
 
@@ -459,12 +465,18 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
         let logsResponse: SystemdLogsResponse | null = null
 
         if (nextTab === 'unit' || (nextTab === 'overview' && !nextStatusDetails.FragmentPath)) {
-          unitResponse = await getSystemdUnit(serverId, serviceName).catch(() => null)
+          unitResponse = await runWithServerRealtimeBusyRetry(
+            () => getSystemdUnit(serverId, serviceName),
+            { shouldRetry: () => requestSeqRef.current === requestSeq }
+          ).catch(() => null)
           if (requestSeqRef.current !== requestSeq) return
         }
 
         if (nextTab === 'logs') {
-          logsResponse = await getSystemdLogs(serverId, serviceName, 200)
+          logsResponse = await runWithServerRealtimeBusyRetry(
+            () => getSystemdLogs(serverId, serviceName, 200),
+            { shouldRetry: () => requestSeqRef.current === requestSeq }
+          )
           if (requestSeqRef.current !== requestSeq) return
         }
 
@@ -543,7 +555,9 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
       try {
         await controlSystemdService(serverId, serviceName, action)
         setHint(t('servers.servicesTab.hints.actionApplied', { action }))
-        const inventoryResponse = await listSystemdServices(serverId, '')
+        const inventoryResponse = await runWithServerRealtimeBusyRetry(() =>
+          listSystemdServices(serverId, '')
+        )
         setServices(inventoryResponse)
         await loadServiceContext(serviceName, 'overview')
       } catch (actionError) {
@@ -590,7 +604,9 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
     try {
       const saveResponse = await updateSystemdUnit(serverId, selected, unitContent)
       const applyResponse = await applySystemdUnit(serverId, selected)
-      const inventoryResponse = await listSystemdServices(serverId, '')
+        const inventoryResponse = await runWithServerRealtimeBusyRetry(() =>
+          listSystemdServices(serverId, '')
+        )
       setServices(inventoryResponse)
       setUnitResult(
         [saveResponse.output, applyResponse.reload_output, applyResponse.apply_output]
