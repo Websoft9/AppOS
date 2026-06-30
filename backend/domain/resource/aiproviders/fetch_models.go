@@ -49,7 +49,11 @@ func FetchModels(ctx context.Context, endpoint string, apiKey string, templateID
 	var tpl Template
 	var hasTemplate bool
 	if templateID != "" {
-		tpl, hasTemplate = FindTemplate(templateID)
+		var findErr error
+		tpl, hasTemplate, findErr = FindTemplate(templateID)
+		if findErr != nil {
+			return FetchModelsResponse{}, findErr
+		}
 		if protocolTpl, ok := findTemplateProtocol(tpl, protocol); ok && strings.TrimSpace(protocolTpl.ModelsEndpoint) != "" {
 			modelsURL = resolveModelsEndpoint(endpoint, protocolTpl.ModelsEndpoint)
 		} else if hasTemplate && tpl.ModelsEndpoint != "" {

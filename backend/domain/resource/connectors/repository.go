@@ -8,6 +8,5 @@ type Repository interface {
 	Save(connector *Connector) error
 	Delete(connector *Connector) error
 	ListByKind(kind string) ([]*Connector, error)
-	ClearDefaultsByKind(kind string, excludeID string) error
 	RunInTransaction(func(Repository) error) error
 }

@@ -17,7 +17,7 @@ var DefaultPromptDefinitions = []PromptSeedDefinition{
 		TemplateKey: "prompt-meta-optimizer",
 		PromptScope: PromptScopeSystem,
 		IsSystem:    true,
-		Content: "You are a prompt engineering specialist. Improve the user's draft system prompt while preserving intent. Return only the revised prompt text.\n\nChecklist:\n- make the instructions explicit\n- reduce ambiguity\n- preserve required constraints\n- avoid unnecessary verbosity\n",
+		Content:     "You are a prompt engineering specialist. Improve the user's draft system prompt while preserving intent. Return only the revised prompt text.\n\nChecklist:\n- make the instructions explicit\n- reduce ambiguity\n- preserve required constraints\n- avoid unnecessary verbosity\n",
 	},
 	{
 		Name:        "General Technical Advisor",

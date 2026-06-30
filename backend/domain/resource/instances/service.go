@@ -1,6 +1,10 @@
 package instances
 
-import "strings"
+import (
+	"strings"
+
+	resourceshared "github.com/websoft9/appos/backend/domain/resource/shared"
+)
 
 type SaveInput struct {
 	Name              string
@@ -14,13 +18,9 @@ type SaveInput struct {
 	Description       string
 }
 
-type CredentialRefValidator interface {
-	ValidateCredentialRef(credentialID string, actorID string) error
-}
+type CredentialRefValidator = resourceshared.CredentialRefValidator
 
-type ProviderAccountRefValidator interface {
-	ValidateProviderAccountRef(providerAccountID string, actorID string) error
-}
+type ProviderAccountRefValidator = resourceshared.ProviderAccountRefValidator
 
 type SaveDeps struct {
 	ActorID                     string
@@ -97,10 +97,10 @@ func saveRecord(repo Repository, instance *Instance, input SaveInput, deps SaveD
 	}
 
 	return repo.RunInTransaction(func(txRepo Repository) error {
-		if err := validateProviderAccountRef(deps, instance.ProviderAccountID()); err != nil {
+		if err := resourceshared.ValidateProviderAccountRef(instance.ProviderAccountID(), deps.ActorID, deps.ProviderAccountRefValidator); err != nil {
 			return err
 		}
-		if err := validateCredentialRef(deps, instance.CredentialID()); err != nil {
+		if err := resourceshared.ValidateCredentialRef(instance.CredentialID(), deps.ActorID, deps.CredentialRefValidator); err != nil {
 			return err
 		}
 		exists, err := txRepo.ExistsByName(instance.Name(), instance.ID())
@@ -147,33 +147,5 @@ func applyTemplateConstraints(instance *Instance) error {
 	}
 
 	instance.EnsureConfig()
-	return nil
-}
-
-func validateCredentialRef(deps SaveDeps, credentialID string) error {
-	trimmed := strings.TrimSpace(credentialID)
-	if trimmed == "" {
-		return nil
-	}
-	if deps.CredentialRefValidator == nil {
-		return newValidationError("credential validation dependency is required when credential is set", nil)
-	}
-	if err := deps.CredentialRefValidator.ValidateCredentialRef(trimmed, strings.TrimSpace(deps.ActorID)); err != nil {
-		return err
-	}
-	return nil
-}
-
-func validateProviderAccountRef(deps SaveDeps, providerAccountID string) error {
-	trimmed := strings.TrimSpace(providerAccountID)
-	if trimmed == "" {
-		return nil
-	}
-	if deps.ProviderAccountRefValidator == nil {
-		return newValidationError("provider account validation dependency is required when provider_account is set", nil)
-	}
-	if err := deps.ProviderAccountRefValidator.ValidateProviderAccountRef(trimmed, strings.TrimSpace(deps.ActorID)); err != nil {
-		return err
-	}
 	return nil
 }

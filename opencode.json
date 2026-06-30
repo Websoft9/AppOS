@@ -1,0 +1,35 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": ["specs/"],
+  "permission": {
+    "edit": "ask",
+    "bash": {
+      "git *": "allow",
+      "make *": "allow",
+      "npm *": "allow",
+      "npx *": "allow",
+      "go *": "allow",
+      "*": "ask"
+    }
+  },
+  "formatter": {
+    "go": {
+      "command": ["gofmt", "-w", "."],
+      "extensions": [".go"]
+    },
+    "typescript": {
+      "command": ["npx", "prettier", "--write"],
+      "extensions": [".ts", ".tsx", ".js", ".jsx", ".json", ".css"]
+    }
+  },
+  "lsp": {
+    "gopls": {
+      "command": ["gopls"],
+      "extensions": [".go"]
+    },
+    "typescript": {
+      "command": ["npx", "typescript-language-server", "--stdio"],
+      "extensions": [".ts", ".tsx", ".js", ".jsx"]
+    }
+  }
+}

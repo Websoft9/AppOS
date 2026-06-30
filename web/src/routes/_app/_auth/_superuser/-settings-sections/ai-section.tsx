@@ -1,33 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CircleHelp, Loader2 } from 'lucide-react'
 import { pb } from '@/lib/pb'
+import type { AIProviderRecord, AIProviderTemplate } from '@/lib/ai-providers'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { selectClass } from './shared'
-
-type AIProviderRecord = {
-  id: string
-  created?: string
-  name?: string
-  kind?: string
-  is_default?: boolean
-  template_id?: string
-  endpoint?: string
-  auth_scheme?: string
-  provider_account?: string
-  credential?: string
-  config?: Record<string, unknown>
-  description?: string
-}
-
-type AIProviderTemplate = {
-  id: string
-  kind: string
-  title: string
-  vendor?: string
-  description?: string
-}
 
 type AIProviderDefaultSelection = {
   endpoint: string

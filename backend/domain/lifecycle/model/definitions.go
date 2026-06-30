@@ -21,7 +21,7 @@ type Definition struct {
 }
 
 type DefinitionSelector struct {
-	OperationType  string
+	OperationType string
 	ExecutionMode string
 }
 

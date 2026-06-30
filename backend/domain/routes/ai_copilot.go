@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/pocketbase/pocketbase/apis"
@@ -22,8 +23,29 @@ type routeSecretResolver struct {
 	app core.App
 }
 
+type routeProviderSelectionResolver struct {
+	app core.App
+}
+
 func (r routeSecretResolver) Resolve(_ context.Context, secretID, actorID string) (*secrets.ResolveResult, error) {
 	return secrets.Resolve(r.app, secretID, actorID)
+}
+
+func (r routeProviderSelectionResolver) ResolveDefaultProviderIDs(context.Context) ([]string, error) {
+	defaults := defaultProviderMap(r.app)
+	endpoints := make([]string, 0, len(defaults))
+	for endpoint := range defaults {
+		endpoints = append(endpoints, endpoint)
+	}
+	sort.Strings(endpoints)
+	ids := make([]string, 0, len(endpoints))
+	for _, endpoint := range endpoints {
+		providerID := strings.TrimSpace(defaults[endpoint])
+		if providerID != "" {
+			ids = append(ids, providerID)
+		}
+	}
+	return ids, nil
 }
 
 func registerAICopilotRoutes(se *core.ServeEvent) {
@@ -40,7 +62,7 @@ func registerAICopilotRoutes(se *core.ServeEvent) {
 func newAICopilotService(app core.App) *copilot.Service {
 	repo := persistence.NewAICopilotRepository(app)
 	providers := persistence.NewAIProviderRepository(app)
-	resolver := copilot.NewDefaultProviderResolver(providers, routeSecretResolver{app: app})
+	resolver := copilot.NewDefaultProviderResolver(providers, routeSecretResolver{app: app}, routeProviderSelectionResolver{app: app})
 	return copilot.NewService(repo, resolver, resolveAICopilotModelFactory(app))
 }
 
@@ -169,7 +191,7 @@ func handleAICopilotSendMessage(e *core.RequestEvent) error {
 
 func preflightAICopilotProvider(e *core.RequestEvent, actorID, providerID string) error {
 	repo := persistence.NewAIProviderRepository(e.App)
-	resolver := copilot.NewDefaultProviderResolver(repo, routeSecretResolver{app: e.App})
+	resolver := copilot.NewDefaultProviderResolver(repo, routeSecretResolver{app: e.App}, routeProviderSelectionResolver{app: e.App})
 	var (
 		provider *copilot.ProviderConfig
 		err      error

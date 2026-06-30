@@ -12,9 +12,9 @@ import (
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/space"
 	"github.com/websoft9/appos/backend/infra/egress/fetchstore"
 	"github.com/websoft9/appos/backend/infra/filesvc"
-	"github.com/websoft9/appos/backend/domain/space"
 )
 
 func (te *testEnv) doSpace(t *testing.T, method, url, body string, authenticated bool) *httptest.ResponseRecorder {

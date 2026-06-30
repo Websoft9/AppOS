@@ -71,12 +71,14 @@ func (r *pocketBaseProviderAccountRepository) HasReferences(accountID string) (b
 			return true, nil
 		}
 	}
-	records, err := r.app.FindRecordsByFilter(collections.Connectors, "provider_account = {:accountId} && kind != {:kind}", "", 1, 0, map[string]any{"accountId": trimmedID, "kind": "llm"})
+	records, err := r.app.FindRecordsByFilter(collections.Connectors, "provider_account = {:accountId}", "", 10, 0, map[string]any{"accountId": trimmedID})
 	if err != nil {
 		return false, err
 	}
-	if len(records) > 0 {
-		return true, nil
+	for _, record := range records {
+		if !domainaccounts.IsConnectorKindIgnoredForReference(record.GetString("kind")) {
+			return true, nil
+		}
 	}
 	return false, nil
 }
@@ -129,8 +131,8 @@ func (r *pocketBaseProviderAccountRepository) recordForSave(account *domainaccou
 func providerAccountFromRecord(record *core.Record) *domainaccounts.ProviderAccount {
 	return domainaccounts.RestoreProviderAccount(domainaccounts.Snapshot{
 		ID:           record.Id,
-		Created:      record.GetString("created"),
-		Updated:      record.GetString("updated"),
+		Created:      recordDateTimeString(record, "created"),
+		Updated:      recordDateTimeString(record, "updated"),
 		Name:         record.GetString("name"),
 		Kind:         record.GetString("kind"),
 		IsEnabled:    recordEnabledValue(record),

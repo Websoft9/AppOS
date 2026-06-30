@@ -7,6 +7,14 @@
 3. Refactor [package/component] to match [reference file/package]
 4. Rename [function/component/file] to [new name] across backend and frontend
 5. Diagnose why [feature/page] is broken, trace root cause, and fix it
+6. Write program logic to implement the migration patch file merging function:
+    ```
+    Rules:
+    1. Read all incremental patch files under Migration.
+    2. Classify files by database table.
+    3. Merge all patches belonging to the same table into its dedicated main schema file, following the rule of one main schema file per single table.
+    4. Output runnable processing logic together with validation logic.
+    ```
 
 ## Test
 

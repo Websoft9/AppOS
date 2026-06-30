@@ -3,6 +3,7 @@ package copilot
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -14,17 +15,22 @@ type SecretResolver interface {
 	Resolve(ctx context.Context, secretID, actorID string) (*secrets.ResolveResult, error)
 }
 
-type DefaultProviderResolver struct {
-	providers aiproviders.Repository
-	secrets   SecretResolver
+type DefaultProviderSelectionResolver interface {
+	ResolveDefaultProviderIDs(ctx context.Context) ([]string, error)
 }
 
-func NewDefaultProviderResolver(providers aiproviders.Repository, secrets SecretResolver) *DefaultProviderResolver {
-	return &DefaultProviderResolver{providers: providers, secrets: secrets}
+type DefaultProviderResolver struct {
+	providers   aiproviders.Repository
+	secrets     SecretResolver
+	selections  DefaultProviderSelectionResolver
+}
+
+func NewDefaultProviderResolver(providers aiproviders.Repository, secrets SecretResolver, selections DefaultProviderSelectionResolver) *DefaultProviderResolver {
+	return &DefaultProviderResolver{providers: providers, secrets: secrets, selections: selections}
 }
 
 func (r *DefaultProviderResolver) ResolveDefault(ctx context.Context, actorID string) (*ProviderConfig, error) {
-	selected, err := r.defaultProvider()
+	selected, err := r.defaultProvider(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -48,41 +54,57 @@ func (r *DefaultProviderResolver) ResolveSelection(ctx context.Context, actorID,
 	return nil, coded(CodeProviderSetupRequired, "selected LLM provider is not available", nil)
 }
 
-func (r *DefaultProviderResolver) defaultProvider() (*aiproviders.AIProvider, error) {
+func (r *DefaultProviderResolver) defaultProvider(ctx context.Context) (*aiproviders.AIProvider, error) {
 	items, err := r.providers.ListByKind(aiproviders.KindLLM)
 	if err != nil {
 		return nil, err
 	}
-	var selected *aiproviders.AIProvider
+	enabled := make([]*aiproviders.AIProvider, 0, len(items))
+	enabledByID := make(map[string]*aiproviders.AIProvider, len(items))
 	for _, item := range items {
 		if !item.IsEnabled() {
 			continue
 		}
-		if item.IsDefault() {
-			selected = item
-			break
-		}
+		enabled = append(enabled, item)
+		enabledByID[item.ID()] = item
 	}
-	if selected == nil {
-		enabled := make([]*aiproviders.AIProvider, 0, len(items))
-		for _, item := range items {
-			if item.IsEnabled() {
-				enabled = append(enabled, item)
+	if r.selections != nil {
+		ids, err := r.selections.ResolveDefaultProviderIDs(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, id := range ids {
+			if selected := enabledByID[strings.TrimSpace(id)]; selected != nil {
+				return selected, nil
 			}
 		}
-		if len(enabled) == 1 {
-			selected = enabled[0]
-		}
 	}
-	if selected == nil {
-		return nil, coded(CodeProviderSetupRequired, "default LLM provider is not configured", nil)
+	if len(enabled) == 1 {
+		return enabled[0], nil
 	}
-	return selected, nil
+	if len(enabled) > 1 {
+		sort.SliceStable(enabled, func(i, j int) bool {
+			leftCreated := strings.TrimSpace(enabled[i].Created())
+			rightCreated := strings.TrimSpace(enabled[j].Created())
+			if leftCreated != rightCreated {
+				return leftCreated < rightCreated
+			}
+			leftName := strings.TrimSpace(enabled[i].Name())
+			rightName := strings.TrimSpace(enabled[j].Name())
+			if leftName != rightName {
+				return leftName < rightName
+			}
+			return enabled[i].ID() < enabled[j].ID()
+		})
+	}
+	return nil, coded(CodeProviderSetupRequired, "default LLM provider is not configured", nil)
 }
 
 func (r *DefaultProviderResolver) providerConfig(ctx context.Context, actorID string, selected *aiproviders.AIProvider) (*ProviderConfig, error) {
-	protocol := aiproviders.ProviderDefaultProtocol(selected)
-	endpoint := strings.TrimSpace(aiproviders.ActiveEndpoint(selected))
+	endpoint, protocol, err := aiproviders.ResolveActiveEndpointAndProtocol(selected)
+	if err != nil {
+		return nil, coded(CodeProviderInvalid, "failed to resolve LLM provider protocol", err)
+	}
 	credentialID := strings.TrimSpace(selected.CredentialID())
 	model := firstConfigString(selected.Config(), "defaultModel", "model")
 	apiVersion := firstConfigString(selected.Config(), "version", "apiVersion")
@@ -100,7 +122,10 @@ func (r *DefaultProviderResolver) providerConfig(ctx context.Context, actorID st
 	if strings.TrimSpace(apiKey) == "" {
 		return nil, coded(CodeProviderInvalid, "LLM provider credential does not contain an API key", nil)
 	}
-	tpl, _ := aiproviders.FindTemplate(selected.TemplateID())
+	tpl, _, err := aiproviders.FindTemplate(selected.TemplateID())
+	if err != nil {
+		return nil, coded(CodeProviderInvalid, "failed to load LLM provider template", err)
+	}
 	if maxCompletionTokens == nil {
 		maxCompletionTokens = templateFieldDefaultInt(tpl, "max_completion_tokens")
 	}

@@ -9,7 +9,10 @@ import (
 )
 
 func TestFindTemplateLoadsEmbeddedOpenAI(t *testing.T) {
-	template, ok := FindTemplate("openai")
+	template, ok, err := FindTemplate("openai")
+	if err != nil {
+		t.Fatalf("find template: %v", err)
+	}
 	if !ok {
 		t.Fatalf("expected embedded openai template to be loaded")
 	}
@@ -37,7 +40,10 @@ func TestFindTemplateLoadsEmbeddedOpenAI(t *testing.T) {
 }
 
 func TestOpenAICompatibleTemplateRenamed(t *testing.T) {
-	template, ok := FindTemplate(TemplateOpenAICompatible)
+	template, ok, err := FindTemplate(TemplateOpenAICompatible)
+	if err != nil {
+		t.Fatalf("find template: %v", err)
+	}
 	if !ok {
 		t.Fatalf("expected OpenAI-Compatible template to be loaded")
 	}
@@ -53,7 +59,10 @@ func TestOpenAICompatibleTemplateRenamed(t *testing.T) {
 }
 
 func TestFindTemplateLoadsEmbeddedXAI(t *testing.T) {
-	template, ok := FindTemplate("xai")
+	template, ok, err := FindTemplate("xai")
+	if err != nil {
+		t.Fatalf("find template: %v", err)
+	}
 	if !ok {
 		t.Fatalf("expected embedded xAI template to be loaded")
 	}
@@ -69,7 +78,10 @@ func TestFindTemplateLoadsEmbeddedXAI(t *testing.T) {
 }
 
 func TestTemplateEndpointFieldInheritsDefaultEndpoint(t *testing.T) {
-	template, ok := FindTemplate("alibaba-cloud-bailian")
+	template, ok, err := FindTemplate("alibaba-cloud-bailian")
+	if err != nil {
+		t.Fatalf("find template: %v", err)
+	}
 	if !ok {
 		t.Fatalf("expected embedded Bailian template to be loaded")
 	}
@@ -86,7 +98,10 @@ func TestTemplateEndpointFieldInheritsDefaultEndpoint(t *testing.T) {
 }
 
 func TestTemplateProtocolInheritsDefaultEndpoint(t *testing.T) {
-	template, ok := FindTemplate("alibaba-cloud-bailian")
+	template, ok, err := FindTemplate("alibaba-cloud-bailian")
+	if err != nil {
+		t.Fatalf("find template: %v", err)
+	}
 	if !ok {
 		t.Fatalf("expected embedded Bailian template to be loaded")
 	}
@@ -99,7 +114,10 @@ func TestTemplateProtocolInheritsDefaultEndpoint(t *testing.T) {
 }
 
 func TestHiddenTemplateMetadataLoads(t *testing.T) {
-	template, ok := FindTemplate("qwen-dashscope")
+	template, ok, err := FindTemplate("qwen-dashscope")
+	if err != nil {
+		t.Fatalf("find template: %v", err)
+	}
 	if !ok {
 		t.Fatalf("expected embedded Qwen template to be loaded")
 	}
@@ -153,7 +171,10 @@ func TestTemplateSourceOmitsRedundantEndpointDefaults(t *testing.T) {
 }
 
 func TestOpenRouterTemplateHasMaxCompletionTokensDefault(t *testing.T) {
-	template, ok := FindTemplate("openrouter")
+	template, ok, err := FindTemplate("openrouter")
+	if err != nil {
+		t.Fatalf("find template: %v", err)
+	}
 	if !ok {
 		t.Fatalf("expected embedded OpenRouter template to be loaded")
 	}
@@ -173,7 +194,11 @@ func TestOpenRouterTemplateHasMaxCompletionTokensDefault(t *testing.T) {
 }
 
 func TestTemplateMetadataConventions(t *testing.T) {
-	for _, template := range Templates() {
+	templates, err := Templates()
+	if err != nil {
+		t.Fatalf("load templates: %v", err)
+	}
+	for _, template := range templates {
 		switch template.ProviderMode {
 		case "vendor", "gateway":
 		default:
@@ -208,19 +233,25 @@ func TestTemplateMetadataConventions(t *testing.T) {
 		}
 	}
 
-	if openAI, ok := FindTemplate("openai"); !ok {
+	if openAI, ok, err := FindTemplate("openai"); err != nil {
+		t.Fatalf("find openai template: %v", err)
+	} else if !ok {
 		t.Fatal("expected embedded openai template to be loaded")
 	} else if openAI.DefaultAuth != "bearer" {
 		t.Fatalf("expected openai default auth bearer, got %q", openAI.DefaultAuth)
 	}
 
-	if anthropic, ok := FindTemplate("anthropic"); !ok {
+	if anthropic, ok, err := FindTemplate("anthropic"); err != nil {
+		t.Fatalf("find anthropic template: %v", err)
+	} else if !ok {
 		t.Fatal("expected embedded anthropic template to be loaded")
 	} else if anthropic.DefaultAuth != "api_key" {
 		t.Fatalf("expected anthropic default auth api_key, got %q", anthropic.DefaultAuth)
 	}
 
-	if generic, ok := FindTemplate("generic-llm"); !ok {
+	if generic, ok, err := FindTemplate("generic-llm"); err != nil {
+		t.Fatalf("find generic-llm template: %v", err)
+	} else if !ok {
 		t.Fatal("expected embedded generic-llm template to be loaded")
 	} else {
 		for _, field := range generic.Fields {
@@ -230,7 +261,9 @@ func TestTemplateMetadataConventions(t *testing.T) {
 		}
 	}
 
-	if zai, ok := FindTemplate("z-ai"); !ok {
+	if zai, ok, err := FindTemplate("z-ai"); err != nil {
+		t.Fatalf("find z-ai template: %v", err)
+	} else if !ok {
 		t.Fatal("expected embedded z-ai template to be loaded")
 	} else {
 		for _, field := range zai.Fields {

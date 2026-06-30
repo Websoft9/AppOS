@@ -3,13 +3,14 @@ package connectors
 import (
 	"fmt"
 	"strings"
+
+	resourceshared "github.com/websoft9/appos/backend/domain/resource/shared"
 )
 
 type SaveInput struct {
 	Name              string
 	Kind              string
 	IsEnabled         bool
-	IsDefault         bool
 	TemplateID        string
 	Endpoint          string
 	AuthScheme        string
@@ -19,19 +20,15 @@ type SaveInput struct {
 	Description       string
 }
 
-type CredentialRefValidator interface {
-	ValidateCredentialRef(credentialID string, actorID string) error
-}
+type CredentialRefValidator = resourceshared.CredentialRefValidator
 
-type ProviderAccountRefValidator interface {
-	ValidateProviderAccountRef(providerAccountID string, actorID string) error
-}
+type ProviderAccountRefValidator = resourceshared.ProviderAccountRefValidator
 
 type SaveDeps struct {
 	ActorID                     string
 	CredentialRefValidator      CredentialRefValidator
 	ProviderAccountRefValidator ProviderAccountRefValidator
-	TemplateResolver            func(templateID string) (Template, bool)
+	TemplateResolver            func(templateID string) (Template, bool, error)
 }
 
 func List(repo Repository, kinds []string) ([]*Connector, error) {
@@ -123,10 +120,10 @@ func saveRecord(repo Repository, connector *Connector, input SaveInput, deps Sav
 	}
 
 	return repo.RunInTransaction(func(txRepo Repository) error {
-		if err := validateProviderAccountRef(deps, connector.ProviderAccountID()); err != nil {
+		if err := resourceshared.ValidateProviderAccountRef(connector.ProviderAccountID(), deps.ActorID, deps.ProviderAccountRefValidator); err != nil {
 			return err
 		}
-		if err := validateCredentialRef(deps, connector.CredentialID()); err != nil {
+		if err := resourceshared.ValidateCredentialRef(connector.CredentialID(), deps.ActorID, deps.CredentialRefValidator); err != nil {
 			return err
 		}
 		exists, err := txRepo.ExistsByName(connector.Name(), connector.ID())
@@ -140,7 +137,7 @@ func saveRecord(repo Repository, connector *Connector, input SaveInput, deps Sav
 	})
 }
 
-func applyTemplateConstraints(connector *Connector, templateResolver func(templateID string) (Template, bool)) error {
+func applyTemplateConstraints(connector *Connector, templateResolver func(templateID string) (Template, bool, error)) error {
 	kind := strings.TrimSpace(connector.Kind())
 	name := strings.TrimSpace(connector.Name())
 	templateID := NormalizeTemplateID(connector.TemplateID())
@@ -163,7 +160,10 @@ func applyTemplateConstraints(connector *Connector, templateResolver func(templa
 	}
 
 	if templateID != "" {
-		template, ok := resolveTemplate(templateID)
+		template, ok, err := resolveTemplate(templateID)
+		if err != nil {
+			return err
+		}
 		if !ok {
 			return newValidationError(fmt.Sprintf("unknown template_id %q", templateID), nil)
 		}
@@ -185,33 +185,5 @@ func applyTemplateConstraints(connector *Connector, templateResolver func(templa
 
 	connector.EnsureConfig()
 
-	return nil
-}
-
-func validateCredentialRef(deps SaveDeps, credentialID string) error {
-	trimmed := strings.TrimSpace(credentialID)
-	if trimmed == "" {
-		return nil
-	}
-	if deps.CredentialRefValidator == nil {
-		return newValidationError("credential validation dependency is required when credential is set", nil)
-	}
-	if err := deps.CredentialRefValidator.ValidateCredentialRef(trimmed, strings.TrimSpace(deps.ActorID)); err != nil {
-		return err
-	}
-	return nil
-}
-
-func validateProviderAccountRef(deps SaveDeps, providerAccountID string) error {
-	trimmed := strings.TrimSpace(providerAccountID)
-	if trimmed == "" {
-		return nil
-	}
-	if deps.ProviderAccountRefValidator == nil {
-		return newValidationError("provider account validation dependency is required when provider_account is set", nil)
-	}
-	if err := deps.ProviderAccountRefValidator.ValidateProviderAccountRef(trimmed, strings.TrimSpace(deps.ActorID)); err != nil {
-		return err
-	}
 	return nil
 }

@@ -3,7 +3,6 @@ package persistence
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -119,21 +118,6 @@ func instanceFromRecord(record *core.Record) *domaininstances.Instance {
 		Description:       record.GetString("description"),
 	})
 }
-
-func recordDateTimeString(record *core.Record, key string) string {
-	if value := strings.TrimSpace(record.GetDateTime(key).String()); value != "" {
-		return value
-	}
-	if value := strings.TrimSpace(record.GetString(key)); value != "" {
-		return value
-	}
-	raw := strings.TrimSpace(fmt.Sprint(record.Get(key)))
-	if raw == "" || raw == "<nil>" {
-		return ""
-	}
-	return raw
-}
-
 func applyInstanceToRecord(record *core.Record, instance *domaininstances.Instance) {
 	snapshot := instance.Snapshot()
 	record.Set("name", snapshot.Name)

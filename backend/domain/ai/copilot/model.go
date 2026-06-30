@@ -9,13 +9,13 @@ const (
 )
 
 type Session struct {
-	ID            string `json:"id"`
-	Title         string `json:"title"`
+	ID                  string `json:"id"`
+	Title               string `json:"title"`
 	SystemPromptAssetID string `json:"system_prompt_asset_id,omitempty"`
-	OwnerID       string `json:"owner_id,omitempty"`
-	CreatedAt     string `json:"created_at"`
-	UpdatedAt     string `json:"updated_at"`
-	LastMessageAt string `json:"last_message_at"`
+	OwnerID             string `json:"owner_id,omitempty"`
+	CreatedAt           string `json:"created_at"`
+	UpdatedAt           string `json:"updated_at"`
+	LastMessageAt       string `json:"last_message_at"`
 }
 
 type Message struct {

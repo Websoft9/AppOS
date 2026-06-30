@@ -4,11 +4,11 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"path"
-	"sort"
 	"strings"
 	"sync"
+
+	resourceshared "github.com/websoft9/appos/backend/domain/resource/shared"
 )
 
 //go:embed all:templates
@@ -21,31 +21,45 @@ var (
 )
 
 func Templates() []Template {
-	ensureTemplatesLoaded()
-	result := make([]Template, len(templates))
-	copy(result, templates)
-	return result
+	templates, err := TemplatesWithError()
+	if err != nil {
+		return nil
+	}
+	return templates
 }
 
-func TemplatesByKind(kind string) []Template {
-	ensureTemplatesLoaded()
+func TemplatesWithError() ([]Template, error) {
+	if err := ensureTemplatesLoaded(); err != nil {
+		return nil, err
+	}
+	result := make([]Template, len(templates))
+	copy(result, templates)
+	return result, nil
+}
+
+func TemplatesByKind(kind string) ([]Template, error) {
+	if err := ensureTemplatesLoaded(); err != nil {
+		return nil, err
+	}
 	var result []Template
 	for _, template := range templates {
 		if template.Kind == kind {
 			result = append(result, template)
 		}
 	}
-	return result
+	return result, nil
 }
 
-func FindTemplate(id string) (Template, bool) {
-	ensureTemplatesLoaded()
+func FindTemplate(id string) (Template, bool, error) {
+	if err := ensureTemplatesLoaded(); err != nil {
+		return Template{}, false, err
+	}
 	for _, template := range templates {
 		if template.ID == id {
-			return template, true
+			return template, true, nil
 		}
 	}
-	return Template{}, false
+	return Template{}, false, nil
 }
 
 func ResolveLLMTemplate(name string) Template {
@@ -93,71 +107,40 @@ var legacyLLMTemplates = []Template{
 	},
 }
 
-func ensureTemplatesLoaded() {
+func ensureTemplatesLoaded() error {
 	templatesOnce.Do(func() {
 		templatesErr = loadTemplates()
-		if templatesErr != nil {
-			panic(templatesErr)
-		}
 	})
+	return templatesErr
 }
 
 func loadTemplates() error {
-	templateMap := make(map[string]Template)
-
-	entries, err := fs.ReadDir(embeddedTemplateFiles, "templates")
+	loaded, err := resourceshared.LoadTemplates(
+		embeddedTemplateFiles,
+		func(filePath string) (templateFile, error) {
+			file, err := readTemplateFile(filePath)
+			if err != nil {
+				return templateFile{}, fmt.Errorf("read connector template %s: %w", filePath, err)
+			}
+			return file, nil
+		},
+		loadKindBaseTemplate,
+		func(base Template, overlay templateFile, filePath string) (Template, error) {
+			template, err := applyTemplateOverlay(base, overlay)
+			if err != nil {
+				return Template{}, fmt.Errorf("merge connector template %s: %w", filePath, err)
+			}
+			if err := validateTemplate(template); err != nil {
+				return Template{}, fmt.Errorf("invalid connector template %s: %w", filePath, err)
+			}
+			return template, nil
+		},
+		func(template Template) string { return template.ID },
+	)
 	if err != nil {
 		return fmt.Errorf("read connector templates: %w", err)
 	}
-
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		kind := entry.Name()
-		base, err := loadKindBaseTemplate(kind)
-		if err != nil {
-			return err
-		}
-
-		kindEntries, err := fs.ReadDir(embeddedTemplateFiles, path.Join("templates", kind))
-		if err != nil {
-			return fmt.Errorf("read connector kind templates %s: %w", kind, err)
-		}
-
-		for _, kindEntry := range kindEntries {
-			if kindEntry.IsDir() || !strings.HasSuffix(kindEntry.Name(), ".json") || kindEntry.Name() == "_template.json" {
-				continue
-			}
-
-			filePath := path.Join("templates", kind, kindEntry.Name())
-			overlay, err := readTemplateFile(filePath)
-			if err != nil {
-				return fmt.Errorf("read connector template %s: %w", filePath, err)
-			}
-
-			template, err := applyTemplateOverlay(base, overlay)
-			if err != nil {
-				return fmt.Errorf("merge connector template %s: %w", filePath, err)
-			}
-			if err := validateTemplate(template); err != nil {
-				return fmt.Errorf("invalid connector template %s: %w", filePath, err)
-			}
-			templateMap[template.ID] = template
-		}
-	}
-
-	keys := make([]string, 0, len(templateMap))
-	for key := range templateMap {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	templates = make([]Template, 0, len(keys))
-	for _, key := range keys {
-		templates = append(templates, templateMap[key])
-	}
+	templates = loaded
 	return nil
 }
 

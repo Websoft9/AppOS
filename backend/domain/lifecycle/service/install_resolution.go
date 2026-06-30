@@ -954,14 +954,14 @@ func resolveInstallExecutionMode(executionMode string, sourceBuild *InstallSourc
 	}
 	if sourceBuild != nil {
 		return string(model.ExecutionModeBuild)
-}
+	}
 	return string(model.ExecutionModeCompose)
 }
 
 func sourceBuildOperationChannel(sourceBuild *InstallSourceBuildInput) string {
 	if sourceBuild == nil {
 		return string(model.ChannelCustom)
-}
+	}
 	switch strings.ToLower(strings.TrimSpace(sourceBuild.SourceKind)) {
 	case "git":
 		return string(model.ChannelGit)

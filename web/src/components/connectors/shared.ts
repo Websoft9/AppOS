@@ -1,5 +1,17 @@
 import { createElement, useState } from 'react'
 import { pb } from '@/lib/pb'
+import {
+  cloneConfig,
+  formatResourceSecretLabel,
+  normalizeTemplateID,
+  resolveEnabledFlag,
+} from '@/lib/resource-helpers'
+import type {
+  AccessResourceRecord,
+  ResourceSaveInput,
+  ResourceTemplateBase,
+  ResourceTemplateField,
+} from '@/lib/resource-types'
 import type { FieldDef, SelectOption } from '@/components/resources/ResourcePage'
 import { ReferenceSelect } from '@/components/resources/ReferenceSelect'
 import { SecretCredentialField } from '@/components/secrets/SecretCredentialField'
@@ -9,45 +21,11 @@ import { type ResourceSecretVisibleTo } from '@/components/secrets/SecretVisibil
 import { buildUserVisibleSecretRelationApiPath as buildSharedUserVisibleSecretRelationApiPath } from '@/components/secrets/resource-secret-relations'
 import { Pencil, X } from 'lucide-react'
 
-export type ConnectorRecord = {
-  id: string
-  created?: string
-  updated?: string
-  name?: string
-  kind?: string
-  is_enabled?: boolean
-  template_id?: string
-  endpoint?: string
-  auth_scheme?: string
-  credential?: string
-  config?: Record<string, unknown>
-  description?: string
-}
+export type ConnectorRecord = AccessResourceRecord
 
-export type ConnectorTemplateField = {
-  id: string
-  label: string
-  type: string
-  required?: boolean
-  secretTemplate?: string
-  placeholder?: string
-  helpUrl?: string
-  helpText?: string
-  default?: unknown
-}
+export type ConnectorTemplateField = ResourceTemplateField
 
-export type ConnectorTemplate = {
-  id: string
-  kind: string
-  title: string
-  vendor?: string
-  category?: string
-  description?: string
-  helpUrl?: string
-  defaultEndpoint?: string
-  defaultAuthScheme?: string
-  fields?: ConnectorTemplateField[]
-}
+export type ConnectorTemplate = ResourceTemplateBase<ConnectorTemplateField>
 
 export type Translate = (key: string, options?: Record<string, unknown>) => string
 
@@ -370,7 +348,7 @@ export function buildConnectorCreateHref(kind?: string, templateID?: string) {
 }
 
 export function formatSecretLabel(raw: Record<string, unknown>): string {
-  return String(raw.name ?? raw.id)
+  return formatResourceSecretLabel(raw)
 }
 
 export function humanizeTemplateId(templateId: string) {
@@ -419,14 +397,7 @@ function parseConnectorEndpoint(endpoint: string | undefined) {
 }
 
 export function resolveConnectorEnabled(value: unknown) {
-  if (typeof value === 'boolean') return value
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase()
-    if (['false', '0', 'no', 'off'].includes(normalized)) return false
-    if (['true', '1', 'yes', 'on'].includes(normalized)) return true
-  }
-  if (typeof value === 'number') return value !== 0
-  return true
+  return resolveEnabledFlag(value)
 }
 
 function inferEndpointScheme(
@@ -707,9 +678,9 @@ export async function buildConnectorPayload(
   payload: Record<string, unknown>,
   templatesById: Map<string, ConnectorTemplate>,
   t?: Translate
-) {
+) : Promise<ResourceSaveInput> {
   const body = { ...payload }
-  const templateId = String(body.template_id ?? '')
+  const templateId = normalizeTemplateID(body.template_id)
   const template = templatesById.get(templateId)
   if (!template) {
     throw new Error(
@@ -841,7 +812,7 @@ export function mapConnectorRow(
   }
 
   const advancedConfig = Object.fromEntries(
-    Object.entries(item.config ?? {}).filter(([key]) => !knownFieldIDs.has(key))
+    Object.entries(cloneConfig(item.config)).filter(([key]) => !knownFieldIDs.has(key))
   )
 
   return {

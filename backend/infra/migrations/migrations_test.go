@@ -1,16 +1,18 @@
 package migrations_test
 
 import (
+	"fmt"
 	"slices"
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/domain/deploy"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
+	"github.com/websoft9/appos/backend/domain/deploy"
 	"github.com/websoft9/appos/backend/domain/feeds"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	"github.com/websoft9/appos/backend/domain/secrets"
+	resourceschema "github.com/websoft9/appos/backend/infra/schema/resource"
 
 	// trigger init() registrations
 	_ "github.com/websoft9/appos/backend/infra/migrations"
@@ -630,6 +632,204 @@ func assertSelectFieldValues(t *testing.T, col *core.Collection, fieldName strin
 	}
 }
 
+func assertAuthenticatedReadOnlyRules(t *testing.T, col *core.Collection, collectionName string) {
+	t.Helper()
+	if col.ListRule == nil {
+		t.Errorf("%s.ListRule should allow authenticated users", collectionName)
+	}
+	if col.ViewRule == nil {
+		t.Errorf("%s.ViewRule should allow authenticated users", collectionName)
+	}
+	if col.CreateRule != nil {
+		t.Errorf("%s.CreateRule should be nil for superuser-only writes", collectionName)
+	}
+	if col.UpdateRule != nil {
+		t.Errorf("%s.UpdateRule should be nil for superuser-only writes", collectionName)
+	}
+	if col.DeleteRule != nil {
+		t.Errorf("%s.DeleteRule should be nil for superuser-only writes", collectionName)
+	}
+}
+
+type collectionShape struct {
+	FieldDescriptors []string
+	Indexes          []string
+	ListRule         string
+	ViewRule         string
+	CreateRule       string
+	UpdateRule       string
+	DeleteRule       string
+}
+
+func snapshotCollectionShape(col *core.Collection) collectionShape {
+	shape := collectionShape{
+		FieldDescriptors: make([]string, 0, len(col.Fields)),
+		Indexes:          append([]string(nil), col.Indexes...),
+		ListRule:         pointerValue(col.ListRule),
+		ViewRule:         pointerValue(col.ViewRule),
+		CreateRule:       pointerValue(col.CreateRule),
+		UpdateRule:       pointerValue(col.UpdateRule),
+		DeleteRule:       pointerValue(col.DeleteRule),
+	}
+	for _, field := range col.Fields {
+		shape.FieldDescriptors = append(shape.FieldDescriptors, fieldDescriptor(field))
+	}
+	return shape
+}
+
+func pointerValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func fieldDescriptor(field core.Field) string {
+	descriptor := fmt.Sprintf("%s:%s:%t", field.GetName(), field.Type(), fieldRequired(field))
+	if relation, ok := field.(*core.RelationField); ok {
+		descriptor += ":rel=" + relation.CollectionId
+	}
+	return descriptor
+}
+
+func fieldRequired(field core.Field) bool {
+	switch typed := field.(type) {
+	case *core.TextField:
+		return typed.Required
+	case *core.SelectField:
+		return typed.Required
+	case *core.NumberField:
+		return typed.Required
+	case *core.RelationField:
+		return typed.Required
+	default:
+		return false
+	}
+}
+
+func deleteCollectionIfPresent(t *testing.T, app core.App, collectionName string) {
+	t.Helper()
+	col, err := app.FindCollectionByNameOrId(collectionName)
+	if err != nil {
+		return
+	}
+	if err := app.Delete(col); err != nil {
+		t.Fatalf("delete collection %s: %v", collectionName, err)
+	}
+}
+
+func requireCollection(t *testing.T, app core.App, collectionName string) *core.Collection {
+	t.Helper()
+	col, err := app.FindCollectionByNameOrId(collectionName)
+	if err != nil {
+		t.Fatalf("find collection %s: %v", collectionName, err)
+	}
+	return col
+}
+
+func TestResourceSchemaEnsureFunctionsAreIdempotent(t *testing.T) {
+	app := newIsolatedMigrationsTestApp(t)
+
+	tests := []struct {
+		name           string
+		collectionName string
+		ensure         func(core.App) error
+	}{
+		{name: "provider accounts", collectionName: "provider_accounts", ensure: resourceschema.EnsureProviderAccountsCollection},
+		{name: "instances", collectionName: "instances", ensure: resourceschema.EnsureInstancesCollection},
+		{name: "connectors", collectionName: "connectors", ensure: resourceschema.EnsureConnectorsCollection},
+		{name: "ai providers", collectionName: "ai_providers", ensure: resourceschema.EnsureAIProvidersCollection},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.ensure(app); err != nil {
+				t.Fatalf("first ensure failed: %v", err)
+			}
+			before := snapshotCollectionShape(requireCollection(t, app, tt.collectionName))
+			if err := tt.ensure(app); err != nil {
+				t.Fatalf("second ensure failed: %v", err)
+			}
+			after := snapshotCollectionShape(requireCollection(t, app, tt.collectionName))
+			if !slices.Equal(before.FieldDescriptors, after.FieldDescriptors) {
+				t.Fatalf("field descriptors changed after repeated ensure for %s\nbefore=%v\nafter=%v", tt.collectionName, before.FieldDescriptors, after.FieldDescriptors)
+			}
+			if !slices.Equal(before.Indexes, after.Indexes) {
+				t.Fatalf("indexes changed after repeated ensure for %s\nbefore=%v\nafter=%v", tt.collectionName, before.Indexes, after.Indexes)
+			}
+			if before.ListRule != after.ListRule || before.ViewRule != after.ViewRule || before.CreateRule != after.CreateRule || before.UpdateRule != after.UpdateRule || before.DeleteRule != after.DeleteRule {
+				t.Fatalf("rules changed after repeated ensure for %s", tt.collectionName)
+			}
+		})
+	}
+}
+
+func TestEnsureProviderAccountDependentsOnlyBuildsDependentCollections(t *testing.T) {
+	app := newIsolatedMigrationsTestApp(t)
+
+	deleteCollectionIfPresent(t, app, "instances")
+	deleteCollectionIfPresent(t, app, "connectors")
+	deleteCollectionIfPresent(t, app, "ai_providers")
+
+	if err := resourceschema.EnsureProviderAccountDependents(app); err != nil {
+		t.Fatalf("ensure provider account dependents: %v", err)
+	}
+
+	requireCollection(t, app, "instances")
+	requireCollection(t, app, "connectors")
+	if _, err := app.FindCollectionByNameOrId("ai_providers"); err == nil {
+		t.Fatal("EnsureProviderAccountDependents should not create ai_providers")
+	}
+
+	instancesCol := requireCollection(t, app, "instances")
+	connectorsCol := requireCollection(t, app, "connectors")
+	if instancesCol.Fields.GetByName("provider_account") == nil {
+		t.Fatal("instances.provider_account relation should exist after dependent ensure")
+	}
+	if connectorsCol.Fields.GetByName("provider_account") == nil {
+		t.Fatal("connectors.provider_account relation should exist after dependent ensure")
+	}
+}
+
+func TestEnsureAllCollectionsRebuildsAndStaysStable(t *testing.T) {
+	app := newIsolatedMigrationsTestApp(t)
+
+	for _, collectionName := range []string{"ai_providers", "connectors", "instances", "provider_accounts"} {
+		deleteCollectionIfPresent(t, app, collectionName)
+	}
+
+	if err := resourceschema.EnsureAllCollections(app); err != nil {
+		t.Fatalf("ensure all collections: %v", err)
+	}
+
+	providerAccountsCol := requireCollection(t, app, "provider_accounts")
+	instancesCol := requireCollection(t, app, "instances")
+	connectorsCol := requireCollection(t, app, "connectors")
+	aiProvidersCol := requireCollection(t, app, "ai_providers")
+
+	if providerAccountsCol.Fields.GetByName("identifier") == nil {
+		t.Fatal("provider_accounts.identifier should exist after EnsureAllCollections")
+	}
+	if instancesCol.Fields.GetByName("provider_account") == nil {
+		t.Fatal("instances.provider_account should exist after EnsureAllCollections")
+	}
+	if connectorsCol.Fields.GetByName("provider_account") == nil {
+		t.Fatal("connectors.provider_account should exist after EnsureAllCollections")
+	}
+	if aiProvidersCol.Fields.GetByName("provider_account") == nil {
+		t.Fatal("ai_providers.provider_account should exist after EnsureAllCollections")
+	}
+
+	before := snapshotCollectionShape(aiProvidersCol)
+	if err := resourceschema.EnsureAllCollections(app); err != nil {
+		t.Fatalf("repeat ensure all collections: %v", err)
+	}
+	after := snapshotCollectionShape(requireCollection(t, app, "ai_providers"))
+	if !slices.Equal(before.FieldDescriptors, after.FieldDescriptors) || !slices.Equal(before.Indexes, after.Indexes) {
+		t.Fatal("EnsureAllCollections should be idempotent for ai_providers shape")
+	}
+}
+
 // ═══════════════════════════════════════════════════════════
 // Apps collection with resource bindings
 // ═══════════════════════════════════════════════════════════
@@ -963,6 +1163,33 @@ func TestConnectorsCollectionHasProviderAccountRelation(t *testing.T) {
 	assertSelectFieldValues(t, col, "kind", connectors.AllowedKinds())
 }
 
+func TestConnectorsCollectionSchemaBaseline(t *testing.T) {
+	app := newMigrationsTestApp(t)
+
+	col, err := app.FindCollectionByNameOrId("connectors")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertFieldExists(t, col, "name", core.FieldTypeText, true)
+	assertFieldExists(t, col, "kind", core.FieldTypeSelect, true)
+	assertFieldExists(t, col, "is_enabled", core.FieldTypeBool, false)
+	assertFieldExists(t, col, "template_id", core.FieldTypeText, false)
+	assertFieldExists(t, col, "endpoint", core.FieldTypeText, false)
+	assertFieldExists(t, col, "auth_scheme", core.FieldTypeSelect, false)
+	assertFieldExists(t, col, "provider_account", core.FieldTypeRelation, false)
+	assertFieldExists(t, col, "credential", core.FieldTypeRelation, false)
+	assertFieldExists(t, col, "config", core.FieldTypeJSON, false)
+	assertFieldExists(t, col, "description", core.FieldTypeText, false)
+	assertFieldMissing(t, col, "is_default")
+	assertRelationTarget(t, app, col, "credential", "secrets")
+	assertSelectFieldValues(t, col, "auth_scheme", []string{"none", "api_key", "bearer", "basic"})
+	assertAuthenticatedReadOnlyRules(t, col, "connectors")
+	if len(col.Indexes) < 2 {
+		t.Fatal("connectors should define name and kind/template indexes")
+	}
+}
+
 func TestAIProvidersCollectionExistsAfterMigration(t *testing.T) {
 	app := newMigrationsTestApp(t)
 
@@ -979,6 +1206,47 @@ func TestAIProvidersCollectionExistsAfterMigration(t *testing.T) {
 	assertFieldExists(t, col, "is_enabled", core.FieldTypeBool, false)
 	assertRelationTarget(t, app, col, "provider_account", "provider_accounts")
 	assertRelationTarget(t, app, col, "credential", "secrets")
+}
+
+func TestAIProvidersCollectionSchemaBaseline(t *testing.T) {
+	app := newMigrationsTestApp(t)
+
+	col, err := app.FindCollectionByNameOrId("ai_providers")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertFieldExists(t, col, "name", core.FieldTypeText, true)
+	assertFieldExists(t, col, "kind", core.FieldTypeSelect, true)
+	assertFieldExists(t, col, "is_enabled", core.FieldTypeBool, false)
+	assertFieldExists(t, col, "is_default", core.FieldTypeBool, false)
+	assertFieldExists(t, col, "template_id", core.FieldTypeText, false)
+	assertFieldExists(t, col, "endpoint", core.FieldTypeText, false)
+	assertFieldExists(t, col, "auth_scheme", core.FieldTypeSelect, false)
+	assertFieldExists(t, col, "provider_account", core.FieldTypeRelation, false)
+	assertFieldExists(t, col, "credential", core.FieldTypeRelation, false)
+	assertFieldExists(t, col, "config", core.FieldTypeJSON, false)
+	assertFieldExists(t, col, "description", core.FieldTypeText, false)
+	assertSelectFieldValues(t, col, "kind", []string{"llm"})
+	assertSelectFieldValues(t, col, "auth_scheme", []string{"none", "api_key", "bearer", "basic"})
+	assertRelationTarget(t, app, col, "provider_account", "provider_accounts")
+	assertRelationTarget(t, app, col, "credential", "secrets")
+	assertAuthenticatedReadOnlyRules(t, col, "ai_providers")
+	if len(col.Indexes) < 2 {
+		t.Fatal("ai_providers should define name and kind/template indexes")
+	}
+}
+
+func TestResourceCollectionsUseAuthenticatedReadAndSuperuserWriteRules(t *testing.T) {
+	app := newMigrationsTestApp(t)
+
+	for _, collectionName := range []string{"instances", "provider_accounts", "connectors", "ai_providers"} {
+		col, err := app.FindCollectionByNameOrId(collectionName)
+		if err != nil {
+			t.Fatalf("collection %q not found: %v", collectionName, err)
+		}
+		assertAuthenticatedReadOnlyRules(t, col, collectionName)
+	}
 }
 
 // ═══════════════════════════════════════════════════════════

@@ -1816,11 +1816,10 @@ export function ServiceInstancesPage() {
       const instanceId = String(item.id ?? '')
       if (!instanceId) return
       const current = await pb.send<InstanceRecord>(`/api/instances/${instanceId}`, { method: 'GET' })
+      const currentFormData = mapInstanceRow(current, templatesById, new Map(), t)
       const body = await buildInstancePayload(
         {
-          ...current,
-          credential_use_secret: Boolean(String(current.credential ?? '').trim()),
-          password_value: '',
+          ...currentFormData,
           is_enabled: !resolveInstanceEnabled(current.is_enabled),
         },
         templatesById,

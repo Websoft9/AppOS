@@ -64,7 +64,7 @@ func runtimeExecutorApp(executor Executor) core.App {
 func loadRuntimeHealthCheckTimeout(app core.App) time.Duration {
 	group, _ := sysconfig.GetGroup(app, "deploy", "runtime", settingsschema.DefaultGroup("deploy", "runtime"))
 	seconds := sysconfig.Int(group, "healthCheckTimeoutSeconds", int((2*time.Minute)/time.Second))
-	if seconds < 1 { 
+	if seconds < 1 {
 		seconds = 1
 	}
 	return time.Duration(seconds) * time.Second
@@ -76,7 +76,7 @@ func loadRuntimeImagePullTimeout(app core.App) time.Duration {
 	}
 	group, _ := sysconfig.GetGroup(app, "deploy", "runtime", settingsschema.DefaultGroup("deploy", "runtime"))
 	seconds := sysconfig.Int(group, "imagePullTimeoutSeconds", int(runtimeImagePullTimeout/time.Second))
-	if seconds < 1 { 
+	if seconds < 1 {
 		seconds = 1
 	}
 	return time.Duration(seconds) * time.Second
@@ -489,7 +489,7 @@ type publicationTraefikService struct {
 }
 
 type publicationTraefikLoadBalancer struct {
-	PassHostHeader bool                             `yaml:"passHostHeader"`
+	PassHostHeader bool                            `yaml:"passHostHeader"`
 	Servers        []publicationTraefikBackendHost `yaml:"servers"`
 }
 

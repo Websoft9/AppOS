@@ -72,13 +72,15 @@ func (r *retryTestRepo) UpdateSession(context.Context, string, string, *string, 
 	return nil, nil
 }
 func (r *retryTestRepo) DeleteSession(context.Context, string, string) error { return nil }
-func (r *retryTestRepo) ListMessages(context.Context, string) ([]*Message, error) { return r.messages, nil }
+func (r *retryTestRepo) ListMessages(context.Context, string) ([]*Message, error) {
+	return r.messages, nil
+}
 func (r *retryTestRepo) AppendMessage(_ context.Context, sessionID, role, content, status string) (*Message, error) {
 	message := &Message{ID: role + "-msg", SessionID: sessionID, Role: role, Content: content, Status: status}
 	r.messages = append(r.messages, message)
 	return message, nil
 }
-func (r *retryTestRepo) TouchSession(context.Context, string, string) error { return nil }
+func (r *retryTestRepo) TouchSession(context.Context, string, string) error       { return nil }
 func (r *retryTestRepo) GetPromptContent(context.Context, string) (string, error) { return "", nil }
 
 type retryTestResolver struct {

@@ -168,9 +168,9 @@ func (e runtimeLocalImageExecutor) DockerClient() (*docker.Client, error) {
 }
 
 type mirrorAwareRuntimeDockerExecutor struct {
-	commands   []string
-	pullErrSeq map[string][]error
-	available  map[string]bool
+	commands        []string
+	pullErrSeq      map[string][]error
+	available       map[string]bool
 	upstreamPullErr error
 }
 

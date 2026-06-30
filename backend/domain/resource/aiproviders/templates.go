@@ -4,13 +4,11 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"path"
-	"sort"
 	"strings"
 	"sync"
 
-	"github.com/websoft9/appos/backend/domain/resource/connectors"
+	resourceshared "github.com/websoft9/appos/backend/domain/resource/shared"
 )
 
 //go:embed all:templates
@@ -22,118 +20,91 @@ var (
 	templates     []Template
 )
 
-func Templates() []Template {
-	ensureTemplatesLoaded()
+func Templates() ([]Template, error) {
+	if err := ensureTemplatesLoaded(); err != nil {
+		return nil, err
+	}
 	result := make([]Template, len(templates))
 	copy(result, templates)
-	return result
+	return result, nil
 }
 
-func FindTemplate(id string) (Template, bool) {
-	ensureTemplatesLoaded()
+func FindTemplate(id string) (Template, bool, error) {
+	if err := ensureTemplatesLoaded(); err != nil {
+		return Template{}, false, err
+	}
 	for _, template := range templates {
 		if template.ID == id {
-			return template, true
+			return template, true, nil
 		}
 	}
-	return Template{}, false
+	return Template{}, false, nil
 }
 
-func ensureTemplatesLoaded() {
+func ensureTemplatesLoaded() error {
 	templatesOnce.Do(func() {
 		templatesErr = loadTemplates()
-		if templatesErr != nil {
-			panic(templatesErr)
-		}
 	})
+	return templatesErr
 }
 
 func loadTemplates() error {
-	templateMap := make(map[string]Template)
-
-	entries, err := fs.ReadDir(embeddedTemplateFiles, "templates")
-	if err != nil {
-		return fmt.Errorf("read AI provider templates: %w", err)
-	}
-
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		kind := entry.Name()
-		base, err := loadKindBaseTemplate(kind)
-		if err != nil {
-			return err
-		}
-
-		kindEntries, err := fs.ReadDir(embeddedTemplateFiles, path.Join("templates", kind))
-		if err != nil {
-			return fmt.Errorf("read AI provider kind templates %s: %w", kind, err)
-		}
-
-		for _, kindEntry := range kindEntries {
-			if kindEntry.IsDir() || !strings.HasSuffix(kindEntry.Name(), ".json") || kindEntry.Name() == "_template.json" {
-				continue
-			}
-
-			filePath := path.Join("templates", kind, kindEntry.Name())
-			overlay, err := readTemplateFile(filePath)
+	loaded, err := resourceshared.LoadTemplates(
+		embeddedTemplateFiles,
+		func(filePath string) (templateFile, error) {
+			file, err := readTemplateFile(filePath)
 			if err != nil {
-				return fmt.Errorf("read AI provider template %s: %w", filePath, err)
+				return templateFile{}, fmt.Errorf("read AI provider template %s: %w", filePath, err)
 			}
-
+			return file, nil
+		},
+		loadKindBaseTemplate,
+		func(base Template, overlay templateFile, filePath string) (Template, error) {
 			template, err := applyTemplateOverlay(base, overlay)
 			if err != nil {
-				return fmt.Errorf("merge AI provider template %s: %w", filePath, err)
+				return Template{}, fmt.Errorf("merge AI provider template %s: %w", filePath, err)
 			}
 			template = applyImplicitTemplateDefaults(template)
 			if err := validateTemplate(template); err != nil {
-				return fmt.Errorf("invalid AI provider template %s: %w", filePath, err)
+				return Template{}, fmt.Errorf("invalid AI provider template %s: %w", filePath, err)
 			}
-			templateMap[template.ID] = template
-		}
+			return template, nil
+		},
+		func(template Template) string { return template.ID },
+	)
+	if err != nil {
+		return fmt.Errorf("read AI provider templates: %w", err)
 	}
-
-	keys := make([]string, 0, len(templateMap))
-	for key := range templateMap {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	templates = make([]Template, 0, len(keys))
-	for _, key := range keys {
-		templates = append(templates, templateMap[key])
-	}
+	templates = loaded
 	return nil
 }
 
 type templateFile struct {
-	ID                   *string             `json:"id,omitempty"`
-	Kind                 *string             `json:"kind,omitempty"`
-	Title                *string             `json:"title,omitempty"`
-	Vendor               *string             `json:"vendor,omitempty"`
-	Category             *string             `json:"category,omitempty"`
-	UIGroup              *string             `json:"uiGroup,omitempty"`
-	HostingMode          *string             `json:"hostingMode,omitempty"`
-	ServiceMode          *string             `json:"serviceMode,omitempty"`
-	EndpointMode         *string             `json:"endpointMode,omitempty"`
-	ProviderMode         *string             `json:"providerMode,omitempty"`
-	Description          *string             `json:"description,omitempty"`
-	HelpURL              *string             `json:"helpUrl,omitempty"`
-	ContextSize          *int                `json:"contextSize,omitempty"`
-	ModelsEndpoint       *string             `json:"modelsEndpoint,omitempty"`
-	DefaultEndpoint      *string             `json:"defaultEndpoint,omitempty"`
-	DefaultAuth          *string             `json:"defaultAuthScheme,omitempty"`
-	DefaultEnabledModels []string            `json:"defaultEnabledModels,omitempty"`
-	Capabilities         []string            `json:"capabilities,omitempty"`
-	Aliases              []string            `json:"aliases,omitempty"`
-	SupportsClosedModels *bool               `json:"supportsClosedModels,omitempty"`
-	SupportsMultiVendorModels *bool          `json:"supportsMultiVendorModels,omitempty"`
-	Protocols            []templateProtocolFile `json:"protocols,omitempty"`
-	HideInChooser        *bool               `json:"hideInChooser,omitempty"`
-	SkipTLSCertVerify    *bool               `json:"skipTLSCertVerify,omitempty"`
-	Fields               []templateFieldFile `json:"fields,omitempty"`
+	ID                        *string                `json:"id,omitempty"`
+	Kind                      *string                `json:"kind,omitempty"`
+	Title                     *string                `json:"title,omitempty"`
+	Vendor                    *string                `json:"vendor,omitempty"`
+	Category                  *string                `json:"category,omitempty"`
+	UIGroup                   *string                `json:"uiGroup,omitempty"`
+	HostingMode               *string                `json:"hostingMode,omitempty"`
+	ServiceMode               *string                `json:"serviceMode,omitempty"`
+	EndpointMode              *string                `json:"endpointMode,omitempty"`
+	ProviderMode              *string                `json:"providerMode,omitempty"`
+	Description               *string                `json:"description,omitempty"`
+	HelpURL                   *string                `json:"helpUrl,omitempty"`
+	ContextSize               *int                   `json:"contextSize,omitempty"`
+	ModelsEndpoint            *string                `json:"modelsEndpoint,omitempty"`
+	DefaultEndpoint           *string                `json:"defaultEndpoint,omitempty"`
+	DefaultAuth               *string                `json:"defaultAuthScheme,omitempty"`
+	DefaultEnabledModels      []string               `json:"defaultEnabledModels,omitempty"`
+	Capabilities              []string               `json:"capabilities,omitempty"`
+	Aliases                   []string               `json:"aliases,omitempty"`
+	SupportsClosedModels      *bool                  `json:"supportsClosedModels,omitempty"`
+	SupportsMultiVendorModels *bool                  `json:"supportsMultiVendorModels,omitempty"`
+	Protocols                 []templateProtocolFile `json:"protocols,omitempty"`
+	HideInChooser             *bool                  `json:"hideInChooser,omitempty"`
+	SkipTLSCertVerify         *bool                  `json:"skipTLSCertVerify,omitempty"`
+	Fields                    []templateFieldFile    `json:"fields,omitempty"`
 }
 
 type templateProtocolFile struct {
@@ -190,7 +161,7 @@ func applyTemplateOverlay(base Template, file templateFile) (Template, error) {
 	result := base
 
 	if file.ID != nil {
-		result.ID = connectors.NormalizeTemplateID(*file.ID)
+		result.ID = resourceshared.NormalizeTemplateID(*file.ID)
 	}
 	if file.Kind != nil {
 		result.Kind = strings.TrimSpace(*file.Kind)

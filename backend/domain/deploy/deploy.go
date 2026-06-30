@@ -29,12 +29,12 @@ const (
 	ExecutionModeBuild   = "build"
 	MaxExecutionLogBytes = 64 * 1024
 
-	StepValidateCompose = "validate_compose"
+	StepValidateCompose  = "validate_compose"
 	StepPrepareWorkspace = "prepare_workspace"
-	StepPrepareImages = "prepare_images"
-	StepComposeUp = "compose_up"
-	StepHealthCheck = "health_check"
-	StepOrphanRecovery = "orphan_recovery"
+	StepPrepareImages    = "prepare_images"
+	StepComposeUp        = "compose_up"
+	StepHealthCheck      = "health_check"
+	StepOrphanRecovery   = "orphan_recovery"
 )
 
 type StepStatus string

@@ -232,8 +232,15 @@ func runAIProviderEnabledModelsPrune(app *pocketbase.PocketBase) error {
 			return secrets.FirstStringFromPayload(resolved.Payload, "apiKey", "api_key", "token", "value"), nil
 		},
 		func(ctx context.Context, provider *aiproviders.AIProvider, apiKey string) (aiproviders.FetchModelsResponse, error) {
-			client := newAIProviderPruneHTTPClient(app, provider)
-			return aiproviders.FetchModels(ctx, aiproviders.ActiveEndpoint(provider), apiKey, strings.TrimSpace(provider.TemplateID()), aiproviders.ProviderDefaultProtocol(provider), &client)
+			client, clientErr := newAIProviderPruneHTTPClient(app, provider)
+			if clientErr != nil {
+				return aiproviders.FetchModelsResponse{}, clientErr
+			}
+			endpoint, protocol, protocolErr := aiproviders.ResolveActiveEndpointAndProtocol(provider)
+			if protocolErr != nil {
+				return aiproviders.FetchModelsResponse{}, protocolErr
+			}
+			return aiproviders.FetchModels(ctx, endpoint, apiKey, strings.TrimSpace(provider.TemplateID()), protocol, &client)
 		},
 	)
 	app.Logger().Info(
@@ -245,14 +252,17 @@ func runAIProviderEnabledModelsPrune(app *pocketbase.PocketBase) error {
 	return err
 }
 
-func newAIProviderPruneHTTPClient(app *pocketbase.PocketBase, provider *aiproviders.AIProvider) http.Client {
-	tpl, _ := aiproviders.FindTemplate(strings.TrimSpace(provider.TemplateID()))
+func newAIProviderPruneHTTPClient(app *pocketbase.PocketBase, provider *aiproviders.AIProvider) (http.Client, error) {
+	tpl, _, err := aiproviders.FindTemplate(strings.TrimSpace(provider.TemplateID()))
+	if err != nil {
+		return http.Client{}, err
+	}
 	plan, err := newAIProviderPruneHTTPClientPlan(app, "http.ai", 8*time.Second, tpl.SkipTLSCertVerify)
 	if err != nil {
 		if app != nil {
 			app.Logger().Warn("ai provider proxy resolution failed", "consumer", "http.ai", "error", err)
 		}
-		return egress.NewDirectHTTPClient(8*time.Second, tpl.SkipTLSCertVerify)
+		return egress.NewDirectHTTPClient(8*time.Second, tpl.SkipTLSCertVerify), nil
 	}
 	for _, warning := range plan.Decision.Warnings {
 		if strings.TrimSpace(warning.Message) == "" {
@@ -260,5 +270,5 @@ func newAIProviderPruneHTTPClient(app *pocketbase.PocketBase, provider *aiprovid
 		}
 		app.Logger().Warn("ai provider proxy warning", "consumer", "http.ai", "code", string(warning.Code), "message", warning.Message)
 	}
-	return plan.Client
+	return plan.Client, nil
 }

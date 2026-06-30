@@ -47,9 +47,9 @@ type appRuntimeContext struct {
 }
 
 type appRuntimeServerState struct {
-	RuntimeIndex  map[string]string
-	RuntimeReason string
-	ServerName    string
+	RuntimeIndex     map[string]string
+	RuntimeReason    string
+	ServerName       string
 	ConnectionStatus string
 	ConnectionReason string
 }
@@ -660,31 +660,31 @@ func appInstanceResponse(app core.App, record *core.Record, serverState appRunti
 	}
 
 	result := map[string]any{
-		"id":                      record.Id,
-		"iac_path":                appInstanceIACPath(record.Id, name),
-		"server_id":               serverID,
-		"server_name":             serverState.ServerName,
-		"name":                    name,
-		"project_dir":             runtimeContext.ProjectDir,
-		"trigger":                 runtimeContext.Trigger,
-		"channel":                 runtimeContext.Channel,
-		"execution_mode":          runtimeContext.ExecutionMode,
+		"id":                       record.Id,
+		"iac_path":                 appInstanceIACPath(record.Id, name),
+		"server_id":                serverID,
+		"server_name":              serverState.ServerName,
+		"name":                     name,
+		"project_dir":              runtimeContext.ProjectDir,
+		"trigger":                  runtimeContext.Trigger,
+		"channel":                  runtimeContext.Channel,
+		"execution_mode":           runtimeContext.ExecutionMode,
 		"server_connection_status": normalizeServerConnectionStatus(serverState.ConnectionStatus),
-		"status":                  appInstallStatus(record),
-		"instance_state":          string(effective.InstanceState),
-		"runtime_status":          runtimeStatus,
-		"health_summary":          string(effectiveProjection.HealthSummary),
-		"publication_summary":     string(effectiveProjection.PublicationSummary),
-		"state_reason":            effectiveProjection.StateReason,
-		"access_username":         record.GetString("access_username"),
-		"access_secret_hint":      record.GetString("access_secret_hint"),
-		"access_retrieval_method": record.GetString("access_retrieval_method"),
-		"access_notes":            record.GetString("access_notes"),
-		"access_endpoints":        appAccessEndpoints(app, record),
-		"last_operation":          record.GetString("last_operation"),
-		"current_pipeline":        currentPipeline,
-		"created":                 record.GetDateTime("created").String(),
-		"updated":                 record.GetDateTime("updated").String(),
+		"status":                   appInstallStatus(record),
+		"instance_state":           string(effective.InstanceState),
+		"runtime_status":           runtimeStatus,
+		"health_summary":           string(effectiveProjection.HealthSummary),
+		"publication_summary":      string(effectiveProjection.PublicationSummary),
+		"state_reason":             effectiveProjection.StateReason,
+		"access_username":          record.GetString("access_username"),
+		"access_secret_hint":       record.GetString("access_secret_hint"),
+		"access_retrieval_method":  record.GetString("access_retrieval_method"),
+		"access_notes":             record.GetString("access_notes"),
+		"access_endpoints":         appAccessEndpoints(app, record),
+		"last_operation":           record.GetString("last_operation"),
+		"current_pipeline":         currentPipeline,
+		"created":                  record.GetDateTime("created").String(),
+		"updated":                  record.GetDateTime("updated").String(),
 	}
 	if catalogAppKey := appInstanceCatalogAppKey(app, record); catalogAppKey != "" {
 		result["catalog_app_key"] = catalogAppKey

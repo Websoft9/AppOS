@@ -130,7 +130,10 @@ func handleConnectorReachability(e *core.RequestEvent) error {
 // @Failure 401 {object} map[string]any
 // @Router /api/connectors/templates [get]
 func handleConnectorTemplateList(e *core.RequestEvent) error {
-	templates := connectors.Templates()
+	templates, err := connectors.TemplatesWithError()
+	if err != nil {
+		return e.InternalServerError("failed to load connector templates", err)
+	}
 	return e.JSON(http.StatusOK, templates)
 }
 
@@ -146,7 +149,10 @@ func handleConnectorTemplateList(e *core.RequestEvent) error {
 // @Failure 404 {object} map[string]any
 // @Router /api/connectors/templates/{id} [get]
 func handleConnectorTemplateGet(e *core.RequestEvent) error {
-	template, ok := connectors.FindTemplate(e.Request.PathValue("id"))
+	template, ok, err := connectors.FindTemplate(e.Request.PathValue("id"))
+	if err != nil {
+		return e.InternalServerError("failed to load connector template", err)
+	}
 	if !ok {
 		return e.NotFoundError("connector template not found", nil)
 	}

@@ -130,7 +130,7 @@ func TestResolveObservedEvidence(t *testing.T) {
 			wantPublication: model.PublicationDegraded,
 		},
 		{
-			name: "monitor summary fills missing exposure evidence",
+			name:                    "monitor summary fills missing exposure evidence",
 			primaryPublicationState: "",
 			primaryHealthState:      "",
 			summary: map[string]any{

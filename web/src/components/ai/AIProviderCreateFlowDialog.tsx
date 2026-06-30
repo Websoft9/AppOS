@@ -62,6 +62,7 @@ import {
   productTitle,
   resolveCurrentProtocolEndpoint,
   resolveTemplateEndpoint,
+  shouldAssignDefaultReplica,
   templateChooserSearchText,
   shouldPromoteAuthSchemeField,
   shouldPromoteEndpointField,
@@ -315,6 +316,7 @@ export function AIProviderCreateFlowDialog({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [existingProviderNames, setExistingProviderNames] = useState<string[]>([])
+  const [existingProviders, setExistingProviders] = useState<AIProviderRecord[]>([])
   const [selectedModels, setSelectedModels] = useState<string[]>([])
   const [lastFetchSucceeded, setLastFetchSucceeded] = useState(false)
   const [modelLoadConfirmOpen, setModelLoadConfirmOpen] = useState(false)
@@ -336,6 +338,7 @@ export function AIProviderCreateFlowDialog({
       setFormOpen(false)
       setSelectionQuery('')
       setFormData({})
+      setExistingProviders([])
       setRelationOptions({})
       setError('')
       return
@@ -357,18 +360,21 @@ export function AIProviderCreateFlowDialog({
     void pb
       .send<AIProviderRecord[]>('/api/ai-providers', { method: 'GET' })
       .then(items => {
-        const names = Array.isArray(items)
-          ? items
+        const normalizedItems = Array.isArray(items) ? items : []
+        const names = normalizedItems
               .map(item =>
                 String(item.name ?? '')
                   .trim()
                   .toLowerCase()
               )
               .filter(Boolean)
-          : []
+        setExistingProviders(normalizedItems)
         setExistingProviderNames(names)
       })
-      .catch(() => setExistingProviderNames([]))
+      .catch(() => {
+        setExistingProviders([])
+        setExistingProviderNames([])
+      })
   }, [open])
 
   const templatesById = useMemo(
@@ -1010,7 +1016,10 @@ export function AIProviderCreateFlowDialog({
       )
       const created = await pb.send<AIProviderRecord>('/api/ai-providers', {
         method: 'POST',
-        body: { ...body, is_default: true },
+        body: {
+          ...body,
+          is_default: shouldAssignDefaultReplica(body.template_id, existingProviders),
+        },
       })
       onCreated(created)
       setFormOpen(false)

@@ -119,11 +119,18 @@ type aiProviderModelCandidate struct {
 }
 
 func handleAIProviderTemplateList(e *core.RequestEvent) error {
-	return e.JSON(http.StatusOK, aiproviders.Templates())
+	templates, err := aiproviders.Templates()
+	if err != nil {
+		return e.InternalServerError("failed to load AI provider templates", err)
+	}
+	return e.JSON(http.StatusOK, templates)
 }
 
 func handleAIProviderTemplateGet(e *core.RequestEvent) error {
-	template, ok := aiproviders.FindTemplate(e.Request.PathValue("id"))
+	template, ok, err := aiproviders.FindTemplate(e.Request.PathValue("id"))
+	if err != nil {
+		return e.InternalServerError("failed to load AI provider template", err)
+	}
 	if !ok {
 		return e.NotFoundError("AI provider template not found", nil)
 	}
@@ -363,7 +370,11 @@ func handleAIProviderModels(e *core.RequestEvent) error {
 	if resolveErr != nil {
 		return e.InternalServerError("failed to resolve provider credential", resolveErr)
 	}
-	result, fetchErr := fetchProviderModels(e.App, e.Request.Context(), aiproviders.ActiveEndpoint(item), apiKey, strings.TrimSpace(item.AuthScheme()), strings.TrimSpace(item.TemplateID()), aiproviders.ProviderDefaultProtocol(item))
+	endpoint, protocol, protocolErr := aiproviders.ResolveActiveEndpointAndProtocol(item)
+	if protocolErr != nil {
+		return e.InternalServerError("failed to resolve AI provider protocol", protocolErr)
+	}
+	result, fetchErr := fetchProviderModels(e.App, e.Request.Context(), endpoint, apiKey, strings.TrimSpace(item.AuthScheme()), strings.TrimSpace(item.TemplateID()), protocol)
 	if fetchErr != nil {
 		return e.BadRequestError(describeFetchModelsError(fetchErr), fetchErr)
 	}
@@ -448,7 +459,14 @@ func handleAIProviderReachability(e *core.RequestEvent) error {
 				results[index] = status
 				return
 			}
-			_, fetchErr := fetchProviderModels(e.App, e.Request.Context(), aiproviders.ActiveEndpoint(item), apiKey, strings.TrimSpace(item.AuthScheme()), strings.TrimSpace(item.TemplateID()), aiproviders.ProviderDefaultProtocol(item))
+			endpoint, protocol, protocolErr := aiproviders.ResolveActiveEndpointAndProtocol(item)
+			if protocolErr != nil {
+				status.Status = "unreachable"
+				status.Error = protocolErr.Error()
+				results[index] = status
+				return
+			}
+			_, fetchErr := fetchProviderModels(e.App, e.Request.Context(), endpoint, apiKey, strings.TrimSpace(item.AuthScheme()), strings.TrimSpace(item.TemplateID()), protocol)
 			if fetchErr != nil {
 				status.Status = "unreachable"
 				status.Error = fetchErr.Error()
@@ -519,7 +537,10 @@ func handleAIProviderChatModels(e *core.RequestEvent) error {
 		e.App.Logger().Info("chat-models: provider model config", "id", item.ID(), "enabled_models", enabledModels, "defaultModel", fallback)
 	}
 	defaults := defaultProviderMap(e.App)
-	chatModels := buildAIProviderChatModels(filtered, defaults)
+	chatModels, buildErr := buildAIProviderChatModels(filtered, defaults)
+	if buildErr != nil {
+		return e.InternalServerError("failed to build AI provider chat models", buildErr)
+	}
 	e.App.Logger().Info("chat-models: final result", "count", len(chatModels))
 	return e.JSON(http.StatusOK, aiProviderChatModelsResponse{Items: chatModels})
 }
@@ -537,7 +558,11 @@ func fetchProviderModels(app core.App, ctx context.Context, endpoint string, api
 	var tpl aiproviders.Template
 	var hasTemplate bool
 	if templateID != "" {
-		tpl, hasTemplate = aiproviders.FindTemplate(templateID)
+		var findErr error
+		tpl, hasTemplate, findErr = aiproviders.FindTemplate(templateID)
+		if findErr != nil {
+			return fetchModelsResponse{}, findErr
+		}
 		if protocolTpl, ok := findTemplateProtocol(tpl, protocol); ok && strings.TrimSpace(protocolTpl.ModelsEndpoint) != "" {
 			modelsURL = resolveModelsEndpoint(endpoint, protocolTpl.ModelsEndpoint)
 		} else if hasTemplate && tpl.ModelsEndpoint != "" {
@@ -1009,10 +1034,14 @@ func defaultProviderMap(app core.App) map[string]string {
 	return result
 }
 
-func buildAIProviderChatModels(items []*aiproviders.AIProvider, defaults map[string]string) []aiProviderChatModelItem {
+func buildAIProviderChatModels(items []*aiproviders.AIProvider, defaults map[string]string) ([]aiProviderChatModelItem, error) {
 	byKey := map[string][]aiProviderModelCandidate{}
 	for _, item := range items {
-		endpoint := strings.TrimSpace(item.Endpoint())
+		endpoint, _, err := aiproviders.ResolveActiveEndpointAndProtocol(item)
+		if err != nil {
+			return nil, err
+		}
+		endpoint = strings.TrimSpace(endpoint)
 		if endpoint == "" {
 			continue
 		}
@@ -1026,7 +1055,10 @@ func buildAIProviderChatModels(items []*aiproviders.AIProvider, defaults map[str
 		if len(modelIDs) == 0 {
 			continue
 		}
-		template, _ := aiproviders.FindTemplate(item.TemplateID())
+		template, _, err := aiproviders.FindTemplate(item.TemplateID())
+		if err != nil {
+			return nil, err
+		}
 		for _, modelID := range modelIDs {
 			key := endpoint + "\n" + modelID
 			byKey[key] = append(byKey[key], aiProviderModelCandidate{provider: item, template: template, modelID: modelID})
@@ -1074,7 +1106,7 @@ func buildAIProviderChatModels(items []*aiproviders.AIProvider, defaults map[str
 			MaxTokens:    resolvedMaxTokens,
 		})
 	}
-	return result
+	return result, nil
 }
 
 func firstConfigInt(config map[string]any, keys ...string) *int {

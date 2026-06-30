@@ -6,7 +6,7 @@ func TestNormalizeProtocolConfigSyncsDefaultEndpoint(t *testing.T) {
 	template := Template{
 		ID:              "generic-llm",
 		DefaultEndpoint: "",
-		Protocols: []TemplateProtocol{{ID: ProtocolOpenAI, Label: "OpenAI", Default: true}, {ID: ProtocolAnthropic, Label: "Anthropic"}},
+		Protocols:       []TemplateProtocol{{ID: ProtocolOpenAI, Label: "OpenAI", Default: true}, {ID: ProtocolAnthropic, Label: "Anthropic"}},
 	}
 	endpoint, config := NormalizeProtocolConfig(template, "https://api.example.com/v1", map[string]any{})
 	if endpoint != "https://api.example.com/v1" {

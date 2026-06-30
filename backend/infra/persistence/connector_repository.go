@@ -90,10 +90,6 @@ func (r *pocketBaseConnectorRepository) ListByKind(kind string) ([]*domainconnec
 	return items, nil
 }
 
-func (r *pocketBaseConnectorRepository) ClearDefaultsByKind(kind string, excludeID string) error {
-	return nil
-}
-
 func (r *pocketBaseConnectorRepository) RunInTransaction(run func(domainconnectors.Repository) error) error {
 	return r.app.RunInTransaction(func(txApp core.App) error {
 		return run(NewConnectorRepository(txApp))
@@ -122,8 +118,8 @@ func (r *pocketBaseConnectorRepository) recordForSave(connector *domainconnector
 func connectorFromRecord(record *core.Record) *domainconnectors.Connector {
 	return domainconnectors.RestoreConnector(domainconnectors.Snapshot{
 		ID:                record.Id,
-		Created:           record.GetDateTime("created").String(),
-		Updated:           record.GetDateTime("updated").String(),
+		Created:           recordDateTimeString(record, "created"),
+		Updated:           recordDateTimeString(record, "updated"),
 		Name:              record.GetString("name"),
 		Kind:              record.GetString("kind"),
 		IsEnabled:         recordEnabledValue(record),

@@ -125,15 +125,31 @@ connector api 路径
 
 Runtime Instances 列表页
 
-1. Enabled 列仍然不能操作，Action 中的 Disable/Enable 也不能操作
-3. Profile 列的内容在点击刷新按钮后，	Generic Mysql 变成了 Generic MySQL,  导致界面跳动。 这个问题请彻底解决，最好从元数据层面有一个固定的 Profile 名称
+1. runtime instance 针对 同一个catalog  的各个 kind 没有做到 UI 上的统一，必须根据类别统一
+- Database 需要全部统一，它们都以 MySQL 为例
+
+2. 这个分类 S3-Compatible Storage  直接更名为 Storage
+3. Created 和 Updated 时间列没有显示数据，schema 中有么？
+4. Enable it 的项标题与选项之间的间距做得很差，请优化
 
 External Services 列表页
 
 1. Created 和 Updated 时间列没有显示数据，schema 中有么？
-4. Enable it 改为一个单选项呈现方式： Yes/No.
-5. Enable it， Description 移至 Advanced 区域
+2. Enable it 的项标题与选项之间的间距做得很差，请优化
 
 5. SMTP 类别的设置，
 - 帮助地址元数据化
 - Port 从 Endpoint 中分离出来，SSL 改为开关形态，放在 Port 项下面，开启后，Port 或 STMP server 要自动发生变化
+
+
+现在继续化解 Resource 的技术债务
+
+1. ResourcePage 组件（2092 行）是一个高度配置化的通用 CRUD 引擎，所有资源页面（instances、connectors、servers、ai-providers 等）都复用它。mapRow → buildPayload 的双向扁平化模式处理了嵌套 config 与表格展示之间的阻抗匹配，设计简洁。不过 service-instances.tsx 自身还有 2083 行，仍承载了较多业务特定逻辑。
+
+2. - ResourcePage 的 config 接口有 88+ 个属性，虽然灵活，但类型定义庞大，新开发者上手成本不低。
+
+3. 测试覆盖看起来广泛（58+ 个 web 测试文件），但关键业务逻辑（如 buildPayload / mapRow）的单元测试覆盖需要通过实际运行来验证。
+
+
+4. runtime instance 针对 同一个catalog  的各个 kind 没有做到 UI 上的统一，必须根据类别统一
+- Database 需要全部统一，它们都以 MySQL 为例

@@ -90,13 +90,13 @@ func (r *pocketBaseAIProviderRepository) ListByKind(kind string) ([]*domainaipro
 	return items, nil
 }
 
-func (r *pocketBaseAIProviderRepository) ClearDefaultsByKind(kind string, excludeID string) error {
-	kind = strings.TrimSpace(kind)
-	if kind == "" {
+func (r *pocketBaseAIProviderRepository) ClearDefaultsByTemplate(templateID string, excludeID string) error {
+	templateID = strings.TrimSpace(templateID)
+	if templateID == "" {
 		return nil
 	}
-	query := "UPDATE " + collections.AIProviders + " SET is_default = false WHERE kind = {:kind} AND is_default = true"
-	params := map[string]any{"kind": kind}
+	query := "UPDATE " + collections.AIProviders + " SET is_default = false WHERE template_id = {:templateId} AND is_default = true"
+	params := map[string]any{"templateId": templateID}
 	if strings.TrimSpace(excludeID) != "" {
 		query += " AND id != {:excludeId}"
 		params["excludeId"] = excludeID
@@ -133,8 +133,8 @@ func (r *pocketBaseAIProviderRepository) recordForSave(provider *domainaiprovide
 func aiProviderFromRecord(record *core.Record) *domainaiproviders.AIProvider {
 	return domainaiproviders.RestoreAIProvider(domainaiproviders.Snapshot{
 		ID:                record.Id,
-		Created:           record.GetDateTime("created").String(),
-		Updated:           record.GetDateTime("updated").String(),
+		Created:           recordDateTimeString(record, "created"),
+		Updated:           recordDateTimeString(record, "updated"),
 		Name:              record.GetString("name"),
 		Kind:              record.GetString("kind"),
 		IsEnabled:         recordEnabledValue(record),

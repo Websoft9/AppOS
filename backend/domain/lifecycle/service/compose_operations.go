@@ -97,7 +97,7 @@ func CreateOperationFromCompose(app core.App, auth *core.Record, request Compose
 
 func CreateOperationFromNormalizedInstallSpec(app core.App, auth *core.Record, normalizedSpec NormalizedInstallSpec, options ComposeOperationOptions) (*core.Record, error) {
 	pipelineDefinition, err := metadata.DefinitionForSelector(model.DefinitionSelector{
-		OperationType:  normalizedSpec.OperationType,
+		OperationType: normalizedSpec.OperationType,
 		ExecutionMode: normalizedSpec.ExecutionMode,
 	})
 	if err != nil {

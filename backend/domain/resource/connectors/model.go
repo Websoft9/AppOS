@@ -1,20 +1,21 @@
 package connectors
 
 import (
-	"encoding/json"
 	"strings"
+
+	resourceshared "github.com/websoft9/appos/backend/domain/resource/shared"
 )
 
 const (
-	KindLLM      = "llm"
-	KindRESTAPI  = "rest_api"
-	KindWebhook  = "webhook"
-	KindMCP      = "mcp"
+	KindLLM         = "llm"
+	KindRESTAPI     = "rest_api"
+	KindWebhook     = "webhook"
+	KindMCP         = "mcp"
 	KindHTTPGateway = "http-gateway"
-	KindSMTP     = "smtp"
-	KindDNS      = "dns"
-	KindRegistry = "registry"
-	KindProxy    = "proxy"
+	KindSMTP        = "smtp"
+	KindDNS         = "dns"
+	KindRegistry    = "registry"
+	KindProxy       = "proxy"
 )
 
 const (
@@ -48,6 +49,10 @@ func IsAllowedKind(kind string) bool {
 	return false
 }
 
+func IsLLMKind(kind string) bool {
+	return strings.TrimSpace(kind) == KindLLM
+}
+
 const (
 	AuthSchemeNone   = "none"
 	AuthSchemeAPIKey = "api_key"
@@ -75,7 +80,6 @@ type Connector struct {
 	name              string
 	kind              string
 	isEnabled         bool
-	isDefault         bool
 	templateID        string
 	endpoint          string
 	authScheme        string
@@ -92,7 +96,6 @@ type Snapshot struct {
 	Name              string
 	Kind              string
 	IsEnabled         bool
-	IsDefault         bool
 	TemplateID        string
 	Endpoint          string
 	AuthScheme        string
@@ -114,13 +117,12 @@ func RestoreConnector(snapshot Snapshot) *Connector {
 		name:              snapshot.Name,
 		kind:              snapshot.Kind,
 		isEnabled:         snapshot.IsEnabled,
-		isDefault:         snapshot.IsDefault,
 		templateID:        snapshot.TemplateID,
 		endpoint:          snapshot.Endpoint,
 		authScheme:        snapshot.AuthScheme,
 		providerAccountID: snapshot.ProviderAccountID,
 		credentialID:      snapshot.CredentialID,
-		config:            cloneMap(snapshot.Config),
+		config:            resourceshared.CloneMap(snapshot.Config),
 		description:       snapshot.Description,
 	}
 }
@@ -131,7 +133,6 @@ func (c *Connector) Updated() string           { return c.updated }
 func (c *Connector) Name() string              { return c.name }
 func (c *Connector) Kind() string              { return c.kind }
 func (c *Connector) IsEnabled() bool           { return c.isEnabled }
-func (c *Connector) IsDefault() bool           { return c.isDefault }
 func (c *Connector) TemplateID() string        { return c.templateID }
 func (c *Connector) Endpoint() string          { return c.endpoint }
 func (c *Connector) AuthScheme() string        { return c.authScheme }
@@ -139,29 +140,32 @@ func (c *Connector) ProviderAccountID() string { return c.providerAccountID }
 func (c *Connector) CredentialID() string      { return c.credentialID }
 func (c *Connector) Description() string       { return c.description }
 
+func (c *Connector) Meta() resourceshared.RecordMeta {
+	return resourceshared.RecordMeta{ID: c.id, Created: c.created, Updated: c.updated}
+}
+
+func (c *Connector) EnabledState() resourceshared.EnabledState {
+	return resourceshared.EnabledState{IsEnabled: c.isEnabled}
+}
+
 func (c *Connector) Config() map[string]any {
-	return cloneMap(c.config)
+	return resourceshared.CloneMap(c.config)
 }
 
 func (c *Connector) ApplySaveInput(input SaveInput) {
 	c.name = strings.TrimSpace(input.Name)
 	c.kind = strings.TrimSpace(input.Kind)
 	c.isEnabled = input.IsEnabled
-	c.isDefault = input.IsDefault
 	c.templateID = strings.TrimSpace(input.TemplateID)
 	c.endpoint = strings.TrimSpace(input.Endpoint)
 	c.authScheme = strings.TrimSpace(input.AuthScheme)
 	c.providerAccountID = strings.TrimSpace(input.ProviderAccountID)
 	c.credentialID = strings.TrimSpace(input.CredentialID)
-	c.config = cloneMap(input.Config)
+	c.config = resourceshared.CloneMap(input.Config)
 	c.description = strings.TrimSpace(input.Description)
 }
 func (c *Connector) SetTemplateID(value string) {
 	c.templateID = value
-}
-
-func (c *Connector) SetIsDefault(value bool) {
-	c.isDefault = value
 }
 
 func (c *Connector) SetEndpoint(value string) {
@@ -186,7 +190,6 @@ func (c *Connector) Snapshot() Snapshot {
 		Name:              c.Name(),
 		Kind:              c.Kind(),
 		IsEnabled:         c.IsEnabled(),
-		IsDefault:         c.IsDefault(),
 		TemplateID:        c.TemplateID(),
 		Endpoint:          c.Endpoint(),
 		AuthScheme:        c.AuthScheme(),
@@ -212,102 +215,44 @@ type TemplateField struct {
 }
 
 type TemplateProtocol struct {
-	ID             string `json:"id"`
-	Label          string `json:"label"`
-	Default        bool   `json:"default,omitempty"`
+	ID              string `json:"id"`
+	Label           string `json:"label"`
+	Default         bool   `json:"default,omitempty"`
 	DefaultEndpoint string `json:"defaultEndpoint,omitempty"`
-	ModelsEndpoint string `json:"modelsEndpoint,omitempty"`
+	ModelsEndpoint  string `json:"modelsEndpoint,omitempty"`
 }
 
 // Template is the minimum connector template contract loaded from built-in defaults and template files.
 // ID is a profile identifier within a kind. It may be vendor-specific (for example openai)
 // or generic (for example generic-smtp), depending on how much differentiation the kind needs.
 type Template struct {
-	ID                   string          `json:"id"`
-	Kind                 string          `json:"kind"`
-	Title                string          `json:"title"`
-	Vendor               string          `json:"vendor,omitempty"`
-	Category             string          `json:"category,omitempty"`
-	UIGroup              string          `json:"uiGroup,omitempty"`
-	HostingMode          string          `json:"hostingMode,omitempty"`
-	ServiceMode          string          `json:"serviceMode,omitempty"`
-	EndpointMode         string          `json:"endpointMode,omitempty"`
-	ProviderMode         string          `json:"providerMode,omitempty"`
-	Description          string          `json:"description,omitempty"`
-	HelpURL              string          `json:"helpUrl,omitempty"`
-	ContextSize          int             `json:"contextSize,omitempty"`
-	ModelsEndpoint       string          `json:"modelsEndpoint,omitempty"`
-	DefaultEndpoint      string          `json:"defaultEndpoint,omitempty"`
-	DefaultAuth          string          `json:"defaultAuthScheme,omitempty"`
-	DefaultEnabledModels []string        `json:"defaultEnabledModels,omitempty"`
-	Capabilities         []string        `json:"capabilities,omitempty"`
-	Aliases              []string        `json:"aliases,omitempty"`
-	SupportsClosedModels bool            `json:"supportsClosedModels,omitempty"`
-	SupportsMultiVendorModels bool       `json:"supportsMultiVendorModels,omitempty"`
-	Protocols            []TemplateProtocol `json:"protocols,omitempty"`
-	HideInChooser        bool            `json:"hideInChooser,omitempty"`
-	SkipTLSCertVerify    bool            `json:"skipTLSCertVerify,omitempty"`
-	Fields               []TemplateField `json:"fields,omitempty"`
+	ID                        string             `json:"id"`
+	Kind                      string             `json:"kind"`
+	Title                     string             `json:"title"`
+	Vendor                    string             `json:"vendor,omitempty"`
+	Category                  string             `json:"category,omitempty"`
+	UIGroup                   string             `json:"uiGroup,omitempty"`
+	HostingMode               string             `json:"hostingMode,omitempty"`
+	ServiceMode               string             `json:"serviceMode,omitempty"`
+	EndpointMode              string             `json:"endpointMode,omitempty"`
+	ProviderMode              string             `json:"providerMode,omitempty"`
+	Description               string             `json:"description,omitempty"`
+	HelpURL                   string             `json:"helpUrl,omitempty"`
+	ContextSize               int                `json:"contextSize,omitempty"`
+	ModelsEndpoint            string             `json:"modelsEndpoint,omitempty"`
+	DefaultEndpoint           string             `json:"defaultEndpoint,omitempty"`
+	DefaultAuth               string             `json:"defaultAuthScheme,omitempty"`
+	DefaultEnabledModels      []string           `json:"defaultEnabledModels,omitempty"`
+	Capabilities              []string           `json:"capabilities,omitempty"`
+	Aliases                   []string           `json:"aliases,omitempty"`
+	SupportsClosedModels      bool               `json:"supportsClosedModels,omitempty"`
+	SupportsMultiVendorModels bool               `json:"supportsMultiVendorModels,omitempty"`
+	Protocols                 []TemplateProtocol `json:"protocols,omitempty"`
+	HideInChooser             bool               `json:"hideInChooser,omitempty"`
+	SkipTLSCertVerify         bool               `json:"skipTLSCertVerify,omitempty"`
+	Fields                    []TemplateField    `json:"fields,omitempty"`
 }
 
-func NormalizeTemplateID(raw string) string {
-	trimmed := strings.TrimSpace(strings.ToLower(raw))
-	trimmed = strings.ReplaceAll(trimmed, "_", "-")
-	trimmed = strings.ReplaceAll(trimmed, " ", "-")
-	return trimmed
-}
+func NormalizeTemplateID(raw string) string { return resourceshared.NormalizeTemplateID(raw) }
 
-func cloneMap(input map[string]any) map[string]any {
-	if input == nil {
-		return map[string]any{}
-	}
-	output := make(map[string]any, len(input))
-	for key, value := range input {
-		output[key] = cloneValue(value)
-	}
-	return output
-}
-
-func cloneValue(v any) any {
-	switch val := v.(type) {
-	case map[string]any:
-		return cloneMap(val)
-	case []any:
-		clone := make([]any, len(val))
-		for i, item := range val {
-			clone[i] = cloneValue(item)
-		}
-		return clone
-	default:
-		return v
-	}
-}
-
-func DecodeConfig(raw any) map[string]any {
-	if config, ok := raw.(map[string]any); ok {
-		return cloneMap(config)
-	}
-	if raw == nil {
-		return map[string]any{}
-	}
-
-	var bytes []byte
-	switch typed := raw.(type) {
-	case []byte:
-		bytes = typed
-	case string:
-		bytes = []byte(typed)
-	default:
-		marshaled, err := json.Marshal(typed)
-		if err != nil {
-			return map[string]any{}
-		}
-		bytes = marshaled
-	}
-
-	var config map[string]any
-	if err := json.Unmarshal(bytes, &config); err != nil || config == nil {
-		return map[string]any{}
-	}
-	return cloneMap(config)
-}
+func DecodeConfig(raw any) map[string]any { return resourceshared.DecodeConfig(raw) }

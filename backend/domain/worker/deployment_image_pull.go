@@ -103,8 +103,8 @@ func ensureDeploymentImageReady(
 		if verifyErr := verifyDeploymentImagePresent(ctx, client, image); verifyErr != nil {
 			pullErr = verifyErr
 		} else {
-		logf("docker image pull succeeded: " + image)
-		return nil
+			logf("docker image pull succeeded: " + image)
+			return nil
 		}
 	} else {
 		pullErr = err

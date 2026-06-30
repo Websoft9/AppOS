@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/websoft9/appos/backend/domain/resource/connectors"
+	resourceshared "github.com/websoft9/appos/backend/domain/resource/shared"
 )
 
 const (
@@ -34,7 +34,7 @@ func TemplateProtocols(template Template) []TemplateProtocol {
 	}
 
 	defaultEndpoint := strings.TrimSpace(template.DefaultEndpoint)
-	switch connectors.NormalizeTemplateID(template.ID) {
+	switch resourceshared.NormalizeTemplateID(template.ID) {
 	case "anthropic":
 		return []TemplateProtocol{{ID: ProtocolAnthropic, Label: "Anthropic", Default: true, DefaultEndpoint: defaultEndpoint}}
 	case "ollama":
@@ -59,33 +59,88 @@ func TemplateDefaultProtocol(template Template) string {
 	return ProtocolOpenAI
 }
 
-func ProviderDefaultProtocol(provider *AIProvider) string {
+func providerTemplate(provider *AIProvider) (Template, error) {
 	if provider == nil {
-		return ""
+		return Template{}, nil
+	}
+	templateID := strings.TrimSpace(provider.TemplateID())
+	if templateID == "" {
+		return Template{}, nil
+	}
+	template, _, err := FindTemplate(templateID)
+	if err != nil {
+		return Template{}, err
+	}
+	return template, nil
+}
+
+func ResolveProviderDefaultProtocol(provider *AIProvider) (string, error) {
+	if provider == nil {
+		return "", nil
 	}
 	config := provider.Config()
 	if normalized := NormalizeProtocol(firstConfigString(config, configDefaultProtocolKey)); normalized != "" {
-		return normalized
+		return normalized, nil
 	}
-	template, _ := FindTemplate(provider.TemplateID())
-	return TemplateDefaultProtocol(template)
+	template, err := providerTemplate(provider)
+	if err != nil {
+		return "", err
+	}
+	return TemplateDefaultProtocol(template), nil
 }
 
-func ProviderProtocolEndpoints(provider *AIProvider) map[string]string {
+func ResolveProviderProtocolEndpoints(provider *AIProvider) (map[string]string, error) {
 	result := map[string]string{}
 	if provider == nil {
-		return result
+		return result, nil
 	}
 	for key, value := range protocolEndpointsFromConfig(provider.Config()) {
 		result[key] = value
 	}
-	defaultProtocol := ProviderDefaultProtocol(provider)
+	defaultProtocol, err := ResolveProviderDefaultProtocol(provider)
+	if err != nil {
+		return nil, err
+	}
 	if defaultProtocol == "" {
-		template, _ := FindTemplate(provider.TemplateID())
+		template, err := providerTemplate(provider)
+		if err != nil {
+			return nil, err
+		}
 		defaultProtocol = TemplateDefaultProtocol(template)
 	}
 	if endpoint := strings.TrimSpace(provider.Endpoint()); endpoint != "" && defaultProtocol != "" && result[defaultProtocol] == "" {
 		result[defaultProtocol] = endpoint
+	}
+	return result, nil
+}
+
+func ResolveActiveEndpointAndProtocol(provider *AIProvider) (string, string, error) {
+	protocol, err := ResolveProviderDefaultProtocol(provider)
+	if err != nil {
+		return "", "", err
+	}
+	endpoints, err := ResolveProviderProtocolEndpoints(provider)
+	if err != nil {
+		return "", "", err
+	}
+	if endpoint := strings.TrimSpace(endpoints[protocol]); endpoint != "" {
+		return endpoint, protocol, nil
+	}
+	if endpoint := strings.TrimSpace(provider.Endpoint()); endpoint != "" {
+		return endpoint, protocol, nil
+	}
+	return "", protocol, nil
+}
+
+func ProviderDefaultProtocol(provider *AIProvider) string {
+	protocol, _ := ResolveProviderDefaultProtocol(provider)
+	return protocol
+}
+
+func ProviderProtocolEndpoints(provider *AIProvider) map[string]string {
+	result, _ := ResolveProviderProtocolEndpoints(provider)
+	if result == nil {
+		return map[string]string{}
 	}
 	return result
 }

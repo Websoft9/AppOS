@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/domain/assets"
 	"github.com/websoft9/appos/backend/domain/ai/copilot"
+	"github.com/websoft9/appos/backend/domain/assets"
 	"github.com/websoft9/appos/backend/infra/collections"
 )
 
@@ -189,13 +189,13 @@ func (r *pocketBaseAICopilotRepository) findOwnedSessionRecord(sessionID, ownerI
 
 func sessionFromRecord(record *core.Record) *copilot.Session {
 	return &copilot.Session{
-		ID:            record.Id,
-		Title:         record.GetString("title"),
+		ID:                  record.Id,
+		Title:               record.GetString("title"),
 		SystemPromptAssetID: record.GetString("system_prompt_asset_id"),
-		OwnerID:       record.GetString("owner_id"),
-		CreatedAt:     record.GetString("created"),
-		UpdatedAt:     record.GetString("updated"),
-		LastMessageAt: record.GetString("last_message_at"),
+		OwnerID:             record.GetString("owner_id"),
+		CreatedAt:           record.GetString("created"),
+		UpdatedAt:           record.GetString("updated"),
+		LastMessageAt:       record.GetString("last_message_at"),
 	}
 }
 

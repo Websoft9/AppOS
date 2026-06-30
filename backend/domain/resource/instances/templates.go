@@ -4,11 +4,11 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"path"
-	"sort"
 	"strings"
 	"sync"
+
+	resourceshared "github.com/websoft9/appos/backend/domain/resource/shared"
 )
 
 //go:embed all:templates
@@ -49,65 +49,36 @@ func ensureTemplatesLoaded() error {
 }
 
 func loadTemplates() error {
-	templateMap := make(map[string]Template)
-
-	entries, err := fs.ReadDir(embeddedTemplateFiles, "templates")
-	if err != nil {
-		return fmt.Errorf("read instance templates: %w", err)
-	}
-
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		kind := entry.Name()
-		base, err := loadKindBaseTemplate(kind)
-		if err != nil {
-			return err
-		}
-
-		kindEntries, err := fs.ReadDir(embeddedTemplateFiles, path.Join("templates", kind))
-		if err != nil {
-			return fmt.Errorf("read instance kind templates %s: %w", kind, err)
-		}
-
-		for _, kindEntry := range kindEntries {
-			if kindEntry.IsDir() || !strings.HasSuffix(kindEntry.Name(), ".json") || kindEntry.Name() == "_template.json" {
-				continue
-			}
-
-			filePath := path.Join("templates", kind, kindEntry.Name())
-			overlay, err := readTemplateFile(filePath)
+	loaded, err := resourceshared.LoadTemplates(
+		embeddedTemplateFiles,
+		func(filePath string) (templateFile, error) {
+			file, err := readTemplateFile(filePath)
 			if err != nil {
-				return fmt.Errorf("read instance template %s: %w", filePath, err)
+				return templateFile{}, fmt.Errorf("read instance template %s: %w", filePath, err)
 			}
-
+			return file, nil
+		},
+		loadKindBaseTemplate,
+		func(base Template, overlay templateFile, filePath string) (Template, error) {
 			template, err := applyTemplateOverlay(base, overlay)
 			if err != nil {
-				return fmt.Errorf("merge instance template %s: %w", filePath, err)
+				return Template{}, fmt.Errorf("merge instance template %s: %w", filePath, err)
 			}
 			template, err = applyKindContractTemplate(template)
 			if err != nil {
-				return fmt.Errorf("apply instance kind contract %s: %w", filePath, err)
+				return Template{}, fmt.Errorf("apply instance kind contract %s: %w", filePath, err)
 			}
 			if err := validateTemplate(template); err != nil {
-				return fmt.Errorf("invalid instance template %s: %w", filePath, err)
+				return Template{}, fmt.Errorf("invalid instance template %s: %w", filePath, err)
 			}
-			templateMap[template.ID] = template
-		}
+			return template, nil
+		},
+		func(template Template) string { return template.ID },
+	)
+	if err != nil {
+		return fmt.Errorf("read instance templates: %w", err)
 	}
-
-	keys := make([]string, 0, len(templateMap))
-	for key := range templateMap {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	templates = make([]Template, 0, len(keys))
-	for _, key := range keys {
-		templates = append(templates, templateMap[key])
-	}
+	templates = loaded
 	return nil
 }
 
@@ -183,7 +154,7 @@ func applyTemplateOverlay(base Template, file templateFile) (Template, error) {
 		result.Kind = strings.TrimSpace(*file.Kind)
 	}
 	if file.Traits != nil {
-		result.Traits = normalizeStringList(file.Traits)
+		result.Traits = resourceshared.NormalizeStringList(file.Traits)
 	}
 	if file.Title != nil {
 		result.Title = strings.TrimSpace(*file.Title)
@@ -201,7 +172,7 @@ func applyTemplateOverlay(base Template, file templateFile) (Template, error) {
 		result.OmitCommonFields = append([]string(nil), file.OmitCommonFields...)
 	}
 	if file.CommonFieldDefaults != nil {
-		result.CommonFieldDefaults = cloneMap(file.CommonFieldDefaults)
+		result.CommonFieldDefaults = resourceshared.CloneMap(file.CommonFieldDefaults)
 	}
 	if file.Fields != nil {
 		fields, err := mergeTemplateFields(base.Fields, file.Fields)
@@ -317,6 +288,6 @@ func applyKindContractTemplate(template Template) (Template, error) {
 	if strings.TrimSpace(template.Category) == "" {
 		template.Category = contract.Category
 	}
-	template.Traits = normalizeStringList(append(contract.Traits, template.Traits...))
+	template.Traits = resourceshared.NormalizeStringList(append(contract.Traits, template.Traits...))
 	return template, nil
 }

@@ -1,34 +1,23 @@
 import { pb } from '@/lib/pb'
+import {
+  cloneConfig,
+  formatResourceSecretLabel,
+  normalizeTemplateID,
+  resolveEnabledFlag,
+} from '@/lib/resource-helpers'
+import type {
+  AccessResourceRecord,
+  ResourceSaveInput,
+  ResourceTemplateBase,
+  ResourceTemplateField,
+} from '@/lib/resource-types'
 
-export type AIProviderRecord = {
-  id: string
-  name?: string
-  kind?: string
-  is_enabled?: boolean
+export type AIProviderRecord = AccessResourceRecord & {
   is_default?: boolean
-  template_id?: string
-  endpoint?: string
-  auth_scheme?: string
-  provider_account?: string
-  credential?: string
   enabled_models?: string[]
-  config?: Record<string, unknown>
-  description?: string
-  created?: string
-  updated?: string
 }
 
-export type AIProviderTemplateField = {
-  id: string
-  label: string
-  type: string
-  required?: boolean
-  secretTemplate?: string
-  placeholder?: string
-  helpUrl?: string
-  helpText?: string
-  default?: unknown
-}
+export type AIProviderTemplateField = ResourceTemplateField
 
 export type AIProviderTemplateProtocol = {
   id: string
@@ -38,22 +27,14 @@ export type AIProviderTemplateProtocol = {
   modelsEndpoint?: string
 }
 
-export type AIProviderTemplate = {
-  id: string
-  kind: string
-  title: string
-  vendor?: string
+export type AIProviderTemplate = ResourceTemplateBase<AIProviderTemplateField> & {
   uiGroup?: string
   hostingMode?: string
   serviceMode?: string
   endpointMode?: string
   providerMode?: string
-  description?: string
-  helpUrl?: string
   contextSize?: number
   modelsEndpoint?: string
-  defaultEndpoint?: string
-  defaultAuthScheme?: string
   defaultEnabledModels?: string[]
   capabilities?: string[]
   aliases?: string[]
@@ -61,7 +42,6 @@ export type AIProviderTemplate = {
   supportsMultiVendorModels?: boolean
   protocols?: AIProviderTemplateProtocol[]
   hideInChooser?: boolean
-  fields?: AIProviderTemplateField[]
 }
 
 export type AIProviderSelectionGroupKey =
@@ -91,7 +71,7 @@ export const SECRET_TEMPLATE_LABELS: Record<string, string> = {
 export const AI_PROVIDER_CREDENTIAL_TEMPLATE_ID = 'single_value'
 
 export function formatSecretLabel(raw: Record<string, unknown>): string {
-  return String(raw.name ?? raw.id)
+  return formatResourceSecretLabel(raw)
 }
 
 function humanizeTemplateId(templateId: string) {
@@ -446,14 +426,20 @@ export function normalizeTemplateFieldDefault(field: AIProviderTemplateField) {
 }
 
 export function resolveAIProviderEnabled(value: unknown) {
-  if (typeof value === 'boolean') return value
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase()
-    if (normalized === 'false') return false
-    if (normalized === 'true') return true
-  }
-  if (typeof value === 'number') return value !== 0
-  return true
+  return resolveEnabledFlag(value)
+}
+
+export function shouldAssignDefaultReplica(
+  templateId: unknown,
+  providers: AIProviderRecord[]
+): boolean {
+  const normalizedTemplateId = normalizeTemplateID(templateId)
+  if (!normalizedTemplateId) return false
+  const siblings = providers.filter(
+    provider => normalizeTemplateID(provider.template_id) === normalizedTemplateId
+  )
+  if (siblings.length === 0) return true
+  return !siblings.some(provider => provider.is_default === true)
 }
 
 function resolveAuthScheme(template: AIProviderTemplate, secretTemplateId: string) {
@@ -468,9 +454,9 @@ export async function buildAIProviderPayload(
   payload: Record<string, unknown>,
   templatesById: Map<string, AIProviderTemplate>,
   t?: Translate
-) {
+) : Promise<ResourceSaveInput & { enabled_models?: string[]; is_default?: boolean }> {
   const body = { ...payload }
-  const templateId = String(body.template_id ?? '')
+  const templateId = normalizeTemplateID(body.template_id)
   const template = templatesById.get(templateId)
   if (!template) {
     throw new Error(t ? t('aiProviders.errors.profileRequired') : 'AI Provider profile is required')
@@ -522,7 +508,7 @@ export async function buildAIProviderPayload(
     typeof body.advanced_config === 'string' ? body.advanced_config.trim() : body.advanced_config
   let config: Record<string, unknown> = {}
   if (!(extra === '' || extra == null)) {
-    config = typeof extra === 'string' ? JSON.parse(extra) : (extra as Record<string, unknown>)
+    config = typeof extra === 'string' ? JSON.parse(extra) : cloneConfig(extra as Record<string, unknown>)
   }
 
   for (const field of template.fields ?? []) {
@@ -578,6 +564,7 @@ export async function buildAIProviderPayload(
     ...(body.is_enabled !== undefined
       ? { is_enabled: resolveAIProviderEnabled(body.is_enabled) }
       : {}),
+    ...(body.is_default !== undefined ? { is_default: body.is_default === true } : {}),
     template_id: template.id,
     endpoint: activeEndpoint,
     auth_scheme: authScheme,

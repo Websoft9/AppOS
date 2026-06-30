@@ -1,6 +1,10 @@
 package accounts
 
-import "strings"
+import (
+	"strings"
+
+	resourceshared "github.com/websoft9/appos/backend/domain/resource/shared"
+)
 
 type SaveInput struct {
 	Name         string
@@ -13,9 +17,7 @@ type SaveInput struct {
 	Description  string
 }
 
-type CredentialRefValidator interface {
-	ValidateCredentialRef(credentialID string, actorID string) error
-}
+type CredentialRefValidator = resourceshared.CredentialRefValidator
 
 type SaveDeps struct {
 	ActorID                string
@@ -100,7 +102,7 @@ func saveRecord(repo Repository, account *ProviderAccount, input SaveInput, deps
 	}
 
 	return repo.RunInTransaction(func(txRepo Repository) error {
-		if err := validateCredentialRef(deps, account.CredentialID()); err != nil {
+		if err := resourceshared.ValidateCredentialRef(account.CredentialID(), deps.ActorID, deps.CredentialRefValidator); err != nil {
 			return err
 		}
 		exists, err := txRepo.ExistsByName(account.Name(), account.ID())
@@ -147,19 +149,5 @@ func applyTemplateConstraints(account *ProviderAccount) error {
 	}
 
 	account.EnsureConfig()
-	return nil
-}
-
-func validateCredentialRef(deps SaveDeps, credentialID string) error {
-	trimmed := strings.TrimSpace(credentialID)
-	if trimmed == "" {
-		return nil
-	}
-	if deps.CredentialRefValidator == nil {
-		return newValidationError("credential validation dependency is required when credential is set", nil)
-	}
-	if err := deps.CredentialRefValidator.ValidateCredentialRef(trimmed, strings.TrimSpace(deps.ActorID)); err != nil {
-		return err
-	}
 	return nil
 }

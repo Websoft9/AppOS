@@ -3,8 +3,8 @@ package metrics
 import "time"
 
 const (
-	MetricsBatchLimit     = 200
-	EnvTSDBURL            = "TSDB_URL"
+	MetricsBatchLimit = 200
+	EnvTSDBURL        = "TSDB_URL"
 )
 
 type MetricPoint struct {

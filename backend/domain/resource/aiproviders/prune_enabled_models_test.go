@@ -30,7 +30,9 @@ func (r *stubRepository) Save(connector *AIProvider) error {
 }
 func (r *stubRepository) Delete(connector *AIProvider) error                      { return nil }
 func (r *stubRepository) ListByKind(kind string) ([]*AIProvider, error)           { return r.items, nil }
-func (r *stubRepository) ClearDefaultsByKind(kind string, excludeID string) error { return nil }
+func (r *stubRepository) ClearDefaultsByTemplate(templateID string, excludeID string) error {
+	return nil
+}
 func (r *stubRepository) RunInTransaction(run func(Repository) error) error       { return run(r) }
 
 func TestPruneUnavailableEnabledModelsRemovesInvalidSelections(t *testing.T) {

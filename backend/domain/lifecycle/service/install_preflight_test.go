@@ -237,11 +237,11 @@ func TestCheckInstallFromComposeIncludesExposureIntentPortInChecks(t *testing.T)
 	probe := &installPreflightProbeStub{}
 
 	result, err := CheckInstallFromCompose(app, InstallPreflightRequest{InstallResolutionRequest: InstallResolutionRequest{
-		ServerID:    "server-1",
-		ProjectName: "Exposure Demo",
-		Compose:     "services:\n  web:\n    image: nginx:alpine\n",
-		Trigger:     string(model.TriggerManual),
-		Channel:     string(model.ChannelCustom),
+		ServerID:      "server-1",
+		ProjectName:   "Exposure Demo",
+		Compose:       "services:\n  web:\n    image: nginx:alpine\n",
+		Trigger:       string(model.TriggerManual),
+		Channel:       string(model.ChannelCustom),
 		ExecutionMode: deploy.ExecutionModeCompose,
 		ExposureIntent: &ExposureIntent{
 			ExposureType: "port",
@@ -269,11 +269,11 @@ func TestPreflightAndCreateOperationFromComposeBlocksExposureIntentPortConflict(
 	probe := &installPreflightProbeStub{}
 
 	_, err := PreflightAndCreateOperationFromCompose(app, nil, ComposeOperationRequest{
-		ServerID:    "server-1",
-		ProjectName: "Exposure Demo",
-		Compose:     "services:\n  web:\n    image: nginx:alpine\n",
-		Trigger:     string(model.TriggerManual),
-		Channel:     string(model.ChannelCustom),
+		ServerID:      "server-1",
+		ProjectName:   "Exposure Demo",
+		Compose:       "services:\n  web:\n    image: nginx:alpine\n",
+		Trigger:       string(model.TriggerManual),
+		Channel:       string(model.ChannelCustom),
 		ExecutionMode: deploy.ExecutionModeCompose,
 		ExposureIntent: &ExposureIntent{
 			ExposureType: "port",

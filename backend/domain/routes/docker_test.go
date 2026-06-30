@@ -30,7 +30,6 @@ type stubDockerExecutor struct {
 	allCmds [][]string
 }
 
-
 func (s *stubDockerExecutor) Run(_ context.Context, command string, args ...string) (string, error) {
 	cmd := append([]string{command}, args...)
 	s.lastCmd = cmd
@@ -112,7 +111,6 @@ func createDockerRouteConnector(t *testing.T, te *testEnv, spec connectors.SaveI
 	}
 	rec.Set("name", spec.Name)
 	rec.Set("kind", persistedKind)
-	rec.Set("is_default", spec.IsDefault)
 	rec.Set("template_id", spec.TemplateID)
 	rec.Set("endpoint", spec.Endpoint)
 	rec.Set("auth_scheme", spec.AuthScheme)

@@ -1,0 +1,58 @@
+export type RecordMeta = {
+  id: string
+  created?: string
+  updated?: string
+}
+
+export type ResourceConfig = Record<string, unknown>
+
+export type AccessResourceRecord = RecordMeta & {
+  name?: string
+  kind?: string
+  is_enabled?: boolean
+  template_id?: string
+  endpoint?: string
+  auth_scheme?: string
+  provider_account?: string
+  credential?: string
+  config?: ResourceConfig
+  description?: string
+}
+
+export type ResourceTemplateField = {
+  id: string
+  label: string
+  type: string
+  required?: boolean
+  secretTemplate?: string
+  placeholder?: string
+  helpUrl?: string
+  helpText?: string
+  default?: unknown
+}
+
+export type ResourceTemplateBase<TField extends ResourceTemplateField = ResourceTemplateField> = {
+  id: string
+  kind: string
+  title: string
+  vendor?: string
+  category?: string
+  description?: string
+  helpUrl?: string
+  defaultEndpoint?: string
+  defaultAuthScheme?: string
+  fields?: TField[]
+}
+
+export type ResourceSaveInput = {
+  name: string
+  kind: string
+  is_enabled?: boolean
+  template_id: string
+  endpoint?: string
+  auth_scheme?: string
+  provider_account?: string
+  credential?: string
+  config?: ResourceConfig
+  description?: string
+}

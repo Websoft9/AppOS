@@ -31,7 +31,7 @@ func LoadExecutionContext(app core.App, operationID string) (*ExecutionContext, 
 		return nil, err
 	}
 	selector := model.DefinitionSelector{
-		OperationType:  operation.GetString("operation_type"),
+		OperationType: operation.GetString("operation_type"),
 		ExecutionMode: operation.GetString("execution_mode"),
 	}
 	definition, err := metadata.DefinitionForSelector(selector)

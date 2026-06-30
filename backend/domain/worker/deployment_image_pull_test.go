@@ -12,13 +12,13 @@ import (
 )
 
 type fakeDeploymentImageClient struct {
-	inspectErr map[string]error
-	pullErr    map[string]error
-	pullErrSeq map[string][]error
-	pulls      []string
-	tags       [][2]string
-	blockPull  bool
-	available  map[string]bool
+	inspectErr                 map[string]error
+	pullErr                    map[string]error
+	pullErrSeq                 map[string][]error
+	pulls                      []string
+	tags                       [][2]string
+	blockPull                  bool
+	available                  map[string]bool
 	disableAutoAvailableOnPull bool
 	disableAutoAvailableOnTag  bool
 }

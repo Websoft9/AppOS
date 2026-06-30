@@ -88,10 +88,6 @@ func (r *appConnectorRepository) ListByKind(kind string) ([]*connectors.Connecto
 	return items, nil
 }
 
-func (r *appConnectorRepository) ClearDefaultsByKind(kind string, excludeID string) error {
-	return nil
-}
-
 func (r *appConnectorRepository) RunInTransaction(run func(connectors.Repository) error) error {
 	return r.app.RunInTransaction(func(txApp core.App) error {
 		return run(newConnectorRepository(txApp))
@@ -116,13 +112,70 @@ func (r *appConnectorRepository) recordForSave(connector *connectors.Connector) 
 	return record, nil
 }
 
+func egressRecordDateTimeString(record *core.Record, key string) string {
+	if record == nil {
+		return ""
+	}
+	return strings.TrimSpace(record.GetDateTime(key).String())
+}
+
+func egressRecordEnabledValue(record *core.Record) bool {
+	if record == nil {
+		return true
+	}
+	switch typed := record.Get("is_enabled").(type) {
+	case nil:
+		return true
+	case bool:
+		return typed
+	case string:
+		normalized := strings.TrimSpace(strings.ToLower(typed))
+		if normalized == "" {
+			return true
+		}
+		switch normalized {
+		case "0", "false", "no", "off", "disabled":
+			return false
+		default:
+			return true
+		}
+	case int:
+		return typed != 0
+	case int8:
+		return typed != 0
+	case int16:
+		return typed != 0
+	case int32:
+		return typed != 0
+	case int64:
+		return typed != 0
+	case uint:
+		return typed != 0
+	case uint8:
+		return typed != 0
+	case uint16:
+		return typed != 0
+	case uint32:
+		return typed != 0
+	case uint64:
+		return typed != 0
+	case float32:
+		return typed != 0
+	case float64:
+		return typed != 0
+	default:
+		return true
+	}
+}
+
 func connectorFromRecord(record *core.Record) *connectors.Connector {
 	return connectors.RestoreConnector(connectors.Snapshot{
 		ID:                record.Id,
-		Created:           record.GetString("created"),
-		Updated:           record.GetString("updated"),
+		Created:           egressRecordDateTimeString(record, "created"),
+		Updated:           egressRecordDateTimeString(record, "updated"),
 		Name:              record.GetString("name"),
 		Kind:              record.GetString("kind"),
+		IsEnabled:         egressRecordEnabledValue(record),
 		TemplateID:        record.GetString("template_id"),
 		Endpoint:          record.GetString("endpoint"),
 		AuthScheme:        record.GetString("auth_scheme"),

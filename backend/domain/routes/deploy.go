@@ -1548,7 +1548,7 @@ func buildPipelineResponse(app core.App, pipelineRunID string, record *core.Reco
 		"trigger":              model.NormalizeOperationTrigger(record.GetString("trigger")),
 		"channel":              operationChannelValue(record),
 		"selector": map[string]any{
-			"operation_type":  record.GetString("operation_type"),
+			"operation_type": record.GetString("operation_type"),
 			"execution_mode": record.GetString("execution_mode"),
 		},
 		"steps": buildOperationSteps(stepRuns),
