@@ -17,14 +17,26 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { ResourcePage, type Column, type FieldDef } from '@/components/resources/ResourcePage'
+import { ResourceListSettingsButton } from '@/components/resources/ResourceListSettingsButton'
 import { ResourcesBreadcrumb } from '@/components/resources/ResourcesBreadcrumb'
+import { formatResourceDateTime } from '@/components/resources/resource-formatters'
+import {
+  buildEnabledStatusColumn,
+  renderEnabledChoiceField,
+} from '@/components/resources/resource-status'
+import {
+  buildResourceCategoryLabel,
+  buildResourceKindLabel,
+  buildResourceProductDescription,
+  buildResourceProductMeta,
+  buildResourceProductTitle,
+  isGenericResourceTemplate,
+} from '@/components/resources/resource-template-display'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { buildApiKeyValue, SecretCredentialField } from '@/components/secrets/SecretCredentialField'
 import { SecretForm, type SecretTemplate } from '@/components/secrets/SecretForm'
 import { buildUserVisibleSecretRelationApiPath } from '@/components/secrets/resource-secret-relations'
-import { getLocale } from '@/lib/i18n'
 import { pb } from '@/lib/pb'
-import { cn } from '@/lib/utils'
 
 type InstanceRecord = {
   id: string
@@ -126,23 +138,6 @@ const CREATABLE_INSTANCE_KINDS = [
   'onlyoffice-compatible',
 ] as const
 
-const KIND_SEARCH_HINTS: Partial<Record<(typeof CREATABLE_INSTANCE_KINDS)[number], string[]>> = {
-  'mysql-compatible': ['mysql', 'aurora', 'mariadb'],
-  'postgres-compatible': ['postgres', 'postgresql', 'aurora', 'rds'],
-  'mongodb-compatible': ['mongodb', 'mongo', 'atlas', 'document database'],
-  'clickhouse-compatible': ['clickhouse', 'analytic', 'analytics', 'columnar'],
-  'neo4j-compatible': ['neo4j', 'graph'],
-  'influxdb-compatible': ['influxdb', 'timeseries', 'time series', 'metrics'],
-  'redis-compatible': ['redis', 'valkey'],
-  'elasticsearch-compatible': ['elasticsearch', 'elastic', 'opensearch', 'search'],
-  'kafka-compatible': ['kafka', 'redpanda'],
-  'amqp-compatible': ['rabbitmq', 'amqp'],
-  'nats-compatible': ['nats'],
-  'mqtt-compatible': ['mqtt', 'mosquitto', 'emqx'],
-  's3-compatible': ['s3', 'minio', 'r2', 'object storage'],
-  'onlyoffice-compatible': ['onlyoffice', 'docs', 'document server'],
-}
-
 const TEMPLATE_FIELD_OVERRIDE_KEYS: Record<string, string> = {
   database: 'serviceInstances.templateFields.database',
   region: 'serviceInstances.templateFields.region',
@@ -152,6 +147,14 @@ const TEMPLATE_FIELD_OVERRIDE_KEYS: Record<string, string> = {
   gatewayName: 'serviceInstances.templateFields.gatewayName',
   accountId: 'serviceInstances.templateFields.accountId',
 }
+
+const TEMPLATE_DISPLAY_OPTIONS = {
+  namespace: 'serviceInstances',
+  kindLabels: KIND_LABELS,
+  categoryLabels: CATEGORY_LABELS,
+  isGenericTitle: (template: InstanceTemplate, resolvedKindLabel: string) =>
+    template.title.trim().toLowerCase() === `standard ${resolvedKindLabel.toLowerCase()}`,
+} as const
 
 type CanonicalFieldKey =
   | 'endpoint'
@@ -351,26 +354,15 @@ function slugifyNamePart(value: string) {
 }
 
 function kindLabel(kind: string, t: Translate) {
-  const normalized = String(kind).trim().toLowerCase()
-  if (KIND_LABELS[normalized]) {
-    return t(`serviceInstances.kinds.${normalized}`)
-  }
-  return normalized
-    ? normalized.charAt(0).toUpperCase() + normalized.slice(1)
-    : t('serviceInstances.kinds.unknown')
+  return buildResourceKindLabel(kind, t, TEMPLATE_DISPLAY_OPTIONS)
 }
 
 function isGenericTemplate(template: InstanceTemplate, t: Translate) {
-  const normalizedTitle = template.title.trim().toLowerCase()
-  return (
-    template.id.startsWith('generic-') ||
-    normalizedTitle.includes('generic') ||
-    normalizedTitle === `standard ${kindLabel(template.kind, t).toLowerCase()}`
-  )
+  return isGenericResourceTemplate(template, t, TEMPLATE_DISPLAY_OPTIONS)
 }
 
 function productTitle(template: InstanceTemplate, t: Translate) {
-  return isGenericTemplate(template, t) ? kindLabel(template.kind, t) : template.title
+  return buildResourceProductTitle(template, t, TEMPLATE_DISPLAY_OPTIONS)
 }
 
 function isCreatableTemplate(template: InstanceTemplate) {
@@ -397,26 +389,23 @@ function listTemplatesForKind(
     .sort((left, right) => compareTemplatesForCreate(left, right, t))
 }
 
-function getDefaultTemplateForKind(
-  kind: string,
-  templates: InstanceTemplate[],
-  t: Translate
-) {
+function getDefaultTemplateForKind(kind: string, templates: InstanceTemplate[], t: Translate) {
   return listTemplatesForKind(kind, templates, t)[0] ?? null
 }
 
 function kindSearchText(kind: string, templates: InstanceTemplate[], t: Translate) {
   const kindTemplates = listTemplatesForKind(kind, templates, t)
+  const exampleTemplate = kindTemplates[0]
   return [
+    kind,
     kindLabel(kind, t),
-    ...(KIND_SEARCH_HINTS[kind as (typeof CREATABLE_INSTANCE_KINDS)[number]] ?? []),
+    exampleTemplate ? categoryLabel(exampleTemplate.category, t) : '',
     ...kindTemplates.flatMap(template => [
       template.id,
       productTitle(template, t),
       template.title,
       template.vendor ?? '',
       template.description ?? '',
-      categoryLabel(template.category, t),
     ]),
   ]
     .filter(Boolean)
@@ -471,30 +460,15 @@ function buildDefaultCredentialSecretName(
 }
 
 function categoryLabel(category: string | undefined, t: Translate) {
-  const normalized = String(category ?? '')
-    .trim()
-    .toLowerCase()
-  if (CATEGORY_LABELS[normalized]) {
-    return t(`serviceInstances.categories.${normalized}`)
-  }
-  return t('serviceInstances.categories.other')
+  return buildResourceCategoryLabel(category, t, TEMPLATE_DISPLAY_OPTIONS)
 }
 
 function productMeta(template: InstanceTemplate, t: Translate) {
-  return [categoryLabel(template.category, t), template.vendor].filter(Boolean).join(' · ')
+  return buildResourceProductMeta(template, t, TEMPLATE_DISPLAY_OPTIONS)
 }
 
 function productDescription(template: InstanceTemplate, t: Translate) {
-  if (isGenericTemplate(template, t)) {
-    return t('serviceInstances.product.standardTemplate')
-  }
-  return (
-    template.description ||
-    t('serviceInstances.product.profileDescription', {
-      vendorPrefix: template.vendor ? `${template.vendor} ` : '',
-      category: categoryLabel(template.category, t).toLowerCase(),
-    })
-  )
+  return buildResourceProductDescription(template, t, TEMPLATE_DISPLAY_OPTIONS)
 }
 
 function parseBooleanValue(value: unknown) {
@@ -585,21 +559,6 @@ function databaseCertificateHelpText(template: InstanceTemplate | null | undefin
     return t('serviceInstances.help.sslCertificatePostgres')
   }
   return t('serviceInstances.help.sslCertificateMysql')
-}
-
-function formatDateTime(value: unknown) {
-  const raw = String(value ?? '').trim()
-  if (!raw) return '—'
-  const date = new Date(raw)
-  if (Number.isNaN(date.getTime())) return raw
-  const locale = getLocale()
-  return new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en', {
-    year: 'numeric',
-    month: 'short',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date)
 }
 
 function resolveInstanceEnabled(value: unknown) {
@@ -750,7 +709,7 @@ function mapTemplateFieldToResourceField(
   }
 }
 
-async function buildInstancePayload(
+export async function buildInstancePayload(
   payload: Record<string, unknown>,
   templatesById: Map<string, InstanceTemplate>,
   t: Translate
@@ -831,7 +790,7 @@ async function buildInstancePayload(
   }
 }
 
-function mapInstanceRow(
+export function mapInstanceRow(
   item: InstanceRecord,
   templatesById: Map<string, InstanceTemplate>,
   monitorByTargetId: Map<string, MonitorLatestStatusRecord>,
@@ -919,37 +878,15 @@ function normalizeInstanceTemplateTitle(templateId: string) {
 function buildColumns(t: Translate, onToggleEnabled: (item: Record<string, unknown>) => void): Column[] {
   return [
     { key: 'name', label: t('serviceInstances.columns.name'), searchable: true, sortable: true },
-    {
-      key: 'enabled_status',
+    buildEnabledStatusColumn({
       label: t('serviceInstances.columns.enabled'),
-      sortable: true,
-      filterOptions: [
-        { label: t('serviceInstances.enabled.yes'), value: 'Enabled' },
-        { label: t('serviceInstances.enabled.no'), value: 'Disabled' },
-      ],
-      filterValue: row => String(row.enabled_status ?? ''),
-      render: (_value, row) => {
-        const enabled = resolveInstanceEnabled(row.is_enabled)
-        return (
-          <button
-            type="button"
-            className={
-              enabled
-                ? 'inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 cursor-pointer'
-                : 'inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground cursor-pointer'
-            }
-            onClick={event => {
-              event.stopPropagation()
-              void onToggleEnabled(row)
-            }}
-            title={enabled ? t('serviceInstances.actions.disable') : t('serviceInstances.actions.enable')}
-          >
-            {enabled ? <Power className="h-3.5 w-3.5" /> : <PowerOff className="h-3.5 w-3.5" />}
-            {enabled ? t('serviceInstances.enabled.yes') : t('serviceInstances.enabled.no')}
-          </button>
-        )
-      },
-    },
+      enabledLabel: t('serviceInstances.enabled.yes'),
+      disabledLabel: t('serviceInstances.enabled.no'),
+      enableTitle: t('serviceInstances.actions.enable'),
+      disableTitle: t('serviceInstances.actions.disable'),
+      resolveEnabled: resolveInstanceEnabled,
+      onToggle: onToggleEnabled,
+    }),
     {
       key: 'kind_label',
       label: t('serviceInstances.columns.kind'),
@@ -1000,7 +937,7 @@ function buildColumns(t: Translate, onToggleEnabled: (item: Record<string, unkno
       sortable: true,
       sortValue: row => String(row.monitor_last_checked_at ?? ''),
       render: value => (
-        <span className="text-sm text-muted-foreground">{formatDateTime(value)}</span>
+        <span className="text-sm text-muted-foreground">{formatResourceDateTime(value)}</span>
       ),
     },
     {
@@ -1008,7 +945,7 @@ function buildColumns(t: Translate, onToggleEnabled: (item: Record<string, unkno
       label: t('serviceInstances.columns.created'),
       sortable: true,
       render: value => (
-        <span className="text-sm text-muted-foreground">{formatDateTime(value)}</span>
+        <span className="text-sm text-muted-foreground">{formatResourceDateTime(value)}</span>
       ),
     },
     {
@@ -1016,7 +953,7 @@ function buildColumns(t: Translate, onToggleEnabled: (item: Record<string, unkno
       label: t('serviceInstances.columns.updated'),
       sortable: true,
       render: value => (
-        <span className="text-sm text-muted-foreground">{formatDateTime(value)}</span>
+        <span className="text-sm text-muted-foreground">{formatResourceDateTime(value)}</span>
       ),
     },
   ]
@@ -1037,6 +974,19 @@ export function ServiceInstancesPage() {
   const [secretEditSaving, setSecretEditSaving] = useState(false)
   const [secretEditError, setSecretEditError] = useState('')
   const [secretEditId, setSecretEditId] = useState('')
+  const [pageSize, setPageSize] = useState(10)
+  const [visibleOptionalColumns, setVisibleOptionalColumns] = useState<Set<string>>(
+    () =>
+      new Set([
+        'kind_label',
+        'profile',
+        'host',
+        'monitor_status',
+        'monitor_last_checked_at',
+        'created',
+        'updated',
+      ])
+  )
   const [secretEditName, setSecretEditName] = useState('')
   const [secretEditDescription, setSecretEditDescription] = useState('')
   const [secretEditTemplateId, setSecretEditTemplateId] = useState('')
@@ -1081,41 +1031,21 @@ export function ServiceInstancesPage() {
   )
 
   const kindOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          creatableTemplates
-            .map(template => String(template.kind ?? '').trim())
-            .filter(Boolean)
-        )
-      )
-        .sort((left, right) => {
-          const leftCategory = categoryLabel(
-            listTemplatesForKind(left, creatableTemplates, t)[0]?.category,
-            t
-          )
-          const rightCategory = categoryLabel(
-            listTemplatesForKind(right, creatableTemplates, t)[0]?.category,
-            t
-          )
-          const categoryCompare = leftCategory.localeCompare(rightCategory)
-          if (categoryCompare !== 0) {
-            return categoryCompare
-          }
-          return kindLabel(left, t).localeCompare(kindLabel(right, t))
-        })
-        .map(kind => {
-          const templates = listTemplatesForKind(kind, creatableTemplates, t)
-          return {
-            id: kind,
-            title: kindLabel(kind, t),
-            description: undefined,
-            meta: categoryLabel(templates[0]?.category, t),
-            searchText: kindSearchText(kind, creatableTemplates, t),
-          }
-        }),
-    [creatableTemplates, t]
-  )
+		() =>
+			CREATABLE_INSTANCE_KINDS.filter(kind =>
+				creatableTemplates.some(template => template.kind === kind)
+			).map(kind => {
+				const exampleTemplate = getDefaultTemplateForKind(kind, creatableTemplates, t)
+				return {
+					id: kind,
+					title: kindLabel(kind, t),
+					description: exampleTemplate ? productDescription(exampleTemplate, t) : undefined,
+					meta: exampleTemplate ? categoryLabel(exampleTemplate.category, t) : undefined,
+					searchText: kindSearchText(kind, creatableTemplates, t),
+				}
+			}),
+		[creatableTemplates, t]
+	)
 
   const resolveSelectedCategory = useCallback(
     (formData: Record<string, unknown>, editingItem: Record<string, unknown> | null) => {
@@ -1136,7 +1066,8 @@ export function ServiceInstancesPage() {
       const overrideTemplate = templatesById.get(templateOverride ?? '')
       const defaultTemplate =
         overrideTemplate &&
-        overrideTemplate.kind === kind &&
+        String(overrideTemplate.kind ?? '').trim().toLowerCase() ===
+          String(kind).trim().toLowerCase() &&
         isCreatableTemplate(overrideTemplate)
           ? overrideTemplate
           : getDefaultTemplateForKind(kind, creatableTemplates, t)
@@ -1144,7 +1075,7 @@ export function ServiceInstancesPage() {
       const initialData: Record<string, unknown> = {
         selected_category: defaultTemplate?.category ?? '',
         template_id: '',
-        kind,
+        kind: defaultTemplate?.kind ?? kind,
         name: '',
         is_enabled: true,
         title_name_editing: false,
@@ -1350,54 +1281,15 @@ export function ServiceInstancesPage() {
   )
 
   const renderEnabledField = useCallback(
-    ({ field, value, setValue }: Parameters<NonNullable<FieldDef['render']>>[0]) => {
-      const currentValue = resolveInstanceEnabled(value)
-      const options = [
-        { label: t('serviceInstances.enabled.yes'), value: true },
-        { label: t('serviceInstances.enabled.no'), value: false },
-      ]
-
-      return (
-        <div className="space-y-3">
-          <label className="text-sm font-medium text-foreground">{field.label}</label>
-          <div className="flex flex-wrap items-center gap-5">
-            {options.map(option => {
-              const selected = option.value === currentValue
-              return (
-                <button
-                  key={option.label}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  className={cn(
-                    'cursor-pointer select-none text-left transition-colors',
-                    selected
-                      ? 'text-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
-                  )}
-                  onMouseDown={event => event.preventDefault()}
-                  onClick={event => {
-                    setValue(option.value)
-                    event.currentTarget.blur()
-                  }}
-                >
-                  <div className="flex items-center gap-2 text-sm font-medium">
-                    <span
-                      className={cn(
-                        'flex h-4 w-4 items-center justify-center rounded-full border',
-                        selected ? 'border-foreground' : 'border-muted-foreground/40'
-                      )}
-                    >
-                      {selected ? <span className="h-2 w-2 rounded-full bg-foreground" /> : null}
-                    </span>
-                    {option.label}
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )
+    ({ field, inputId, value, setValue }: Parameters<NonNullable<FieldDef['render']>>[0]) => {
+      return renderEnabledChoiceField({
+        inputId,
+        label: field.label,
+        value: resolveInstanceEnabled(value),
+        setValue,
+        enabledLabel: t('serviceInstances.enabled.yes'),
+        disabledLabel: t('serviceInstances.enabled.no'),
+      })
     },
     [t]
   )
@@ -1483,12 +1375,12 @@ export function ServiceInstancesPage() {
       const descriptionMeta = resolveCanonicalFieldMeta(selectedTemplate, 'description')
       const groupsMeta = resolveCanonicalFieldMeta(selectedTemplate, 'groups')
       const profileTemplates = selectedTemplate
-        ? isCreatableTemplate(selectedTemplate)
-          ? listTemplatesForKind(selectedTemplate.kind, creatableTemplates, t)
-          : [selectedTemplate]
-        : selectedKind
-          ? listTemplatesForKind(selectedKind, creatableTemplates, t)
-          : []
+		? isCreatableTemplate(selectedTemplate)
+			? listTemplatesForKind(selectedTemplate.kind, creatableTemplates, t)
+			: [selectedTemplate]
+		: selectedKind
+			? listTemplatesForKind(selectedKind, creatableTemplates, t)
+			: []
 
       return [
         {
@@ -1778,9 +1670,9 @@ export function ServiceInstancesPage() {
           ...certificateFields,
           ...otherAdvancedFields,
           baseFieldByKey.get('provider_account')!,
-          baseFieldByKey.get('is_enabled')!,
           baseFieldByKey.get('description')!,
           baseFieldByKey.get('groups')!,
+          baseFieldByKey.get('is_enabled')!,
           baseFieldByKey.get('endpoint')!,
         ]
       }
@@ -1802,9 +1694,9 @@ export function ServiceInstancesPage() {
         baseFieldByKey.get('credential_use_secret')!,
         baseFieldByKey.get('password_value')!,
         baseFieldByKey.get('ssl_mode')!,
-        baseFieldByKey.get('is_enabled')!,
         baseFieldByKey.get('description')!,
         baseFieldByKey.get('groups')!,
+        baseFieldByKey.get('is_enabled')!,
       ]
     },
     [buildBaseFields, creatableTemplates, resolveSelectedCategory, t, templatesById]
@@ -1830,7 +1722,59 @@ export function ServiceInstancesPage() {
     },
     [t, templatesById]
   )
-  const columns = useMemo(() => buildColumns(t, handleToggleEnabled), [handleToggleEnabled, t])
+  const allColumns = useMemo(() => buildColumns(t, handleToggleEnabled), [handleToggleEnabled, t])
+  const columns = useMemo(
+    () =>
+      allColumns.filter(column => {
+        if (
+          column.key === 'kind_label' ||
+          column.key === 'profile' ||
+          column.key === 'host' ||
+          column.key === 'monitor_status' ||
+          column.key === 'monitor_last_checked_at' ||
+          column.key === 'created' ||
+          column.key === 'updated'
+        ) {
+          return visibleOptionalColumns.has(column.key)
+        }
+        return true
+      }),
+    [allColumns, visibleOptionalColumns]
+  )
+  const renderListSettings = useCallback(
+    ({ pageSize, setPageSize }: { pageSize: number; setPageSize: (pageSize: number) => void }) => (
+      <ResourceListSettingsButton
+        title={t('servers.listSettings.title')}
+        rowsPerPageLabel={t('servers.listSettings.rowsPerPage')}
+        rowsPerPageOptionLabel={count => t('servers.listSettings.rowsPerPageOption', { count })}
+        columnsLabel={t('servers.listSettings.columns')}
+        pageSize={pageSize}
+        setPageSize={setPageSize}
+        pageSizeOptions={[10, 20, 50]}
+        columnOptions={[
+          { key: 'kind_label', label: t('serviceInstances.columns.kind'), checked: visibleOptionalColumns.has('kind_label') },
+          { key: 'profile', label: t('serviceInstances.columns.profile'), checked: visibleOptionalColumns.has('profile') },
+          { key: 'host', label: t('serviceInstances.columns.host'), checked: visibleOptionalColumns.has('host') },
+          { key: 'monitor_status', label: t('serviceInstances.columns.reachability'), checked: visibleOptionalColumns.has('monitor_status') },
+          { key: 'monitor_last_checked_at', label: t('serviceInstances.columns.lastChecked'), checked: visibleOptionalColumns.has('monitor_last_checked_at') },
+          { key: 'created', label: t('serviceInstances.columns.created'), checked: visibleOptionalColumns.has('created') },
+          { key: 'updated', label: t('serviceInstances.columns.updated'), checked: visibleOptionalColumns.has('updated') },
+        ]}
+        onColumnToggle={(columnKey, checked) => {
+          setVisibleOptionalColumns(prev => {
+            const next = new Set(prev)
+            if (checked) {
+              next.add(columnKey)
+            } else {
+              next.delete(columnKey)
+            }
+            return next
+          })
+        }}
+      />
+    ),
+    [t, visibleOptionalColumns]
+  )
 
   return (
     <>
@@ -1847,13 +1791,20 @@ export function ServiceInstancesPage() {
           createButtonShowIcon: false,
           searchPlaceholder: t('serviceInstances.page.searchPlaceholder'),
           pageSize: 10,
+          pageSizeValue: pageSize,
+          onPageSizeChange: setPageSize,
           pageSizeOptions: [10, 20, 50],
           defaultSort: { key: 'name', dir: 'asc' },
           headerFilters: true,
           listControlsBorder: false,
           listControlsShowReset: false,
-          pageSizeSelectorPlacement: 'footer',
+          pageSizeSelectorPlacement: 'none',
+          paginationPlacement: 'header',
+          paginationVariant: 'minimal',
           paginationSummary: false,
+          paginationTotalLabel: totalCount =>
+            t('serviceInstances.page.totalItems', { count: totalCount }),
+          headerTrailingControls: renderListSettings,
           columns,
           fields: bootstrapFields,
           createSelection: {

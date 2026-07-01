@@ -3,12 +3,14 @@
   "title": "Mailgun SMTP",
   "vendor": "Mailgun",
   "description": "Mailgun SMTP relay profile.",
+  "helpUrl": "https://documentation.mailgun.com/docs/mailgun/user-manual/sending-messages/#sending-via-smtp",
   "defaultEndpoint": "smtp://smtp.mailgun.org:587",
   "aliases": ["mailgun", "mailgun-smtp"],
   "fields": [
     {
       "id": "endpoint",
-      "placeholder": "smtp://smtp.mailgun.org:587"
+      "placeholder": "smtp://smtp.mailgun.org:587",
+      "helpUrl": "https://documentation.mailgun.com/docs/mailgun/user-manual/sending-messages/#sending-via-smtp"
     }
   ]
 }

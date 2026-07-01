@@ -24,6 +24,8 @@ func (r *pocketBaseProviderAccountRepository) List() ([]*domainaccounts.Provider
 		return nil, err
 	}
 
+	enrichTimestamps(r.app, collections.ProviderAccounts, records)
+
 	items := make([]*domainaccounts.ProviderAccount, 0, len(records))
 	for _, record := range records {
 		items = append(items, providerAccountFromRecord(record))
@@ -36,6 +38,7 @@ func (r *pocketBaseProviderAccountRepository) Get(id string) (*domainaccounts.Pr
 	if err != nil {
 		return nil, wrapProviderAccountLookupError(id, err)
 	}
+	enrichTimestamps(r.app, collections.ProviderAccounts, []*core.Record{record})
 	return providerAccountFromRecord(record), nil
 }
 
@@ -91,6 +94,7 @@ func (r *pocketBaseProviderAccountRepository) Save(account *domainaccounts.Provi
 	if err := r.app.Save(record); err != nil {
 		return wrapProviderAccountSaveError(account, err)
 	}
+	enrichTimestamps(r.app, collections.ProviderAccounts, []*core.Record{record})
 	copyProviderAccountState(account, providerAccountFromRecord(record))
 	return nil
 }

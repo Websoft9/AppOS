@@ -18,18 +18,13 @@ import {
   Square,
   SquareMinus,
   MoreVertical,
-  SlidersHorizontal,
   Activity,
   SquareTerminal,
 } from 'lucide-react'
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -44,7 +39,10 @@ import {
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ResourcePage, type Column, type FieldDef } from '@/components/resources/ResourcePage'
+import { formatResourceDateTime } from '@/components/resources/resource-formatters'
+import { ResourceListSettingsButton } from '@/components/resources/ResourceListSettingsButton'
 import { ResourcesBreadcrumb } from '@/components/resources/ResourcesBreadcrumb'
+import { renderEnabledChoiceField } from '@/components/resources/resource-status'
 import { TunnelSetupWizard } from '@/components/servers/TunnelSetupWizard'
 import { ServerConnectionTab } from '@/components/servers/ServerConnectionTab'
 import { ServerMonitorTab } from '@/components/servers/ServerMonitorTab'
@@ -416,67 +414,6 @@ function buildServerBaseFields(t: Translate): FieldDef[] {
       },
     },
     {
-      key: 'is_enabled',
-      label: t('servers.fields.enableIt'),
-      type: 'boolean',
-      defaultValue: true,
-      advanced: true,
-      render: ({ field, value, setValue }) => {
-        const currentValue = resolveServerEnabled(value)
-        const options = [
-          { label: t('servers.enabled.yes'), value: true },
-          { label: t('servers.enabled.no'), value: false },
-        ]
-
-        return (
-          <div className="space-y-3">
-            <label className="text-sm font-medium text-foreground">{field.label}</label>
-            <div className="grid gap-3 md:grid-cols-2">
-              {options.map(option => {
-                const selected = option.value === currentValue
-                return (
-                  <button
-                    key={option.label}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    className={cn(
-                      'cursor-pointer select-none rounded-2xl border px-4 py-3 text-left transition-colors',
-                      selected
-                        ? 'border-foreground bg-accent/40 shadow-sm'
-                        : 'border-border bg-background hover:bg-muted/50'
-                    )}
-                    onMouseDown={event => event.preventDefault()}
-                    onClick={event => {
-                      setValue(option.value)
-                      event.currentTarget.blur()
-                    }}
-                  >
-                    <div className="flex items-center gap-3 text-sm font-medium text-foreground">
-                      <span
-                        className={cn(
-                          'flex h-4 w-4 items-center justify-center rounded-full border',
-                          selected ? 'border-foreground' : 'border-muted-foreground/50'
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            'h-2 w-2 rounded-full bg-foreground transition-opacity',
-                            selected ? 'opacity-100' : 'opacity-0'
-                          )}
-                        />
-                      </span>
-                      {option.label}
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )
-      },
-    },
-    {
       key: 'name',
       label: t('servers.fields.name'),
       type: 'text',
@@ -526,6 +463,22 @@ function buildServerBaseFields(t: Translate): FieldDef[] {
       label: t('servers.fields.description'),
       type: 'textarea',
       advanced: true,
+    },
+    {
+      key: 'is_enabled',
+      label: t('servers.fields.enableIt'),
+      type: 'boolean',
+      defaultValue: true,
+      advanced: true,
+      render: ({ field, inputId, value, setValue }) =>
+        renderEnabledChoiceField({
+          inputId,
+          label: field.label,
+          value: resolveServerEnabled(value),
+          setValue: nextValue => setValue(nextValue),
+          enabledLabel: t('servers.enabled.yes'),
+          disabledLabel: t('servers.enabled.no'),
+        }),
     },
   ]
 }
@@ -1386,16 +1339,34 @@ export function ServersPage() {
           String(row.connection_last_activity_at ?? '').trim() ||
           getConnectionPresentation(row).lastActivityAt,
         render: (_value, row) => {
-          const id = String(row.id ?? '')
-          const override = pingResults[id]
-          const label = !override
-            ? String(row.connection_last_activity_label ?? '').trim() || '—'
-            : getConnectionPresentation(row).lastActivityLabel
-          return <span>{label}</span>
+          const rawValue =
+            String(row.connection_last_activity_at ?? '').trim() ||
+            getConnectionPresentation(row).lastActivityAt
+          return (
+            <span className="text-sm text-muted-foreground">
+              {formatResourceDateTime(rawValue)}
+            </span>
+          )
         },
       },
+      {
+        key: 'created',
+        label: t('connectors.columns.created'),
+        sortable: true,
+        render: value => (
+          <span className="text-sm text-muted-foreground">{formatResourceDateTime(value)}</span>
+        ),
+      },
+      {
+        key: 'updated',
+        label: t('connectors.columns.updated'),
+        sortable: true,
+        render: value => (
+          <span className="text-sm text-muted-foreground">{formatResourceDateTime(value)}</span>
+        ),
+      },
     ],
-    [getConnectionPresentation, handleOpenServer, handleToggleEnabled, pingResults, server, t]
+    [getConnectionPresentation, handleOpenServer, handleToggleEnabled, server, t]
   )
 
   const columns = useMemo(
@@ -1405,7 +1376,9 @@ export function ServersPage() {
           column.key === 'host_summary' ||
           column.key === 'monitor_status' ||
           column.key === 'user' ||
-          column.key === 'secret_type_label'
+          column.key === 'secret_type_label' ||
+          column.key === 'created' ||
+          column.key === 'updated'
         ) {
           return visibleOptionalColumns.has(column.key)
         }
@@ -1416,7 +1389,13 @@ export function ServersPage() {
 
   const toggleOptionalColumn = useCallback(
     (
-      columnKey: 'host_summary' | 'monitor_status' | 'user' | 'secret_type_label',
+      columnKey:
+        | 'host_summary'
+        | 'monitor_status'
+        | 'user'
+        | 'secret_type_label'
+        | 'created'
+        | 'updated',
       checked: boolean
     ) => {
       setVisibleOptionalColumns(prev => {
@@ -1449,59 +1428,59 @@ export function ServersPage() {
               : t('servers.sessions.manyActive', { count: activeTerminalSessionCount })}
           </Button>
         ) : null}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              title={t('servers.listSettings.title')}
-              aria-label={t('servers.listSettings.title')}
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>{t('servers.listSettings.rowsPerPage')}</DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={String(pageSize)}
-              onValueChange={value => setPageSize(Number(value))}
-            >
-              {[10, 50, 100].map(option => (
-                <DropdownMenuRadioItem key={option} value={String(option)}>
-                  {t('servers.listSettings.rowsPerPageOption', { count: option })}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>{t('servers.listSettings.columns')}</DropdownMenuLabel>
-            <DropdownMenuCheckboxItem
-              checked={visibleOptionalColumns.has('host_summary')}
-              onCheckedChange={checked => toggleOptionalColumn('host_summary', checked === true)}
-            >
-              {t('servers.columns.host')}
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={visibleOptionalColumns.has('monitor_status')}
-              onCheckedChange={checked => toggleOptionalColumn('monitor_status', checked === true)}
-            >
-              {t('servers.columns.monitor')}
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={visibleOptionalColumns.has('user')}
-              onCheckedChange={checked => toggleOptionalColumn('user', checked === true)}
-            >
-              {t('servers.columns.user')}
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={visibleOptionalColumns.has('secret_type_label')}
-              onCheckedChange={checked =>
-                toggleOptionalColumn('secret_type_label', checked === true)
-              }
-            >
-              {t('servers.columns.secretType')}
-            </DropdownMenuCheckboxItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <ResourceListSettingsButton
+          title={t('servers.listSettings.title')}
+          rowsPerPageLabel={t('servers.listSettings.rowsPerPage')}
+          rowsPerPageOptionLabel={count => t('servers.listSettings.rowsPerPageOption', { count })}
+          columnsLabel={t('servers.listSettings.columns')}
+          pageSize={pageSize}
+          setPageSize={setPageSize}
+          pageSizeOptions={[10, 50, 100]}
+          columnOptions={[
+            {
+              key: 'host_summary',
+              label: t('servers.columns.host'),
+              checked: visibleOptionalColumns.has('host_summary'),
+            },
+            {
+              key: 'monitor_status',
+              label: t('servers.columns.monitor'),
+              checked: visibleOptionalColumns.has('monitor_status'),
+            },
+            {
+              key: 'user',
+              label: t('servers.columns.user'),
+              checked: visibleOptionalColumns.has('user'),
+            },
+            {
+              key: 'secret_type_label',
+              label: t('servers.columns.secretType'),
+              checked: visibleOptionalColumns.has('secret_type_label'),
+            },
+            {
+              key: 'created',
+              label: t('connectors.columns.created'),
+              checked: visibleOptionalColumns.has('created'),
+            },
+            {
+              key: 'updated',
+              label: t('connectors.columns.updated'),
+              checked: visibleOptionalColumns.has('updated'),
+            },
+          ]}
+          onColumnToggle={(columnKey, checked) =>
+            toggleOptionalColumn(
+              columnKey as
+                | 'host_summary'
+                | 'monitor_status'
+                | 'user'
+                | 'secret_type_label'
+                | 'created'
+                | 'updated',
+              checked
+            )
+          }
+        />
       </div>
     ),
     [activeTerminalSessionCount, navigate, toggleOptionalColumn, visibleOptionalColumns, t]

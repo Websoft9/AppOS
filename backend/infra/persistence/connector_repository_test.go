@@ -50,6 +50,9 @@ func TestConnectorRepositorySaveGetDelete(t *testing.T) {
 	if item.ID() == "" {
 		t.Fatal("expected saved connector id")
 	}
+	if item.Created() == "" || item.Updated() == "" {
+		t.Fatalf("expected save to hydrate timestamps, got created=%q updated=%q", item.Created(), item.Updated())
+	}
 
 	loaded, err := repo.Get(item.ID())
 	if err != nil {
@@ -60,6 +63,9 @@ func TestConnectorRepositorySaveGetDelete(t *testing.T) {
 	}
 	if loaded.ProviderAccountID() != providerAccount.Id {
 		t.Fatalf("expected provider_account %q, got %q", providerAccount.Id, loaded.ProviderAccountID())
+	}
+	if loaded.Created() == "" || loaded.Updated() == "" {
+		t.Fatalf("expected get to return timestamps, got created=%q updated=%q", loaded.Created(), loaded.Updated())
 	}
 
 	if err := repo.Delete(item); err != nil {

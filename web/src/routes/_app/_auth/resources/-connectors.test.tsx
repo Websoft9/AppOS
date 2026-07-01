@@ -233,9 +233,12 @@ describe('ConnectorsPage', () => {
             id: 'generic-smtp',
             kind: 'smtp',
             title: 'Generic SMTP',
+            defaultEndpoint: 'smtp://localhost:587',
+            defaultEndpointTls: 'smtps://localhost:465',
             defaultAuthScheme: 'basic',
             fields: [
               { id: 'endpoint', label: 'SMTP Endpoint', type: 'string', required: true },
+              { id: 'port', label: 'Port', type: 'number', required: true },
               { id: 'username', label: 'Username', type: 'string', required: true },
               {
                 id: 'credential',
@@ -252,9 +255,11 @@ describe('ConnectorsPage', () => {
             kind: 'smtp',
             title: 'Amazon SES SMTP',
             defaultEndpoint: 'smtp://email-smtp.us-east-1.amazonaws.com:587',
+            defaultEndpointTls: 'smtps://secure-email-smtp.us-east-1.amazonaws.com:465',
             defaultAuthScheme: 'basic',
             fields: [
               { id: 'endpoint', label: 'SMTP Endpoint', type: 'string', required: true },
+              { id: 'port', label: 'Port', type: 'number', required: true },
               { id: 'username', label: 'Username', type: 'string', required: true },
               {
                 id: 'credential',
@@ -376,6 +381,17 @@ describe('ConnectorsPage', () => {
     expect(select.value).toBe('ses-smtp')
     expect(within(dialog).getByText(/Add a SMTP service - Amazon SES SMTP/)).toBeInTheDocument()
     expect(within(dialog).getByLabelText(/^Use SSL/)).toBeInTheDocument()
+    expect((within(dialog).getByLabelText(/^SMTP Endpoint/) as HTMLInputElement).value).toBe(
+      'email-smtp.us-east-1.amazonaws.com'
+    )
+    expect((within(dialog).getByLabelText(/^Port/) as HTMLInputElement).value).toBe('587')
+
+    fireEvent.click(within(dialog).getByLabelText(/^Use SSL/))
+
+    expect((within(dialog).getByLabelText(/^SMTP Endpoint/) as HTMLInputElement).value).toBe(
+      'secure-email-smtp.us-east-1.amazonaws.com'
+    )
+    expect((within(dialog).getByLabelText(/^Port/) as HTMLInputElement).value).toBe('465')
   })
 
   it('loads relation options once when opening the create dialog', async () => {
@@ -498,6 +514,7 @@ describe('ConnectorsPage', () => {
             kind: 'smtp',
             title: 'Amazon SES SMTP',
             defaultEndpoint: 'smtp://email-smtp.us-east-1.amazonaws.com:587',
+            defaultEndpointTls: 'smtps://secure-email-smtp.us-east-1.amazonaws.com:465',
             defaultAuthScheme: 'basic',
             fields: [
               { id: 'endpoint', label: 'SMTP Endpoint', type: 'string', required: true },
@@ -518,6 +535,8 @@ describe('ConnectorsPage', () => {
           {
             id: 'connector-1',
             name: 'ses-main',
+            created: '2026-04-11T08:30:00Z',
+            updated: '2026-04-11T09:45:00Z',
             kind: 'smtp',
             template_id: 'ses-smtp',
             endpoint: 'smtp://email-smtp.us-east-1.amazonaws.com:587',
@@ -556,14 +575,22 @@ describe('ConnectorsPage', () => {
       expect(screen.getByTitle('More actions')).toBeInTheDocument()
     })
 
+    expect(screen.getByText('Created')).toBeInTheDocument()
+    expect(screen.getByText('Updated')).toBeInTheDocument()
+
     fireEvent.pointerDown(screen.getByTitle('More actions'))
     fireEvent.click(await screen.findByText('Edit'))
 
-    await screen.findByRole('dialog')
+    const dialog = await screen.findByRole('dialog')
     expect(
       screen.queryByPlaceholderText('Enter a new secret value to update the current secret')
     ).not.toBeInTheDocument()
     expect(screen.getByText('smtp-password')).toBeInTheDocument()
+    const profileSelect = dialog.querySelector('select') as HTMLSelectElement | null
+    if (!profileSelect) {
+      throw new Error('expected profile select to be rendered')
+    }
+    expect(profileSelect.disabled).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: 'Edit Secret' }))
 
     expect(

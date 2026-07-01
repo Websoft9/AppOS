@@ -44,6 +44,7 @@ This document reuses Epic 6 for the infrastructure-module planning surface that 
 | [6.3](story6.3-network-proxy.md) | Unified Network Proxy Runtime | Planned |
 | [6.4](story6.4-egress-domain-consolidation.md) | Egress Domain Consolidation | ✅ Done |
 | [6.5](story6.5-fetch-store-runtime.md) | Fetch-Store Download Runtime | Planned |
+| [6.7](story6.7-schema-migration.md) | Schema Baseline and Versioned Migration Governance | In Progress |
 
 ## Notes
 
@@ -54,3 +55,4 @@ This document reuses Epic 6 for the infrastructure-module planning surface that 
 - `/appos/data` is already the persisted runtime data root in deployment. Media storage should live under a stable subpath such as `/appos/data/media` rather than introducing an unpersisted side path.
 - Story 6.4 is the canonical consolidation point for `egress` as the parent outbound-network domain; legacy `safefetch` and empty `downloader` shims should not be reintroduced.
 - Story 6.5 should keep network-governance concerns in `infra/egress`, put large-file fetch-for-store execution in an `infra/egress/fetchstore` subpackage, and reuse `infra/filesvc` only as the local persistence substrate.
+- Story 6.7 makes `backend/infra/schema` the current table-structure source of truth. Collection creation and field/index changes land there directly; `backend/infra/migrations` stays intentionally small for MVP. Migration work should live in one versioned file per release window (`vXX.YY.ZZ_*.go`) that bundles schema bootstrap plus the minimum seeds still needed by fresh installs. Old files are never renamed after release. Field or index changes incrementally update the schema files, not migration files.

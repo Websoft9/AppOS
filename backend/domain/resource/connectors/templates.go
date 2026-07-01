@@ -152,6 +152,7 @@ type templateFile struct {
 	Category        *string             `json:"category,omitempty"`
 	Description     *string             `json:"description,omitempty"`
 	DefaultEndpoint *string             `json:"defaultEndpoint,omitempty"`
+	DefaultEndpointTLS *string          `json:"defaultEndpointTls,omitempty"`
 	DefaultAuth     *string             `json:"defaultAuthScheme,omitempty"`
 	Capabilities    []string            `json:"capabilities,omitempty"`
 	Aliases         []string            `json:"aliases,omitempty"`
@@ -222,6 +223,9 @@ func applyTemplateOverlay(base Template, file templateFile) (Template, error) {
 	}
 	if file.DefaultEndpoint != nil {
 		result.DefaultEndpoint = strings.TrimSpace(*file.DefaultEndpoint)
+	}
+	if file.DefaultEndpointTLS != nil {
+		result.DefaultEndpointTLS = strings.TrimSpace(*file.DefaultEndpointTLS)
 	}
 	if file.DefaultAuth != nil {
 		result.DefaultAuth = strings.TrimSpace(*file.DefaultAuth)

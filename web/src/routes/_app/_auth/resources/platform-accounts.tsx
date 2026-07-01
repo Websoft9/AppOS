@@ -1,11 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { Power, PowerOff } from 'lucide-react'
 import { useOptionalLayout } from '@/contexts/LayoutContext'
 import { Badge } from '@/components/ui/badge'
+import { ResourceListSettingsButton } from '@/components/resources/ResourceListSettingsButton'
 import { ResourcePage, type Column, type FieldDef } from '@/components/resources/ResourcePage'
 import { ResourcesBreadcrumb } from '@/components/resources/ResourcesBreadcrumb'
+import { buildEnabledStatusColumn } from '@/components/resources/resource-status'
+import { formatResourceDateTime } from '@/components/resources/resource-formatters'
+import {
+  buildResourceCategoryLabel,
+  buildResourceKindLabel,
+  buildResourceProductDescription,
+  buildResourceProductMeta,
+  buildResourceProductTitle,
+  isGenericResourceTemplate,
+} from '@/components/resources/resource-template-display'
 import { buildUserVisibleSecretRelationApiPath } from '@/components/secrets/resource-secret-relations'
 import { pb } from '@/lib/pb'
 
@@ -19,6 +29,8 @@ type ProviderAccountRecord = {
   credential?: string
   config?: Record<string, unknown>
   description?: string
+  created?: string
+  updated?: string
 }
 
 type ProviderAccountTemplateField = {
@@ -58,6 +70,14 @@ const KIND_LABELS: Record<string, string> = {
   cloudflare: 'Cloudflare',
 }
 
+const TEMPLATE_DISPLAY_OPTIONS = {
+  namespace: 'platformAccounts',
+  kindLabels: KIND_LABELS,
+  categoryLabels: CATEGORY_LABELS,
+  isGenericTitle: (template: ProviderAccountTemplate, resolvedKindLabel: string) =>
+    template.title.trim().toLowerCase() === `${resolvedKindLabel.toLowerCase()} account`,
+} as const
+
 function normalizeTemplateFieldDefault(field: ProviderAccountTemplateField) {
   if (field.default === undefined) {
     return ''
@@ -77,54 +97,27 @@ function resolveProviderAccountEnabled(value: unknown) {
 }
 
 function kindLabel(kind: string, t: Translate) {
-  const normalized = String(kind).trim().toLowerCase()
-  if (KIND_LABELS[normalized]) {
-    return t(`platformAccounts.kinds.${normalized}`)
-  }
-  return normalized
-    ? normalized.charAt(0).toUpperCase() + normalized.slice(1)
-    : t('platformAccounts.kinds.unknown')
+  return buildResourceKindLabel(kind, t, TEMPLATE_DISPLAY_OPTIONS)
 }
 
 function isGenericTemplate(template: ProviderAccountTemplate, t: Translate) {
-  const normalizedTitle = template.title.trim().toLowerCase()
-  const genericTitle = `${kindLabel(template.kind, t).toLowerCase()} account`
-  return (
-    template.id.startsWith('generic-') ||
-    normalizedTitle.includes('generic') ||
-    normalizedTitle === genericTitle
-  )
+  return isGenericResourceTemplate(template, t, TEMPLATE_DISPLAY_OPTIONS)
 }
 
 function productTitle(template: ProviderAccountTemplate, t: Translate) {
-  return isGenericTemplate(template, t) ? kindLabel(template.kind, t) : template.title
+  return buildResourceProductTitle(template, t, TEMPLATE_DISPLAY_OPTIONS)
 }
 
 function categoryLabel(category: string | undefined, t: Translate) {
-  const normalized = String(category ?? '')
-    .trim()
-    .toLowerCase()
-  if (CATEGORY_LABELS[normalized]) {
-    return t(`platformAccounts.categories.${normalized}`)
-  }
-  return t('platformAccounts.categories.other')
+  return buildResourceCategoryLabel(category, t, TEMPLATE_DISPLAY_OPTIONS)
 }
 
 function productMeta(template: ProviderAccountTemplate, t: Translate) {
-  return [categoryLabel(template.category, t), template.vendor].filter(Boolean).join(' · ')
+  return buildResourceProductMeta(template, t, TEMPLATE_DISPLAY_OPTIONS)
 }
 
 function productDescription(template: ProviderAccountTemplate, t: Translate) {
-  if (isGenericTemplate(template, t)) {
-    return t('platformAccounts.product.standardTemplate')
-  }
-  return (
-    template.description ||
-    t('platformAccounts.product.profileDescription', {
-      vendorPrefix: template.vendor ? `${template.vendor} ` : '',
-      category: categoryLabel(template.category, t).toLowerCase(),
-    })
-  )
+  return buildResourceProductDescription(template, t, TEMPLATE_DISPLAY_OPTIONS)
 }
 
 function mapTemplateFieldToResourceField(field: ProviderAccountTemplateField): FieldDef {
@@ -208,51 +201,60 @@ function mapProviderAccountRow(
     identifier: String(item.identifier ?? ''),
     credential: String(item.credential ?? ''),
     description: String(item.description ?? ''),
+    created: String(item.created ?? ''),
+    updated: String(item.updated ?? ''),
     ...flattenedConfig,
   }
 }
 
 function buildColumns(t: Translate, onToggleEnabled: (item: Record<string, unknown>) => void): Column[] {
   return [
-    { key: 'name', label: t('platformAccounts.columns.name') },
-    {
-      key: 'enabled_status',
+    { key: 'name', label: t('platformAccounts.columns.name'), searchable: true, sortable: true },
+    buildEnabledStatusColumn({
       label: t('platformAccounts.columns.enabled'),
-      sortable: true,
-      filterOptions: [
-        { label: t('platformAccounts.enabled.yes'), value: 'Enabled' },
-        { label: t('platformAccounts.enabled.no'), value: 'Disabled' },
-      ],
-      filterValue: row => String(row.enabled_status ?? ''),
-      render: (_value, row) => {
-        const enabled = resolveProviderAccountEnabled(row.is_enabled)
-        return (
-          <button
-            type="button"
-            className={
-              enabled
-                ? 'inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 cursor-pointer'
-                : 'inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground cursor-pointer'
-            }
-            onClick={event => {
-              event.stopPropagation()
-              void onToggleEnabled(row)
-            }}
-            title={enabled ? t('platformAccounts.actions.disable') : t('platformAccounts.actions.enable')}
-          >
-            {enabled ? <Power className="h-3.5 w-3.5" /> : <PowerOff className="h-3.5 w-3.5" />}
-            {enabled ? t('platformAccounts.enabled.yes') : t('platformAccounts.enabled.no')}
-          </button>
-        )
-      },
-    },
+      enabledLabel: t('platformAccounts.enabled.yes'),
+      disabledLabel: t('platformAccounts.enabled.no'),
+      enableTitle: t('platformAccounts.actions.enable'),
+      disableTitle: t('platformAccounts.actions.disable'),
+      resolveEnabled: resolveProviderAccountEnabled,
+      onToggle: onToggleEnabled,
+    }),
     {
       key: 'kind_label',
       label: t('platformAccounts.columns.platform'),
+      sortable: true,
+      filterValue: row => String(row.kind_label ?? ''),
       render: value => <Badge variant="outline">{String(value || '—')}</Badge>,
     },
-    { key: 'profile', label: t('platformAccounts.columns.profile') },
-    { key: 'identifier', label: t('platformAccounts.columns.identifier') },
+    {
+      key: 'profile',
+      label: t('platformAccounts.columns.profile'),
+      searchable: true,
+      sortable: true,
+      filterValue: row => String(row.profile ?? ''),
+    },
+    {
+      key: 'identifier',
+      label: t('platformAccounts.columns.identifier'),
+      searchable: true,
+      sortable: true,
+    },
+    {
+      key: 'created',
+      label: t('platformAccounts.columns.created'),
+      sortable: true,
+      render: value => (
+        <span className="text-sm text-muted-foreground">{formatResourceDateTime(value)}</span>
+      ),
+    },
+    {
+      key: 'updated',
+      label: t('platformAccounts.columns.updated'),
+      sortable: true,
+      render: value => (
+        <span className="text-sm text-muted-foreground">{formatResourceDateTime(value)}</span>
+      ),
+    },
   ]
 }
 
@@ -265,6 +267,10 @@ export function PlatformAccountsPage() {
     ProviderAccountTemplate[]
   >([])
   const [refreshKey, setRefreshKey] = useState(0)
+  const [pageSize, setPageSize] = useState(10)
+  const [visibleOptionalColumns, setVisibleOptionalColumns] = useState<Set<string>>(
+    () => new Set(['kind_label', 'profile', 'identifier', 'created', 'updated'])
+  )
 
   useEffect(() => {
     if (!setHeaderRightStartContent) return undefined
@@ -428,7 +434,55 @@ export function PlatformAccountsPage() {
     },
     [templatesById]
   )
-  const columns = useMemo(() => buildColumns(t, handleToggleEnabled), [handleToggleEnabled, t])
+  const allColumns = useMemo(() => buildColumns(t, handleToggleEnabled), [handleToggleEnabled, t])
+  const columns = useMemo(
+    () =>
+      allColumns.filter(column => {
+        if (
+          column.key === 'kind_label' ||
+          column.key === 'profile' ||
+          column.key === 'identifier' ||
+          column.key === 'created' ||
+          column.key === 'updated'
+        ) {
+          return visibleOptionalColumns.has(column.key)
+        }
+        return true
+      }),
+    [allColumns, visibleOptionalColumns]
+  )
+  const renderListSettings = useCallback(
+    ({ pageSize, setPageSize }: { pageSize: number; setPageSize: (pageSize: number) => void }) => (
+      <ResourceListSettingsButton
+        title={t('servers.listSettings.title')}
+        rowsPerPageLabel={t('servers.listSettings.rowsPerPage')}
+        rowsPerPageOptionLabel={count => t('servers.listSettings.rowsPerPageOption', { count })}
+        columnsLabel={t('servers.listSettings.columns')}
+        pageSize={pageSize}
+        setPageSize={setPageSize}
+        pageSizeOptions={[10, 20, 50]}
+        columnOptions={[
+          { key: 'kind_label', label: t('platformAccounts.columns.platform'), checked: visibleOptionalColumns.has('kind_label') },
+          { key: 'profile', label: t('platformAccounts.columns.profile'), checked: visibleOptionalColumns.has('profile') },
+          { key: 'identifier', label: t('platformAccounts.columns.identifier'), checked: visibleOptionalColumns.has('identifier') },
+          { key: 'created', label: t('platformAccounts.columns.created'), checked: visibleOptionalColumns.has('created') },
+          { key: 'updated', label: t('platformAccounts.columns.updated'), checked: visibleOptionalColumns.has('updated') },
+        ]}
+        onColumnToggle={(columnKey, checked) => {
+          setVisibleOptionalColumns(prev => {
+            const next = new Set(prev)
+            if (checked) {
+              next.add(columnKey)
+            } else {
+              next.delete(columnKey)
+            }
+            return next
+          })
+        }}
+      />
+    ),
+    [t, visibleOptionalColumns]
+  )
 
   return (
     <ResourcePage
@@ -436,6 +490,22 @@ export function PlatformAccountsPage() {
         title: t('platformAccounts.page.title'),
         description: t('platformAccounts.page.description'),
         apiPath: '/api/provider-accounts',
+        pageSize: 10,
+        pageSizeValue: pageSize,
+        onPageSizeChange: setPageSize,
+        pageSizeOptions: [10, 20, 50],
+        pageSizeSelectorPlacement: 'none',
+        paginationPlacement: 'header',
+        paginationVariant: 'minimal',
+        paginationSummary: false,
+        paginationTotalLabel: totalCount => t('platformAccounts.page.totalItems', { count: totalCount }),
+        listControlsBorder: false,
+        listControlsShowReset: false,
+        headerTrailingControls: renderListSettings,
+        headerFilters: true,
+        wrapTableInCard: false,
+        actionsAlign: 'left',
+        actionsMenuAlign: 'start',
         columns,
         fields: bootstrapFields,
         createSelection: {
@@ -467,7 +537,6 @@ export function PlatformAccountsPage() {
         resolveFields: resolveProviderAccountFields,
         resourceType: 'provider_account',
         autoCreate,
-        enableGroupAssign: true,
         refreshKey,
         listItems: async () => {
           const items = await pb.send<ProviderAccountRecord[]>('/api/provider-accounts', {

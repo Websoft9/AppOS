@@ -31,6 +31,11 @@ import {
   type SelectOption,
 } from '@/components/resources/ResourcePage'
 import { ReferenceSelect } from '@/components/resources/ReferenceSelect'
+import { formatResourceDateTime } from '@/components/resources/resource-formatters'
+import {
+  buildEnabledStatusColumn,
+  renderEnabledChoiceField,
+} from '@/components/resources/resource-status'
 import type { RelationOption } from '@/components/resources/resource-page-types'
 import { ResourcesBreadcrumb } from '@/components/resources/ResourcesBreadcrumb'
 import { buildApiKeyValue, SecretCredentialField } from '@/components/secrets/SecretCredentialField'
@@ -65,7 +70,6 @@ import {
   sanitizeProviderModelGroups,
   sanitizeProviderModelOptions,
 } from '@/lib/ai-providers'
-import { getLocale } from '@/lib/i18n'
 import { pb } from '@/lib/pb'
 
 type Translate = (key: string, options?: Record<string, unknown>) => string
@@ -280,22 +284,6 @@ function inferModelGroupLabel(modelId: string): string {
   return prefix.charAt(0).toUpperCase() + prefix.slice(1)
 }
 
-function formatDateTime(value: unknown) {
-  const raw = String(value ?? '').trim()
-  if (!raw) return '—'
-  const date = new Date(raw)
-  if (Number.isNaN(date.getTime())) return raw
-  const locale = getLocale()
-  return new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en', {
-    year: 'numeric',
-    month: 'short',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(date)
-}
-
 function normalizeReachabilityStatus(value: unknown, t: Translate) {
   const normalized = String(value ?? '')
     .trim()
@@ -477,34 +465,16 @@ function buildColumns(
       filterOptions: providerOptions,
       filterValue: row => String(row.provider ?? ''),
     },
-    {
-      key: 'enabled_status',
+    buildEnabledStatusColumn({
       label: t('aiProviders.columns.enabled'),
-      sortable: true,
-      filterOptions: [
-        { label: t('aiProviders.enabled.yes'), value: 'Enabled' },
-        { label: t('aiProviders.enabled.no'), value: 'Disabled' },
-      ],
-      filterValue: row => String(row.enabled_status ?? ''),
-      render: (_value, row) => {
-        const enabled = resolveAIProviderEnabled(row.is_enabled)
-        return (
-          <button
-            type="button"
-            className={
-              enabled
-                ? 'inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 cursor-pointer'
-                : 'inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground cursor-pointer'
-            }
-            onClick={() => onToggleEnabled(row)}
-            title={enabled ? t('aiProviders.actions.disable') : t('aiProviders.actions.enable')}
-          >
-            {enabled ? <Power className="h-3.5 w-3.5" /> : <PowerOff className="h-3.5 w-3.5" />}
-            {enabled ? t('aiProviders.enabled.yes') : t('aiProviders.enabled.no')}
-          </button>
-        )
-      },
-    },
+      enabledLabel: t('aiProviders.enabled.yes'),
+      disabledLabel: t('aiProviders.enabled.no'),
+      enableTitle: t('aiProviders.actions.enable'),
+      disableTitle: t('aiProviders.actions.disable'),
+      resolveEnabled: resolveAIProviderEnabled,
+      onToggle: onToggleEnabled,
+      stopPropagation: false,
+    }),
     {
       key: 'reachability',
       label: t('aiProviders.columns.reachability'),
@@ -563,13 +533,13 @@ function buildColumns(
       key: 'created',
       label: t('aiProviders.columns.created'),
       sortable: true,
-      render: value => formatDateTime(value),
+      render: value => formatResourceDateTime(value),
     },
     {
       key: 'updated',
       label: t('aiProviders.columns.updated'),
       sortable: true,
-      render: value => formatDateTime(value),
+      render: value => formatResourceDateTime(value),
     },
   ]
 }
@@ -1096,44 +1066,6 @@ export function AIProvidersPage() {
         },
       },
       {
-        key: 'is_enabled',
-        label: t('aiProviders.fields.enableIt'),
-        type: 'text',
-        hideLabel: true,
-        defaultValue: true,
-        advanced: true,
-        render: ({ formData, updateField }) => {
-          const enabled = Boolean(formData.is_enabled ?? true)
-          return (
-            <div className="space-y-2">
-              <div className="text-sm font-medium text-foreground">
-                {t('aiProviders.fields.enableIt')}
-              </div>
-              <div className="flex flex-wrap gap-4 text-sm">
-                <label className="inline-flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="edit-provider-enabled"
-                    checked={enabled}
-                    onChange={() => updateField('is_enabled', true)}
-                  />
-                  <span>Yes</span>
-                </label>
-                <label className="inline-flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="edit-provider-enabled"
-                    checked={!enabled}
-                    onChange={() => updateField('is_enabled', false)}
-                  />
-                  <span>No</span>
-                </label>
-              </div>
-            </div>
-          )
-        },
-      },
-      {
         key: 'auth_scheme',
         label: t('aiProviders.fields.authScheme'),
         type: 'select',
@@ -1227,6 +1159,22 @@ export function AIProvidersPage() {
         relationLabelKey: 'name',
         defaultValue: [],
       },
+    {
+      key: 'is_enabled',
+      label: t('aiProviders.fields.enableIt'),
+      type: 'boolean',
+      defaultValue: true,
+      advanced: true,
+      render: ({ field, inputId, value, setValue }) =>
+        renderEnabledChoiceField({
+          inputId,
+          label: field.label,
+          value: Boolean(value ?? true),
+          setValue: nextValue => setValue(nextValue),
+          enabledLabel: t('aiProviders.enabled.yes'),
+          disabledLabel: t('aiProviders.enabled.no'),
+        }),
+    },
     ],
     [providerProfileOptions, providerTemplatesById, t]
   )
@@ -1577,8 +1525,14 @@ export function AIProvidersPage() {
               fields.push({ label: 'Description', value: String(item.description ?? '') })
             }
             fields.push(
-              { label: t('aiProviders.columns.created'), value: formatDateTime(item.created) },
-              { label: t('aiProviders.columns.updated'), value: formatDateTime(item.updated) }
+              {
+                label: t('aiProviders.columns.created'),
+                value: formatResourceDateTime(item.created),
+              },
+              {
+                label: t('aiProviders.columns.updated'),
+                value: formatResourceDateTime(item.updated),
+              }
             )
 
             return (

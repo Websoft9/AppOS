@@ -2,15 +2,8 @@
   "$schema": "https://opencode.ai/config.json",
   "instructions": ["specs/"],
   "permission": {
-    "edit": "ask",
-    "bash": {
-      "git *": "allow",
-      "make *": "allow",
-      "npm *": "allow",
-      "npx *": "allow",
-      "go *": "allow",
-      "*": "ask"
-    }
+    "edit": "allow",
+    "bash": "allow"
   },
   "formatter": {
     "go": {

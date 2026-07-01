@@ -40,6 +40,7 @@ export type ResourceTemplateBase<TField extends ResourceTemplateField = Resource
   description?: string
   helpUrl?: string
   defaultEndpoint?: string
+  defaultEndpointTls?: string
   defaultAuthScheme?: string
   fields?: TField[]
 }

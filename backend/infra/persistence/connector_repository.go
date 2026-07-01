@@ -24,9 +24,11 @@ func (r *pocketBaseConnectorRepository) List() ([]*domainconnectors.Connector, e
 		return nil, err
 	}
 
+	timestamps := loadRecordTimestamps(r.app, collections.Connectors, records)
+
 	items := make([]*domainconnectors.Connector, 0, len(records))
 	for _, record := range records {
-		items = append(items, connectorFromRecord(record))
+		items = append(items, connectorFromRecord(record, timestamps[record.Id]))
 	}
 	return items, nil
 }
@@ -36,7 +38,8 @@ func (r *pocketBaseConnectorRepository) Get(id string) (*domainconnectors.Connec
 	if err != nil {
 		return nil, wrapConnectorLookupError(id, err)
 	}
-	return connectorFromRecord(record), nil
+	timestamps := loadRecordTimestamps(r.app, collections.Connectors, []*core.Record{record})
+	return connectorFromRecord(record, timestamps[record.Id]), nil
 }
 
 func (r *pocketBaseConnectorRepository) New() (*domainconnectors.Connector, error) {
@@ -65,7 +68,12 @@ func (r *pocketBaseConnectorRepository) Save(connector *domainconnectors.Connect
 	if err := r.app.Save(record); err != nil {
 		return wrapConnectorSaveError(connector, err)
 	}
-	copyConnectorState(connector, connectorFromRecord(record))
+	persisted, err := r.app.FindRecordById(collections.Connectors, record.Id)
+	if err != nil {
+		return wrapConnectorLookupError(record.Id, err)
+	}
+	timestamps := loadRecordTimestamps(r.app, collections.Connectors, []*core.Record{persisted})
+	copyConnectorState(connector, connectorFromRecord(persisted, timestamps[persisted.Id]))
 	return nil
 }
 
@@ -83,9 +91,11 @@ func (r *pocketBaseConnectorRepository) ListByKind(kind string) ([]*domainconnec
 		return nil, err
 	}
 
+	timestamps := loadRecordTimestamps(r.app, collections.Connectors, records)
+
 	items := make([]*domainconnectors.Connector, 0, len(records))
 	for _, record := range records {
-		items = append(items, connectorFromRecord(record))
+		items = append(items, connectorFromRecord(record, timestamps[record.Id]))
 	}
 	return items, nil
 }
@@ -115,11 +125,11 @@ func (r *pocketBaseConnectorRepository) recordForSave(connector *domainconnector
 	return record, nil
 }
 
-func connectorFromRecord(record *core.Record) *domainconnectors.Connector {
+func connectorFromRecord(record *core.Record, timestamps recordTimestamps) *domainconnectors.Connector {
 	return domainconnectors.RestoreConnector(domainconnectors.Snapshot{
 		ID:                record.Id,
-		Created:           recordDateTimeString(record, "created"),
-		Updated:           recordDateTimeString(record, "updated"),
+		Created:           strings.TrimSpace(timestamps.Created),
+		Updated:           strings.TrimSpace(timestamps.Updated),
 		Name:              record.GetString("name"),
 		Kind:              record.GetString("kind"),
 		IsEnabled:         recordEnabledValue(record),

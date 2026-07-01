@@ -13,10 +13,15 @@ import {
   type FieldDef,
   type SelectOption,
 } from '@/components/resources/ResourcePage'
+import { ResourceListSettingsButton } from '@/components/resources/ResourceListSettingsButton'
 import { ResourcesBreadcrumb } from '@/components/resources/ResourcesBreadcrumb'
+import { formatResourceDateTime } from '@/components/resources/resource-formatters'
+import {
+  buildEnabledStatusColumn,
+  renderEnabledChoiceField,
+} from '@/components/resources/resource-status'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { pb } from '@/lib/pb'
-import { cn } from '@/lib/utils'
 import {
   CONNECTOR_KIND_QUERY,
   SUPPORTED_KINDS,
@@ -39,21 +44,6 @@ import {
   type ConnectorTemplate,
 } from '@/components/connectors/shared'
 
-function formatDateTime(value: unknown) {
-  const raw = String(value ?? '').trim()
-  if (!raw) return '—'
-  const date = new Date(raw)
-  if (Number.isNaN(date.getTime())) return raw
-  return new Intl.DateTimeFormat(undefined, {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(date)
-}
-
 function translateStatus(t: Translate, key: string, fallback: string) {
   const value = t(key)
   return value === key ? fallback : value
@@ -74,54 +64,6 @@ function reachabilityVariant(status: string): 'default' | 'secondary' | 'destruc
   return 'outline'
 }
 
-function renderConnectorEnabledField(field: { label: string }, value: unknown, setValue: (value: boolean) => void, t: Translate) {
-  const currentValue = resolveConnectorEnabled(value)
-  const options = [
-    { label: t('connectors.enabled.yes'), value: true },
-    { label: t('connectors.enabled.no'), value: false },
-  ]
-
-  return (
-    <div className="space-y-3">
-      <label className="text-sm font-medium text-foreground">{field.label}</label>
-      <div className="flex flex-wrap items-center gap-5" role="radiogroup" aria-label={field.label}>
-        {options.map(option => {
-          const selected = option.value === currentValue
-          return (
-            <button
-              key={option.label}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              className={cn(
-                'cursor-pointer select-none text-left transition-colors',
-                selected ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
-              )}
-              onMouseDown={event => event.preventDefault()}
-              onClick={event => {
-                setValue(option.value)
-                event.currentTarget.blur()
-              }}
-            >
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <span
-                  className={cn(
-                    'flex h-4 w-4 items-center justify-center rounded-full border',
-                    selected ? 'border-foreground' : 'border-muted-foreground/40'
-                  )}
-                >
-                  {selected ? <span className="h-2 w-2 rounded-full bg-foreground" /> : null}
-                </span>
-                {option.label}
-              </div>
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
 function buildColumns(
   t: Translate,
   onToggleEnabled: (item: Record<string, unknown>) => void,
@@ -137,37 +79,15 @@ function buildColumns(
   ]
   return [
     { key: 'name', label: t('connectors.columns.name'), searchable: true, sortable: true },
-    {
-      key: 'enabled_status',
+    buildEnabledStatusColumn({
       label: t('connectors.columns.enabled'),
-      sortable: true,
-      filterOptions: [
-        { label: t('connectors.enabled.yes'), value: 'Enabled' },
-        { label: t('connectors.enabled.no'), value: 'Disabled' },
-      ],
-      filterValue: row => String(row.enabled_status ?? ''),
-      render: (_value, row) => {
-        const enabled = resolveConnectorEnabled(row.is_enabled)
-        return (
-          <button
-            type="button"
-            className={
-              enabled
-                ? 'inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 cursor-pointer'
-                : 'inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground cursor-pointer'
-            }
-            onClick={event => {
-              event.stopPropagation()
-              void onToggleEnabled(row)
-            }}
-            title={enabled ? t('connectors.actions.disable') : t('connectors.actions.enable')}
-          >
-            {enabled ? <Power className="h-3.5 w-3.5" /> : <PowerOff className="h-3.5 w-3.5" />}
-            {enabled ? t('connectors.enabled.yes') : t('connectors.enabled.no')}
-          </button>
-        )
-      },
-    },
+      enabledLabel: t('connectors.enabled.yes'),
+      disabledLabel: t('connectors.enabled.no'),
+      enableTitle: t('connectors.actions.enable'),
+      disableTitle: t('connectors.actions.disable'),
+      resolveEnabled: resolveConnectorEnabled,
+      onToggle: onToggleEnabled,
+    }),
     {
       key: 'kind_label',
       label: t('connectors.columns.kind'),
@@ -238,13 +158,21 @@ function buildColumns(
       key: 'created',
       label: translateStatus(t, 'connectors.columns.created', 'Created'),
       sortable: true,
-      render: value => <span className="text-sm text-muted-foreground">{formatDateTime(value)}</span>,
+      render: value => (
+        <span className="text-sm text-muted-foreground">
+          {formatResourceDateTime(value)}
+        </span>
+      ),
     },
     {
       key: 'updated',
       label: translateStatus(t, 'connectors.columns.updated', 'Updated'),
       sortable: true,
-      render: value => <span className="text-sm text-muted-foreground">{formatDateTime(value)}</span>,
+      render: value => (
+        <span className="text-sm text-muted-foreground">
+          {formatResourceDateTime(value)}
+        </span>
+      ),
     },
   ]
 }
@@ -258,6 +186,11 @@ export function ConnectorsPage() {
   const forcedKind = searchParams.get('kind') ?? ''
   const forcedTemplateID = searchParams.get('template') ?? ''
   const [refreshKey, setRefreshKey] = useState(0)
+  const [pageSize, setPageSize] = useState(10)
+  const [visibleOptionalColumns, setVisibleOptionalColumns] = useState<Set<string>>(
+    () =>
+      new Set(['kind_label', 'profile', 'endpoint', 'auth_type', 'reachability', 'created', 'updated'])
+  )
   const [reachabilityOverrides, setReachabilityOverrides] = useState<
     Map<string, { status: string; reason: string }>
   >(new Map())
@@ -327,7 +260,8 @@ export function ConnectorsPage() {
     (
       kind: string,
       selectedTemplate: ConnectorTemplate | null,
-      schemaFields: ConnectorTemplateField[]
+      schemaFields: ConnectorTemplateField[],
+      profileReadOnly = false
     ): FieldDef[] => {
       const profileOptions: SelectOption[] = listConnectorTemplatesForKind(
         kind,
@@ -374,11 +308,32 @@ export function ConnectorsPage() {
           render:
             mapped.key === 'is_enabled'
               ? ({ field, value, setValue }: any) =>
-                  renderConnectorEnabledField(field, value, setValue, t)
+                  renderEnabledChoiceField({
+                    inputId: field.key,
+                    label: field.label,
+                    value: resolveConnectorEnabled(value),
+                    setValue,
+                    enabledLabel: t('connectors.enabled.yes'),
+                    disabledLabel: t('connectors.enabled.no'),
+                  })
               : mapped.render,
           advanced: forcePrimary ? false : true,
         }
       })
+
+      const orderedDynamicFields: FieldDef[] =
+        kind === 'smtp'
+          ? (() => {
+            const fieldByKey = new Map(dynamicFields.map(field => [field.key, field]))
+            const preferredOrder = ['endpoint', 'tls', 'port']
+            const prioritized: FieldDef[] = preferredOrder.flatMap(key => {
+              const field = fieldByKey.get(key)
+              return field ? [field] : []
+            })
+            const remainder = dynamicFields.filter(field => !preferredOrder.includes(field.key))
+            return [...prioritized, ...remainder]
+          })()
+          : dynamicFields
 
       return [
         {
@@ -394,6 +349,7 @@ export function ConnectorsPage() {
           label: t('connectors.fields.profile'),
           type: 'select',
           required: true,
+          readOnly: profileReadOnly,
           options: profileOptions,
           onValueChange: (value, update) => {
             const template = connectorTemplatesById.get(String(value ?? ''))
@@ -404,19 +360,7 @@ export function ConnectorsPage() {
             applyConnectorTemplateDefaults(template, update)
           },
         },
-        ...dynamicFields,
-        {
-          key: 'is_enabled',
-          label:
-            t('connectors.fields.enableIt') === 'connectors.fields.enableIt'
-              ? 'Enable it'
-              : t('connectors.fields.enableIt'),
-          type: 'boolean',
-          defaultValue: true,
-          advanced: true,
-          render: ({ field, value, setValue }: any) =>
-            renderConnectorEnabledField(field, value, setValue, t),
-        },
+        ...orderedDynamicFields,
         {
           key: 'description',
           label: t('connectors.fields.description'),
@@ -440,6 +384,25 @@ export function ConnectorsPage() {
           relationLabelKey: 'name',
           defaultValue: [],
           advanced: true,
+        },
+        {
+          key: 'is_enabled',
+          label:
+            t('connectors.fields.enableIt') === 'connectors.fields.enableIt'
+              ? 'Enable it'
+              : t('connectors.fields.enableIt'),
+          type: 'boolean',
+          defaultValue: true,
+          advanced: true,
+          render: ({ field, inputId, value, setValue }: any) =>
+            renderEnabledChoiceField({
+              inputId,
+              label: field.label,
+              value: resolveConnectorEnabled(value),
+              setValue,
+              enabledLabel: t('connectors.enabled.yes'),
+              disabledLabel: t('connectors.enabled.no'),
+            }),
         },
       ]
     },
@@ -465,7 +428,7 @@ export function ConnectorsPage() {
           String(formData.template_id ?? editingItem?.template_id ?? '')
         ) ?? getDefaultConnectorTemplate(kind, connectorTemplates)
       const schemaFields = kind ? buildConnectorKindSchema(kind, connectorTemplates) : []
-      return buildConnectorFields(kind, selectedTemplate, schemaFields)
+      return buildConnectorFields(kind, selectedTemplate, schemaFields, Boolean(editingItem))
     },
     [buildConnectorFields, connectorTemplates, connectorTemplatesById, resolveFormKind]
   )
@@ -525,6 +488,58 @@ export function ConnectorsPage() {
   const columnsWithFilters = useMemo(
     () => buildColumns(t, handleToggleEnabled, connectorKinds, connectorTemplates, reachabilityOverrides),
     [connectorKinds, connectorTemplates, handleToggleEnabled, reachabilityOverrides, t]
+  )
+  const columns = useMemo(
+    () =>
+      columnsWithFilters.filter(column => {
+        if (
+          column.key === 'kind_label' ||
+          column.key === 'profile' ||
+          column.key === 'endpoint' ||
+          column.key === 'auth_type' ||
+          column.key === 'reachability' ||
+          column.key === 'created' ||
+          column.key === 'updated'
+        ) {
+          return visibleOptionalColumns.has(column.key)
+        }
+        return true
+      }),
+    [columnsWithFilters, visibleOptionalColumns]
+  )
+  const renderListSettings = useCallback(
+    ({ pageSize, setPageSize }: { pageSize: number; setPageSize: (pageSize: number) => void }) => (
+      <ResourceListSettingsButton
+        title={t('servers.listSettings.title')}
+        rowsPerPageLabel={t('servers.listSettings.rowsPerPage')}
+        rowsPerPageOptionLabel={count => t('servers.listSettings.rowsPerPageOption', { count })}
+        columnsLabel={t('servers.listSettings.columns')}
+        pageSize={pageSize}
+        setPageSize={setPageSize}
+        pageSizeOptions={[10, 50, 100]}
+        columnOptions={[
+          { key: 'kind_label', label: t('connectors.columns.kind'), checked: visibleOptionalColumns.has('kind_label') },
+          { key: 'profile', label: t('connectors.columns.profile'), checked: visibleOptionalColumns.has('profile') },
+          { key: 'endpoint', label: t('connectors.columns.url'), checked: visibleOptionalColumns.has('endpoint') },
+          { key: 'auth_type', label: t('connectors.columns.auth'), checked: visibleOptionalColumns.has('auth_type') },
+          { key: 'reachability', label: t('connectors.columns.reachability'), checked: visibleOptionalColumns.has('reachability') },
+          { key: 'created', label: t('connectors.columns.created'), checked: visibleOptionalColumns.has('created') },
+          { key: 'updated', label: t('connectors.columns.updated'), checked: visibleOptionalColumns.has('updated') },
+        ]}
+        onColumnToggle={(columnKey, checked) => {
+          setVisibleOptionalColumns(prev => {
+            const next = new Set(prev)
+            if (checked) {
+              next.add(columnKey)
+            } else {
+              next.delete(columnKey)
+            }
+            return next
+          })
+        }}
+      />
+    ),
+    [t, visibleOptionalColumns]
   )
 
   const validateConnectorForm = useCallback(
@@ -620,7 +635,7 @@ export function ConnectorsPage() {
           descriptionClassName: 'hidden sm:block',
           showRefreshButton: true,
           refreshButtonIconOnly: true,
-          columns: columnsWithFilters,
+          columns,
           fields: baseConnectorFields,
           resolveFields: resolveConnectorFields,
           validateForm: validateConnectorForm,
@@ -643,6 +658,10 @@ export function ConnectorsPage() {
           paginationTotalLabel: totalCount =>
             t('connectors.page.totalItems', { count: totalCount }),
           pageSizeSelectorPlacement: 'none',
+          pageSizeValue: pageSize,
+          onPageSizeChange: setPageSize,
+          pageSizeOptions: [10, 50, 100],
+          headerTrailingControls: renderListSettings,
           actionsAlign: 'left',
           actionsMenuAlign: 'start',
           createSelection: forcedKind

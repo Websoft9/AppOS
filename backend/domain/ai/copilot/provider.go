@@ -20,9 +20,9 @@ type DefaultProviderSelectionResolver interface {
 }
 
 type DefaultProviderResolver struct {
-	providers   aiproviders.Repository
-	secrets     SecretResolver
-	selections  DefaultProviderSelectionResolver
+	providers  aiproviders.Repository
+	secrets    SecretResolver
+	selections DefaultProviderSelectionResolver
 }
 
 func NewDefaultProviderResolver(providers aiproviders.Repository, secrets SecretResolver, selections DefaultProviderSelectionResolver) *DefaultProviderResolver {

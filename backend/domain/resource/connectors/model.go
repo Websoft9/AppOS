@@ -241,6 +241,7 @@ type Template struct {
 	ContextSize               int                `json:"contextSize,omitempty"`
 	ModelsEndpoint            string             `json:"modelsEndpoint,omitempty"`
 	DefaultEndpoint           string             `json:"defaultEndpoint,omitempty"`
+	DefaultEndpointTLS        string             `json:"defaultEndpointTls,omitempty"`
 	DefaultAuth               string             `json:"defaultAuthScheme,omitempty"`
 	DefaultEnabledModels      []string           `json:"defaultEnabledModels,omitempty"`
 	Capabilities              []string           `json:"capabilities,omitempty"`

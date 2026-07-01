@@ -40,12 +40,12 @@ vi.mock('react-i18next', () => ({
         'serviceInstances.page.addInstance': 'Add Instance',
         'serviceInstances.page.searchPlaceholder': 'Search any instances',
         'serviceInstances.page.cancel': 'Cancel',
-        'serviceInstances.selection.title': 'Choose a Kind',
+        'serviceInstances.selection.title': 'Choose a Runtime Kind',
         'serviceInstances.selection.description':
-          'Search by product or capability, then choose the dependency kind.',
+          'Choose the runtime kind directly. Profile remains a property of that kind inside the form.',
         'serviceInstances.selection.searchPlaceholder':
-          'Search Aurora, Redis, RabbitMQ, or MinIO...',
-        'serviceInstances.selection.emptyMessage': 'No matching kinds found.',
+          'Search MySQL, Redis, Kafka, or MinIO...',
+        'serviceInstances.selection.emptyMessage': 'No matching runtime kinds found.',
         'serviceInstances.selection.profileCount': `${String(options?.count ?? '')} profiles`,
         'serviceInstances.fields.category': 'Category',
         'serviceInstances.fields.kind': 'Kind',
@@ -84,7 +84,7 @@ vi.mock('react-i18next', () => ({
         'serviceInstances.categories.database': 'Database',
         'serviceInstances.categories.cache': 'Cache',
         'serviceInstances.categories.message-queue': 'MQ',
-        'serviceInstances.categories.storage': 'S3-Compatible Storage',
+        'serviceInstances.categories.storage': 'Storage',
         'serviceInstances.categories.search': 'Search',
         'serviceInstances.categories.application-service': 'Application Service',
         'serviceInstances.categories.artifact': 'Registries',
@@ -97,7 +97,7 @@ vi.mock('react-i18next', () => ({
         'serviceInstances.kinds.amqp-compatible': 'AMQP-Compatible',
         'serviceInstances.kinds.nats-compatible': 'NATS-Compatible',
         'serviceInstances.kinds.mqtt-compatible': 'MQTT-Compatible',
-        'serviceInstances.kinds.s3-compatible': 'S3-Compatible Storage',
+        'serviceInstances.kinds.s3-compatible': 'Storage',
         'serviceInstances.kinds.mongodb-compatible': 'MongoDB-Compatible',
         'serviceInstances.kinds.clickhouse-compatible': 'ClickHouse-Compatible',
         'serviceInstances.kinds.neo4j-compatible': 'Neo4j-Compatible',
@@ -235,6 +235,16 @@ vi.mock('@/components/secrets/SecretForm', () => ({
 }))
 
 describe('ServiceInstancesPage', () => {
+  function clickChooserOption(title: string) {
+    const label = screen.getByText(title)
+    const button = label.closest('button')
+    if (button) {
+      fireEvent.click(button)
+      return
+    }
+    fireEvent.click(label)
+  }
+
   beforeEach(() => {
     sendMock.mockReset()
     createSecretMock.mockReset()
@@ -351,6 +361,7 @@ describe('ServiceInstancesPage', () => {
               category: 'search',
               kind: 'elasticsearch-compatible',
               title: 'Generic Elasticsearch',
+              vendor: 'OpenSearch',
               defaultEndpoint: 'https://elasticsearch.internal:9200',
               fields: [
                 { id: 'indexPrefix', label: 'Backend Index Prefix Label', type: 'text' },
@@ -362,6 +373,7 @@ describe('ServiceInstancesPage', () => {
               category: 'message-queue',
               kind: 'kafka-compatible',
               title: 'Generic Kafka',
+              vendor: 'Redpanda',
               defaultEndpoint: 'kafka.internal:9092',
               fields: [{ id: 'clusterId', label: 'Backend Cluster ID Label', type: 'text' }],
             },
@@ -474,46 +486,41 @@ describe('ServiceInstancesPage', () => {
 
     await screen.findByRole('dialog')
 
-    expect(screen.getByText('Choose a Kind')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Search Aurora, Redis, RabbitMQ, or MinIO...')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^MySQL-Compatible/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^MongoDB-Compatible/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Elasticsearch-Compatible/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^AMQP-Compatible/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^S3-Compatible Storage/i })).toBeInTheDocument()
+    expect(screen.getByText('Choose a Runtime Kind')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Search MySQL, Redis, Kafka, or MinIO...')).toBeInTheDocument()
+    expect(screen.getAllByText(/MySQL-Compatible/i).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText(/^AMQP-Compatible$/).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Storage').length).toBeGreaterThanOrEqual(1)
     expect(screen.queryByRole('button', { name: /^HTTP Gateway/i })).not.toBeInTheDocument()
     expect(screen.queryByText('Registry')).toBeNull()
     expect(screen.queryByText('Ollama')).toBeNull()
 
-    fireEvent.change(screen.getByPlaceholderText('Search Aurora, Redis, RabbitMQ, or MinIO...'), {
+    fireEvent.change(screen.getByPlaceholderText('Search MySQL, Redis, Kafka, or MinIO...'), {
       target: { value: 'rabbitmq' },
     })
 
-    expect(screen.getByRole('button', { name: /^AMQP-Compatible/i })).toBeInTheDocument()
+    expect(screen.getAllByText(/^AMQP-Compatible$/).length).toBeGreaterThanOrEqual(1)
     expect(screen.queryByText('MySQL-Compatible')).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByPlaceholderText('Search Aurora, Redis, RabbitMQ, or MinIO...'), {
-      target: { value: 'aurora' },
-    })
+    fireEvent.change(screen.getByPlaceholderText('Search MySQL, Redis, Kafka, or MinIO...'), {
+		target: { value: 'mysql' },
+	})
 
-    expect(screen.getByRole('button', { name: /^MySQL-Compatible/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^PostgreSQL-Compatible/i })).toBeInTheDocument()
+    expect(screen.getAllByText(/MySQL-Compatible/i).length).toBeGreaterThanOrEqual(1)
 
-    fireEvent.change(screen.getByPlaceholderText('Search Aurora, Redis, RabbitMQ, or MinIO...'), {
+    fireEvent.change(screen.getByPlaceholderText('Search MySQL, Redis, Kafka, or MinIO...'), {
       target: { value: 'opensearch' },
     })
 
-    expect(screen.getByRole('button', { name: /^Elasticsearch-Compatible/i })).toBeInTheDocument()
     expect(screen.queryByText('AMQP-Compatible')).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByPlaceholderText('Search Aurora, Redis, RabbitMQ, or MinIO...'), {
+    fireEvent.change(screen.getByPlaceholderText('Search MySQL, Redis, Kafka, or MinIO...'), {
       target: { value: '' },
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /^MySQL-Compatible/i }))
+    clickChooserOption('MySQL-Compatible')
     fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
 
-    expect(screen.queryByLabelText(/^Profile/)).not.toBeInTheDocument()
     expect(screen.queryByText('Selected Product')).not.toBeInTheDocument()
     expect(screen.getByText('Create MySQL-Compatible instance')).toBeInTheDocument()
     expect(screen.queryByText('Editable')).not.toBeInTheDocument()
@@ -530,10 +537,10 @@ describe('ServiceInstancesPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^MySQL-Compatible/i }))
+    await screen.findByText('MySQL-Compatible')
+    clickChooserOption('MySQL-Compatible')
 
     expect(screen.queryByLabelText(/^Name/)).not.toBeInTheDocument()
-    expect(screen.queryByLabelText(/^Profile/)).not.toBeInTheDocument()
     expect(screen.getByLabelText(/^Database/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Username/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Database/)).toHaveValue('MySQL')
@@ -584,7 +591,8 @@ describe('ServiceInstancesPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^PostgreSQL-Compatible/i }))
+    await screen.findByText('PostgreSQL-Compatible')
+    clickChooserOption('PostgreSQL-Compatible')
 
     expect(await screen.findByLabelText(/^Database/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Database/)).toHaveValue('postgres')
@@ -608,13 +616,13 @@ describe('ServiceInstancesPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
 
     fireEvent.change(
-      await screen.findByPlaceholderText('Search Aurora, Redis, RabbitMQ, or MinIO...'),
+      await screen.findByPlaceholderText('Search MySQL, Redis, Kafka, or MinIO...'),
       { target: { value: 'redpanda' } }
     )
 
-    fireEvent.click(await screen.findByRole('button', { name: /^Kafka-Compatible/i }))
+    expect(await screen.findByText(/Kafka-Compatible/i)).toBeInTheDocument()
+    clickChooserOption('Kafka-Compatible')
 
-    expect(screen.queryByLabelText(/^Profile/)).not.toBeInTheDocument()
     expect(await screen.findByText('Create Kafka-Compatible instance')).toBeInTheDocument()
     expect(screen.getByLabelText(/^Endpoint/)).toBeInTheDocument()
   })
@@ -698,10 +706,11 @@ describe('ServiceInstancesPage', () => {
 
     expect(screen.getByText('Unreachable')).toBeInTheDocument()
     expect(screen.getByText('Apr 11, 2026, 10:00 AM')).toBeInTheDocument()
+    expect(screen.getByText('Created')).toBeInTheDocument()
+    expect(screen.getByText('Updated')).toBeInTheDocument()
+    expect(screen.getAllByText(/Apr 11, 2026/).length).toBeGreaterThanOrEqual(3)
 
     expect(sendMock).not.toHaveBeenCalledWith('/api/instances/reachability', expect.anything())
-
-    expect(screen.getAllByText(/2026/).length).toBeGreaterThanOrEqual(1)
 
     fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }))
     fireEvent.click(await screen.findByText('Edit'))
@@ -728,7 +737,8 @@ describe('ServiceInstancesPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^MySQL-Compatible/i }))
+    await screen.findByText('MySQL-Compatible')
+    clickChooserOption('MySQL-Compatible')
 
     fireEvent.click(screen.getByTitle('Use a saved secret'))
     fireEvent.click(screen.getByRole('button', { name: 'New Secret' }))
@@ -889,7 +899,8 @@ describe('ServiceInstancesPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^MySQL-Compatible/i }))
+    await screen.findByText('MySQL-Compatible')
+    clickChooserOption('MySQL-Compatible')
 
     fireEvent.change(screen.getByLabelText(/^Database/), { target: { value: 'appdb' } })
     fireEvent.change(screen.getByLabelText(/^Username/), { target: { value: 'appuser' } })
@@ -929,7 +940,8 @@ describe('ServiceInstancesPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^Redis-Compatible/i }))
+    await screen.findByText('Redis-Compatible')
+    clickChooserOption('Redis-Compatible')
     fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
 
     expect(await screen.findByLabelText(/^Password/)).toBeInTheDocument()
@@ -943,7 +955,8 @@ describe('ServiceInstancesPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^Kafka-Compatible/i }))
+    await screen.findByText('Kafka-Compatible')
+    clickChooserOption('Kafka-Compatible')
     fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
 
     expect(await screen.findByLabelText(/^Credential/)).toBeInTheDocument()

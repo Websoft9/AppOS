@@ -12,7 +12,7 @@ import (
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	"github.com/websoft9/appos/backend/domain/secrets"
-	resourceschema "github.com/websoft9/appos/backend/infra/schema/resource"
+	appschema "github.com/websoft9/appos/backend/infra/schema"
 
 	// trigger init() registrations
 	_ "github.com/websoft9/appos/backend/infra/migrations"
@@ -735,10 +735,10 @@ func TestResourceSchemaEnsureFunctionsAreIdempotent(t *testing.T) {
 		collectionName string
 		ensure         func(core.App) error
 	}{
-		{name: "provider accounts", collectionName: "provider_accounts", ensure: resourceschema.EnsureProviderAccountsCollection},
-		{name: "instances", collectionName: "instances", ensure: resourceschema.EnsureInstancesCollection},
-		{name: "connectors", collectionName: "connectors", ensure: resourceschema.EnsureConnectorsCollection},
-		{name: "ai providers", collectionName: "ai_providers", ensure: resourceschema.EnsureAIProvidersCollection},
+		{name: "provider accounts", collectionName: "provider_accounts", ensure: appschema.EnsureProviderAccountsCollection},
+		{name: "instances", collectionName: "instances", ensure: appschema.EnsureInstancesCollection},
+		{name: "connectors", collectionName: "connectors", ensure: appschema.EnsureConnectorsCollection},
+		{name: "ai providers", collectionName: "ai_providers", ensure: appschema.EnsureAIProvidersCollection},
 	}
 
 	for _, tt := range tests {
@@ -771,7 +771,7 @@ func TestEnsureProviderAccountDependentsOnlyBuildsDependentCollections(t *testin
 	deleteCollectionIfPresent(t, app, "connectors")
 	deleteCollectionIfPresent(t, app, "ai_providers")
 
-	if err := resourceschema.EnsureProviderAccountDependents(app); err != nil {
+	if err := appschema.EnsureProviderAccountDependents(app); err != nil {
 		t.Fatalf("ensure provider account dependents: %v", err)
 	}
 
@@ -798,7 +798,7 @@ func TestEnsureAllCollectionsRebuildsAndStaysStable(t *testing.T) {
 		deleteCollectionIfPresent(t, app, collectionName)
 	}
 
-	if err := resourceschema.EnsureAllCollections(app); err != nil {
+	if err := appschema.EnsureAllCollections(app); err != nil {
 		t.Fatalf("ensure all collections: %v", err)
 	}
 
@@ -821,7 +821,7 @@ func TestEnsureAllCollectionsRebuildsAndStaysStable(t *testing.T) {
 	}
 
 	before := snapshotCollectionShape(aiProvidersCol)
-	if err := resourceschema.EnsureAllCollections(app); err != nil {
+	if err := appschema.EnsureAllCollections(app); err != nil {
 		t.Fatalf("repeat ensure all collections: %v", err)
 	}
 	after := snapshotCollectionShape(requireCollection(t, app, "ai_providers"))

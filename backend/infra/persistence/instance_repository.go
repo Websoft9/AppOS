@@ -24,9 +24,11 @@ func (r *pocketBaseInstanceRepository) List() ([]*domaininstances.Instance, erro
 		return nil, err
 	}
 
+	timestamps := loadRecordTimestamps(r.app, collections.Instances, records)
+
 	items := make([]*domaininstances.Instance, 0, len(records))
 	for _, record := range records {
-		items = append(items, instanceFromRecord(record))
+		items = append(items, instanceFromRecord(record, timestamps[record.Id]))
 	}
 	return items, nil
 }
@@ -36,7 +38,8 @@ func (r *pocketBaseInstanceRepository) Get(id string) (*domaininstances.Instance
 	if err != nil {
 		return nil, wrapInstanceLookupError(id, err)
 	}
-	return instanceFromRecord(record), nil
+	timestamps := loadRecordTimestamps(r.app, collections.Instances, []*core.Record{record})
+	return instanceFromRecord(record, timestamps[record.Id]), nil
 }
 
 func (r *pocketBaseInstanceRepository) New() (*domaininstances.Instance, error) {
@@ -65,7 +68,12 @@ func (r *pocketBaseInstanceRepository) Save(instance *domaininstances.Instance) 
 	if err := r.app.Save(record); err != nil {
 		return wrapInstanceSaveError(instance, err)
 	}
-	copyInstanceState(instance, instanceFromRecord(record))
+	persisted, err := r.app.FindRecordById(collections.Instances, record.Id)
+	if err != nil {
+		return wrapInstanceLookupError(record.Id, err)
+	}
+	timestamps := loadRecordTimestamps(r.app, collections.Instances, []*core.Record{persisted})
+	copyInstanceState(instance, instanceFromRecord(persisted, timestamps[persisted.Id]))
 	return nil
 }
 
@@ -102,11 +110,11 @@ func (r *pocketBaseInstanceRepository) recordForSave(instance *domaininstances.I
 	return record, nil
 }
 
-func instanceFromRecord(record *core.Record) *domaininstances.Instance {
+func instanceFromRecord(record *core.Record, timestamps recordTimestamps) *domaininstances.Instance {
 	return domaininstances.RestoreInstance(domaininstances.Snapshot{
 		ID:                record.Id,
-		Created:           recordDateTimeString(record, "created"),
-		Updated:           recordDateTimeString(record, "updated"),
+		Created:           strings.TrimSpace(timestamps.Created),
+		Updated:           strings.TrimSpace(timestamps.Updated),
 		Name:              record.GetString("name"),
 		Kind:              record.GetString("kind"),
 		IsEnabled:         recordEnabledValue(record),

@@ -990,13 +990,14 @@
       "favoritesOnly": "仅收藏",
       "addInstance": "添加实例",
       "searchPlaceholder": "搜索任意实例",
-      "cancel": "取消"
+      "cancel": "取消",
+      "totalItems": "共 {{count}} 项"
     },
     "selection": {
-      "title": "选择 Kind",
-      "description": "先按产品或能力搜索，再选择依赖 Kind。",
-      "searchPlaceholder": "搜索 Aurora、Redis、RabbitMQ 或 MinIO...",
-      "emptyMessage": "没有匹配的 Kind。",
+      "title": "选择运行时类型",
+      "description": "直接选择运行时类型，Profile 仅作为该类型的属性在表单内继续选择。",
+      "searchPlaceholder": "搜索 MySQL、Redis、Kafka 或 MinIO...",
+      "emptyMessage": "没有匹配的运行时类型。",
       "profileCount": "{{count}} 个 Profile"
     },
     "fields": {
@@ -1039,7 +1040,7 @@
       "database": "Database",
       "cache": "Cache",
       "message-queue": "MQ",
-      "storage": "S3 兼容性存储",
+      "storage": "存储",
       "traffic-gateway": "Traffic Gateway",
       "search": "搜索",
       "application-service": "应用服务",
@@ -1053,7 +1054,7 @@
       "amqp-compatible": "AMQP 兼容",
       "nats-compatible": "NATS 兼容",
       "mqtt-compatible": "MQTT 兼容",
-      "s3-compatible": "S3 兼容存储",
+      "s3-compatible": "存储",
       "mongodb-compatible": "MongoDB 兼容",
       "clickhouse-compatible": "ClickHouse 兼容",
       "neo4j-compatible": "Neo4j 兼容",
@@ -1157,7 +1158,8 @@
   "platformAccounts": {
     "page": {
       "title": "平台账号",
-      "description": "AWS、Azure、Google Cloud、GitHub、Cloudflare 等带有基于资料模板的平台身份。"
+      "description": "AWS、Azure、Google Cloud、GitHub、Cloudflare 等带有基于资料模板的平台身份。",
+      "totalItems": "共 {{count}} 项"
     },
     "selection": {
       "title": "选择产品",
@@ -1203,7 +1205,9 @@
       "enabled": "启用",
       "platform": "平台",
       "profile": "资料",
-      "identifier": "标识符"
+      "identifier": "标识",
+      "created": "创建时间",
+      "updated": "更新时间"
     },
     "actions": {
       "enable": "启用",
@@ -1231,6 +1235,7 @@
     "fields": {
       "name": "名称",
       "profile": "资料",
+      "enableIt": "启用它",
       "description": "描述",
       "advancedConfig": "高级配置（JSON）",
       "groups": "分组"
@@ -1246,7 +1251,10 @@
       "kind": "类型",
       "profile": "资料",
       "url": "URL",
-      "auth": "认证"
+      "auth": "认证",
+      "reachability": "可达性",
+      "created": "创建时间",
+      "updated": "更新时间"
     },
     "actions": {
       "enable": "启用",

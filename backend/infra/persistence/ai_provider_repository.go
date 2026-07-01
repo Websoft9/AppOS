@@ -24,6 +24,8 @@ func (r *pocketBaseAIProviderRepository) List() ([]*domainaiproviders.AIProvider
 		return nil, err
 	}
 
+	enrichTimestamps(r.app, collections.AIProviders, records)
+
 	items := make([]*domainaiproviders.AIProvider, 0, len(records))
 	for _, record := range records {
 		items = append(items, aiProviderFromRecord(record))
@@ -36,6 +38,7 @@ func (r *pocketBaseAIProviderRepository) Get(id string) (*domainaiproviders.AIPr
 	if err != nil {
 		return nil, wrapAIProviderLookupError(id, err)
 	}
+	enrichTimestamps(r.app, collections.AIProviders, []*core.Record{record})
 	return aiProviderFromRecord(record), nil
 }
 
@@ -65,6 +68,7 @@ func (r *pocketBaseAIProviderRepository) Save(provider *domainaiproviders.AIProv
 	if err := r.app.Save(record); err != nil {
 		return wrapAIProviderSaveError(provider, err)
 	}
+	enrichTimestamps(r.app, collections.AIProviders, []*core.Record{record})
 	copyAIProviderState(provider, aiProviderFromRecord(record))
 	return nil
 }
@@ -82,6 +86,8 @@ func (r *pocketBaseAIProviderRepository) ListByKind(kind string) ([]*domainaipro
 	if err != nil {
 		return nil, err
 	}
+
+	enrichTimestamps(r.app, collections.AIProviders, records)
 
 	items := make([]*domainaiproviders.AIProvider, 0, len(records))
 	for _, record := range records {

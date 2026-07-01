@@ -17,7 +17,6 @@
 1. 部署时，镜像实际已经拉取成功，但是 activity 中滞后，导致activity 流程不能及时完成闭环。
 2. 针对于同一个应用，创建新的 activity 时，如何有正在执行的，这个时候可以给一个提示，是否需要 failed 正在执行的
 
-
 2026/6/24 15:03:08
 install
 Timed out
@@ -59,12 +58,10 @@ docker image 下载完成后，记得镜像更名
 
 ## server
 
-- ports tab 不稳定，经常打开显示  somethins wrong
 - addons 的 netdata restart 报错
 - 服务器特殊环境配置：Docker 仓库地址、Docker 加速地址、代理地址
 
-
-## system
+## System
 
 getconf 是唯一硬编码的 OS 命令，Linux 基本都有。其余命令由 catalog 模板定义，非后端硬编码。
 
@@ -99,9 +96,9 @@ tunnul 的Port Forward  Effective Mappings 区域没有显示具体的内容了
 - 隧道连接
 - 网关转发...
 
-## 缓存问题
+## 性能
 
-- 如何做？存储到哪里？
+- 缓存如何做？存储到哪里？
 
 ## dashboard
 
@@ -117,39 +114,12 @@ frame 嵌入页面实施，我把这个 iframe-page framework 再抽一层 regis
 
 ## Small issue
 
-- Secret 列中的 Action 列，缺乏列名 Action 
-
-
 connector api 路径
 
 
 Runtime Instances 列表页
 
 1. runtime instance 针对 同一个catalog  的各个 kind 没有做到 UI 上的统一，必须根据类别统一
-- Database 需要全部统一，它们都以 MySQL 为例
-
-2. 这个分类 S3-Compatible Storage  直接更名为 Storage
-3. Created 和 Updated 时间列没有显示数据，schema 中有么？
-4. Enable it 的项标题与选项之间的间距做得很差，请优化
-
-External Services 列表页
-
-1. Created 和 Updated 时间列没有显示数据，schema 中有么？
-2. Enable it 的项标题与选项之间的间距做得很差，请优化
-
-5. SMTP 类别的设置，
-- 帮助地址元数据化
-- Port 从 Endpoint 中分离出来，SSL 改为开关形态，放在 Port 项下面，开启后，Port 或 STMP server 要自动发生变化
+- 例如：Database 需要全部统一，它们都以 MySQL 为例
 
 
-现在继续化解 Resource 的技术债务
-
-1. ResourcePage 组件（2092 行）是一个高度配置化的通用 CRUD 引擎，所有资源页面（instances、connectors、servers、ai-providers 等）都复用它。mapRow → buildPayload 的双向扁平化模式处理了嵌套 config 与表格展示之间的阻抗匹配，设计简洁。不过 service-instances.tsx 自身还有 2083 行，仍承载了较多业务特定逻辑。
-
-2. - ResourcePage 的 config 接口有 88+ 个属性，虽然灵活，但类型定义庞大，新开发者上手成本不低。
-
-3. 测试覆盖看起来广泛（58+ 个 web 测试文件），但关键业务逻辑（如 buildPayload / mapRow）的单元测试覆盖需要通过实际运行来验证。
-
-
-4. runtime instance 针对 同一个catalog  的各个 kind 没有做到 UI 上的统一，必须根据类别统一
-- Database 需要全部统一，它们都以 MySQL 为例

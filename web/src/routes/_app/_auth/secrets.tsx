@@ -6,10 +6,14 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Eye,
   Filter,
   MoreVertical,
+  Pencil,
   RefreshCw,
   Search,
+  ShieldOff,
+  Trash2,
 } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { cn } from '@/lib/utils'
@@ -121,6 +125,7 @@ function formatDate(iso?: string): string {
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    hour12: false,
   })
 }
 
@@ -953,7 +958,7 @@ export function SecretsPage() {
                   onSort={handleSort}
                 />
               </TableHead>
-              <TableHead className="w-[48px]" />
+              <TableHead className="w-[48px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1029,35 +1034,39 @@ export function SecretsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => void openEdit(item)}>
+                          <Pencil className="h-4 w-4" />
                           Edit
                         </DropdownMenuItem>
                         {canRevealSecret(item.access_mode, secretPolicy) && (
-                          <DropdownMenuItem
-                            disabled={revealingId === item.id}
-                            onClick={() => void handleReveal(item)}
-                          >
-                            {revealingId === item.id ? 'Revealing...' : 'Reveal'}
-                          </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={revealingId === item.id}
+                              onClick={() => void handleReveal(item)}
+                            >
+                              <Eye className="h-4 w-4" />
+                              {revealingId === item.id ? 'Revealing...' : 'Reveal'}
+                            </DropdownMenuItem>
                         )}
                         <DropdownMenuSeparator />
                         {item.status === 'revoked' ? (
-                          <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
-                            onClick={() =>
-                              setConfirmAction({ type: 'delete', id: item.id, name: item.name })
-                            }
-                          >
-                            Delete
-                          </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() =>
+                                setConfirmAction({ type: 'delete', id: item.id, name: item.name })
+                              }
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
                         ) : (
-                          <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
-                            onClick={() =>
-                              setConfirmAction({ type: 'revoke', id: item.id, name: item.name })
-                            }
-                          >
-                            Revoke
-                          </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() =>
+                                setConfirmAction({ type: 'revoke', id: item.id, name: item.name })
+                              }
+                            >
+                              <ShieldOff className="h-4 w-4" />
+                              Revoke
+                            </DropdownMenuItem>
                         )}
                       </DropdownMenuContent>
                     </DropdownMenu>

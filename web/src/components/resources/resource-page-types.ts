@@ -103,26 +103,8 @@ export interface FieldDef {
   onValueChange?: (value: unknown, update: (key: string, value: unknown) => void) => void
 }
 
-export interface ResourcePageConfig {
-  title: string
-  description?: string
-  emptyStateLabel?: string
-  apiPath: string
+export interface ResourcePageListConfig {
   columns: Column[]
-  fields: FieldDef[]
-  favoriteStorageKey?: string
-  favoritesFilterLabel?: string
-  createButtonLabel?: string
-  createButtonShowIcon?: boolean
-  onCreateClick?: () => void
-  onEditOpen?: (item: Record<string, unknown>) => void
-  headerStatus?: ReactNode
-  selectedSummary?: ReactNode
-  cancelLabel?: string
-  onCancel?: (editingItem: Record<string, unknown> | null) => void
-  dialogExtra?: ReactNode
-  compactHeaderActionsOnMobile?: boolean
-  descriptionClassName?: string
   searchPlaceholder?: string
   searchContainerClassName?: string
   searchInputClassName?: string
@@ -144,6 +126,23 @@ export interface ResourcePageConfig {
     setPageSize: (pageSize: number) => void
     totalCount: number
   }) => ReactNode
+  favoriteStorageKey?: string
+  favoritesFilterLabel?: string
+  favoriteActionPlacement?: 'beforeExtraActions' | 'afterExtraActions'
+  wrapTableInCard?: boolean
+}
+
+export interface ResourcePageFormConfig {
+  fields: FieldDef[]
+  createButtonLabel?: string
+  createButtonShowIcon?: boolean
+  onCreateClick?: () => void
+  onEditOpen?: (item: Record<string, unknown>) => void
+  cancelLabel?: string
+  onCancel?: (editingItem: Record<string, unknown> | null) => void
+  dialogExtra?: ReactNode
+  compactHeaderActionsOnMobile?: boolean
+  descriptionClassName?: string
   createSelection?: {
     title: string
     description?: string
@@ -184,24 +183,14 @@ export interface ResourcePageConfig {
   nameField?: string
   autoCreate?: boolean
   onAutoCreateHandled?: () => void
-  parentNav?: { label: string; href: string; icon?: React.ReactNode }
   enableGroupAssign?: boolean
   onCreateSuccess?: (record: Record<string, unknown>) => void
-  showRefreshButton?: boolean
-  refreshButtonLabel?: string
-  refreshButtonIconOnly?: boolean
-  refreshButtonShowIcon?: boolean
-  createButtonIconOnly?: boolean
-  favoriteActionPlacement?: 'beforeExtraActions' | 'afterExtraActions'
-  wrapTableInCard?: boolean
-  onRefresh?: (ctx: {
-    items: Record<string, unknown>[]
-    refreshList: () => Promise<void>
-  }) => Promise<void> | void
-  primaryAction?: (item: Record<string, unknown>, refreshList: () => void) => ReactNode
-  extraActions?: (item: Record<string, unknown>, refreshList: () => void) => ReactNode
-  actionsAlign?: 'left' | 'right'
-  actionsMenuAlign?: 'start' | 'end'
+  resetFormButtonLabel?: string
+  initialEditId?: string
+  onInitialEditHandled?: () => void
+}
+
+export interface ResourcePageDetailConfig {
   expandedRowId?: string | null
   renderRowDetail?: (item: Record<string, unknown>, refreshList: () => Promise<void>) => ReactNode
   selectedItemId?: string
@@ -214,13 +203,44 @@ export interface ResourcePageConfig {
   detailDrawerTier?: DrawerTier
   detailDrawerSide?: 'left' | 'right'
   detailDrawerClassName?: string
+}
+
+export interface ResourcePageActionConfig {
+  showRefreshButton?: boolean
+  refreshButtonLabel?: string
+  refreshButtonIconOnly?: boolean
+  refreshButtonShowIcon?: boolean
+  createButtonIconOnly?: boolean
+  onRefresh?: (ctx: {
+    items: Record<string, unknown>[]
+    refreshList: () => Promise<void>
+  }) => Promise<void> | void
+  primaryAction?: (item: Record<string, unknown>, refreshList: () => void) => ReactNode
+  extraActions?: (item: Record<string, unknown>, refreshList: () => void) => ReactNode
+  actionsAlign?: 'left' | 'right'
+  actionsMenuAlign?: 'start' | 'end'
+}
+
+export interface ResourcePageDataConfig {
+  apiPath: string
   resourceType?: string
   listItems?: () => Promise<Record<string, unknown>[]>
   createItem?: (payload: Record<string, unknown>) => Promise<Record<string, unknown>>
   updateItem?: (id: string, payload: Record<string, unknown>) => Promise<void>
   deleteItem?: (id: string) => Promise<void>
   refreshKey?: number
-  resetFormButtonLabel?: string
-  initialEditId?: string
-  onInitialEditHandled?: () => void
+}
+
+export interface ResourcePageConfig
+  extends ResourcePageListConfig,
+    ResourcePageFormConfig,
+    ResourcePageDetailConfig,
+    ResourcePageActionConfig,
+    ResourcePageDataConfig {
+  title: string
+  description?: string
+  emptyStateLabel?: string
+  headerStatus?: ReactNode
+  selectedSummary?: ReactNode
+  parentNav?: { label: string; href: string; icon?: React.ReactNode }
 }

@@ -2,7 +2,7 @@
 .PHONY: help install tidy build run test test-strict test-fast lint lint-strict lint-fast fmt fmt-strict fmt-fast check check-fast sec sec-strict sec-fast artifact-scan \
 	backend web backend-targeted backend-iac backend-software fast strict latest \
 	image start stop restart logs stats delete rm kill-port redo sync-store tl \
-	openapi-gen openapi-merge openapi-check openapi-sync
+	openapi-gen openapi-merge openapi-check openapi-sync opencode
 
 # ============================================================
 # Default values
@@ -92,6 +92,7 @@ help:
 	@echo "  make rm                   Force remove container and volumes"
 	@echo ""
 	@printf "\033[36mUtilities:\033[0m\n"
+	@echo "  make opencode             Launch opencode with proxy disabled"
 	@echo "  make kill-port 9091       Kill process using port"
 	@echo "  make tl                   Show template tooling commands"
 	@echo "  make tl validate          Validate normalized templates"
@@ -1088,6 +1089,11 @@ endif
 	else \
 		echo "Error: fuser or lsof required"; exit 1; \
 	fi
+
+opencode:
+	@echo "Starting opencode (proxy disabled)..."
+	@unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy ALL_PROXY all_proxy; \
+	no_proxy="*" NO_PROXY="*" opencode
 
 backend web backend-targeted backend-iac backend-software fast strict latest:
 	@:

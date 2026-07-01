@@ -3,13 +3,15 @@
   "title": "Amazon SES SMTP",
   "vendor": "Amazon Web Services",
   "description": "Amazon SES SMTP relay profile.",
-  "helpUrl": "https://support.websoft9.com/docs/smtps",
+  "helpUrl": "https://docs.aws.amazon.com/ses/latest/dg/send-email-smtp.html",
   "defaultEndpoint": "smtp://email-smtp.us-east-1.amazonaws.com:587",
+  "defaultEndpointTls": "smtps://email-smtp.us-east-1.amazonaws.com:465",
   "aliases": ["ses", "amazon ses", "ses-smtp"],
   "fields": [
     {
       "id": "endpoint",
-      "placeholder": "email-smtp.us-east-1.amazonaws.com"
+      "placeholder": "email-smtp.us-east-1.amazonaws.com",
+      "helpUrl": "https://docs.aws.amazon.com/ses/latest/dg/send-email-smtp.html"
     },
     {
       "id": "port"

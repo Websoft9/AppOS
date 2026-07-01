@@ -81,6 +81,7 @@ development_status:
   # Historical note: the older Epic 6 components scope was retired before this infra-module epic reused the number.
   epic6: in-progress
   6.1-files-service: in-progress
+  6.7-schema-migration: in-progress
   epic6-retrospective: optional
 
   # Epic 7: Dashboard - Unified Frontend Framework

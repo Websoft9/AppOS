@@ -14,6 +14,7 @@ import type {
 } from '@/lib/resource-types'
 import type { FieldDef, SelectOption } from '@/components/resources/ResourcePage'
 import { ReferenceSelect } from '@/components/resources/ReferenceSelect'
+import { renderBooleanSwitchField } from '@/components/resources/resource-status'
 import { SecretCredentialField } from '@/components/secrets/SecretCredentialField'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -396,6 +397,14 @@ function parseConnectorEndpoint(endpoint: string | undefined) {
   }
 }
 
+function resolveSMTPDefaultEndpoint(template: ConnectorTemplate, sslEnabled: boolean) {
+  const explicitTLSEndpoint = String(template.defaultEndpointTls ?? '').trim()
+  if (sslEnabled && explicitTLSEndpoint) {
+    return explicitTLSEndpoint
+  }
+  return String(template.defaultEndpoint ?? '').trim()
+}
+
 export function resolveConnectorEnabled(value: unknown) {
   return resolveEnabledFlag(value)
 }
@@ -587,9 +596,36 @@ export function mapTemplateFieldToResourceField(
       required: field.required,
       defaultValue: normalizeTemplateFieldDefault(field),
       helpUrl: field.helpUrl,
-      helpText: field.helpText,
-      onValueChange: (value, update) => {
-        update('port', value ? 465 : 587)
+      render: ({ inputId, value, formData, updateField }) => {
+        const checked = Boolean(value)
+    return renderBooleanSwitchField({
+      inputId,
+      label: field.label,
+      value: checked,
+      setValue: nextChecked => {
+        const currentDefault = parseConnectorEndpoint(resolveSMTPDefaultEndpoint(template, checked))
+        const nextDefault = parseConnectorEndpoint(resolveSMTPDefaultEndpoint(template, nextChecked))
+        const currentHost = String(formData.endpoint ?? '').trim()
+        const currentPort = Number(formData.port ?? 0)
+
+        updateField(field.id, nextChecked)
+
+        if ((!currentHost || currentHost === currentDefault.host) && nextDefault.host) {
+          updateField('endpoint', nextDefault.host)
+        }
+
+        if (
+          !currentPort ||
+          currentPort === currentDefault.port ||
+          currentPort === 465 ||
+          currentPort === 587
+        ) {
+          updateField('port', nextDefault.port || (nextChecked ? 465 : 587))
+        }
+      },
+      enabledLabel: translateOrFallback(t, 'connectors.enabled.yes', 'Yes'),
+      disabledLabel: translateOrFallback(t, 'connectors.enabled.no', 'No'),
+    })
       },
     }
   }

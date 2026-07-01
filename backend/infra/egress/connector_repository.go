@@ -3,6 +3,7 @@ package egress
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -23,6 +24,7 @@ func (r *appConnectorRepository) List() ([]*connectors.Connector, error) {
 	if err != nil {
 		return nil, err
 	}
+	enrichEgressTimestamps(r.app, collections.Connectors, records)
 	items := make([]*connectors.Connector, 0, len(records))
 	for _, record := range records {
 		items = append(items, connectorFromRecord(record))
@@ -35,6 +37,7 @@ func (r *appConnectorRepository) Get(id string) (*connectors.Connector, error) {
 	if err != nil {
 		return nil, wrapConnectorLookupError(id, err)
 	}
+	enrichEgressTimestamps(r.app, collections.Connectors, []*core.Record{record})
 	return connectorFromRecord(record), nil
 }
 
@@ -64,6 +67,7 @@ func (r *appConnectorRepository) Save(connector *connectors.Connector) error {
 	if err := r.app.Save(record); err != nil {
 		return wrapConnectorSaveError(connector, err)
 	}
+	enrichEgressTimestamps(r.app, collections.Connectors, []*core.Record{record})
 	copyConnectorState(connector, connectorFromRecord(record))
 	return nil
 }
@@ -81,6 +85,7 @@ func (r *appConnectorRepository) ListByKind(kind string) ([]*connectors.Connecto
 	if err != nil {
 		return nil, err
 	}
+	enrichEgressTimestamps(r.app, collections.Connectors, records)
 	items := make([]*connectors.Connector, 0, len(records))
 	for _, record := range records {
 		items = append(items, connectorFromRecord(record))
@@ -117,6 +122,44 @@ func egressRecordDateTimeString(record *core.Record, key string) string {
 		return ""
 	}
 	return strings.TrimSpace(record.GetDateTime(key).String())
+}
+
+func enrichEgressTimestamps(app core.App, collectionName string, records []*core.Record) {
+	if len(records) == 0 {
+		return
+	}
+	collection, err := app.FindCachedCollectionByNameOrId(collectionName)
+	if err != nil {
+		return
+	}
+	placeholders := make([]string, 0, len(records))
+	params := make(map[string]any, len(records))
+	for i, record := range records {
+		key := fmt.Sprintf("id%d", i)
+		placeholders = append(placeholders, "{:"+key+"}")
+		params[key] = record.Id
+	}
+	query := fmt.Sprintf("SELECT id, created, updated FROM [%s] WHERE id IN (%s)",
+		collection.Name, strings.Join(placeholders, ","))
+	type timestampsRow struct {
+		Id      string `db:"id"`
+		Created string `db:"created"`
+		Updated string `db:"updated"`
+	}
+	var rows []timestampsRow
+	if err := app.DB().NewQuery(query).Bind(params).All(&rows); err != nil {
+		return
+	}
+	m := make(map[string]timestampsRow, len(rows))
+	for _, r := range rows {
+		m[r.Id] = r
+	}
+	for _, record := range records {
+		if r, ok := m[record.Id]; ok {
+			record.Set("created", r.Created)
+			record.Set("updated", r.Updated)
+		}
+	}
 }
 
 func egressRecordEnabledValue(record *core.Record) bool {

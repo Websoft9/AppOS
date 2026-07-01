@@ -13,6 +13,7 @@ import (
 	"github.com/websoft9/appos/backend/domain/certs"
 	"github.com/websoft9/appos/backend/domain/runtimecfg"
 	"github.com/websoft9/appos/backend/domain/secrets"
+	appschema "github.com/websoft9/appos/backend/infra/schema"
 )
 
 type InitializationState struct {
@@ -27,6 +28,12 @@ func Initialize(app *pocketbase.PocketBase, cfg runtimecfg.Config, asynqClient *
 	}
 
 	Register(app, asynqClient)
+	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
+		if err := appschema.EnsureAllCollections(se.App); err != nil {
+			return err
+		}
+		return se.Next()
+	})
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
 		if err := ensureConfiguredSuperuser(se.App, cfg); err != nil {
 			return err
