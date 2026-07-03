@@ -225,6 +225,13 @@ components:
         summary:
           type: object
           additionalProperties: true
+    AiProviderAvailabilityResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AiProviderAvailabilityItem'
     AnalyzeBookmarkRequest:
       type: object
       properties:
@@ -1262,6 +1269,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/ai-providers/availability:
+    get:
+      tags: [AI Providers]
+      summary: Check AI provider availability
+      description: "Resolves provider credentials and fetches models to determine whether one or more AI providers are currently usable to AppOS."
+      operationId: get_api_ai-providers_availability
+      parameters:
+        - name: ids
+          in: query
+          description: "comma-separated AI provider ids"
+          required: false
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiProviderAvailabilityResponse'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
   /api/ai-providers/chat-models:
     get:
       tags: [AI Providers]
@@ -1384,12 +1427,6 @@ paths:
       tags: [AI Providers]
       summary: Get ai providers reachability
       operationId: get_api_ai-providers_reachability
-      parameters:
-        - name: ids
-          in: query
-          required: false
-          schema:
-            type: string
       security:
         - bearerAuth: []
       responses:

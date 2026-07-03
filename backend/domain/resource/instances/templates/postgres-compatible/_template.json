@@ -1,10 +1,20 @@
 {
   "kind": "postgres-compatible",
   "category": "database",
-  "commonFieldDefaults": {
-    "username": "postgres"
-  },
+  "layoutPreset": "database_connection",
+  "endpointShape": "host_port",
+  "defaultPort": 5432,
+  "credentialPresentation": "secret_or_inline",
+  "credentialLabel": "password",
   "fields": [
+    {
+      "id": "username",
+      "label": "Username",
+      "type": "text",
+      "required": true,
+      "default": "postgres",
+      "placeholder": "appuser"
+    },
     {
       "id": "database",
       "label": "Database",
@@ -14,9 +24,29 @@
       "placeholder": "appdb"
     },
     {
+      "id": "connect_timeout",
+      "label": "Connection Timeout",
+      "type": "number",
+      "advanced": true,
+      "default": 10
+    },
+    {
+      "id": "ssl_enabled",
+      "label": "Use SSL",
+      "type": "boolean",
+      "advanced": true,
+      "hidden": true,
+      "default": false
+    },
+    {
       "id": "ssl_ca_certificate",
       "label": "SSL Root CA Certificate",
-      "type": "text",
+      "type": "certificate_ref",
+      "advanced": true,
+      "showWhen": {
+        "field": "ssl_mode",
+        "values": ["mutual"]
+      },
       "helpText": "Choose a CA certificate only when your PostgreSQL server requires custom SSL trust."
     }
   ]

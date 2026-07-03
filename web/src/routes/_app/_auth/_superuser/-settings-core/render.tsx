@@ -161,11 +161,11 @@ function renderAISection(
 ) {
   return (
     <AISettingsSection
-      title="AI Provider"
+      title="AI Provider Account"
       description={connectorSectionDescription(
         controller,
         'ai',
-        'Choose which AI Provider account AppOS should prefer when one provider has multiple accounts.'
+        'Set the default account for each AI provider endpoint when multiple accounts exist.'
       )}
       showToast={controller.showToast}
     />

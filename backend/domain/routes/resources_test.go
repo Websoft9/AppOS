@@ -1049,6 +1049,22 @@ func TestInstanceTemplatesRequireAuthAndList(t *testing.T) {
 	if templates[0]["id"] == nil {
 		t.Fatalf("expected instance template to include id")
 	}
+	foundDatabaseLayout := false
+	for _, template := range templates {
+		if template["layoutPreset"] == "database_connection" {
+			foundDatabaseLayout = true
+			if template["endpointShape"] != "host_port" {
+				t.Fatalf("expected database layout template endpointShape host_port, got %v", template["endpointShape"])
+			}
+			if template["credentialPresentation"] != "secret_or_inline" {
+				t.Fatalf("expected database layout template credentialPresentation secret_or_inline, got %v", template["credentialPresentation"])
+			}
+			break
+		}
+	}
+	if !foundDatabaseLayout {
+		t.Fatalf("expected at least one instance template with database_connection layoutPreset")
+	}
 }
 
 func TestInstanceTemplateGet(t *testing.T) {
@@ -1065,6 +1081,66 @@ func TestInstanceTemplateGet(t *testing.T) {
 	}
 	if template["kind"] != instances.KindPostgresCompatible {
 		t.Fatalf("expected template kind %q, got %v", instances.KindPostgresCompatible, template["kind"])
+	}
+	if template["layoutPreset"] != "database_connection" {
+		t.Fatalf("expected layoutPreset database_connection, got %v", template["layoutPreset"])
+	}
+	if template["endpointShape"] != "host_port" {
+		t.Fatalf("expected endpointShape host_port, got %v", template["endpointShape"])
+	}
+	if template["defaultPort"] != float64(5432) {
+		t.Fatalf("expected defaultPort 5432, got %v", template["defaultPort"])
+	}
+	if template["credentialPresentation"] != "secret_or_inline" {
+		t.Fatalf("expected credentialPresentation secret_or_inline, got %v", template["credentialPresentation"])
+	}
+	if template["credentialLabel"] != "password" {
+		t.Fatalf("expected credentialLabel password, got %v", template["credentialLabel"])
+	}
+	fields, ok := template["fields"].([]any)
+	if !ok || len(fields) == 0 {
+		t.Fatalf("expected template fields, got %v", template["fields"])
+	}
+	foundUsernameField := false
+	foundTimeoutField := false
+	foundSSLEnabledField := false
+	foundCertificateField := false
+	for _, raw := range fields {
+		field, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		if field["id"] == "username" {
+			foundUsernameField = true
+		}
+		if field["id"] == "connect_timeout" {
+			foundTimeoutField = true
+		}
+		if field["id"] == "ssl_enabled" {
+			foundSSLEnabledField = true
+		}
+		if field["id"] == "ssl_ca_certificate" {
+			foundCertificateField = true
+			if field["type"] != "certificate_ref" {
+				t.Fatalf("expected ssl_ca_certificate type certificate_ref, got %v", field["type"])
+			}
+			showWhen, ok := field["showWhen"].(map[string]any)
+			if !ok || showWhen["field"] != "ssl_mode" {
+				t.Fatalf("expected ssl_ca_certificate showWhen to target ssl_mode, got %v", field["showWhen"])
+			}
+		}
+	}
+	if !foundUsernameField {
+		t.Fatalf("expected postgres template to declare username field explicitly")
+	}
+	if !foundTimeoutField {
+		t.Fatalf("expected postgres template to declare connect_timeout field explicitly")
+	}
+	if !foundSSLEnabledField {
+		t.Fatalf("expected postgres template to declare ssl_enabled field explicitly")
+	}
+	if !foundCertificateField {
+		t.Fatalf("expected postgres template to include ssl_ca_certificate field")
 	}
 	traits, ok := template["traits"].([]any)
 	if !ok || len(traits) == 0 {
@@ -1242,6 +1318,159 @@ func TestInstanceReachability(t *testing.T) {
 	}
 	if _, ok := byID[offlineID]["reason"]; !ok {
 		t.Fatal("expected offline instance to include reason")
+	}
+}
+
+func TestAIProviderReachabilityAndAvailability(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	availableServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/models" {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte(`{"data":[{"id":"gpt-4o-mini"}]}`))
+	}))
+	defer availableServer.Close()
+
+	unavailableServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	defer unavailableServer.Close()
+
+	rec := te.do(t, http.MethodPost, "/api/ai-providers",
+		fmt.Sprintf(`{"name":"reachable-available","kind":"llm","template_id":"openai","endpoint":"%s","auth_scheme":"none"}`,
+			availableServer.URL,
+		), true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create available provider: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	availableID := parseJSON(t, rec)["id"].(string)
+
+	rec = te.do(t, http.MethodPost, "/api/ai-providers",
+		fmt.Sprintf(`{"name":"reachable-unavailable","kind":"llm","template_id":"openai","endpoint":"%s","auth_scheme":"none"}`,
+			unavailableServer.URL,
+		), true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create unavailable provider: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	unavailableID := parseJSON(t, rec)["id"].(string)
+
+	rec = te.do(t, http.MethodGet, "/api/ai-providers/reachability?ids="+availableID+","+unavailableID, "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("probe ai provider reachability: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	reachabilityRows := parseJSON(t, rec)["items"].([]any)
+	if len(reachabilityRows) != 2 {
+		t.Fatalf("expected 2 reachability rows, got %d", len(reachabilityRows))
+	}
+	reachabilityByID := map[string]map[string]any{}
+	for _, row := range reachabilityRows {
+		entry := row.(map[string]any)
+		reachabilityByID[entry["id"].(string)] = entry
+	}
+	if reachabilityByID[availableID]["status"] != "reachable" {
+		t.Fatalf("expected available provider reachable, got %v", reachabilityByID[availableID]["status"])
+	}
+	if reachabilityByID[unavailableID]["status"] != "reachable" {
+		t.Fatalf("expected unavailable provider still reachable, got %v", reachabilityByID[unavailableID]["status"])
+	}
+
+	rec = te.do(t, http.MethodGet, "/api/ai-providers/availability?ids="+availableID+","+unavailableID, "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("probe ai provider availability: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	availabilityRows := parseJSON(t, rec)["items"].([]any)
+	if len(availabilityRows) != 2 {
+		t.Fatalf("expected 2 availability rows, got %d", len(availabilityRows))
+	}
+	availabilityByID := map[string]map[string]any{}
+	for _, row := range availabilityRows {
+		entry := row.(map[string]any)
+		availabilityByID[entry["id"].(string)] = entry
+	}
+	if availabilityByID[availableID]["status"] != "available" {
+		t.Fatalf("expected available provider available, got %v", availabilityByID[availableID]["status"])
+	}
+	if availabilityByID[unavailableID]["status"] != "unavailable" {
+		t.Fatalf("expected unavailable provider unavailable, got %v", availabilityByID[unavailableID]["status"])
+	}
+	if _, ok := availabilityByID[unavailableID]["reason"]; !ok {
+		t.Fatal("expected unavailable provider to include reason")
+	}
+
+	// Verify monitor_latest_status projection for ai_provider target type.
+	monitorRecords, err := te.app.FindRecordsByFilter(
+		"monitor_latest_status",
+		"target_type = {:targetType}",
+		"-updated",
+		0, 0,
+		map[string]any{"targetType": "ai_provider"},
+	)
+	if err != nil {
+		t.Fatalf("failed to query monitor_latest_status: %v", err)
+	}
+	if len(monitorRecords) < 2 {
+		t.Fatalf("expected at least 2 monitor records for ai_provider, got %d", len(monitorRecords))
+	}
+	monitorByTargetID := map[string]*core.Record{}
+	for _, record := range monitorRecords {
+		monitorByTargetID[record.GetString("target_id")] = record
+	}
+	availableMonitor := monitorByTargetID[availableID]
+	if availableMonitor == nil {
+		t.Fatal("expected monitor record for available provider")
+	}
+	if availableMonitor.GetString("status") != "healthy" {
+		t.Fatalf("expected available provider monitor status 'healthy', got %q", availableMonitor.GetString("status"))
+	}
+	unavailableMonitor := monitorByTargetID[unavailableID]
+	if unavailableMonitor == nil {
+		t.Fatal("expected monitor record for unavailable provider")
+	}
+	if unavailableMonitor.GetString("status") != "degraded" {
+		t.Fatalf("expected unavailable provider monitor status 'degraded', got %q", unavailableMonitor.GetString("status"))
+	}
+}
+
+func TestConnectorReachabilityProjectsToMonitor(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	// Create a connector whose endpoint is unreachable.
+	rec := te.do(t, http.MethodPost, "/api/connectors",
+		`{"name":"unreachable-webhook","kind":"webhook","template_id":"generic-webhook","endpoint":"https://127.255.255.255:65535/hook","auth_scheme":"none"}`, true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create connector: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	connectorID := parseJSON(t, rec)["id"].(string)
+
+	rec = te.do(t, http.MethodGet, "/api/connectors/reachability?ids="+connectorID, "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("probe connector reachability: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// Verify monitor_latest_status projection for connector target type.
+	monitorRecords, err := te.app.FindRecordsByFilter(
+		"monitor_latest_status",
+		"target_type = {:targetType} && target_id = {:targetID}",
+		"",
+		0, 0,
+		map[string]any{"targetType": "connector", "targetID": connectorID},
+	)
+	if err != nil {
+		t.Fatalf("failed to query monitor_latest_status: %v", err)
+	}
+	if len(monitorRecords) != 1 {
+		t.Fatalf("expected 1 monitor record for connector, got %d", len(monitorRecords))
+	}
+	monitorStatus := monitorRecords[0].GetString("status")
+	if monitorStatus != "unreachable" {
+		t.Fatalf("expected connector monitor status 'unreachable', got %q", monitorStatus)
+	}
+	if monitorRecords[0].GetString("target_type") != "connector" {
+		t.Fatalf("expected target_type 'connector', got %q", monitorRecords[0].GetString("target_type"))
 	}
 }
 

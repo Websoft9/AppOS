@@ -10,4 +10,4 @@
 - Keep canonical instance fields out of template `fields`: `name`, `endpoint`, `credential`, and `description` belong to the shared instance model.
 - Product UI may split canonical fields for usability, for example `endpoint` into `host` + `port`, but templates should still treat them as canonical model fields.
 - Put only kind-specific, non-canonical config in template `fields`; sensitive auth should stay relation-based through `credential`, not inline template password fields.
-- When the frontend injects common contract-family fields, templates may hide one with `omitCommonFields`, for example `"omitCommonFields": ["username"]`.
+- Templates are the single source of truth for non-canonical config fields. If a database profile needs `username`, `connect_timeout`, `ssl_enabled`, or certificate config, declare them explicitly in template `fields`.

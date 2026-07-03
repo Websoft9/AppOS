@@ -16,7 +16,7 @@ func EnsureMonitorLatestStatusCollection(app core.App) error {
 	col.CreateRule = nil
 	col.UpdateRule = nil
 	col.DeleteRule = nil
-	addFieldIfMissing(col, &core.SelectField{Name: "target_type", Required: true, MaxSelect: 1, Values: []string{monitor.TargetTypeServer, monitor.TargetTypeApp, monitor.TargetTypeResource, monitor.TargetTypePlatform}})
+	addFieldIfMissing(col, &core.SelectField{Name: "target_type", Required: true, MaxSelect: 1, Values: []string{monitor.TargetTypeServer, monitor.TargetTypeApp, monitor.TargetTypeResource, monitor.TargetTypePlatform, monitor.TargetTypeAIProvider, monitor.TargetTypeConnector}})
 	addFieldIfMissing(col, &core.TextField{Name: "target_id", Required: true, Max: 200})
 	addFieldIfMissing(col, &core.TextField{Name: "display_name", Required: true, Max: 200})
 	addFieldIfMissing(col, &core.SelectField{Name: "status", Required: true, MaxSelect: 1, Values: []string{monitor.StatusHealthy, monitor.StatusDegraded, monitor.StatusOffline, monitor.StatusUnreachable, monitor.StatusCredentialInvalid, monitor.StatusUnknown}})

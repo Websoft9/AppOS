@@ -2,6 +2,8 @@
   "kind": "smtp",
   "category": "Messaging",
   "description": "Reusable SMTP connector profile.",
+  "authPresentation": "username_password",
+  "endpointShape": "host_port_tls",
   "defaultAuthScheme": "basic",
   "capabilities": ["email", "smtp"],
   "fields": [

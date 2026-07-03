@@ -535,8 +535,9 @@ export function PlatformAccountsPage() {
         },
         dialogContentClassName: 'sm:max-w-4xl',
         resolveFields: resolveProviderAccountFields,
-        resourceType: 'provider_account',
-        autoCreate,
+          resourceType: 'provider_account',
+          enableGroupAssign: true,
+          autoCreate,
         refreshKey,
         listItems: async () => {
           const items = await pb.send<ProviderAccountRecord[]>('/api/provider-accounts', {

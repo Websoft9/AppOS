@@ -2,6 +2,9 @@
   "kind": "http-gateway",
   "category": "Gateway",
   "description": "Reusable externally managed HTTP gateway connector profile.",
+  "authPresentation": "token",
+  "endpointShape": "url",
+  "endpointScheme": "https",
   "defaultAuthScheme": "bearer",
   "capabilities": ["http-gateway"],
   "fields": [

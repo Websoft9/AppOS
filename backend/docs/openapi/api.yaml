@@ -85,6 +85,13 @@ tags:
       name: Users
 components:
     schemas:
+        AiProviderAvailabilityResponse:
+            properties:
+                items:
+                    items:
+                        $ref: '#/components/schemas/AiProviderAvailabilityItem'
+                    type: array
+            type: object
         AnalyzeBookmarkRequest:
             properties:
                 url:
@@ -1515,6 +1522,43 @@ paths:
             summary: Update ai providers by id
             tags:
                 - AI Providers
+    /api/ai-providers/availability:
+        get:
+            description: Resolves provider credentials and fetches models to determine whether one or more AI providers are currently usable to AppOS.
+            operationId: get_api_ai-providers_availability
+            parameters:
+                - description: comma-separated AI provider ids
+                  in: query
+                  name: ids
+                  required: false
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/AiProviderAvailabilityResponse'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Check AI provider availability
+            tags:
+                - AI Providers
     /api/ai-providers/chat-models:
         get:
             operationId: get_api_ai-providers_chat-models
@@ -1640,12 +1684,6 @@ paths:
     /api/ai-providers/reachability:
         get:
             operationId: get_api_ai-providers_reachability
-            parameters:
-                - in: query
-                  name: ids
-                  required: false
-                  schema:
-                    type: string
             responses:
                 "200":
                     content:

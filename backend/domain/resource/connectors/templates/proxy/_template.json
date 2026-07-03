@@ -2,6 +2,8 @@
   "kind": "proxy",
   "category": "Integration",
   "description": "Reusable externally managed proxy connector profile.",
+  "authPresentation": "selectable",
+  "endpointShape": "url",
   "defaultAuthScheme": "basic",
   "capabilities": ["proxy"],
   "fields": [
@@ -15,22 +17,28 @@
     {
       "id": "auth_mode",
       "label": "Authentication",
-      "type": "string",
+      "type": "select",
       "required": true,
-      "default": "none"
+      "default": "none",
+      "options": [
+        { "label": "No authentication", "value": "none" },
+        { "label": "Username + Password", "value": "username_password" }
+      ]
     },
     {
       "id": "username",
       "label": "Username",
       "type": "string",
-      "placeholder": "proxy-user"
+      "placeholder": "proxy-user",
+      "showWhen": { "field": "auth_mode", "values": ["username_password"] }
     },
     {
       "id": "credential",
       "label": "Password Secret",
       "type": "secret_ref",
       "secretTemplate": "single_value",
-      "placeholder": "secretRef:..."
+      "placeholder": "secretRef:...",
+      "showWhen": { "field": "auth_mode", "values": ["username_password"] }
     },
     {
       "id": "no_proxy",

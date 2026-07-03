@@ -1,6 +1,9 @@
 {
   "kind": "elasticsearch-compatible",
   "category": "search",
+  "endpointShape": "url",
+  "credentialPresentation": "secret_or_inline",
+  "credentialLabel": "credential",
   "fields": [
     {
       "id": "indexPrefix",

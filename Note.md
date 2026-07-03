@@ -108,14 +108,10 @@ frame 嵌入页面实施，我把这个 iframe-page framework 再抽一层 regis
 
 如果你要继续，我建议下一步做 1 件事：把页面文案里的原始链接说明也补成更明确的“公开 dashboard 代理入口”，避免后面有人又按旧 /api/system/traefik 去排障。
 
-## Infra
-
-数据库增加 external json 结构，便于未来拓展？
 
 ## Small issue
 
 connector api 路径
-
 
 Runtime Instances 列表页
 
@@ -123,3 +119,12 @@ Runtime Instances 列表页
 - 例如：Database 需要全部统一，它们都以 MySQL 为例
 
 
+1. 元数据要有默认协议，不同的 kind 不同：例如：rest api 默认为 https，当用户没有填写 协议时，它就自动将 https 组合到用户填写的 url 中。如果用户填写了协议，就不管它
+
+
+
+前端列表页统一加载策略
+AI Providers 路由重构建议：是改名，还是收窄语义
+
+继续审查每个 database 模板的“语义准确性”，例如 InfluxDB 的 username/password 模型是否应改成 token-oriented
+进一步清理后端 instances 模型里已经不再使用的 commonFieldDefaults / omitCommonFields 结构，彻底去掉旧时代遗留

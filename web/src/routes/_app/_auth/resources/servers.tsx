@@ -1975,6 +1975,7 @@ export function ServersPage() {
           paginationTotalLabel: totalCount => t('servers.page.totalItems', { count: totalCount }),
           dialogContentClassName: 'sm:max-w-4xl',
           resourceType: 'server',
+          enableGroupAssign: true,
           actionsAlign: 'left',
           actionsMenuAlign: 'start',
           listItems,

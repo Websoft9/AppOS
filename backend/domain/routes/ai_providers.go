@@ -20,6 +20,8 @@ import (
 	"github.com/websoft9/appos/backend/domain/ai/copilot"
 	"github.com/websoft9/appos/backend/domain/audit"
 	sysconfig "github.com/websoft9/appos/backend/domain/config/sysconfig"
+	"github.com/websoft9/appos/backend/domain/monitor"
+	monitorstatus "github.com/websoft9/appos/backend/domain/monitor/status"
 	"github.com/websoft9/appos/backend/domain/resource/accounts"
 	"github.com/websoft9/appos/backend/domain/resource/aiproviders"
 	"github.com/websoft9/appos/backend/domain/secrets"
@@ -71,6 +73,7 @@ func registerAIProviderRoutes(se *core.ServeEvent) {
 	group.GET("/templates/{id}", handleAIProviderTemplateGet)
 	group.POST("/fetch-models", handleFetchModels)
 	group.GET("/reachability", handleAIProviderReachability)
+	group.GET("/availability", handleAIProviderAvailability)
 	group.GET("/models/{id}", handleAIProviderModels)
 	group.GET("", handleAIProviderList)
 	group.GET("/{id}", handleAIProviderGet)
@@ -319,11 +322,70 @@ type aiProviderReachabilityItem struct {
 	ID        string `json:"id"`
 	Status    string `json:"status"`
 	CheckedAt string `json:"checked_at,omitempty"`
+	LatencyMS int64  `json:"latency_ms,omitempty"`
+	Reason    string `json:"reason,omitempty"`
 	Error     string `json:"error,omitempty"`
 }
 
 type aiProviderReachabilityResponse struct {
 	Items []aiProviderReachabilityItem `json:"items"`
+}
+
+type aiProviderAvailabilityItem struct {
+	ID        string `json:"id"`
+	Status    string `json:"status"`
+	CheckedAt string `json:"checked_at,omitempty"`
+	Reason    string `json:"reason,omitempty"`
+}
+
+type aiProviderAvailabilityResponse struct {
+	Items []aiProviderAvailabilityItem `json:"items"`
+}
+
+var defaultAIProviderStatusPriority = map[string]int{
+	monitor.StatusHealthy:           0,
+	monitor.StatusDegraded:          1,
+	monitor.StatusUnreachable:       2,
+	monitor.StatusCredentialInvalid: 3,
+	monitor.StatusUnknown:           4,
+}
+
+func aiProviderReachabilityMonitorStatus(apiStatus string) string {
+	switch strings.ToLower(strings.TrimSpace(apiStatus)) {
+	case "reachable":
+		return monitor.StatusHealthy
+	case "unreachable":
+		return monitor.StatusUnreachable
+	default:
+		return monitor.StatusUnknown
+	}
+}
+
+func aiProviderAvailabilityMonitorStatus(apiStatus string) string {
+	switch strings.ToLower(strings.TrimSpace(apiStatus)) {
+	case "available":
+		return monitor.StatusHealthy
+	case "unavailable":
+		return monitor.StatusDegraded
+	default:
+		return monitor.StatusUnknown
+	}
+}
+
+func projectAIProviderStatus(app core.App, targetID, displayName, checkKind, monitorStatus, reason string, summary map[string]any, now time.Time) {
+	_ = monitorstatus.ProjectResourceCheckLatestStatus(
+		app,
+		monitor.TargetTypeAIProvider,
+		targetID,
+		displayName,
+		monitor.SignalSourceAppOS,
+		checkKind,
+		monitorStatus,
+		reason,
+		summary,
+		defaultAIProviderStatusPriority,
+		now,
+	)
 }
 
 var newAIProviderHTTPClientPlan = egress.NewHTTPClientPlan
@@ -410,6 +472,79 @@ func describeFetchModelsError(err error) string {
 }
 
 func handleAIProviderReachability(e *core.RequestEvent) error {
+	items, err := listAIProviderTargets(e)
+	if err != nil {
+		return e.InternalServerError("failed to list AI providers", err)
+	}
+
+	results := make([]aiProviderReachabilityItem, len(items))
+	var waitGroup sync.WaitGroup
+	now := time.Now().UTC()
+	for index, item := range items {
+		waitGroup.Add(1)
+		go func(index int, item *aiproviders.AIProvider) {
+			defer waitGroup.Done()
+			results[index] = probeAIProviderReachability(item)
+		}(index, item)
+	}
+	waitGroup.Wait()
+
+	for _, result := range results {
+		if result.ID == "" {
+			continue
+		}
+		projectAIProviderStatus(e.App, result.ID, result.ID, monitor.CheckKindReachability,
+			aiProviderReachabilityMonitorStatus(result.Status), result.Reason,
+			map[string]any{"check_kind": monitor.CheckKindReachability, "latency_ms": result.LatencyMS},
+			now)
+	}
+
+	return e.JSON(http.StatusOK, aiProviderReachabilityResponse{Items: results})
+}
+
+// handleAIProviderAvailability probes whether AppOS can actually use one or more AI providers.
+//
+// @Summary Check AI provider availability
+// @Description Resolves provider credentials and fetches models to determine whether one or more AI providers are currently usable to AppOS.
+// @Tags Resource
+// @Security BearerAuth
+// @Param ids query string false "comma-separated AI provider ids"
+// @Success 200 {object} aiProviderAvailabilityResponse
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ai-providers/availability [get]
+func handleAIProviderAvailability(e *core.RequestEvent) error {
+	items, err := listAIProviderTargets(e)
+	if err != nil {
+		return e.InternalServerError("failed to list AI providers", err)
+	}
+
+	results := make([]aiProviderAvailabilityItem, len(items))
+	var waitGroup sync.WaitGroup
+	now := time.Now().UTC()
+	for index, item := range items {
+		waitGroup.Add(1)
+		go func(index int, item *aiproviders.AIProvider) {
+			defer waitGroup.Done()
+			results[index] = probeAIProviderAvailability(e, item)
+		}(index, item)
+	}
+	waitGroup.Wait()
+
+	for _, result := range results {
+		if result.ID == "" {
+			continue
+		}
+		projectAIProviderStatus(e.App, result.ID, result.ID, monitor.CheckKindReachability,
+			aiProviderAvailabilityMonitorStatus(result.Status), result.Reason,
+			map[string]any{"check_kind": monitor.CheckKindReachability},
+			now)
+	}
+
+	return e.JSON(http.StatusOK, aiProviderAvailabilityResponse{Items: results})
+}
+
+func listAIProviderTargets(e *core.RequestEvent) ([]*aiproviders.AIProvider, error) {
 	repo := persistence.NewAIProviderRepository(e.App)
 	idsParam := strings.TrimSpace(e.Request.URL.Query().Get("ids"))
 	var (
@@ -431,55 +566,107 @@ func handleAIProviderReachability(e *core.RequestEvent) error {
 			items = append(items, item)
 		}
 	}
+	return items, err
+}
+
+func probeAIProviderReachability(item *aiproviders.AIProvider) aiProviderReachabilityItem {
+	status := aiProviderReachabilityItem{
+		ID:        item.ID(),
+		Status:    "unknown",
+		CheckedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	host, port, err := aiProviderProbeTarget(item)
 	if err != nil {
-		return e.InternalServerError("failed to list AI providers", err)
+		status.Reason = err.Error()
+		status.Error = err.Error()
+		return status
 	}
-
-	results := make([]aiProviderReachabilityItem, len(items))
-	var waitGroup sync.WaitGroup
-	for index, item := range items {
-		waitGroup.Add(1)
-		go func(index int, item *aiproviders.AIProvider) {
-			defer waitGroup.Done()
-			status := aiProviderReachabilityItem{
-				ID:        item.ID(),
-				Status:    "unknown",
-				CheckedAt: time.Now().UTC().Format(time.RFC3339),
-			}
-			apiKey, resolveErr := resolveAIProviderAPIKey(e, item)
-			if resolveErr != nil {
-				status.Status = "unreachable"
-				status.Error = resolveErr.Error()
-				results[index] = status
-				return
-			}
-			if validateErr := validateAIProviderCredential(e.App, e.Request.Context(), item, apiKey); validateErr != nil {
-				status.Status = "unreachable"
-				status.Error = validateErr.Error()
-				results[index] = status
-				return
-			}
-			endpoint, protocol, protocolErr := aiproviders.ResolveActiveEndpointAndProtocol(item)
-			if protocolErr != nil {
-				status.Status = "unreachable"
-				status.Error = protocolErr.Error()
-				results[index] = status
-				return
-			}
-			_, fetchErr := fetchProviderModels(e.App, e.Request.Context(), endpoint, apiKey, strings.TrimSpace(item.AuthScheme()), strings.TrimSpace(item.TemplateID()), protocol)
-			if fetchErr != nil {
-				status.Status = "unreachable"
-				status.Error = fetchErr.Error()
-				results[index] = status
-				return
-			}
-			status.Status = "reachable"
-			results[index] = status
-		}(index, item)
+	start := time.Now()
+	conn, dialErr := net.DialTimeout("tcp", net.JoinHostPort(host, strconv.Itoa(port)), 3*time.Second)
+	if dialErr != nil {
+		status.Status = "unreachable"
+		status.Reason = dialErr.Error()
+		status.Error = dialErr.Error()
+		return status
 	}
-	waitGroup.Wait()
+	_ = conn.Close()
+	status.Status = "reachable"
+	status.LatencyMS = time.Since(start).Milliseconds()
+	return status
+}
 
-	return e.JSON(http.StatusOK, aiProviderReachabilityResponse{Items: results})
+func probeAIProviderAvailability(e *core.RequestEvent, item *aiproviders.AIProvider) aiProviderAvailabilityItem {
+	status := aiProviderAvailabilityItem{
+		ID:        item.ID(),
+		Status:    "unknown",
+		CheckedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	apiKey, resolveErr := resolveAIProviderAPIKey(e, item)
+	if resolveErr != nil {
+		status.Status = "unavailable"
+		status.Reason = resolveErr.Error()
+		return status
+	}
+	if validateErr := validateAIProviderCredential(e.App, e.Request.Context(), item, apiKey); validateErr != nil {
+		status.Status = "unavailable"
+		status.Reason = validateErr.Error()
+		return status
+	}
+	endpoint, protocol, protocolErr := aiproviders.ResolveActiveEndpointAndProtocol(item)
+	if protocolErr != nil {
+		status.Status = "unavailable"
+		status.Reason = protocolErr.Error()
+		return status
+	}
+	_, fetchErr := fetchProviderModels(e.App, e.Request.Context(), endpoint, apiKey, strings.TrimSpace(item.AuthScheme()), strings.TrimSpace(item.TemplateID()), protocol)
+	if fetchErr != nil {
+		status.Status = "unavailable"
+		status.Reason = fetchErr.Error()
+		return status
+	}
+	status.Status = "available"
+	return status
+}
+
+func aiProviderProbeTarget(item *aiproviders.AIProvider) (string, int, error) {
+	if item == nil {
+		return "", 0, errors.New("provider is nil")
+	}
+	endpoint, _, err := aiproviders.ResolveActiveEndpointAndProtocol(item)
+	if err != nil {
+		return "", 0, err
+	}
+	raw := strings.TrimSpace(endpoint)
+	if raw == "" {
+		return "", 0, errors.New("endpoint is empty")
+	}
+	parsedRaw := raw
+	if !strings.Contains(parsedRaw, "://") {
+		parsedRaw = "https://" + parsedRaw
+	}
+	parsed, err := url.Parse(parsedRaw)
+	if err != nil {
+		return "", 0, err
+	}
+	host := strings.TrimSpace(parsed.Hostname())
+	if host == "" {
+		return "", 0, errors.New("endpoint host is empty")
+	}
+	if rawPort := strings.TrimSpace(parsed.Port()); rawPort != "" {
+		port, convErr := strconv.Atoi(rawPort)
+		if convErr != nil {
+			return host, 0, convErr
+		}
+		return host, port, nil
+	}
+	switch strings.ToLower(strings.TrimSpace(parsed.Scheme)) {
+	case "http":
+		return host, 80, nil
+	case "https", "":
+		return host, 443, nil
+	default:
+		return host, 0, errors.New("endpoint port is required")
+	}
 }
 
 func validateAIProviderCredential(app core.App, ctx context.Context, item *aiproviders.AIProvider, apiKey string) error {

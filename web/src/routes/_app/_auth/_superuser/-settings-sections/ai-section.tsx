@@ -157,6 +157,7 @@ export function AISettingsSection({
           return String(left.name ?? '').localeCompare(String(right.name ?? ''))
         }),
       }))
+      .filter(group => group.items.length > 1)
       .sort(
         (left, right) =>
           left.providerName.localeCompare(right.providerName) ||
@@ -214,8 +215,9 @@ export function AISettingsSection({
           ) : providerGroups.length === 0 ? (
             <div className="space-y-3 rounded-lg border border-dashed border-border/60 bg-muted/10 p-4">
               <p className="text-sm text-muted-foreground">
-                No AI Provider accounts are available yet. Create one in Resources so AppOS can
-                choose a default provider account here.
+                {providers.length === 0
+                  ? 'No AI Provider accounts yet. Add one in Resources.'
+                  : `Currently ${providers.length} AI provider account${providers.length === 1 ? '' : 's'}. Add more to choose a default.`}
               </p>
               <div>
                 <Button type="button" variant="outline" asChild>

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useOptionalLayout } from '@/contexts/LayoutContext'
-import { Check, Loader2, Pencil, Power, PowerOff } from 'lucide-react'
+import { Check, Loader2, Pencil, Power, PowerOff, RotateCw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -18,6 +18,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { ResourcePage, type Column, type FieldDef } from '@/components/resources/ResourcePage'
 import { ResourceListSettingsButton } from '@/components/resources/ResourceListSettingsButton'
+import { ResourceStatusTimestamp } from '@/components/resources/ResourceStatusTimestamp'
 import { ResourcesBreadcrumb } from '@/components/resources/ResourcesBreadcrumb'
 import { formatResourceDateTime } from '@/components/resources/resource-formatters'
 import {
@@ -60,16 +61,26 @@ type MonitorLatestStatusRecord = {
   last_checked_at?: string | null
 }
 
+type InstanceReachabilityRecord = {
+  id?: string
+  status?: string
+  reason?: string | null
+  checked_at?: string | null
+}
+
 type InstanceTemplateField = {
   id: string
   label: string
   type: string
   required?: boolean
+  advanced?: boolean
+  hidden?: boolean
   sensitive?: boolean
   secretTemplate?: string
   placeholder?: string
   helpText?: string
   default?: unknown
+  showWhen?: { field: string; values: string[] }
 }
 
 type InstanceTemplate = {
@@ -80,14 +91,16 @@ type InstanceTemplate = {
   vendor?: string
   description?: string
   defaultEndpoint?: string
-  omitCommonFields?: string[]
-  commonFieldDefaults?: Record<string, unknown>
+  defaultPort?: number
+  defaultProtocolHint?: string
+  layoutPreset?: string
+  endpointShape?: string
+  credentialPresentation?: string
+  credentialLabel?: string
   fields?: InstanceTemplateField[]
 }
 
 type Translate = (key: string, options?: Record<string, unknown>) => string
-
-const DATABASE_COMMON_FIELD_IDS = new Set(['username', 'connect_timeout', 'ssl_enabled'])
 
 const SECRET_TEMPLATE_LABELS: Record<string, string> = {
   single_value: 'Password / Single Value',
@@ -171,169 +184,43 @@ type CanonicalFieldMeta = {
   advanced?: boolean
 }
 
-const INSTANCE_CANONICAL_FIELD_META: Record<
-  string,
-  Partial<Record<CanonicalFieldKey, CanonicalFieldMeta>>
-> = {
-  'mysql-compatible': {
-    host: { required: true },
-    port: { required: true },
-    credential: { required: true },
-    provider_account: { advanced: true },
-    is_enabled: { advanced: true },
-    description: { advanced: true },
-    groups: { advanced: true },
-  },
-  'postgres-compatible': {
-    host: { required: true },
-    port: { required: true },
-    credential: { required: true },
-    provider_account: { advanced: true },
-    is_enabled: { advanced: true },
-    description: { advanced: true },
-    groups: { advanced: true },
-  },
-  'mongodb-compatible': {
-    endpoint: { required: true },
-    credential: { advanced: true },
-    provider_account: { advanced: true },
-    is_enabled: { advanced: true },
-    description: { advanced: true },
-    groups: { advanced: true },
-  },
-  'clickhouse-compatible': {
-    endpoint: { required: true },
-    credential: { advanced: true },
-    provider_account: { advanced: true },
-    is_enabled: { advanced: true },
-    description: { advanced: true },
-    groups: { advanced: true },
-  },
-  'neo4j-compatible': {
-    endpoint: { required: true },
-    credential: { advanced: true },
-    provider_account: { advanced: true },
-    is_enabled: { advanced: true },
-    description: { advanced: true },
-    groups: { advanced: true },
-  },
-  'influxdb-compatible': {
-    endpoint: { required: true },
-    credential: { advanced: true },
-    provider_account: { advanced: true },
-    is_enabled: { advanced: true },
-    description: { advanced: true },
-    groups: { advanced: true },
-  },
-  'redis-compatible': {
-    endpoint: { required: true },
-    credential: { advanced: true },
-    provider_account: { advanced: true },
-    is_enabled: { advanced: true },
-    description: { advanced: true },
-    groups: { advanced: true },
-  },
-  'elasticsearch-compatible': {
-    endpoint: { required: true },
-    credential: { advanced: true },
-    provider_account: { advanced: true },
-    is_enabled: { advanced: true },
-    description: { advanced: true },
-    groups: { advanced: true },
-  },
-  'kafka-compatible': {
-    endpoint: { required: true },
-    credential: { advanced: true },
-    provider_account: { advanced: true },
-    is_enabled: { advanced: true },
-    description: { advanced: true },
-    groups: { advanced: true },
-  },
-  'amqp-compatible': {
-    endpoint: { required: true },
-    credential: { advanced: true },
-    provider_account: { advanced: true },
-    is_enabled: { advanced: true },
-    description: { advanced: true },
-    groups: { advanced: true },
-  },
-  'nats-compatible': {
-    endpoint: { required: true },
-    credential: { advanced: true },
-    provider_account: { advanced: true },
-    is_enabled: { advanced: true },
-    description: { advanced: true },
-    groups: { advanced: true },
-  },
-  'mqtt-compatible': {
-    endpoint: { required: true },
-    credential: { advanced: true },
-    provider_account: { advanced: true },
-    is_enabled: { advanced: true },
-    description: { advanced: true },
-    groups: { advanced: true },
-  },
-  's3-compatible': {
-    endpoint: { required: true },
-    credential: { advanced: true },
-    provider_account: { advanced: true },
-    is_enabled: { advanced: true },
-    description: { advanced: true },
-    groups: { advanced: true },
-  },
-  'onlyoffice-compatible': {
-    endpoint: { required: true },
-    credential: { advanced: true },
-    provider_account: { advanced: true },
-    is_enabled: { advanced: true },
-    description: { advanced: true },
-    groups: { advanced: true },
-  },
-}
-
-function buildDatabaseCommonFields(t: Translate): InstanceTemplateField[] {
-  return [
-    {
-      id: 'username',
-      label: t('serviceInstances.fields.username'),
-      type: 'text',
-      required: true,
-      placeholder: t('serviceInstances.placeholders.username'),
-    },
-    {
-      id: 'connect_timeout',
-      label: t('serviceInstances.fields.connectionTimeout'),
-      type: 'number',
-      default: 10,
-      helpText: t('serviceInstances.help.connectionTimeout'),
-    },
-    {
-      id: 'ssl_enabled',
-      label: t('serviceInstances.fields.useSsl'),
-      type: 'boolean',
-      default: false,
-    },
-  ]
-}
-
 function localizeTemplateFieldCopy(
   field: InstanceTemplateField,
   t: Translate
 ): InstanceTemplateField {
   const key = TEMPLATE_FIELD_OVERRIDE_KEYS[field.id]
-  if (!key) {
-    return field
+  const nextField = { ...field }
+
+  if (key) {
+    const localizedLabel = t(key)
+    if (localizedLabel !== key) {
+      nextField.label = localizedLabel
+    }
   }
 
-  const localizedLabel = t(key)
-  if (localizedLabel === key) {
-    return field
+  if (field.id === 'username') {
+    const usernameLabel = t('serviceInstances.fields.username')
+    if (usernameLabel !== 'serviceInstances.fields.username') {
+      nextField.label = usernameLabel
+    }
+    const usernamePlaceholder = t('serviceInstances.placeholders.username')
+    if (usernamePlaceholder !== 'serviceInstances.placeholders.username') {
+      nextField.placeholder = usernamePlaceholder
+    }
   }
 
-  return {
-    ...field,
-    label: localizedLabel,
+  if (field.id === 'connect_timeout') {
+    const timeoutLabel = t('serviceInstances.fields.connectionTimeout')
+    if (timeoutLabel !== 'serviceInstances.fields.connectionTimeout') {
+      nextField.label = timeoutLabel
+    }
+    const timeoutHelp = t('serviceInstances.help.connectionTimeout')
+    if (timeoutHelp !== 'serviceInstances.help.connectionTimeout') {
+      nextField.helpText = timeoutHelp
+    }
   }
+
+  return nextField
 }
 
 function normalizeTemplateFieldDefault(field: InstanceTemplateField) {
@@ -418,6 +305,45 @@ function buildDefaultInstanceName(template: InstanceTemplate, t: Translate) {
   return `${base}-${Date.now().toString().slice(-4)}`
 }
 
+function normalizeInstanceLayoutPreset(template: InstanceTemplate | null | undefined) {
+  return String(template?.layoutPreset ?? '')
+    .trim()
+    .toLowerCase()
+}
+
+function normalizeInstanceEndpointShape(template: InstanceTemplate | null | undefined) {
+  const normalized = String(template?.endpointShape ?? 'url')
+    .trim()
+    .toLowerCase()
+  return normalized || 'url'
+}
+
+function normalizeInstanceCredentialPresentation(template: InstanceTemplate | null | undefined) {
+  return String(template?.credentialPresentation ?? '')
+    .trim()
+    .toLowerCase()
+}
+
+function usesDatabaseConnectionLayout(template: InstanceTemplate | null | undefined) {
+  return normalizeInstanceLayoutPreset(template) === 'database_connection'
+}
+
+function usesHostPortEndpoint(template: InstanceTemplate | null | undefined) {
+  return normalizeInstanceEndpointShape(template) === 'host_port'
+}
+
+function supportsInlineCredentialSecret(template: InstanceTemplate | null | undefined) {
+  return normalizeInstanceCredentialPresentation(template) === 'secret_or_inline'
+}
+
+function resolveCredentialFieldLabel(template: InstanceTemplate | null | undefined, t: Translate) {
+  return String(template?.credentialLabel ?? '')
+    .trim()
+    .toLowerCase() === 'password'
+    ? t('serviceInstances.fields.password')
+    : t('serviceInstances.fields.credential')
+}
+
 function applyInstanceTemplateDefaults(
   template: InstanceTemplate,
   update: (key: string, value: unknown) => void,
@@ -435,7 +361,7 @@ function applyInstanceTemplateDefaults(
   update('password_value', '')
   update('ssl_mode', '')
 
-  if (isDatabaseConnectionKind(template)) {
+  if (usesHostPortEndpoint(template)) {
     const endpointParts = splitEndpoint(template.defaultEndpoint ?? '')
     update('host', endpointParts.host)
     update('port', Number(endpointParts.port || defaultPortForTemplate(template)))
@@ -444,7 +370,7 @@ function applyInstanceTemplateDefaults(
     update('port', '')
   }
 
-  for (const field of mergeDatabaseTemplateFields(template, t)) {
+  for (const field of mergeTemplateFields(template, t)) {
     update(field.id, normalizeTemplateFieldDefault(field))
   }
 }
@@ -508,35 +434,40 @@ function splitEndpoint(endpoint: string) {
 function buildEndpoint(host: unknown, port: unknown, fallback: string) {
   const normalizedHost = String(host ?? '').trim()
   const normalizedPort = String(port ?? '').trim()
+  const fallbackParts = splitEndpoint(fallback)
   if (!normalizedHost) {
     return fallback
   }
-  if (!normalizedPort) {
+  const effectivePort = normalizedPort || fallbackParts.port
+  if (!effectivePort) {
     return normalizedHost
   }
-  return `${normalizedHost}:${normalizedPort}`
+  return `${normalizedHost}:${effectivePort}`
 }
 
-function isDatabaseConnectionKind(template: InstanceTemplate | null | undefined) {
-  return template?.kind === 'mysql-compatible' || template?.kind === 'postgres-compatible'
-}
+function buildInstanceEndpoint(
+  template: InstanceTemplate,
+  payload: Record<string, unknown>
+) {
+  if (usesHostPortEndpoint(template)) {
+    return buildEndpoint(
+      payload.host,
+      payload.port,
+      String(payload.endpoint ?? template.defaultEndpoint ?? '')
+    )
+  }
 
-function isSecretBackedConnectionKind(template: InstanceTemplate | null | undefined) {
-  return (
-    template?.kind === 'mysql-compatible' ||
-    template?.kind === 'postgres-compatible' ||
-    template?.kind === 'mongodb-compatible' ||
-    template?.kind === 'clickhouse-compatible' ||
-    template?.kind === 'neo4j-compatible' ||
-    template?.kind === 'influxdb-compatible' ||
-    template?.kind === 'redis-compatible' ||
-    template?.kind === 'elasticsearch-compatible' ||
-    template?.kind === 'kafka-compatible' ||
-    template?.kind === 'amqp-compatible' ||
-    template?.kind === 'nats-compatible' ||
-	 template?.kind === 'mqtt-compatible' ||
-	 template?.kind === 'onlyoffice-compatible'
-  )
+  const rawEndpoint = String(payload.endpoint ?? template.defaultEndpoint ?? '').trim()
+  if (!rawEndpoint) {
+    return ''
+  }
+
+  const scheme = String(template.defaultProtocolHint ?? '').trim().toLowerCase()
+  if (!scheme || rawEndpoint.includes('://')) {
+    return rawEndpoint
+  }
+
+  return `${scheme}://${rawEndpoint}`
 }
 
 function resolveCanonicalFieldMeta(
@@ -546,19 +477,29 @@ function resolveCanonicalFieldMeta(
   if (!template) {
     return {}
   }
-  return INSTANCE_CANONICAL_FIELD_META[template.kind]?.[fieldKey] ?? {}
+  switch (fieldKey) {
+    case 'endpoint':
+      return usesHostPortEndpoint(template) ? { advanced: false } : { required: true }
+    case 'host':
+    case 'port':
+      return usesHostPortEndpoint(template) ? { required: true } : {}
+    case 'credential':
+      if (usesDatabaseConnectionLayout(template)) {
+        return { required: true }
+      }
+      return { advanced: true }
+    case 'provider_account':
+    case 'is_enabled':
+    case 'description':
+    case 'groups':
+      return { advanced: true }
+    default:
+      return {}
+  }
 }
 
 function defaultPortForTemplate(template: InstanceTemplate | null | undefined) {
-  if (template?.kind === 'postgres-compatible') return 5432
-  return 3306
-}
-
-function databaseCertificateHelpText(template: InstanceTemplate | null | undefined, t: Translate) {
-  if (template?.kind === 'postgres-compatible') {
-    return t('serviceInstances.help.sslCertificatePostgres')
-  }
-  return t('serviceInstances.help.sslCertificateMysql')
+  return Number(template?.defaultPort ?? 0)
 }
 
 function resolveInstanceEnabled(value: unknown) {
@@ -609,85 +550,48 @@ function monitorStatusVariant(
   }
 }
 
-function mergeDatabaseTemplateFields(template: InstanceTemplate | null | undefined, t: Translate) {
+function normalizeLiveReachabilityStatus(value: unknown) {
+  switch (
+    String(value ?? '')
+      .trim()
+      .toLowerCase()
+  ) {
+    case 'online':
+      return 'healthy'
+    case 'offline':
+      return 'unreachable'
+    default:
+      return 'unknown'
+  }
+}
+
+function mergeTemplateFields(template: InstanceTemplate | null | undefined, t: Translate) {
   if (!template) {
     return [] as InstanceTemplateField[]
   }
-  if (!isDatabaseConnectionKind(template)) {
-    return template.fields ?? []
-  }
-
-  const omitted = new Set((template.omitCommonFields ?? []).map(value => String(value).trim()))
-  const merged: InstanceTemplateField[] = []
-  const existingById = new Map((template.fields ?? []).map(field => [field.id, field]))
-
-  for (const field of buildDatabaseCommonFields(t)) {
-    if (omitted.has(field.id)) {
-      continue
-    }
-    const override = existingById.get(field.id)
-    const configuredDefault = template.commonFieldDefaults?.[field.id]
-    merged.push(
-      override ?? {
-        ...field,
-        default: configuredDefault ?? field.default,
-      }
-    )
-  }
-
-  for (const field of template.fields ?? []) {
-    if (DATABASE_COMMON_FIELD_IDS.has(field.id) && omitted.has(field.id)) {
-      continue
-    }
-    if (merged.some(existing => existing.id === field.id)) {
-      continue
-    }
-    merged.push(field)
-  }
-
-  return merged
+  return (template.fields ?? []).map(field => localizeTemplateFieldCopy(field, t))
 }
 
 function mapTemplateFieldToResourceField(
   field: InstanceTemplateField,
-  template: InstanceTemplate,
   t: Translate
 ): FieldDef {
-  const localizedField = localizeTemplateFieldCopy(field, t)
+  const localizedField = field
 
-  if (isDatabaseConnectionKind(template) && (field.id === 'engine' || field.id === 'provider')) {
-    return {
-      key: localizedField.id,
-      label: localizedField.label,
-      type: 'text',
-      hidden: true,
-      defaultValue: normalizeTemplateFieldDefault(localizedField),
-    }
-  }
-
-  if (isDatabaseConnectionKind(template) && field.id === 'ssl_ca_certificate') {
+  if (localizedField.type === 'certificate_ref') {
     return {
       key: localizedField.id,
       label: t('serviceInstances.fields.sslCertificate'),
       type: 'relation',
-      advanced: true,
-      showWhen: { field: 'ssl_mode', values: ['mutual'] },
+      advanced: localizedField.advanced ?? true,
+      hidden: localizedField.hidden,
+      showWhen: localizedField.showWhen,
       relationApiPath: "/api/collections/certificates/records?filter=(status='active')&sort=name",
       relationLabelKey: 'name',
-      helpText: databaseCertificateHelpText(template, t),
+      helpText: localizedField.helpText,
       relationShowNoneOption: false,
       relationShowSelectedIndicator: false,
       relationBorderlessMenu: true,
-      defaultValue: normalizeTemplateFieldDefault(localizedField),
-    }
-  }
-
-  if (isDatabaseConnectionKind(template) && field.id === 'ssl_enabled') {
-    return {
-      key: localizedField.id,
-      label: localizedField.label,
-      type: 'boolean',
-      hidden: true,
       defaultValue: normalizeTemplateFieldDefault(localizedField),
     }
   }
@@ -702,10 +606,12 @@ function mapTemplateFieldToResourceField(
           ? 'number'
           : 'text',
     required: localizedField.required,
+    hidden: localizedField.hidden,
     placeholder: localizedField.placeholder,
     defaultValue: normalizeTemplateFieldDefault(localizedField),
     helpText: localizedField.helpText,
-    advanced: !localizedField.required,
+    advanced: localizedField.advanced ?? !localizedField.required,
+    showWhen: localizedField.showWhen,
   }
 }
 
@@ -721,11 +627,11 @@ export async function buildInstancePayload(
     throw new Error(t('serviceInstances.errors.instanceProfileRequired'))
   }
 
-  if (isSecretBackedConnectionKind(template)) {
+  if (supportsInlineCredentialSecret(template)) {
     const useCredentialReference = Boolean(body.credential_use_secret)
     if (!useCredentialReference) {
       const passwordValue = String(body.password_value ?? '')
-      if (!passwordValue.trim() && isDatabaseConnectionKind(template)) {
+      if (!passwordValue.trim() && usesDatabaseConnectionLayout(template)) {
         throw new Error(t('serviceInstances.errors.passwordRequired'))
       }
       if (passwordValue.trim()) {
@@ -746,12 +652,12 @@ export async function buildInstancePayload(
       }
     }
 
-    if (isDatabaseConnectionKind(template) && !String(body.credential ?? '').trim()) {
+    if (usesDatabaseConnectionLayout(template) && !String(body.credential ?? '').trim()) {
       throw new Error(t('serviceInstances.errors.passwordSecretRequired'))
     }
   }
 
-  if (isDatabaseConnectionKind(template)) {
+  if (usesDatabaseConnectionLayout(template)) {
     const sslMode = String(body.ssl_mode ?? '').trim()
     body.ssl_enabled = sslMode === 'one_way' || sslMode === 'mutual'
     if (sslMode !== 'mutual') {
@@ -763,7 +669,7 @@ export async function buildInstancePayload(
   }
 
   const config: Record<string, unknown> = {}
-  for (const field of mergeDatabaseTemplateFields(template, t)) {
+  for (const field of mergeTemplateFields(template, t)) {
     const value = body[field.id]
     if (value === undefined || value === '') {
       continue
@@ -778,11 +684,7 @@ export async function buildInstancePayload(
       ? { is_enabled: resolveInstanceEnabled(body.is_enabled) }
       : {}),
     template_id: template.id,
-    endpoint: buildEndpoint(
-      body.host,
-      body.port,
-      String(body.endpoint ?? template.defaultEndpoint ?? '')
-    ),
+    endpoint: buildInstanceEndpoint(template, body),
     provider_account: String(body.provider_account ?? ''),
     credential: String(body.credential ?? ''),
     config,
@@ -802,7 +704,7 @@ export function mapInstanceRow(
   const flattenedConfig: Record<string, unknown> = {}
   const fallbackConfig = item.config ?? {}
 
-  for (const field of mergeDatabaseTemplateFields(template, t)) {
+  for (const field of mergeTemplateFields(template, t)) {
     const value = item.config?.[field.id]
     if (value === undefined) {
       continue
@@ -875,7 +777,31 @@ function normalizeInstanceTemplateTitle(templateId: string) {
     .join(' ')
 }
 
-function buildColumns(t: Translate, onToggleEnabled: (item: Record<string, unknown>) => void): Column[] {
+function buildColumns(
+  t: Translate,
+  onToggleEnabled: (item: Record<string, unknown>) => void,
+  reachabilityOverrides: Map<string, InstanceReachabilityRecord>,
+  reachabilityLoading: Set<string>
+): Column[] {
+  const resolveStatusMeta = (row: Record<string, unknown>) => {
+    const override = reachabilityOverrides.get(String(row.id ?? ''))
+    if (override) {
+      return {
+        status: String(override.status ?? '').trim(),
+        reason: String(override.reason ?? '').trim(),
+        checkedAt: String(override.checked_at ?? '').trim(),
+        sourceLabel: t('serviceInstances.lastCheckedSources.liveReachability'),
+      }
+    }
+
+    return {
+      status: String(row.monitor_status ?? '').trim(),
+      reason: String(row.monitor_reason ?? '').trim(),
+      checkedAt: String(row.monitor_last_checked_at ?? '').trim(),
+      sourceLabel: t('serviceInstances.lastCheckedSources.scheduledMonitor'),
+    }
+  }
+
   return [
     { key: 'name', label: t('serviceInstances.columns.name'), searchable: true, sortable: true },
     buildEnabledStatusColumn({
@@ -895,13 +821,6 @@ function buildColumns(t: Translate, onToggleEnabled: (item: Record<string, unkno
       render: value => <Badge variant="outline">{String(value || '—')}</Badge>,
     },
     {
-      key: 'profile',
-      label: t('serviceInstances.columns.profile'),
-      searchable: true,
-      sortable: true,
-      filterValue: row => String(row.profile ?? ''),
-    },
-    {
       key: 'host',
       label: t('serviceInstances.columns.host'),
       searchable: true,
@@ -913,20 +832,41 @@ function buildColumns(t: Translate, onToggleEnabled: (item: Record<string, unkno
       ),
     },
     {
+      key: 'port',
+      label: t('serviceInstances.columns.port'),
+      sortable: true,
+      render: value => {
+        const portVal = Number(value)
+        if (!portVal || portVal <= 0) return <span className="text-sm text-muted-foreground">—</span>
+        return <span className="text-sm">{String(value)}</span>
+      },
+    },
+    {
       key: 'monitor_status',
       label: t('serviceInstances.columns.reachability'),
       sortable: true,
-      sortValue: row => String(row.monitor_status ?? ''),
-      filterValue: row => String(row.monitor_status ?? ''),
+      sortValue: row => resolveStatusMeta(row).status,
+      filterValue: row => resolveStatusMeta(row).status,
       render: (value, row) => {
-        const status = String(value ?? '').trim()
-        const reason = String(row.monitor_reason ?? '').trim()
-        if (!status) {
+        const meta = resolveStatusMeta(row)
+        const status = meta.status || String(value ?? '').trim()
+        const reason = meta.reason
+        if (!status && !reachabilityLoading) {
+          return <span className="text-sm text-muted-foreground">—</span>
+        }
+        const displayStatus = status || 'Unknown'
+        const isLoading = reachabilityLoading.has(String(row.id ?? ''))
+        if (!status && !isLoading) {
           return <span className="text-sm text-muted-foreground">—</span>
         }
         return (
-          <Badge variant={monitorStatusVariant(status)} title={reason || undefined}>
-            {formatMonitorStatusLabel(status, t)}
+          <Badge
+            variant={monitorStatusVariant(displayStatus)}
+            title={reason || undefined}
+            className="gap-1"
+          >
+            {isLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+            {formatMonitorStatusLabel(displayStatus, t)}
           </Badge>
         )
       },
@@ -935,10 +875,17 @@ function buildColumns(t: Translate, onToggleEnabled: (item: Record<string, unkno
       key: 'monitor_last_checked_at',
       label: t('serviceInstances.columns.lastChecked'),
       sortable: true,
-      sortValue: row => String(row.monitor_last_checked_at ?? ''),
-      render: value => (
-        <span className="text-sm text-muted-foreground">{formatResourceDateTime(value)}</span>
-      ),
+      sortValue: row => resolveStatusMeta(row).checkedAt,
+      render: (_value, row) => {
+        const meta = resolveStatusMeta(row)
+        return (
+          <ResourceStatusTimestamp
+            checkedAt={meta.checkedAt}
+            sourceLabel={meta.sourceLabel}
+            detail={meta.reason}
+          />
+        )
+      },
     },
     {
       key: 'created',
@@ -979,14 +926,16 @@ export function ServiceInstancesPage() {
     () =>
       new Set([
         'kind_label',
-        'profile',
         'host',
+        'port',
         'monitor_status',
         'monitor_last_checked_at',
-        'created',
-        'updated',
       ])
   )
+  const [reachabilityOverrides, setReachabilityOverrides] = useState<
+    Map<string, InstanceReachabilityRecord>
+  >(new Map())
+  const [reachabilityLoading, setReachabilityLoading] = useState<Set<string>>(new Set())
   const [secretEditName, setSecretEditName] = useState('')
   const [secretEditDescription, setSecretEditDescription] = useState('')
   const [secretEditTemplateId, setSecretEditTemplateId] = useState('')
@@ -1103,6 +1052,46 @@ export function ServiceInstancesPage() {
     [creatableTemplates, t, templatesById]
   )
 
+  const fetchReachabilityStatuses = useCallback(async (ids: string[]) => {
+    if (ids.length === 0) {
+      setReachabilityOverrides(new Map())
+      return
+    }
+    setReachabilityLoading(prev => {
+      const next = new Set(prev)
+      for (const id of ids) next.add(id)
+      return next
+    })
+    try {
+      const rows = await pb.send<InstanceReachabilityRecord[]>('/api/instances/reachability', {
+        method: 'POST',
+        body: { ids },
+      })
+      setReachabilityOverrides(prev => {
+        const next = new Map(prev)
+        for (const row of Array.isArray(rows) ? rows : []) {
+          const id = String(row.id ?? '').trim()
+          if (!id) continue
+          next.set(id, {
+            id,
+            status: normalizeLiveReachabilityStatus(row.status),
+            reason: String(row.reason ?? ''),
+            checked_at: String(row.checked_at ?? ''),
+          })
+        }
+        return next
+      })
+    } catch {
+      // keep previous overrides on error
+    } finally {
+      setReachabilityLoading(prev => {
+        const next = new Set(prev)
+        for (const id of ids) next.delete(id)
+        return next
+      })
+    }
+  }, [])
+
   const listItems = useCallback(async () => {
     const [items, monitorResponse] = await Promise.all([
       pb.send<InstanceRecord[]>('/api/instances', { method: 'GET' }),
@@ -1124,10 +1113,12 @@ export function ServiceInstancesPage() {
         : []
     )
 
-    return Array.isArray(items)
+    const rows = Array.isArray(items)
       ? items.map(item => mapInstanceRow(item, templatesById, monitorByTargetId, t))
       : []
-  }, [t, templatesById])
+    void fetchReachabilityStatuses(rows.map(row => String(row.id ?? '')).filter(Boolean))
+    return rows
+  }, [fetchReachabilityStatuses, t, templatesById])
 
   const openSecretDialog = useCallback(
     (callbacks: { addOption: (id: string, label: string) => void }) => {
@@ -1477,7 +1468,7 @@ export function ServiceInstancesPage() {
           key: 'endpoint',
           label: t('serviceInstances.fields.endpoint'),
           type: 'text',
-          hidden: !selectedTemplate || isDatabaseConnectionKind(selectedTemplate),
+          hidden: !selectedTemplate || usesHostPortEndpoint(selectedTemplate),
           required: Boolean(endpointMeta.required),
           advanced: Boolean(endpointMeta.advanced),
           placeholder: t('serviceInstances.placeholders.endpoint'),
@@ -1488,12 +1479,12 @@ export function ServiceInstancesPage() {
           label: t('serviceInstances.fields.host'),
           type: 'text',
           hideLabel: true,
-          hidden: !selectedTemplate || !isDatabaseConnectionKind(selectedTemplate),
+          hidden: !selectedTemplate || !usesHostPortEndpoint(selectedTemplate),
           required: Boolean(hostMeta.required),
           advanced: Boolean(hostMeta.advanced),
           placeholder: t('serviceInstances.placeholders.host'),
           defaultValue: splitEndpoint(selectedTemplate?.defaultEndpoint ?? '').host,
-          render: isDatabaseConnectionKind(selectedTemplate) ? renderHostPortField : undefined,
+          render: usesHostPortEndpoint(selectedTemplate) ? renderHostPortField : undefined,
         },
         {
           key: 'port',
@@ -1521,14 +1512,7 @@ export function ServiceInstancesPage() {
         },
         {
           key: 'credential',
-          label:
-            selectedTemplate?.kind === 'redis-compatible'
-              ? t('serviceInstances.fields.password')
-              : selectedTemplate?.kind === 'kafka-compatible'
-                ? t('serviceInstances.fields.credential')
-                : isDatabaseConnectionKind(selectedTemplate)
-                  ? t('serviceInstances.fields.password')
-                  : t('serviceInstances.fields.credential'),
+          label: resolveCredentialFieldLabel(selectedTemplate, t),
           type: 'relation',
           hidden: !selectedTemplate,
           required: Boolean(selectedTemplate && credentialMeta.required),
@@ -1537,7 +1521,7 @@ export function ServiceInstancesPage() {
             secretTemplate: 'single_value',
           }),
           relationLabelKey: 'name',
-          render: isSecretBackedConnectionKind(selectedTemplate)
+          render: supportsInlineCredentialSecret(selectedTemplate)
             ? renderDatabaseCredentialField
             : undefined,
           relationShowNoneOption: false,
@@ -1571,10 +1555,10 @@ export function ServiceInstancesPage() {
           key: 'ssl_mode',
           label: t('serviceInstances.fields.useSsl'),
           type: 'text',
-          advanced: isDatabaseConnectionKind(selectedTemplate),
-          hidden: !selectedTemplate || !isDatabaseConnectionKind(selectedTemplate),
+          advanced: usesDatabaseConnectionLayout(selectedTemplate),
+          hidden: !selectedTemplate || !usesDatabaseConnectionLayout(selectedTemplate),
           defaultValue: '',
-          render: isDatabaseConnectionKind(selectedTemplate) ? renderSslModeField : undefined,
+          render: usesDatabaseConnectionLayout(selectedTemplate) ? renderSslModeField : undefined,
         },
         {
           key: 'description',
@@ -1625,11 +1609,11 @@ export function ServiceInstancesPage() {
       const selectedTemplate = selectedTemplateId ? (templatesById.get(selectedTemplateId) ?? null) : null
       const baseFields = buildBaseFields(selectedCategory, selectedKind, selectedTemplate)
       const baseFieldByKey = new Map(baseFields.map(field => [field.key, field]))
-      const dynamicFields = mergeDatabaseTemplateFields(selectedTemplate, t).map(field =>
-        mapTemplateFieldToResourceField(field, selectedTemplate!, t)
+      const dynamicFields = mergeTemplateFields(selectedTemplate, t).map(field =>
+        mapTemplateFieldToResourceField(field, t)
       )
 
-      if (isDatabaseConnectionKind(selectedTemplate)) {
+      if (usesDatabaseConnectionLayout(selectedTemplate)) {
         const primaryTemplateFields = dynamicFields.filter(
           field => !field.hidden && !field.advanced
         )
@@ -1722,14 +1706,17 @@ export function ServiceInstancesPage() {
     },
     [t, templatesById]
   )
-  const allColumns = useMemo(() => buildColumns(t, handleToggleEnabled), [handleToggleEnabled, t])
+  const allColumns = useMemo(
+    () => buildColumns(t, handleToggleEnabled, reachabilityOverrides, reachabilityLoading),
+    [handleToggleEnabled, reachabilityOverrides, reachabilityLoading, t]
+  )
   const columns = useMemo(
     () =>
       allColumns.filter(column => {
         if (
           column.key === 'kind_label' ||
-          column.key === 'profile' ||
           column.key === 'host' ||
+          column.key === 'port' ||
           column.key === 'monitor_status' ||
           column.key === 'monitor_last_checked_at' ||
           column.key === 'created' ||
@@ -1753,8 +1740,8 @@ export function ServiceInstancesPage() {
         pageSizeOptions={[10, 20, 50]}
         columnOptions={[
           { key: 'kind_label', label: t('serviceInstances.columns.kind'), checked: visibleOptionalColumns.has('kind_label') },
-          { key: 'profile', label: t('serviceInstances.columns.profile'), checked: visibleOptionalColumns.has('profile') },
           { key: 'host', label: t('serviceInstances.columns.host'), checked: visibleOptionalColumns.has('host') },
+          { key: 'port', label: t('serviceInstances.columns.port'), checked: visibleOptionalColumns.has('port') },
           { key: 'monitor_status', label: t('serviceInstances.columns.reachability'), checked: visibleOptionalColumns.has('monitor_status') },
           { key: 'monitor_last_checked_at', label: t('serviceInstances.columns.lastChecked'), checked: visibleOptionalColumns.has('monitor_last_checked_at') },
           { key: 'created', label: t('serviceInstances.columns.created'), checked: visibleOptionalColumns.has('created') },
@@ -1915,6 +1902,15 @@ export function ServiceInstancesPage() {
               >
                 {enabled ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
                 {enabled ? t('serviceInstances.actions.disable', { defaultValue: 'Disable' }) : t('serviceInstances.actions.enable', { defaultValue: 'Enable' })}
+              </DropdownMenuItem>,
+              <DropdownMenuItem
+                key="check"
+                onClick={() => {
+                  void fetchReachabilityStatuses([String(item.id ?? '')])
+                }}
+              >
+                <RotateCw className="h-4 w-4" />
+                {t('serviceInstances.actions.check', { defaultValue: 'Check it' })}
               </DropdownMenuItem>,
             ]
           },

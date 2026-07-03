@@ -1080,13 +1080,17 @@
       "name": "名称",
       "enabled": "启用",
       "kind": "类型",
-      "profile": "资料",
-      "host": "主机",
+        "host": "主机",
+        "port": "端口",
       "reachability": "可达性",
       "monitor": "监控",
       "lastChecked": "最近检查",
       "created": "创建时间",
       "updated": "更新时间"
+    },
+    "lastCheckedSources": {
+      "liveReachability": "实时可达性检查",
+      "scheduledMonitor": "定时监控检查"
     },
     "actions": {
       "enable": "启用",
@@ -1211,7 +1215,8 @@
     },
     "actions": {
       "enable": "启用",
-      "disable": "禁用"
+      "disable": "禁用",
+      "check": "检查"
     },
     "enabled": {
       "yes": "是",
@@ -1227,6 +1232,10 @@
       "totalItems": "共 {{count}} 项"
     },
     "selection": {
+    "endpoint": {
+      "defaultSchemeHint": "如果没有填写协议，将自动补上 {{scheme}}。",
+      "schemeMismatchWarning": "你填写的协议 {{actual}} 与默认协议 {{expected}} 不一致，但仍然允许保存。"
+    },
       "title": "选择外部服务类型",
       "description": "先选择服务类型，再选择用于预填共享 schema 的厂商模板。",
       "searchPlaceholder": "搜索 SMTP、DNS、出站代理或 HTTP Gateway 等服务类型...",
@@ -1249,16 +1258,21 @@
       "enabled": "启用",
       "default": "默认",
       "kind": "类型",
-      "profile": "资料",
-      "url": "URL",
+        "url": "URL",
+        "port": "端口",
       "auth": "认证",
       "reachability": "可达性",
+      "lastChecked": "最近检查",
       "created": "创建时间",
       "updated": "更新时间"
     },
+    "lastCheckedSources": {
+      "liveReachability": "实时可达性检查"
+    },
     "actions": {
       "enable": "启用",
-      "disable": "禁用"
+      "disable": "禁用",
+      "check": "检查"
     },
     "enabled": {
       "yes": "是",
@@ -1283,9 +1297,11 @@
       "noneValue": "none"
     },
     "authValues": {
-      "none": "none",
-      "basic": "basic",
-      "bearer": "bearer"
+      "none": "无需认证",
+      "basic": "用户名 + 密码",
+      "bearer": "API Key / Token",
+      "api_key": "API Key / Token",
+      "token": "API Key / Token"
     },
     "secret": {
       "new": "新建密钥",
@@ -1320,7 +1336,8 @@
       "emptyState": "未找到 AI 提供方",
       "searchPlaceholder": "搜索任意 AI 提供方",
       "addProvider": "添加 AI 提供方",
-      "refresh": "刷新"
+      "refresh": "刷新",
+      "totalItems": "共 {{count}} 项"
     },
     "selection": {
       "title": "选择产品",
@@ -1341,10 +1358,15 @@
       "provider": "提供方",
       "enabledModels": "已启用模型",
       "profile": "资料",
+      "availability": "可用性",
       "reachability": "可达性",
       "endpoint": "端点",
+      "lastChecked": "最近检查",
       "created": "创建时间",
       "updated": "更新时间"
+    },
+    "lastCheckedSources": {
+      "liveAvailability": "实时可用性检查"
     },
     "actions": {
       "enable": "启用",
@@ -1358,7 +1380,9 @@
       "no": "否"
     },
     "status": {
+      "available": "可用",
       "reachable": "可达",
+      "unavailable": "不可用",
       "unreachable": "不可达",
       "unknown": "未知"
     },

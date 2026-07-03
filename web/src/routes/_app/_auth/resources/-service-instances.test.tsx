@@ -116,6 +116,7 @@ vi.mock('react-i18next', () => ({
         'serviceInstances.columns.kind': 'Kind',
         'serviceInstances.columns.profile': 'Profile',
         'serviceInstances.columns.host': 'Host',
+        'serviceInstances.columns.port': 'Port',
         'serviceInstances.columns.reachability': 'Reachability',
         'serviceInstances.columns.monitor': 'Monitor',
         'serviceInstances.columns.lastChecked': 'Last Checked',
@@ -234,6 +235,411 @@ vi.mock('@/components/secrets/SecretForm', () => ({
   },
 }))
 
+function buildMySQLTemplate() {
+  return {
+    id: 'generic-mysql',
+    category: 'database',
+    kind: 'mysql-compatible',
+    title: 'Generic MySQL',
+    layoutPreset: 'database_connection',
+    endpointShape: 'host_port',
+    defaultPort: 3306,
+    credentialPresentation: 'secret_or_inline',
+    credentialLabel: 'password',
+    fields: [
+      {
+        id: 'username',
+        label: 'Backend Username Label',
+        type: 'text',
+        required: true,
+        default: 'root',
+      },
+      {
+        id: 'database',
+        label: 'Backend Database Label',
+        type: 'text',
+        required: true,
+        default: 'MySQL',
+      },
+      {
+        id: 'connect_timeout',
+        label: 'Backend Connection Timeout Label',
+        type: 'number',
+        advanced: true,
+        default: 10,
+      },
+      {
+        id: 'ssl_enabled',
+        label: 'Backend SSL Enabled Label',
+        type: 'boolean',
+        advanced: true,
+        hidden: true,
+        default: false,
+      },
+      {
+        id: 'ssl_ca_certificate',
+        label: 'SSL Root CA Certificate',
+        type: 'certificate_ref',
+        advanced: true,
+        showWhen: { field: 'ssl_mode', values: ['mutual'] },
+      },
+    ],
+  }
+}
+
+function buildPostgresTemplate() {
+  return {
+    id: 'generic-postgres',
+    category: 'database',
+    kind: 'postgres-compatible',
+    title: 'Generic PostgreSQL',
+    layoutPreset: 'database_connection',
+    endpointShape: 'host_port',
+    defaultPort: 5432,
+    credentialPresentation: 'secret_or_inline',
+    credentialLabel: 'password',
+    fields: [
+      {
+        id: 'username',
+        label: 'Backend Username Label',
+        type: 'text',
+        required: true,
+        default: 'postgres',
+      },
+      {
+        id: 'database',
+        label: 'Backend Postgres Database Label',
+        type: 'text',
+        required: true,
+        default: 'postgres',
+      },
+      {
+        id: 'connect_timeout',
+        label: 'Backend Connection Timeout Label',
+        type: 'number',
+        advanced: true,
+        default: 10,
+      },
+      {
+        id: 'ssl_enabled',
+        label: 'Backend SSL Enabled Label',
+        type: 'boolean',
+        advanced: true,
+        hidden: true,
+        default: false,
+      },
+      {
+        id: 'ssl_ca_certificate',
+        label: 'SSL Root CA Certificate',
+        type: 'certificate_ref',
+        advanced: true,
+        showWhen: { field: 'ssl_mode', values: ['mutual'] },
+      },
+    ],
+  }
+}
+
+function buildDefaultInstanceTemplatesFixture() {
+  return [
+    buildMySQLTemplate(),
+    buildPostgresTemplate(),
+    {
+      id: 'generic-mongodb',
+      category: 'database',
+      kind: 'mongodb-compatible',
+      title: 'Generic MongoDB',
+      defaultEndpoint: 'mongodb://mongo.internal:27017',
+      layoutPreset: 'database_connection',
+      endpointShape: 'host_port',
+      defaultPort: 27017,
+      credentialPresentation: 'secret_or_inline',
+      credentialLabel: 'password',
+      fields: [
+        {
+          id: 'username',
+          label: 'Backend Username Label',
+          type: 'text',
+          required: true,
+          default: 'root',
+        },
+        {
+          id: 'database',
+          label: 'Backend Database Label',
+          type: 'text',
+          default: 'appdb',
+        },
+        {
+          id: 'connect_timeout',
+          label: 'Backend Connection Timeout Label',
+          type: 'number',
+          advanced: true,
+          default: 10,
+        },
+        {
+          id: 'ssl_enabled',
+          label: 'Backend SSL Enabled Label',
+          type: 'boolean',
+          advanced: true,
+          hidden: true,
+          default: false,
+        },
+        {
+          id: 'authSource',
+          label: 'Backend Auth Source Label',
+          type: 'text',
+          default: 'admin',
+          advanced: true,
+        },
+        {
+          id: 'ssl_ca_certificate',
+          label: 'SSL Root CA Certificate',
+          type: 'certificate_ref',
+          advanced: true,
+          showWhen: { field: 'ssl_mode', values: ['mutual'] },
+        },
+      ],
+    },
+    {
+      id: 'generic-clickhouse',
+      category: 'database',
+      kind: 'clickhouse-compatible',
+      title: 'Generic ClickHouse',
+      defaultEndpoint: 'https://clickhouse.internal:8123',
+      layoutPreset: 'database_connection',
+      endpointShape: 'host_port',
+      defaultPort: 8123,
+      credentialPresentation: 'secret_or_inline',
+      credentialLabel: 'password',
+      fields: [
+        {
+          id: 'username',
+          label: 'Backend Username Label',
+          type: 'text',
+          required: true,
+          default: 'default',
+        },
+        { id: 'database', label: 'Backend Database Label', type: 'text', default: 'default' },
+        {
+          id: 'connect_timeout',
+          label: 'Backend Connection Timeout Label',
+          type: 'number',
+          advanced: true,
+          default: 10,
+        },
+        {
+          id: 'ssl_enabled',
+          label: 'Backend SSL Enabled Label',
+          type: 'boolean',
+          advanced: true,
+          hidden: true,
+          default: false,
+        },
+        {
+          id: 'ssl_ca_certificate',
+          label: 'SSL Root CA Certificate',
+          type: 'certificate_ref',
+          advanced: true,
+          showWhen: { field: 'ssl_mode', values: ['mutual'] },
+        },
+      ],
+    },
+    {
+      id: 'generic-neo4j',
+      category: 'database',
+      kind: 'neo4j-compatible',
+      title: 'Generic Neo4j',
+      defaultEndpoint: 'neo4j://neo4j.internal:7687',
+      layoutPreset: 'database_connection',
+      endpointShape: 'host_port',
+      defaultPort: 7687,
+      credentialPresentation: 'secret_or_inline',
+      credentialLabel: 'password',
+      fields: [
+        {
+          id: 'username',
+          label: 'Backend Username Label',
+          type: 'text',
+          required: true,
+          default: 'neo4j',
+        },
+        { id: 'database', label: 'Backend Database Label', type: 'text', default: 'neo4j' },
+        {
+          id: 'connect_timeout',
+          label: 'Backend Connection Timeout Label',
+          type: 'number',
+          advanced: true,
+          default: 10,
+        },
+        {
+          id: 'ssl_enabled',
+          label: 'Backend SSL Enabled Label',
+          type: 'boolean',
+          advanced: true,
+          hidden: true,
+          default: false,
+        },
+        {
+          id: 'ssl_ca_certificate',
+          label: 'SSL Root CA Certificate',
+          type: 'certificate_ref',
+          advanced: true,
+          showWhen: { field: 'ssl_mode', values: ['mutual'] },
+        },
+      ],
+    },
+    {
+      id: 'generic-influxdb',
+      category: 'database',
+      kind: 'influxdb-compatible',
+      title: 'Generic InfluxDB',
+      defaultEndpoint: 'https://influxdb.internal:8086',
+      layoutPreset: 'database_connection',
+      endpointShape: 'host_port',
+      defaultPort: 8086,
+      credentialPresentation: 'secret_or_inline',
+      credentialLabel: 'password',
+      fields: [
+        {
+          id: 'username',
+          label: 'Backend Username Label',
+          type: 'text',
+          required: true,
+        },
+        {
+          id: 'connect_timeout',
+          label: 'Backend Connection Timeout Label',
+          type: 'number',
+          advanced: true,
+          default: 10,
+        },
+        {
+          id: 'ssl_enabled',
+          label: 'Backend SSL Enabled Label',
+          type: 'boolean',
+          advanced: true,
+          hidden: true,
+          default: false,
+        },
+        { id: 'organization', label: 'Backend Organization Label', type: 'text', advanced: true },
+        { id: 'bucket', label: 'Backend Bucket Label', type: 'text', advanced: true },
+        {
+          id: 'ssl_ca_certificate',
+          label: 'SSL Root CA Certificate',
+          type: 'certificate_ref',
+          advanced: true,
+          showWhen: { field: 'ssl_mode', values: ['mutual'] },
+        },
+      ],
+    },
+    {
+      id: 'generic-redis',
+      category: 'cache',
+      kind: 'redis-compatible',
+      title: 'Generic Redis',
+      defaultEndpoint: 'redis.internal:6379',
+      endpointShape: 'url',
+      credentialPresentation: 'secret_or_inline',
+      credentialLabel: 'password',
+      fields: [
+        {
+          id: 'database',
+          label: 'Backend Database Index Label',
+          type: 'number',
+          default: 0,
+        },
+      ],
+    },
+    {
+      id: 'generic-elasticsearch',
+      category: 'search',
+      kind: 'elasticsearch-compatible',
+      title: 'Generic Elasticsearch',
+      vendor: 'OpenSearch',
+      defaultEndpoint: 'https://elasticsearch.internal:9200',
+      endpointShape: 'url',
+      credentialPresentation: 'secret_or_inline',
+      credentialLabel: 'credential',
+      fields: [
+        { id: 'indexPrefix', label: 'Backend Index Prefix Label', type: 'text' },
+        { id: 'username', label: 'Backend Username Label', type: 'text' },
+      ],
+    },
+    {
+      id: 'generic-kafka',
+      category: 'message-queue',
+      kind: 'kafka-compatible',
+      title: 'Generic Kafka',
+      vendor: 'Redpanda',
+      defaultEndpoint: 'kafka.internal:9092',
+      endpointShape: 'url',
+      credentialPresentation: 'secret_or_inline',
+      credentialLabel: 'credential',
+      fields: [{ id: 'clusterId', label: 'Backend Cluster ID Label', type: 'text' }],
+    },
+    {
+      id: 'generic-rabbitmq',
+      category: 'message-queue',
+      kind: 'amqp-compatible',
+      title: 'Generic RabbitMQ',
+      defaultEndpoint: 'amqp://rabbitmq.internal:5672',
+      endpointShape: 'url',
+      credentialPresentation: 'secret_or_inline',
+      credentialLabel: 'credential',
+      fields: [{ id: 'vhost', label: 'Backend Virtual Host Label', type: 'text', default: '/' }],
+    },
+    {
+      id: 'generic-nats',
+      category: 'message-queue',
+      kind: 'nats-compatible',
+      title: 'Generic NATS',
+      defaultEndpoint: 'nats://nats.internal:4222',
+      endpointShape: 'url',
+      credentialPresentation: 'secret_or_inline',
+      credentialLabel: 'credential',
+      fields: [{ id: 'cluster', label: 'Backend Cluster Label', type: 'text' }],
+    },
+    {
+      id: 'generic-mqtt',
+      category: 'message-queue',
+      kind: 'mqtt-compatible',
+      title: 'Generic MQTT',
+      defaultEndpoint: 'mqtt://broker.internal:1883',
+      endpointShape: 'url',
+      credentialPresentation: 'secret_or_inline',
+      credentialLabel: 'credential',
+      fields: [
+        { id: 'clientId', label: 'Backend Client ID Label', type: 'text' },
+        { id: 'protocol', label: 'Backend Protocol Label', type: 'text', default: 'mqtt' },
+      ],
+    },
+    {
+      id: 'generic-s3',
+      category: 'storage',
+      kind: 's3-compatible',
+      title: 'Generic S3',
+      defaultEndpoint: 'https://s3.example.com',
+      endpointShape: 'url',
+      credentialPresentation: 'reference_only',
+      credentialLabel: 'credential',
+      fields: [{ id: 'region', label: 'Backend Region Label', type: 'text' }],
+    },
+    {
+      id: 'generic-onlyoffice',
+      category: 'application-service',
+      kind: 'onlyoffice-compatible',
+      title: 'Generic ONLYOFFICE',
+      defaultEndpoint: 'https://onlyoffice.internal',
+      endpointShape: 'url',
+      credentialPresentation: 'secret_or_inline',
+      credentialLabel: 'credential',
+      fields: [
+        { id: 'callbackPath', label: 'Backend Callback Path Label', type: 'text', default: '/' },
+        { id: 'documentPath', label: 'Backend Document Path Label', type: 'text', default: '/' },
+      ],
+    },
+  ]
+}
+
 describe('ServiceInstancesPage', () => {
   function clickChooserOption(title: string) {
     const label = screen.getByText(title)
@@ -262,168 +668,7 @@ describe('ServiceInstancesPage', () => {
     sendMock.mockImplementation(
       (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
         if (path === '/api/instances/templates') {
-          return Promise.resolve([
-            {
-              id: 'generic-mysql',
-              category: 'database',
-              kind: 'mysql-compatible',
-              title: 'Generic MySQL',
-              commonFieldDefaults: { username: 'root' },
-              fields: [
-                {
-                  id: 'database',
-                  label: 'Backend Database Label',
-                  type: 'text',
-                  required: true,
-                  default: 'MySQL',
-                },
-                { id: 'ssl_ca_certificate', label: 'SSL Root CA Certificate', type: 'text' },
-              ],
-            },
-            {
-              id: 'generic-postgres',
-              category: 'database',
-              kind: 'postgres-compatible',
-              title: 'Generic PostgreSQL',
-              commonFieldDefaults: { username: 'postgres' },
-              fields: [
-                {
-                  id: 'database',
-                  label: 'Backend Postgres Database Label',
-                  type: 'text',
-                  required: true,
-                  default: 'postgres',
-                },
-                { id: 'ssl_ca_certificate', label: 'SSL Root CA Certificate', type: 'text' },
-              ],
-            },
-            {
-              id: 'generic-mongodb',
-              category: 'database',
-              kind: 'mongodb-compatible',
-              title: 'Generic MongoDB',
-              defaultEndpoint: 'mongodb://mongo.internal:27017',
-              fields: [
-                { id: 'database', label: 'Backend Database Label', type: 'text', default: 'appdb' },
-                { id: 'authSource', label: 'Backend Auth Source Label', type: 'text', default: 'admin' },
-              ],
-            },
-            {
-              id: 'generic-clickhouse',
-              category: 'database',
-              kind: 'clickhouse-compatible',
-              title: 'Generic ClickHouse',
-              defaultEndpoint: 'https://clickhouse.internal:8123',
-              fields: [
-                { id: 'database', label: 'Backend Database Label', type: 'text', default: 'default' },
-                { id: 'username', label: 'Backend Username Label', type: 'text', default: 'default' },
-              ],
-            },
-            {
-              id: 'generic-neo4j',
-              category: 'database',
-              kind: 'neo4j-compatible',
-              title: 'Generic Neo4j',
-              defaultEndpoint: 'neo4j://neo4j.internal:7687',
-              fields: [
-                { id: 'database', label: 'Backend Database Label', type: 'text', default: 'neo4j' },
-                { id: 'username', label: 'Backend Username Label', type: 'text', default: 'neo4j' },
-              ],
-            },
-            {
-              id: 'generic-influxdb',
-              category: 'database',
-              kind: 'influxdb-compatible',
-              title: 'Generic InfluxDB',
-              defaultEndpoint: 'https://influxdb.internal:8086',
-              fields: [
-                { id: 'organization', label: 'Backend Organization Label', type: 'text' },
-                { id: 'bucket', label: 'Backend Bucket Label', type: 'text' },
-              ],
-            },
-            {
-              id: 'generic-redis',
-              category: 'cache',
-              kind: 'redis-compatible',
-              title: 'Generic Redis',
-              defaultEndpoint: 'redis.internal:6379',
-              fields: [
-                {
-                  id: 'database',
-                  label: 'Backend Database Index Label',
-                  type: 'number',
-                  default: 0,
-                },
-              ],
-            },
-            {
-              id: 'generic-elasticsearch',
-              category: 'search',
-              kind: 'elasticsearch-compatible',
-              title: 'Generic Elasticsearch',
-              vendor: 'OpenSearch',
-              defaultEndpoint: 'https://elasticsearch.internal:9200',
-              fields: [
-                { id: 'indexPrefix', label: 'Backend Index Prefix Label', type: 'text' },
-                { id: 'username', label: 'Backend Username Label', type: 'text' },
-              ],
-            },
-            {
-              id: 'generic-kafka',
-              category: 'message-queue',
-              kind: 'kafka-compatible',
-              title: 'Generic Kafka',
-              vendor: 'Redpanda',
-              defaultEndpoint: 'kafka.internal:9092',
-              fields: [{ id: 'clusterId', label: 'Backend Cluster ID Label', type: 'text' }],
-            },
-            {
-              id: 'generic-rabbitmq',
-              category: 'message-queue',
-              kind: 'amqp-compatible',
-              title: 'Generic RabbitMQ',
-              defaultEndpoint: 'amqp://rabbitmq.internal:5672',
-              fields: [{ id: 'vhost', label: 'Backend Virtual Host Label', type: 'text', default: '/' }],
-            },
-            {
-              id: 'generic-nats',
-              category: 'message-queue',
-              kind: 'nats-compatible',
-              title: 'Generic NATS',
-              defaultEndpoint: 'nats://nats.internal:4222',
-              fields: [{ id: 'cluster', label: 'Backend Cluster Label', type: 'text' }],
-            },
-            {
-              id: 'generic-mqtt',
-              category: 'message-queue',
-              kind: 'mqtt-compatible',
-              title: 'Generic MQTT',
-              defaultEndpoint: 'mqtt://broker.internal:1883',
-              fields: [
-                { id: 'clientId', label: 'Backend Client ID Label', type: 'text' },
-                { id: 'protocol', label: 'Backend Protocol Label', type: 'text', default: 'mqtt' },
-              ],
-            },
-            {
-              id: 'generic-s3',
-              category: 'storage',
-              kind: 's3-compatible',
-              title: 'Generic S3',
-              defaultEndpoint: 'https://s3.example.com',
-              fields: [{ id: 'region', label: 'Backend Region Label', type: 'text' }],
-            },
-            {
-              id: 'generic-onlyoffice',
-              category: 'application-service',
-              kind: 'onlyoffice-compatible',
-              title: 'Generic ONLYOFFICE',
-              defaultEndpoint: 'https://onlyoffice.internal',
-              fields: [
-                { id: 'callbackPath', label: 'Backend Callback Path Label', type: 'text', default: '/' },
-                { id: 'documentPath', label: 'Backend Document Path Label', type: 'text', default: '/' },
-              ],
-            },
-          ])
+          return Promise.resolve(buildDefaultInstanceTemplatesFixture())
         }
         if (path === '/api/secrets/templates') {
           return Promise.resolve([
@@ -435,6 +680,9 @@ describe('ServiceInstancesPage', () => {
           ])
         }
         if (path === '/api/instances' && (!options?.method || options.method === 'GET')) {
+          return Promise.resolve([])
+        }
+        if (path === '/api/instances/reachability' && options?.method === 'POST') {
           return Promise.resolve([])
         }
         if (path.startsWith('/api/collections/monitor_latest_status/records?')) {
@@ -627,29 +875,29 @@ describe('ServiceInstancesPage', () => {
     expect(screen.getByLabelText(/^Endpoint/)).toBeInTheDocument()
   })
 
+  it('reuses the same database-family layout for mongodb-compatible kinds', async () => {
+    render(<ServiceInstancesPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add Instance' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
+    await screen.findByText('MongoDB-Compatible')
+    clickChooserOption('MongoDB-Compatible')
+
+    expect(await screen.findByLabelText(/^Username/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Password/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Host/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Port/)).toHaveValue(27017)
+    expect(screen.queryByLabelText(/^Endpoint/)).not.toBeInTheDocument()
+  })
+
   it('keeps secret-only password editing and remembers ssl mode for existing instances', async () => {
     sendMock.mockImplementation(
       (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
         if (path === '/api/instances/templates') {
-          return Promise.resolve([
-            {
-              id: 'generic-mysql',
-              category: 'database',
-              kind: 'mysql-compatible',
-              title: 'Generic MySQL',
-              commonFieldDefaults: { username: 'root' },
-              fields: [
-                {
-                  id: 'database',
-                  label: 'Database',
-                  type: 'text',
-                  required: true,
-                  default: 'MySQL',
-                },
-                { id: 'ssl_ca_certificate', label: 'SSL Root CA Certificate', type: 'text' },
-              ],
-            },
-          ])
+          return Promise.resolve([buildMySQLTemplate()])
         }
         if (path === '/api/instances' && (!options?.method || options.method === 'GET')) {
           return Promise.resolve([
@@ -669,6 +917,9 @@ describe('ServiceInstancesPage', () => {
               },
             },
           ])
+        }
+        if (path === '/api/instances/reachability' && options?.method === 'POST') {
+          return Promise.resolve([])
         }
         if (path.startsWith('/api/collections/monitor_latest_status/records?')) {
           return Promise.resolve({
@@ -705,12 +956,16 @@ describe('ServiceInstancesPage', () => {
     })
 
     expect(screen.getByText('Unreachable')).toBeInTheDocument()
-    expect(screen.getByText('Apr 11, 2026, 10:00 AM')).toBeInTheDocument()
-    expect(screen.getByText('Created')).toBeInTheDocument()
-    expect(screen.getByText('Updated')).toBeInTheDocument()
-    expect(screen.getAllByText(/Apr 11, 2026/).length).toBeGreaterThanOrEqual(3)
+    expect(screen.getByText('2026-04-11 10:00:00')).toBeInTheDocument()
+    expect(screen.queryByText('Created')).not.toBeInTheDocument()
+    expect(screen.queryByText('Updated')).not.toBeInTheDocument()
 
-    expect(sendMock).not.toHaveBeenCalledWith('/api/instances/reachability', expect.anything())
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/instances/reachability', {
+        method: 'POST',
+        body: { ids: ['instance-1'] },
+      })
+    })
 
     fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }))
     fireEvent.click(await screen.findByText('Edit'))
@@ -728,6 +983,77 @@ describe('ServiceInstancesPage', () => {
     expect(screen.getByLabelText('One-way SSL')).toBeChecked()
     expect(screen.getByLabelText('Mutual SSL')).not.toBeChecked()
   }, 15000)
+
+  it('persists edited host values for database-family instances', async () => {
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+        if (path === '/api/instances/templates') {
+          return Promise.resolve([buildMySQLTemplate()])
+        }
+        if (path === '/api/instances' && (!options?.method || options.method === 'GET')) {
+          return Promise.resolve([
+            {
+              id: 'instance-1',
+              name: 'mysql-prod',
+              kind: 'mysql-compatible',
+              template_id: 'generic-mysql',
+              endpoint: 'db.example.com:3306',
+              credential: 'secret-1',
+              config: {
+                database: 'appdb',
+                username: 'root',
+              },
+            },
+          ])
+        }
+        if (path === '/api/instances/reachability' && options?.method === 'POST') {
+          return Promise.resolve([])
+        }
+        if (path.startsWith('/api/collections/monitor_latest_status/records?')) {
+          return Promise.resolve({ items: [] })
+        }
+        if (path.startsWith('/api/collections/secrets/records?filter=')) {
+          return Promise.resolve({ items: [{ id: 'secret-1', name: 'db-password' }] })
+        }
+        if (path === '/api/provider-accounts') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === "/api/collections/certificates/records?filter=(status='active')&sort=name") {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === '/api/instances/instance-1' && options?.method === 'PUT') {
+          return Promise.resolve({ ok: true })
+        }
+        return Promise.resolve([])
+      }
+    )
+
+    render(<ServiceInstancesPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText('mysql-prod')).toBeInTheDocument()
+    })
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }))
+    fireEvent.click(await screen.findByText('Edit'))
+
+    const hostInput = (await screen.findByLabelText(/^Host/)) as HTMLInputElement
+    fireEvent.change(hostInput, { target: { value: 'db-new.example.com' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/instances/instance-1', {
+        method: 'PUT',
+        body: expect.objectContaining({
+          endpoint: 'db-new.example.com:3306',
+          template_id: 'generic-mysql',
+        }),
+      })
+    })
+  })
 
   it('creates a password secret inline for mysql', async () => {
     render(<ServiceInstancesPage />)
@@ -765,29 +1091,87 @@ describe('ServiceInstancesPage', () => {
     })
   })
 
-  it('edits an existing secret inline without navigating away', async () => {
+  it('overlays live reachability results on top of cached monitor status', async () => {
     sendMock.mockImplementation(
       (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
         if (path === '/api/instances/templates') {
           return Promise.resolve([
             {
-              id: 'generic-mysql',
-              category: 'database',
-              kind: 'mysql-compatible',
-              title: 'Generic MySQL',
-              commonFieldDefaults: { username: 'root' },
-              fields: [
-                {
-                  id: 'database',
-                  label: 'Database',
-                  type: 'text',
-                  required: true,
-                  default: 'MySQL',
-                },
-                { id: 'ssl_ca_certificate', label: 'SSL Root CA Certificate', type: 'text' },
-              ],
+              id: 'generic-redis',
+              category: 'cache',
+              kind: 'redis-compatible',
+              title: 'Generic Redis',
+              endpointShape: 'url',
+              credentialPresentation: 'secret_or_inline',
+              credentialLabel: 'password',
+              fields: [],
             },
           ])
+        }
+        if (path === '/api/instances' && (!options?.method || options.method === 'GET')) {
+          return Promise.resolve([
+            {
+              id: 'instance-live',
+              name: 'redis-live',
+              kind: 'redis-compatible',
+              template_id: 'generic-redis',
+              endpoint: 'redis.internal:6379',
+              config: {},
+            },
+          ])
+        }
+        if (path.startsWith('/api/collections/monitor_latest_status/records?')) {
+          return Promise.resolve({
+            items: [
+              {
+                target_id: 'instance-live',
+                status: 'unreachable',
+                reason: 'cached failure',
+                last_checked_at: '2026-04-11T10:00:00Z',
+              },
+            ],
+          })
+        }
+        if (path === '/api/instances/reachability' && options?.method === 'POST') {
+          return Promise.resolve([
+            {
+              id: 'instance-live',
+              status: 'online',
+              checked_at: '2026-04-11T10:05:00Z',
+            },
+          ])
+        }
+        if (path === '/api/provider-accounts') {
+          return Promise.resolve([])
+        }
+        if (path === SERVICE_INSTANCE_SECRET_PATH) {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === "/api/collections/certificates/records?filter=(status='active')&sort=name") {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === '/api/secrets/templates') {
+          return Promise.resolve([])
+        }
+        return Promise.resolve([])
+      }
+    )
+
+    render(<ServiceInstancesPage />)
+
+    expect(await screen.findByText('redis-live')).toBeInTheDocument()
+    expect(await screen.findByText('Healthy')).toBeInTheDocument()
+    expect(screen.getByText('2026-04-11 10:05:00')).toBeInTheDocument()
+  })
+
+  it('edits an existing secret inline without navigating away', async () => {
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+        if (path === '/api/instances/templates') {
+          return Promise.resolve([buildMySQLTemplate()])
         }
         if (path === '/api/secrets/templates') {
           return Promise.resolve([

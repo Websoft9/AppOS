@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
@@ -492,8 +493,9 @@ func instanceSnapshotMap(snap *instances.Snapshot) map[string]any {
 func instanceReachabilityResponse(item *instances.Instance) map[string]any {
 	result := monitorchecks.ProbeInstanceReachability(item)
 	response := map[string]any{
-		"id":     item.ID(),
-		"status": result.Status,
+		"id":         item.ID(),
+		"status":     result.Status,
+		"checked_at": time.Now().UTC().Format(time.RFC3339),
 	}
 	if result.LatencyMS > 0 {
 		response["latency_ms"] = result.LatencyMS

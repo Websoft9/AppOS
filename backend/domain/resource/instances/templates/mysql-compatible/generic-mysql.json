@@ -7,6 +7,7 @@
       "id": "engine",
       "label": "Engine",
       "type": "text",
+      "hidden": true,
       "default": "mysql"
     }
   ]

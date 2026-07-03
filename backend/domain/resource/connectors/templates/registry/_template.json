@@ -2,6 +2,8 @@
   "kind": "registry",
   "category": "Artifact",
   "description": "Reusable container or OCI registry connector profile.",
+  "authPresentation": "username_password",
+  "endpointShape": "url",
   "defaultAuthScheme": "basic",
   "capabilities": ["image-pull", "image-push", "oci"],
   "fields": [

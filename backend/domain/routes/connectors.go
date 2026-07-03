@@ -12,6 +12,8 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/audit"
+	"github.com/websoft9/appos/backend/domain/monitor"
+	monitorstatus "github.com/websoft9/appos/backend/domain/monitor/status"
 	"github.com/websoft9/appos/backend/domain/resource/accounts"
 	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	"github.com/websoft9/appos/backend/domain/secrets"
@@ -50,16 +52,50 @@ type connectorResponseDocument struct {
 var _ = connectorResponseDocument{}
 
 type connectorReachabilityItem struct {
-	ID        string `json:"id"`
-	Status    string `json:"status"`
-	LatencyMS int64  `json:"latency_ms,omitempty"`
-	Reason    string `json:"reason,omitempty"`
-	Host      string `json:"host,omitempty"`
-	Port      int    `json:"port,omitempty"`
+	ID            string `json:"id"`
+	Status        string `json:"status"`
+	LatencyMS     int64  `json:"latency_ms,omitempty"`
+	Reason        string `json:"reason,omitempty"`
+	Host          string `json:"host,omitempty"`
+	Port          int    `json:"port,omitempty"`
+	LastCheckedAt string `json:"lastCheckedAt,omitempty"`
 }
 
 type connectorReachabilityResponse struct {
 	Items []connectorReachabilityItem `json:"items"`
+}
+
+var defaultConnectorStatusPriority = map[string]int{
+	monitor.StatusHealthy:     0,
+	monitor.StatusUnreachable: 1,
+	monitor.StatusUnknown:     2,
+}
+
+func connectorReachabilityMonitorStatus(apiStatus string) string {
+	switch strings.ToLower(strings.TrimSpace(apiStatus)) {
+	case "reachable":
+		return monitor.StatusHealthy
+	case "unreachable":
+		return monitor.StatusUnreachable
+	default:
+		return monitor.StatusUnknown
+	}
+}
+
+func projectConnectorStatus(app core.App, targetID, displayName, checkKind, monitorStatus, reason string, summary map[string]any, now time.Time) {
+	_ = monitorstatus.ProjectResourceCheckLatestStatus(
+		app,
+		monitor.TargetTypeConnector,
+		targetID,
+		displayName,
+		monitor.SignalSourceAppOS,
+		checkKind,
+		monitorStatus,
+		reason,
+		summary,
+		defaultConnectorStatusPriority,
+		now,
+	)
 }
 
 // registerConnectorRoutes registers authenticated read routes and superuser-only
@@ -109,13 +145,19 @@ func handleConnectorReachability(e *core.RequestEvent) error {
 	}
 
 	result := make([]connectorReachabilityItem, 0, len(items))
+	now := time.Now().UTC()
 	for _, item := range items {
 		if len(filterIDs) > 0 {
 			if _, ok := filterIDs[item.ID()]; !ok {
 				continue
 			}
 		}
-		result = append(result, probeConnectorReachability(item))
+		probeResult := probeConnectorReachability(item)
+		result = append(result, probeResult)
+		projectConnectorStatus(e.App, probeResult.ID, item.Name(), monitor.CheckKindReachability,
+			connectorReachabilityMonitorStatus(probeResult.Status), probeResult.Reason,
+			map[string]any{"check_kind": monitor.CheckKindReachability, "host": probeResult.Host, "port": probeResult.Port, "latency_ms": probeResult.LatencyMS},
+			now)
 	}
 	return e.JSON(http.StatusOK, connectorReachabilityResponse{Items: result})
 }
@@ -401,7 +443,7 @@ func isConnectorNotFound(err error) bool {
 
 func probeConnectorReachability(item *connectors.Connector) connectorReachabilityItem {
 	host, port, err := connectorProbeTarget(item)
-	result := connectorReachabilityItem{ID: item.ID(), Host: host, Port: port}
+	result := connectorReachabilityItem{ID: item.ID(), Host: host, Port: port, LastCheckedAt: time.Now().UTC().Format(time.RFC3339)}
 	if err != nil {
 		result.Status = "unknown"
 		result.Reason = err.Error()

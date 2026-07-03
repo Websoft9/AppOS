@@ -2,6 +2,9 @@
   "kind": "rest_api",
   "category": "Integration",
   "description": "Reusable HTTP integration connector profile.",
+  "authPresentation": "token",
+  "endpointShape": "url",
+  "endpointScheme": "https",
   "defaultAuthScheme": "none",
   "capabilities": ["http"],
   "fields": [

@@ -354,6 +354,7 @@ groups:
       - GET /api/ai-providers/templates
       - GET /api/ai-providers/templates/{id}
       - POST /api/ai-providers/fetch-models
+      - GET /api/ai-providers/availability
       - GET /api/ai-providers/reachability
       - GET /api/ai-providers
       - GET /api/ai-providers/{id}

@@ -179,31 +179,33 @@
       "name": "Name",
       "enabled": "Enabled",
       "kind": "Kind",
-      "profile": "Profile",
-      "host": "Host",
+        "host": "Host",
+        "port": "Port",
       "reachability": "Reachability",
       "monitor": "Monitor",
       "lastChecked": "Last Checked",
       "created": "Created",
       "updated": "Updated"
     },
+    "lastCheckedSources": {
+      "liveReachability": "Live reachability check",
+      "scheduledMonitor": "Scheduled monitor check"
+    },
     "actions": {
       "enable": "Enable",
-      "disable": "Disable"
+      "disable": "Disable",
+      "check": "Check it"
     },
     "enabled": {
       "yes": "Yes",
       "no": "No"
     },
-    "monitor": {
-      "unknown": "Unknown",
-      "status": {
+    "status": {
         "healthy": "Healthy",
         "offline": "Offline",
         "unreachable": "Unreachable",
         "credential_invalid": "Credential Invalid",
         "degraded": "Degraded"
-      }
     },
     "ssl": {
       "oneWay": "One-way SSL",
@@ -1231,6 +1233,10 @@
       "totalItems": "Total {{count}} items"
     },
     "selection": {
+    "endpoint": {
+      "defaultSchemeHint": "If no protocol is entered, {{scheme}} will be added automatically.",
+      "schemeMismatchWarning": "The typed protocol {{actual}} differs from the default {{expected}}. You can still save this value."
+    },
       "title": "Choose an External Service Type",
       "description": "Start with the service type, then choose a vendor profile to prefill the shared schema.",
       "searchPlaceholder": "Search service types like SMTP, DNS, outbound proxy, or HTTP gateway...",
@@ -1253,16 +1259,21 @@
       "enabled": "Enabled",
       "default": "Default",
       "kind": "Kind",
-      "profile": "Profile",
-      "url": "URL",
+        "url": "URL",
+        "port": "Port",
       "auth": "Auth",
       "reachability": "Reachability",
+      "lastChecked": "Last Checked",
       "created": "Created",
       "updated": "Updated"
     },
+    "lastCheckedSources": {
+      "liveReachability": "Live reachability check"
+    },
     "actions": {
       "enable": "Enable",
-      "disable": "Disable"
+      "disable": "Disable",
+      "check": "Check it"
     },
     "enabled": {
       "yes": "Yes",
@@ -1287,9 +1298,11 @@
       "noneValue": "none"
     },
     "authValues": {
-      "none": "none",
-      "basic": "basic",
-      "bearer": "bearer"
+      "none": "No authentication",
+      "basic": "Username + Password",
+      "bearer": "API Key / Token",
+      "api_key": "API Key / Token",
+      "token": "API Key / Token"
     },
     "secret": {
       "new": "New Secret",
@@ -1324,7 +1337,8 @@
       "emptyState": "No AI Providers found",
       "searchPlaceholder": "Search any AI providers",
       "addProvider": "Add AI Provider",
-      "refresh": "Refresh"
+      "refresh": "Refresh",
+      "totalItems": "Total {{count}} items"
     },
     "selection": {
       "title": "Choose a Product",
@@ -1345,10 +1359,15 @@
       "provider": "Provider",
       "enabledModels": "Enabled Model(s)",
       "profile": "Profile",
+      "availability": "Availability",
       "reachability": "Reachability",
       "endpoint": "Endpoint",
+      "lastChecked": "Last Checked",
       "created": "Created",
       "updated": "Updated"
+    },
+    "lastCheckedSources": {
+      "liveAvailability": "Live availability check"
     },
     "actions": {
       "enable": "Enable",
@@ -1362,7 +1381,9 @@
       "no": "No"
     },
     "status": {
+      "available": "Available",
       "reachable": "Reachable",
+      "unavailable": "Unavailable",
       "unreachable": "Unreachable",
       "unknown": "Unknown"
     },

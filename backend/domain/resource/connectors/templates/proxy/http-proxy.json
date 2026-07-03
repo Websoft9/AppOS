@@ -2,5 +2,6 @@
   "id": "http-proxy",
   "title": "HTTP Proxy",
   "description": "Outbound HTTP proxy connector for externally managed proxy services.",
+  "endpointScheme": "http",
   "defaultEndpoint": "http://proxy.example.com:8080"
 }

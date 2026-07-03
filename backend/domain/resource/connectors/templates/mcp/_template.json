@@ -2,6 +2,9 @@
   "kind": "mcp",
   "category": "Integration",
   "description": "Reusable remote MCP connector profile.",
+  "authPresentation": "token",
+  "endpointShape": "url",
+  "endpointScheme": "https",
   "defaultAuthScheme": "none",
   "capabilities": ["mcp", "tools"],
   "fields": [

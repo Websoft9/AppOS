@@ -212,6 +212,18 @@ type TemplateField struct {
 	HelpURL        string `json:"helpUrl,omitempty"`
 	HelpText       string `json:"helpText,omitempty"`
 	Default        any    `json:"default,omitempty"`
+	Options        []TemplateFieldOption  `json:"options,omitempty"`
+	ShowWhen       *TemplateFieldShowWhen `json:"showWhen,omitempty"`
+}
+
+type TemplateFieldOption struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
+type TemplateFieldShowWhen struct {
+	Field  string   `json:"field"`
+	Values []string `json:"values,omitempty"`
 }
 
 type TemplateProtocol struct {
@@ -243,6 +255,9 @@ type Template struct {
 	DefaultEndpoint           string             `json:"defaultEndpoint,omitempty"`
 	DefaultEndpointTLS        string             `json:"defaultEndpointTls,omitempty"`
 	DefaultAuth               string             `json:"defaultAuthScheme,omitempty"`
+	AuthPresentation          string             `json:"authPresentation,omitempty"`
+	EndpointShape             string             `json:"endpointShape,omitempty"`
+	EndpointScheme            string             `json:"endpointScheme,omitempty"`
 	DefaultEnabledModels      []string           `json:"defaultEnabledModels,omitempty"`
 	Capabilities              []string           `json:"capabilities,omitempty"`
 	Aliases                   []string           `json:"aliases,omitempty"`

@@ -1399,6 +1399,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                   {config.enableGroupAssign && (
                     <TableHead className="w-[40px]">
                       <input
+                        role="checkbox"
                         type="checkbox"
                         className="h-4 w-4 rounded border-input"
                         checked={
@@ -1441,6 +1442,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                         {config.enableGroupAssign && (
                           <TableCell>
                             <input
+                              role="checkbox"
                               type="checkbox"
                               className="h-4 w-4 rounded border-input"
                               checked={selectedItems.has(itemID)}
@@ -1556,6 +1558,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                     {config.enableGroupAssign && (
                       <TableHead className="w-[40px]">
                         <input
+                          role="checkbox"
                           type="checkbox"
                           className="h-4 w-4 rounded border-input"
                           checked={
@@ -1598,6 +1601,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                           {config.enableGroupAssign && (
                             <TableCell>
                               <input
+                                role="checkbox"
                                 type="checkbox"
                                 className="h-4 w-4 rounded border-input"
                                 checked={selectedItems.has(itemID)}

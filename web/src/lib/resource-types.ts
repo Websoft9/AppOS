@@ -29,6 +29,8 @@ export type ResourceTemplateField = {
   helpUrl?: string
   helpText?: string
   default?: unknown
+  options?: Array<{ label: string; value: string }>
+  showWhen?: { field: string; values: string[] }
 }
 
 export type ResourceTemplateBase<TField extends ResourceTemplateField = ResourceTemplateField> = {
@@ -42,6 +44,9 @@ export type ResourceTemplateBase<TField extends ResourceTemplateField = Resource
   defaultEndpoint?: string
   defaultEndpointTls?: string
   defaultAuthScheme?: string
+  authPresentation?: string
+  endpointShape?: string
+  endpointScheme?: string
   fields?: TField[]
 }
 

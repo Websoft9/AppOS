@@ -1,6 +1,9 @@
 {
   "kind": "s3-compatible",
   "category": "storage",
+  "endpointShape": "url",
+  "credentialPresentation": "reference_only",
+  "credentialLabel": "credential",
   "fields": [
     {
       "id": "bucket",

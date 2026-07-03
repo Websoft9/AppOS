@@ -1,6 +1,9 @@
 {
   "kind": "onlyoffice-compatible",
   "category": "application-service",
+  "endpointShape": "url",
+  "credentialPresentation": "secret_or_inline",
+  "credentialLabel": "credential",
   "fields": [
     {
       "id": "callbackPath",

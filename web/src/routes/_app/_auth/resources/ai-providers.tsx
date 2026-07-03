@@ -30,6 +30,8 @@ import {
   type FieldDef,
   type SelectOption,
 } from '@/components/resources/ResourcePage'
+import { ResourceListSettingsButton } from '@/components/resources/ResourceListSettingsButton'
+import { ResourceStatusTimestamp } from '@/components/resources/ResourceStatusTimestamp'
 import { ReferenceSelect } from '@/components/resources/ReferenceSelect'
 import { formatResourceDateTime } from '@/components/resources/resource-formatters'
 import {
@@ -84,6 +86,32 @@ type ConnectionSummaryState = {
 type ProviderModelsResponse = {
   models: ProviderModelOption[]
   groups?: ProviderModelGroup[]
+}
+
+type AIProviderAvailabilityOverride = {
+  status: string
+  reason: string
+  checked_at: string
+}
+
+type MonitorLatestStatusRecord = {
+  target_id?: string
+  status?: string
+  reason?: string | null
+  last_checked_at?: string | null
+}
+
+function monitorStatusToAvailability(monitorStatus: string, t: Translate): string {
+  switch (monitorStatus.toLowerCase().trim()) {
+    case 'healthy':
+      return t('aiProviders.status.available')
+    case 'degraded':
+    case 'unreachable':
+    case 'credential_invalid':
+      return t('aiProviders.status.unavailable')
+    default:
+      return t('aiProviders.status.unknown')
+  }
 }
 
 const AUTH_SCHEME_OPTIONS: SelectOption[] = [
@@ -284,22 +312,33 @@ function inferModelGroupLabel(modelId: string): string {
   return prefix.charAt(0).toUpperCase() + prefix.slice(1)
 }
 
-function normalizeReachabilityStatus(value: unknown, t: Translate) {
+function normalizeAvailabilityStatus(value: unknown, t: Translate) {
   const normalized = String(value ?? '')
     .trim()
     .toLowerCase()
-  if (normalized === 'reachable') return t('aiProviders.status.reachable')
-  if (normalized === 'unreachable') return t('aiProviders.status.unreachable')
+  if (normalized === 'available' || normalized === 'reachable') {
+    return t('aiProviders.status.available')
+  }
+  if (normalized === 'unavailable' || normalized === 'unreachable') {
+    return t('aiProviders.status.unavailable')
+  }
   return t('aiProviders.status.unknown')
 }
 
-function resolveReachability(item: AIProviderRecord, t: Translate) {
+function resolveAvailability(item: AIProviderRecord, t: Translate) {
   const config = item.config ?? {}
+  const availability = config.availability
+  if (availability && typeof availability === 'object') {
+    return normalizeAvailabilityStatus((availability as Record<string, unknown>).status, t)
+  }
+  if (config.availability_status !== undefined) {
+    return normalizeAvailabilityStatus(config.availability_status, t)
+  }
   const reachability = config.reachability
   if (reachability && typeof reachability === 'object') {
-    return normalizeReachabilityStatus((reachability as Record<string, unknown>).status, t)
+    return normalizeAvailabilityStatus((reachability as Record<string, unknown>).status, t)
   }
-  return normalizeReachabilityStatus(config.reachability_status, t)
+  return normalizeAvailabilityStatus(config.reachability_status, t)
 }
 
 function normalizeEnabledStatus(value: unknown) {
@@ -360,7 +399,7 @@ function mapAIProviderRow(
   templatesById: Map<string, AIProviderTemplate>,
   secretNamesById: Map<string, string>,
   t: Translate,
-  reachabilityOverrides?: Map<string, string>
+  availabilityOverrides?: Map<string, AIProviderAvailabilityOverride>
 ): Record<string, unknown> {
   const template = templatesById.get(String(item.template_id ?? ''))
   const flattenedConfig: Record<string, unknown> = {}
@@ -399,7 +438,8 @@ function mapAIProviderRow(
     provider: template?.title ?? humanizeTemplateId(String(item.template_id ?? '')),
     is_enabled: resolveAIProviderEnabled(item.is_enabled),
     enabled_status: normalizeEnabledStatus(item.is_enabled),
-    reachability: reachabilityOverrides?.get(String(item.id ?? '')) ?? resolveReachability(item, t),
+    availability:
+      availabilityOverrides?.get(String(item.id ?? ''))?.status ?? resolveAvailability(item, t),
     endpoint: String(item.endpoint ?? ''),
     default_protocol: defaultProtocol,
     auth_scheme: String(item.auth_scheme ?? ''),
@@ -435,9 +475,20 @@ function buildColumns(
   onNameClick: (id: string, row: Record<string, unknown>) => void,
   onToggleEnabled: (item: Record<string, unknown>) => void,
   onShowModels: (id: string, row: Record<string, unknown>) => void,
-  reachabilityOverrides: Record<string, string>,
+  availabilityOverrides: Record<string, AIProviderAvailabilityOverride>,
+  availabilityLoading: Set<string>,
   enabledModelsCount: Record<string, number>
 ): Column[] {
+  const resolveStatusMeta = (row: Record<string, unknown>) => {
+    const override = availabilityOverrides[String(row.id ?? '')]
+    return {
+      status: String(override?.status ?? row.availability ?? '').trim(),
+      reason: String(override?.reason ?? '').trim(),
+      checkedAt: String(override?.checked_at ?? '').trim(),
+      sourceLabel: override ? t('aiProviders.lastCheckedSources.liveAvailability') : '',
+    }
+  }
+
   return [
     {
       key: 'name',
@@ -476,29 +527,6 @@ function buildColumns(
       stopPropagation: false,
     }),
     {
-      key: 'reachability',
-      label: t('aiProviders.columns.reachability'),
-      sortable: true,
-      filterOptions: [
-        { label: t('aiProviders.status.reachable'), value: t('aiProviders.status.reachable') },
-        { label: t('aiProviders.status.unreachable'), value: t('aiProviders.status.unreachable') },
-        { label: t('aiProviders.status.unknown'), value: t('aiProviders.status.unknown') },
-      ],
-      render: (value, row) => {
-        const status = normalizeReachabilityStatus(
-          reachabilityOverrides[String(row.id ?? '')] ?? value,
-          t
-        )
-        const variant =
-          status === t('aiProviders.status.reachable')
-            ? 'default'
-            : status === t('aiProviders.status.unreachable')
-              ? 'destructive'
-              : 'secondary'
-        return <Badge variant={variant}>{status}</Badge>
-      },
-    },
-    {
       key: 'enabled_models_count',
       label: t('aiProviders.columns.enabledModels'),
       render: (_value, row) => {
@@ -530,6 +558,54 @@ function buildColumns(
       ),
     },
     {
+      key: 'availability',
+      label: t('aiProviders.columns.availability'),
+      sortable: true,
+      filterOptions: [
+        { label: t('aiProviders.status.available'), value: t('aiProviders.status.available') },
+        {
+          label: t('aiProviders.status.unavailable'),
+          value: t('aiProviders.status.unavailable'),
+        },
+        { label: t('aiProviders.status.unknown'), value: t('aiProviders.status.unknown') },
+      ],
+      filterValue: row => resolveStatusMeta(row).status,
+      render: (value, row) => {
+        const meta = resolveStatusMeta(row)
+        const status = normalizeAvailabilityStatus(meta.status || value, t)
+        const variant =
+          status === t('aiProviders.status.available')
+            ? 'default'
+            : status === t('aiProviders.status.unavailable')
+              ? 'destructive'
+              : 'secondary'
+        return (
+          <Badge variant={variant} className="gap-1">
+            {availabilityLoading.has(String(row.id ?? '')) && (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            )}
+            {status}
+          </Badge>
+        )
+      },
+    },
+    {
+      key: 'availability_last_checked_at',
+      label: t('aiProviders.columns.lastChecked'),
+      sortable: true,
+      sortValue: row => resolveStatusMeta(row).checkedAt,
+      render: (_value, row) => {
+        const meta = resolveStatusMeta(row)
+        return (
+          <ResourceStatusTimestamp
+            checkedAt={meta.checkedAt}
+            sourceLabel={meta.sourceLabel}
+            detail={meta.reason}
+          />
+        )
+      },
+    },
+    {
       key: 'created',
       label: t('aiProviders.columns.created'),
       sortable: true,
@@ -552,6 +628,10 @@ export function AIProvidersPage() {
   const autoCreate = new URLSearchParams(window.location.search).get('create') === '1'
   const [createOpen, setCreateOpen] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [pageSize, setPageSize] = useState(10)
+  const [visibleOptionalColumns, setVisibleOptionalColumns] = useState<Set<string>>(
+    () => new Set(['provider', 'enabled_models_count', 'endpoint', 'availability', 'availability_last_checked_at'])
+  )
   const [secretDialogOpen, setSecretDialogOpen] = useState(false)
   const [providerTemplates, setProviderTemplates] = useState<AIProviderTemplate[]>([])
   const [secretAddOption, setSecretAddOption] = useState<
@@ -565,7 +645,10 @@ export function AIProvidersPage() {
     providerId: string
     summary: ConnectionSummaryState
   } | null>(null)
-  const [reachabilityOverrides, setReachabilityOverrides] = useState<Record<string, string>>({})
+  const [availabilityOverrides, setAvailabilityOverrides] = useState<
+    Record<string, AIProviderAvailabilityOverride>
+  >({})
+  const [availabilityLoading, setAvailabilityLoading] = useState<Set<string>>(new Set())
   const [expandedDetailId, setExpandedDetailId] = useState<string | null>(null)
   const [expandedModelsId, setExpandedModelsId] = useState<string | null>(null)
   const [enabledModelsCount, setEnabledModelsCount] = useState<Record<string, number>>({})
@@ -573,7 +656,7 @@ export function AIProvidersPage() {
   const [detailNameDraft, setDetailNameDraft] = useState('')
   const editingTemplateIdRef = useRef('')
   const enabledModelsCountRef = useRef<Record<string, number>>({})
-  const reachabilityRequestVersionRef = useRef(0)
+  const availabilityRequestVersionRef = useRef(0)
 
   function groupModelsByPrefix(modelIds: string[]): { label: string; models: string[] }[] {
     const groups: Record<string, string[]> = {}
@@ -704,36 +787,53 @@ export function AIProvidersPage() {
     setEnabledModelsCount({ ...counts })
   }, [])
 
-  const fetchReachabilityStatuses = useCallback(
+  const fetchAvailabilityStatuses = useCallback(
     async (ids: string[]) => {
       if (ids.length === 0) {
-        setReachabilityOverrides({})
+        setAvailabilityOverrides({})
         return
       }
-      const requestVersion = reachabilityRequestVersionRef.current + 1
-      reachabilityRequestVersionRef.current = requestVersion
+      setAvailabilityLoading(prev => {
+        const next = new Set(prev)
+        for (const id of ids) next.add(id)
+        return next
+      })
+      const requestVersion = availabilityRequestVersionRef.current + 1
+      availabilityRequestVersionRef.current = requestVersion
       try {
         const params = new URLSearchParams({ ids: ids.join(',') })
-        const result = await pb.send<{ items?: Array<{ id: string; status: string }> }>(
-          `/api/ai-providers/reachability?${params.toString()}`,
+        const result = await pb.send<{
+          items?: Array<{ id: string; status: string; reason?: string; checked_at?: string }>
+        }>(
+          `/api/ai-providers/availability?${params.toString()}`,
           { method: 'GET' }
         )
-        if (reachabilityRequestVersionRef.current !== requestVersion) {
+        if (availabilityRequestVersionRef.current !== requestVersion) {
           return
         }
-        setReachabilityOverrides(
-          Object.fromEntries(
-            (result.items ?? []).map(entry => [
-              String(entry.id ?? ''),
-              normalizeReachabilityStatus(entry.status, t),
-            ])
-          )
-        )
+        setAvailabilityOverrides(prev => {
+          const next = { ...prev }
+          for (const entry of result.items ?? []) {
+            const id = String(entry.id ?? '').trim()
+            if (!id) continue
+            next[id] = {
+              status: normalizeAvailabilityStatus(entry.status, t),
+              reason: String(entry.reason ?? ''),
+              checked_at: String(entry.checked_at ?? ''),
+            }
+          }
+          return next
+        })
       } catch {
-        if (reachabilityRequestVersionRef.current !== requestVersion) {
+        if (availabilityRequestVersionRef.current !== requestVersion) {
           return
         }
-        setReachabilityOverrides({})
+      } finally {
+        setAvailabilityLoading(prev => {
+          const next = new Set(prev)
+          for (const id of ids) next.delete(id)
+          return next
+        })
       }
     },
     [t]
@@ -1303,7 +1403,7 @@ export function AIProvidersPage() {
     ]
   )
 
-  const columns = useMemo(
+  const allColumns = useMemo(
     () =>
       buildColumns(
         t,
@@ -1311,7 +1411,8 @@ export function AIProvidersPage() {
         handleNameClick,
         handleToggleEnabled,
         handleShowModels,
-        reachabilityOverrides,
+        availabilityOverrides,
+        availabilityLoading,
         enabledModelsCount
       ),
     [
@@ -1320,9 +1421,92 @@ export function AIProvidersPage() {
       providerFilterOptions,
       t,
       handleShowModels,
-      reachabilityOverrides,
+      availabilityOverrides,
+      availabilityLoading,
       enabledModelsCount,
     ]
+  )
+
+  const columns = useMemo(
+    () =>
+      allColumns.filter(column => {
+        if (
+          column.key === 'provider' ||
+          column.key === 'enabled_models_count' ||
+          column.key === 'endpoint' ||
+          column.key === 'availability' ||
+          column.key === 'availability_last_checked_at' ||
+          column.key === 'created' ||
+          column.key === 'updated'
+        ) {
+          return visibleOptionalColumns.has(column.key)
+        }
+        return true
+      }),
+    [allColumns, visibleOptionalColumns]
+  )
+
+  const renderListSettings = useCallback(
+    ({ pageSize, setPageSize }: { pageSize: number; setPageSize: (pageSize: number) => void }) => (
+      <ResourceListSettingsButton
+        title={t('servers.listSettings.title')}
+        rowsPerPageLabel={t('servers.listSettings.rowsPerPage')}
+        rowsPerPageOptionLabel={count => t('servers.listSettings.rowsPerPageOption', { count })}
+        columnsLabel={t('servers.listSettings.columns')}
+        pageSize={pageSize}
+        setPageSize={setPageSize}
+        pageSizeOptions={[10, 20, 50]}
+        columnOptions={[
+          {
+            key: 'provider',
+            label: t('aiProviders.columns.provider'),
+            checked: visibleOptionalColumns.has('provider'),
+          },
+          {
+            key: 'enabled_models_count',
+            label: t('aiProviders.columns.enabledModels'),
+            checked: visibleOptionalColumns.has('enabled_models_count'),
+          },
+          {
+            key: 'endpoint',
+            label: t('aiProviders.columns.endpoint'),
+            checked: visibleOptionalColumns.has('endpoint'),
+          },
+          {
+            key: 'availability',
+            label: t('aiProviders.columns.availability'),
+            checked: visibleOptionalColumns.has('availability'),
+          },
+          {
+            key: 'availability_last_checked_at',
+            label: t('aiProviders.columns.lastChecked'),
+            checked: visibleOptionalColumns.has('availability_last_checked_at'),
+          },
+          {
+            key: 'created',
+            label: t('aiProviders.columns.created'),
+            checked: visibleOptionalColumns.has('created'),
+          },
+          {
+            key: 'updated',
+            label: t('aiProviders.columns.updated'),
+            checked: visibleOptionalColumns.has('updated'),
+          },
+        ]}
+        onColumnToggle={(columnKey, checked) => {
+          setVisibleOptionalColumns(prev => {
+            const next = new Set(prev)
+            if (checked) {
+              next.add(columnKey)
+            } else {
+              next.delete(columnKey)
+            }
+            return next
+          })
+        }}
+      />
+    ),
+    [t, visibleOptionalColumns]
   )
 
   return (
@@ -1337,13 +1521,19 @@ export function AIProvidersPage() {
           fields: baseProviderFields,
           searchPlaceholder: t('aiProviders.page.searchPlaceholder'),
           pageSize: 10,
+          pageSizeValue: pageSize,
+          onPageSizeChange: setPageSize,
           pageSizeOptions: [10, 20, 50],
           defaultSort: { key: 'name', dir: 'asc' },
           headerFilters: true,
           listControlsBorder: false,
           listControlsShowReset: false,
-          pageSizeSelectorPlacement: 'footer',
+          pageSizeSelectorPlacement: 'none',
+          paginationPlacement: 'header',
+          paginationVariant: 'minimal',
           paginationSummary: false,
+          paginationTotalLabel: totalCount => t('aiProviders.page.totalItems', { count: totalCount }),
+          headerTrailingControls: renderListSettings,
           expandedRowId: expandedDetailId,
           renderRowDetail: item => {
             const providerId = String(item.id ?? '')
@@ -1354,12 +1544,12 @@ export function AIProvidersPage() {
             const endpointHelpUrl =
               template?.fields?.find(field => field.id === 'endpoint')?.helpUrl?.trim() ?? ''
             const enabled = resolveAIProviderEnabled(item.is_enabled)
-            const reachability =
-              reachabilityOverrides[providerId] ?? String(item.reachability ?? '')
-            const reachVariant =
-              reachability === t('aiProviders.status.reachable')
+            const availability =
+              availabilityOverrides[providerId]?.status ?? String(item.availability ?? '')
+            const availabilityVariant =
+              availability === t('aiProviders.status.available')
                 ? 'default'
-                : reachability === t('aiProviders.status.unreachable')
+                : availability === t('aiProviders.status.unavailable')
                   ? 'destructive'
                   : 'secondary'
             const enabledModels = normalizeEnabledModels(item.enabled_models)
@@ -1462,8 +1652,8 @@ export function AIProvidersPage() {
                 ),
               },
               {
-                label: t('aiProviders.columns.reachability'),
-                value: <Badge variant={reachVariant}>{reachability}</Badge>,
+                label: t('aiProviders.columns.availability'),
+                value: <Badge variant={availabilityVariant}>{availability}</Badge>,
               },
               {
                 label: t('aiProviders.fields.authScheme'),
@@ -1750,13 +1940,45 @@ export function AIProvidersPage() {
           wrapTableInCard: false,
           refreshKey,
           listItems: async () => {
-            const items = await pb.send<AIProviderRecord[]>('/api/ai-providers', {
-              method: 'GET',
-            })
+            const [items, monitorResponse] = await Promise.all([
+              pb.send<AIProviderRecord[]>('/api/ai-providers', { method: 'GET' }),
+              pb.send<{ items?: MonitorLatestStatusRecord[] }>(
+                `/api/collections/monitor_latest_status/records?${new URLSearchParams({
+                  perPage: '500',
+                  sort: '-updated',
+                  filter: `(target_type='ai_provider')`,
+                }).toString()}`,
+                { method: 'GET' }
+              ).catch(() => ({ items: [] })),
+            ])
             const ids = Array.isArray(items)
               ? items.map(item => String(item.id ?? '')).filter(Boolean)
               : []
-            void fetchReachabilityStatuses(ids)
+
+            // Seed availability overrides from monitor cache before live check
+            const monitorByTargetId = new Map(
+              Array.isArray(monitorResponse?.items)
+                ? monitorResponse.items
+                    .map(record => [String(record.target_id ?? '').trim(), record] as const)
+                    .filter(([targetId]) => Boolean(targetId))
+                : []
+            )
+            const cachedOverrides: Record<string, AIProviderAvailabilityOverride> = {}
+            for (const id of ids) {
+              const monitor = monitorByTargetId.get(id)
+              if (monitor?.status) {
+                cachedOverrides[id] = {
+                  status: monitorStatusToAvailability(String(monitor.status), t),
+                  reason: String(monitor.reason ?? ''),
+                  checked_at: String(monitor.last_checked_at ?? ''),
+                }
+              }
+            }
+            if (Object.keys(cachedOverrides).length > 0) {
+              setAvailabilityOverrides(prev => ({ ...prev, ...cachedOverrides }))
+            }
+
+            void fetchAvailabilityStatuses(ids)
             const secretResponse = await pb
               .send<{ items?: Array<Record<string, unknown>> }>(
                 buildUserVisibleSecretRelationApiPath('ai_provider', {
@@ -1860,7 +2082,7 @@ export function AIProvidersPage() {
           setCreateOpen(open)
         }}
         onCreated={() => {
-          setReachabilityOverrides({})
+          setAvailabilityOverrides({})
           setRefreshKey(current => current + 1)
         }}
       />

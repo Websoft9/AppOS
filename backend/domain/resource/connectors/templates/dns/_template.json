@@ -2,6 +2,9 @@
   "kind": "dns",
   "category": "Network",
   "description": "Reusable DNS automation connector profile.",
+  "authPresentation": "token",
+  "endpointShape": "url",
+  "endpointScheme": "https",
   "defaultAuthScheme": "api_key",
   "capabilities": ["dns", "records", "zones"],
   "fields": [

@@ -12,7 +12,7 @@ import type {
   ResourceTemplateBase,
   ResourceTemplateField,
 } from '@/lib/resource-types'
-import type { FieldDef, SelectOption } from '@/components/resources/ResourcePage'
+import type { FieldDef } from '@/components/resources/ResourcePage'
 import { ReferenceSelect } from '@/components/resources/ReferenceSelect'
 import { renderBooleanSwitchField } from '@/components/resources/resource-status'
 import { SecretCredentialField } from '@/components/secrets/SecretCredentialField'
@@ -29,11 +29,6 @@ export type ConnectorTemplateField = ResourceTemplateField
 export type ConnectorTemplate = ResourceTemplateBase<ConnectorTemplateField>
 
 export type Translate = (key: string, options?: Record<string, unknown>) => string
-
-export const PROXY_AUTH_OPTIONS: SelectOption[] = [
-  { label: 'No authentication', value: 'none' },
-  { label: 'Username + Password', value: 'username_password' },
-]
 
 export const SUPPORTED_KINDS = [
   'rest_api',
@@ -207,21 +202,11 @@ export function getConnectorAuthSchemeLabel(authScheme: string, t?: Translate) {
   const normalized = String(authScheme ?? '')
     .trim()
     .toLowerCase()
+  if (normalized === 'bearer' || normalized === 'api_key') {
+    return translateOrFallback(t, 'connectors.authValues.token', 'API Key / Token')
+  }
   const fallback = normalized || 'none'
   return translateOrFallback(t, `connectors.authValues.${normalized || 'none'}`, fallback)
-}
-
-export function buildProxyAuthOptions(t?: Translate): SelectOption[] {
-  return [
-    {
-      label: translateOrFallback(t, 'connectors.auth.none', 'No authentication'),
-      value: 'none',
-    },
-    {
-      label: translateOrFallback(t, 'connectors.auth.usernamePassword', 'Username + Password'),
-      value: 'username_password',
-    },
-  ]
 }
 
 export function buildDefaultConnectorName(kind?: string) {
@@ -287,6 +272,8 @@ function mergeConnectorField(
     helpUrl: current.helpUrl || incoming.helpUrl,
     helpText: current.helpText || incoming.helpText,
     default: current.default !== undefined ? current.default : incoming.default,
+    options: current.options?.length ? current.options : incoming.options,
+    showWhen: current.showWhen ?? incoming.showWhen,
   }
 }
 
@@ -319,7 +306,7 @@ export function applyConnectorTemplateDefaults(
   if (!template) {
     return
   }
-  if (template.kind === 'smtp') {
+  if (template.endpointShape === 'host_port_tls') {
     const parsedDefault = parseConnectorEndpoint(template.defaultEndpoint)
     update('endpoint', parsedDefault.host)
     update('port', parsedDefault.port || 587)
@@ -328,7 +315,10 @@ export function applyConnectorTemplateDefaults(
     update('endpoint', template.defaultEndpoint)
   }
   for (const field of template.fields ?? []) {
-    if (template.kind === 'smtp' && (field.id === 'endpoint' || field.id === 'port' || field.id === 'tls')) {
+    if (
+      template.endpointShape === 'host_port_tls' &&
+      (field.id === 'endpoint' || field.id === 'port' || field.id === 'tls')
+    ) {
       continue
     }
     if (field.default !== undefined) {
@@ -426,11 +416,32 @@ function inferEndpointScheme(
     return schemeMatch[1].toLowerCase()
   }
 
-  if (template.kind === 'proxy') {
-    return template.id === 'socks5-proxy' ? 'socks5' : 'http'
+  const templateScheme = String(template.endpointScheme ?? '')
+    .trim()
+    .toLowerCase()
+  if (templateScheme) {
+    return templateScheme
   }
 
   return ''
+}
+
+export function extractConnectorEndpointScheme(endpoint: string | undefined): string {
+  const raw = String(endpoint ?? '').trim()
+  const match = raw.match(/^([a-z0-9+.-]+):\/\//i)
+  return match?.[1]?.toLowerCase() ?? ''
+}
+
+export function inferDefaultConnectorEndpointScheme(template: ConnectorTemplate): string {
+  return inferEndpointScheme(template, {})
+}
+
+export function resolveConnectorTemplateId(
+  payload: Record<string, unknown>,
+  editingItem?: Record<string, unknown> | null
+): string {
+  return String(payload.template_id ?? editingItem?.template_id ?? '')
+    .trim()
 }
 
 function normalizeEndpointValue(
@@ -447,42 +458,43 @@ function normalizeEndpointValue(
   return scheme ? `${scheme}://${trimmed}` : trimmed
 }
 
+export function normalizeConnectorEndpointValue(
+  endpoint: string,
+  template: ConnectorTemplate,
+  payload: Record<string, unknown>
+): string {
+  return normalizeEndpointValue(endpoint, template, payload)
+}
+
 export function mapTemplateFieldToResourceField(
   template: ConnectorTemplate,
   field: ConnectorTemplateField,
   openSecretDialog: (callbacks: { addOption: (id: string, label: string) => void }) => void,
   t?: Translate
 ): FieldDef {
-  if (template.kind === 'proxy') {
-    if (field.id === 'auth_mode') {
-      return {
-        key: field.id,
-        label: field.label,
-        type: 'select',
-        required: field.required,
-        options: buildProxyAuthOptions(t),
-        defaultValue: normalizeTemplateFieldDefault(field),
-        onValueChange: (value, update) => {
-          if (String(value ?? '') !== 'username_password') {
-            update('username', '')
-            update('credential', '')
-            update(secretFieldUseSecretKey('credential'), false)
-            update(secretFieldManualValueKey('credential'), '')
-          }
-        },
-      }
-    }
-
-    if (field.id === 'username') {
-      return {
-        key: field.id,
-        label: field.label,
-        type: 'text',
-        required: field.required,
-        placeholder: field.placeholder,
-        defaultValue: normalizeTemplateFieldDefault(field),
-        showWhen: { field: 'auth_mode', values: ['username_password'] },
-      }
+  if (field.type === 'select') {
+    return {
+      key: field.id,
+      label: field.label,
+      type: 'select',
+      required: field.required,
+      options: (field.options ?? []).map(option => ({
+        label: option.label,
+        value: option.value,
+      })),
+      defaultValue: normalizeTemplateFieldDefault(field),
+      showWhen: field.showWhen,
+      onValueChange:
+        field.id === 'auth_mode'
+          ? (value, update) => {
+              if (String(value ?? '') !== 'username_password') {
+                update('username', '')
+                update('credential', '')
+                update(secretFieldUseSecretKey('credential'), false)
+                update(secretFieldManualValueKey('credential'), '')
+              }
+            }
+          : undefined,
     }
   }
 
@@ -494,10 +506,7 @@ export function mapTemplateFieldToResourceField(
       required: field.required,
       relationApiPath: buildUserVisibleSecretRelationApiPath('connector', field.secretTemplate),
       relationFormatLabel: raw => formatSecretLabel(raw),
-      showWhen:
-        template.kind === 'proxy' && field.id === 'credential'
-          ? { field: 'auth_mode', values: ['username_password'] }
-          : undefined,
+      showWhen: field.showWhen,
       render: ({
         inputId,
         formData,
@@ -588,7 +597,7 @@ export function mapTemplateFieldToResourceField(
     }
   }
 
-  if (template.kind === 'smtp' && field.id === 'tls') {
+  if (template.endpointShape === 'host_port_tls' && field.id === 'tls') {
     return {
       key: field.id,
       label: field.label,
@@ -646,6 +655,7 @@ export function mapTemplateFieldToResourceField(
     defaultValue: normalizeTemplateFieldDefault(field),
     helpUrl: field.helpUrl,
     helpText: field.helpText,
+    showWhen: field.showWhen,
   }
 }
 
@@ -740,7 +750,7 @@ export async function buildConnectorPayload(
 
   const credentialId = String(body.credential ?? '').trim()
   let authScheme = 'none'
-  if (template.kind === 'proxy') {
+  if (template.authPresentation === 'selectable') {
     authScheme = String(body.auth_mode ?? '').trim() === 'username_password' ? 'basic' : 'none'
   } else if (credentialId) {
     const defaultAuthScheme = String(template.defaultAuthScheme ?? 'none').trim() || 'none'
@@ -755,7 +765,7 @@ export async function buildConnectorPayload(
   }
 
   const normalizedEndpoint =
-    template.kind === 'smtp'
+    template.endpointShape === 'host_port_tls'
       ? buildSMTPConnectorEndpoint(
           String(body.endpoint ?? ''),
           Number(body.port ?? 0),
@@ -767,7 +777,7 @@ export async function buildConnectorPayload(
     if (
       field.id === 'endpoint' ||
       field.id === 'credential' ||
-      (template.kind === 'smtp' && field.id === 'port')
+      (template.endpointShape === 'host_port_tls' && field.id === 'port')
     ) {
       continue
     }
@@ -790,7 +800,7 @@ export async function buildConnectorPayload(
     config[field.id] = value
   }
 
-  if (template.kind === 'proxy') {
+  if (template.authPresentation === 'selectable') {
     const scheme = inferEndpointScheme(template, { ...body, endpoint: normalizedEndpoint })
     if (scheme) {
       config.protocol = scheme
@@ -836,7 +846,7 @@ export function mapConnectorRow(
     if (
       field.id === 'endpoint' ||
       field.id === 'credential' ||
-      (template?.kind === 'smtp' && (field.id === 'port' || field.id === 'tls'))
+      (template?.endpointShape === 'host_port_tls' && (field.id === 'port' || field.id === 'tls'))
     ) {
       continue
     }
@@ -862,8 +872,8 @@ export function mapConnectorRow(
     template_id: String(item.template_id ?? ''),
     kind_label: getConnectorKindLabel(kind, t),
     profile: template?.title ?? humanizeTemplateId(String(item.template_id ?? '')),
-    endpoint: template?.kind === 'smtp' ? parsedEndpoint.host : String(item.endpoint ?? ''),
-    port: template?.kind === 'smtp' ? parsedEndpoint.port || 587 : undefined,
+    endpoint: template?.endpointShape === 'host_port_tls' ? parsedEndpoint.host : String(item.endpoint ?? ''),
+    port: parsedEndpoint.port || 0,
     auth_type: String(item.auth_scheme ?? 'none'),
     credential: String(item.credential ?? ''),
     [secretFieldUseSecretKey('credential')]: true,
@@ -872,7 +882,7 @@ export function mapConnectorRow(
     description: String(item.description ?? ''),
     [secretFieldEditModeKey('credential')]: false,
     tls:
-      template?.kind === 'smtp'
+      template?.endpointShape === 'host_port_tls'
         ? parsedEndpoint.scheme === 'smtps' || parsedEndpoint.port === 465
         : flattenedConfig.tls,
     advanced_config:

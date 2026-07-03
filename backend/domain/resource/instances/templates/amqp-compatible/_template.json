@@ -1,6 +1,9 @@
 {
   "kind": "amqp-compatible",
   "category": "message-queue",
+  "endpointShape": "url",
+  "credentialPresentation": "secret_or_inline",
+  "credentialLabel": "credential",
   "fields": [
     {
       "id": "vhost",

@@ -5,11 +5,13 @@ import (
 )
 
 const (
-	TargetTypeServer    = "server"
-	TargetTypeApp       = "app"
-	TargetTypeContainer = "container"
-	TargetTypeResource  = "resource"
-	TargetTypePlatform  = "platform"
+	TargetTypeServer     = "server"
+	TargetTypeApp        = "app"
+	TargetTypeContainer  = "container"
+	TargetTypeResource   = "resource"
+	TargetTypePlatform   = "platform"
+	TargetTypeAIProvider = "ai_provider"
+	TargetTypeConnector  = "connector"
 )
 
 const (

@@ -1,6 +1,9 @@
 {
   "kind": "redis-compatible",
   "category": "cache",
+  "endpointShape": "url",
+  "credentialPresentation": "secret_or_inline",
+  "credentialLabel": "password",
   "fields": [
     {
       "id": "database",

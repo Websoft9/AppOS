@@ -145,18 +145,21 @@ func loadTemplates() error {
 }
 
 type templateFile struct {
-	ID              *string             `json:"id,omitempty"`
-	Kind            *string             `json:"kind,omitempty"`
-	Title           *string             `json:"title,omitempty"`
-	Vendor          *string             `json:"vendor,omitempty"`
-	Category        *string             `json:"category,omitempty"`
-	Description     *string             `json:"description,omitempty"`
-	DefaultEndpoint *string             `json:"defaultEndpoint,omitempty"`
-	DefaultEndpointTLS *string          `json:"defaultEndpointTls,omitempty"`
-	DefaultAuth     *string             `json:"defaultAuthScheme,omitempty"`
-	Capabilities    []string            `json:"capabilities,omitempty"`
-	Aliases         []string            `json:"aliases,omitempty"`
-	Fields          []templateFieldFile `json:"fields,omitempty"`
+	ID                 *string             `json:"id,omitempty"`
+	Kind               *string             `json:"kind,omitempty"`
+	Title              *string             `json:"title,omitempty"`
+	Vendor             *string             `json:"vendor,omitempty"`
+	Category           *string             `json:"category,omitempty"`
+	Description        *string             `json:"description,omitempty"`
+	DefaultEndpoint    *string             `json:"defaultEndpoint,omitempty"`
+	DefaultEndpointTLS *string             `json:"defaultEndpointTls,omitempty"`
+	DefaultAuth        *string             `json:"defaultAuthScheme,omitempty"`
+	AuthPresentation   *string             `json:"authPresentation,omitempty"`
+	EndpointShape      *string             `json:"endpointShape,omitempty"`
+	EndpointScheme     *string             `json:"endpointScheme,omitempty"`
+	Capabilities       []string            `json:"capabilities,omitempty"`
+	Aliases            []string            `json:"aliases,omitempty"`
+	Fields             []templateFieldFile `json:"fields,omitempty"`
 }
 
 type templateFieldFile struct {
@@ -169,6 +172,18 @@ type templateFieldFile struct {
 	Placeholder    *string         `json:"placeholder,omitempty"`
 	HelpText       *string         `json:"helpText,omitempty"`
 	Default        json.RawMessage `json:"default,omitempty"`
+	Options        []templateFieldOptionFile  `json:"options,omitempty"`
+	ShowWhen       *templateFieldShowWhenFile `json:"showWhen,omitempty"`
+}
+
+type templateFieldOptionFile struct {
+	Label string `json:"label,omitempty"`
+	Value string `json:"value,omitempty"`
+}
+
+type templateFieldShowWhenFile struct {
+	Field  string   `json:"field,omitempty"`
+	Values []string `json:"values,omitempty"`
 }
 
 func loadKindBaseTemplate(kind string) (Template, error) {
@@ -229,6 +244,15 @@ func applyTemplateOverlay(base Template, file templateFile) (Template, error) {
 	}
 	if file.DefaultAuth != nil {
 		result.DefaultAuth = strings.TrimSpace(*file.DefaultAuth)
+	}
+	if file.AuthPresentation != nil {
+		result.AuthPresentation = strings.TrimSpace(*file.AuthPresentation)
+	}
+	if file.EndpointShape != nil {
+		result.EndpointShape = strings.TrimSpace(*file.EndpointShape)
+	}
+	if file.EndpointScheme != nil {
+		result.EndpointScheme = strings.TrimSpace(*file.EndpointScheme)
 	}
 	if file.Capabilities != nil {
 		result.Capabilities = append([]string(nil), file.Capabilities...)
@@ -300,6 +324,21 @@ func applyFieldOverlay(base TemplateField, override templateFieldFile) (Template
 	}
 	if override.HelpText != nil {
 		result.HelpText = strings.TrimSpace(*override.HelpText)
+	}
+	if override.Options != nil {
+		result.Options = make([]TemplateFieldOption, 0, len(override.Options))
+		for _, option := range override.Options {
+			result.Options = append(result.Options, TemplateFieldOption{
+				Label: strings.TrimSpace(option.Label),
+				Value: strings.TrimSpace(option.Value),
+			})
+		}
+	}
+	if override.ShowWhen != nil {
+		result.ShowWhen = &TemplateFieldShowWhen{
+			Field:  strings.TrimSpace(override.ShowWhen.Field),
+			Values: append([]string(nil), override.ShowWhen.Values...),
+		}
 	}
 	if override.Default != nil {
 		var value any

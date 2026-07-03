@@ -249,9 +249,9 @@ export function useSettingsPageController() {
       // Inject AI nav entry backed by AI Providers so settings can choose the platform default model.
       const aiEntry = {
         id: 'ai' as const,
-        title: 'AI',
+        title: 'AI Provider Account',
         description:
-          'Choose which AI Provider account AppOS should prefer when one provider has multiple accounts.',
+          'Set the default AI provider account per endpoint when multiple accounts exist.',
         section: 'workspace',
         source: 'custom' as const,
         fields: [{ id: 'defaultModel', label: 'Default Model', type: 'relation' }],

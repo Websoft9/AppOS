@@ -91,6 +91,12 @@ type templateFile struct {
 	Vendor              *string             `json:"vendor,omitempty"`
 	Description         *string             `json:"description,omitempty"`
 	DefaultEndpoint     *string             `json:"defaultEndpoint,omitempty"`
+	DefaultPort         *int                `json:"defaultPort,omitempty"`
+	DefaultProtocolHint *string             `json:"defaultProtocolHint,omitempty"`
+	LayoutPreset        *string             `json:"layoutPreset,omitempty"`
+	EndpointShape       *string             `json:"endpointShape,omitempty"`
+	CredentialPresentation *string          `json:"credentialPresentation,omitempty"`
+	CredentialLabel     *string             `json:"credentialLabel,omitempty"`
 	OmitCommonFields    []string            `json:"omitCommonFields,omitempty"`
 	CommonFieldDefaults map[string]any      `json:"commonFieldDefaults,omitempty"`
 	Fields              []templateFieldFile `json:"fields,omitempty"`
@@ -101,11 +107,19 @@ type templateFieldFile struct {
 	Label          *string         `json:"label,omitempty"`
 	Type           *string         `json:"type,omitempty"`
 	Required       *bool           `json:"required,omitempty"`
+	Advanced       *bool           `json:"advanced,omitempty"`
+	Hidden         *bool           `json:"hidden,omitempty"`
 	Sensitive      *bool           `json:"sensitive,omitempty"`
 	SecretTemplate *string         `json:"secretTemplate,omitempty"`
 	Placeholder    *string         `json:"placeholder,omitempty"`
 	HelpText       *string         `json:"helpText,omitempty"`
+	ShowWhen       *templateFieldShowWhenFile `json:"showWhen,omitempty"`
 	Default        json.RawMessage `json:"default,omitempty"`
+}
+
+type templateFieldShowWhenFile struct {
+	Field  string   `json:"field,omitempty"`
+	Values []string `json:"values,omitempty"`
 }
 
 func loadKindBaseTemplate(kind string) (Template, error) {
@@ -168,6 +182,24 @@ func applyTemplateOverlay(base Template, file templateFile) (Template, error) {
 	if file.DefaultEndpoint != nil {
 		result.DefaultEndpoint = strings.TrimSpace(*file.DefaultEndpoint)
 	}
+	if file.DefaultPort != nil {
+		result.DefaultPort = *file.DefaultPort
+	}
+	if file.DefaultProtocolHint != nil {
+		result.DefaultProtocolHint = strings.TrimSpace(*file.DefaultProtocolHint)
+	}
+	if file.LayoutPreset != nil {
+		result.LayoutPreset = strings.TrimSpace(*file.LayoutPreset)
+	}
+	if file.EndpointShape != nil {
+		result.EndpointShape = strings.TrimSpace(*file.EndpointShape)
+	}
+	if file.CredentialPresentation != nil {
+		result.CredentialPresentation = strings.TrimSpace(*file.CredentialPresentation)
+	}
+	if file.CredentialLabel != nil {
+		result.CredentialLabel = strings.TrimSpace(*file.CredentialLabel)
+	}
 	if file.OmitCommonFields != nil {
 		result.OmitCommonFields = append([]string(nil), file.OmitCommonFields...)
 	}
@@ -227,6 +259,12 @@ func applyFieldOverlay(base TemplateField, override templateFieldFile) (Template
 	if override.Required != nil {
 		result.Required = *override.Required
 	}
+	if override.Advanced != nil {
+		result.Advanced = *override.Advanced
+	}
+	if override.Hidden != nil {
+		result.Hidden = *override.Hidden
+	}
 	if override.Sensitive != nil {
 		result.Sensitive = *override.Sensitive
 	}
@@ -238,6 +276,12 @@ func applyFieldOverlay(base TemplateField, override templateFieldFile) (Template
 	}
 	if override.HelpText != nil {
 		result.HelpText = strings.TrimSpace(*override.HelpText)
+	}
+	if override.ShowWhen != nil {
+		result.ShowWhen = &TemplateFieldShowWhen{
+			Field:  strings.TrimSpace(override.ShowWhen.Field),
+			Values: resourceshared.NormalizeStringList(override.ShowWhen.Values),
+		}
 	}
 	if override.Default != nil {
 		var value any

@@ -58,6 +58,7 @@ vi.mock('react-i18next', () => ({
         'aiProviders.page.searchPlaceholder': 'Search any AI providers',
         'aiProviders.page.addProvider': 'Add AI Provider',
         'aiProviders.page.refresh': 'Refresh',
+        'aiProviders.page.totalItems': `Total ${String(options?.count ?? '')} items`,
         'aiProviders.selection.title': 'Choose a Product',
         'aiProviders.selection.description':
           'Choose a provider product, then enter connection details.',
@@ -73,14 +74,21 @@ vi.mock('react-i18next', () => ({
         'aiProviders.columns.provider': 'Provider',
         'aiProviders.columns.enabledModels': 'Enabled Model(s)',
         'aiProviders.columns.profile': 'Profile',
+        'aiProviders.columns.availability': 'Availability',
         'aiProviders.columns.reachability': 'Reachability',
         'aiProviders.columns.endpoint': 'Endpoint',
+        'aiProviders.columns.lastChecked': 'Last Checked',
         'aiProviders.columns.created': 'Created',
         'aiProviders.columns.updated': 'Updated',
+        'servers.listSettings.title': 'List settings',
+        'servers.listSettings.rowsPerPage': 'Rows per page',
+        'servers.listSettings.columns': 'Columns',
         'aiProviders.actions.testConnection': 'Test it',
         'aiProviders.actions.editEndpoint': 'Edit endpoint',
         'aiProviders.actions.finishEditingEndpoint': 'Finish editing endpoint',
+        'aiProviders.status.available': 'Available',
         'aiProviders.status.reachable': 'Reachable',
+        'aiProviders.status.unavailable': 'Unavailable',
         'aiProviders.status.unreachable': 'Unreachable',
         'aiProviders.status.unknown': 'Unknown',
         'aiProviders.fields.name': 'Name',
@@ -142,6 +150,9 @@ vi.mock('react-i18next', () => ({
       }
       if (key === 'aiProviders.errors.fieldRequired') {
         return `${String(options?.field ?? '')} is required`
+      }
+      if (key === 'servers.listSettings.rowsPerPageOption') {
+        return `${String(options?.count ?? '')} / page`
       }
       return labels[key] ?? key
     },
@@ -269,7 +280,7 @@ describe('AIProvidersPage', () => {
         if (path === '/api/ai-providers') {
           return Promise.resolve([])
         }
-        if (path.startsWith('/api/ai-providers/reachability?')) {
+        if (path.startsWith('/api/ai-providers/availability?')) {
           return Promise.resolve({ items: [] })
         }
         if (path === '/api/collections/groups/records?perPage=500&sort=name') {
@@ -738,7 +749,7 @@ describe('AIProvidersPage', () => {
     )
   })
 
-  it('renders reachability and timestamps in the list', async () => {
+  it('renders availability, last checked, paging summary, and hides created/updated by default', async () => {
     sendMock.mockImplementation(
       (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
         if (path === '/api/ai-providers/templates') {
@@ -781,6 +792,17 @@ describe('AIProvidersPage', () => {
         if (path === '/api/collections/groups/records?perPage=500&sort=name') {
           return Promise.resolve({ items: [] })
         }
+        if (path.startsWith('/api/ai-providers/availability?')) {
+          return Promise.resolve({
+            items: [
+              {
+                id: 'provider-xai',
+                status: 'available',
+                checked_at: '2025-01-06T12:00:00Z',
+              },
+            ],
+          })
+        }
         if (path === AI_PROVIDER_SECRET_PATH) {
           return Promise.resolve({ items: [] })
         }
@@ -799,14 +821,17 @@ describe('AIProvidersPage', () => {
 
     fireEvent.click(screen.getByTitle('Refresh'))
 
-    expect(await screen.findByText('Reachable')).toBeInTheDocument()
-    expect(screen.getByText('Reachability')).toBeInTheDocument()
-    expect(screen.getByText('Created')).toBeInTheDocument()
-    expect(screen.getByText('Updated')).toBeInTheDocument()
+    expect(await screen.findByText('Available')).toBeInTheDocument()
+    expect(screen.getByText('Availability')).toBeInTheDocument()
+    expect(screen.getByText('Last Checked')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'List settings' })).toBeInTheDocument()
+    expect(screen.getByText('Total 1 items')).toBeInTheDocument()
+    expect(screen.getByText('1/1')).toBeInTheDocument()
     expect(screen.queryByText('Type')).not.toBeInTheDocument()
     expect(screen.queryByText('Auth')).not.toBeInTheDocument()
-    expect(screen.getByText(/Jan 05, 2025, 10:30/)).toBeInTheDocument()
-    expect(screen.getByText(/Jan 06, 2025, 11:45/)).toBeInTheDocument()
+    expect(screen.getByText('2025-01-06 12:00:00')).toBeInTheDocument()
+    expect(screen.queryByText('Created')).not.toBeInTheDocument()
+    expect(screen.queryByText('Updated')).not.toBeInTheDocument()
     expect(screen.queryByText('api_key')).not.toBeInTheDocument()
   })
 
@@ -840,7 +865,7 @@ describe('AIProvidersPage', () => {
     openSpy.mockRestore()
   })
 
-  it('shows provider and enabled status, loads reachability, and opens edit from name', async () => {
+  it('shows provider and enabled status, loads availability, and opens edit from name', async () => {
     sendMock.mockImplementation((path: string) => {
       if (path === '/api/ai-providers/templates') {
         return Promise.resolve([
@@ -873,8 +898,8 @@ describe('AIProvidersPage', () => {
           },
         ])
       }
-      if (path.startsWith('/api/ai-providers/reachability?')) {
-        return Promise.resolve({ items: [{ id: 'provider-xai', status: 'reachable' }] })
+      if (path.startsWith('/api/ai-providers/availability?')) {
+        return Promise.resolve({ items: [{ id: 'provider-xai', status: 'available' }] })
       }
       if (path === '/api/ai-providers/models/provider-xai') {
         return Promise.resolve({ models: [{ id: 'grok-4' }] })
@@ -898,7 +923,7 @@ describe('AIProvidersPage', () => {
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
-        expect.stringContaining('/api/ai-providers/reachability?'),
+        expect.stringContaining('/api/ai-providers/availability?'),
         {
           method: 'GET',
         }
@@ -944,8 +969,8 @@ describe('AIProvidersPage', () => {
           },
         ])
       }
-      if (path.startsWith('/api/ai-providers/reachability?')) {
-        return Promise.resolve({ items: [{ id: 'provider-openrouter', status: 'reachable' }] })
+      if (path.startsWith('/api/ai-providers/availability?')) {
+        return Promise.resolve({ items: [{ id: 'provider-openrouter', status: 'available' }] })
       }
       if (path === '/api/ai-providers/models/provider-openrouter') {
         return Promise.resolve({ models: [{ id: 'openai/gpt-4.1-mini' }] })
@@ -1013,9 +1038,9 @@ describe('AIProvidersPage', () => {
             },
           ])
         }
-        if (path.startsWith('/api/ai-providers/reachability?')) {
+        if (path.startsWith('/api/ai-providers/availability?')) {
           return Promise.resolve({
-            items: [{ id: 'alibaba-cloud-bailian-1494', status: 'reachable' }],
+            items: [{ id: 'alibaba-cloud-bailian-1494', status: 'available' }],
           })
         }
         if (path === '/api/ai-providers/models/alibaba-cloud-bailian-1494') {
@@ -1108,8 +1133,8 @@ describe('AIProvidersPage', () => {
             },
           ])
         }
-        if (path.startsWith('/api/ai-providers/reachability?')) {
-          return Promise.resolve({ items: [{ id: 'provider-bedrock', status: 'reachable' }] })
+        if (path.startsWith('/api/ai-providers/availability?')) {
+          return Promise.resolve({ items: [{ id: 'provider-bedrock', status: 'available' }] })
         }
         if (path === '/api/ai-providers/models/provider-bedrock') {
           return Promise.resolve({
@@ -1198,8 +1223,8 @@ describe('AIProvidersPage', () => {
             },
           ])
         }
-        if (path.startsWith('/api/ai-providers/reachability?')) {
-          return Promise.resolve({ items: [{ id: 'provider-gemini', status: 'reachable' }] })
+        if (path.startsWith('/api/ai-providers/availability?')) {
+          return Promise.resolve({ items: [{ id: 'provider-gemini', status: 'available' }] })
         }
         if (path === '/api/ai-providers/models/provider-gemini') {
           return Promise.resolve({
@@ -1297,8 +1322,8 @@ describe('AIProvidersPage', () => {
             },
           ])
         }
-        if (path.startsWith('/api/ai-providers/reachability?')) {
-          return Promise.resolve({ items: [{ id: 'provider-gemini', status: 'reachable' }] })
+        if (path.startsWith('/api/ai-providers/availability?')) {
+          return Promise.resolve({ items: [{ id: 'provider-gemini', status: 'available' }] })
         }
         if (path === '/api/ai-providers/fetch-models' && options?.method === 'POST') {
           return Promise.resolve({
@@ -1386,8 +1411,8 @@ describe('AIProvidersPage', () => {
             },
           ])
         }
-        if (path.startsWith('/api/ai-providers/reachability?')) {
-          return Promise.resolve({ items: [{ id: 'provider-gemini', status: 'reachable' }] })
+        if (path.startsWith('/api/ai-providers/availability?')) {
+          return Promise.resolve({ items: [{ id: 'provider-gemini', status: 'available' }] })
         }
         if (path === '/api/ai-providers/models/provider-gemini') {
           return Promise.resolve({

@@ -1478,10 +1478,10 @@ describe('SettingsPage shared settings paths', () => {
       throw new Error('expected settings navigation to be rendered')
     }
 
-    within(nav).getByRole('button', { name: 'AI' }).click()
+    within(nav).getByRole('button', { name: 'AI Provider Account' }).click()
 
     await waitFor(() => {
-      expect(screen.getByText('AI Provider')).toBeInTheDocument()
+      expect(screen.getByText('AI Provider Account')).toBeInTheDocument()
       expect(screen.getByText('Provider Name')).toBeInTheDocument()
       expect(screen.getAllByText('Default Account')).toHaveLength(2)
       expect(screen.getByText('OpenAI')).toBeInTheDocument()
@@ -1551,13 +1551,13 @@ describe('SettingsPage shared settings paths', () => {
       throw new Error('expected settings navigation to be rendered')
     }
 
-    within(nav).getByRole('button', { name: 'AI' }).click()
+    within(nav).getByRole('button', { name: 'AI Provider Account' }).click()
 
     await waitFor(() => {
-      expect(screen.getByText('AI Provider')).toBeInTheDocument()
+      expect(screen.getByText('AI Provider Account')).toBeInTheDocument()
       expect(
         screen.getByText(
-          'No AI Provider accounts are available yet. Create one in Resources so AppOS can choose a default provider account here.'
+          'No AI Provider accounts yet. Add one in Resources.'
         )
       ).toBeInTheDocument()
     })

@@ -2,5 +2,6 @@
   "id": "socks5-proxy",
   "title": "SOCKS5 Proxy",
   "description": "Outbound SOCKS5 proxy connector for externally managed proxy services.",
+  "endpointScheme": "socks5",
   "defaultEndpoint": "socks5://proxy.example.com:1080"
 }
