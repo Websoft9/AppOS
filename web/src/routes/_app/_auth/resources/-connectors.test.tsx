@@ -184,6 +184,7 @@ describe('ConnectorsPage', () => {
             kind: 'http-gateway',
             title: 'Generic HTTP Gateway',
             authPresentation: 'token',
+            defaultAuthScheme: 'bearer',
             endpointShape: 'url',
             defaultEndpoint: 'https://gateway.example.com',
             fields: [
@@ -192,6 +193,7 @@ describe('ConnectorsPage', () => {
                 id: 'credential',
                 label: 'Access Token Secret',
                 type: 'secret_ref',
+                required: true,
                 secretTemplate: 'single_value',
               },
             ],
@@ -200,35 +202,25 @@ describe('ConnectorsPage', () => {
             id: 'http-proxy',
             kind: 'proxy',
             title: 'HTTP Proxy',
-            authPresentation: 'selectable',
+            authPresentation: 'username_password',
+            defaultAuthScheme: 'basic',
             endpointShape: 'url',
             endpointScheme: 'http',
             defaultEndpoint: 'http://proxy.example.com:8080',
             fields: [
               { id: 'endpoint', label: 'Proxy Endpoint', type: 'url', required: true },
               {
-                id: 'auth_mode',
-                label: 'Authentication',
-                type: 'select',
-                required: true,
-                default: 'none',
-                options: [
-                  { label: 'No authentication', value: 'none' },
-                  { label: 'Username + Password', value: 'username_password' },
-                ],
-              },
-              {
                 id: 'username',
                 label: 'Username',
                 type: 'string',
-                showWhen: { field: 'auth_mode', values: ['username_password'] },
+                required: true,
               },
               {
                 id: 'credential',
                 label: 'Password Secret',
                 type: 'secret_ref',
                 secretTemplate: 'single_value',
-                showWhen: { field: 'auth_mode', values: ['username_password'] },
+                required: true,
               },
               { id: 'no_proxy', label: 'Bypass Hosts', type: 'string' },
             ],
@@ -237,35 +229,25 @@ describe('ConnectorsPage', () => {
             id: 'socks5-proxy',
             kind: 'proxy',
             title: 'SOCKS5 Proxy',
-            authPresentation: 'selectable',
+            authPresentation: 'username_password',
+            defaultAuthScheme: 'basic',
             endpointShape: 'url',
             endpointScheme: 'socks5',
             defaultEndpoint: 'socks5://proxy.example.com:1080',
             fields: [
               { id: 'endpoint', label: 'Proxy Endpoint', type: 'url', required: true },
               {
-                id: 'auth_mode',
-                label: 'Authentication',
-                type: 'select',
-                required: true,
-                default: 'none',
-                options: [
-                  { label: 'No authentication', value: 'none' },
-                  { label: 'Username + Password', value: 'username_password' },
-                ],
-              },
-              {
                 id: 'username',
                 label: 'Username',
                 type: 'string',
-                showWhen: { field: 'auth_mode', values: ['username_password'] },
+                required: true,
               },
               {
                 id: 'credential',
                 label: 'Password Secret',
                 type: 'secret_ref',
                 secretTemplate: 'single_value',
-                showWhen: { field: 'auth_mode', values: ['username_password'] },
+                required: true,
               },
               { id: 'no_proxy', label: 'Bypass Hosts', type: 'string' },
             ],
@@ -476,7 +458,7 @@ describe('ConnectorsPage', () => {
     })
   })
 
-  it('uses separate proxy profiles and only shows username/password when auth is enabled', async () => {
+  it('uses separate proxy profiles and keeps username/password fields fixed by the selected profile', async () => {
     render(<ConnectorsPage />)
 
     await waitFor(() => {
@@ -501,13 +483,6 @@ describe('ConnectorsPage', () => {
       'socks5://proxy.example.com:1080'
     )
 
-    const authSelect = within(dialog).getByLabelText(/^Authentication/) as HTMLSelectElement
-    expect(authSelect.value).toBe('none')
-    expect(within(dialog).queryByLabelText(/^Username/)).not.toBeInTheDocument()
-    expect(within(dialog).queryByPlaceholderText('Enter a secret value')).not.toBeInTheDocument()
-
-    fireEvent.change(authSelect, { target: { value: 'username_password' } })
-
     expect(within(dialog).getByLabelText(/^Username/)).toBeInTheDocument()
     expect(within(dialog).getByPlaceholderText('Enter a secret value')).toBeInTheDocument()
   })
@@ -527,9 +502,6 @@ describe('ConnectorsPage', () => {
     clickChooserOption(chooser, 'Outbound Proxy')
 
     const dialog = await screen.findByRole('dialog')
-    fireEvent.change(within(dialog).getByLabelText(/^Authentication/), {
-      target: { value: 'username_password' },
-    })
     fireEvent.change(within(dialog).getByLabelText(/^Username/), {
       target: { value: 'proxy-user' },
     })

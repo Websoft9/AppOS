@@ -1,5 +1,6 @@
 {
   "id": "generic-kafka",
   "title": "Generic Kafka",
-  "description": "Kafka-compatible message broker instance."
+  "description": "Kafka-compatible message broker instance.",
+  "defaultEndpoint": "kafka.internal:9092"
 }

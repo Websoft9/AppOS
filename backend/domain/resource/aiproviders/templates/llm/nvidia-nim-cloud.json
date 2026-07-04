@@ -5,13 +5,13 @@
   "uiGroup": "cloud_gateway",
   "hostingMode": "cloud",
   "serviceMode": "official_provider",
-  "endpointMode": "user_supplied",
+  "endpointMode": "customizable",
   "providerMode": "gateway",
   "supportsClosedModels": false,
   "supportsMultiVendorModels": true,
   "description": "NVIDIA hosted NIM API for vendor-curated open-weight models.",
   "helpUrl": "https://build.nvidia.com/",
-  "defaultEndpoint": "",
+  "defaultEndpoint": "https://integrate.api.nvidia.com/v1",
   "protocols": [
     {
       "id": "openai",
@@ -24,7 +24,7 @@
   "fields": [
     {
       "id": "endpoint",
-      "placeholder": "https://your-nvidia-nim-cloud-endpoint.example/v1"
+      "placeholder": "https://integrate.api.nvidia.com/v1"
     }
   ]
 }

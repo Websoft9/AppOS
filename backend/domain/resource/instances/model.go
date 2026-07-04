@@ -157,17 +157,17 @@ func (i *Instance) Snapshot() Snapshot {
 }
 
 type TemplateField struct {
-	ID             string `json:"id"`
-	Label          string `json:"label"`
-	Type           string `json:"type"`
-	Required       bool   `json:"required,omitempty"`
-	Advanced       bool   `json:"advanced,omitempty"`
-	Hidden         bool   `json:"hidden,omitempty"`
-	Sensitive      bool   `json:"sensitive,omitempty"`
-	SecretTemplate string `json:"secretTemplate,omitempty"`
-	Placeholder    string `json:"placeholder,omitempty"`
-	HelpText       string `json:"helpText,omitempty"`
-	Default        any    `json:"default,omitempty"`
+	ID             string                 `json:"id"`
+	Label          string                 `json:"label"`
+	Type           string                 `json:"type"`
+	Required       bool                   `json:"required,omitempty"`
+	Advanced       bool                   `json:"advanced,omitempty"`
+	Hidden         bool                   `json:"hidden,omitempty"`
+	Sensitive      bool                   `json:"sensitive,omitempty"`
+	SecretTemplate string                 `json:"secretTemplate,omitempty"`
+	Placeholder    string                 `json:"placeholder,omitempty"`
+	HelpText       string                 `json:"helpText,omitempty"`
+	Default        any                    `json:"default,omitempty"`
 	ShowWhen       *TemplateFieldShowWhen `json:"showWhen,omitempty"`
 }
 
@@ -180,22 +180,20 @@ type Template struct {
 	ID string `json:"id"`
 	// Category is the product-facing directory group used for navigation and discovery.
 	// It is not the resource identity axis; kind remains the canonical instance identity.
-	Category            string          `json:"category,omitempty"`
-	Kind                string          `json:"kind"`
-	Traits              []string        `json:"traits,omitempty"`
-	Title               string          `json:"title"`
-	Vendor              string          `json:"vendor,omitempty"`
-	Description         string          `json:"description,omitempty"`
-	DefaultEndpoint     string          `json:"defaultEndpoint,omitempty"`
-	DefaultPort         int             `json:"defaultPort,omitempty"`
-	DefaultProtocolHint string          `json:"defaultProtocolHint,omitempty"`
-	LayoutPreset        string          `json:"layoutPreset,omitempty"`
-	EndpointShape       string          `json:"endpointShape,omitempty"`
-	CredentialPresentation string       `json:"credentialPresentation,omitempty"`
-	CredentialLabel     string          `json:"credentialLabel,omitempty"`
-	OmitCommonFields    []string        `json:"omitCommonFields,omitempty"`
-	CommonFieldDefaults map[string]any  `json:"commonFieldDefaults,omitempty"`
-	Fields              []TemplateField `json:"fields,omitempty"`
+	Category               string          `json:"category,omitempty"`
+	Kind                   string          `json:"kind"`
+	Traits                 []string        `json:"traits,omitempty"`
+	Title                  string          `json:"title"`
+	Vendor                 string          `json:"vendor,omitempty"`
+	Description            string          `json:"description,omitempty"`
+	DefaultEndpoint        string          `json:"defaultEndpoint,omitempty"`
+	DefaultPort            int             `json:"defaultPort,omitempty"`
+	DefaultProtocolHint    string          `json:"defaultProtocolHint,omitempty"`
+	LayoutPreset           string          `json:"layoutPreset,omitempty"`
+	EndpointShape          string          `json:"endpointShape,omitempty"`
+	CredentialPresentation string          `json:"credentialPresentation,omitempty"`
+	CredentialLabel        string          `json:"credentialLabel,omitempty"`
+	Fields                 []TemplateField `json:"fields,omitempty"`
 }
 
 func NormalizeTemplateID(raw string) string { return resourceshared.NormalizeTemplateID(raw) }

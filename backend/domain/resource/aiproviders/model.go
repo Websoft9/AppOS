@@ -67,6 +67,7 @@ type TemplateField struct {
 	Label          string `json:"label"`
 	Type           string `json:"type"`
 	Required       bool   `json:"required,omitempty"`
+	Advanced       bool   `json:"advanced,omitempty"`
 	Sensitive      bool   `json:"sensitive,omitempty"`
 	SecretTemplate string `json:"secretTemplate,omitempty"`
 	Placeholder    string `json:"placeholder,omitempty"`

@@ -1054,7 +1054,7 @@
       "amqp-compatible": "AMQP 兼容",
       "nats-compatible": "NATS 兼容",
       "mqtt-compatible": "MQTT 兼容",
-      "s3-compatible": "存储",
+      "s3-compatible": "S3 兼容",
       "mongodb-compatible": "MongoDB 兼容",
       "clickhouse-compatible": "ClickHouse 兼容",
       "neo4j-compatible": "Neo4j 兼容",
@@ -1068,13 +1068,26 @@
       "profileDescription": "{{vendorPrefix}}{{category}}资料。"
     },
     "templateFields": {
+      "accessKeyId": "Access Key ID",
       "database": "数据库",
+      "bucket": "Bucket",
+      "callbackPath": "回调路径",
+      "clientId": "客户端 ID",
+      "cluster": "集群",
       "region": "区域",
       "clusterIdentifier": "集群标识符",
       "clusterId": "集群 ID",
+      "documentPath": "文档路径",
+      "forcePathStyle": "强制 Path-Style 寻址",
+      "indexPrefix": "索引前缀",
+      "jwtHeader": "JWT Header",
+      "organization": "Organization",
       "resourceGroup": "资源组",
       "gatewayName": "网关名称",
-      "accountId": "账号 ID"
+      "accountId": "账户 ID",
+      "saslMechanism": "SASL 机制",
+      "securityProtocol": "安全协议",
+      "vhost": "虚拟主机"
     },
     "columns": {
       "name": "名称",
@@ -1267,7 +1280,8 @@
       "updated": "更新时间"
     },
     "lastCheckedSources": {
-      "liveReachability": "实时可达性检查"
+      "liveReachability": "实时可达性检查",
+      "scheduledMonitor": "定时监控检查"
     },
     "actions": {
       "enable": "启用",

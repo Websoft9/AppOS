@@ -271,29 +271,6 @@ export function shouldPromoteEndpointField(
   )
 }
 
-export function shouldPromoteAuthSchemeField(
-  template: AIProviderTemplate | null | undefined
-) {
-  return (
-    isGenericOpenAICompatibleTemplate(template) ||
-    providerSelectionGroupKey(template) === 'selfHosted'
-  )
-}
-
-export function resolveCredentialFieldPresentation(
-  template: AIProviderTemplate | null | undefined,
-  field: AIProviderTemplateField
-) {
-  if (field.id === 'credential' && providerSelectionGroupKey(template) === 'selfHosted') {
-    return {
-      ...field,
-      label: 'API Key',
-      required: true,
-    }
-  }
-  return field
-}
-
 export function providerSelectionGroupKey(
   template: AIProviderTemplate | null | undefined
 ): AIProviderSelectionGroupKey {
@@ -442,14 +419,6 @@ export function shouldAssignDefaultReplica(
   return !siblings.some(provider => provider.is_default === true)
 }
 
-function resolveAuthScheme(template: AIProviderTemplate, secretTemplateId: string) {
-  const defaultAuthScheme = String(template.defaultAuthScheme ?? 'none').trim() || 'none'
-  if (secretTemplateId === AI_PROVIDER_CREDENTIAL_TEMPLATE_ID) {
-    return defaultAuthScheme !== 'none' ? defaultAuthScheme : 'bearer'
-  }
-  return defaultAuthScheme
-}
-
 export async function buildAIProviderPayload(
   payload: Record<string, unknown>,
   templatesById: Map<string, AIProviderTemplate>,
@@ -494,15 +463,7 @@ export async function buildAIProviderPayload(
     )
   }
 
-  const explicitAuthScheme = String(body.auth_scheme ?? '').trim()
-  let authScheme = explicitAuthScheme || String(template.defaultAuthScheme ?? 'none')
-  if (credentialId) {
-    if (!explicitAuthScheme) {
-      const secret = await pb.collection('secrets').getOne(credentialId)
-      const secretTemplateId = String(secret.template_id ?? '')
-      authScheme = resolveAuthScheme(template, secretTemplateId)
-    }
-  }
+  const authScheme = String(template.defaultAuthScheme ?? 'none').trim() || 'none'
 
   const extra =
     typeof body.advanced_config === 'string' ? body.advanced_config.trim() : body.advanced_config

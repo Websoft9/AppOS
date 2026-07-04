@@ -18,6 +18,7 @@ The UI should group providers by `uiGroup`, while backend and frontend logic can
 | `supportsMultiVendorModels` | boolean | `true`, `false` | Whether the service is expected to route or expose models from multiple vendors. |
 | `protocols` | array | existing protocol objects | App-supported protocols exposed to users for this template. |
 | `hideInChooser` | boolean | `true`, `false` | Hide the template from the `Choose a Product` create picker while keeping it loadable for existing records. |
+| `fields[].advanced` | boolean | `true`, `false` | Whether the field should default into the Advanced section instead of the primary form body. |
 
 ## UI Group Definitions
 
@@ -52,17 +53,17 @@ The UI should group providers by `uiGroup`, while backend and frontend logic can
 | `alibaba-cloud-bailian` | `cloud_gateway` | `cloud` | `maas_platform` | `customizable` | `true` | `true` |
 | `openrouter` | `cloud_gateway` | `cloud` | `gateway` | `customizable` | `true` | `true` |
 | `cloudflare-ai-gateway` | `cloud_gateway` | `cloud` | `gateway` | `customizable` | `true` | `true` |
-| `vertex-ai` | `cloud_gateway` | `cloud` | `maas_platform` | `user_supplied` | `true` | `true` |
-| `ollama` | `self_hosted` | `self_hosted` | `inference_runtime` | `customizable` | `false` | `false` |
+| `vertex-ai` | `cloud_gateway` | `cloud` | `maas_platform` | `customizable` | `true` | `true` |
+| `ollama` | `self_hosted` | `self_hosted` | `inference_runtime` | `user_supplied` | `false` | `false` |
 | `vllm` | `self_hosted` | `self_hosted` | `inference_runtime` | `user_supplied` | `false` | `false` |
 | `sglang` | `self_hosted` | `self_hosted` | `inference_runtime` | `user_supplied` | `false` | `false` |
 | `nvidia-nim-local` | `self_hosted` | `self_hosted` | `inference_runtime` | `user_supplied` | `false` | `true` |
 | `generic-llm` | `self_hosted` | `hybrid` | `compat_proxy` | `user_supplied` | `false` | `false` |
 | `moonshot` | `single_provider` | `cloud` | `official_provider` | `customizable` | `true` | `false` |
 | `minimax` | `single_provider` | `cloud` | `official_provider` | `customizable` | `true` | `false` |
-| `writer` | `single_provider` | `cloud` | `official_provider` | `user_supplied` | `true` | `false` |
+| `writer` | `single_provider` | `cloud` | `official_provider` | `customizable` | `true` | `false` |
 | `z-ai` | `single_provider` | `cloud` | `official_provider` | `customizable` | `true` | `false` |
-| `nvidia-nim-cloud` | `cloud_gateway` | `cloud` | `official_provider` | `user_supplied` | `false` | `true` |
+| `nvidia-nim-cloud` | `cloud_gateway` | `cloud` | `official_provider` | `customizable` | `false` | `true` |
 | `qwen-dashscope` | `single_provider` | `cloud` | `official_provider` | `customizable` | `true` | `false` |
 
 ## Notes
@@ -74,5 +75,5 @@ The UI should group providers by `uiGroup`, while backend and frontend logic can
 - OpenAI-compatible hosted vendors should default `defaultAuthScheme` to `bearer`; use `api_key` only when the upstream contract explicitly expects `x-api-key` semantics, such as Anthropic.
 - If a template defines `defaultEndpoint`, source files should omit matching `protocols[].defaultEndpoint` and `fields[].default` for the `endpoint` field; the loader inherits them automatically.
 - `supportsMultiVendorModels=true` is a capability hint, not a guarantee that all model families are enabled for every tenant or region.
-- Writer, Vertex AI, and NVIDIA NIM Cloud remain `endpointMode=user_supplied` because this repository still treats their endpoints as tenant- or deployment-specific rather than stable vendor-wide defaults.
+- Writer, Vertex AI, and NVIDIA NIM Cloud now use `endpointMode=customizable` with built-in defaults so the UI can keep their OpenAI-compatible URLs in advanced settings while still allowing overrides.
 - `qwen-dashscope` remains loadable for compatibility but is hidden from the create chooser in favor of the Bailian product entry.

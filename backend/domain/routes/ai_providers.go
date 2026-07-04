@@ -618,10 +618,9 @@ func probeAIProviderAvailability(e *core.RequestEvent, item *aiproviders.AIProvi
 		status.Reason = protocolErr.Error()
 		return status
 	}
-	_, fetchErr := fetchProviderModels(e.App, e.Request.Context(), endpoint, apiKey, strings.TrimSpace(item.AuthScheme()), strings.TrimSpace(item.TemplateID()), protocol)
-	if fetchErr != nil {
+	if reachErr := checkProviderReachability(e.App, e.Request.Context(), endpoint, apiKey, strings.TrimSpace(item.AuthScheme()), strings.TrimSpace(item.TemplateID()), protocol); reachErr != nil {
 		status.Status = "unavailable"
-		status.Reason = fetchErr.Error()
+		status.Reason = reachErr.Error()
 		return status
 	}
 	status.Status = "available"
@@ -732,10 +731,10 @@ func handleAIProviderChatModels(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, aiProviderChatModelsResponse{Items: chatModels})
 }
 
-func fetchProviderModels(app core.App, ctx context.Context, endpoint string, apiKey string, authScheme string, templateID string, protocol string) (fetchModelsResponse, error) {
+func buildProviderProbeRequest(app core.App, ctx context.Context, endpoint string, apiKey string, authScheme string, templateID string, protocol string) (http.Client, *http.Request, error) {
 	endpoint = strings.TrimSpace(endpoint)
 	if endpoint == "" {
-		return fetchModelsResponse{}, errors.New("endpoint is required")
+		return http.Client{}, nil, errors.New("endpoint is required")
 	}
 
 	modelsURL := strings.TrimRight(endpoint, "/") + "/models"
@@ -748,7 +747,7 @@ func fetchProviderModels(app core.App, ctx context.Context, endpoint string, api
 		var findErr error
 		tpl, hasTemplate, findErr = aiproviders.FindTemplate(templateID)
 		if findErr != nil {
-			return fetchModelsResponse{}, findErr
+			return http.Client{}, nil, findErr
 		}
 		if protocolTpl, ok := findTemplateProtocol(tpl, protocol); ok && strings.TrimSpace(protocolTpl.ModelsEndpoint) != "" {
 			modelsURL = resolveModelsEndpoint(endpoint, protocolTpl.ModelsEndpoint)
@@ -770,7 +769,7 @@ func fetchProviderModels(app core.App, ctx context.Context, endpoint string, api
 		var resolveErr error
 		modelsURL, resolveErr = resolveAWSBedrockModelsURL(endpoint)
 		if resolveErr != nil {
-			return fetchModelsResponse{}, resolveErr
+			return http.Client{}, nil, resolveErr
 		}
 		useBearerAuth = true
 	} else if apiKey != "" {
@@ -780,7 +779,7 @@ func fetchProviderModels(app core.App, ctx context.Context, endpoint string, api
 	client := newAIProviderHTTPClient(app, hasTemplate && tpl.SkipTLSCertVerify)
 	req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, modelsURL, nil)
 	if reqErr != nil {
-		return fetchModelsResponse{}, reqErr
+		return http.Client{}, nil, reqErr
 	}
 	req.Header.Set("Accept", "application/json")
 	if useQueryAPIKey {
@@ -794,6 +793,31 @@ func fetchProviderModels(app core.App, ctx context.Context, endpoint string, api
 		req.Header.Set("anthropic-version", resolveAnthropicVersion(tpl))
 	} else if useBearerAuth || apiKey != "" {
 		applyAuthSchemeHeaders(req, apiKey, authScheme)
+	}
+	return client, req, nil
+}
+
+func checkProviderReachability(app core.App, ctx context.Context, endpoint string, apiKey string, authScheme string, templateID string, protocol string) error {
+	client, req, err := buildProviderProbeRequest(app, ctx, endpoint, apiKey, authScheme, templateID, protocol)
+	if err != nil {
+		return err
+	}
+	resp, doErr := client.Do(req)
+	if doErr != nil {
+		return doErr
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return errors.New("provider returned non-200: " + http.StatusText(resp.StatusCode) + ": " + string(bodyBytes))
+	}
+	return nil
+}
+
+func fetchProviderModels(app core.App, ctx context.Context, endpoint string, apiKey string, authScheme string, templateID string, protocol string) (fetchModelsResponse, error) {
+	client, req, err := buildProviderProbeRequest(app, ctx, endpoint, apiKey, authScheme, templateID, protocol)
+	if err != nil {
+		return fetchModelsResponse{}, err
 	}
 
 	resp, doErr := client.Do(req)
@@ -817,6 +841,11 @@ func fetchProviderModels(app core.App, ctx context.Context, endpoint string, api
 		return fetchModelsResponse{}, err
 	}
 	defaultEnabled := map[string]struct{}{}
+	var tpl aiproviders.Template
+	var hasTemplate bool
+	if templateID != "" {
+		tpl, hasTemplate, _ = aiproviders.FindTemplate(templateID)
+	}
 	if hasTemplate {
 		for _, model := range tpl.DefaultEnabledModels {
 			trimmed := strings.TrimSpace(model)

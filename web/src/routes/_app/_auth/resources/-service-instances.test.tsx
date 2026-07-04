@@ -97,7 +97,7 @@ vi.mock('react-i18next', () => ({
         'serviceInstances.kinds.amqp-compatible': 'AMQP-Compatible',
         'serviceInstances.kinds.nats-compatible': 'NATS-Compatible',
         'serviceInstances.kinds.mqtt-compatible': 'MQTT-Compatible',
-        'serviceInstances.kinds.s3-compatible': 'Storage',
+        'serviceInstances.kinds.s3-compatible': 'S3-Compatible',
         'serviceInstances.kinds.mongodb-compatible': 'MongoDB-Compatible',
         'serviceInstances.kinds.clickhouse-compatible': 'ClickHouse-Compatible',
         'serviceInstances.kinds.neo4j-compatible': 'Neo4j-Compatible',
@@ -107,11 +107,24 @@ vi.mock('react-i18next', () => ({
         'serviceInstances.kinds.unknown': 'Unknown',
         'serviceInstances.product.standardTemplate': 'Standard template',
         'serviceInstances.product.profileDescription': '{{vendorPrefix}}{{category}} profile.',
+        'serviceInstances.templateFields.accessKeyId': 'Access Key ID',
+        'serviceInstances.templateFields.bucket': 'Bucket',
+        'serviceInstances.templateFields.callbackPath': 'Callback Path',
+        'serviceInstances.templateFields.clientId': 'Client ID',
+        'serviceInstances.templateFields.cluster': 'Cluster',
         'serviceInstances.templateFields.database': 'Database',
+        'serviceInstances.templateFields.documentPath': 'Document Path',
+        'serviceInstances.templateFields.forcePathStyle': 'Force Path-Style Addressing',
+        'serviceInstances.templateFields.indexPrefix': 'Index Prefix',
+        'serviceInstances.templateFields.jwtHeader': 'JWT Header',
+        'serviceInstances.templateFields.organization': 'Organization',
         'serviceInstances.templateFields.region': 'Region',
+        'serviceInstances.templateFields.saslMechanism': 'SASL Mechanism',
+        'serviceInstances.templateFields.securityProtocol': 'Security Protocol',
         'serviceInstances.templateFields.clusterIdentifier': 'Cluster Identifier',
         'serviceInstances.templateFields.clusterId': 'Cluster ID',
         'serviceInstances.templateFields.resourceGroup': 'Resource Group',
+        'serviceInstances.templateFields.vhost': 'Virtual Host',
         'serviceInstances.columns.name': 'Name',
         'serviceInstances.columns.kind': 'Kind',
         'serviceInstances.columns.profile': 'Profile',
@@ -497,14 +510,15 @@ function buildDefaultInstanceTemplatesFixture() {
       endpointShape: 'host_port',
       defaultPort: 8086,
       credentialPresentation: 'secret_or_inline',
-      credentialLabel: 'password',
+      credentialLabel: 'credential',
       fields: [
         {
-          id: 'username',
-          label: 'Backend Username Label',
+          id: 'organization',
+          label: 'Backend Organization Label',
           type: 'text',
           required: true,
         },
+        { id: 'bucket', label: 'Backend Bucket Label', type: 'text', required: true },
         {
           id: 'connect_timeout',
           label: 'Backend Connection Timeout Label',
@@ -520,8 +534,7 @@ function buildDefaultInstanceTemplatesFixture() {
           hidden: true,
           default: false,
         },
-        { id: 'organization', label: 'Backend Organization Label', type: 'text', advanced: true },
-        { id: 'bucket', label: 'Backend Bucket Label', type: 'text', advanced: true },
+        { id: 'precision', label: 'Backend Precision Label', type: 'text', advanced: true },
         {
           id: 'ssl_ca_certificate',
           label: 'SSL Root CA Certificate',
@@ -538,6 +551,8 @@ function buildDefaultInstanceTemplatesFixture() {
       title: 'Generic Redis',
       defaultEndpoint: 'redis.internal:6379',
       endpointShape: 'url',
+      defaultPort: 6379,
+      defaultProtocolHint: 'redis',
       credentialPresentation: 'secret_or_inline',
       credentialLabel: 'password',
       fields: [
@@ -557,11 +572,13 @@ function buildDefaultInstanceTemplatesFixture() {
       vendor: 'OpenSearch',
       defaultEndpoint: 'https://elasticsearch.internal:9200',
       endpointShape: 'url',
+      defaultPort: 9200,
+      defaultProtocolHint: 'https',
       credentialPresentation: 'secret_or_inline',
-      credentialLabel: 'credential',
+      credentialLabel: 'password',
       fields: [
         { id: 'indexPrefix', label: 'Backend Index Prefix Label', type: 'text' },
-        { id: 'username', label: 'Backend Username Label', type: 'text' },
+        { id: 'username', label: 'Backend Username Label', type: 'text', required: true },
       ],
     },
     {
@@ -572,9 +589,30 @@ function buildDefaultInstanceTemplatesFixture() {
       vendor: 'Redpanda',
       defaultEndpoint: 'kafka.internal:9092',
       endpointShape: 'url',
+      defaultPort: 9092,
+      defaultProtocolHint: 'kafka',
       credentialPresentation: 'secret_or_inline',
-      credentialLabel: 'credential',
-      fields: [{ id: 'clusterId', label: 'Backend Cluster ID Label', type: 'text' }],
+      credentialLabel: 'password',
+      fields: [
+        { id: 'username', label: 'Backend Username Label', type: 'text', required: true },
+        { id: 'clusterId', label: 'Backend Cluster ID Label', type: 'text', advanced: true },
+        {
+          id: 'securityProtocol',
+          label: 'Backend Security Protocol Label',
+          type: 'text',
+          advanced: true,
+          hidden: true,
+          default: 'SASL_SSL',
+        },
+        {
+          id: 'saslMechanism',
+          label: 'Backend SASL Mechanism Label',
+          type: 'text',
+          advanced: true,
+          hidden: true,
+          default: 'PLAIN',
+        },
+      ],
     },
     {
       id: 'generic-rabbitmq',
@@ -583,9 +621,20 @@ function buildDefaultInstanceTemplatesFixture() {
       title: 'Generic RabbitMQ',
       defaultEndpoint: 'amqp://rabbitmq.internal:5672',
       endpointShape: 'url',
+      defaultPort: 5672,
+      defaultProtocolHint: 'amqp',
       credentialPresentation: 'secret_or_inline',
-      credentialLabel: 'credential',
-      fields: [{ id: 'vhost', label: 'Backend Virtual Host Label', type: 'text', default: '/' }],
+      credentialLabel: 'password',
+      fields: [
+        {
+          id: 'username',
+          label: 'Backend Username Label',
+          type: 'text',
+          required: true,
+          default: 'guest',
+        },
+        { id: 'vhost', label: 'Backend Virtual Host Label', type: 'text', default: '/' },
+      ],
     },
     {
       id: 'generic-nats',
@@ -594,6 +643,8 @@ function buildDefaultInstanceTemplatesFixture() {
       title: 'Generic NATS',
       defaultEndpoint: 'nats://nats.internal:4222',
       endpointShape: 'url',
+      defaultPort: 4222,
+      defaultProtocolHint: 'nats',
       credentialPresentation: 'secret_or_inline',
       credentialLabel: 'credential',
       fields: [{ id: 'cluster', label: 'Backend Cluster Label', type: 'text' }],
@@ -605,11 +656,13 @@ function buildDefaultInstanceTemplatesFixture() {
       title: 'Generic MQTT',
       defaultEndpoint: 'mqtt://broker.internal:1883',
       endpointShape: 'url',
+      defaultPort: 1883,
+      defaultProtocolHint: 'mqtt',
       credentialPresentation: 'secret_or_inline',
-      credentialLabel: 'credential',
+      credentialLabel: 'password',
       fields: [
+        { id: 'username', label: 'Backend Username Label', type: 'text', required: true },
         { id: 'clientId', label: 'Backend Client ID Label', type: 'text' },
-        { id: 'protocol', label: 'Backend Protocol Label', type: 'text', default: 'mqtt' },
       ],
     },
     {
@@ -619,9 +672,28 @@ function buildDefaultInstanceTemplatesFixture() {
       title: 'Generic S3',
       defaultEndpoint: 'https://s3.example.com',
       endpointShape: 'url',
-      credentialPresentation: 'reference_only',
+      defaultPort: 443,
+      defaultProtocolHint: 'https',
+      credentialPresentation: 'secret_or_inline',
       credentialLabel: 'credential',
-      fields: [{ id: 'region', label: 'Backend Region Label', type: 'text' }],
+      fields: [
+        { id: 'accessKeyId', label: 'Backend Access Key ID Label', type: 'text', required: true },
+        { id: 'bucket', label: 'Backend Bucket Label', type: 'text', required: true },
+        {
+          id: 'region',
+          label: 'Backend Region Label',
+          type: 'text',
+          required: true,
+          default: 'us-east-1',
+        },
+        {
+          id: 'forcePathStyle',
+          label: 'Backend Force Path-Style Label',
+          type: 'boolean',
+          advanced: true,
+          default: false,
+        },
+      ],
     },
     {
       id: 'generic-onlyoffice',
@@ -630,11 +702,20 @@ function buildDefaultInstanceTemplatesFixture() {
       title: 'Generic ONLYOFFICE',
       defaultEndpoint: 'https://onlyoffice.internal',
       endpointShape: 'url',
+      defaultPort: 443,
+      defaultProtocolHint: 'https',
       credentialPresentation: 'secret_or_inline',
       credentialLabel: 'credential',
       fields: [
         { id: 'callbackPath', label: 'Backend Callback Path Label', type: 'text', default: '/' },
         { id: 'documentPath', label: 'Backend Document Path Label', type: 'text', default: '/' },
+        {
+          id: 'jwtHeader',
+          label: 'Backend JWT Header Label',
+          type: 'text',
+          advanced: true,
+          default: 'Authorization',
+        },
       ],
     },
   ]
@@ -738,7 +819,7 @@ describe('ServiceInstancesPage', () => {
     expect(screen.getByPlaceholderText('Search MySQL, Redis, Kafka, or MinIO...')).toBeInTheDocument()
     expect(screen.getAllByText(/MySQL-Compatible/i).length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText(/^AMQP-Compatible$/).length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Storage').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('S3-Compatible').length).toBeGreaterThanOrEqual(1)
     expect(screen.queryByRole('button', { name: /^HTTP Gateway/i })).not.toBeInTheDocument()
     expect(screen.queryByText('Registry')).toBeNull()
     expect(screen.queryByText('Ollama')).toBeNull()
@@ -891,6 +972,131 @@ describe('ServiceInstancesPage', () => {
     expect(screen.getByLabelText(/^Host/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Port/)).toHaveValue(27017)
     expect(screen.queryByLabelText(/^Endpoint/)).not.toBeInTheDocument()
+  })
+
+  it('uses token-style fields for influxdb-compatible kinds', async () => {
+    render(<ServiceInstancesPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add Instance' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
+    await screen.findByText('InfluxDB-Compatible')
+    clickChooserOption('InfluxDB-Compatible')
+
+    expect(await screen.findByLabelText(/^Organization/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Bucket/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/credential/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/^Username/)).not.toBeInTheDocument()
+  })
+
+  it('renders S3-Compatible fields from backend metadata and submits path-style settings', async () => {
+    render(<ServiceInstancesPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add Instance' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
+    await screen.findByText('S3-Compatible')
+    clickChooserOption('S3-Compatible')
+
+    expect(await screen.findByLabelText(/^Access Key ID/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Bucket/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Region/)).toHaveValue('us-east-1')
+
+    fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
+    expect(screen.getByText('Force Path-Style Addressing')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Enter password')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText(/^Access Key ID/), {
+      target: { value: 'APPOSACCESSKEY' },
+    })
+    fireEvent.change(screen.getByLabelText(/^Bucket/), { target: { value: 'assets' } })
+    fireEvent.change(screen.getByLabelText(/^Region/), { target: { value: 'us-east-1' } })
+    fireEvent.change(screen.getByPlaceholderText('Enter password'), {
+      target: { value: 'secret-key' },
+    })
+    fireEvent.click(screen.getByText('Force Path-Style Addressing'))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Create' }).at(-1) as HTMLElement)
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(
+        '/api/instances',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.objectContaining({
+            kind: 's3-compatible',
+            template_id: 'generic-s3',
+            credential: 'secret-created',
+            config: expect.objectContaining({
+              accessKeyId: 'APPOSACCESSKEY',
+              bucket: 'assets',
+              region: 'us-east-1',
+              forcePathStyle: true,
+            }),
+          }),
+        })
+      )
+    })
+  })
+
+  it('submits ONLYOFFICE profile fields directly from template metadata', async () => {
+    render(<ServiceInstancesPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add Instance' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
+    await screen.findByText('ONLYOFFICE-Compatible')
+    clickChooserOption('ONLYOFFICE-Compatible')
+
+    expect(await screen.findByLabelText(/^Endpoint/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
+    expect(screen.getByLabelText(/^JWT Header/)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Enter password')).toBeInTheDocument()
+    const callbackPathInput = (await screen.findByLabelText(
+      /Callback Path|Backend Callback Path Label/
+    )) as HTMLInputElement
+    const documentPathInput = (await screen.findByLabelText(
+      /Document Path|Backend Document Path Label/
+    )) as HTMLInputElement
+
+    fireEvent.change(screen.getByLabelText(/^Endpoint/), {
+      target: { value: 'https://onlyoffice.internal' },
+    })
+    fireEvent.change(callbackPathInput, { target: { value: '/track' } })
+    fireEvent.change(documentPathInput, { target: { value: '/healthcheck' } })
+    fireEvent.change(screen.getByPlaceholderText('Enter password'), {
+      target: { value: 'jwt-secret' },
+    })
+    fireEvent.change(screen.getByLabelText(/^JWT Header/), {
+      target: { value: 'Authorization' },
+    })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Create' }).at(-1) as HTMLElement)
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(
+        '/api/instances',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.objectContaining({
+            kind: 'onlyoffice-compatible',
+            template_id: 'generic-onlyoffice',
+            endpoint: 'https://onlyoffice.internal',
+            credential: 'secret-created',
+            config: expect.objectContaining({
+              callbackPath: '/track',
+              documentPath: '/healthcheck',
+              jwtHeader: 'Authorization',
+            }),
+          }),
+        })
+      )
+    })
   })
 
   it('keeps secret-only password editing and remembers ssl mode for existing instances', async () => {
@@ -1343,7 +1549,7 @@ describe('ServiceInstancesPage', () => {
     clickChooserOption('Kafka-Compatible')
     fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
 
-    expect(await screen.findByLabelText(/^Credential/)).toBeInTheDocument()
+    expect(await screen.findByLabelText(/^Password/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByTitle('Use a saved secret'))
     expect(screen.getByPlaceholderText('Search secrets...')).toBeInTheDocument()

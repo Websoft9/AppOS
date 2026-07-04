@@ -2,6 +2,8 @@
   "kind": "onlyoffice-compatible",
   "category": "application-service",
   "endpointShape": "url",
+  "defaultPort": 443,
+  "defaultProtocolHint": "https",
   "credentialPresentation": "secret_or_inline",
   "credentialLabel": "credential",
   "fields": [
@@ -18,6 +20,14 @@
       "type": "text",
       "default": "/",
       "placeholder": "/"
+    },
+    {
+      "id": "jwtHeader",
+      "label": "JWT Header",
+      "type": "text",
+      "advanced": true,
+      "default": "Authorization",
+      "placeholder": "Authorization"
     }
   ]
 }

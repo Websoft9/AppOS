@@ -19,8 +19,10 @@
       "id": "database",
       "label": "Database",
       "type": "text",
+      "required": true,
       "default": "neo4j",
-      "placeholder": "neo4j"
+      "placeholder": "neo4j",
+      "helpText": "Neo4j commonly uses the default neo4j database unless your deployment provisions a named database for the application."
     },
     {
       "id": "connect_timeout",

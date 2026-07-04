@@ -130,7 +130,7 @@ const KIND_LABELS: Record<string, string> = {
   'amqp-compatible': 'AMQP-Compatible',
   'nats-compatible': 'NATS-Compatible',
   'mqtt-compatible': 'MQTT-Compatible',
-  's3-compatible': 'S3-Compatible Storage',
+  's3-compatible': 'S3-Compatible',
   'onlyoffice-compatible': 'ONLYOFFICE-Compatible',
 }
 
@@ -152,13 +152,26 @@ const CREATABLE_INSTANCE_KINDS = [
 ] as const
 
 const TEMPLATE_FIELD_OVERRIDE_KEYS: Record<string, string> = {
+  accessKeyId: 'serviceInstances.templateFields.accessKeyId',
+  bucket: 'serviceInstances.templateFields.bucket',
+  callbackPath: 'serviceInstances.templateFields.callbackPath',
+  clientId: 'serviceInstances.templateFields.clientId',
+  cluster: 'serviceInstances.templateFields.cluster',
   database: 'serviceInstances.templateFields.database',
+  documentPath: 'serviceInstances.templateFields.documentPath',
+  forcePathStyle: 'serviceInstances.templateFields.forcePathStyle',
+  indexPrefix: 'serviceInstances.templateFields.indexPrefix',
+  jwtHeader: 'serviceInstances.templateFields.jwtHeader',
+  organization: 'serviceInstances.templateFields.organization',
   region: 'serviceInstances.templateFields.region',
+  saslMechanism: 'serviceInstances.templateFields.saslMechanism',
+  securityProtocol: 'serviceInstances.templateFields.securityProtocol',
   clusterIdentifier: 'serviceInstances.templateFields.clusterIdentifier',
   clusterId: 'serviceInstances.templateFields.clusterId',
   resourceGroup: 'serviceInstances.templateFields.resourceGroup',
   gatewayName: 'serviceInstances.templateFields.gatewayName',
   accountId: 'serviceInstances.templateFields.accountId',
+  vhost: 'serviceInstances.templateFields.vhost',
 }
 
 const TEMPLATE_DISPLAY_OPTIONS = {

@@ -13,6 +13,7 @@ import (
 )
 
 const TaskMonitorReachabilitySweep = "monitor:reachability_sweep"
+const TaskMonitorConnectorReachabilitySweep = "monitor:connector_reachability_sweep"
 const TaskMonitorMetricsFreshness = "monitor:metrics_freshness"
 const TaskMonitorControlReachability = "monitor:control_reachability"
 const TaskMonitorFactsPull = "monitor:facts_pull"
@@ -21,6 +22,7 @@ const TaskMonitorCredentialSweep = "monitor:credential_sweep"
 const TaskMonitorAppHealthSweep = "monitor:app_health_sweep"
 
 type MonitorReachabilitySweepPayload struct{}
+type MonitorConnectorReachabilitySweepPayload struct{}
 type MonitorMetricsFreshnessPayload struct{}
 type MonitorControlReachabilityPayload struct{}
 type MonitorFactsPullPayload struct{}
@@ -41,6 +43,26 @@ func EnqueueMonitorReachabilitySweep(client *asynq.Client) error {
 		return fmt.Errorf("asynq client is not configured")
 	}
 	task, err := NewMonitorReachabilitySweepTask()
+	if err != nil {
+		return err
+	}
+	_, err = client.Enqueue(task, asynq.Queue("default"))
+	return err
+}
+
+func NewMonitorConnectorReachabilitySweepTask() (*asynq.Task, error) {
+	payload, err := json.Marshal(MonitorConnectorReachabilitySweepPayload{})
+	if err != nil {
+		return nil, err
+	}
+	return asynq.NewTask(TaskMonitorConnectorReachabilitySweep, payload), nil
+}
+
+func EnqueueMonitorConnectorReachabilitySweep(client *asynq.Client) error {
+	if client == nil {
+		return fmt.Errorf("asynq client is not configured")
+	}
+	task, err := NewMonitorConnectorReachabilitySweepTask()
 	if err != nil {
 		return err
 	}
@@ -176,6 +198,16 @@ func (w *Worker) handleMonitorReachabilitySweep(_ context.Context, t *asynq.Task
 		}
 	}
 	return monitorchecks.RunInstanceReachabilitySweep(w.app, persistence.NewInstanceRepository(w.app), time.Now().UTC())
+}
+
+func (w *Worker) handleMonitorConnectorReachabilitySweep(_ context.Context, t *asynq.Task) error {
+	if t != nil && len(t.Payload()) > 0 {
+		var payload MonitorConnectorReachabilitySweepPayload
+		if err := json.Unmarshal(t.Payload(), &payload); err != nil && !strings.Contains(err.Error(), "EOF") {
+			return err
+		}
+	}
+	return monitorchecks.RunConnectorReachabilitySweep(w.app, time.Now().UTC())
 }
 
 func (w *Worker) handleMonitorMetricsFreshness(_ context.Context, t *asynq.Task) error {

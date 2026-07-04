@@ -11,6 +11,7 @@
   "description": "Self-hosted NVIDIA NIM runtime served from your own infrastructure.",
   "helpUrl": "https://docs.nvidia.com/nim/",
   "defaultEndpoint": "",
+  "defaultAuthScheme": "bearer",
   "protocols": [
     {
       "id": "openai",
@@ -27,8 +28,8 @@
     },
     {
       "id": "credential",
-      "label": "Credential",
-      "required": false,
+      "label": "API Key",
+      "required": true,
       "sensitive": false
     }
   ]

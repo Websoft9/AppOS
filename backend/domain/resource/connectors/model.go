@@ -202,16 +202,16 @@ func (c *Connector) Snapshot() Snapshot {
 
 // TemplateField describes one form/config field exposed by a connector template.
 type TemplateField struct {
-	ID             string `json:"id"`
-	Label          string `json:"label"`
-	Type           string `json:"type"`
-	Required       bool   `json:"required,omitempty"`
-	Sensitive      bool   `json:"sensitive,omitempty"`
-	SecretTemplate string `json:"secretTemplate,omitempty"`
-	Placeholder    string `json:"placeholder,omitempty"`
-	HelpURL        string `json:"helpUrl,omitempty"`
-	HelpText       string `json:"helpText,omitempty"`
-	Default        any    `json:"default,omitempty"`
+	ID             string                 `json:"id"`
+	Label          string                 `json:"label"`
+	Type           string                 `json:"type"`
+	Required       bool                   `json:"required,omitempty"`
+	Sensitive      bool                   `json:"sensitive,omitempty"`
+	SecretTemplate string                 `json:"secretTemplate,omitempty"`
+	Placeholder    string                 `json:"placeholder,omitempty"`
+	HelpURL        string                 `json:"helpUrl,omitempty"`
+	HelpText       string                 `json:"helpText,omitempty"`
+	Default        any                    `json:"default,omitempty"`
 	Options        []TemplateFieldOption  `json:"options,omitempty"`
 	ShowWhen       *TemplateFieldShowWhen `json:"showWhen,omitempty"`
 }

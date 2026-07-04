@@ -5,7 +5,7 @@
   "authPresentation": "token",
   "endpointShape": "url",
   "endpointScheme": "https",
-  "defaultAuthScheme": "none",
+  "defaultAuthScheme": "bearer",
   "capabilities": ["webhook"],
   "fields": [
     {
@@ -19,6 +19,7 @@
       "id": "credential",
       "label": "Credential",
       "type": "secret_ref",
+      "required": true,
       "secretTemplate": "single_value",
       "placeholder": "secretRef:..."
     }

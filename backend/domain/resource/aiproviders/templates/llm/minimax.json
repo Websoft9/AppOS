@@ -25,12 +25,6 @@
       "id": "endpoint"
     },
     {
-      "id": "group_id",
-      "label": "Group ID",
-      "type": "string",
-      "placeholder": "Optional tenant or workspace group ID"
-    },
-    {
       "id": "credential",
       "label": "API Key",
       "type": "secret_ref",

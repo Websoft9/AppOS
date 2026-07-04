@@ -11,6 +11,7 @@
   "description": "User-defined OpenAI-compatible LLM endpoint for providers not covered by built-in templates.",
   "helpUrl": "https://platform.openai.com/docs/api-reference/introduction",
   "defaultEndpoint": "",
+  "defaultAuthScheme": "bearer",
   "protocols": [
     {
       "id": "openai",
@@ -22,8 +23,8 @@
   "fields": [
     {
       "id": "credential",
-      "label": "Credential",
-      "required": false,
+      "label": "API Key",
+      "required": true,
       "sensitive": false
     }
   ]

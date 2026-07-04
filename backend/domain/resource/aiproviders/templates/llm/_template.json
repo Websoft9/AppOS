@@ -27,6 +27,7 @@
       "id": "max_completion_tokens",
       "label": "Max Completion Tokens",
       "type": "number",
+      "advanced": true,
       "placeholder": "4096",
       "helpText": "Optional upper bound for generated output tokens per response. Lower values reduce cost and avoid credit overrun."
     }

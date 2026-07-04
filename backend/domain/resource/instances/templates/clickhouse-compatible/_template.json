@@ -21,7 +21,8 @@
       "type": "text",
       "required": true,
       "default": "default",
-      "placeholder": "analytics"
+      "placeholder": "default",
+      "helpText": "ClickHouse commonly authenticates against the default database over the HTTP interface unless your deployment routes users to a named database."
     },
     {
       "id": "connect_timeout",

@@ -36,6 +36,7 @@
       "id": "apiVersion",
       "label": "API Version",
       "type": "string",
+      "advanced": true,
       "placeholder": "2024-10-21"
     }
   ]

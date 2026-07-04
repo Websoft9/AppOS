@@ -19,6 +19,7 @@
       "id": "credential",
       "label": "Credential",
       "type": "secret_ref",
+      "required": true,
       "secretTemplate": "single_value",
       "placeholder": "secretRef:..."
     }

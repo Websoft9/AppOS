@@ -5,13 +5,14 @@
   "uiGroup": "self_hosted",
   "hostingMode": "self_hosted",
   "serviceMode": "inference_runtime",
-  "endpointMode": "customizable",
+  "endpointMode": "user_supplied",
   "supportsClosedModels": false,
   "supportsMultiVendorModels": false,
   "description": "Self-hosted Ollama server exposed through an OpenAI-compatible local endpoint.",
   "helpUrl": "https://ollama.com/blog/openai-compatibility",
   "modelsEndpoint": "/api/tags",
-  "defaultEndpoint": "http://localhost:11434/v1",
+  "defaultEndpoint": "",
+  "defaultAuthScheme": "bearer",
   "protocols": [
     {
       "id": "openai",
@@ -21,7 +22,6 @@
       "id": "ollama",
       "label": "Ollama",
       "default": true,
-      "defaultEndpoint": "http://localhost:11434",
       "modelsEndpoint": "/api/tags"
     }
   ],
@@ -29,12 +29,13 @@
   "aliases": ["ollama"],
   "fields": [
     {
-      "id": "endpoint"
+      "id": "endpoint",
+      "placeholder": "http://localhost:11434"
     },
     {
       "id": "credential",
-      "label": "Credential",
-      "required": false,
+      "label": "API Key",
+      "required": true,
       "sensitive": false
     }
   ]

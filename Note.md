@@ -124,7 +124,7 @@ Runtime Instances 列表页
 
 
 前端列表页统一加载策略
-AI Providers 路由重构建议：是改名，还是收窄语义
+AI Providers Google Vertex AI 的 endpoint 
 
 继续审查每个 database 模板的“语义准确性”，例如 InfluxDB 的 username/password 模型是否应改成 token-oriented
 进一步清理后端 instances 模型里已经不再使用的 commonFieldDefaults / omitCommonFields 结构，彻底去掉旧时代遗留

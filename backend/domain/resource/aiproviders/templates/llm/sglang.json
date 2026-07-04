@@ -11,6 +11,7 @@
   "description": "Self-hosted SGLang runtime exposing an OpenAI-compatible inference endpoint.",
   "helpUrl": "https://docs.sglang.ai/",
   "defaultEndpoint": "",
+  "defaultAuthScheme": "bearer",
   "protocols": [
     {
       "id": "openai",
@@ -27,8 +28,8 @@
     },
     {
       "id": "credential",
-      "label": "Credential",
-      "required": false,
+      "label": "API Key",
+      "required": true,
       "sensitive": false
     }
   ]

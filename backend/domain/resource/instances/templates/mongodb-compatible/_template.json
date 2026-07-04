@@ -19,8 +19,10 @@
       "id": "database",
       "label": "Database",
       "type": "text",
+      "required": true,
       "default": "appdb",
-      "placeholder": "appdb"
+      "placeholder": "appdb",
+      "helpText": "Use the logical database your app targets. AppOS keeps authSource separate so admin-scoped users can still authenticate against a different database."
     },
     {
       "id": "connect_timeout",
@@ -43,7 +45,8 @@
       "type": "text",
       "advanced": true,
       "default": "admin",
-      "placeholder": "admin"
+      "placeholder": "admin",
+      "helpText": "MongoDB commonly authenticates application users against admin or another dedicated auth database."
     },
     {
       "id": "ssl_ca_certificate",

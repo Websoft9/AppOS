@@ -24,6 +24,7 @@ export type ResourceTemplateField = {
   label: string
   type: string
   required?: boolean
+  advanced?: boolean
   secretTemplate?: string
   placeholder?: string
   helpUrl?: string

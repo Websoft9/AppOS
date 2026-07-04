@@ -25,6 +25,7 @@ import (
 
 const componentsInventoryCronJobID = "appos_components_inventory_probe"
 const monitorReachabilityCronJobID = "monitor_reachability_checks"
+const monitorConnectorReachabilityCronJobID = "monitor_connector_reachability_checks"
 const monitorMetricsFreshnessCronJobID = "monitor_metrics_freshness"
 const monitorControlReachabilityCronJobID = "monitor_control_reachability"
 const monitorFactsPullCronJobID = "monitor_facts_pull"
@@ -94,6 +95,19 @@ func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 				return
 			}
 			if err := worker.EnqueueMonitorReachabilitySweep(asynqClient); err != nil {
+				panic(err)
+			}
+		}),
+	)
+
+	app.Cron().MustAdd(
+		monitorConnectorReachabilityCronJobID,
+		"*/1 * * * *",
+		cronutil.Wrap(app, monitorConnectorReachabilityCronJobID, func() {
+			if !shouldRunMonitorInterval(time.Now().UTC(), monitor.LoadSchedulingSettings(app).ReachabilityIntervalMinutes) {
+				return
+			}
+			if err := worker.EnqueueMonitorConnectorReachabilitySweep(asynqClient); err != nil {
 				panic(err)
 			}
 		}),

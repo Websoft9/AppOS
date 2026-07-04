@@ -145,19 +145,13 @@ func handleConnectorReachability(e *core.RequestEvent) error {
 	}
 
 	result := make([]connectorReachabilityItem, 0, len(items))
-	now := time.Now().UTC()
 	for _, item := range items {
 		if len(filterIDs) > 0 {
 			if _, ok := filterIDs[item.ID()]; !ok {
 				continue
 			}
 		}
-		probeResult := probeConnectorReachability(item)
-		result = append(result, probeResult)
-		projectConnectorStatus(e.App, probeResult.ID, item.Name(), monitor.CheckKindReachability,
-			connectorReachabilityMonitorStatus(probeResult.Status), probeResult.Reason,
-			map[string]any{"check_kind": monitor.CheckKindReachability, "host": probeResult.Host, "port": probeResult.Port, "latency_ms": probeResult.LatencyMS},
-			now)
+		result = append(result, probeConnectorReachability(item))
 	}
 	return e.JSON(http.StatusOK, connectorReachabilityResponse{Items: result})
 }

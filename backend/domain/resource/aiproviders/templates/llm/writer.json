@@ -5,12 +5,12 @@
   "uiGroup": "single_provider",
   "hostingMode": "cloud",
   "serviceMode": "official_provider",
-  "endpointMode": "user_supplied",
+  "endpointMode": "customizable",
   "supportsClosedModels": true,
   "supportsMultiVendorModels": false,
   "description": "Writer hosted enterprise LLM API.",
   "helpUrl": "https://dev.writer.com/home",
-  "defaultEndpoint": "",
+  "defaultEndpoint": "https://api.writer.com/v1/chat",
   "protocols": [
     {
       "id": "openai",
@@ -23,7 +23,7 @@
   "fields": [
     {
       "id": "endpoint",
-      "placeholder": "https://your-writer-endpoint.example/v1"
+      "placeholder": "https://api.writer.com/v1/chat"
     }
   ]
 }

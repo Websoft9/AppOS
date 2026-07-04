@@ -120,6 +120,7 @@ type templateFieldFile struct {
 	Label          *string         `json:"label,omitempty"`
 	Type           *string         `json:"type,omitempty"`
 	Required       *bool           `json:"required,omitempty"`
+	Advanced       *bool           `json:"advanced,omitempty"`
 	Sensitive      *bool           `json:"sensitive,omitempty"`
 	SecretTemplate *string         `json:"secretTemplate,omitempty"`
 	Placeholder    *string         `json:"placeholder,omitempty"`
@@ -333,6 +334,9 @@ func applyFieldOverlay(base TemplateField, override templateFieldFile) (Template
 	}
 	if override.Required != nil {
 		result.Required = *override.Required
+	}
+	if override.Advanced != nil {
+		result.Advanced = *override.Advanced
 	}
 	if override.Sensitive != nil {
 		result.Sensitive = *override.Sensitive

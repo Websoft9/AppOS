@@ -35,6 +35,7 @@
       "id": "region",
       "label": "Region Code",
       "type": "string",
+      "required": true,
       "default": "us-east-1",
       "placeholder": "us-east-1",
       "helpUrl": "https://docs.aws.amazon.com/global-infrastructure/latest/regions/aws-regions.html",

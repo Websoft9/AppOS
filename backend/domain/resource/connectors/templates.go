@@ -163,15 +163,15 @@ type templateFile struct {
 }
 
 type templateFieldFile struct {
-	ID             string          `json:"id,omitempty"`
-	Label          *string         `json:"label,omitempty"`
-	Type           *string         `json:"type,omitempty"`
-	Required       *bool           `json:"required,omitempty"`
-	Sensitive      *bool           `json:"sensitive,omitempty"`
-	SecretTemplate *string         `json:"secretTemplate,omitempty"`
-	Placeholder    *string         `json:"placeholder,omitempty"`
-	HelpText       *string         `json:"helpText,omitempty"`
-	Default        json.RawMessage `json:"default,omitempty"`
+	ID             string                     `json:"id,omitempty"`
+	Label          *string                    `json:"label,omitempty"`
+	Type           *string                    `json:"type,omitempty"`
+	Required       *bool                      `json:"required,omitempty"`
+	Sensitive      *bool                      `json:"sensitive,omitempty"`
+	SecretTemplate *string                    `json:"secretTemplate,omitempty"`
+	Placeholder    *string                    `json:"placeholder,omitempty"`
+	HelpText       *string                    `json:"helpText,omitempty"`
+	Default        json.RawMessage            `json:"default,omitempty"`
 	Options        []templateFieldOptionFile  `json:"options,omitempty"`
 	ShowWhen       *templateFieldShowWhenFile `json:"showWhen,omitempty"`
 }

@@ -5,13 +5,13 @@
   "uiGroup": "cloud_gateway",
   "hostingMode": "cloud",
   "serviceMode": "maas_platform",
-  "endpointMode": "user_supplied",
+  "endpointMode": "customizable",
   "providerMode": "gateway",
   "supportsClosedModels": true,
   "supportsMultiVendorModels": true,
   "description": "Google Cloud Vertex AI platform for enterprise model access and governance.",
   "helpUrl": "https://cloud.google.com/vertex-ai/generative-ai/docs/overview",
-  "defaultEndpoint": "",
+  "defaultEndpoint": "https://{location}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/endpoints/openapi",
   "protocols": [
     {
       "id": "openai",
@@ -25,24 +25,26 @@
     {
       "id": "endpoint",
       "label": "OpenAI Compatible URL",
-      "placeholder": "https://your-vertex-ai-openapi-endpoint.example/v1"
+      "placeholder": "https://us-central1-aiplatform.googleapis.com/v1/projects/my-gcp-project/locations/us-central1/endpoints/openapi"
     },
     {
       "id": "project_id",
       "label": "Project ID",
       "type": "string",
+      "required": true,
       "placeholder": "my-gcp-project"
     },
     {
       "id": "location",
       "label": "Location",
       "type": "string",
+      "required": true,
       "default": "us-central1",
       "placeholder": "us-central1"
     },
     {
       "id": "credential",
-      "label": "Access Token Secret",
+      "label": "API Key",
       "type": "secret_ref",
       "required": true,
       "secretTemplate": "single_value"

@@ -188,10 +188,11 @@ describe('AIProvidersPage', () => {
               title: 'Custom OpenAI-compatible',
               vendor: 'Custom OpenAI-compatible',
               description: 'Custom OpenAI-compatible endpoint',
-              defaultAuthScheme: 'none',
+              endpointMode: 'user_supplied',
+              defaultAuthScheme: 'bearer',
               fields: [
                 { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
-                { id: 'credential', label: 'API Key', type: 'secret_ref', required: false },
+                { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
               ],
             },
             {
@@ -203,7 +204,7 @@ describe('AIProvidersPage', () => {
               aliases: ['chatgpt'],
               contextSize: 128000,
               defaultEndpoint: 'https://api.openai.com/v1',
-              defaultAuthScheme: 'api_key',
+              defaultAuthScheme: 'bearer',
               capabilities: ['hosted'],
               fields: [
                 { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
@@ -211,12 +212,14 @@ describe('AIProvidersPage', () => {
                   id: 'apiVersion',
                   label: 'API Version',
                   type: 'string',
+                  advanced: true,
                   placeholder: '2024-10-21',
                 },
                 {
                   id: 'max_completion_tokens',
                   label: 'Max Completion Tokens',
                   type: 'number',
+                  advanced: true,
                   default: 4096,
                 },
                 {
@@ -242,10 +245,11 @@ describe('AIProvidersPage', () => {
               vendor: 'Ollama',
               description: 'Local Ollama runtime',
               capabilities: ['local', 'openai-compatible'],
-              defaultEndpoint: 'http://localhost:11434/v1',
+              endpointMode: 'user_supplied',
+              defaultAuthScheme: 'bearer',
               fields: [
                 { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
-                { id: 'credential', label: 'API Key', type: 'secret_ref', required: false },
+                { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
               ],
             },
             {
@@ -256,7 +260,7 @@ describe('AIProvidersPage', () => {
               description: 'Hosted Grok models',
               contextSize: 131072,
               defaultEndpoint: 'https://api.x.ai/v1',
-              defaultAuthScheme: 'api_key',
+              defaultAuthScheme: 'bearer',
               capabilities: ['hosted', 'openai-compatible'],
               fields: [
                 { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
@@ -271,7 +275,7 @@ describe('AIProvidersPage', () => {
             name: String(options.body?.name ?? 'OpenAI'),
             template_id: String(options.body?.template_id ?? 'openai'),
             endpoint: String(options.body?.endpoint ?? 'https://api.openai.com/v1'),
-            auth_scheme: String(options.body?.auth_scheme ?? 'api_key'),
+            auth_scheme: String(options.body?.auth_scheme ?? 'bearer'),
             credential: String(options.body?.credential ?? 'secret-1'),
             config: options.body?.config ?? {},
             description: String(options.body?.description ?? ''),
@@ -385,8 +389,8 @@ describe('AIProvidersPage', () => {
     expect(screen.getAllByText('OpenAI Compatible URL').length).toBeGreaterThan(0)
   }, 15000)
 
-  it('keeps endpoint in advanced settings for customizable hosted providers like Kimi', async () => {
-    sendMock.mockImplementation((path: string) => {
+  it('keeps endpoint in advanced settings for customizable hosted providers like Kimi and submits an override', async () => {
+    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
       if (path === '/api/ai-providers/templates') {
         return Promise.resolve([
           {
@@ -406,6 +410,17 @@ describe('AIProvidersPage', () => {
         ])
       }
       if (path === '/api/ai-providers') {
+        if (options?.method === 'POST') {
+          return Promise.resolve({
+            id: 'moonshot-main',
+            name: 'moonshot-main',
+            template_id: 'moonshot',
+            endpoint: String(options.body?.endpoint ?? ''),
+            credential: String(options.body?.credential ?? ''),
+            is_enabled: true,
+            config: {},
+          })
+        }
         return Promise.resolve([])
       }
       if (path === AI_PROVIDER_SECRET_PATH) {
@@ -437,6 +452,103 @@ describe('AIProvidersPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Advanced/i }))
 
     expect(screen.getByText('OpenAI Compatible URL')).toBeInTheDocument()
+    const endpointInput = screen.getByDisplayValue('https://api.moonshot.cn/v1')
+    fireEvent.change(endpointInput, { target: { value: 'https://kimi-proxy.internal/v1' } })
+    fireEvent.change(screen.getByPlaceholderText('Enter API Key'), {
+      target: { value: 'moonshot-key' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /^Add$/i }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/ai-providers', {
+        method: 'POST',
+        body: expect.objectContaining({
+          template_id: 'moonshot',
+          endpoint: 'https://kimi-proxy.internal/v1',
+          auth_scheme: 'bearer',
+        }),
+      })
+    })
+  })
+
+  it('promotes user-supplied endpoints into the primary form even for single-provider templates', async () => {
+    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+      if (path === '/api/ai-providers/templates') {
+        return Promise.resolve([
+          {
+            id: 'writer',
+            kind: 'llm',
+            title: 'Writer',
+            vendor: 'Writer',
+            uiGroup: 'single_provider',
+            endpointMode: 'user_supplied',
+            defaultAuthScheme: 'bearer',
+            fields: [
+              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+            ],
+          },
+        ])
+      }
+      if (path === '/api/ai-providers') {
+        if (options?.method === 'POST') {
+          return Promise.resolve({
+            id: 'writer-main',
+            name: 'writer-main',
+            template_id: 'writer',
+            endpoint: String(options.body?.endpoint ?? ''),
+            credential: String(options.body?.credential ?? ''),
+            is_enabled: true,
+            config: {},
+          })
+        }
+        return Promise.resolve([])
+      }
+      if (path === AI_PROVIDER_SECRET_PATH) {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      return Promise.resolve([])
+    })
+
+    render(<AIProvidersPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add AI Provider' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add AI Provider' }))
+    await screen.findByRole('dialog')
+    fireEvent.click(getProductButton('Writer'))
+
+    await waitFor(() => {
+      expect(screen.getByText('Add Writer AI Provider')).toBeInTheDocument()
+    })
+
+    expect(screen.getByText('OpenAI Compatible URL')).toBeInTheDocument()
+    expect(screen.queryByText('Advanced Config (JSON)')).not.toBeInTheDocument()
+
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByRole('textbox'), {
+      target: { value: 'https://writer.example.com/v1' },
+    })
+    fireEvent.change(screen.getByPlaceholderText('Enter API Key'), {
+      target: { value: 'writer-key' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /^Add$/i }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/ai-providers', {
+        method: 'POST',
+        body: expect.objectContaining({
+          template_id: 'writer',
+          endpoint: 'https://writer.example.com/v1',
+          auth_scheme: 'bearer',
+        }),
+      })
+    })
   })
 
   it('hides qwen from the chooser and groups NVIDIA NIM Cloud under LLM Gateway', async () => {
@@ -510,7 +622,7 @@ describe('AIProvidersPage', () => {
     expect(screen.queryByText('Qwen (DashScope)')).not.toBeInTheDocument()
   })
 
-  it('promotes self-hosted endpoint and auth scheme into the primary create form', async () => {
+  it('promotes the self-hosted endpoint into the primary create form while keeping auth template-owned', async () => {
     sendMock.mockImplementation((path: string) => {
       if (path === '/api/ai-providers/templates') {
         return Promise.resolve([
@@ -520,11 +632,11 @@ describe('AIProvidersPage', () => {
             title: 'NVIDIA NIM Local',
             vendor: 'NVIDIA',
             uiGroup: 'self_hosted',
-            defaultEndpoint: 'http://localhost:8000/v1',
-            defaultAuthScheme: 'none',
+            endpointMode: 'user_supplied',
+            defaultAuthScheme: 'bearer',
             fields: [
               { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
-              { id: 'credential', label: 'API Key', type: 'secret_ref', required: false },
+              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
             ],
           },
         ])
@@ -555,10 +667,72 @@ describe('AIProvidersPage', () => {
       expect(screen.getByText('Add NVIDIA NIM Local AI Provider')).toBeInTheDocument()
     })
 
-    expect(screen.getByDisplayValue('http://localhost:8000/v1')).toBeInTheDocument()
-    expect(screen.getByText('Auth Scheme')).toBeInTheDocument()
+    expect(screen.queryByDisplayValue('http://localhost:8000/v1')).not.toBeInTheDocument()
+    expect(screen.queryByText('Auth Scheme')).not.toBeInTheDocument()
     expect(screen.getByText('API Key')).toBeInTheDocument()
+    expect(screen.getByText('OpenAI Compatible URL')).toBeInTheDocument()
+    const endpointLabel = screen.getByText('OpenAI Compatible URL')
+    const apiKeyLabel = screen.getByText('API Key')
+    expect(endpointLabel.compareDocumentPosition(apiKeyLabel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.queryByText('Advanced Config (JSON)')).not.toBeInTheDocument()
+  })
+
+  it('keeps hosted gateway endpoints in advanced settings with required API keys and defaults', async () => {
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/ai-providers/templates') {
+        return Promise.resolve([
+          {
+            id: 'writer',
+            kind: 'llm',
+            title: 'Writer',
+            vendor: 'Writer',
+            uiGroup: 'single_provider',
+            endpointMode: 'customizable',
+            defaultEndpoint: 'https://api.writer.com/v1/chat',
+            defaultAuthScheme: 'bearer',
+            fields: [
+              {
+                id: 'endpoint',
+                label: 'OpenAI Compatible URL',
+                type: 'url',
+                required: true,
+              },
+              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+            ],
+          },
+        ])
+      }
+      if (path === '/api/ai-providers') {
+        return Promise.resolve([])
+      }
+      if (path === AI_PROVIDER_SECRET_PATH) {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      return Promise.resolve([])
+    })
+
+    render(<AIProvidersPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add AI Provider' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add AI Provider' }))
+    await screen.findByRole('dialog')
+    fireEvent.click(getProductButton('Writer'))
+
+    await waitFor(() => {
+      expect(screen.getByText('Add Writer AI Provider')).toBeInTheDocument()
+    })
+
+    expect(screen.getByText('API Key')).toBeInTheDocument()
+    expect(screen.queryByText('OpenAI Compatible URL')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Advanced/i }))
+    const endpointInput = await screen.findByDisplayValue('https://api.writer.com/v1/chat')
+    expect(endpointInput).toBeInTheDocument()
   })
 
   it('sorts Custom OpenAI-compatible to the top of the self-hosted chooser group', async () => {
@@ -572,7 +746,11 @@ describe('AIProvidersPage', () => {
             vendor: 'vLLM',
             uiGroup: 'self_hosted',
             endpointMode: 'user_supplied',
-            fields: [{ id: 'endpoint', label: 'Base URL', type: 'url', required: true }],
+            defaultAuthScheme: 'bearer',
+            fields: [
+              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+            ],
           },
           {
             id: 'generic-llm',
@@ -583,7 +761,7 @@ describe('AIProvidersPage', () => {
             endpointMode: 'user_supplied',
             fields: [
               { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
-              { id: 'credential', label: 'Credential', type: 'secret_ref', required: false },
+              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
             ],
           },
           {
@@ -593,7 +771,11 @@ describe('AIProvidersPage', () => {
             vendor: 'SGLang',
             uiGroup: 'self_hosted',
             endpointMode: 'user_supplied',
-            fields: [{ id: 'endpoint', label: 'Base URL', type: 'url', required: true }],
+            defaultAuthScheme: 'bearer',
+            fields: [
+              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+            ],
           },
         ])
       }
@@ -648,7 +830,7 @@ describe('AIProvidersPage', () => {
     expect(screen.queryByText('Notes')).not.toBeInTheDocument()
   })
 
-  it('stores manual API keys as single-value secrets and keeps api_key auth', async () => {
+  it('stores manual API keys as single-value secrets and keeps template-declared auth', async () => {
     const templatesById = new Map([
       [
         'openai',
@@ -656,7 +838,7 @@ describe('AIProvidersPage', () => {
           id: 'openai',
           kind: 'llm',
           title: 'OpenAI',
-          defaultAuthScheme: 'api_key',
+          defaultAuthScheme: 'bearer',
           fields: [
             { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
             {
@@ -689,10 +871,9 @@ describe('AIProvidersPage', () => {
         payload: { value: 'sk-test-manual-key' },
       })
     )
-    expect(getOneMock).toHaveBeenCalledWith('secret-1')
     expect(payload).toEqual(
       expect.objectContaining({
-        auth_scheme: 'api_key',
+        auth_scheme: 'bearer',
         credential: 'secret-1',
       })
     )

@@ -484,17 +484,6 @@ export function mapTemplateFieldToResourceField(
       })),
       defaultValue: normalizeTemplateFieldDefault(field),
       showWhen: field.showWhen,
-      onValueChange:
-        field.id === 'auth_mode'
-          ? (value, update) => {
-              if (String(value ?? '') !== 'username_password') {
-                update('username', '')
-                update('credential', '')
-                update(secretFieldUseSecretKey('credential'), false)
-                update(secretFieldManualValueKey('credential'), '')
-              }
-            }
-          : undefined,
     }
   }
 
@@ -720,6 +709,17 @@ async function createSecretForConnectorField(
   return String(payload[field.id] ?? '').trim()
 }
 
+export function hasConnectorSecretFieldValue(
+  payload: Record<string, unknown>,
+  field: ConnectorTemplateField
+) {
+  const selectedValue = String(payload[field.id] ?? '').trim()
+  const manualValue = String(
+    payload[secretFieldManualValueKey(field.id)] ?? payload[secretFieldInlineValueKey(field.id)] ?? ''
+  ).trim()
+  return Boolean(selectedValue || manualValue)
+}
+
 export async function buildConnectorPayload(
   payload: Record<string, unknown>,
   templatesById: Map<string, ConnectorTemplate>,
@@ -749,13 +749,7 @@ export async function buildConnectorPayload(
   }
 
   const credentialId = String(body.credential ?? '').trim()
-  let authScheme = 'none'
-  if (template.authPresentation === 'selectable') {
-    authScheme = String(body.auth_mode ?? '').trim() === 'username_password' ? 'basic' : 'none'
-  } else if (credentialId) {
-    const defaultAuthScheme = String(template.defaultAuthScheme ?? 'none').trim() || 'none'
-    authScheme = defaultAuthScheme !== 'none' ? defaultAuthScheme : 'bearer'
-  }
+  const authScheme = String(template.defaultAuthScheme ?? 'none').trim() || 'none'
 
   const extra =
     typeof body.advanced_config === 'string' ? body.advanced_config.trim() : body.advanced_config
@@ -800,7 +794,7 @@ export async function buildConnectorPayload(
     config[field.id] = value
   }
 
-  if (template.authPresentation === 'selectable') {
+  if (template.kind === 'proxy') {
     const scheme = inferEndpointScheme(template, { ...body, endpoint: normalizedEndpoint })
     if (scheme) {
       config.protocol = scheme
@@ -834,7 +828,8 @@ function buildSMTPConnectorEndpoint(host: string, port: number, sslEnabled: bool
 export function mapConnectorRow(
   item: ConnectorRecord,
   templatesById: Map<string, ConnectorTemplate>,
-  t?: Translate
+  t?: Translate,
+  monitorByTargetId?: Map<string, { status?: string; reason?: string | null; last_checked_at?: string | null }>
 ): Record<string, unknown> {
   const kind = String(item.kind ?? '') as (typeof SUPPORTED_KINDS)[number]
   const template = templatesById.get(String(item.template_id ?? ''))
@@ -860,6 +855,21 @@ export function mapConnectorRow(
   const advancedConfig = Object.fromEntries(
     Object.entries(cloneConfig(item.config)).filter(([key]) => !knownFieldIDs.has(key))
   )
+
+  const monitor = monitorByTargetId?.get(String(item.id ?? ''))
+  const monitorStatus = String(monitor?.status ?? '').trim().toLowerCase()
+  let reachability = ''
+  let reachabilityReason = ''
+  let reachabilityLastCheckedAt = ''
+  if (monitorStatus === 'healthy') {
+    reachability = translateConnectorLabel(t, 'connectors.status.reachable', 'Reachable')
+  } else if (monitorStatus === 'unreachable') {
+    reachability = translateConnectorLabel(t, 'connectors.status.unreachable', 'Unreachable')
+  } else if (monitorStatus) {
+    reachability = translateConnectorLabel(t, 'connectors.status.unknown', 'Unknown')
+  }
+  reachabilityReason = String(monitor?.reason ?? '')
+  reachabilityLastCheckedAt = String(monitor?.last_checked_at ?? '')
 
   return {
     id: item.id,
@@ -887,6 +897,15 @@ export function mapConnectorRow(
         : flattenedConfig.tls,
     advanced_config:
       Object.keys(advancedConfig).length > 0 ? JSON.stringify(advancedConfig, null, 2) : '',
+    reachability,
+    reachability_reason: reachabilityReason,
+    reachability_last_checked_at: reachabilityLastCheckedAt,
     ...flattenedConfig,
   }
+}
+
+function translateConnectorLabel(t: Translate | undefined, key: string, fallback: string): string {
+  if (!t) return fallback
+  const value = t(key)
+  return value === key ? fallback : value
 }

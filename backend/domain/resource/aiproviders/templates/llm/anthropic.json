@@ -29,6 +29,7 @@
       "id": "version",
       "label": "API Version",
       "type": "string",
+      "advanced": true,
       "placeholder": "2023-06-01"
     }
   ]

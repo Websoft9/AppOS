@@ -153,7 +153,7 @@
       "amqp-compatible": "AMQP-Compatible",
       "nats-compatible": "NATS-Compatible",
       "mqtt-compatible": "MQTT-Compatible",
-      "s3-compatible": "Storage",
+      "s3-compatible": "S3-Compatible",
       "mongodb-compatible": "MongoDB-Compatible",
       "clickhouse-compatible": "ClickHouse-Compatible",
       "neo4j-compatible": "Neo4j-Compatible",
@@ -167,13 +167,26 @@
       "profileDescription": "{{vendorPrefix}}{{category}} profile."
     },
     "templateFields": {
+      "accessKeyId": "Access Key ID",
       "database": "Database",
+      "bucket": "Bucket",
+      "callbackPath": "Callback Path",
+      "clientId": "Client ID",
+      "cluster": "Cluster",
       "region": "Region",
       "clusterIdentifier": "Cluster Identifier",
       "clusterId": "Cluster ID",
+      "documentPath": "Document Path",
+      "forcePathStyle": "Force Path-Style Addressing",
+      "indexPrefix": "Index Prefix",
+      "jwtHeader": "JWT Header",
+      "organization": "Organization",
       "resourceGroup": "Resource Group",
       "gatewayName": "Gateway Name",
-      "accountId": "Account ID"
+      "accountId": "Account ID",
+      "saslMechanism": "SASL Mechanism",
+      "securityProtocol": "Security Protocol",
+      "vhost": "Virtual Host"
     },
     "columns": {
       "name": "Name",
@@ -1268,7 +1281,8 @@
       "updated": "Updated"
     },
     "lastCheckedSources": {
-      "liveReachability": "Live reachability check"
+      "liveReachability": "Live reachability check",
+      "scheduledMonitor": "Scheduled monitor check"
     },
     "actions": {
       "enable": "Enable",

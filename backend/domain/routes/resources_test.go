@@ -910,6 +910,9 @@ func TestConnectorTemplateGet(t *testing.T) {
 	if template["kind"] != "webhook" {
 		t.Fatalf("expected template kind webhook, got %v", template["kind"])
 	}
+	if template["defaultAuthScheme"] != connectors.AuthSchemeBearer {
+		t.Fatalf("expected template default auth scheme %q, got %v", connectors.AuthSchemeBearer, template["defaultAuthScheme"])
+	}
 
 	rec = te.do(t, http.MethodGet, "/api/connectors/templates/generic-http-gateway", "", true)
 	if rec.Code != http.StatusOK {
@@ -918,6 +921,9 @@ func TestConnectorTemplateGet(t *testing.T) {
 	template = parseJSON(t, rec)
 	if template["kind"] != connectors.KindHTTPGateway {
 		t.Fatalf("expected template kind %q, got %v", connectors.KindHTTPGateway, template["kind"])
+	}
+	if template["defaultAuthScheme"] != connectors.AuthSchemeBearer {
+		t.Fatalf("expected template default auth scheme %q, got %v", connectors.AuthSchemeBearer, template["defaultAuthScheme"])
 	}
 
 	rec = te.do(t, http.MethodGet, "/api/connectors/templates/not-found", "", true)
@@ -972,8 +978,8 @@ func TestConnectorsCRUD(t *testing.T) {
 	if created["endpoint"] != "https://hooks.example.com/workspace" {
 		t.Fatalf("expected template default endpoint, got %v", created["endpoint"])
 	}
-	if created["auth_scheme"] != connectors.AuthSchemeNone {
-		t.Fatalf("expected template default auth scheme %q, got %v", connectors.AuthSchemeNone, created["auth_scheme"])
+	if created["auth_scheme"] != connectors.AuthSchemeBearer {
+		t.Fatalf("expected template default auth scheme %q, got %v", connectors.AuthSchemeBearer, created["auth_scheme"])
 	}
 
 	rec = te.do(t, http.MethodGet, "/api/connectors/"+id, "", true)
@@ -1160,6 +1166,89 @@ func TestInstanceTemplateGet(t *testing.T) {
 	rec = te.do(t, http.MethodGet, "/api/instances/templates/not-found", "", true)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected missing template to return 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestInstanceTemplateMetadataVariants(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.do(t, http.MethodGet, "/api/instances/templates/generic-influxdb", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get influxdb template: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	influxTemplate := parseJSON(t, rec)
+	if influxTemplate["credentialLabel"] != "credential" {
+		t.Fatalf("expected influxdb credentialLabel credential, got %v", influxTemplate["credentialLabel"])
+	}
+	influxFields, ok := influxTemplate["fields"].([]any)
+	if !ok || len(influxFields) == 0 {
+		t.Fatalf("expected influxdb fields, got %v", influxTemplate["fields"])
+	}
+	foundOrganizationField := false
+	foundBucketField := false
+	foundUsernameField := false
+	for _, raw := range influxFields {
+		field, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		switch field["id"] {
+		case "organization":
+			foundOrganizationField = true
+		case "bucket":
+			foundBucketField = true
+		case "username":
+			foundUsernameField = true
+		}
+	}
+	if !foundOrganizationField || !foundBucketField {
+		t.Fatalf("expected influxdb template to expose organization and bucket fields, got %v", influxTemplate["fields"])
+	}
+	if foundUsernameField {
+		t.Fatalf("expected influxdb token-style template without username field, got %v", influxTemplate["fields"])
+	}
+
+	rec = te.do(t, http.MethodGet, "/api/instances/templates/generic-kafka", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get kafka template: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	kafkaTemplate := parseJSON(t, rec)
+	if kafkaTemplate["credentialLabel"] != "password" {
+		t.Fatalf("expected kafka credentialLabel password, got %v", kafkaTemplate["credentialLabel"])
+	}
+	if kafkaTemplate["defaultProtocolHint"] != "kafka" {
+		t.Fatalf("expected kafka defaultProtocolHint kafka, got %v", kafkaTemplate["defaultProtocolHint"])
+	}
+
+	rec = te.do(t, http.MethodGet, "/api/instances/templates/generic-s3", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get s3 template: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	s3Template := parseJSON(t, rec)
+	if s3Template["credentialPresentation"] != "secret_or_inline" {
+		t.Fatalf("expected s3 credentialPresentation secret_or_inline, got %v", s3Template["credentialPresentation"])
+	}
+	s3Fields, ok := s3Template["fields"].([]any)
+	if !ok || len(s3Fields) == 0 {
+		t.Fatalf("expected s3 fields, got %v", s3Template["fields"])
+	}
+	foundAccessKeyID := false
+	foundPathStyle := false
+	for _, raw := range s3Fields {
+		field, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		switch field["id"] {
+		case "accessKeyId":
+			foundAccessKeyID = true
+		case "forcePathStyle":
+			foundPathStyle = true
+		}
+	}
+	if !foundAccessKeyID || !foundPathStyle {
+		t.Fatalf("expected s3 template to expose access key and path-style controls, got %v", s3Template["fields"])
 	}
 }
 
@@ -1434,11 +1523,10 @@ func TestAIProviderReachabilityAndAvailability(t *testing.T) {
 	}
 }
 
-func TestConnectorReachabilityProjectsToMonitor(t *testing.T) {
+func TestConnectorReachabilityReturnsProbeStatus(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	// Create a connector whose endpoint is unreachable.
 	rec := te.do(t, http.MethodPost, "/api/connectors",
 		`{"name":"unreachable-webhook","kind":"webhook","template_id":"generic-webhook","endpoint":"https://127.255.255.255:65535/hook","auth_scheme":"none"}`, true)
 	if rec.Code != http.StatusCreated {
@@ -1451,26 +1539,20 @@ func TestConnectorReachabilityProjectsToMonitor(t *testing.T) {
 		t.Fatalf("probe connector reachability: expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 
-	// Verify monitor_latest_status projection for connector target type.
-	monitorRecords, err := te.app.FindRecordsByFilter(
-		"monitor_latest_status",
-		"target_type = {:targetType} && target_id = {:targetID}",
-		"",
-		0, 0,
-		map[string]any{"targetType": "connector", "targetID": connectorID},
-	)
-	if err != nil {
-		t.Fatalf("failed to query monitor_latest_status: %v", err)
+	respJSON := parseJSON(t, rec)
+	items, ok := respJSON["items"].([]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected 1 reachability item, got %d", len(items))
 	}
-	if len(monitorRecords) != 1 {
-		t.Fatalf("expected 1 monitor record for connector, got %d", len(monitorRecords))
+	item := items[0].(map[string]any)
+	if item["status"] != "unreachable" {
+		t.Fatalf("expected probe status 'unreachable', got %q", item["status"])
 	}
-	monitorStatus := monitorRecords[0].GetString("status")
-	if monitorStatus != "unreachable" {
-		t.Fatalf("expected connector monitor status 'unreachable', got %q", monitorStatus)
+	if _, ok := item["lastCheckedAt"].(string); !ok {
+		t.Fatal("expected lastCheckedAt in probe response")
 	}
-	if monitorRecords[0].GetString("target_type") != "connector" {
-		t.Fatalf("expected target_type 'connector', got %q", monitorRecords[0].GetString("target_type"))
+	if _, ok := item["reason"].(string); !ok {
+		t.Fatal("expected reason in probe response")
 	}
 }
 

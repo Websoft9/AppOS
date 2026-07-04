@@ -53,8 +53,6 @@ import {
   type AIProviderTemplate,
   type AIProviderTemplateField,
   isGatewayProviderTemplate,
-  isAdvancedProviderField,
-  resolveCredentialFieldPresentation,
   reconcileProviderModelSelection,
   normalizeTemplateFieldDefault,
   providerSelectionGroupKey,
@@ -64,7 +62,6 @@ import {
   resolveTemplateEndpoint,
   shouldAssignDefaultReplica,
   templateChooserSearchText,
-  shouldPromoteAuthSchemeField,
   shouldPromoteEndpointField,
   sanitizeProviderModelGroups,
   sanitizeProviderModelOptions,
@@ -170,7 +167,7 @@ function mapTemplateFieldToResourceField(
     required: field.required,
     placeholder: field.placeholder,
     defaultValue: normalizeTemplateFieldDefault(field),
-    advanced: isAdvancedProviderField(field),
+    advanced: Boolean(field.advanced),
     helpUrl: field.helpUrl,
     helpText: field.helpText,
   }
@@ -248,19 +245,6 @@ function moveFieldBefore(fields: FieldDef[], fieldKey: string, beforeKey: string
   }
   const [field] = nextFields.splice(fieldIndex, 1)
   nextFields.splice(beforeIndex, 0, field)
-  return nextFields
-}
-
-function moveFieldAfter(fields: FieldDef[], fieldKey: string, afterKey: string) {
-  const nextFields = [...fields]
-  const fieldIndex = nextFields.findIndex(field => field.key === fieldKey)
-  const afterIndex = nextFields.findIndex(field => field.key === afterKey)
-  if (fieldIndex === -1 || afterIndex === -1 || fieldIndex === afterIndex + 1) {
-    return nextFields
-  }
-  const [field] = nextFields.splice(fieldIndex, 1)
-  const targetIndex = nextFields.findIndex(item => item.key === afterKey)
-  nextFields.splice(targetIndex + 1, 0, field)
   return nextFields
 }
 
@@ -724,11 +708,9 @@ export function AIProviderCreateFlowDialog({
   )
 
   const resolvedFields = useMemo(() => {
-    const selfHostedTemplate = providerSelectionGroupKey(selectedTemplate) === 'selfHosted'
     let dynamicFields = (selectedTemplate?.fields ?? []).flatMap(field => {
-      const presentedField = resolveCredentialFieldPresentation(selectedTemplate, field)
       const mapped = mapTemplateFieldToResourceField(
-        presentedField,
+        field,
         () => setSecretDialogOpen(true),
         openSecretEditor,
         t,
@@ -750,7 +732,7 @@ export function AIProviderCreateFlowDialog({
         ]
       }
 
-      if (presentedField.id !== 'credential') {
+      if (field.id !== 'credential') {
         return [mapped]
       }
 
@@ -784,7 +766,6 @@ export function AIProviderCreateFlowDialog({
     })
 
     const promoteEndpoint = shouldPromoteEndpointField(selectedTemplate)
-    const promoteAuthScheme = shouldPromoteAuthSchemeField(selectedTemplate)
 
     dynamicFields = dynamicFields.map(field => {
       if (field.key !== 'endpoint') return field
@@ -801,8 +782,8 @@ export function AIProviderCreateFlowDialog({
 
     const authSchemeField = {
       ...baseProviderFields[1],
-      hidden: !promoteAuthScheme,
-      advanced: !promoteAuthScheme,
+      hidden: true,
+      advanced: true,
     }
 
     let resolved = [
@@ -812,11 +793,6 @@ export function AIProviderCreateFlowDialog({
       ...baseProviderFields.slice(3),
       baseProviderFields[0],
     ]
-
-    if (selfHostedTemplate) {
-      resolved = moveFieldAfter(resolved, 'endpoint', 'credential')
-      resolved = moveFieldAfter(resolved, 'auth_scheme', 'endpoint')
-    }
 
     return resolved
   }, [

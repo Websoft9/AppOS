@@ -2,8 +2,10 @@
   "kind": "elasticsearch-compatible",
   "category": "search",
   "endpointShape": "url",
+  "defaultPort": 9200,
+  "defaultProtocolHint": "https",
   "credentialPresentation": "secret_or_inline",
-  "credentialLabel": "credential",
+  "credentialLabel": "password",
   "fields": [
     {
       "id": "indexPrefix",
@@ -15,6 +17,8 @@
       "id": "username",
       "label": "Username",
       "type": "text",
+      "required": true,
+      "default": "elastic",
       "placeholder": "elastic"
     }
   ]

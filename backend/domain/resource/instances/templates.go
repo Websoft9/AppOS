@@ -83,38 +83,36 @@ func loadTemplates() error {
 }
 
 type templateFile struct {
-	ID                  *string             `json:"id,omitempty"`
-	Category            *string             `json:"category,omitempty"`
-	Kind                *string             `json:"kind,omitempty"`
-	Traits              []string            `json:"traits,omitempty"`
-	Title               *string             `json:"title,omitempty"`
-	Vendor              *string             `json:"vendor,omitempty"`
-	Description         *string             `json:"description,omitempty"`
-	DefaultEndpoint     *string             `json:"defaultEndpoint,omitempty"`
-	DefaultPort         *int                `json:"defaultPort,omitempty"`
-	DefaultProtocolHint *string             `json:"defaultProtocolHint,omitempty"`
-	LayoutPreset        *string             `json:"layoutPreset,omitempty"`
-	EndpointShape       *string             `json:"endpointShape,omitempty"`
-	CredentialPresentation *string          `json:"credentialPresentation,omitempty"`
-	CredentialLabel     *string             `json:"credentialLabel,omitempty"`
-	OmitCommonFields    []string            `json:"omitCommonFields,omitempty"`
-	CommonFieldDefaults map[string]any      `json:"commonFieldDefaults,omitempty"`
-	Fields              []templateFieldFile `json:"fields,omitempty"`
+	ID                     *string             `json:"id,omitempty"`
+	Category               *string             `json:"category,omitempty"`
+	Kind                   *string             `json:"kind,omitempty"`
+	Traits                 []string            `json:"traits,omitempty"`
+	Title                  *string             `json:"title,omitempty"`
+	Vendor                 *string             `json:"vendor,omitempty"`
+	Description            *string             `json:"description,omitempty"`
+	DefaultEndpoint        *string             `json:"defaultEndpoint,omitempty"`
+	DefaultPort            *int                `json:"defaultPort,omitempty"`
+	DefaultProtocolHint    *string             `json:"defaultProtocolHint,omitempty"`
+	LayoutPreset           *string             `json:"layoutPreset,omitempty"`
+	EndpointShape          *string             `json:"endpointShape,omitempty"`
+	CredentialPresentation *string             `json:"credentialPresentation,omitempty"`
+	CredentialLabel        *string             `json:"credentialLabel,omitempty"`
+	Fields                 []templateFieldFile `json:"fields,omitempty"`
 }
 
 type templateFieldFile struct {
-	ID             string          `json:"id,omitempty"`
-	Label          *string         `json:"label,omitempty"`
-	Type           *string         `json:"type,omitempty"`
-	Required       *bool           `json:"required,omitempty"`
-	Advanced       *bool           `json:"advanced,omitempty"`
-	Hidden         *bool           `json:"hidden,omitempty"`
-	Sensitive      *bool           `json:"sensitive,omitempty"`
-	SecretTemplate *string         `json:"secretTemplate,omitempty"`
-	Placeholder    *string         `json:"placeholder,omitempty"`
-	HelpText       *string         `json:"helpText,omitempty"`
+	ID             string                     `json:"id,omitempty"`
+	Label          *string                    `json:"label,omitempty"`
+	Type           *string                    `json:"type,omitempty"`
+	Required       *bool                      `json:"required,omitempty"`
+	Advanced       *bool                      `json:"advanced,omitempty"`
+	Hidden         *bool                      `json:"hidden,omitempty"`
+	Sensitive      *bool                      `json:"sensitive,omitempty"`
+	SecretTemplate *string                    `json:"secretTemplate,omitempty"`
+	Placeholder    *string                    `json:"placeholder,omitempty"`
+	HelpText       *string                    `json:"helpText,omitempty"`
 	ShowWhen       *templateFieldShowWhenFile `json:"showWhen,omitempty"`
-	Default        json.RawMessage `json:"default,omitempty"`
+	Default        json.RawMessage            `json:"default,omitempty"`
 }
 
 type templateFieldShowWhenFile struct {
@@ -199,12 +197,6 @@ func applyTemplateOverlay(base Template, file templateFile) (Template, error) {
 	}
 	if file.CredentialLabel != nil {
 		result.CredentialLabel = strings.TrimSpace(*file.CredentialLabel)
-	}
-	if file.OmitCommonFields != nil {
-		result.OmitCommonFields = append([]string(nil), file.OmitCommonFields...)
-	}
-	if file.CommonFieldDefaults != nil {
-		result.CommonFieldDefaults = resourceshared.CloneMap(file.CommonFieldDefaults)
 	}
 	if file.Fields != nil {
 		fields, err := mergeTemplateFields(base.Fields, file.Fields)

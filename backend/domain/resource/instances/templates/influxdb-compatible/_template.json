@@ -5,14 +5,21 @@
   "endpointShape": "host_port",
   "defaultPort": 8086,
   "credentialPresentation": "secret_or_inline",
-  "credentialLabel": "password",
+  "credentialLabel": "credential",
   "fields": [
     {
-      "id": "username",
-      "label": "Username",
+      "id": "organization",
+      "label": "Organization",
       "type": "text",
       "required": true,
-      "placeholder": "appuser"
+      "placeholder": "appos"
+    },
+    {
+      "id": "bucket",
+      "label": "Bucket",
+      "type": "text",
+      "required": true,
+      "placeholder": "metrics"
     },
     {
       "id": "connect_timeout",
@@ -30,18 +37,12 @@
       "default": false
     },
     {
-      "id": "organization",
-      "label": "Organization",
+      "id": "precision",
+      "label": "Write Precision",
       "type": "text",
       "advanced": true,
-      "placeholder": "appos"
-    },
-    {
-      "id": "bucket",
-      "label": "Bucket",
-      "type": "text",
-      "advanced": true,
-      "placeholder": "metrics"
+      "default": "ns",
+      "placeholder": "ns"
     },
     {
       "id": "ssl_ca_certificate",

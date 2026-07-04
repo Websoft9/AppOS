@@ -54,9 +54,7 @@ import {
   type AIProviderSelectionGroupKey,
   type AIProviderTemplate,
   type AIProviderTemplateField,
-  isAdvancedProviderField,
   reconcileProviderModelSelection,
-  resolveCredentialFieldPresentation,
   normalizeTemplateFieldDefault,
   normalizeEnabledModels,
   providerSelectionGroupKey,
@@ -67,7 +65,6 @@ import {
   resolveAIProviderEnabled,
   resolveProviderDefaultProtocol,
   resolveProviderProtocolEndpoints,
-  shouldPromoteAuthSchemeField,
   shouldPromoteEndpointField,
   sanitizeProviderModelGroups,
   sanitizeProviderModelOptions,
@@ -113,12 +110,6 @@ function monitorStatusToAvailability(monitorStatus: string, t: Translate): strin
       return t('aiProviders.status.unknown')
   }
 }
-
-const AUTH_SCHEME_OPTIONS: SelectOption[] = [
-  { label: 'Bearer token', value: 'bearer' },
-  { label: 'API key header', value: 'api_key' },
-  { label: 'No auth', value: 'none' },
-]
 
 function humanizeTemplateId(templateId: string) {
   return templateId
@@ -386,7 +377,7 @@ function mapTemplateFieldToResourceField(
     required: field.required,
     placeholder: field.placeholder,
     defaultValue: normalizeTemplateFieldDefault(field),
-    advanced: isAdvancedProviderField(field),
+    advanced: Boolean(field.advanced),
     helpUrl: field.helpUrl,
     helpText: field.helpText,
   }
@@ -1098,9 +1089,7 @@ export function AIProvidersPage() {
                 ? {
                     endpoint: resolveCurrentProtocolEndpoint(selectedTemplate, formData),
                     apiKey: inlineSecretValue,
-                    authScheme: String(
-                      formData.auth_scheme ?? selectedTemplate?.defaultAuthScheme ?? ''
-                    ).trim(),
+                    authScheme: String(selectedTemplate?.defaultAuthScheme ?? '').trim(),
                     templateID: String(formData.template_id ?? '').trim(),
                     protocol: defaultTemplateProtocol(selectedTemplate, formData.default_protocol),
                   }
@@ -1157,7 +1146,6 @@ export function AIProvidersPage() {
           for (const [key, defaultValue] of Object.entries(buildProtocolFieldDefaults(template, nextDefaults))) {
             update(key, defaultValue)
           }
-          update('auth_scheme', String(template?.defaultAuthScheme ?? ''))
           update('endpoint', resolveTemplateEndpoint(template, nextDefaults))
           if (!resolveTemplateEndpoint(template, nextDefaults)) {
             update('endpoint_editing', true)
@@ -1168,13 +1156,9 @@ export function AIProvidersPage() {
       {
         key: 'auth_scheme',
         label: t('aiProviders.fields.authScheme'),
-        type: 'select',
-        options: AUTH_SCHEME_OPTIONS.map(option => ({
-          ...option,
-          label: t(`aiProviders.authSchemes.${option.value}`),
-        })),
+        type: 'text',
+        hidden: true,
         defaultValue: '',
-        advanced: true,
       },
       {
         key: 'description',
@@ -1289,13 +1273,12 @@ export function AIProvidersPage() {
     }) => {
       const selectedTemplate = providerTemplatesById.get(String(formData.template_id ?? ''))
       const dynamicFields = (selectedTemplate?.fields ?? []).flatMap(field => {
-        const presentedField = resolveCredentialFieldPresentation(selectedTemplate, field)
-        if (presentedField.id === 'credential') {
+        if (field.id === 'credential') {
           const credentialField: FieldDef = {
-            key: presentedField.id,
-            label: presentedField.label,
+            key: field.id,
+            label: field.label,
             type: 'relation',
-            required: presentedField.required,
+            required: field.required,
             relationApiPath: buildUserVisibleSecretRelationApiPath('ai_provider', {
               secretTemplate: AI_PROVIDER_CREDENTIAL_TEMPLATE_ID,
             }),
@@ -1320,12 +1303,12 @@ export function AIProvidersPage() {
         }
 
         const mappedField = mapTemplateFieldToResourceField(
-          presentedField,
+          field,
           openSecretDialog,
           openSecretEditor,
           t
         )
-        if (selectedTemplate?.id === 'aws-bedrock' && presentedField.id === 'region') {
+        if (selectedTemplate?.id === 'aws-bedrock' && field.id === 'region') {
           return [
             {
               ...mappedField,
@@ -1348,7 +1331,6 @@ export function AIProvidersPage() {
       })
 
       const promoteEndpoint = shouldPromoteEndpointField(selectedTemplate)
-      const promoteAuthScheme = shouldPromoteAuthSchemeField(selectedTemplate)
       let normalizedDynamicFields = dynamicFields.map(field => {
         if (field.key !== 'endpoint') return field
         return {
@@ -1362,8 +1344,8 @@ export function AIProvidersPage() {
 
       const authSchemeField = {
         ...baseProviderFields[3],
-        hidden: !promoteAuthScheme,
-        advanced: !promoteAuthScheme,
+        hidden: true,
+        advanced: true,
       }
 
       if (selectedTemplate?.id === 'aws-bedrock') {

@@ -28,6 +28,7 @@
     {
       "id": "organization",
       "label": "Organization",
+      "advanced": true,
       "type": "string",
       "placeholder": "org_..."
     }

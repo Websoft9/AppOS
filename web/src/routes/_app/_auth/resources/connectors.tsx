@@ -35,6 +35,7 @@ import {
   getConnectorAuthSchemeLabel,
   getConnectorKindLabel,
   getConnectorSecretTemplateLabel,
+  hasConnectorSecretFieldValue,
   inferDefaultConnectorEndpointScheme,
   listConnectorTemplatesForKind,
   mapConnectorRow,
@@ -80,17 +81,6 @@ type MonitorLatestStatusRecord = {
   last_checked_at?: string | null
 }
 
-function monitorStatusToReachability(monitorStatus: string, t: Translate): string {
-  switch (monitorStatus.toLowerCase().trim()) {
-    case 'healthy':
-      return translateStatus(t, 'connectors.status.reachable', 'Reachable')
-    case 'unreachable':
-      return translateStatus(t, 'connectors.status.unreachable', 'Unreachable')
-    default:
-      return translateStatus(t, 'connectors.status.unknown', 'Unknown')
-  }
-}
-
 function reachabilityVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
   if (status === 'Reachable') return 'default'
   if (status === 'Unreachable') return 'destructive'
@@ -106,11 +96,19 @@ function buildColumns(
 ): Column[] {
   const resolveStatusMeta = (row: Record<string, unknown>) => {
     const override = reachabilityOverrides.get(String(row.id ?? ''))
+    if (override) {
+      return {
+        status: String(override.status ?? '').trim(),
+        reason: String(override.reason ?? '').trim(),
+        checkedAt: String(override.checked_at ?? '').trim(),
+        sourceLabel: t('connectors.lastCheckedSources.liveReachability'),
+      }
+    }
     return {
-      status: String(override?.status ?? row.reachability ?? '').trim(),
-      reason: String(override?.reason ?? row.reachability_reason ?? '').trim(),
-      checkedAt: String(override?.checked_at ?? '').trim(),
-      sourceLabel: override ? t('connectors.lastCheckedSources.liveReachability') : '',
+      status: String(row.reachability ?? '').trim(),
+      reason: String(row.reachability_reason ?? '').trim(),
+      checkedAt: String(row.reachability_last_checked_at ?? '').trim(),
+      sourceLabel: t('connectors.lastCheckedSources.scheduledMonitor'),
     }
   }
 
@@ -708,8 +706,18 @@ export function ConnectorsPage() {
       if (!selectedTemplate) {
         return t('connectors.errors.profileRequired')
       }
+      const templateFieldsByID = new Map(
+        (selectedTemplate.fields ?? []).map(field => [field.id, field])
+      )
       for (const field of activeFields) {
         if (!field.required) {
+          continue
+        }
+        const templateField = templateFieldsByID.get(field.key)
+        if (templateField?.type === 'secret_ref') {
+          if (!hasConnectorSecretFieldValue(formData, templateField)) {
+            return t('connectors.errors.fieldRequired', { field: field.label })
+          }
           continue
         }
         const value = formData[field.key]
@@ -909,10 +917,7 @@ export function ConnectorsPage() {
             if (!Array.isArray(items)) {
               return []
             }
-            const rows = items.map(item => mapConnectorRow(item, connectorTemplatesById, t))
-            const ids = rows.map(row => String(row.id ?? '')).filter(Boolean)
 
-            // Seed reachability from monitor cache before live check
             const monitorByTargetId = new Map(
               Array.isArray(monitorResponse?.items)
                 ? monitorResponse.items
@@ -920,33 +925,11 @@ export function ConnectorsPage() {
                     .filter(([targetId]) => Boolean(targetId))
                 : []
             )
-            const cachedOverrides = new Map<string, { status: string; reason: string; checked_at?: string }>()
-            for (const id of ids) {
-              const monitor = monitorByTargetId.get(id)
-              if (monitor?.status) {
-                cachedOverrides.set(id, {
-                  status: monitorStatusToReachability(String(monitor.status), t),
-                  reason: String(monitor.reason ?? ''),
-                  checked_at: String(monitor.last_checked_at ?? ''),
-                })
-              }
-            }
-            if (cachedOverrides.size > 0) {
-              setReachabilityOverrides(prev => {
-                const next = new Map(prev)
-                for (const [key, value] of cachedOverrides) {
-                  next.set(key, value)
-                }
-                return next
-              })
-            }
 
+            const rows = items.map(item => mapConnectorRow(item, connectorTemplatesById, t, monitorByTargetId))
+            const ids = rows.map(row => String(row.id ?? '')).filter(Boolean)
             void fetchReachabilityStatuses(ids)
-            return rows.map(row => ({
-              ...row,
-              reachability: normalizeConnectorReachability('unknown', t),
-              reachability_reason: '',
-            }))
+            return rows
           },
           createItem: async payload => {
             const body = await buildConnectorPayload(payload, connectorTemplatesById, t)

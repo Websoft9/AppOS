@@ -2,6 +2,8 @@
   "kind": "nats-compatible",
   "category": "message-queue",
   "endpointShape": "url",
+  "defaultPort": 4222,
+  "defaultProtocolHint": "nats",
   "credentialPresentation": "secret_or_inline",
   "credentialLabel": "credential",
   "fields": [
