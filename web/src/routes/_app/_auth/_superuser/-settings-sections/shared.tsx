@@ -76,7 +76,9 @@ export function SaveButton({
   align?: 'right' | 'left'
 }) {
   return (
-    <div className={`${compact ? 'mt-0' : 'mt-4'} flex ${align === 'left' ? 'justify-start' : 'justify-end'}`}>
+    <div
+      className={`${compact ? 'mt-0' : 'mt-4'} flex ${align === 'left' ? 'justify-start' : 'justify-end'}`}
+    >
       <Button onClick={onClick} disabled={saving}>
         {saving ? (
           <>
@@ -131,13 +133,12 @@ export function ConnectorReferenceSection({
       <div className="rounded-lg border border-border/40 bg-background p-4">
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            This section now references {helperNoun}. Create and edit {connectorKinds} from Resources
-            &gt; External Services so all profiles stay in one place.
+            This section now references {helperNoun}. Create and edit {connectorKinds} from
+            Resources &gt; External Services so all profiles stay in one place.
           </p>
           {footerPrefix ? (
             <p className="text-sm text-muted-foreground">
-              {footerPrefix}
-              {' '}
+              {footerPrefix}{' '}
               <a
                 className="font-medium text-foreground underline underline-offset-4"
                 href={ctaHref}
@@ -273,7 +274,9 @@ export function SMTPSettingsSection({
                   <div className="grid gap-3 md:grid-cols-3">
                     <div className="space-y-1">
                       <p className="text-xs font-medium text-muted-foreground">Name</p>
-                      <p className="text-sm text-foreground">{String(selected.name ?? '').trim() || '—'}</p>
+                      <p className="text-sm text-foreground">
+                        {String(selected.name ?? '').trim() || '—'}
+                      </p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-xs font-medium text-muted-foreground">SMTP Endpoint</p>
@@ -292,8 +295,7 @@ export function SMTPSettingsSection({
               ) : null}
 
               <p className="text-sm text-muted-foreground">
-                Need to add or manage accounts first?
-                {' '}
+                Need to add or manage accounts first?{' '}
                 <a
                   className="font-medium text-foreground underline underline-offset-4"
                   href="/resources/connectors"

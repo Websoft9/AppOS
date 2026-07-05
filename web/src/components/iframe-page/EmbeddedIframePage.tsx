@@ -4,7 +4,11 @@ import { useOptionalLayout } from '@/contexts/LayoutContext'
 import { IframePageBreadcrumb } from './IframePageBreadcrumb'
 
 export type EmbeddedIframeAccessMode = 'proxied'
-export type EmbeddedIframeAuthStrategy = 'none' | 'session-bridge' | 'token-handshake' | 'future-sso'
+export type EmbeddedIframeAuthStrategy =
+  | 'none'
+  | 'session-bridge'
+  | 'token-handshake'
+  | 'future-sso'
 
 export interface EmbeddedIframePageDefinition {
   id: string
@@ -18,10 +22,7 @@ export interface EmbeddedIframePageDefinition {
   fallbackBehavior?: string
 }
 
-type ProbeState =
-  | { status: 'loading' }
-  | { status: 'ready' }
-  | { status: 'error'; message: string }
+type ProbeState = { status: 'loading' } | { status: 'ready' } | { status: 'error'; message: string }
 
 export function EmbeddedIframePage({ page }: { page: EmbeddedIframePageDefinition }) {
   const layout = useOptionalLayout()
@@ -80,7 +81,8 @@ export function EmbeddedIframePage({ page }: { page: EmbeddedIframePageDefinitio
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">{page.title}</h1>
           <p className="text-sm text-muted-foreground">
-            {page.description ?? 'Embedded external page rendered through an AppOS-owned proxy route.'}
+            {page.description ??
+              'Embedded external page rendered through an AppOS-owned proxy route.'}
           </p>
         </div>
         <a

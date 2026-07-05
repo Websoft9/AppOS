@@ -71,7 +71,7 @@ function secretFieldEditModeKey(fieldID: string) {
 }
 
 function secretFieldInlineValueKey(fieldID: string) {
-	return `${fieldID}__inline_value`
+  return `${fieldID}__inline_value`
 }
 
 function InlineSecretEditorField({
@@ -108,7 +108,8 @@ function InlineSecretEditorField({
           id: inputId,
           type: 'password',
           value: inlineValue,
-          onChange: (event: { target: { value: string } }) => onInlineValueChange(event.target.value),
+          onChange: (event: { target: { value: string } }) =>
+            onInlineValueChange(event.target.value),
           placeholder: 'Enter a new secret value to update the current secret',
           autoFocus: true,
         }),
@@ -440,8 +441,7 @@ export function resolveConnectorTemplateId(
   payload: Record<string, unknown>,
   editingItem?: Record<string, unknown> | null
 ): string {
-  return String(payload.template_id ?? editingItem?.template_id ?? '')
-    .trim()
+  return String(payload.template_id ?? editingItem?.template_id ?? '').trim()
 }
 
 function normalizeEndpointValue(
@@ -510,32 +510,29 @@ export function mapTemplateFieldToResourceField(
           typeof useSecretValue === 'boolean' ? useSecretValue : referenceValue.trim() !== ''
 
         if (editingItem) {
-          return createElement(
-            InlineSecretEditorField,
-            {
-              inputId,
-              referenceValue,
-              referenceOptions: relationOptions,
-              inlineEditing: Boolean(formData[secretFieldEditModeKey(field.id)]),
-              inlineValue: String(formData[secretFieldInlineValueKey(field.id)] ?? ''),
-              onReferenceValueChange: (value: string) => {
-                updateField(field.id, value)
-                updateField(secretFieldEditModeKey(field.id), false)
-                updateField(secretFieldInlineValueKey(field.id), '')
-              },
-              onStartInlineEdit: () => {
-                updateField(secretFieldEditModeKey(field.id), true)
-                updateField(secretFieldInlineValueKey(field.id), '')
-              },
-              onInlineValueChange: (value: string) => {
-                updateField(secretFieldInlineValueKey(field.id), value)
-              },
-              onCancelInlineEdit: () => {
-                updateField(secretFieldEditModeKey(field.id), false)
-                updateField(secretFieldInlineValueKey(field.id), '')
-              },
-            }
-          )
+          return createElement(InlineSecretEditorField, {
+            inputId,
+            referenceValue,
+            referenceOptions: relationOptions,
+            inlineEditing: Boolean(formData[secretFieldEditModeKey(field.id)]),
+            inlineValue: String(formData[secretFieldInlineValueKey(field.id)] ?? ''),
+            onReferenceValueChange: (value: string) => {
+              updateField(field.id, value)
+              updateField(secretFieldEditModeKey(field.id), false)
+              updateField(secretFieldInlineValueKey(field.id), '')
+            },
+            onStartInlineEdit: () => {
+              updateField(secretFieldEditModeKey(field.id), true)
+              updateField(secretFieldInlineValueKey(field.id), '')
+            },
+            onInlineValueChange: (value: string) => {
+              updateField(secretFieldInlineValueKey(field.id), value)
+            },
+            onCancelInlineEdit: () => {
+              updateField(secretFieldEditModeKey(field.id), false)
+              updateField(secretFieldInlineValueKey(field.id), '')
+            },
+          })
         }
 
         return createElement(SecretCredentialField, {
@@ -596,34 +593,38 @@ export function mapTemplateFieldToResourceField(
       helpUrl: field.helpUrl,
       render: ({ inputId, value, formData, updateField }) => {
         const checked = Boolean(value)
-    return renderBooleanSwitchField({
-      inputId,
-      label: field.label,
-      value: checked,
-      setValue: nextChecked => {
-        const currentDefault = parseConnectorEndpoint(resolveSMTPDefaultEndpoint(template, checked))
-        const nextDefault = parseConnectorEndpoint(resolveSMTPDefaultEndpoint(template, nextChecked))
-        const currentHost = String(formData.endpoint ?? '').trim()
-        const currentPort = Number(formData.port ?? 0)
+        return renderBooleanSwitchField({
+          inputId,
+          label: field.label,
+          value: checked,
+          setValue: nextChecked => {
+            const currentDefault = parseConnectorEndpoint(
+              resolveSMTPDefaultEndpoint(template, checked)
+            )
+            const nextDefault = parseConnectorEndpoint(
+              resolveSMTPDefaultEndpoint(template, nextChecked)
+            )
+            const currentHost = String(formData.endpoint ?? '').trim()
+            const currentPort = Number(formData.port ?? 0)
 
-        updateField(field.id, nextChecked)
+            updateField(field.id, nextChecked)
 
-        if ((!currentHost || currentHost === currentDefault.host) && nextDefault.host) {
-          updateField('endpoint', nextDefault.host)
-        }
+            if ((!currentHost || currentHost === currentDefault.host) && nextDefault.host) {
+              updateField('endpoint', nextDefault.host)
+            }
 
-        if (
-          !currentPort ||
-          currentPort === currentDefault.port ||
-          currentPort === 465 ||
-          currentPort === 587
-        ) {
-          updateField('port', nextDefault.port || (nextChecked ? 465 : 587))
-        }
-      },
-      enabledLabel: translateOrFallback(t, 'connectors.enabled.yes', 'Yes'),
-      disabledLabel: translateOrFallback(t, 'connectors.enabled.no', 'No'),
-    })
+            if (
+              !currentPort ||
+              currentPort === currentDefault.port ||
+              currentPort === 465 ||
+              currentPort === 587
+            ) {
+              updateField('port', nextDefault.port || (nextChecked ? 465 : 587))
+            }
+          },
+          enabledLabel: translateOrFallback(t, 'connectors.enabled.yes', 'Yes'),
+          disabledLabel: translateOrFallback(t, 'connectors.enabled.no', 'No'),
+        })
       },
     }
   }
@@ -715,7 +716,9 @@ export function hasConnectorSecretFieldValue(
 ) {
   const selectedValue = String(payload[field.id] ?? '').trim()
   const manualValue = String(
-    payload[secretFieldManualValueKey(field.id)] ?? payload[secretFieldInlineValueKey(field.id)] ?? ''
+    payload[secretFieldManualValueKey(field.id)] ??
+      payload[secretFieldInlineValueKey(field.id)] ??
+      ''
   ).trim()
   return Boolean(selectedValue || manualValue)
 }
@@ -724,7 +727,7 @@ export async function buildConnectorPayload(
   payload: Record<string, unknown>,
   templatesById: Map<string, ConnectorTemplate>,
   t?: Translate
-) : Promise<ResourceSaveInput> {
+): Promise<ResourceSaveInput> {
   const body = { ...payload }
   const templateId = normalizeTemplateID(body.template_id)
   const template = templatesById.get(templateId)
@@ -765,7 +768,11 @@ export async function buildConnectorPayload(
           Number(body.port ?? 0),
           Boolean(body.tls)
         )
-      : normalizeEndpointValue(String(body.endpoint ?? template.defaultEndpoint ?? ''), template, body)
+      : normalizeEndpointValue(
+          String(body.endpoint ?? template.defaultEndpoint ?? ''),
+          template,
+          body
+        )
 
   for (const field of template.fields ?? []) {
     if (
@@ -829,7 +836,10 @@ export function mapConnectorRow(
   item: ConnectorRecord,
   templatesById: Map<string, ConnectorTemplate>,
   t?: Translate,
-  monitorByTargetId?: Map<string, { status?: string; reason?: string | null; last_checked_at?: string | null }>
+  monitorByTargetId?: Map<
+    string,
+    { status?: string; reason?: string | null; last_checked_at?: string | null }
+  >
 ): Record<string, unknown> {
   const kind = String(item.kind ?? '') as (typeof SUPPORTED_KINDS)[number]
   const template = templatesById.get(String(item.template_id ?? ''))
@@ -857,7 +867,9 @@ export function mapConnectorRow(
   )
 
   const monitor = monitorByTargetId?.get(String(item.id ?? ''))
-  const monitorStatus = String(monitor?.status ?? '').trim().toLowerCase()
+  const monitorStatus = String(monitor?.status ?? '')
+    .trim()
+    .toLowerCase()
   let reachability = ''
   let reachabilityReason = ''
   let reachabilityLastCheckedAt = ''
@@ -882,7 +894,10 @@ export function mapConnectorRow(
     template_id: String(item.template_id ?? ''),
     kind_label: getConnectorKindLabel(kind, t),
     profile: template?.title ?? humanizeTemplateId(String(item.template_id ?? '')),
-    endpoint: template?.endpointShape === 'host_port_tls' ? parsedEndpoint.host : String(item.endpoint ?? ''),
+    endpoint:
+      template?.endpointShape === 'host_port_tls'
+        ? parsedEndpoint.host
+        : String(item.endpoint ?? ''),
     port: parsedEndpoint.port || 0,
     auth_type: String(item.auth_scheme ?? 'none'),
     credential: String(item.credential ?? ''),

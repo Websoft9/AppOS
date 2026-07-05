@@ -53,7 +53,12 @@ import type {
 function ServerRuntimeUnavailableAlert({
   app,
 }: {
-  app: { server_id: string; server_connection_status?: string; server_connection_reason?: string; runtime_reason?: string }
+  app: {
+    server_id: string
+    server_connection_status?: string
+    server_connection_reason?: string
+    runtime_reason?: string
+  }
 }) {
   if (!hasBlockingServerConnectionIssue(app)) return null
   const reason = getServerConnectionReason(app)
@@ -98,20 +103,26 @@ export function AppDetailRuntimeTab({
               <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
                 Matched Containers
               </div>
-              <div className="mt-1 text-xl font-semibold">{serverConnectionBlocked ? '-' : runtimeSummary.total}</div>
+              <div className="mt-1 text-xl font-semibold">
+                {serverConnectionBlocked ? '-' : runtimeSummary.total}
+              </div>
             </div>
             <div className="rounded-2xl bg-muted/20 p-3">
               <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
                 Running
               </div>
-              <div className="mt-1 text-xl font-semibold">{serverConnectionBlocked ? '-' : runtimeSummary.running}</div>
+              <div className="mt-1 text-xl font-semibold">
+                {serverConnectionBlocked ? '-' : runtimeSummary.running}
+              </div>
             </div>
             <div className="rounded-2xl bg-muted/20 p-3">
               <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
                 Total CPU
               </div>
               <div className="mt-1 text-xl font-semibold">
-                {serverConnectionBlocked ? '-' : `${runtimeSummary.cpu.toFixed(runtimeSummary.cpu >= 10 ? 0 : 1)}%`}
+                {serverConnectionBlocked
+                  ? '-'
+                  : `${runtimeSummary.cpu.toFixed(runtimeSummary.cpu >= 10 ? 0 : 1)}%`}
               </div>
             </div>
             <div className="rounded-2xl bg-muted/20 p-3">
@@ -209,7 +220,8 @@ export function AppDetailRuntimeTab({
           ) : (
             <div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
               {serverConnectionBlocked
-                ? serverConnectionReason || 'Current Docker runtime inventory is unavailable because the server is unreachable.'
+                ? serverConnectionReason ||
+                  'Current Docker runtime inventory is unavailable because the server is unreachable.'
                 : 'No matching containers were found for this app in the current Docker inventory.'}
             </div>
           )}
@@ -510,10 +522,20 @@ export function AppDetailObservabilityTab({
                   Combined Resource Use
                 </div>
                 <div className="mt-1 text-sm font-medium">
-                  CPU {serverConnectionBlocked ? '-' : runtimeLoaded ? `${runtimeSummary.cpu.toFixed(1)}%` : '-'}
+                  CPU{' '}
+                  {serverConnectionBlocked
+                    ? '-'
+                    : runtimeLoaded
+                      ? `${runtimeSummary.cpu.toFixed(1)}%`
+                      : '-'}
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  Memory {serverConnectionBlocked ? '-' : runtimeLoaded ? formatBytesCompact(runtimeSummary.memory) : '-'}
+                  Memory{' '}
+                  {serverConnectionBlocked
+                    ? '-'
+                    : runtimeLoaded
+                      ? formatBytesCompact(runtimeSummary.memory)
+                      : '-'}
                 </div>
               </div>
             </div>
@@ -752,7 +774,8 @@ export function AppDetailDataTab({
           ) : (
             <div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
               {serverConnectionBlocked
-                ? serverConnectionReason || 'Current Docker volume inventory is unavailable because the server is unreachable.'
+                ? serverConnectionReason ||
+                  'Current Docker volume inventory is unavailable because the server is unreachable.'
                 : 'No Docker volumes matched this app in the current runtime inventory.'}
             </div>
           )}
@@ -840,7 +863,8 @@ export function AppDetailDataTab({
           ) : (
             <div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
               {serverConnectionBlocked
-                ? serverConnectionReason || 'Container mount projection is unavailable because the server runtime cannot be reached.'
+                ? serverConnectionReason ||
+                  'Container mount projection is unavailable because the server runtime cannot be reached.'
                 : 'No container mount projection is available for the current app runtime.'}
             </div>
           )}

@@ -50,6 +50,7 @@ func initializeRuntime(cfg runtimecfg.Config) (InitializationState, error) {
 		secretDataDir = strings.TrimSpace(os.Getenv("DATA_DIR"))
 	}
 	if secretDataDir == "" {
+		// #nosec G101 -- fixed data directory path, not a secret.
 		secretDataDir = "/appos/data"
 	}
 

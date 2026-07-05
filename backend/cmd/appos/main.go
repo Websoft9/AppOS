@@ -73,9 +73,6 @@ func main() {
 			}
 		})
 		routes.SetAsynqClient(w.Client())
-	} else {
-		// routes.asynqClient stays nil; route handlers and cron hooks
-		// already guard against nil with early returns.
 	}
 
 	// Register custom routes

@@ -1899,7 +1899,10 @@ describe('ServersPage layout', () => {
     fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
 
     expect(screen.getByText('Enable it')).toBeInTheDocument()
-    expect(screen.getByRole('switch', { name: 'Enable it' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('switch', { name: 'Enable it' })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    )
     expect(screen.getByLabelText('Description')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Credential (Secret)' }))

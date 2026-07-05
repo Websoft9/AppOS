@@ -1,16 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import {
-  Server,
-  Database,
-  Bot,
-  Cloud,
-  Plug,
-  Search,
-  Loader2,
-  ChevronRight,
-} from 'lucide-react'
+import { Server, Database, Bot, Cloud, Plug, Search, Loader2, ChevronRight } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -224,7 +215,10 @@ export function ResourceHub() {
       .then(data => data.totalItems ?? 0)
       .catch(() => 0)
 
-    const [results, nextGroupCount] = await Promise.all([Promise.allSettled(promises), groupPromise])
+    const [results, nextGroupCount] = await Promise.all([
+      Promise.allSettled(promises),
+      groupPromise,
+    ])
     const c: Record<string, number> = {}
     for (const r of results) {
       if (r.status === 'fulfilled') c[r.value.key] = r.value.count

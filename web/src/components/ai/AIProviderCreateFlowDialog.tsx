@@ -80,10 +80,7 @@ function providerSelectionGroupLabel(t: Translate, group: AIProviderSelectionGro
   return t(`aiProviders.selection.groups.${group}`)
 }
 
-function resolveEndpointFieldTitle(
-  t: Translate,
-  template: AIProviderTemplate | null | undefined
-) {
+function resolveEndpointFieldTitle(t: Translate, template: AIProviderTemplate | null | undefined) {
   return defaultTemplateProtocol(template) === 'anthropic'
     ? t('aiProviders.fields.apiEndpoint')
     : t('aiProviders.fields.openaiCompatibleUrl')
@@ -346,12 +343,12 @@ export function AIProviderCreateFlowDialog({
       .then(items => {
         const normalizedItems = Array.isArray(items) ? items : []
         const names = normalizedItems
-              .map(item =>
-                String(item.name ?? '')
-                  .trim()
-                  .toLowerCase()
-              )
-              .filter(Boolean)
+          .map(item =>
+            String(item.name ?? '')
+              .trim()
+              .toLowerCase()
+          )
+          .filter(Boolean)
         setExistingProviders(normalizedItems)
         setExistingProviderNames(names)
       })
@@ -468,7 +465,10 @@ export function AIProviderCreateFlowDialog({
   const renderEndpointField = useCallback<NonNullable<FieldDef['render']>>(
     ({ inputId, formData: currentFormData, updateField }) => {
       const endpointField = selectedTemplate?.fields?.find(field => field.id === 'endpoint')
-      const defaultProtocol = defaultTemplateProtocol(selectedTemplate, currentFormData.default_protocol)
+      const defaultProtocol = defaultTemplateProtocol(
+        selectedTemplate,
+        currentFormData.default_protocol
+      )
       const endpointEditing = Boolean(currentFormData.endpoint_editing)
       const endpointLabel = resolveEndpointFieldTitle(t, selectedTemplate)
       const endpointValue = String(
@@ -484,7 +484,11 @@ export function AIProviderCreateFlowDialog({
         <div className="space-y-1.5">
           <label htmlFor={inputId} className="text-sm font-medium text-foreground">
             <span>{endpointLabel}</span>
-            {endpointField?.required ? <span aria-hidden="true" className="ml-1 text-destructive">*</span> : null}
+            {endpointField?.required ? (
+              <span aria-hidden="true" className="ml-1 text-destructive">
+                *
+              </span>
+            ) : null}
           </label>
           <div className="flex items-center gap-2">
             <input
@@ -504,7 +508,11 @@ export function AIProviderCreateFlowDialog({
               type="button"
               variant="outline"
               size="icon"
-              title={endpointEditing ? t('aiProviders.actions.finishEditingEndpoint') : t('aiProviders.actions.editEndpoint')}
+              title={
+                endpointEditing
+                  ? t('aiProviders.actions.finishEditingEndpoint')
+                  : t('aiProviders.actions.editEndpoint')
+              }
               onClick={() => updateField('endpoint_editing', !endpointEditing)}
             >
               {endpointEditing ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
@@ -1125,7 +1133,9 @@ export function AIProviderCreateFlowDialog({
               </div>
             ) : (
               <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
-                {(['singleProvider', 'cloudGateway', 'selfHosted'] as AIProviderSelectionGroupKey[]).map(group => {
+                {(
+                  ['singleProvider', 'cloudGateway', 'selfHosted'] as AIProviderSelectionGroupKey[]
+                ).map(group => {
                   const groupOptions = productOptions.filter(
                     option => providerSelectionGroupKey(option) === group
                   )

@@ -1215,8 +1215,8 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
           {config.headerStatus ? <div className="mt-3">{config.headerStatus}</div> : null}
         </div>
         <div className="flex items-center justify-end gap-2 self-end sm:self-auto">
-          {config.showRefreshButton && (
-            config.refreshButtonIconOnly === false ? (
+          {config.showRefreshButton &&
+            (config.refreshButtonIconOnly === false ? (
               <Button
                 variant="outline"
                 size={compactHeaderActionsOnMobile ? 'icon' : 'default'}
@@ -1243,8 +1243,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                 title={config.refreshButtonLabel ?? 'Refresh'}
                 chrome="boxed"
               />
-            )
-          )}
+            ))}
           <Button
             onClick={triggerCreate}
             size={compactHeaderActionsOnMobile || config.createButtonIconOnly ? 'icon' : 'default'}

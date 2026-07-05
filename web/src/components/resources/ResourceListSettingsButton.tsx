@@ -47,7 +47,10 @@ export function ResourceListSettingsButton({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel>{rowsPerPageLabel}</DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={String(pageSize)} onValueChange={value => setPageSize(Number(value))}>
+        <DropdownMenuRadioGroup
+          value={String(pageSize)}
+          onValueChange={value => setPageSize(Number(value))}
+        >
           {pageSizeOptions.map(option => (
             <DropdownMenuRadioItem key={option} value={String(option)}>
               {rowsPerPageOptionLabel(option)}

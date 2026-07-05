@@ -148,7 +148,7 @@ func dialViaHTTPConnect(ctx context.Context, proxyURL *url.URL, address string, 
 		return nil, err
 	}
 	if strings.EqualFold(proxyURL.Scheme, "https") {
-		tlsConn := tls.Client(conn, &tls.Config{ServerName: proxyURL.Hostname()})
+		tlsConn := tls.Client(conn, &tls.Config{MinVersion: tls.VersionTLS12, ServerName: proxyURL.Hostname()})
 		if err := tlsConn.HandshakeContext(ctx); err != nil {
 			_ = conn.Close()
 			return nil, err

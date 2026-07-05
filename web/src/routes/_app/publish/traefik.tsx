@@ -1,5 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { EmbeddedIframePage, type EmbeddedIframePageDefinition } from '@/components/iframe-page/EmbeddedIframePage'
+import {
+  EmbeddedIframePage,
+  type EmbeddedIframePageDefinition,
+} from '@/components/iframe-page/EmbeddedIframePage'
 
 const TRAEFIK_DASHBOARD_PAGE: EmbeddedIframePageDefinition = {
   id: 'traefik-dashboard',
@@ -9,7 +12,8 @@ const TRAEFIK_DASHBOARD_PAGE: EmbeddedIframePageDefinition = {
   parentLabel: 'iframe page',
   accessMode: 'proxied',
   authStrategy: 'none',
-  description: 'Embedded infrastructure console rendered through an AppOS-owned same-origin proxy route.',
+  description:
+    'Embedded infrastructure console rendered through an AppOS-owned same-origin proxy route.',
   fallbackBehavior: 'open in new window',
 }
 

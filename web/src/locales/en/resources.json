@@ -192,8 +192,8 @@
       "name": "Name",
       "enabled": "Enabled",
       "kind": "Kind",
-        "host": "Host",
-        "port": "Port",
+      "host": "Host",
+      "port": "Port",
       "reachability": "Reachability",
       "monitor": "Monitor",
       "lastChecked": "Last Checked",
@@ -214,11 +214,11 @@
       "no": "No"
     },
     "status": {
-        "healthy": "Healthy",
-        "offline": "Offline",
-        "unreachable": "Unreachable",
-        "credential_invalid": "Credential Invalid",
-        "degraded": "Degraded"
+      "healthy": "Healthy",
+      "offline": "Offline",
+      "unreachable": "Unreachable",
+      "credential_invalid": "Credential Invalid",
+      "degraded": "Degraded"
     },
     "ssl": {
       "oneWay": "One-way SSL",
@@ -1246,10 +1246,10 @@
       "totalItems": "Total {{count}} items"
     },
     "selection": {
-    "endpoint": {
-      "defaultSchemeHint": "If no protocol is entered, {{scheme}} will be added automatically.",
-      "schemeMismatchWarning": "The typed protocol {{actual}} differs from the default {{expected}}. You can still save this value."
-    },
+      "endpoint": {
+        "defaultSchemeHint": "If no protocol is entered, {{scheme}} will be added automatically.",
+        "schemeMismatchWarning": "The typed protocol {{actual}} differs from the default {{expected}}. You can still save this value."
+      },
       "title": "Choose an External Service Type",
       "description": "Start with the service type, then choose a vendor profile to prefill the shared schema.",
       "searchPlaceholder": "Search service types like SMTP, DNS, outbound proxy, or HTTP gateway...",
@@ -1272,8 +1272,8 @@
       "enabled": "Enabled",
       "default": "Default",
       "kind": "Kind",
-        "url": "URL",
-        "port": "Port",
+      "url": "URL",
+      "port": "Port",
       "auth": "Auth",
       "reachability": "Reachability",
       "lastChecked": "Last Checked",

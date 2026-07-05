@@ -174,12 +174,12 @@ export function SettingsScreen({ controller }: SettingsScreenProps) {
           </div>
 
           {helpOpen ? (
-              <div
-                className={cn(
-                  'min-w-0 lg:col-start-2 lg:row-start-2 2xl:col-start-3 2xl:row-start-1 2xl:self-start',
-                  showSettingsBreadcrumb ? '2xl:pt-[72px]' : undefined
-                )}
-              >
+            <div
+              className={cn(
+                'min-w-0 lg:col-start-2 lg:row-start-2 2xl:col-start-3 2xl:row-start-1 2xl:self-start',
+                showSettingsBreadcrumb ? '2xl:pt-[72px]' : undefined
+              )}
+            >
               <SettingsHelpPanel
                 title={help.title}
                 description={help.description}

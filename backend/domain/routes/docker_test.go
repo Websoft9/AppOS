@@ -1,9 +1,7 @@
 package routes
 
 import (
-	"context"
 	"encoding/base64"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,47 +18,6 @@ import (
 	"github.com/websoft9/appos/backend/infra/collections"
 	"github.com/websoft9/appos/backend/infra/egress"
 )
-
-type stubDockerExecutor struct {
-	host    string
-	output  string
-	outputs map[string]string
-	errors  map[string]error
-	lastCmd []string
-	allCmds [][]string
-}
-
-func (s *stubDockerExecutor) Run(_ context.Context, command string, args ...string) (string, error) {
-	cmd := append([]string{command}, args...)
-	s.lastCmd = cmd
-	s.allCmds = append(s.allCmds, append([]string(nil), cmd...))
-	if s.errors != nil {
-		if err, ok := s.errors[strings.Join(cmd, " ")]; ok {
-			return "", err
-		}
-	}
-	if s.outputs != nil {
-		if output, ok := s.outputs[strings.Join(cmd, " ")]; ok {
-			return output, nil
-		}
-	}
-	return s.output, nil
-}
-
-func (s *stubDockerExecutor) RunStream(_ context.Context, command string, args ...string) (io.ReadCloser, error) {
-	cmd := append([]string{command}, args...)
-	s.lastCmd = cmd
-	s.allCmds = append(s.allCmds, append([]string(nil), cmd...))
-	return io.NopCloser(strings.NewReader(s.output)), nil
-}
-
-func (s *stubDockerExecutor) Ping(context.Context) error {
-	return nil
-}
-
-func (s *stubDockerExecutor) Host() string {
-	return s.host
-}
 
 func ensureDockerSecretRuntime(t *testing.T) {
 	t.Helper()

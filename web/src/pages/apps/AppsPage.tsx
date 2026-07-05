@@ -132,9 +132,7 @@ function getListActionAvailability(app: AppInstance) {
         : false),
     restart:
       !blockedByServer &&
-      (normalizedInstanceState
-        ? ['running', 'degraded'].includes(normalizedInstanceState)
-        : false),
+      (normalizedInstanceState ? ['running', 'degraded'].includes(normalizedInstanceState) : false),
     redeploy: !blockedByServer,
     upgrade: !blockedByServer,
     uninstall: !blockedByServer,
@@ -381,7 +379,8 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
       stopped: apps.filter(item => appListHealthState(item) === 'stopped').length,
       updating: apps.filter(item => appListHealthState(item) === 'updating').length,
       degraded: apps.filter(item => appListHealthState(item) === 'degraded').length,
-      attentionRequired: apps.filter(item => appListHealthState(item) === 'attention_required').length,
+      attentionRequired: apps.filter(item => appListHealthState(item) === 'attention_required')
+        .length,
       unknown: apps.filter(item => appListHealthState(item) === 'unknown').length,
     }),
     [apps]
@@ -456,15 +455,7 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
 
   useEffect(() => {
     setPage(1)
-  }, [
-    effectiveTemplate,
-    search,
-    selectedInstanceState,
-    selectedServer,
-    sortDir,
-    sortField,
-    view,
-  ])
+  }, [effectiveTemplate, search, selectedInstanceState, selectedServer, sortDir, sortField, view])
 
   function handleTemplateFilterChange(value: string) {
     setSelectedTemplate(value || TEMPLATE_FILTER_ALL)
@@ -660,9 +651,11 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       <Badge
-                        variant={hasBlockingServerConnectionIssue(app)
-                          ? effectiveInstanceStateVariant(app)
-                          : instanceStateVariant(app.instance_state)}
+                        variant={
+                          hasBlockingServerConnectionIssue(app)
+                            ? effectiveInstanceStateVariant(app)
+                            : instanceStateVariant(app.instance_state)
+                        }
                       >
                         {hasBlockingServerConnectionIssue(app)
                           ? formatEffectiveInstanceStateLabel(app)
@@ -772,9 +765,11 @@ export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
                   <TableCell>
                     <div className="flex flex-col items-start gap-1">
                       <Badge
-                        variant={hasBlockingServerConnectionIssue(item)
-                          ? effectiveInstanceStateVariant(item)
-                          : instanceStateVariant(item.instance_state)}
+                        variant={
+                          hasBlockingServerConnectionIssue(item)
+                            ? effectiveInstanceStateVariant(item)
+                            : instanceStateVariant(item.instance_state)
+                        }
                       >
                         {hasBlockingServerConnectionIssue(item)
                           ? formatEffectiveInstanceStateLabel(item)

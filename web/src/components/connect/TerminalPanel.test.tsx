@@ -273,9 +273,7 @@ describe('TerminalPanel regressions', () => {
     )
 
     expect(await screen.findByText('Proxy warning')).toBeInTheDocument()
-    expect(
-      screen.getByText(/no online SSH tunnel is available/i)
-    ).toBeInTheDocument()
+    expect(screen.getByText(/no online SSH tunnel is available/i)).toBeInTheDocument()
     expect(socket.close).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: /reconnect/i })).not.toBeInTheDocument()
   })

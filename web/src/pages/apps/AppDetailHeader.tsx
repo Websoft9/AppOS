@@ -56,7 +56,8 @@ export function AppDetailHeader({
 }: AppDetailHeaderProps) {
   const serverConnectionBlocked = hasBlockingServerConnectionIssue(app)
   const showServerConnectionBadge =
-    app?.server_id !== 'local' && normalizeServerConnectionStatus(app?.server_connection_status) !== 'online'
+    app?.server_id !== 'local' &&
+    normalizeServerConnectionStatus(app?.server_connection_status) !== 'online'
 
   return (
     <div className="space-y-4">
@@ -69,13 +70,19 @@ export function AppDetailHeader({
               <>
                 <Badge variant="outline">{app.status}</Badge>
                 <Badge
-                  variant={serverConnectionBlocked ? effectiveInstanceStateVariant(app) : instanceStateVariant(app.instance_state)}
+                  variant={
+                    serverConnectionBlocked
+                      ? effectiveInstanceStateVariant(app)
+                      : instanceStateVariant(app.instance_state)
+                  }
                 >
                   {serverConnectionBlocked
                     ? formatEffectiveInstanceStateLabel(app)
                     : formatInstanceStateLabel(app.instance_state)}
                 </Badge>
-                <Badge variant={serverConnectionBlocked ? 'outline' : runtimeVariant(app.runtime_status)}>
+                <Badge
+                  variant={serverConnectionBlocked ? 'outline' : runtimeVariant(app.runtime_status)}
+                >
                   {formatEffectiveRuntimeLabel(app)}
                 </Badge>
                 {showServerConnectionBadge ? (

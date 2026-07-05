@@ -59,83 +59,87 @@ export function FeedsPolicySection({
         <div className="space-y-1">
           <h3 className="text-base font-semibold text-foreground">Feeds</h3>
           <p className="text-sm text-muted-foreground">
-          Control feed polling cadence, failure backoff, and article retention limits.
+            Control feed polling cadence, failure backoff, and article retention limits.
           </p>
         </div>
         <div className="rounded-lg border border-border/40 bg-background p-4">
           <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <Label htmlFor="pollIntervalHours">Poll Interval (hours)</Label>
-            <Input
-              id="pollIntervalHours"
-              type="number"
-              min={1}
-              max={240}
-              value={form.pollIntervalHours}
-              onChange={e => setForm(c => ({ ...c, pollIntervalHours: Number(e.target.value) }))}
-            />
-            <p className="text-xs text-muted-foreground">1 - 240 hours</p>
-            {errors.pollIntervalHours ? (
-              <p className="text-xs text-destructive">{errors.pollIntervalHours}</p>
-            ) : null}
-          </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label htmlFor="pollIntervalHours">Poll Interval (hours)</Label>
+                <Input
+                  id="pollIntervalHours"
+                  type="number"
+                  min={1}
+                  max={240}
+                  value={form.pollIntervalHours}
+                  onChange={e =>
+                    setForm(c => ({ ...c, pollIntervalHours: Number(e.target.value) }))
+                  }
+                />
+                <p className="text-xs text-muted-foreground">1 - 240 hours</p>
+                {errors.pollIntervalHours ? (
+                  <p className="text-xs text-destructive">{errors.pollIntervalHours}</p>
+                ) : null}
+              </div>
 
-          <div className="space-y-1">
-            <Label htmlFor="failureBackoffMaxHours">Failure Backoff (hours)</Label>
-            <Input
-              id="failureBackoffMaxHours"
-              type="number"
-              min={4}
-              max={336}
-              value={form.failureBackoffMaxHours}
-              onChange={e =>
-                setForm(c => ({ ...c, failureBackoffMaxHours: Number(e.target.value) }))
-              }
-            />
-            <p className="text-xs text-muted-foreground">
-              After 1 failure: {tier1}h · 2 failures: {tier2}h · 3+: {backoffMax}h
-            </p>
-            {errors.failureBackoffMaxHours ? (
-              <p className="text-xs text-destructive">{errors.failureBackoffMaxHours}</p>
-            ) : null}
-          </div>
+              <div className="space-y-1">
+                <Label htmlFor="failureBackoffMaxHours">Failure Backoff (hours)</Label>
+                <Input
+                  id="failureBackoffMaxHours"
+                  type="number"
+                  min={4}
+                  max={336}
+                  value={form.failureBackoffMaxHours}
+                  onChange={e =>
+                    setForm(c => ({ ...c, failureBackoffMaxHours: Number(e.target.value) }))
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  After 1 failure: {tier1}h · 2 failures: {tier2}h · 3+: {backoffMax}h
+                </p>
+                {errors.failureBackoffMaxHours ? (
+                  <p className="text-xs text-destructive">{errors.failureBackoffMaxHours}</p>
+                ) : null}
+              </div>
 
-          <div className="space-y-1">
-            <Label htmlFor="perSourceRetentionCap">Per Source Retention Cap</Label>
-            <Input
-              id="perSourceRetentionCap"
-              type="number"
-              min={20}
-              max={1000}
-              value={form.perSourceRetentionCap}
-              onChange={e =>
-                setForm(c => ({ ...c, perSourceRetentionCap: Number(e.target.value) }))
-              }
-            />
-            <p className="text-xs text-muted-foreground">20 - 1000 articles per source</p>
-            {errors.perSourceRetentionCap ? (
-              <p className="text-xs text-destructive">{errors.perSourceRetentionCap}</p>
-            ) : null}
-          </div>
+              <div className="space-y-1">
+                <Label htmlFor="perSourceRetentionCap">Per Source Retention Cap</Label>
+                <Input
+                  id="perSourceRetentionCap"
+                  type="number"
+                  min={20}
+                  max={1000}
+                  value={form.perSourceRetentionCap}
+                  onChange={e =>
+                    setForm(c => ({ ...c, perSourceRetentionCap: Number(e.target.value) }))
+                  }
+                />
+                <p className="text-xs text-muted-foreground">20 - 1000 articles per source</p>
+                {errors.perSourceRetentionCap ? (
+                  <p className="text-xs text-destructive">{errors.perSourceRetentionCap}</p>
+                ) : null}
+              </div>
 
-          <div className="space-y-1">
-            <Label htmlFor="globalRetentionCap">Global Retention Cap</Label>
-            <Input
-              id="globalRetentionCap"
-              type="number"
-              min={5000}
-              max={50000}
-              value={form.globalRetentionCap}
-              onChange={e => setForm(c => ({ ...c, globalRetentionCap: Number(e.target.value) }))}
-            />
-            <p className="text-xs text-muted-foreground">5000 - 50000 articles overall</p>
-            {errors.globalRetentionCap ? (
-              <p className="text-xs text-destructive">{errors.globalRetentionCap}</p>
-            ) : null}
-          </div>
-        </div>
-        <SaveButton onClick={save} saving={saving} />
+              <div className="space-y-1">
+                <Label htmlFor="globalRetentionCap">Global Retention Cap</Label>
+                <Input
+                  id="globalRetentionCap"
+                  type="number"
+                  min={5000}
+                  max={50000}
+                  value={form.globalRetentionCap}
+                  onChange={e =>
+                    setForm(c => ({ ...c, globalRetentionCap: Number(e.target.value) }))
+                  }
+                />
+                <p className="text-xs text-muted-foreground">5000 - 50000 articles overall</p>
+                {errors.globalRetentionCap ? (
+                  <p className="text-xs text-destructive">{errors.globalRetentionCap}</p>
+                ) : null}
+              </div>
+            </div>
+            <SaveButton onClick={save} saving={saving} />
           </div>
         </div>
 

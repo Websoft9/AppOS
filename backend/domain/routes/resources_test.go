@@ -22,6 +22,7 @@ import (
 	"github.com/websoft9/appos/backend/domain/resource/aiproviders"
 	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	"github.com/websoft9/appos/backend/domain/resource/instances"
+	"github.com/websoft9/appos/backend/infra/persistence"
 
 	_ "github.com/websoft9/appos/backend/infra/migrations"
 )
@@ -1520,6 +1521,47 @@ func TestAIProviderReachabilityAndAvailability(t *testing.T) {
 	}
 	if unavailableMonitor.GetString("status") != "degraded" {
 		t.Fatalf("expected unavailable provider monitor status 'degraded', got %q", unavailableMonitor.GetString("status"))
+	}
+
+	providerRepo := persistence.NewAIProviderRepository(te.app)
+	availableProvider, err := providerRepo.Get(availableID)
+	if err != nil {
+		t.Fatalf("load available provider after probes: %v", err)
+	}
+	availableConfig := availableProvider.Config()
+	availabilityState, ok := availableConfig["availability"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected available provider availability state to persist, got %#v", availableConfig["availability"])
+	}
+	if availabilityState["status"] != "available" {
+		t.Fatalf("expected persisted availability status 'available', got %#v", availabilityState)
+	}
+	reachabilityState, ok := availableConfig["reachability"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected available provider reachability state to persist, got %#v", availableConfig["reachability"])
+	}
+	if reachabilityState["status"] != "reachable" {
+		t.Fatalf("expected persisted reachability status 'reachable', got %#v", reachabilityState)
+	}
+
+	unavailableProvider, err := providerRepo.Get(unavailableID)
+	if err != nil {
+		t.Fatalf("load unavailable provider after probes: %v", err)
+	}
+	unavailableConfig := unavailableProvider.Config()
+	unavailableAvailability, ok := unavailableConfig["availability"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected unavailable provider availability state to persist, got %#v", unavailableConfig["availability"])
+	}
+	if unavailableAvailability["status"] != "unavailable" {
+		t.Fatalf("expected persisted availability status 'unavailable', got %#v", unavailableAvailability)
+	}
+	unavailableReachability, ok := unavailableConfig["reachability"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected unavailable provider reachability state to persist, got %#v", unavailableConfig["reachability"])
+	}
+	if unavailableReachability["status"] != "reachable" {
+		t.Fatalf("expected persisted reachability status 'reachable', got %#v", unavailableReachability)
 	}
 }
 

@@ -135,7 +135,9 @@ export function ResourceFormField({
           multiple
           onSelect={() => undefined}
           onToggleOption={(optionId, checked) => {
-            const current = Array.isArray(formData[field.key]) ? (formData[field.key] as string[]) : []
+            const current = Array.isArray(formData[field.key])
+              ? (formData[field.key] as string[])
+              : []
             if (checked) {
               updateField(field.key, [...current, optionId])
               return

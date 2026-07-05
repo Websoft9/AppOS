@@ -69,8 +69,10 @@ function normalizeConnectorReachability(value: unknown, t: Translate) {
   const normalized = String(value ?? '')
     .trim()
     .toLowerCase()
-  if (normalized === 'reachable') return translateStatus(t, 'connectors.status.reachable', 'Reachable')
-  if (normalized === 'unreachable') return translateStatus(t, 'connectors.status.unreachable', 'Unreachable')
+  if (normalized === 'reachable')
+    return translateStatus(t, 'connectors.status.reachable', 'Reachable')
+  if (normalized === 'unreachable')
+    return translateStatus(t, 'connectors.status.unreachable', 'Unreachable')
   return translateStatus(t, 'connectors.status.unknown', 'Unknown')
 }
 
@@ -163,7 +165,8 @@ function buildColumns(
       sortable: true,
       render: value => {
         const portVal = Number(value)
-        if (!portVal || portVal <= 0) return <span className="text-sm text-muted-foreground">—</span>
+        if (!portVal || portVal <= 0)
+          return <span className="text-sm text-muted-foreground">—</span>
         return <span className="text-sm">{String(value)}</span>
       },
     },
@@ -182,9 +185,18 @@ function buildColumns(
       label: translateStatus(t, 'connectors.columns.reachability', 'Reachability'),
       sortable: true,
       filterOptions: [
-        { label: normalizeConnectorReachability('reachable', t), value: normalizeConnectorReachability('reachable', t) },
-        { label: normalizeConnectorReachability('unreachable', t), value: normalizeConnectorReachability('unreachable', t) },
-        { label: normalizeConnectorReachability('unknown', t), value: normalizeConnectorReachability('unknown', t) },
+        {
+          label: normalizeConnectorReachability('reachable', t),
+          value: normalizeConnectorReachability('reachable', t),
+        },
+        {
+          label: normalizeConnectorReachability('unreachable', t),
+          value: normalizeConnectorReachability('unreachable', t),
+        },
+        {
+          label: normalizeConnectorReachability('unknown', t),
+          value: normalizeConnectorReachability('unknown', t),
+        },
       ],
       filterValue: row => resolveStatusMeta(row).status,
       render: (value, row) => {
@@ -228,9 +240,7 @@ function buildColumns(
       label: translateStatus(t, 'connectors.columns.created', 'Created'),
       sortable: true,
       render: value => (
-        <span className="text-sm text-muted-foreground">
-          {formatResourceDateTime(value)}
-        </span>
+        <span className="text-sm text-muted-foreground">{formatResourceDateTime(value)}</span>
       ),
     },
     {
@@ -238,9 +248,7 @@ function buildColumns(
       label: translateStatus(t, 'connectors.columns.updated', 'Updated'),
       sortable: true,
       render: value => (
-        <span className="text-sm text-muted-foreground">
-          {formatResourceDateTime(value)}
-        </span>
+        <span className="text-sm text-muted-foreground">{formatResourceDateTime(value)}</span>
       ),
     },
   ]
@@ -371,13 +379,12 @@ export function ConnectorsPage() {
           openSecretDialog,
           t
         )
-        const endpointTemplate =
-          selectedTemplate ?? {
-            id: '',
-            kind,
-            title: getConnectorKindLabel(kind, t),
-            fields: [],
-          }
+        const endpointTemplate = selectedTemplate ?? {
+          id: '',
+          kind,
+          title: getConnectorKindLabel(kind, t),
+          fields: [],
+        }
         const mappedWithEndpointBehavior =
           mapped.key === 'endpoint' && endpointTemplate.endpointShape !== 'host_port_tls'
             ? {
@@ -461,15 +468,15 @@ export function ConnectorsPage() {
       const orderedDynamicFields: FieldDef[] =
         selectedTemplate?.endpointShape === 'host_port_tls'
           ? (() => {
-            const fieldByKey = new Map(dynamicFields.map(field => [field.key, field]))
-            const preferredOrder = ['endpoint', 'tls', 'port']
-            const prioritized: FieldDef[] = preferredOrder.flatMap(key => {
-              const field = fieldByKey.get(key)
-              return field ? [field] : []
-            })
-            const remainder = dynamicFields.filter(field => !preferredOrder.includes(field.key))
-            return [...prioritized, ...remainder]
-          })()
+              const fieldByKey = new Map(dynamicFields.map(field => [field.key, field]))
+              const preferredOrder = ['endpoint', 'tls', 'port']
+              const prioritized: FieldDef[] = preferredOrder.flatMap(key => {
+                const field = fieldByKey.get(key)
+                return field ? [field] : []
+              })
+              const remainder = dynamicFields.filter(field => !preferredOrder.includes(field.key))
+              return [...prioritized, ...remainder]
+            })()
           : dynamicFields
 
       return [
@@ -636,7 +643,14 @@ export function ConnectorsPage() {
   )
 
   const columnsWithFilters = useMemo(
-    () => buildColumns(t, handleToggleEnabled, connectorKinds, reachabilityOverrides, reachabilityLoading),
+    () =>
+      buildColumns(
+        t,
+        handleToggleEnabled,
+        connectorKinds,
+        reachabilityOverrides,
+        reachabilityLoading
+      ),
     [connectorKinds, handleToggleEnabled, reachabilityOverrides, reachabilityLoading, t]
   )
   const columns = useMemo(
@@ -669,14 +683,46 @@ export function ConnectorsPage() {
         setPageSize={setPageSize}
         pageSizeOptions={[10, 50, 100]}
         columnOptions={[
-          { key: 'kind_label', label: t('connectors.columns.kind'), checked: visibleOptionalColumns.has('kind_label') },
-          { key: 'port', label: t('connectors.columns.port'), checked: visibleOptionalColumns.has('port') },
-          { key: 'endpoint', label: t('connectors.columns.url'), checked: visibleOptionalColumns.has('endpoint') },
-          { key: 'auth_type', label: t('connectors.columns.auth'), checked: visibleOptionalColumns.has('auth_type') },
-          { key: 'reachability', label: t('connectors.columns.reachability'), checked: visibleOptionalColumns.has('reachability') },
-          { key: 'last_checked_at', label: t('connectors.columns.lastChecked'), checked: visibleOptionalColumns.has('last_checked_at') },
-          { key: 'created', label: t('connectors.columns.created'), checked: visibleOptionalColumns.has('created') },
-          { key: 'updated', label: t('connectors.columns.updated'), checked: visibleOptionalColumns.has('updated') },
+          {
+            key: 'kind_label',
+            label: t('connectors.columns.kind'),
+            checked: visibleOptionalColumns.has('kind_label'),
+          },
+          {
+            key: 'port',
+            label: t('connectors.columns.port'),
+            checked: visibleOptionalColumns.has('port'),
+          },
+          {
+            key: 'endpoint',
+            label: t('connectors.columns.url'),
+            checked: visibleOptionalColumns.has('endpoint'),
+          },
+          {
+            key: 'auth_type',
+            label: t('connectors.columns.auth'),
+            checked: visibleOptionalColumns.has('auth_type'),
+          },
+          {
+            key: 'reachability',
+            label: t('connectors.columns.reachability'),
+            checked: visibleOptionalColumns.has('reachability'),
+          },
+          {
+            key: 'last_checked_at',
+            label: t('connectors.columns.lastChecked'),
+            checked: visibleOptionalColumns.has('last_checked_at'),
+          },
+          {
+            key: 'created',
+            label: t('connectors.columns.created'),
+            checked: visibleOptionalColumns.has('created'),
+          },
+          {
+            key: 'updated',
+            label: t('connectors.columns.updated'),
+            checked: visibleOptionalColumns.has('updated'),
+          },
         ]}
         onColumnToggle={(columnKey, checked) => {
           setVisibleOptionalColumns(prev => {
@@ -901,18 +947,19 @@ export function ConnectorsPage() {
           },
           listItems: async () => {
             const [items, monitorResponse] = await Promise.all([
-              pb.send<ConnectorRecord[]>(
-                `/api/connectors?kind=${CONNECTOR_KIND_QUERY}`,
-                { method: 'GET' }
-              ),
-              pb.send<{ items?: MonitorLatestStatusRecord[] }>(
-                `/api/collections/monitor_latest_status/records?${new URLSearchParams({
-                  perPage: '500',
-                  sort: '-updated',
-                  filter: `(target_type='connector')`,
-                }).toString()}`,
-                { method: 'GET' }
-              ).catch(() => ({ items: [] })),
+              pb.send<ConnectorRecord[]>(`/api/connectors?kind=${CONNECTOR_KIND_QUERY}`, {
+                method: 'GET',
+              }),
+              pb
+                .send<{ items?: MonitorLatestStatusRecord[] }>(
+                  `/api/collections/monitor_latest_status/records?${new URLSearchParams({
+                    perPage: '500',
+                    sort: '-updated',
+                    filter: `(target_type='connector')`,
+                  }).toString()}`,
+                  { method: 'GET' }
+                )
+                .catch(() => ({ items: [] })),
             ])
             if (!Array.isArray(items)) {
               return []
@@ -926,7 +973,9 @@ export function ConnectorsPage() {
                 : []
             )
 
-            const rows = items.map(item => mapConnectorRow(item, connectorTemplatesById, t, monitorByTargetId))
+            const rows = items.map(item =>
+              mapConnectorRow(item, connectorTemplatesById, t, monitorByTargetId)
+            )
             const ids = rows.map(row => String(row.id ?? '')).filter(Boolean)
             void fetchReachabilityStatuses(ids)
             return rows

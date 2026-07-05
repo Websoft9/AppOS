@@ -225,7 +225,9 @@ export function PublishPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={statusVariant(record.status)}>{statusLabel(record.status)}</Badge>
+                      <Badge variant={statusVariant(record.status)}>
+                        {statusLabel(record.status)}
+                      </Badge>
                     </TableCell>
                     <TableCell>{record.expiresAt}</TableCell>
                     <TableCell>{record.updatedAt}</TableCell>
@@ -233,7 +235,10 @@ export function PublishPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={7}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
                     No publish records match the current search.
                   </TableCell>
                 </TableRow>
@@ -254,15 +259,27 @@ export function PublishPage() {
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="publish-name">Name</Label>
-              <Input id="publish-name" value={name} onChange={event => setName(event.target.value)} />
+              <Input
+                id="publish-name"
+                value={name}
+                onChange={event => setName(event.target.value)}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="publish-app">App</Label>
-              <Input id="publish-app" value={appName} onChange={event => setAppName(event.target.value)} />
+              <Input
+                id="publish-app"
+                value={appName}
+                onChange={event => setAppName(event.target.value)}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="publish-target">Target</Label>
-              <Input id="publish-target" value={target} onChange={event => setTarget(event.target.value)} />
+              <Input
+                id="publish-target"
+                value={target}
+                onChange={event => setTarget(event.target.value)}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="publish-path">Access Path</Label>
@@ -275,7 +292,13 @@ export function PublishPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { resetForm(); setDialogOpen(false) }}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                resetForm()
+                setDialogOpen(false)
+              }}
+            >
               Cancel
             </Button>
             <Button onClick={handleCreate}>Create Draft</Button>

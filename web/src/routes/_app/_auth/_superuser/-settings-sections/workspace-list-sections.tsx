@@ -1,5 +1,15 @@
 import { useState, useCallback, useRef } from 'react'
-import { CheckCircle2, CircleHelp, Download, GripVertical, HelpCircle, Loader2, Plus, Trash2, XCircle } from 'lucide-react'
+import {
+  CheckCircle2,
+  CircleHelp,
+  Download,
+  GripVertical,
+  HelpCircle,
+  Loader2,
+  Plus,
+  Trash2,
+  XCircle,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -61,14 +71,20 @@ export function DockerMirrorsSection({
       const res = await fetch(MIRRORS_QUICK_ADD_URL)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
-      const remoteMirrors: string[] = Array.isArray(data) ? data : Array.isArray(data?.mirrors) ? data.mirrors : []
+      const remoteMirrors: string[] = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.mirrors)
+          ? data.mirrors
+          : []
       if (remoteMirrors.length === 0) return
-      const normalized = remoteMirrors.map(u => {
-        const trimmed = u.trim()
-        if (!trimmed) return ''
-        // prepend https:// if no protocol present
-        return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
-      }).filter(Boolean)
+      const normalized = remoteMirrors
+        .map(u => {
+          const trimmed = u.trim()
+          if (!trimmed) return ''
+          // prepend https:// if no protocol present
+          return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+        })
+        .filter(Boolean)
       setMirrors(prev => {
         const existing = new Set(prev.filter(Boolean))
         const toAdd = normalized.filter(u => !existing.has(u))

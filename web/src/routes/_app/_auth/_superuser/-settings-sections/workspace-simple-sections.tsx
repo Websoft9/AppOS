@@ -195,125 +195,129 @@ export function SpaceQuotaSection({
       </div>
       <div className="rounded-lg border border-border/40 bg-background p-4">
         <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <Label htmlFor="maxSizeMB">Max File Size (MB)</Label>
-            <Input
-              id="maxSizeMB"
-              type="number"
-              min={1}
-              value={form.maxSizeMB}
-              onChange={e => setForm(f => ({ ...f, maxSizeMB: Number(e.target.value) }))}
-            />
-            {errors.maxSizeMB && <p className="text-xs text-destructive">{errors.maxSizeMB}</p>}
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="maxPerUser">Max Items per User</Label>
-            <Input
-              id="maxPerUser"
-              type="number"
-              min={1}
-              value={form.maxPerUser}
-              onChange={e => setForm(f => ({ ...f, maxPerUser: Number(e.target.value) }))}
-            />
-            {errors.maxPerUser && <p className="text-xs text-destructive">{errors.maxPerUser}</p>}
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="maxUploadFiles">Max Files per Upload</Label>
-            <Input
-              id="maxUploadFiles"
-              type="number"
-              min={1}
-              max={200}
-              value={form.maxUploadFiles}
-              onChange={e => setForm(f => ({ ...f, maxUploadFiles: Number(e.target.value) }))}
-            />
-            {errors.maxUploadFiles && (
-              <p className="text-xs text-destructive">{errors.maxUploadFiles}</p>
-            )}
-          </div>
-          <div className="col-span-2 grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <Label htmlFor="shareDefaultMinutes">Share Default Duration (min)</Label>
+              <Label htmlFor="maxSizeMB">Max File Size (MB)</Label>
               <Input
-                id="shareDefaultMinutes"
+                id="maxSizeMB"
                 type="number"
                 min={1}
-                value={form.shareDefaultMinutes}
-                onChange={e =>
-                  setForm(f => ({ ...f, shareDefaultMinutes: Number(e.target.value) }))
-                }
+                value={form.maxSizeMB}
+                onChange={e => setForm(f => ({ ...f, maxSizeMB: Number(e.target.value) }))}
               />
-              {errors.shareDefaultMinutes && (
-                <p className="text-xs text-destructive">{errors.shareDefaultMinutes}</p>
-              )}
+              {errors.maxSizeMB && <p className="text-xs text-destructive">{errors.maxSizeMB}</p>}
             </div>
             <div className="space-y-1">
-              <Label htmlFor="shareMaxMinutes">Share Max Duration (min)</Label>
+              <Label htmlFor="maxPerUser">Max Items per User</Label>
               <Input
-                id="shareMaxMinutes"
+                id="maxPerUser"
                 type="number"
                 min={1}
-                value={form.shareMaxMinutes}
-                onChange={e => setForm(f => ({ ...f, shareMaxMinutes: Number(e.target.value) }))}
+                value={form.maxPerUser}
+                onChange={e => setForm(f => ({ ...f, maxPerUser: Number(e.target.value) }))}
               />
-              {errors.shareMaxMinutes && (
-                <p className="text-xs text-destructive">{errors.shareMaxMinutes}</p>
+              {errors.maxPerUser && <p className="text-xs text-destructive">{errors.maxPerUser}</p>}
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="maxUploadFiles">Max Files per Upload</Label>
+              <Input
+                id="maxUploadFiles"
+                type="number"
+                min={1}
+                max={200}
+                value={form.maxUploadFiles}
+                onChange={e => setForm(f => ({ ...f, maxUploadFiles: Number(e.target.value) }))}
+              />
+              {errors.maxUploadFiles && (
+                <p className="text-xs text-destructive">{errors.maxUploadFiles}</p>
               )}
             </div>
-          </div>
-          <div className="col-span-2 space-y-1">
-            <Label htmlFor="uploadAllowExts">Upload Allowlist (extensions, comma-separated)</Label>
-            <Input
-              id="uploadAllowExts"
-              value={allowExtsText}
-              onChange={e => setAllowExtsText(e.target.value)}
-              onBlur={() => {
-                const parsed = parseExtListInput(allowExtsText)
-                setAllowExtsText(parsed.join(', '))
-                setForm(f => ({ ...f, uploadAllowExts: parsed }))
-              }}
-              placeholder="yaml, yml, json, python"
-            />
-            <p className="text-xs text-muted-foreground">
-              Examples: yaml, yml, json, python (python will be normalized to py).
-            </p>
-          </div>
-          <div className="col-span-2 space-y-1">
-            <Label htmlFor="uploadDenyExts">Upload Denylist (extensions, comma-separated)</Label>
-            <Input
-              id="uploadDenyExts"
-              value={denyExtsText}
-              onChange={e => setDenyExtsText(e.target.value)}
-              onBlur={() => {
-                const parsed = parseExtListInput(denyExtsText)
-                setDenyExtsText(parsed.join(', '))
-                setForm(f => ({ ...f, uploadDenyExts: parsed }))
-              }}
-              placeholder="exe, dll, bat"
-              disabled={parseExtListInput(allowExtsText).length > 0}
-            />
-            <p className="text-xs text-muted-foreground">Examples: exe, dll, bat, cmd.</p>
-            {parseExtListInput(allowExtsText).length > 0 && (
+            <div className="col-span-2 grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label htmlFor="shareDefaultMinutes">Share Default Duration (min)</Label>
+                <Input
+                  id="shareDefaultMinutes"
+                  type="number"
+                  min={1}
+                  value={form.shareDefaultMinutes}
+                  onChange={e =>
+                    setForm(f => ({ ...f, shareDefaultMinutes: Number(e.target.value) }))
+                  }
+                />
+                {errors.shareDefaultMinutes && (
+                  <p className="text-xs text-destructive">{errors.shareDefaultMinutes}</p>
+                )}
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="shareMaxMinutes">Share Max Duration (min)</Label>
+                <Input
+                  id="shareMaxMinutes"
+                  type="number"
+                  min={1}
+                  value={form.shareMaxMinutes}
+                  onChange={e => setForm(f => ({ ...f, shareMaxMinutes: Number(e.target.value) }))}
+                />
+                {errors.shareMaxMinutes && (
+                  <p className="text-xs text-destructive">{errors.shareMaxMinutes}</p>
+                )}
+              </div>
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label htmlFor="uploadAllowExts">
+                Upload Allowlist (extensions, comma-separated)
+              </Label>
+              <Input
+                id="uploadAllowExts"
+                value={allowExtsText}
+                onChange={e => setAllowExtsText(e.target.value)}
+                onBlur={() => {
+                  const parsed = parseExtListInput(allowExtsText)
+                  setAllowExtsText(parsed.join(', '))
+                  setForm(f => ({ ...f, uploadAllowExts: parsed }))
+                }}
+                placeholder="yaml, yml, json, python"
+              />
               <p className="text-xs text-muted-foreground">
-                Allowlist is set, so denylist is ignored.
+                Examples: yaml, yml, json, python (python will be normalized to py).
               </p>
-            )}
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label htmlFor="uploadDenyExts">Upload Denylist (extensions, comma-separated)</Label>
+              <Input
+                id="uploadDenyExts"
+                value={denyExtsText}
+                onChange={e => setDenyExtsText(e.target.value)}
+                onBlur={() => {
+                  const parsed = parseExtListInput(denyExtsText)
+                  setDenyExtsText(parsed.join(', '))
+                  setForm(f => ({ ...f, uploadDenyExts: parsed }))
+                }}
+                placeholder="exe, dll, bat"
+                disabled={parseExtListInput(allowExtsText).length > 0}
+              />
+              <p className="text-xs text-muted-foreground">Examples: exe, dll, bat, cmd.</p>
+              {parseExtListInput(allowExtsText).length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Allowlist is set, so denylist is ignored.
+                </p>
+              )}
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label htmlFor="disallowedFolderNames">
+                Disallowed Folder Names (comma-separated)
+              </Label>
+              <Input
+                id="disallowedFolderNames"
+                value={disallowedFolderNamesText}
+                onChange={e => setDisallowedFolderNamesText(e.target.value)}
+                placeholder="e.g. private, tmp, archive"
+              />
+              <p className="text-xs text-muted-foreground">
+                Folder names users are not allowed to create at any level. Case-sensitive.
+              </p>
+            </div>
           </div>
-          <div className="col-span-2 space-y-1">
-            <Label htmlFor="disallowedFolderNames">Disallowed Folder Names (comma-separated)</Label>
-            <Input
-              id="disallowedFolderNames"
-              value={disallowedFolderNamesText}
-              onChange={e => setDisallowedFolderNamesText(e.target.value)}
-              placeholder="e.g. private, tmp, archive"
-            />
-            <p className="text-xs text-muted-foreground">
-              Folder names users are not allowed to create at any level. Case-sensitive.
-            </p>
-          </div>
-        </div>
-        <SaveButton onClick={save} saving={saving} />
+          <SaveButton onClick={save} saving={saving} />
         </div>
       </div>
     </div>
@@ -434,7 +438,10 @@ export function ProxySection({
     () => new Set(connectorOptions.map(option => option.id)),
     [connectorOptions]
   )
-  const httpFamilyOptions = useMemo(() => connectorOptions.filter(option => option.protocol !== 'SOCKS5'), [connectorOptions])
+  const httpFamilyOptions = useMemo(
+    () => connectorOptions.filter(option => option.protocol !== 'SOCKS5'),
+    [connectorOptions]
+  )
   const missingSelections = {
     socks5ConnectorId:
       proxyForm.socks5ConnectorId && !validConnectorIDs.has(proxyForm.socks5ConnectorId)
@@ -529,7 +536,11 @@ export function ProxySection({
   const setUseSameProxyForHttps = (checked: boolean) => {
     setProxyForm(current => ({
       ...current,
-      httpsConnectorId: checked ? current.httpConnectorId : current.httpsConnectorId === current.httpConnectorId ? '' : current.httpsConnectorId,
+      httpsConnectorId: checked
+        ? current.httpConnectorId
+        : current.httpsConnectorId === current.httpConnectorId
+          ? ''
+          : current.httpsConnectorId,
     }))
   }
 
@@ -647,7 +658,9 @@ export function ProxySection({
   useEffect(() => {
     if (remoteShellDialogOpen) {
       setRemoteShellOverrideDraft(
-        [...proxyRemoteShellOverrides].sort((left, right) => left.serverId.localeCompare(right.serverId))
+        [...proxyRemoteShellOverrides].sort((left, right) =>
+          left.serverId.localeCompare(right.serverId)
+        )
       )
     }
   }, [proxyRemoteShellOverrides, remoteShellDialogOpen])
@@ -671,7 +684,9 @@ export function ProxySection({
 
   const applyRemoteShellOverrideDraft = () => {
     setProxyRemoteShellOverrides(
-      [...remoteShellOverrideDraft].sort((left, right) => left.serverId.localeCompare(right.serverId))
+      [...remoteShellOverrideDraft].sort((left, right) =>
+        left.serverId.localeCompare(right.serverId)
+      )
     )
     setRemoteShellDialogOpen(false)
   }
@@ -701,7 +716,8 @@ export function ProxySection({
   const showExternalResources = proxyForm.source === 'external'
   const showPolicies = proxyForm.source !== 'none' && visiblePolicyDefinitions.length > 0
   const showRemoteShellOverrides =
-    proxyForm.source !== 'none' && visiblePolicyDefinitions.some(definition => definition.key === 'remote_shell.global')
+    proxyForm.source !== 'none' &&
+    visiblePolicyDefinitions.some(definition => definition.key === 'remote_shell.global')
 
   return (
     <div className="space-y-6">
@@ -730,7 +746,11 @@ export function ProxySection({
               id="proxy-enabled-switch"
               ariaLabel="Toggle proxy enabled"
               checked={proxyForm.source !== 'none'}
-              onChange={checked => updateProxySource(checked ? (proxyForm.source === 'none' ? 'external' : proxyForm.source) : 'none')}
+              onChange={checked =>
+                updateProxySource(
+                  checked ? (proxyForm.source === 'none' ? 'external' : proxyForm.source) : 'none'
+                )
+              }
             />
           </div>
         </div>
@@ -759,7 +779,9 @@ export function ProxySection({
                 <label
                   key={option.value}
                   className={`flex cursor-pointer items-start gap-3 rounded-lg border px-4 py-3 transition-colors ${
-                    active ? 'border-primary bg-primary/5' : 'border-border/60 hover:border-foreground/30'
+                    active
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border/60 hover:border-foreground/30'
                   }`}
                 >
                   <input
@@ -770,8 +792,12 @@ export function ProxySection({
                     onChange={() => updateProxySource(option.value)}
                   />
                   <span className="space-y-1">
-                    <span className="block text-sm font-medium text-foreground">{option.title}</span>
-                    <span className="block text-xs text-muted-foreground">{option.description}</span>
+                    <span className="block text-sm font-medium text-foreground">
+                      {option.title}
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      {option.description}
+                    </span>
                   </span>
                 </label>
               )
@@ -794,7 +820,8 @@ export function ProxySection({
 
               {hasMissingSelections ? (
                 <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
-                  One or more saved proxy resources were deleted. Choose available proxy options before saving.
+                  One or more saved proxy resources were deleted. Choose available proxy options
+                  before saving.
                 </div>
               ) : null}
 
@@ -806,13 +833,18 @@ export function ProxySection({
                     onValueChange={setPrimaryProxySelection}
                     disabled={connectorsLoading || connectorOptions.length === 0}
                   >
-                    <SelectTrigger id="primaryProxyConnectorId" className="h-auto min-h-11 px-3 py-2.5">
+                    <SelectTrigger
+                      id="primaryProxyConnectorId"
+                      className="h-auto min-h-11 px-3 py-2.5"
+                    >
                       {primaryProxy ? (
                         <div className="min-w-0 text-left">
                           <div className="truncate text-sm font-medium text-foreground">
                             {primaryProxy.name}
                             {!primaryProxy.enabled ? (
-                              <span className="ml-2 font-normal text-muted-foreground">disabled</span>
+                              <span className="ml-2 font-normal text-muted-foreground">
+                                disabled
+                              </span>
                             ) : null}
                           </div>
                           <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
@@ -821,7 +853,9 @@ export function ProxySection({
                             >
                               {primaryProxy.protocol}
                             </span>
-                            <span className="truncate">{primaryProxy.endpoint || connectorProtocolMeta(primaryProxy).summary}</span>
+                            <span className="truncate">
+                              {primaryProxy.endpoint || connectorProtocolMeta(primaryProxy).summary}
+                            </span>
                           </div>
                         </div>
                       ) : (
@@ -832,8 +866,12 @@ export function ProxySection({
                       {primaryProxyMissingValue ? (
                         <SelectItem value={primaryProxyMissingValue}>
                           <div className="min-w-0">
-                            <div className="truncate text-sm font-medium">Previously selected resource was deleted</div>
-                            <div className="mt-1 text-xs text-muted-foreground">Re-select an available proxy before saving.</div>
+                            <div className="truncate text-sm font-medium">
+                              Previously selected resource was deleted
+                            </div>
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              Re-select an available proxy before saving.
+                            </div>
                           </div>
                         </SelectItem>
                       ) : null}
@@ -843,7 +881,9 @@ export function ProxySection({
                             <div className="truncate text-sm font-medium text-foreground">
                               {option.name}
                               {!option.enabled ? (
-                                <span className="ml-2 font-normal text-muted-foreground">disabled</span>
+                                <span className="ml-2 font-normal text-muted-foreground">
+                                  disabled
+                                </span>
                               ) : null}
                             </div>
                             <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
@@ -852,7 +892,9 @@ export function ProxySection({
                               >
                                 {option.protocol}
                               </span>
-                              <span className="truncate">{option.endpoint || connectorProtocolMeta(option).summary}</span>
+                              <span className="truncate">
+                                {option.endpoint || connectorProtocolMeta(option).summary}
+                              </span>
                             </div>
                           </div>
                         </SelectItem>
@@ -887,7 +929,10 @@ export function ProxySection({
                       </span>
                     </label>
 
-                    <details className="rounded-lg border border-border/50 bg-background/80 px-4 py-3" open={showSeparateHttpsProxy}>
+                    <details
+                      className="rounded-lg border border-border/50 bg-background/80 px-4 py-3"
+                      open={showSeparateHttpsProxy}
+                    >
                       <summary className="cursor-pointer text-sm font-medium text-foreground">
                         Advanced
                       </summary>
@@ -903,19 +948,25 @@ export function ProxySection({
                               httpsConnectorId: event.target.value,
                             }))
                           }}
-                          disabled={connectorsLoading || httpFamilyOptions.length === 0 || useSameProxyForHttps}
+                          disabled={
+                            connectorsLoading ||
+                            httpFamilyOptions.length === 0 ||
+                            useSameProxyForHttps
+                          }
                         >
                           <option value="">No separate HTTPS proxy</option>
-                          {buildOptionsForValue(httpFamilyOptions, missingSelections.httpsConnectorId).map(
-                            option => (
-                              <option key={option.id} value={option.id}>
-                                {option.label}
-                              </option>
-                            )
-                          )}
+                          {buildOptionsForValue(
+                            httpFamilyOptions,
+                            missingSelections.httpsConnectorId
+                          ).map(option => (
+                            <option key={option.id} value={option.id}>
+                              {option.label}
+                            </option>
+                          ))}
                         </select>
                         <p className="text-xs text-muted-foreground">
-                          Only fill this when HTTPS traffic must use a different proxy from the primary HTTP proxy.
+                          Only fill this when HTTPS traffic must use a different proxy from the
+                          primary HTTP proxy.
                         </p>
                         {proxyErrors.httpsConnectorId ? (
                           <p className="text-xs text-destructive">{proxyErrors.httpsConnectorId}</p>
@@ -954,7 +1005,12 @@ export function ProxySection({
                 Add external proxy
               </Button>
             ) : null}
-            <Button type="button" className="h-9 px-4" onClick={saveCurrentNetwork} disabled={proxyNetworkSaving}>
+            <Button
+              type="button"
+              className="h-9 px-4"
+              onClick={saveCurrentNetwork}
+              disabled={proxyNetworkSaving}
+            >
               {proxyNetworkSaving ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -980,130 +1036,144 @@ export function ProxySection({
           </div>
           <div className="rounded-lg border border-border/40 bg-background">
             <div className="space-y-4 p-4">
-            {proxyErrors.consumers ? (
-              <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-                {proxyErrors.consumers}
-              </div>
-            ) : null}
+              {proxyErrors.consumers ? (
+                <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                  {proxyErrors.consumers}
+                </div>
+              ) : null}
 
-            <div className="space-y-3">
-              {visiblePolicyDefinitions.map(definition => {
-                const currentMode = consumerModeMap.get(definition.key) ?? 'disabled'
-                const enabled = currentMode === 'always'
-                const isRemoteShell = definition.key === 'remote_shell.global'
-                return (
-                  <div key={definition.key} className={isRemoteShell ? 'space-y-3' : ''}>
-                    <div
-                      className={`flex flex-col gap-4 px-4 py-4 lg:flex-row lg:items-start lg:justify-between ${
-                        isRemoteShell
-                          ? 'rounded-lg border border-border/60 bg-background'
-                          : 'rounded-lg border border-border/60 bg-muted/15'
-                      }`}
-                    >
-                      <div className="min-w-0 pr-4">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-foreground">{definition.title}</p>
-                          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                            {policyToggleLabel(enabled)}
-                          </span>
-                        </div>
-                        {definition.description ? (
-                          <p className="mt-1 text-xs text-muted-foreground">{definition.description}</p>
-                        ) : null}
-                      </div>
-                      <div className="flex items-center gap-3">
-                        {isRemoteShell && showRemoteShellOverrides && enabled ? (
-                          <button
-                            type="button"
-                            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-                            title="Configure per-server exceptions when some remote servers should use a different Remote Shell proxy state."
-                            onClick={() => setRemoteShellDialogOpen(true)}
-                          >
-                            Manage overrides
-                          </button>
-                        ) : null}
-                        <Label
-                          htmlFor={`proxy-consumer-${definition.key}`}
-                          className="text-sm text-muted-foreground"
-                        >
-                          Use proxy
-                        </Label>
-                        <Toggle
-                          id={`proxy-consumer-${definition.key}`}
-                          ariaLabel={`Toggle ${definition.title} proxy usage`}
-                          checked={enabled}
-                          onChange={checked =>
-                            setConsumerMode(definition.key, checked ? 'always' : 'disabled')
-                          }
-                        />
-                      </div>
-                    </div>
-
-                    {isRemoteShell && showRemoteShellOverrides ? (
-                      <div className="pl-4">
-                        {proxyErrors.remoteShell ? (
-                          <div className="mb-3 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-                            {proxyErrors.remoteShell}
+              <div className="space-y-3">
+                {visiblePolicyDefinitions.map(definition => {
+                  const currentMode = consumerModeMap.get(definition.key) ?? 'disabled'
+                  const enabled = currentMode === 'always'
+                  const isRemoteShell = definition.key === 'remote_shell.global'
+                  return (
+                    <div key={definition.key} className={isRemoteShell ? 'space-y-3' : ''}>
+                      <div
+                        className={`flex flex-col gap-4 px-4 py-4 lg:flex-row lg:items-start lg:justify-between ${
+                          isRemoteShell
+                            ? 'rounded-lg border border-border/60 bg-background'
+                            : 'rounded-lg border border-border/60 bg-muted/15'
+                        }`}
+                      >
+                        <div className="min-w-0 pr-4">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium text-foreground">
+                              {definition.title}
+                            </p>
+                            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                              {policyToggleLabel(enabled)}
+                            </span>
                           </div>
-                        ) : null}
-
-                        <div className="space-y-3">
-                          {serversLoading ? (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              Loading servers...
-                            </div>
-                          ) : !remoteServers.length ? (
-                            <div className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-                              No remote servers are available yet.
-                            </div>
-                          ) : proxyRemoteShellOverrides.length > 0 ? (
-                            <div className="space-y-2">
-                              {proxyRemoteShellOverrides.map(item => {
-                                const server = remoteServers.find(candidate => candidate.id === item.serverId)
-                                const serverDisplay = formatServerDisplay(server, item.serverId)
-                                return (
-                                  <div
-                                    key={item.serverId}
-                                    className="flex flex-col gap-2 rounded-lg bg-muted/15 px-4 py-3 lg:flex-row lg:items-center lg:justify-between"
-                                  >
-                                    <div className="min-w-0">
-                                      <p className="text-sm font-medium text-foreground">{serverDisplay.name}</p>
-                                      {serverDisplay.host ? (
-                                        <p className="text-xs text-muted-foreground">{serverDisplay.host}</p>
-                                      ) : null}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                                        {overrideModeLabel(item.mode)}
-                                      </span>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        className="h-8 px-3 text-muted-foreground"
-                                        onClick={() => removeRemoteShellOverride(item.serverId)}
-                                      >
-                                        Remove
-                                      </Button>
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          ) : (
-                            <div className="rounded-lg bg-muted/10 px-4 py-3 text-sm text-muted-foreground">
-                              No server-specific overrides configured.
-                            </div>
-                          )}
+                          {definition.description ? (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {definition.description}
+                            </p>
+                          ) : null}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {isRemoteShell && showRemoteShellOverrides && enabled ? (
+                            <button
+                              type="button"
+                              className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+                              title="Configure per-server exceptions when some remote servers should use a different Remote Shell proxy state."
+                              onClick={() => setRemoteShellDialogOpen(true)}
+                            >
+                              Manage overrides
+                            </button>
+                          ) : null}
+                          <Label
+                            htmlFor={`proxy-consumer-${definition.key}`}
+                            className="text-sm text-muted-foreground"
+                          >
+                            Use proxy
+                          </Label>
+                          <Toggle
+                            id={`proxy-consumer-${definition.key}`}
+                            ariaLabel={`Toggle ${definition.title} proxy usage`}
+                            checked={enabled}
+                            onChange={checked =>
+                              setConsumerMode(definition.key, checked ? 'always' : 'disabled')
+                            }
+                          />
                         </div>
                       </div>
-                    ) : null}
-                  </div>
-                )
-              })}
-            </div>
 
-            <SaveButton onClick={() => void saveProxyConsumers()} saving={proxyConsumersSaving} compact />
+                      {isRemoteShell && showRemoteShellOverrides ? (
+                        <div className="pl-4">
+                          {proxyErrors.remoteShell ? (
+                            <div className="mb-3 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                              {proxyErrors.remoteShell}
+                            </div>
+                          ) : null}
+
+                          <div className="space-y-3">
+                            {serversLoading ? (
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Loading servers...
+                              </div>
+                            ) : !remoteServers.length ? (
+                              <div className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+                                No remote servers are available yet.
+                              </div>
+                            ) : proxyRemoteShellOverrides.length > 0 ? (
+                              <div className="space-y-2">
+                                {proxyRemoteShellOverrides.map(item => {
+                                  const server = remoteServers.find(
+                                    candidate => candidate.id === item.serverId
+                                  )
+                                  const serverDisplay = formatServerDisplay(server, item.serverId)
+                                  return (
+                                    <div
+                                      key={item.serverId}
+                                      className="flex flex-col gap-2 rounded-lg bg-muted/15 px-4 py-3 lg:flex-row lg:items-center lg:justify-between"
+                                    >
+                                      <div className="min-w-0">
+                                        <p className="text-sm font-medium text-foreground">
+                                          {serverDisplay.name}
+                                        </p>
+                                        {serverDisplay.host ? (
+                                          <p className="text-xs text-muted-foreground">
+                                            {serverDisplay.host}
+                                          </p>
+                                        ) : null}
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                                          {overrideModeLabel(item.mode)}
+                                        </span>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          className="h-8 px-3 text-muted-foreground"
+                                          onClick={() => removeRemoteShellOverride(item.serverId)}
+                                        >
+                                          Remove
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            ) : (
+                              <div className="rounded-lg bg-muted/10 px-4 py-3 text-sm text-muted-foreground">
+                                No server-specific overrides configured.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  )
+                })}
+              </div>
+
+              <SaveButton
+                onClick={() => void saveProxyConsumers()}
+                saving={proxyConsumersSaving}
+                compact
+              />
             </div>
           </div>
         </div>
@@ -1114,7 +1184,8 @@ export function ProxySection({
           <DialogHeader>
             <DialogTitle>Remote Shell overrides</DialogTitle>
             <DialogDescription>
-              Server switches inherit the global Remote Shell state by default. Matching the global state removes the explicit override from the saved results list.
+              Server switches inherit the global Remote Shell state by default. Matching the global
+              state removes the explicit override from the saved results list.
             </DialogDescription>
           </DialogHeader>
 
@@ -1130,7 +1201,9 @@ export function ProxySection({
               </div>
             ) : (
               remoteServers.map(server => {
-                const draftOverride = remoteShellOverrideDraft.find(item => item.serverId === server.id)
+                const draftOverride = remoteShellOverrideDraft.find(
+                  item => item.serverId === server.id
+                )
                 const effectiveMode = draftOverride?.mode ?? globalRemoteShellMode
                 const enabled = effectiveMode === 'always'
                 const inherited = !draftOverride
@@ -1141,7 +1214,9 @@ export function ProxySection({
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-foreground">{formatServerOptionLabel(server)}</p>
+                        <p className="text-sm font-medium text-foreground">
+                          {formatServerOptionLabel(server)}
+                        </p>
                         <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
                           {inherited ? 'Inherited' : 'Override'}
                         </span>
@@ -1153,7 +1228,10 @@ export function ProxySection({
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
-                      <Label htmlFor={`remote-shell-override-${server.id}`} className="text-sm text-muted-foreground">
+                      <Label
+                        htmlFor={`remote-shell-override-${server.id}`}
+                        className="text-sm text-muted-foreground"
+                      >
                         Use proxy
                       </Label>
                       <Toggle
@@ -1195,8 +1273,7 @@ export function ProxySection({
             next.push({
               id: connector.id,
               name: String(connector.name ?? ''),
-              is_enabled:
-                typeof connector.is_enabled === 'boolean' ? connector.is_enabled : true,
+              is_enabled: typeof connector.is_enabled === 'boolean' ? connector.is_enabled : true,
               endpoint: typeof connector.endpoint === 'string' ? connector.endpoint : '',
               config:
                 connector.config && typeof connector.config === 'object'
@@ -1268,19 +1345,19 @@ export function TopicsSection({
         </div>
         <div className="rounded-lg border border-border/40 bg-background p-4">
           <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            {renderSchemaNumberFields<TopicShare, keyof TopicShare & string>({
-              entry: shareEntry,
-              form: shareForm,
-              errors: shareErrors,
-              setForm: setShareForm,
-              fieldOptions: {
-                shareDefaultMinutes: { inputId: 'topicShareDefaultMinutes', min: 1 },
-                shareMaxMinutes: { inputId: 'topicShareMaxMinutes', min: 1 },
-              },
-            })}
-          </div>
-          <SaveButton onClick={saveShare} saving={shareSaving} />
+            <div className="grid grid-cols-2 gap-4">
+              {renderSchemaNumberFields<TopicShare, keyof TopicShare & string>({
+                entry: shareEntry,
+                form: shareForm,
+                errors: shareErrors,
+                setForm: setShareForm,
+                fieldOptions: {
+                  shareDefaultMinutes: { inputId: 'topicShareDefaultMinutes', min: 1 },
+                  shareMaxMinutes: { inputId: 'topicShareMaxMinutes', min: 1 },
+                },
+              })}
+            </div>
+            <SaveButton onClick={saveShare} saving={shareSaving} />
           </div>
         </div>
       </div>
@@ -1294,49 +1371,49 @@ export function TopicsSection({
         </div>
         <div className="rounded-lg border border-border/40 bg-background p-4">
           <div className="space-y-4">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/30 px-4 py-3">
-              <div className="space-y-1">
-                <Label htmlFor="topicAllowGuestComments">Allow Guest Comments</Label>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/30 px-4 py-3">
+                <div className="space-y-1">
+                  <Label htmlFor="topicAllowGuestComments">Allow Guest Comments</Label>
+                </div>
+                <Toggle
+                  id="topicAllowGuestComments"
+                  ariaLabel="Allow Guest Comments"
+                  checked={commentPolicyForm.allowGuestComments}
+                  onChange={checked =>
+                    setCommentPolicyForm(current => ({ ...current, allowGuestComments: checked }))
+                  }
+                />
               </div>
-              <Toggle
-                id="topicAllowGuestComments"
-                ariaLabel="Allow Guest Comments"
-                checked={commentPolicyForm.allowGuestComments}
-                onChange={checked =>
-                  setCommentPolicyForm(current => ({ ...current, allowGuestComments: checked }))
-                }
-              />
-            </div>
-            {commentPolicyErrors.allowGuestComments && (
-              <p className="text-xs text-destructive">{commentPolicyErrors.allowGuestComments}</p>
-            )}
-            {renderSchemaTextFields<TopicCommentPolicy, keyof TopicCommentPolicy & string>({
-              entry: commentPolicyEntry,
-              form: commentPolicyForm,
-              errors: commentPolicyErrors,
-              setForm: setCommentPolicyForm,
-              fieldOptions: {
-                defaultGuestName: {
-                  inputId: 'topicDefaultGuestName',
-                  placeholder: 'Guest',
-                },
-              },
-            })}
-            <div className="grid grid-cols-2 gap-4">
-              {renderSchemaNumberFields<TopicCommentPolicy, keyof TopicCommentPolicy & string>({
+              {commentPolicyErrors.allowGuestComments && (
+                <p className="text-xs text-destructive">{commentPolicyErrors.allowGuestComments}</p>
+              )}
+              {renderSchemaTextFields<TopicCommentPolicy, keyof TopicCommentPolicy & string>({
                 entry: commentPolicyEntry,
                 form: commentPolicyForm,
                 errors: commentPolicyErrors,
                 setForm: setCommentPolicyForm,
                 fieldOptions: {
-                  maxGuestNameLength: { inputId: 'topicMaxGuestNameLength', min: 1 },
-                  maxCommentBodyLength: { inputId: 'topicMaxCommentBodyLength', min: 1 },
+                  defaultGuestName: {
+                    inputId: 'topicDefaultGuestName',
+                    placeholder: 'Guest',
+                  },
                 },
               })}
+              <div className="grid grid-cols-2 gap-4">
+                {renderSchemaNumberFields<TopicCommentPolicy, keyof TopicCommentPolicy & string>({
+                  entry: commentPolicyEntry,
+                  form: commentPolicyForm,
+                  errors: commentPolicyErrors,
+                  setForm: setCommentPolicyForm,
+                  fieldOptions: {
+                    maxGuestNameLength: { inputId: 'topicMaxGuestNameLength', min: 1 },
+                    maxCommentBodyLength: { inputId: 'topicMaxCommentBodyLength', min: 1 },
+                  },
+                })}
+              </div>
             </div>
-          </div>
-          <SaveButton onClick={saveCommentPolicy} saving={commentPolicySaving} />
+            <SaveButton onClick={saveCommentPolicy} saving={commentPolicySaving} />
           </div>
         </div>
       </div>
@@ -1351,39 +1428,39 @@ export function TopicsSection({
         </div>
         <div className="rounded-lg border border-border/40 bg-background p-4">
           <div className="space-y-4">
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-4">
-              {renderSchemaNumberFields<TopicImportPolicy, keyof TopicImportPolicy & string>({
-                entry: importPolicyEntry,
-                form: importPolicyForm,
-                errors: importPolicyErrors,
-                setForm: setImportPolicyForm,
-                fieldOptions: {
-                  maxDescriptionImportKB: {
-                    inputId: 'topicMaxDescriptionImportKB',
-                    min: 1,
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4">
+                {renderSchemaNumberFields<TopicImportPolicy, keyof TopicImportPolicy & string>({
+                  entry: importPolicyEntry,
+                  form: importPolicyForm,
+                  errors: importPolicyErrors,
+                  setForm: setImportPolicyForm,
+                  fieldOptions: {
+                    maxDescriptionImportKB: {
+                      inputId: 'topicMaxDescriptionImportKB',
+                      min: 1,
+                    },
                   },
-                },
-              })}
-            </div>
-            <div className="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/30 px-4 py-3">
-              <div className="space-y-1">
-                <Label htmlFor="topicImportTextOnly">Text-only Imports</Label>
+                })}
               </div>
-              <Toggle
-                id="topicImportTextOnly"
-                ariaLabel="Text-only Imports"
-                checked={importPolicyForm.textOnly}
-                onChange={checked =>
-                  setImportPolicyForm(current => ({ ...current, textOnly: checked }))
-                }
-              />
+              <div className="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/30 px-4 py-3">
+                <div className="space-y-1">
+                  <Label htmlFor="topicImportTextOnly">Text-only Imports</Label>
+                </div>
+                <Toggle
+                  id="topicImportTextOnly"
+                  ariaLabel="Text-only Imports"
+                  checked={importPolicyForm.textOnly}
+                  onChange={checked =>
+                    setImportPolicyForm(current => ({ ...current, textOnly: checked }))
+                  }
+                />
+              </div>
+              {importPolicyErrors.textOnly && (
+                <p className="text-xs text-destructive">{importPolicyErrors.textOnly}</p>
+              )}
             </div>
-            {importPolicyErrors.textOnly && (
-              <p className="text-xs text-destructive">{importPolicyErrors.textOnly}</p>
-            )}
-          </div>
-          <SaveButton onClick={saveImportPolicy} saving={importPolicySaving} />
+            <SaveButton onClick={saveImportPolicy} saving={importPolicySaving} />
           </div>
         </div>
       </div>
@@ -1410,29 +1487,31 @@ export function ConnectTerminalSection({
     <div className="space-y-6">
       <div className="space-y-1">
         <h3 className="text-base font-semibold text-foreground">{entry.title}</h3>
-        <p className="text-sm text-muted-foreground">Connection policy for Connect terminal sessions</p>
+        <p className="text-sm text-muted-foreground">
+          Connection policy for Connect terminal sessions
+        </p>
       </div>
       <div className="rounded-lg border border-border/40 bg-background p-4">
         <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          {renderSchemaNumberFields({
-            entry,
-            form,
-            errors,
-            setForm,
-            fieldOptions: {
-              idleTimeoutSeconds: {
-                inputId: 'connectIdleTimeout',
-                min: 60,
+          <div className="grid grid-cols-2 gap-4">
+            {renderSchemaNumberFields({
+              entry,
+              form,
+              errors,
+              setForm,
+              fieldOptions: {
+                idleTimeoutSeconds: {
+                  inputId: 'connectIdleTimeout',
+                  min: 60,
+                },
+                maxConnections: {
+                  inputId: 'connectMaxConnections',
+                  min: 0,
+                },
               },
-              maxConnections: {
-                inputId: 'connectMaxConnections',
-                min: 0,
-              },
-            },
-          })}
-        </div>
-        <SaveButton onClick={save} saving={saving} />
+            })}
+          </div>
+          <SaveButton onClick={save} saving={saving} />
         </div>
       </div>
     </div>
@@ -1462,19 +1541,19 @@ export function ConnectSftpSection({
       </div>
       <div className="rounded-lg border border-border/40 bg-background p-4">
         <div className="space-y-4">
-        {renderSchemaNumberFields({
-          entry,
-          form,
-          errors,
-          setForm,
-          fieldOptions: {
-            maxUploadFiles: {
-              inputId: 'sftpMaxUploadFiles',
-              min: 1,
+          {renderSchemaNumberFields({
+            entry,
+            form,
+            errors,
+            setForm,
+            fieldOptions: {
+              maxUploadFiles: {
+                inputId: 'sftpMaxUploadFiles',
+                min: 1,
+              },
             },
-          },
-        })}
-        <SaveButton onClick={save} saving={saving} />
+          })}
+          <SaveButton onClick={save} saving={saving} />
         </div>
       </div>
     </div>
@@ -1506,31 +1585,31 @@ export function DeployPreflightSection({
       </div>
       <div className="rounded-lg border border-border/40 bg-background p-4">
         <div className="space-y-4">
-        <div className="max-w-sm space-y-1">
-          <Label htmlFor="deployMinFreeDiskGiB">
-            {minFreeDiskField?.label ?? 'Minimum Free Disk (GiB)'}
-          </Label>
-          <Input
-            id="deployMinFreeDiskGiB"
-            type="number"
-            min={0.5}
-            step={0.1}
-            value={form.minFreeDiskGiB}
-            onChange={event =>
-              setForm(current => ({
-                ...current,
-                minFreeDiskGiB: Number(event.target.value),
-              }))
-            }
-          />
-          <p className="text-xs text-muted-foreground">
-            {minFreeDiskField?.helpText ?? 'Floor 0.5 GiB. Default 1 GiB.'}
-          </p>
-          {errors.minFreeDiskGiB && (
-            <p className="text-xs text-destructive">{errors.minFreeDiskGiB}</p>
-          )}
-        </div>
-        <SaveButton onClick={save} saving={saving} />
+          <div className="max-w-sm space-y-1">
+            <Label htmlFor="deployMinFreeDiskGiB">
+              {minFreeDiskField?.label ?? 'Minimum Free Disk (GiB)'}
+            </Label>
+            <Input
+              id="deployMinFreeDiskGiB"
+              type="number"
+              min={0.5}
+              step={0.1}
+              value={form.minFreeDiskGiB}
+              onChange={event =>
+                setForm(current => ({
+                  ...current,
+                  minFreeDiskGiB: Number(event.target.value),
+                }))
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              {minFreeDiskField?.helpText ?? 'Floor 0.5 GiB. Default 1 GiB.'}
+            </p>
+            {errors.minFreeDiskGiB && (
+              <p className="text-xs text-destructive">{errors.minFreeDiskGiB}</p>
+            )}
+          </div>
+          <SaveButton onClick={save} saving={saving} />
         </div>
       </div>
     </div>
@@ -1560,24 +1639,24 @@ export function DeployRuntimeSection({
       </div>
       <div className="rounded-lg border border-border/40 bg-background p-4">
         <div className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-2">
-          {renderSchemaNumberFields({
-            entry,
-            form,
-            errors,
-            setForm,
-            fieldOptions: {
-              imagePullTimeoutSeconds: { inputId: 'imagePullTimeoutSeconds', min: 1 },
-              composeUpTimeoutSeconds: { inputId: 'composeUpTimeoutSeconds', min: 1 },
-              healthCheckTimeoutSeconds: { inputId: 'healthCheckTimeoutSeconds', min: 1 },
-              runtimePullIdleHeartbeatSeconds: {
-                inputId: 'runtimePullIdleHeartbeatSeconds',
-                min: 1,
+          <div className="grid gap-4 md:grid-cols-2">
+            {renderSchemaNumberFields({
+              entry,
+              form,
+              errors,
+              setForm,
+              fieldOptions: {
+                imagePullTimeoutSeconds: { inputId: 'imagePullTimeoutSeconds', min: 1 },
+                composeUpTimeoutSeconds: { inputId: 'composeUpTimeoutSeconds', min: 1 },
+                healthCheckTimeoutSeconds: { inputId: 'healthCheckTimeoutSeconds', min: 1 },
+                runtimePullIdleHeartbeatSeconds: {
+                  inputId: 'runtimePullIdleHeartbeatSeconds',
+                  min: 1,
+                },
               },
-            },
-          })}
-        </div>
-        <SaveButton onClick={save} saving={saving} />
+            })}
+          </div>
+          <SaveButton onClick={save} saving={saving} />
         </div>
       </div>
     </div>
@@ -1607,22 +1686,22 @@ export function DeployGitDefaultsSection({
       </div>
       <div className="rounded-lg border border-border/40 bg-background p-4">
         <div className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-2">
-          {renderSchemaTextFields({
-            entry,
-            form,
-            errors,
-            setForm,
-            fieldOptions: {
-              defaultRef: { inputId: 'defaultRef', placeholder: 'main' },
-              defaultComposePath: {
-                inputId: 'defaultComposePath',
-                placeholder: 'docker-compose.yml',
+          <div className="grid gap-4 md:grid-cols-2">
+            {renderSchemaTextFields({
+              entry,
+              form,
+              errors,
+              setForm,
+              fieldOptions: {
+                defaultRef: { inputId: 'defaultRef', placeholder: 'main' },
+                defaultComposePath: {
+                  inputId: 'defaultComposePath',
+                  placeholder: 'docker-compose.yml',
+                },
               },
-            },
-          })}
-        </div>
-        <SaveButton onClick={save} saving={saving} />
+            })}
+          </div>
+          <SaveButton onClick={save} saving={saving} />
         </div>
       </div>
     </div>
@@ -1654,38 +1733,38 @@ export function IacFilesSection({
       </div>
       <div className="rounded-lg border border-border/40 bg-background p-4">
         <div className="space-y-4">
-        <div className="grid gap-4">
-          {renderSchemaNumberFields({
-            entry,
-            form,
-            errors,
-            setForm,
-            fieldOptions: {
-              maxSizeMB: {
-                inputId: 'iac-max-size-mb',
-                min: 1,
+          <div className="grid gap-4">
+            {renderSchemaNumberFields({
+              entry,
+              form,
+              errors,
+              setForm,
+              fieldOptions: {
+                maxSizeMB: {
+                  inputId: 'iac-max-size-mb',
+                  min: 1,
+                },
+                maxZipSizeMB: {
+                  inputId: 'iac-max-zip-size-mb',
+                  min: 1,
+                },
               },
-              maxZipSizeMB: {
-                inputId: 'iac-max-zip-size-mb',
-                min: 1,
+            })}
+            {renderSchemaTextFields({
+              entry,
+              form,
+              errors,
+              setForm,
+              fieldOptions: {
+                extensionBlacklist: {
+                  inputId: 'iac-extension-blacklist',
+                  placeholder: '.exe,.dll,.so',
+                },
               },
-            },
-          })}
-          {renderSchemaTextFields({
-            entry,
-            form,
-            errors,
-            setForm,
-            fieldOptions: {
-              extensionBlacklist: {
-                inputId: 'iac-extension-blacklist',
-                placeholder: '.exe,.dll,.so',
-              },
-            },
-          })}
-        </div>
+            })}
+          </div>
 
-        <SaveButton onClick={() => void save()} saving={saving} />
+          <SaveButton onClick={() => void save()} saving={saving} />
         </div>
       </div>
     </div>
@@ -1711,35 +1790,37 @@ export function TunnelSection({
     <div className="space-y-6">
       <div className="space-y-1">
         <h3 className="text-base font-semibold text-foreground">{entry.title}</h3>
-        <p className="text-sm text-muted-foreground">Port pool range for reverse tunnel allocation</p>
+        <p className="text-sm text-muted-foreground">
+          Port pool range for reverse tunnel allocation
+        </p>
       </div>
       <div className="rounded-lg border border-border/40 bg-background p-4">
         <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          {renderSchemaNumberFields({
-            entry,
-            form,
-            errors,
-            setForm,
-            fieldOptions: {
-              start: {
-                inputId: 'tunnelPortRangeStart',
-                min: 1,
-                max: 65535,
+          <div className="grid grid-cols-2 gap-4">
+            {renderSchemaNumberFields({
+              entry,
+              form,
+              errors,
+              setForm,
+              fieldOptions: {
+                start: {
+                  inputId: 'tunnelPortRangeStart',
+                  min: 1,
+                  max: 65535,
+                },
+                end: {
+                  inputId: 'tunnelPortRangeEnd',
+                  min: 1,
+                  max: 65535,
+                },
               },
-              end: {
-                inputId: 'tunnelPortRangeEnd',
-                min: 1,
-                max: 65535,
-              },
-            },
-          })}
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Changes affect future startup and allocation behavior only. Active tunnel sessions are not
-          reconfigured in place.
-        </p>
-        <SaveButton onClick={save} saving={saving} />
+            })}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Changes affect future startup and allocation behavior only. Active tunnel sessions are
+            not reconfigured in place.
+          </p>
+          <SaveButton onClick={save} saving={saving} />
         </div>
       </div>
     </div>
@@ -1763,106 +1844,112 @@ export function SecretsSection({
     <div className="space-y-6">
       <div className="space-y-1">
         <h3 className="text-base font-semibold text-foreground">Secrets</h3>
-        <p className="text-sm text-muted-foreground">Global reveal restrictions and default secret behavior</p>
+        <p className="text-sm text-muted-foreground">
+          Global reveal restrictions and default secret behavior
+        </p>
       </div>
       <div className="rounded-lg border border-border/40 bg-background p-4">
         <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <Toggle
-            id="secretsRevealDisabled"
-            checked={secretPolicy.revealDisabled}
-            onChange={revealDisabled => setSecretPolicy(policy => ({ ...policy, revealDisabled }))}
-          />
-          <Label htmlFor="secretsRevealDisabled">Disable all reveal actions</Label>
-        </div>
-        {secretPolicyErrors.revealDisabled && (
-          <p className="text-xs text-destructive">{secretPolicyErrors.revealDisabled}</p>
-        )}
-
-        <div className="space-y-1">
-          <Label htmlFor="secretsDefaultAccessMode">Default Access Mode</Label>
-          <select
-            id="secretsDefaultAccessMode"
-            className={selectClass}
-            value={secretPolicy.defaultAccessMode}
-            onChange={e =>
-              setSecretPolicy(policy => ({ ...policy, defaultAccessMode: e.target.value }))
-            }
-          >
-            {SECRET_ACCESS_MODE_OPTIONS.map(option => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          {secretPolicyErrors.defaultAccessMode && (
-            <p className="text-xs text-destructive">{secretPolicyErrors.defaultAccessMode}</p>
+          <div className="flex items-center gap-3">
+            <Toggle
+              id="secretsRevealDisabled"
+              checked={secretPolicy.revealDisabled}
+              onChange={revealDisabled =>
+                setSecretPolicy(policy => ({ ...policy, revealDisabled }))
+              }
+            />
+            <Label htmlFor="secretsRevealDisabled">Disable all reveal actions</Label>
+          </div>
+          {secretPolicyErrors.revealDisabled && (
+            <p className="text-xs text-destructive">{secretPolicyErrors.revealDisabled}</p>
           )}
-        </div>
 
-        <div className="space-y-1">
-          <Label htmlFor="clipboardClearSeconds">Clipboard Clear Delay (seconds)</Label>
-          <Input
-            id="clipboardClearSeconds"
-            type="number"
-            min={0}
-            value={secretPolicy.clipboardClearSeconds}
-            onChange={e =>
-              setSecretPolicy(policy => ({
-                ...policy,
-                clipboardClearSeconds: Number(e.target.value),
-              }))
-            }
-          />
-          <p className="text-xs text-muted-foreground">0 disables automatic clipboard clearing.</p>
-          {secretPolicyErrors.clipboardClearSeconds && (
-            <p className="text-xs text-destructive">{secretPolicyErrors.clipboardClearSeconds}</p>
-          )}
-        </div>
+          <div className="space-y-1">
+            <Label htmlFor="secretsDefaultAccessMode">Default Access Mode</Label>
+            <select
+              id="secretsDefaultAccessMode"
+              className={selectClass}
+              value={secretPolicy.defaultAccessMode}
+              onChange={e =>
+                setSecretPolicy(policy => ({ ...policy, defaultAccessMode: e.target.value }))
+              }
+            >
+              {SECRET_ACCESS_MODE_OPTIONS.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {secretPolicyErrors.defaultAccessMode && (
+              <p className="text-xs text-destructive">{secretPolicyErrors.defaultAccessMode}</p>
+            )}
+          </div>
 
-        <div className="space-y-1">
-          <Label htmlFor="maxAgeDays">Max Age (days)</Label>
-          <Input
-            id="maxAgeDays"
-            type="number"
-            min={0}
-            value={secretPolicy.maxAgeDays}
-            onChange={e =>
-              setSecretPolicy(policy => ({ ...policy, maxAgeDays: Number(e.target.value) }))
-            }
-          />
-          <p className="text-xs text-muted-foreground">
-            0 means secrets never expire. When set, new secrets will automatically receive an expiry
-            date.
-          </p>
-          {secretPolicyErrors.maxAgeDays && (
-            <p className="text-xs text-destructive">{secretPolicyErrors.maxAgeDays}</p>
-          )}
-        </div>
+          <div className="space-y-1">
+            <Label htmlFor="clipboardClearSeconds">Clipboard Clear Delay (seconds)</Label>
+            <Input
+              id="clipboardClearSeconds"
+              type="number"
+              min={0}
+              value={secretPolicy.clipboardClearSeconds}
+              onChange={e =>
+                setSecretPolicy(policy => ({
+                  ...policy,
+                  clipboardClearSeconds: Number(e.target.value),
+                }))
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              0 disables automatic clipboard clearing.
+            </p>
+            {secretPolicyErrors.clipboardClearSeconds && (
+              <p className="text-xs text-destructive">{secretPolicyErrors.clipboardClearSeconds}</p>
+            )}
+          </div>
 
-        <div className="space-y-1">
-          <Label htmlFor="warnBeforeExpiryDays">Expiry Warning (days)</Label>
-          <Input
-            id="warnBeforeExpiryDays"
-            type="number"
-            min={0}
-            value={secretPolicy.warnBeforeExpiryDays}
-            onChange={e =>
-              setSecretPolicy(policy => ({
-                ...policy,
-                warnBeforeExpiryDays: Number(e.target.value),
-              }))
-            }
-          />
-          <p className="text-xs text-muted-foreground">
-            Show an expiry warning this many days before a secret expires. 0 disables the warning.
-          </p>
-          {secretPolicyErrors.warnBeforeExpiryDays && (
-            <p className="text-xs text-destructive">{secretPolicyErrors.warnBeforeExpiryDays}</p>
-          )}
-        </div>
+          <div className="space-y-1">
+            <Label htmlFor="maxAgeDays">Max Age (days)</Label>
+            <Input
+              id="maxAgeDays"
+              type="number"
+              min={0}
+              value={secretPolicy.maxAgeDays}
+              onChange={e =>
+                setSecretPolicy(policy => ({ ...policy, maxAgeDays: Number(e.target.value) }))
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              0 means secrets never expire. When set, new secrets will automatically receive an
+              expiry date.
+            </p>
+            {secretPolicyErrors.maxAgeDays && (
+              <p className="text-xs text-destructive">{secretPolicyErrors.maxAgeDays}</p>
+            )}
+          </div>
 
-        <SaveButton onClick={saveSecretPolicy} saving={secretPolicySaving} />
+          <div className="space-y-1">
+            <Label htmlFor="warnBeforeExpiryDays">Expiry Warning (days)</Label>
+            <Input
+              id="warnBeforeExpiryDays"
+              type="number"
+              min={0}
+              value={secretPolicy.warnBeforeExpiryDays}
+              onChange={e =>
+                setSecretPolicy(policy => ({
+                  ...policy,
+                  warnBeforeExpiryDays: Number(e.target.value),
+                }))
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              Show an expiry warning this many days before a secret expires. 0 disables the warning.
+            </p>
+            {secretPolicyErrors.warnBeforeExpiryDays && (
+              <p className="text-xs text-destructive">{secretPolicyErrors.warnBeforeExpiryDays}</p>
+            )}
+          </div>
+
+          <SaveButton onClick={saveSecretPolicy} saving={secretPolicySaving} />
         </div>
       </div>
     </div>

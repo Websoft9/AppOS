@@ -367,11 +367,6 @@ func ensureDestinationAvailable(finalPath string, overwrite bool) error {
 	return err
 }
 
-func artifactExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
-}
-
 func waitRetryBackoff(ctx context.Context, base time.Duration, attempt int) error {
 	backoff := base
 	for i := 0; i < attempt; i++ {

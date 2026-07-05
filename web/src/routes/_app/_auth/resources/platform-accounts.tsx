@@ -207,7 +207,10 @@ function mapProviderAccountRow(
   }
 }
 
-function buildColumns(t: Translate, onToggleEnabled: (item: Record<string, unknown>) => void): Column[] {
+function buildColumns(
+  t: Translate,
+  onToggleEnabled: (item: Record<string, unknown>) => void
+): Column[] {
   return [
     { key: 'name', label: t('platformAccounts.columns.name'), searchable: true, sortable: true },
     buildEnabledStatusColumn({
@@ -462,11 +465,31 @@ export function PlatformAccountsPage() {
         setPageSize={setPageSize}
         pageSizeOptions={[10, 20, 50]}
         columnOptions={[
-          { key: 'kind_label', label: t('platformAccounts.columns.platform'), checked: visibleOptionalColumns.has('kind_label') },
-          { key: 'profile', label: t('platformAccounts.columns.profile'), checked: visibleOptionalColumns.has('profile') },
-          { key: 'identifier', label: t('platformAccounts.columns.identifier'), checked: visibleOptionalColumns.has('identifier') },
-          { key: 'created', label: t('platformAccounts.columns.created'), checked: visibleOptionalColumns.has('created') },
-          { key: 'updated', label: t('platformAccounts.columns.updated'), checked: visibleOptionalColumns.has('updated') },
+          {
+            key: 'kind_label',
+            label: t('platformAccounts.columns.platform'),
+            checked: visibleOptionalColumns.has('kind_label'),
+          },
+          {
+            key: 'profile',
+            label: t('platformAccounts.columns.profile'),
+            checked: visibleOptionalColumns.has('profile'),
+          },
+          {
+            key: 'identifier',
+            label: t('platformAccounts.columns.identifier'),
+            checked: visibleOptionalColumns.has('identifier'),
+          },
+          {
+            key: 'created',
+            label: t('platformAccounts.columns.created'),
+            checked: visibleOptionalColumns.has('created'),
+          },
+          {
+            key: 'updated',
+            label: t('platformAccounts.columns.updated'),
+            checked: visibleOptionalColumns.has('updated'),
+          },
         ]}
         onColumnToggle={(columnKey, checked) => {
           setVisibleOptionalColumns(prev => {
@@ -498,7 +521,8 @@ export function PlatformAccountsPage() {
         paginationPlacement: 'header',
         paginationVariant: 'minimal',
         paginationSummary: false,
-        paginationTotalLabel: totalCount => t('platformAccounts.page.totalItems', { count: totalCount }),
+        paginationTotalLabel: totalCount =>
+          t('platformAccounts.page.totalItems', { count: totalCount }),
         listControlsBorder: false,
         listControlsShowReset: false,
         headerTrailingControls: renderListSettings,
@@ -535,9 +559,9 @@ export function PlatformAccountsPage() {
         },
         dialogContentClassName: 'sm:max-w-4xl',
         resolveFields: resolveProviderAccountFields,
-          resourceType: 'provider_account',
-          enableGroupAssign: true,
-          autoCreate,
+        resourceType: 'provider_account',
+        enableGroupAssign: true,
+        autoCreate,
         refreshKey,
         listItems: async () => {
           const items = await pb.send<ProviderAccountRecord[]>('/api/provider-accounts', {

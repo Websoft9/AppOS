@@ -61,14 +61,16 @@ export function MonitorSchedulingSection({
     <div className="space-y-6">
       <div className="space-y-1">
         <h3 className="text-base font-semibold text-foreground">Monitor Scheduling</h3>
-        <p className="text-sm text-muted-foreground">Global scheduling intervals for monitoring sweeps.</p>
+        <p className="text-sm text-muted-foreground">
+          Global scheduling intervals for monitoring sweeps.
+        </p>
       </div>
       <div className="rounded-lg border border-border/40 bg-background p-4">
         <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          {renderMonitorNumberFields({ entry, form, errors, setForm })}
-        </div>
-        <SaveButton onClick={save} saving={saving} />
+          <div className="grid grid-cols-2 gap-4">
+            {renderMonitorNumberFields({ entry, form, errors, setForm })}
+          </div>
+          <SaveButton onClick={save} saving={saving} />
         </div>
       </div>
     </div>
@@ -100,10 +102,10 @@ export function MonitorPolicySection({
       </div>
       <div className="rounded-lg border border-border/40 bg-background p-4">
         <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          {renderMonitorNumberFields({ entry, form, errors, setForm })}
-        </div>
-        <SaveButton onClick={save} saving={saving} />
+          <div className="grid grid-cols-2 gap-4">
+            {renderMonitorNumberFields({ entry, form, errors, setForm })}
+          </div>
+          <SaveButton onClick={save} saving={saving} />
         </div>
       </div>
     </div>
@@ -135,47 +137,48 @@ export function MonitorPlatformSelfObservationSection({
       </div>
       <div className="rounded-lg border border-border/40 bg-background p-4">
         <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          {renderMonitorNumberFields({ entry, form, errors, setForm }).filter(field =>
-            ['platformObserverIntervalSeconds', 'platformSchedulerStaleThresholdSeconds'].includes(
-              field.key as string
-            )
-          )}
-        </div>
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            <Toggle
-              id="enableHostTelemetry"
-              checked={form.enableHostTelemetry}
-              onChange={value => setForm(current => ({ ...current, enableHostTelemetry: value }))}
-            />
-            <Label htmlFor="enableHostTelemetry">Enable Host Telemetry</Label>
+          <div className="grid grid-cols-2 gap-4">
+            {renderMonitorNumberFields({ entry, form, errors, setForm }).filter(field =>
+              [
+                'platformObserverIntervalSeconds',
+                'platformSchedulerStaleThresholdSeconds',
+              ].includes(field.key as string)
+            )}
           </div>
-          <p className="text-xs text-muted-foreground">
-            Collect AppOS-local host telemetry when runtime capability is available.
-          </p>
-          {errors.enableHostTelemetry ? (
-            <p className="text-xs text-destructive">{errors.enableHostTelemetry}</p>
-          ) : null}
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <Toggle
+                id="enableHostTelemetry"
+                checked={form.enableHostTelemetry}
+                onChange={value => setForm(current => ({ ...current, enableHostTelemetry: value }))}
+              />
+              <Label htmlFor="enableHostTelemetry">Enable Host Telemetry</Label>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Collect AppOS-local host telemetry when runtime capability is available.
+            </p>
+            {errors.enableHostTelemetry ? (
+              <p className="text-xs text-destructive">{errors.enableHostTelemetry}</p>
+            ) : null}
 
-          <div className="flex items-center gap-3">
-            <Toggle
-              id="enableContainerTelemetry"
-              checked={form.enableContainerTelemetry}
-              onChange={value =>
-                setForm(current => ({ ...current, enableContainerTelemetry: value }))
-              }
-            />
-            <Label htmlFor="enableContainerTelemetry">Enable Container Telemetry</Label>
+            <div className="flex items-center gap-3">
+              <Toggle
+                id="enableContainerTelemetry"
+                checked={form.enableContainerTelemetry}
+                onChange={value =>
+                  setForm(current => ({ ...current, enableContainerTelemetry: value }))
+                }
+              />
+              <Label htmlFor="enableContainerTelemetry">Enable Container Telemetry</Label>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Collect AppOS-local container telemetry when runtime capability is available.
+            </p>
+            {errors.enableContainerTelemetry ? (
+              <p className="text-xs text-destructive">{errors.enableContainerTelemetry}</p>
+            ) : null}
           </div>
-          <p className="text-xs text-muted-foreground">
-            Collect AppOS-local container telemetry when runtime capability is available.
-          </p>
-          {errors.enableContainerTelemetry ? (
-            <p className="text-xs text-destructive">{errors.enableContainerTelemetry}</p>
-          ) : null}
-        </div>
-        <SaveButton onClick={save} saving={saving} />
+          <SaveButton onClick={save} saving={saving} />
         </div>
       </div>
     </div>
@@ -207,10 +210,10 @@ export function MonitorManagedCollectorPolicySection({
       </div>
       <div className="rounded-lg border border-border/40 bg-background p-4">
         <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          {renderMonitorNumberFields({ entry, form, errors, setForm })}
-        </div>
-        <SaveButton onClick={save} saving={saving} />
+          <div className="grid grid-cols-2 gap-4">
+            {renderMonitorNumberFields({ entry, form, errors, setForm })}
+          </div>
+          <SaveButton onClick={save} saving={saving} />
         </div>
       </div>
     </div>

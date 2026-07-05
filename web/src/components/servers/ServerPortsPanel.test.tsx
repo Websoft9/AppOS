@@ -427,19 +427,17 @@ describe('ServerPortsPanel', () => {
       status: 503,
       response: { message: 'server already processing request' },
     })
-    listServerPortsMock
-      .mockRejectedValueOnce(busyError)
-      .mockResolvedValueOnce({
-        server_id: 'server-1',
-        protocol: 'all',
-        view: 'all',
-        detected_at: '2026-05-09T09:00:00Z',
-        ports: [],
-        total: 0,
-        reservation_meta: {
-          container_probe: { available: true, status: 'ok' },
-        },
-      })
+    listServerPortsMock.mockRejectedValueOnce(busyError).mockResolvedValueOnce({
+      server_id: 'server-1',
+      protocol: 'all',
+      view: 'all',
+      detected_at: '2026-05-09T09:00:00Z',
+      ports: [],
+      total: 0,
+      reservation_meta: {
+        container_probe: { available: true, status: 'ok' },
+      },
+    })
 
     render(<ServerPortsPanel serverId="server-1" />)
 

@@ -207,10 +207,7 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     const item = value as Record<string, unknown>
     const serverId = typeof item.serverId === 'string' ? item.serverId.trim() : ''
     const mode = typeof item.mode === 'string' ? item.mode.trim() : ''
-    if (
-      serverId === '' ||
-      (mode !== 'disabled' && mode !== 'always')
-    ) {
+    if (serverId === '' || (mode !== 'disabled' && mode !== 'always')) {
       return null
     }
     return { serverId, mode }
@@ -242,9 +239,14 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
       return 'external'
     }
 
-    const remoteShellDefinition = definitions.find(definition => definition.key === 'remote_shell.global')
-    const savedRemoteShellMode = consumers.find(item => item.consumerKey === 'remote_shell.global')?.mode
-    const effectiveRemoteShellMode = savedRemoteShellMode ?? remoteShellDefinition?.defaultMode ?? 'disabled'
+    const remoteShellDefinition = definitions.find(
+      definition => definition.key === 'remote_shell.global'
+    )
+    const savedRemoteShellMode = consumers.find(
+      item => item.consumerKey === 'remote_shell.global'
+    )?.mode
+    const effectiveRemoteShellMode =
+      savedRemoteShellMode ?? remoteShellDefinition?.defaultMode ?? 'disabled'
     if (remoteShellOverrides.length > 0 || effectiveRemoteShellMode !== 'disabled') {
       return 'self'
     }
@@ -256,8 +258,8 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     source: source.source,
     enabled:
       source.source === 'external'
-        ? [source.socks5ConnectorId, source.httpConnectorId, source.httpsConnectorId].some(value =>
-            value.trim() !== ''
+        ? [source.socks5ConnectorId, source.httpConnectorId, source.httpsConnectorId].some(
+            value => value.trim() !== ''
           )
         : false,
     socks5ConnectorId: source.source === 'external' ? source.socks5ConnectorId.trim() : '',
@@ -578,7 +580,9 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     payload: unknown,
     scope: 'network' | 'consumers' | 'remoteShell' = 'network'
   ): Partial<Record<'form' | 'consumers' | 'remoteShell' | keyof ProxyNetwork, string>> => {
-    const parsed: Partial<Record<'form' | 'consumers' | 'remoteShell' | keyof ProxyNetwork, string>> = {}
+    const parsed: Partial<
+      Record<'form' | 'consumers' | 'remoteShell' | keyof ProxyNetwork, string>
+    > = {}
     if (!payload || typeof payload !== 'object') {
       return parsed
     }
@@ -608,11 +612,11 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     }
     const consumersError = extractFieldError(bag.items)
     if (consumersError) {
-        if (scope === 'remoteShell') {
-          parsed.remoteShell = consumersError
-        } else {
-          parsed.consumers = consumersError
-        }
+      if (scope === 'remoteShell') {
+        parsed.remoteShell = consumersError
+      } else {
+        parsed.consumers = consumersError
+      }
     }
     const remoteShellOverridesError = extractFieldError(bag.serverOverrides)
     if (remoteShellOverridesError) {
@@ -655,7 +659,7 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
       showToast('Proxy resource settings saved')
     } catch (err) {
       if (err instanceof ClientResponseError && (err.status === 400 || err.status === 422)) {
-	        const inlineErrors = parseProxyApiErrors(err.response, 'network')
+        const inlineErrors = parseProxyApiErrors(err.response, 'network')
         if (Object.keys(inlineErrors).length > 0) {
           setProxyErrors(inlineErrors)
           showToast('Please fix validation errors and try again.', false)
@@ -710,7 +714,7 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
       showToast('Proxy policy settings saved')
     } catch (err) {
       if (err instanceof ClientResponseError && (err.status === 400 || err.status === 422)) {
-	        const inlineErrors = parseProxyApiErrors(err.response, 'consumers')
+        const inlineErrors = parseProxyApiErrors(err.response, 'consumers')
         if (Object.keys(inlineErrors).length > 0) {
           setProxyErrors(current => ({ ...current, ...inlineErrors }))
           showToast('Please fix validation errors and try again.', false)

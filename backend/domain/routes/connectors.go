@@ -12,8 +12,6 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/audit"
-	"github.com/websoft9/appos/backend/domain/monitor"
-	monitorstatus "github.com/websoft9/appos/backend/domain/monitor/status"
 	"github.com/websoft9/appos/backend/domain/resource/accounts"
 	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	"github.com/websoft9/appos/backend/domain/secrets"
@@ -63,39 +61,6 @@ type connectorReachabilityItem struct {
 
 type connectorReachabilityResponse struct {
 	Items []connectorReachabilityItem `json:"items"`
-}
-
-var defaultConnectorStatusPriority = map[string]int{
-	monitor.StatusHealthy:     0,
-	monitor.StatusUnreachable: 1,
-	monitor.StatusUnknown:     2,
-}
-
-func connectorReachabilityMonitorStatus(apiStatus string) string {
-	switch strings.ToLower(strings.TrimSpace(apiStatus)) {
-	case "reachable":
-		return monitor.StatusHealthy
-	case "unreachable":
-		return monitor.StatusUnreachable
-	default:
-		return monitor.StatusUnknown
-	}
-}
-
-func projectConnectorStatus(app core.App, targetID, displayName, checkKind, monitorStatus, reason string, summary map[string]any, now time.Time) {
-	_ = monitorstatus.ProjectResourceCheckLatestStatus(
-		app,
-		monitor.TargetTypeConnector,
-		targetID,
-		displayName,
-		monitor.SignalSourceAppOS,
-		checkKind,
-		monitorStatus,
-		reason,
-		summary,
-		defaultConnectorStatusPriority,
-		now,
-	)
 }
 
 // registerConnectorRoutes registers authenticated read routes and superuser-only

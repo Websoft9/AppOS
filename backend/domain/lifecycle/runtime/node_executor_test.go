@@ -303,7 +303,7 @@ func TestExecuteNodeRegistersAndRemovesPublicationRouteForLocalTraefik(t *testin
 	if err := os.MkdirAll(filepath.Dir(publicationServicePath), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(publicationServicePath, []byte(""), 0o644); err != nil {
+	if err := os.WriteFile(publicationServicePath, []byte(""), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	var commands []string

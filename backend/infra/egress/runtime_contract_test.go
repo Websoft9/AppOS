@@ -9,10 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-
-	_ "github.com/websoft9/appos/backend/infra/migrations"
 )
 
 func TestBuildEnvPlanWarnsWhenAlwaysWithoutCapability(t *testing.T) {
@@ -222,6 +221,27 @@ func newTestApp(t *testing.T) *tests.TestApp {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ensureCustomSettingsCollection(t, app)
 	t.Cleanup(app.Cleanup)
 	return app
+}
+
+func ensureCustomSettingsCollection(t *testing.T, app *tests.TestApp) {
+	t.Helper()
+
+	if _, err := app.FindCollectionByNameOrId("custom_settings"); err == nil {
+		return
+	}
+
+	col := core.NewBaseCollection("custom_settings")
+	col.Fields.Add(&core.TextField{Name: "module", Required: true})
+	col.Fields.Add(&core.TextField{Name: "key", Required: true})
+	col.Fields.Add(&core.JSONField{Name: "value"})
+	col.Indexes = []string{
+		"CREATE UNIQUE INDEX idx_custom_settings_module_key ON custom_settings (module, `key`)",
+	}
+
+	if err := app.Save(col); err != nil {
+		t.Fatalf("create custom_settings collection: %v", err)
+	}
 }

@@ -61,7 +61,12 @@ function filterSettingsEntriesForPath<T extends { id: string }>(path: string, it
   if (!idsParam) {
     return items
   }
-  const allowed = new Set(idsParam.split(',').map(value => value.trim()).filter(Boolean))
+  const allowed = new Set(
+    idsParam
+      .split(',')
+      .map(value => value.trim())
+      .filter(Boolean)
+  )
   if (allowed.size === 0) {
     return items
   }
@@ -1478,7 +1483,7 @@ describe('SettingsPage shared settings paths', () => {
       throw new Error('expected settings navigation to be rendered')
     }
 
-    within(nav).getByRole('button', { name: 'AI Provider Account' }).click()
+    within(nav).getByRole('button', { name: 'AI' }).click()
 
     await waitFor(() => {
       expect(screen.getByText('AI Provider Account')).toBeInTheDocument()
@@ -1498,9 +1503,7 @@ describe('SettingsPage shared settings paths', () => {
     expect(
       screen.getByRole('option', { name: 'Workspace OpenAI · gpt-4.1-mini' })
     ).toBeInTheDocument()
-    expect(
-      screen.getByRole('option', { name: 'Backup OpenAI · gpt-4.1-mini' })
-    ).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Backup OpenAI · gpt-4.1-mini' })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Save' })[0]).toBeInTheDocument()
     expect(
       screen.queryByText(
@@ -1551,14 +1554,12 @@ describe('SettingsPage shared settings paths', () => {
       throw new Error('expected settings navigation to be rendered')
     }
 
-    within(nav).getByRole('button', { name: 'AI Provider Account' }).click()
+    within(nav).getByRole('button', { name: 'AI' }).click()
 
     await waitFor(() => {
       expect(screen.getByText('AI Provider Account')).toBeInTheDocument()
       expect(
-        screen.getByText(
-          'No AI Provider accounts yet. Add one in Resources.'
-        )
+        screen.getByText('No AI Provider accounts yet. Add one in Resources.')
       ).toBeInTheDocument()
     })
 
@@ -1663,7 +1664,8 @@ describe('SettingsPage shared settings paths', () => {
             {
               key: 'remote_shell.global',
               title: 'Remote Shell',
-              description: 'Workspace-wide proxy policy for remote server shell and subprocess operations.',
+              description:
+                'Workspace-wide proxy policy for remote server shell and subprocess operations.',
               location: 'remote',
               scope: 'module',
               adapter: 'env',
@@ -1859,7 +1861,9 @@ describe('SettingsPage shared settings paths', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/Select at least one external proxy connector before saving External Proxy/i)
+        screen.getByText(
+          /Select at least one external proxy connector before saving External Proxy/i
+        )
       ).toBeInTheDocument()
     })
 
@@ -1931,7 +1935,9 @@ describe('SettingsPage shared settings paths', () => {
       expect(screen.getByText('smtp://smtp.example.com:587')).toBeInTheDocument()
       expect(screen.getByText('mailer')).toBeInTheDocument()
       expect(screen.queryByLabelText('SMTP Service')).not.toBeInTheDocument()
-      expect(screen.queryByText(/This section now references external services/i)).not.toBeInTheDocument()
+      expect(
+        screen.queryByText(/This section now references external services/i)
+      ).not.toBeInTheDocument()
       expect(screen.getByRole('link', { name: 'Add SMTP Service' })).toHaveAttribute(
         'href',
         '/resources/connectors'
@@ -1947,7 +1953,9 @@ describe('SettingsPage shared settings paths', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Open Docker Mirrors help' })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Allow Insecure Registries help' })).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Allow Insecure Registries help' })
+      ).toBeInTheDocument()
     })
 
     expect(
@@ -2295,7 +2303,10 @@ describe('SettingsPage shared settings paths', () => {
                   i => typeof i === 'object' && i !== null && (i as { id?: string }).id === id
                 )
                 const next = { id, value }
-                if (idx >= 0) { items[idx] = next; return }
+                if (idx >= 0) {
+                  items[idx] = next
+                  return
+                }
                 items.push(next)
               }
               upsertEntry('proxy-network', {
@@ -2312,9 +2323,30 @@ describe('SettingsPage shared settings paths', () => {
                   { consumerKey: 'remote_shell.global', mode: 'always' },
                 ],
                 definitions: [
-                  { key: 'outbound_http.global', title: 'Outbound HTTP', description: 'AppOS web APIs', enrollable: true, allowedModes: ['disabled', 'always'], defaultMode: 'always' },
-                  { key: 'git.global', title: 'Git', description: 'Git clone and fetch', enrollable: true, allowedModes: ['disabled', 'always'], defaultMode: 'always' },
-                  { key: 'remote_shell.global', title: 'Remote Shell', description: 'Remote shell commands', enrollable: true, allowedModes: ['disabled', 'always'], defaultMode: 'always' },
+                  {
+                    key: 'outbound_http.global',
+                    title: 'Outbound HTTP',
+                    description: 'AppOS web APIs',
+                    enrollable: true,
+                    allowedModes: ['disabled', 'always'],
+                    defaultMode: 'always',
+                  },
+                  {
+                    key: 'git.global',
+                    title: 'Git',
+                    description: 'Git clone and fetch',
+                    enrollable: true,
+                    allowedModes: ['disabled', 'always'],
+                    defaultMode: 'always',
+                  },
+                  {
+                    key: 'remote_shell.global',
+                    title: 'Remote Shell',
+                    description: 'Remote shell commands',
+                    enrollable: true,
+                    allowedModes: ['disabled', 'always'],
+                    defaultMode: 'always',
+                  },
                 ],
               })
               upsertEntry('proxy-remote-shell', { items: [] })
@@ -2338,9 +2370,7 @@ describe('SettingsPage shared settings paths', () => {
     await waitFor(() => {
       const nav = container.querySelector('nav') as HTMLElement | null
       expect(nav).toBeTruthy()
-      expect(
-        within(nav as HTMLElement).getByRole('button', { name: 'Proxy' })
-      ).toBeInTheDocument()
+      expect(within(nav as HTMLElement).getByRole('button', { name: 'Proxy' })).toBeInTheDocument()
     })
 
     const nav = container.querySelector('nav') as HTMLElement | null
@@ -2366,13 +2396,21 @@ describe('SettingsPage shared settings paths', () => {
     fireEvent.click(saveButtons[saveButtons.length - 1])
 
     await waitFor(() => {
-      const patchCall = sendMock.mock.calls.find(
-        (callArgs: unknown[]) => {
-          const callPath = (callArgs as [string, { method?: string | undefined; body?: Record<string, unknown> | undefined }])[0]
-          const callOpts = (callArgs as [string, { method?: string | undefined; body?: Record<string, unknown> | undefined }])[1]
-          return callPath === settingsEntryPath('proxy-policies') && callOpts?.method === 'PATCH'
-        }
-      )
+      const patchCall = sendMock.mock.calls.find((callArgs: unknown[]) => {
+        const callPath = (
+          callArgs as [
+            string,
+            { method?: string | undefined; body?: Record<string, unknown> | undefined },
+          ]
+        )[0]
+        const callOpts = (
+          callArgs as [
+            string,
+            { method?: string | undefined; body?: Record<string, unknown> | undefined },
+          ]
+        )[1]
+        return callPath === settingsEntryPath('proxy-policies') && callOpts?.method === 'PATCH'
+      })
       expect(patchCall).toBeTruthy()
       const callOpts = (patchCall as unknown as [string, { body: Record<string, unknown> }])[1]
       const items = (callOpts.body.items ?? []) as Array<{ consumerKey: string; mode: string }>

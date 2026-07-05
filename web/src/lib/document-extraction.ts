@@ -19,10 +19,7 @@ export function isPdfFile(file: File): boolean {
 }
 
 export function isDocxFile(file: File): boolean {
-  if (
-    file.type ===
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-  )
+  if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
     return true
   return file.name.toLowerCase().endsWith('.docx')
 }

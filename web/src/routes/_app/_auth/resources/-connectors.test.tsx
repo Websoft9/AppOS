@@ -1,6 +1,9 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { buildConnectorCreateHref, resolveConnectorTemplateId } from '@/components/connectors/shared'
+import {
+  buildConnectorCreateHref,
+  resolveConnectorTemplateId,
+} from '@/components/connectors/shared'
 import { ConnectorsPage } from './connectors'
 
 const sendMock = vi.fn()
@@ -93,10 +96,8 @@ vi.mock('react-i18next', () => ({
         'connectors.actions.enable': 'Enable',
         'connectors.actions.disable': 'Disable',
         'connectors.fields.enableIt': 'Enable it',
-        'connectors.endpoint.defaultSchemeHint':
-          `If no protocol is entered, ${String(options?.scheme ?? '')} will be added automatically.`,
-        'connectors.endpoint.schemeMismatchWarning':
-          `The typed protocol ${String(options?.actual ?? '')} differs from the default ${String(options?.expected ?? '')}. You can still save this value.`,
+        'connectors.endpoint.defaultSchemeHint': `If no protocol is entered, ${String(options?.scheme ?? '')} will be added automatically.`,
+        'connectors.endpoint.schemeMismatchWarning': `The typed protocol ${String(options?.actual ?? '')} differs from the default ${String(options?.expected ?? '')}. You can still save this value.`,
         'connectors.secret.new': 'New Secret',
         'connectors.secret.edit': 'Edit Secret',
         'connectors.secret.newTitle': 'New Secret',
@@ -356,7 +357,9 @@ describe('ConnectorsPage', () => {
           },
         ])
       }
-      if (path === '/api/connectors?kind=rest_api,webhook,mcp,http-gateway,proxy,smtp,registry,dns') {
+      if (
+        path === '/api/connectors?kind=rest_api,webhook,mcp,http-gateway,proxy,smtp,registry,dns'
+      ) {
         return Promise.resolve([])
       }
       if (path.startsWith('/api/connectors/reachability?')) {
@@ -589,7 +592,9 @@ describe('ConnectorsPage', () => {
           },
         ])
       }
-      if (path === '/api/connectors?kind=rest_api,webhook,mcp,http-gateway,proxy,smtp,registry,dns') {
+      if (
+        path === '/api/connectors?kind=rest_api,webhook,mcp,http-gateway,proxy,smtp,registry,dns'
+      ) {
         return Promise.resolve([
           {
             id: 'connector-1',

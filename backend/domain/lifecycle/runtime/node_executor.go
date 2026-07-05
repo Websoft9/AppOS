@@ -712,7 +712,7 @@ func writePublicationConfig(ctx context.Context, executor Executor, configPath s
 		if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
 			return err
 		}
-		return os.WriteFile(configPath, []byte(content), 0o644)
+		return os.WriteFile(configPath, []byte(content), 0o600)
 	}
 	sshExec, ok := executor.(sshExecutor)
 	if !ok {

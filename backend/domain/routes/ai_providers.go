@@ -428,18 +428,23 @@ func handleAIProviderModels(e *core.RequestEvent) error {
 	if err != nil {
 		return e.NotFoundError("AI provider not found", err)
 	}
+	checkedAt := time.Now().UTC().Format(time.RFC3339)
 	apiKey, resolveErr := resolveAIProviderAPIKey(e, item)
 	if resolveErr != nil {
+		persistAIProviderProbeResult(e.App, item, "availability", "unavailable", resolveErr.Error(), checkedAt, nil)
 		return e.InternalServerError("failed to resolve provider credential", resolveErr)
 	}
 	endpoint, protocol, protocolErr := aiproviders.ResolveActiveEndpointAndProtocol(item)
 	if protocolErr != nil {
+		persistAIProviderProbeResult(e.App, item, "availability", "unavailable", protocolErr.Error(), checkedAt, nil)
 		return e.InternalServerError("failed to resolve AI provider protocol", protocolErr)
 	}
 	result, fetchErr := fetchProviderModels(e.App, e.Request.Context(), endpoint, apiKey, strings.TrimSpace(item.AuthScheme()), strings.TrimSpace(item.TemplateID()), protocol)
 	if fetchErr != nil {
+		persistAIProviderProbeResult(e.App, item, "availability", "unavailable", fetchErr.Error(), checkedAt, nil)
 		return e.BadRequestError(describeFetchModelsError(fetchErr), fetchErr)
 	}
+	persistAIProviderProbeResult(e.App, item, "availability", "available", "", checkedAt, nil)
 	return e.JSON(http.StatusOK, result)
 }
 
@@ -493,6 +498,9 @@ func handleAIProviderReachability(e *core.RequestEvent) error {
 		if result.ID == "" {
 			continue
 		}
+		if item := findAIProviderByID(items, result.ID); item != nil {
+			persistAIProviderProbeResult(e.App, item, "reachability", result.Status, result.Reason, result.CheckedAt, map[string]any{"latency_ms": result.LatencyMS})
+		}
 		projectAIProviderStatus(e.App, result.ID, result.ID, monitor.CheckKindReachability,
 			aiProviderReachabilityMonitorStatus(result.Status), result.Reason,
 			map[string]any{"check_kind": monitor.CheckKindReachability, "latency_ms": result.LatencyMS},
@@ -535,9 +543,12 @@ func handleAIProviderAvailability(e *core.RequestEvent) error {
 		if result.ID == "" {
 			continue
 		}
-		projectAIProviderStatus(e.App, result.ID, result.ID, monitor.CheckKindReachability,
+		if item := findAIProviderByID(items, result.ID); item != nil {
+			persistAIProviderProbeResult(e.App, item, "availability", result.Status, result.Reason, result.CheckedAt, nil)
+		}
+		projectAIProviderStatus(e.App, result.ID, result.ID, monitor.CheckKindAvailability,
 			aiProviderAvailabilityMonitorStatus(result.Status), result.Reason,
-			map[string]any{"check_kind": monitor.CheckKindReachability},
+			map[string]any{"check_kind": monitor.CheckKindAvailability},
 			now)
 	}
 
@@ -567,6 +578,60 @@ func listAIProviderTargets(e *core.RequestEvent) ([]*aiproviders.AIProvider, err
 		}
 	}
 	return items, err
+}
+
+func findAIProviderByID(items []*aiproviders.AIProvider, id string) *aiproviders.AIProvider {
+	trimmedID := strings.TrimSpace(id)
+	if trimmedID == "" {
+		return nil
+	}
+	for _, item := range items {
+		if item != nil && strings.TrimSpace(item.ID()) == trimmedID {
+			return item
+		}
+	}
+	return nil
+}
+
+func persistAIProviderProbeResult(app core.App, item *aiproviders.AIProvider, key string, status string, reason string, checkedAt string, extra map[string]any) {
+	if app == nil || item == nil || strings.TrimSpace(item.ID()) == "" {
+		return
+	}
+	snapshot := item.Snapshot()
+	config := snapshot.Config
+	if config == nil {
+		config = map[string]any{}
+	}
+	probeState := map[string]any{
+		"status": strings.TrimSpace(status),
+	}
+	if trimmedReason := strings.TrimSpace(reason); trimmedReason != "" {
+		probeState["reason"] = trimmedReason
+	}
+	if trimmedCheckedAt := strings.TrimSpace(checkedAt); trimmedCheckedAt != "" {
+		probeState["checked_at"] = trimmedCheckedAt
+	}
+	for extraKey, extraValue := range extra {
+		if strings.TrimSpace(extraKey) == "" || extraValue == nil {
+			continue
+		}
+		probeState[extraKey] = extraValue
+	}
+	config[strings.TrimSpace(key)] = probeState
+	item.ApplySaveInput(aiproviders.SaveInput{
+		Name:              snapshot.Name,
+		Kind:              snapshot.Kind,
+		IsEnabled:         snapshot.IsEnabled,
+		IsDefault:         snapshot.IsDefault,
+		TemplateID:        snapshot.TemplateID,
+		Endpoint:          snapshot.Endpoint,
+		AuthScheme:        snapshot.AuthScheme,
+		ProviderAccountID: snapshot.ProviderAccountID,
+		CredentialID:      snapshot.CredentialID,
+		Config:            config,
+		Description:       snapshot.Description,
+	})
+	_ = persistence.NewAIProviderRepository(app).Save(item)
 }
 
 func probeAIProviderReachability(item *aiproviders.AIProvider) aiProviderReachabilityItem {

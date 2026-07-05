@@ -2,7 +2,6 @@ package egress
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -329,7 +328,7 @@ func BuildEnvPlan(app core.App, consumerKey string) (EnvPlan, error) {
 func NewHTTPClientPlan(app core.App, consumerKey string, timeout time.Duration, skipTLSVerify bool) (HTTPClientPlan, error) {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	if skipTLSVerify {
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		transport.TLSClientConfig = newSkipVerifyTLSConfig()
 	}
 	directTransport := transport.Clone()
 	plan := HTTPClientPlan{Client: http.Client{Timeout: timeout, Transport: directTransport}}
@@ -372,7 +371,7 @@ func NewHTTPClientPlan(app core.App, consumerKey string, timeout time.Duration, 
 func NewTunnelHTTPClientPlan(app core.App, consumerKey string, timeout time.Duration, skipTLSVerify bool) (HTTPClientPlan, error) {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	if skipTLSVerify {
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		transport.TLSClientConfig = newSkipVerifyTLSConfig()
 	}
 	directTransport := transport.Clone()
 	plan := HTTPClientPlan{Client: http.Client{Timeout: timeout, Transport: directTransport}}
@@ -479,14 +478,6 @@ func ValidateConsumerEnrollment(definition Definition, item ConsumerEnrollment) 
 		return fmt.Errorf("proxy consumer %q does not support mode %q", definition.Key, item.Mode)
 	}
 	return nil
-}
-
-func directUseDefinitions() ([]Definition, error) {
-	registry, err := DefaultRegistry()
-	if err != nil {
-		return nil, err
-	}
-	return registry.DirectUse(), nil
 }
 
 func enrollableDefinitions() ([]Definition, error) {
@@ -682,15 +673,6 @@ func proxyUnavailableWarning(definition Definition, capability Capability) Warni
 		message = fmt.Sprintf("Proxy consumer %q is configured for always, but source=self does not provide a usable proxy path for adapter %q. Continuing direct.", definition.Key, definition.Adapter)
 	}
 	return Warning{Code: WarningCodeProxyUnavailable, Message: message}
-}
-
-func proxySourceActive(source string) bool {
-	switch strings.TrimSpace(source) {
-	case "external", "self":
-		return true
-	default:
-		return false
-	}
 }
 
 func normalizeConsumerEnrollments(group map[string]any) []ConsumerEnrollment {

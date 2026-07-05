@@ -117,7 +117,8 @@ export function AppDetailOverviewTab({
   let healthAlert = ''
   if (app.server_id !== 'local' && normalizedServerConnectionStatus !== 'online') {
     healthAlert =
-      serverConnectionReason || 'Application status cannot be verified because server connectivity is unavailable.'
+      serverConnectionReason ||
+      'Application status cannot be verified because server connectivity is unavailable.'
   } else if (normalizedInstanceState === 'attention_required') {
     healthAlert = app.state_reason || app.runtime_reason || 'Manual intervention is required.'
   } else if (normalizedInstanceState === 'unknown') {
@@ -220,9 +221,10 @@ export function AppDetailOverviewTab({
     { label: 'Health', value: healthValue },
     {
       label: 'Container runtime',
-      value: serverConnectionBlocked && serverConnectionReason
-        ? `${runtimeValue} · ${serverConnectionReason}`
-        : runtimeValue,
+      value:
+        serverConnectionBlocked && serverConnectionReason
+          ? `${runtimeValue} · ${serverConnectionReason}`
+          : runtimeValue,
     },
     { label: 'State reason', value: stateReasonValue },
     {

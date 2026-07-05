@@ -298,7 +298,10 @@ function createSkillDefaults(): AssetFormState {
   }
 }
 
-function createPromptDefaults(name = promptSequenceName(1), scope: PromptScope = 'task'): AssetFormState {
+function createPromptDefaults(
+  name = promptSequenceName(1),
+  scope: PromptScope = 'task'
+): AssetFormState {
   return {
     ...promptDefaults,
     name,
@@ -387,11 +390,11 @@ function assetDialogDescription(kind: AssetKind) {
 }
 
 function promptScopeOf(asset: AssetRecord): PromptScope {
-	return asset.prompt_scope === 'task' ? 'task' : 'system'
+  return asset.prompt_scope === 'task' ? 'task' : 'system'
 }
 
 function isTaskPrompt(asset: AssetRecord) {
-	return promptScopeOf(asset) === 'task'
+  return promptScopeOf(asset) === 'task'
 }
 
 function isTemplateLocked(asset: AssetRecord | null) {
@@ -433,7 +436,10 @@ export function AssetFamilyPage({
   const [restoringId, setRestoringId] = useState('')
   const [promptStarterTemplateId, setPromptStarterTemplateId] = useState('blank')
   const [promptLabelFilter, setPromptLabelFilter] = useState<PromptLabelFilter>('all')
-  const [promptSort, setPromptSort] = useState<{ key: 'name' | 'created' | 'updated'; direction: 'asc' | 'desc' }>({
+  const [promptSort, setPromptSort] = useState<{
+    key: 'name' | 'created' | 'updated'
+    direction: 'asc' | 'desc'
+  }>({
     key: 'updated',
     direction: 'desc',
   })
@@ -593,7 +599,8 @@ export function AssetFamilyPage({
   const filteredItems = useMemo(() => {
     const query = queryState.q.trim().toLowerCase()
     let next = items.filter(item => {
-      const matchesQuery = !query || (
+      const matchesQuery =
+        !query ||
         item.name.toLowerCase().includes(query) ||
         item.id.toLowerCase().includes(query) ||
         item.path.toLowerCase().includes(query) ||
@@ -601,7 +608,6 @@ export function AssetFamilyPage({
         item.source_kind.toLowerCase().includes(query) ||
         (item.language ?? '').toLowerCase().includes(query) ||
         (item.reference ?? '').toLowerCase().includes(query)
-      )
       if (!matchesQuery) {
         return false
       }
@@ -622,8 +628,12 @@ export function AssetFamilyPage({
         if (promptSort.key === 'name') {
           return left.name.localeCompare(right.name) * direction
         }
-        const leftTime = new Date((promptSort.key === 'created' ? left.created : left.updated) ?? '').getTime()
-        const rightTime = new Date((promptSort.key === 'created' ? right.created : right.updated) ?? '').getTime()
+        const leftTime = new Date(
+          (promptSort.key === 'created' ? left.created : left.updated) ?? ''
+        ).getTime()
+        const rightTime = new Date(
+          (promptSort.key === 'created' ? right.created : right.updated) ?? ''
+        ).getTime()
         return ((leftTime || 0) - (rightTime || 0)) * direction
       })
     }
@@ -938,7 +948,14 @@ export function AssetFamilyPage({
                       onClick={() => togglePromptSort('name')}
                     >
                       Name
-                      <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', promptSort.key === 'name' && promptSort.direction === 'asc' && 'rotate-180')} />
+                      <ChevronDown
+                        className={cn(
+                          'h-3.5 w-3.5 transition-transform',
+                          promptSort.key === 'name' &&
+                            promptSort.direction === 'asc' &&
+                            'rotate-180'
+                        )}
+                      />
                     </button>
                   ) : (
                     'Name'
@@ -972,8 +989,12 @@ export function AssetFamilyPage({
                           onValueChange={value => setPromptLabelFilter(value as PromptLabelFilter)}
                         >
                           <DropdownMenuRadioItem value="all">All Prompts</DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="system">System Prompts</DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="task">Task Instructions</DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="system">
+                            System Prompts
+                          </DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="task">
+                            Task Instructions
+                          </DropdownMenuRadioItem>
                         </DropdownMenuRadioGroup>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -992,7 +1013,14 @@ export function AssetFamilyPage({
                       onClick={() => togglePromptSort('created')}
                     >
                       Created
-                      <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', promptSort.key === 'created' && promptSort.direction === 'asc' && 'rotate-180')} />
+                      <ChevronDown
+                        className={cn(
+                          'h-3.5 w-3.5 transition-transform',
+                          promptSort.key === 'created' &&
+                            promptSort.direction === 'asc' &&
+                            'rotate-180'
+                        )}
+                      />
                     </button>
                   ) : (
                     'Entrypoint'
@@ -1006,7 +1034,14 @@ export function AssetFamilyPage({
                       onClick={() => togglePromptSort('updated')}
                     >
                       Updated
-                      <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', promptSort.key === 'updated' && promptSort.direction === 'asc' && 'rotate-180')} />
+                      <ChevronDown
+                        className={cn(
+                          'h-3.5 w-3.5 transition-transform',
+                          promptSort.key === 'updated' &&
+                            promptSort.direction === 'asc' &&
+                            'rotate-180'
+                        )}
+                      />
                     </button>
                   ) : (
                     'Updated'
@@ -1039,7 +1074,9 @@ export function AssetFamilyPage({
                         item.language || '—'
                       ) : isPrompt ? (
                         <div className="flex flex-wrap gap-1">
-                          <Badge variant="secondary">{PROMPT_SCOPE_LABELS[promptScopeOf(item)]}</Badge>
+                          <Badge variant="secondary">
+                            {PROMPT_SCOPE_LABELS[promptScopeOf(item)]}
+                          </Badge>
                         </div>
                       ) : item.source_kind === 'local' ? (
                         'Local'
@@ -1102,7 +1139,9 @@ export function AssetFamilyPage({
                               disabled={restoringId === item.id}
                               onClick={() => void handleRestoreDefault(item)}
                             >
-                              <RefreshCw className={cn('h-4 w-4', restoringId === item.id && 'animate-spin')} />
+                              <RefreshCw
+                                className={cn('h-4 w-4', restoringId === item.id && 'animate-spin')}
+                              />
                               {restoringId === item.id ? 'Restoring...' : 'Restore default'}
                             </DropdownMenuItem>
                           ) : null}
@@ -1402,238 +1441,259 @@ export function AssetFamilyPage({
                         onChange={e => setForm(current => ({ ...current, name: e.target.value }))}
                       />
                     </div>
-                  <section className="space-y-3">
-                    <div className="grid gap-2">
-                      <Label className={fieldLabelClassName}>
-                        {requiredLabel('Prompt Type')}
-                      </Label>
-                      <div
-                        role="radiogroup"
-                        aria-label="Prompt Type"
-                        className="grid gap-2 sm:grid-cols-2"
-                      >
-                        {(['system', 'task'] as const).map(scope => {
-                          const checked = form.prompt_scope === scope
-                          return (
-                            <Tooltip key={scope}>
-                              <TooltipTrigger asChild>
+                    <section className="space-y-3">
+                      <div className="grid gap-2">
+                        <Label className={fieldLabelClassName}>
+                          {requiredLabel('Prompt Type')}
+                        </Label>
+                        <div
+                          role="radiogroup"
+                          aria-label="Prompt Type"
+                          className="grid gap-2 sm:grid-cols-2"
+                        >
+                          {(['system', 'task'] as const).map(scope => {
+                            const checked = form.prompt_scope === scope
+                            return (
+                              <Tooltip key={scope}>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={checked}
+                                    className={cn(
+                                      'rounded-lg border px-3 py-3 text-left transition-colors',
+                                      checked
+                                        ? 'border-primary bg-primary/5 text-foreground shadow-sm'
+                                        : 'border-border bg-background text-muted-foreground hover:border-foreground/20 hover:text-foreground'
+                                    )}
+                                    onClick={() =>
+                                      setForm(current => {
+                                        const next = {
+                                          ...current,
+                                          prompt_scope: scope,
+                                        }
+                                        if (!editing && promptStarterTemplateId === 'blank') {
+                                          next.content = blankPromptContent(scope)
+                                        }
+                                        return next
+                                      })
+                                    }
+                                  >
+                                    <div className="text-sm font-medium text-foreground">
+                                      {PROMPT_SCOPE_LABELS[scope]}
+                                    </div>
+                                    <div className="mt-1 text-xs leading-5">
+                                      {scope === 'system'
+                                        ? 'Conversation-level default behavior'
+                                        : 'Reusable working context for one task'}
+                                    </div>
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" className="max-w-[280px] leading-5">
+                                  {promptScopeDescription(scope)}
+                                </TooltipContent>
+                              </Tooltip>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      {!editing ? (
+                        <div className="grid gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="prompt-starter" className={fieldLabelClassName}>
+                              Starter Tempate
+                            </Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
                                 <button
                                   type="button"
-                                  role="radio"
-                                  aria-checked={checked}
-                                  className={cn(
-                                    'rounded-lg border px-3 py-3 text-left transition-colors',
-                                    checked
-                                      ? 'border-primary bg-primary/5 text-foreground shadow-sm'
-                                      : 'border-border bg-background text-muted-foreground hover:border-foreground/20 hover:text-foreground'
-                                  )}
-                                  onClick={() =>
-                                    setForm(current => {
-                                      const next = {
-                                        ...current,
-                                        prompt_scope: scope,
-                                      }
-                                      if (!editing && promptStarterTemplateId === 'blank') {
-                                        next.content = blankPromptContent(scope)
-                                      }
-                                      return next
-                                    })
-                                  }
+                                  className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+                                  aria-label="Starter template help"
                                 >
-                                  <div className="text-sm font-medium text-foreground">
-                                    {PROMPT_SCOPE_LABELS[scope]}
-                                  </div>
-                                  <div className="mt-1 text-xs leading-5">
-                                    {scope === 'system'
-                                      ? 'Conversation-level default behavior'
-                                      : 'Reusable working context for one task'}
-                                  </div>
+                                  <CircleHelp className="h-4 w-4" />
                                 </button>
-                              </TooltipTrigger>
-                              <TooltipContent side="bottom" className="max-w-[280px] leading-5">
-                                {promptScopeDescription(scope)}
-                              </TooltipContent>
-                            </Tooltip>
-                          )
-                        })}
-                      </div>
-                    </div>
-
-                    {!editing ? (
-                      <div className="grid gap-2">
-                        <div className="flex items-center gap-2">
-                          <Label htmlFor="prompt-starter" className={fieldLabelClassName}>
-                            Starter Tempate
-                          </Label>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <button
-                                type="button"
-                                className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
-                                aria-label="Starter template help"
+                              </PopoverTrigger>
+                              <PopoverContent
+                                side="right"
+                                sideOffset={8}
+                                className="max-w-[220px] leading-5"
                               >
-                                <CircleHelp className="h-4 w-4" />
-                              </button>
-                            </PopoverTrigger>
-                            <PopoverContent side="right" sideOffset={8} className="max-w-[220px] leading-5">
-                              Choose a starter, or begin with Blank. Templates matching the current prompt type are listed first.
-                            </PopoverContent>
-                          </Popover>
-                        </div>
-                        <Select
-                          value={promptStarterTemplateId}
-                          onValueChange={value => {
-                            setPromptStarterTemplateId(value)
-                            if (value === 'blank') {
-                              setForm(current => ({
-                                ...createPromptDefaults(
-                                  current.name || promptSequenceName(items.length + 1),
-                                  current.prompt_scope
-                                ),
-                                description: current.description,
-                                prompt_scope: current.prompt_scope,
-                              }))
-                              return
-                            }
-                            const template = starterTemplates.find(item => item.id === value)
-                            if (template) {
-                              void applyPromptTemplate(template)
-                            }
-                          }}
-                        >
-                          <SelectTrigger id="prompt-starter">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="blank">Blank</SelectItem>
-                            {starterTemplates.map(template => (
-                              <SelectItem key={template.id} value={template.id}>
-                                {template.name} · {PROMPT_SCOPE_LABELS[promptScopeOf(template)]}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {templateApplying ? (
-                          <div className="text-xs text-muted-foreground">Loading template...</div>
-                        ) : null}
-                      </div>
-                    ) : null}
-
-                    <div className="grid gap-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-1.5">
-                          <Label htmlFor="asset-prompt-content" className={fieldLabelClassName}>
-                            {requiredLabel('Prompt Content')}
-                          </Label>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <button
-                                type="button"
-                                className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
-                                aria-label="Prompt content help"
-                              >
-                                <CircleHelp className="h-4 w-4" />
-                              </button>
-                            </PopoverTrigger>
-                            <PopoverContent
-                              side="left"
-                              sideOffset={8}
-                              className="max-w-[280px] leading-5"
-                            >
-                              {form.prompt_scope === 'system'
-                                ? 'Use system prompts for stable AI Copilot behavior that should persist across a conversation.'
-                                : 'Use task instructions for reusable work context. You can hand them off into AI Copilot from here.'}{' '}
-                              Use {'{{var}}'} placeholders in plain text when needed. Variable resolution is handled by consumers later.
-                            </PopoverContent>
-                          </Popover>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => void sendPromptToCopilot()}
-                            disabled={!form.content.trim() || form.prompt_scope !== 'task'}
-                          >
-                            Send to AI Copilot
-                          </Button>
-                        </div>
-                      </div>
-                      <Textarea
-                        id="asset-prompt-content"
-                        value={form.content}
-                        onChange={e => setForm(current => ({ ...current, content: e.target.value }))}
-                        rows={8}
-                        wrap="soft"
-                        className="max-h-44 resize-none overflow-y-auto [overflow-wrap:anywhere] [word-break:break-word]"
-                      />
-                    </div>
-
-                    <Collapsible open={promptAdvancedOpen} onOpenChange={setPromptAdvancedOpen}>
-                      <div className="space-y-2">
-                        <CollapsibleTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            className="-ml-0.5 h-auto px-0 text-sm font-semibold text-muted-foreground hover:text-foreground"
-                          >
-                            <ChevronDown
-                              className={cn(
-                                'mr-2 h-4 w-4 transition-transform',
-                                promptAdvancedOpen && 'rotate-180'
-                              )}
-                            />
-                            {promptAdvancedOpen ? 'Hide advanced settings' : 'Show advanced settings'}
-                          </Button>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent className="space-y-3">
-                          <div className="grid gap-2">
-                            <Label htmlFor="asset-description-prompt" className={fieldLabelClassName}>
-                              Description
-                            </Label>
-                            <Textarea
-                              id="asset-description-prompt"
-                              value={form.description}
-                              onChange={e =>
-                                setForm(current => ({ ...current, description: e.target.value }))
-                              }
-                              rows={3}
-                              placeholder="Optional description for operators and future consumers"
-                            />
+                                Choose a starter, or begin with Blank. Templates matching the
+                                current prompt type are listed first.
+                              </PopoverContent>
+                            </Popover>
                           </div>
-
-                          {editing ? (
-                            <div className="grid gap-2">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="space-y-1">
-                                  <Label htmlFor="asset-prompt-template" className={fieldLabelClassName}>
-                                    Set as template
-                                  </Label>
-                                  <p className="text-xs text-muted-foreground">
-                                    Template prompts appear in Starter Template when creating new prompts.
-                                  </p>
-                                </div>
-                                <input
-                                  id="asset-prompt-template"
-                                  type="checkbox"
-                                  className="mt-1 h-4 w-4 rounded border-border"
-                                  checked={form.is_template}
-                                  disabled={isTemplateLocked(editing)}
-                                  onChange={event =>
-                                    setForm(current => ({ ...current, is_template: event.target.checked }))
-                                  }
-                                />
-                              </div>
-                              {isTemplateLocked(editing) ? (
-                                <p className="text-xs text-muted-foreground">
-                                  System-managed prompts such as Prompt Optimizer cannot be used as starter templates.
-                                </p>
-                              ) : null}
-                            </div>
+                          <Select
+                            value={promptStarterTemplateId}
+                            onValueChange={value => {
+                              setPromptStarterTemplateId(value)
+                              if (value === 'blank') {
+                                setForm(current => ({
+                                  ...createPromptDefaults(
+                                    current.name || promptSequenceName(items.length + 1),
+                                    current.prompt_scope
+                                  ),
+                                  description: current.description,
+                                  prompt_scope: current.prompt_scope,
+                                }))
+                                return
+                              }
+                              const template = starterTemplates.find(item => item.id === value)
+                              if (template) {
+                                void applyPromptTemplate(template)
+                              }
+                            }}
+                          >
+                            <SelectTrigger id="prompt-starter">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="blank">Blank</SelectItem>
+                              {starterTemplates.map(template => (
+                                <SelectItem key={template.id} value={template.id}>
+                                  {template.name} · {PROMPT_SCOPE_LABELS[promptScopeOf(template)]}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {templateApplying ? (
+                            <div className="text-xs text-muted-foreground">Loading template...</div>
                           ) : null}
-                        </CollapsibleContent>
+                        </div>
+                      ) : null}
+
+                      <div className="grid gap-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-1.5">
+                            <Label htmlFor="asset-prompt-content" className={fieldLabelClassName}>
+                              {requiredLabel('Prompt Content')}
+                            </Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+                                  aria-label="Prompt content help"
+                                >
+                                  <CircleHelp className="h-4 w-4" />
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent
+                                side="left"
+                                sideOffset={8}
+                                className="max-w-[280px] leading-5"
+                              >
+                                {form.prompt_scope === 'system'
+                                  ? 'Use system prompts for stable AI Copilot behavior that should persist across a conversation.'
+                                  : 'Use task instructions for reusable work context. You can hand them off into AI Copilot from here.'}{' '}
+                                Use {'{{var}}'} placeholders in plain text when needed. Variable
+                                resolution is handled by consumers later.
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => void sendPromptToCopilot()}
+                              disabled={!form.content.trim() || form.prompt_scope !== 'task'}
+                            >
+                              Send to AI Copilot
+                            </Button>
+                          </div>
+                        </div>
+                        <Textarea
+                          id="asset-prompt-content"
+                          value={form.content}
+                          onChange={e =>
+                            setForm(current => ({ ...current, content: e.target.value }))
+                          }
+                          rows={8}
+                          wrap="soft"
+                          className="max-h-44 resize-none overflow-y-auto [overflow-wrap:anywhere] [word-break:break-word]"
+                        />
                       </div>
-                    </Collapsible>
-                  </section>
+
+                      <Collapsible open={promptAdvancedOpen} onOpenChange={setPromptAdvancedOpen}>
+                        <div className="space-y-2">
+                          <CollapsibleTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="-ml-0.5 h-auto px-0 text-sm font-semibold text-muted-foreground hover:text-foreground"
+                            >
+                              <ChevronDown
+                                className={cn(
+                                  'mr-2 h-4 w-4 transition-transform',
+                                  promptAdvancedOpen && 'rotate-180'
+                                )}
+                              />
+                              {promptAdvancedOpen
+                                ? 'Hide advanced settings'
+                                : 'Show advanced settings'}
+                            </Button>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="space-y-3">
+                            <div className="grid gap-2">
+                              <Label
+                                htmlFor="asset-description-prompt"
+                                className={fieldLabelClassName}
+                              >
+                                Description
+                              </Label>
+                              <Textarea
+                                id="asset-description-prompt"
+                                value={form.description}
+                                onChange={e =>
+                                  setForm(current => ({ ...current, description: e.target.value }))
+                                }
+                                rows={3}
+                                placeholder="Optional description for operators and future consumers"
+                              />
+                            </div>
+
+                            {editing ? (
+                              <div className="grid gap-2">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="space-y-1">
+                                    <Label
+                                      htmlFor="asset-prompt-template"
+                                      className={fieldLabelClassName}
+                                    >
+                                      Set as template
+                                    </Label>
+                                    <p className="text-xs text-muted-foreground">
+                                      Template prompts appear in Starter Template when creating new
+                                      prompts.
+                                    </p>
+                                  </div>
+                                  <input
+                                    id="asset-prompt-template"
+                                    type="checkbox"
+                                    className="mt-1 h-4 w-4 rounded border-border"
+                                    checked={form.is_template}
+                                    disabled={isTemplateLocked(editing)}
+                                    onChange={event =>
+                                      setForm(current => ({
+                                        ...current,
+                                        is_template: event.target.checked,
+                                      }))
+                                    }
+                                  />
+                                </div>
+                                {isTemplateLocked(editing) ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    System-managed prompts such as Prompt Optimizer cannot be used
+                                    as starter templates.
+                                  </p>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </CollapsibleContent>
+                        </div>
+                      </Collapsible>
+                    </section>
                   </div>
                 </>
               ) : (

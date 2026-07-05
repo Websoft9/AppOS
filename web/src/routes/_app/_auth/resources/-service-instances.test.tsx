@@ -43,8 +43,7 @@ vi.mock('react-i18next', () => ({
         'serviceInstances.selection.title': 'Choose a Runtime Kind',
         'serviceInstances.selection.description':
           'Choose the runtime kind directly. Profile remains a property of that kind inside the form.',
-        'serviceInstances.selection.searchPlaceholder':
-          'Search MySQL, Redis, Kafka, or MinIO...',
+        'serviceInstances.selection.searchPlaceholder': 'Search MySQL, Redis, Kafka, or MinIO...',
         'serviceInstances.selection.emptyMessage': 'No matching runtime kinds found.',
         'serviceInstances.selection.profileCount': `${String(options?.count ?? '')} profiles`,
         'serviceInstances.fields.category': 'Category',
@@ -816,7 +815,9 @@ describe('ServiceInstancesPage', () => {
     await screen.findByRole('dialog')
 
     expect(screen.getByText('Choose a Runtime Kind')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Search MySQL, Redis, Kafka, or MinIO...')).toBeInTheDocument()
+    expect(
+      screen.getByPlaceholderText('Search MySQL, Redis, Kafka, or MinIO...')
+    ).toBeInTheDocument()
     expect(screen.getAllByText(/MySQL-Compatible/i).length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText(/^AMQP-Compatible$/).length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('S3-Compatible').length).toBeGreaterThanOrEqual(1)
@@ -832,8 +833,8 @@ describe('ServiceInstancesPage', () => {
     expect(screen.queryByText('MySQL-Compatible')).not.toBeInTheDocument()
 
     fireEvent.change(screen.getByPlaceholderText('Search MySQL, Redis, Kafka, or MinIO...'), {
-		target: { value: 'mysql' },
-	})
+      target: { value: 'mysql' },
+    })
 
     expect(screen.getAllByText(/MySQL-Compatible/i).length).toBeGreaterThanOrEqual(1)
 
@@ -1162,7 +1163,7 @@ describe('ServiceInstancesPage', () => {
     })
 
     expect(screen.getByText('Unreachable')).toBeInTheDocument()
-    expect(screen.getByText('2026-04-11 10:00:00')).toBeInTheDocument()
+    expect(screen.getByText('2026-04-11 10:00')).toBeInTheDocument()
     expect(screen.queryByText('Created')).not.toBeInTheDocument()
     expect(screen.queryByText('Updated')).not.toBeInTheDocument()
 
@@ -1370,7 +1371,7 @@ describe('ServiceInstancesPage', () => {
 
     expect(await screen.findByText('redis-live')).toBeInTheDocument()
     expect(await screen.findByText('Healthy')).toBeInTheDocument()
-    expect(screen.getByText('2026-04-11 10:05:00')).toBeInTheDocument()
+    expect(screen.getByText('2026-04-11 10:05')).toBeInTheDocument()
   })
 
   it('edits an existing secret inline without navigating away', async () => {

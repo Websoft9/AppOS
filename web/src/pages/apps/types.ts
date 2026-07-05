@@ -229,13 +229,18 @@ export function serverConnectionVariant(
   }
 }
 
-export function getServerConnectionReason(app?: Pick<AppInstance, 'server_connection_reason' | 'runtime_reason'> | null): string {
+export function getServerConnectionReason(
+  app?: Pick<AppInstance, 'server_connection_reason' | 'runtime_reason'> | null
+): string {
   if (!app) return ''
   return (app.server_connection_reason || app.runtime_reason || '').trim()
 }
 
 export function hasBlockingServerConnectionIssue(
-  app?: Pick<AppInstance, 'server_id' | 'server_connection_status' | 'server_connection_reason' | 'runtime_reason'> | null
+  app?: Pick<
+    AppInstance,
+    'server_id' | 'server_connection_status' | 'server_connection_reason' | 'runtime_reason'
+  > | null
 ): boolean {
   if (!app || app.server_id === 'local') return false
   const status = normalizeServerConnectionStatus(app.server_connection_status)
@@ -266,7 +271,11 @@ export function formatEffectiveRuntimeLabel(
 export function formatEffectiveHealthLabel(
   app?: Pick<
     AppInstance,
-    'server_id' | 'server_connection_status' | 'instance_state' | 'health_summary' | 'runtime_status'
+    | 'server_id'
+    | 'server_connection_status'
+    | 'instance_state'
+    | 'health_summary'
+    | 'runtime_status'
   > | null
 ): string {
   if (hasBlockingServerConnectionIssue(app)) return 'Unavailable'

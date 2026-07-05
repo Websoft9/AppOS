@@ -2140,13 +2140,13 @@ export function ServersPage() {
                 value={powerDelayMinutes}
                 onChange={e => {
                   const parsed = Number.parseInt(e.target.value, 10)
-                  setPowerDelayMinutes(Number.isNaN(parsed) ? 0 : Math.max(0, Math.min(1440, parsed)))
+                  setPowerDelayMinutes(
+                    Number.isNaN(parsed) ? 0 : Math.max(0, Math.min(1440, parsed))
+                  )
                 }}
               />
               <span className="text-xs text-muted-foreground">
-                {powerDelayMinutes === 0
-                  ? 'Immediate'
-                  : `${powerDelayMinutes} min from now`}
+                {powerDelayMinutes === 0 ? 'Immediate' : `${powerDelayMinutes} min from now`}
               </span>
             </div>
           )}

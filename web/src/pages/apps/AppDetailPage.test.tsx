@@ -563,7 +563,9 @@ describe('AppDetailPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
 
-    const accessLink = await screen.findByRole('link', { name: /http:\/\/demo\.example\.com:8080/i })
+    const accessLink = await screen.findByRole('link', {
+      name: /http:\/\/demo\.example\.com:8080/i,
+    })
     expect(accessLink).toHaveAttribute('href', 'http://demo.example.com:8080')
   })
 

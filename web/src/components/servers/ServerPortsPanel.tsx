@@ -167,20 +167,20 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
     setLoading(true)
     setError('')
     try {
-    const response = await runWithServerRealtimeBusyRetry(
-      () => listServerPorts(serverId, 'all', protocol),
-      { shouldRetry: () => requestSeqRef.current === requestSeq }
-    )
-    if (requestSeqRef.current !== requestSeq) return
-    const nextRows = (Array.isArray(response.ports) ? response.ports : []).map(row => ({
-      ...row,
-      protocol: row.protocol || (response.protocol === 'all' ? 'tcp' : response.protocol),
-    }))
-    if (requestSeqRef.current !== requestSeq) return
-    setRows(nextRows)
-  } catch (loadError) {
-    if (requestSeqRef.current !== requestSeq || isRequestCancellation(loadError)) return
-    setError(getApiErrorMessage(loadError, 'Failed to load ports'))
+      const response = await runWithServerRealtimeBusyRetry(
+        () => listServerPorts(serverId, 'all', protocol),
+        { shouldRetry: () => requestSeqRef.current === requestSeq }
+      )
+      if (requestSeqRef.current !== requestSeq) return
+      const nextRows = (Array.isArray(response.ports) ? response.ports : []).map(row => ({
+        ...row,
+        protocol: row.protocol || (response.protocol === 'all' ? 'tcp' : response.protocol),
+      }))
+      if (requestSeqRef.current !== requestSeq) return
+      setRows(nextRows)
+    } catch (loadError) {
+      if (requestSeqRef.current !== requestSeq || isRequestCancellation(loadError)) return
+      setError(getApiErrorMessage(loadError, 'Failed to load ports'))
     } finally {
       if (requestSeqRef.current === requestSeq) {
         setLoading(false)

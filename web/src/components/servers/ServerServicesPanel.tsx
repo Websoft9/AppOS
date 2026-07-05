@@ -337,9 +337,12 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
     setInventoryLoading(true)
     setError('')
     try {
-      const response = await runWithServerRealtimeBusyRetry(() => listSystemdServices(serverId, ''), {
-        shouldRetry: () => requestSeqRef.current === requestSeq,
-      })
+      const response = await runWithServerRealtimeBusyRetry(
+        () => listSystemdServices(serverId, ''),
+        {
+          shouldRetry: () => requestSeqRef.current === requestSeq,
+        }
+      )
       if (requestSeqRef.current !== requestSeq) return
       setServices(response)
     } catch (loadError) {
@@ -604,9 +607,9 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
     try {
       const saveResponse = await updateSystemdUnit(serverId, selected, unitContent)
       const applyResponse = await applySystemdUnit(serverId, selected)
-        const inventoryResponse = await runWithServerRealtimeBusyRetry(() =>
-          listSystemdServices(serverId, '')
-        )
+      const inventoryResponse = await runWithServerRealtimeBusyRetry(() =>
+        listSystemdServices(serverId, '')
+      )
       setServices(inventoryResponse)
       setUnitResult(
         [saveResponse.output, applyResponse.reload_output, applyResponse.apply_output]

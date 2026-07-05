@@ -15,6 +15,7 @@ import (
 	"github.com/websoft9/appos/backend/domain/monitor/metrics"
 	monitorchecks "github.com/websoft9/appos/backend/domain/monitor/signals/checks"
 	"github.com/websoft9/appos/backend/domain/monitor/status/store"
+	"github.com/websoft9/appos/backend/domain/resource/instances"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/domain/terminal"
 	"github.com/websoft9/appos/backend/infra/collections"
@@ -558,10 +559,25 @@ func seedInstanceRecord(t *testing.T, app core.App, name string, kind string, en
 	if err != nil {
 		t.Fatal(err)
 	}
+	legacyTemplateIDs := map[string]string{
+		instances.KindRedisCompatible: "generic-redis",
+		instances.KindS3Compatible:    "generic-s3",
+	}
+	legacyKinds := map[string]string{
+		"redis": instances.KindRedisCompatible,
+		"s3":    instances.KindS3Compatible,
+	}
+	if normalized, ok := legacyKinds[kind]; ok {
+		kind = normalized
+	}
+	templateID := fmt.Sprintf("generic-%s", kind)
+	if normalized, ok := legacyTemplateIDs[kind]; ok {
+		templateID = normalized
+	}
 	rec := core.NewRecord(col)
 	rec.Set("name", name)
 	rec.Set("kind", kind)
-	rec.Set("template_id", fmt.Sprintf("generic-%s", kind))
+	rec.Set("template_id", templateID)
 	rec.Set("endpoint", endpoint)
 	rec.Set("config", map[string]any{})
 	if err := app.Save(rec); err != nil {

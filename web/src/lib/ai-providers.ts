@@ -44,10 +44,7 @@ export type AIProviderTemplate = ResourceTemplateBase<AIProviderTemplateField> &
   hideInChooser?: boolean
 }
 
-export type AIProviderSelectionGroupKey =
-  | 'singleProvider'
-  | 'cloudGateway'
-  | 'selfHosted'
+export type AIProviderSelectionGroupKey = 'singleProvider' | 'cloudGateway' | 'selfHosted'
 
 type ProviderModelLike = {
   id?: unknown
@@ -142,9 +139,10 @@ export function normalizeTemplateProtocols(
   template: AIProviderTemplate | null | undefined
 ): AIProviderTemplateProtocol[] {
   if (!template) return []
-  const protocols = Array.isArray(template.protocols) && template.protocols.length > 0
-    ? template.protocols
-    : fallbackTemplateProtocols(template)
+  const protocols =
+    Array.isArray(template.protocols) && template.protocols.length > 0
+      ? template.protocols
+      : fallbackTemplateProtocols(template)
   return protocols
     .map(protocol => ({
       ...protocol,
@@ -197,7 +195,10 @@ export function buildProtocolFieldDefaults(
     default_protocol: defaultTemplateProtocol(template),
   }
   for (const protocol of protocols) {
-    defaults[protocolEndpointFieldKey(protocol.id)] = resolveTemplateProtocolEndpoint(protocol, values)
+    defaults[protocolEndpointFieldKey(protocol.id)] = resolveTemplateProtocolEndpoint(
+      protocol,
+      values
+    )
   }
   return defaults
 }
@@ -249,21 +250,19 @@ export function isGatewayProviderTemplate(template: AIProviderTemplate | null | 
   )
 }
 
-export function isGenericOpenAICompatibleTemplate(
-  template: AIProviderTemplate | null | undefined
-) {
+export function isGenericOpenAICompatibleTemplate(template: AIProviderTemplate | null | undefined) {
   return String(template?.id ?? '').trim() === 'generic-llm'
 }
 
-export function isUserSuppliedEndpointTemplate(
-  template: AIProviderTemplate | null | undefined
-) {
-  return String(template?.endpointMode ?? '').trim().toLowerCase() === 'user_supplied'
+export function isUserSuppliedEndpointTemplate(template: AIProviderTemplate | null | undefined) {
+  return (
+    String(template?.endpointMode ?? '')
+      .trim()
+      .toLowerCase() === 'user_supplied'
+  )
 }
 
-export function shouldPromoteEndpointField(
-  template: AIProviderTemplate | null | undefined
-) {
+export function shouldPromoteEndpointField(template: AIProviderTemplate | null | undefined) {
   return (
     isGenericOpenAICompatibleTemplate(template) ||
     providerSelectionGroupKey(template) === 'selfHosted' ||
@@ -274,7 +273,9 @@ export function shouldPromoteEndpointField(
 export function providerSelectionGroupKey(
   template: AIProviderTemplate | null | undefined
 ): AIProviderSelectionGroupKey {
-  const group = String(template?.uiGroup ?? '').trim().toLowerCase()
+  const group = String(template?.uiGroup ?? '')
+    .trim()
+    .toLowerCase()
   if (group === 'cloud_gateway') return 'cloudGateway'
   if (group === 'self_hosted') return 'selfHosted'
   if (group === 'single_provider') return 'singleProvider'
@@ -423,7 +424,7 @@ export async function buildAIProviderPayload(
   payload: Record<string, unknown>,
   templatesById: Map<string, AIProviderTemplate>,
   t?: Translate
-) : Promise<ResourceSaveInput & { enabled_models?: string[]; is_default?: boolean }> {
+): Promise<ResourceSaveInput & { enabled_models?: string[]; is_default?: boolean }> {
   const body = { ...payload }
   const templateId = normalizeTemplateID(body.template_id)
   const template = templatesById.get(templateId)
@@ -469,7 +470,8 @@ export async function buildAIProviderPayload(
     typeof body.advanced_config === 'string' ? body.advanced_config.trim() : body.advanced_config
   let config: Record<string, unknown> = {}
   if (!(extra === '' || extra == null)) {
-    config = typeof extra === 'string' ? JSON.parse(extra) : cloneConfig(extra as Record<string, unknown>)
+    config =
+      typeof extra === 'string' ? JSON.parse(extra) : cloneConfig(extra as Record<string, unknown>)
   }
 
   for (const field of template.fields ?? []) {
@@ -511,7 +513,8 @@ export async function buildAIProviderPayload(
     }
   }
   const activeEndpoint =
-    protocolEndpoints[defaultProtocol] || String(body.endpoint ?? template.defaultEndpoint ?? '').trim()
+    protocolEndpoints[defaultProtocol] ||
+    String(body.endpoint ?? template.defaultEndpoint ?? '').trim()
   config.default_protocol = defaultProtocol
   if (Object.keys(protocolEndpoints).length > 0) {
     config.protocol_endpoints = protocolEndpoints

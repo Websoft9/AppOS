@@ -289,9 +289,7 @@ describe('AICopilotPage', () => {
 
     render(<AICopilotPage />)
 
-    const input = await screen.findByPlaceholderText(
-      'Ask any things...'
-    )
+    const input = await screen.findByPlaceholderText('Ask any things...')
 
     expect(input).toHaveValue('Refine this prompt')
     expect(localStorage.getItem('ai-copilot.draft-handoff.v1')).toBeNull()
@@ -314,9 +312,7 @@ describe('AICopilotPage', () => {
 
   it('disables empty sends and renders streamed assistant output', async () => {
     render(<AICopilotPage />)
-    const input = await screen.findByPlaceholderText(
-      'Ask any things...'
-    )
+    const input = await screen.findByPlaceholderText('Ask any things...')
     const sendButton = screen.getByRole('button', { name: 'Send message' })
 
     expect(sendButton).toBeDisabled()
@@ -361,9 +357,7 @@ describe('AICopilotPage', () => {
   it('lets the user switch to another provider-backed model before sending', async () => {
     render(<AICopilotPage />)
 
-    const input = await screen.findByPlaceholderText(
-      'Ask any things...'
-    )
+    const input = await screen.findByPlaceholderText('Ask any things...')
     const modelTrigger = await screen.findByText('openai/gpt-4.1-mini · OpenRouter')
     fireEvent.click(modelTrigger)
     const gptOption = await screen.findByText('gpt-4.1')
@@ -435,9 +429,7 @@ describe('AICopilotPage', () => {
 
   it('shows provider setup errors without erasing persisted history', async () => {
     render(<AICopilotPage />)
-    const input = await screen.findByPlaceholderText(
-      'Ask any things...'
-    )
+    const input = await screen.findByPlaceholderText('Ask any things...')
     sendMessageMock.mockRejectedValue(new Error('default LLM provider is not configured'))
 
     fireEvent.change(input, { target: { value: 'hello again' } })
@@ -477,9 +469,7 @@ describe('AICopilotPage', () => {
 
   it('attaches uploaded files when sending a message', async () => {
     render(<AICopilotPage />)
-    const input = await screen.findByPlaceholderText(
-      'Ask any things...'
-    )
+    const input = await screen.findByPlaceholderText('Ask any things...')
     const upload = screen.getByLabelText('Chat file upload') as HTMLInputElement
     const sendButton = screen.getByRole('button', { name: 'Send message' })
     const file = new File(['http:\n  routers: {}\n'], 'traefik.yml', { type: 'text/plain' })
@@ -533,9 +523,7 @@ describe('AICopilotPage', () => {
 
   it('reads uploaded pdf files before sending them', async () => {
     render(<AICopilotPage />)
-    const input = await screen.findByPlaceholderText(
-      'Ask any things...'
-    )
+    const input = await screen.findByPlaceholderText('Ask any things...')
     const upload = screen.getByLabelText('Chat file upload') as HTMLInputElement
     const sendButton = screen.getByRole('button', { name: 'Send message' })
     const file = new File(['pdf'], 'report.pdf', { type: 'application/pdf' })
@@ -572,9 +560,7 @@ describe('AICopilotPage', () => {
 
   it('reads uploaded spreadsheet files before sending them', async () => {
     render(<AICopilotPage />)
-    const input = await screen.findByPlaceholderText(
-      'Ask any things...'
-    )
+    const input = await screen.findByPlaceholderText('Ask any things...')
     const upload = screen.getByLabelText('Chat file upload') as HTMLInputElement
     const sendButton = screen.getByRole('button', { name: 'Send message' })
     const file = new File(['sheet'], 'report.xlsx', {
@@ -613,7 +599,7 @@ describe('AICopilotPage', () => {
 
   it('does not call the model when only unreadable attachments are present', async () => {
     render(<AICopilotPage />)
-    const upload = await screen.findByLabelText('Chat file upload') as HTMLInputElement
+    const upload = (await screen.findByLabelText('Chat file upload')) as HTMLInputElement
     const sendButton = screen.getByRole('button', { name: 'Send message' })
     const file = new File(['legacy doc'], 'legacy.doc', { type: 'application/msword' })
 
@@ -678,9 +664,7 @@ describe('AICopilotPage', () => {
     expect(await screen.findByText('Start a conversation')).toBeInTheDocument()
     expect(createSessionMock).not.toHaveBeenCalled()
     expect(screen.getAllByRole('heading', { name: 'AI Copilot' })).toHaveLength(2)
-    expect(
-      screen.getByPlaceholderText('Ask any things...')
-    ).toBeEnabled()
+    expect(screen.getByPlaceholderText('Ask any things...')).toBeEnabled()
   })
 
   it('creates a conversation when sending the first message from an empty state', async () => {
@@ -704,9 +688,7 @@ describe('AICopilotPage', () => {
 
     render(<AICopilotPage />)
 
-    const input = await screen.findByPlaceholderText(
-      'Ask any things...'
-    )
+    const input = await screen.findByPlaceholderText('Ask any things...')
     fireEvent.change(input, { target: { value: 'hello from empty state' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 

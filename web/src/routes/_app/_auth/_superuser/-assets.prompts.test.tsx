@@ -6,7 +6,10 @@ import { AssetsPromptsPage } from './ai-assets.prompts'
 const sendMock = vi.fn()
 const openMock = vi.fn()
 const setHeaderRightStartContentMock = vi.fn()
-let apiImplementation: (path: string, options?: { method?: string; body?: string }) => Promise<unknown>
+let apiImplementation: (
+  path: string,
+  options?: { method?: string; body?: string }
+) => Promise<unknown>
 
 type PromptAsset = {
   id: string
@@ -300,13 +303,17 @@ describe('AssetsPromptsPage', () => {
     expect(within(dialog).getByLabelText('Prompt content help')).toBeInTheDocument()
     expect(within(dialog).getByLabelText(/Prompt Content/)).toHaveValue('')
     expect(within(dialog).queryByLabelText('Description')).not.toBeInTheDocument()
-    expect(within(dialog).getByRole('button', { name: 'Show advanced settings' })).toBeInTheDocument()
+    expect(
+      within(dialog).getByRole('button', { name: 'Show advanced settings' })
+    ).toBeInTheDocument()
     fireEvent.click(within(dialog).getByLabelText('Starter Tempate'))
     expect(screen.getByRole('option', { name: 'Blank' })).toBeInTheDocument()
     expect(
       screen.getByRole('option', { name: 'Code Review Assistant · Task Instruction' })
     ).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('option', { name: 'Code Review Assistant · Task Instruction' }))
+    fireEvent.click(
+      screen.getByRole('option', { name: 'Code Review Assistant · Task Instruction' })
+    )
 
     await waitFor(() => {
       expect(within(dialog).getByDisplayValue('Review code carefully.')).toBeInTheDocument()
@@ -325,7 +332,9 @@ describe('AssetsPromptsPage', () => {
     expect(within(dialog).getByRole('button', { name: 'Send to AI Copilot' })).toBeEnabled()
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Send to AI Copilot' }))
-    expect(window.localStorage.getItem('ai-copilot.draft-handoff.v1')).toBe('Review code carefully.')
+    expect(window.localStorage.getItem('ai-copilot.draft-handoff.v1')).toBe(
+      'Review code carefully.'
+    )
     expect(openMock).toHaveBeenCalledWith('/ai-copilot', '_blank', 'noopener,noreferrer')
 
     fireEvent.click(within(dialog).getByLabelText('Starter Tempate'))
@@ -462,7 +471,9 @@ describe('AssetsPromptsPage', () => {
     })
 
     await waitFor(() => {
-      expect(within(dialog).getByDisplayValue('Support users with concise steps.')).toBeInTheDocument()
+      expect(
+        within(dialog).getByDisplayValue('Support users with concise steps.')
+      ).toBeInTheDocument()
     })
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
@@ -473,7 +484,11 @@ describe('AssetsPromptsPage', () => {
       expect(within(updatedTaskRow as HTMLElement).getByText('System Prompt')).toBeInTheDocument()
     })
 
-    fireEvent.click(within(screen.getByText('Support Prompt').closest('tr') as HTMLElement).getByRole('button', { name: 'Edit' }))
+    fireEvent.click(
+      within(screen.getByText('Support Prompt').closest('tr') as HTMLElement).getByRole('button', {
+        name: 'Edit',
+      })
+    )
     dialog = screen.getByRole('dialog')
     expect(within(dialog).getByRole('radio', { name: /System Prompt/ })).toHaveAttribute(
       'aria-checked',
@@ -495,7 +510,9 @@ describe('AssetsPromptsPage', () => {
     })
 
     await waitFor(() => {
-      expect(within(dialog).getByDisplayValue('Guard operational chat behavior.')).toBeInTheDocument()
+      expect(
+        within(dialog).getByDisplayValue('Guard operational chat behavior.')
+      ).toBeInTheDocument()
     })
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
@@ -503,10 +520,17 @@ describe('AssetsPromptsPage', () => {
     await waitFor(() => {
       const updatedSystemRow = screen.getByText('Ops Guard Prompt').closest('tr')
       expect(updatedSystemRow).not.toBeNull()
-      expect(within(updatedSystemRow as HTMLElement).getByText('Task Instruction')).toBeInTheDocument()
+      expect(
+        within(updatedSystemRow as HTMLElement).getByText('Task Instruction')
+      ).toBeInTheDocument()
     })
 
-    fireEvent.click(within(screen.getByText('Ops Guard Prompt').closest('tr') as HTMLElement).getByRole('button', { name: 'Edit' }))
+    fireEvent.click(
+      within(screen.getByText('Ops Guard Prompt').closest('tr') as HTMLElement).getByRole(
+        'button',
+        { name: 'Edit' }
+      )
+    )
     dialog = screen.getByRole('dialog')
     expect(within(dialog).getByRole('radio', { name: /Task Instruction/ })).toHaveAttribute(
       'aria-checked',

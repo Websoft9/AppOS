@@ -41,7 +41,9 @@ function t(key: string, values?: Record<string, unknown>) {
 
 describe('resource-template-display helpers', () => {
   it('builds localized kind and category labels', () => {
-    expect(buildResourceKindLabel<Template>('mysql-compatible', t, options)).toBe('MySQL-Compatible')
+    expect(buildResourceKindLabel<Template>('mysql-compatible', t, options)).toBe(
+      'MySQL-Compatible'
+    )
     expect(buildResourceCategoryLabel<Template>('database', t, options)).toBe('Databases')
     expect(buildResourceKindLabel<Template>('', t, options)).toBe('Unknown')
   })

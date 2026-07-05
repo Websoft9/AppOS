@@ -232,7 +232,8 @@ export interface ResourcePageDataConfig {
 }
 
 export interface ResourcePageConfig
-  extends ResourcePageListConfig,
+  extends
+    ResourcePageListConfig,
     ResourcePageFormConfig,
     ResourcePageDetailConfig,
     ResourcePageActionConfig,

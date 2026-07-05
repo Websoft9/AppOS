@@ -458,10 +458,7 @@ function buildEndpoint(host: unknown, port: unknown, fallback: string) {
   return `${normalizedHost}:${effectivePort}`
 }
 
-function buildInstanceEndpoint(
-  template: InstanceTemplate,
-  payload: Record<string, unknown>
-) {
+function buildInstanceEndpoint(template: InstanceTemplate, payload: Record<string, unknown>) {
   if (usesHostPortEndpoint(template)) {
     return buildEndpoint(
       payload.host,
@@ -475,7 +472,9 @@ function buildInstanceEndpoint(
     return ''
   }
 
-  const scheme = String(template.defaultProtocolHint ?? '').trim().toLowerCase()
+  const scheme = String(template.defaultProtocolHint ?? '')
+    .trim()
+    .toLowerCase()
   if (!scheme || rawEndpoint.includes('://')) {
     return rawEndpoint
   }
@@ -585,10 +584,7 @@ function mergeTemplateFields(template: InstanceTemplate | null | undefined, t: T
   return (template.fields ?? []).map(field => localizeTemplateFieldCopy(field, t))
 }
 
-function mapTemplateFieldToResourceField(
-  field: InstanceTemplateField,
-  t: Translate
-): FieldDef {
+function mapTemplateFieldToResourceField(field: InstanceTemplateField, t: Translate): FieldDef {
   const localizedField = field
 
   if (localizedField.type === 'certificate_ref') {
@@ -714,8 +710,8 @@ export function mapInstanceRow(
   const template = templatesById.get(String(item.template_id ?? ''))
   const monitor = monitorByTargetId.get(String(item.id ?? ''))
   const endpointParts = splitEndpoint(String(item.endpoint ?? ''))
-  const flattenedConfig: Record<string, unknown> = {}
   const fallbackConfig = item.config ?? {}
+  const flattenedConfig: Record<string, unknown> = { ...fallbackConfig }
 
   for (const field of mergeTemplateFields(template, t)) {
     const value = item.config?.[field.id]
@@ -723,10 +719,6 @@ export function mapInstanceRow(
       continue
     }
     flattenedConfig[field.id] = value
-  }
-
-  if (Object.keys(flattenedConfig).length === 0) {
-    Object.assign(flattenedConfig, fallbackConfig)
   }
 
   const credentialId = String(item.credential ?? '').trim()
@@ -786,7 +778,9 @@ function normalizeInstanceTemplateTitle(templateId: string) {
   return templateId
     .split('-')
     .filter(Boolean)
-    .map(part => tokenLabels[part.toLowerCase()] ?? `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .map(
+      part => tokenLabels[part.toLowerCase()] ?? `${part.charAt(0).toUpperCase()}${part.slice(1)}`
+    )
     .join(' ')
 }
 
@@ -850,7 +844,8 @@ function buildColumns(
       sortable: true,
       render: value => {
         const portVal = Number(value)
-        if (!portVal || portVal <= 0) return <span className="text-sm text-muted-foreground">—</span>
+        if (!portVal || portVal <= 0)
+          return <span className="text-sm text-muted-foreground">—</span>
         return <span className="text-sm">{String(value)}</span>
       },
     },
@@ -936,14 +931,7 @@ export function ServiceInstancesPage() {
   const [secretEditId, setSecretEditId] = useState('')
   const [pageSize, setPageSize] = useState(10)
   const [visibleOptionalColumns, setVisibleOptionalColumns] = useState<Set<string>>(
-    () =>
-      new Set([
-        'kind_label',
-        'host',
-        'port',
-        'monitor_status',
-        'monitor_last_checked_at',
-      ])
+    () => new Set(['kind_label', 'host', 'port', 'monitor_status', 'monitor_last_checked_at'])
   )
   const [reachabilityOverrides, setReachabilityOverrides] = useState<
     Map<string, InstanceReachabilityRecord>
@@ -993,21 +981,21 @@ export function ServiceInstancesPage() {
   )
 
   const kindOptions = useMemo(
-		() =>
-			CREATABLE_INSTANCE_KINDS.filter(kind =>
-				creatableTemplates.some(template => template.kind === kind)
-			).map(kind => {
-				const exampleTemplate = getDefaultTemplateForKind(kind, creatableTemplates, t)
-				return {
-					id: kind,
-					title: kindLabel(kind, t),
-					description: exampleTemplate ? productDescription(exampleTemplate, t) : undefined,
-					meta: exampleTemplate ? categoryLabel(exampleTemplate.category, t) : undefined,
-					searchText: kindSearchText(kind, creatableTemplates, t),
-				}
-			}),
-		[creatableTemplates, t]
-	)
+    () =>
+      CREATABLE_INSTANCE_KINDS.filter(kind =>
+        creatableTemplates.some(template => template.kind === kind)
+      ).map(kind => {
+        const exampleTemplate = getDefaultTemplateForKind(kind, creatableTemplates, t)
+        return {
+          id: kind,
+          title: kindLabel(kind, t),
+          description: exampleTemplate ? productDescription(exampleTemplate, t) : undefined,
+          meta: exampleTemplate ? categoryLabel(exampleTemplate.category, t) : undefined,
+          searchText: kindSearchText(kind, creatableTemplates, t),
+        }
+      }),
+    [creatableTemplates, t]
+  )
 
   const resolveSelectedCategory = useCallback(
     (formData: Record<string, unknown>, editingItem: Record<string, unknown> | null) => {
@@ -1028,8 +1016,9 @@ export function ServiceInstancesPage() {
       const overrideTemplate = templatesById.get(templateOverride ?? '')
       const defaultTemplate =
         overrideTemplate &&
-        String(overrideTemplate.kind ?? '').trim().toLowerCase() ===
-          String(kind).trim().toLowerCase() &&
+        String(overrideTemplate.kind ?? '')
+          .trim()
+          .toLowerCase() === String(kind).trim().toLowerCase() &&
         isCreatableTemplate(overrideTemplate)
           ? overrideTemplate
           : getDefaultTemplateForKind(kind, creatableTemplates, t)
@@ -1379,12 +1368,12 @@ export function ServiceInstancesPage() {
       const descriptionMeta = resolveCanonicalFieldMeta(selectedTemplate, 'description')
       const groupsMeta = resolveCanonicalFieldMeta(selectedTemplate, 'groups')
       const profileTemplates = selectedTemplate
-		? isCreatableTemplate(selectedTemplate)
-			? listTemplatesForKind(selectedTemplate.kind, creatableTemplates, t)
-			: [selectedTemplate]
-		: selectedKind
-			? listTemplatesForKind(selectedKind, creatableTemplates, t)
-			: []
+        ? isCreatableTemplate(selectedTemplate)
+          ? listTemplatesForKind(selectedTemplate.kind, creatableTemplates, t)
+          : [selectedTemplate]
+        : selectedKind
+          ? listTemplatesForKind(selectedKind, creatableTemplates, t)
+          : []
 
       return [
         {
@@ -1619,7 +1608,9 @@ export function ServiceInstancesPage() {
       const selectedKind = String(
         formData.kind ?? editingItem?.kind ?? templatesById.get(selectedTemplateId)?.kind ?? ''
       ).trim()
-      const selectedTemplate = selectedTemplateId ? (templatesById.get(selectedTemplateId) ?? null) : null
+      const selectedTemplate = selectedTemplateId
+        ? (templatesById.get(selectedTemplateId) ?? null)
+        : null
       const baseFields = buildBaseFields(selectedCategory, selectedKind, selectedTemplate)
       const baseFieldByKey = new Map(baseFields.map(field => [field.key, field]))
       const dynamicFields = mergeTemplateFields(selectedTemplate, t).map(field =>
@@ -1704,7 +1695,9 @@ export function ServiceInstancesPage() {
     async (item: Record<string, unknown>) => {
       const instanceId = String(item.id ?? '')
       if (!instanceId) return
-      const current = await pb.send<InstanceRecord>(`/api/instances/${instanceId}`, { method: 'GET' })
+      const current = await pb.send<InstanceRecord>(`/api/instances/${instanceId}`, {
+        method: 'GET',
+      })
       const currentFormData = mapInstanceRow(current, templatesById, new Map(), t)
       const body = await buildInstancePayload(
         {
@@ -1752,13 +1745,41 @@ export function ServiceInstancesPage() {
         setPageSize={setPageSize}
         pageSizeOptions={[10, 20, 50]}
         columnOptions={[
-          { key: 'kind_label', label: t('serviceInstances.columns.kind'), checked: visibleOptionalColumns.has('kind_label') },
-          { key: 'host', label: t('serviceInstances.columns.host'), checked: visibleOptionalColumns.has('host') },
-          { key: 'port', label: t('serviceInstances.columns.port'), checked: visibleOptionalColumns.has('port') },
-          { key: 'monitor_status', label: t('serviceInstances.columns.reachability'), checked: visibleOptionalColumns.has('monitor_status') },
-          { key: 'monitor_last_checked_at', label: t('serviceInstances.columns.lastChecked'), checked: visibleOptionalColumns.has('monitor_last_checked_at') },
-          { key: 'created', label: t('serviceInstances.columns.created'), checked: visibleOptionalColumns.has('created') },
-          { key: 'updated', label: t('serviceInstances.columns.updated'), checked: visibleOptionalColumns.has('updated') },
+          {
+            key: 'kind_label',
+            label: t('serviceInstances.columns.kind'),
+            checked: visibleOptionalColumns.has('kind_label'),
+          },
+          {
+            key: 'host',
+            label: t('serviceInstances.columns.host'),
+            checked: visibleOptionalColumns.has('host'),
+          },
+          {
+            key: 'port',
+            label: t('serviceInstances.columns.port'),
+            checked: visibleOptionalColumns.has('port'),
+          },
+          {
+            key: 'monitor_status',
+            label: t('serviceInstances.columns.reachability'),
+            checked: visibleOptionalColumns.has('monitor_status'),
+          },
+          {
+            key: 'monitor_last_checked_at',
+            label: t('serviceInstances.columns.lastChecked'),
+            checked: visibleOptionalColumns.has('monitor_last_checked_at'),
+          },
+          {
+            key: 'created',
+            label: t('serviceInstances.columns.created'),
+            checked: visibleOptionalColumns.has('created'),
+          },
+          {
+            key: 'updated',
+            label: t('serviceInstances.columns.updated'),
+            checked: visibleOptionalColumns.has('updated'),
+          },
         ]}
         onColumnToggle={(columnKey, checked) => {
           setVisibleOptionalColumns(prev => {
@@ -1914,7 +1935,9 @@ export function ServiceInstancesPage() {
                 }}
               >
                 {enabled ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
-                {enabled ? t('serviceInstances.actions.disable', { defaultValue: 'Disable' }) : t('serviceInstances.actions.enable', { defaultValue: 'Enable' })}
+                {enabled
+                  ? t('serviceInstances.actions.disable', { defaultValue: 'Disable' })
+                  : t('serviceInstances.actions.enable', { defaultValue: 'Enable' })}
               </DropdownMenuItem>,
               <DropdownMenuItem
                 key="check"

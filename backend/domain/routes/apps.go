@@ -814,14 +814,6 @@ func resolveAppRuntimeServerState(app core.App, serverID string) appRuntimeServe
 	return state
 }
 
-func appServerRuntimeFallbackReason(app core.App, serverRecord *core.Record) (string, bool) {
-	connection := resolveAppServerConnectionState(app, serverRecord)
-	if normalizeServerConnectionStatus(connection.Status) == "online" || strings.TrimSpace(connection.Reason) == "" {
-		return "", false
-	}
-	return connection.Reason, true
-}
-
 func requireManagedServerRuntimeAccess(app core.App, record *core.Record) (string, bool) {
 	if app == nil || record == nil {
 		return "app instance is unavailable", true

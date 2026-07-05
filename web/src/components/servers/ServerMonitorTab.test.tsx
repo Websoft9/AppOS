@@ -247,18 +247,16 @@ describe('ServerMonitorTab', () => {
       response: { message: 'server already processing request' },
     })
 
-    getSystemdStatusMock
-      .mockRejectedValueOnce(busyError)
-      .mockResolvedValueOnce({
-        server_id: 'server-1',
-        service: 'appos-monitor.service',
-        status: {
-          ActiveState: 'active',
-          SubState: 'running',
-          UnitFileState: 'enabled',
-        },
-        status_text: 'appos-monitor.service - Native Telegraf agent for AppOS metrics collector',
-      })
+    getSystemdStatusMock.mockRejectedValueOnce(busyError).mockResolvedValueOnce({
+      server_id: 'server-1',
+      service: 'appos-monitor.service',
+      status: {
+        ActiveState: 'active',
+        SubState: 'running',
+        UnitFileState: 'enabled',
+      },
+      status_text: 'appos-monitor.service - Native Telegraf agent for AppOS metrics collector',
+    })
 
     render(<ServerMonitorTab serverId="server-1" serverName="alpha" connectionStatus="online" />)
 

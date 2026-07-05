@@ -6,6 +6,7 @@ const (
 	CheckKindCredential          = "credential"
 	CheckKindAppHealth           = "app_health"
 	CheckKindRuntime             = "runtime_summary"
+	CheckKindAvailability        = "availability"
 	CheckKindReachability        = "reachability"
 	CheckKindMetricsFreshness    = "metrics_freshness"
 	CheckKindControlReachability = "control_reachability"

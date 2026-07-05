@@ -79,9 +79,9 @@ export function ReferenceSelect({
     ? selectedValues.length === 0
       ? placeholder
       : selectedValues.length === 1
-        ? options.find(option => option.id === selectedValues[0])?.label ?? placeholder
+        ? (options.find(option => option.id === selectedValues[0])?.label ?? placeholder)
         : `${selectedValues.length} selected`
-    : selected?.label ?? placeholder
+    : (selected?.label ?? placeholder)
 
   return (
     <div className="flex items-start gap-2">
@@ -145,18 +145,17 @@ export function ReferenceSelect({
                   }}
                 >
                   <span>{multiple ? 'Clear selection' : 'None'}</span>
-                  {((!multiple && !value) || (multiple && selectedValues.length === 0)) && showSelectedIndicator && (
-                    <span className="text-xs text-muted-foreground">Selected</span>
-                  )}
+                  {((!multiple && !value) || (multiple && selectedValues.length === 0)) &&
+                    showSelectedIndicator && (
+                      <span className="text-xs text-muted-foreground">Selected</span>
+                    )}
                 </button>
               )}
               {filtered.length === 0 ? (
                 <p className="px-3 py-4 text-sm text-muted-foreground">{emptyMessage}</p>
               ) : (
                 filtered.map(option => {
-                  const active = multiple
-                    ? selectedValues.includes(option.id)
-                    : option.id === value
+                  const active = multiple ? selectedValues.includes(option.id) : option.id === value
                   return (
                     <button
                       key={option.id}

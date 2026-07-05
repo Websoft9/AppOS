@@ -20,7 +20,10 @@ func TestNewAIProviderPruneHTTPClientFallsBackToDirectOnPlanError(t *testing.T) 
 	}
 
 	provider := aiproviders.RestoreAIProvider(aiproviders.Snapshot{ID: "provider-1", Name: "Provider"})
-	client := newAIProviderPruneHTTPClient(nil, provider)
+	client, err := newAIProviderPruneHTTPClient(nil, provider)
+	if err != nil {
+		t.Fatalf("expected direct fallback client, got error: %v", err)
+	}
 	if client.Timeout != 8*time.Second {
 		t.Fatalf("expected 8s timeout, got %s", client.Timeout)
 	}

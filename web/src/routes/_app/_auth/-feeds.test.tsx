@@ -1267,7 +1267,9 @@ describe('FeedsPage', () => {
       scrollContainer.scrollTop = scrollContainer.scrollHeight - scrollContainer.clientHeight - 400
       fireEvent.scroll(scrollContainer)
       await waitFor(() => {
-        expect(screen.getByText(`Security Release ${Math.min(loadedCount + 20, totalItems)}`)).toBeInTheDocument()
+        expect(
+          screen.getByText(`Security Release ${Math.min(loadedCount + 20, totalItems)}`)
+        ).toBeInTheDocument()
       })
       simulatedScrollHeight += 1200
     }
@@ -1730,13 +1732,21 @@ describe('FeedsPage', () => {
 
     // Verify the PATCH request includes all required fields
     await waitFor(() => {
-      const patchCall = sendMock.mock.calls.find(
-        (callArgs: unknown[]) => {
-          const callPath = (callArgs as [string, { method?: string | undefined; body?: Record<string, unknown> | undefined }])[0]
-          const callOpts = (callArgs as [string, { method?: string | undefined; body?: Record<string, unknown> | undefined }])[1]
-          return callPath === '/api/feeds/sources/feed-1' && callOpts?.method === 'PATCH'
-        }
-      )
+      const patchCall = sendMock.mock.calls.find((callArgs: unknown[]) => {
+        const callPath = (
+          callArgs as [
+            string,
+            { method?: string | undefined; body?: Record<string, unknown> | undefined },
+          ]
+        )[0]
+        const callOpts = (
+          callArgs as [
+            string,
+            { method?: string | undefined; body?: Record<string, unknown> | undefined },
+          ]
+        )[1]
+        return callPath === '/api/feeds/sources/feed-1' && callOpts?.method === 'PATCH'
+      })
       expect(patchCall).toBeTruthy()
       const body = (patchCall as unknown as [string, { body: Record<string, unknown> }])[1].body
       expect(body.name).toBe('Updated Vendor Releases')

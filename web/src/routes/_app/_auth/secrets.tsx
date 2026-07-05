@@ -1038,35 +1038,35 @@ export function SecretsPage() {
                           Edit
                         </DropdownMenuItem>
                         {canRevealSecret(item.access_mode, secretPolicy) && (
-                            <DropdownMenuItem
-                              disabled={revealingId === item.id}
-                              onClick={() => void handleReveal(item)}
-                            >
-                              <Eye className="h-4 w-4" />
-                              {revealingId === item.id ? 'Revealing...' : 'Reveal'}
-                            </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={revealingId === item.id}
+                            onClick={() => void handleReveal(item)}
+                          >
+                            <Eye className="h-4 w-4" />
+                            {revealingId === item.id ? 'Revealing...' : 'Reveal'}
+                          </DropdownMenuItem>
                         )}
                         <DropdownMenuSeparator />
                         {item.status === 'revoked' ? (
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onClick={() =>
-                                setConfirmAction({ type: 'delete', id: item.id, name: item.name })
-                              }
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() =>
+                              setConfirmAction({ type: 'delete', id: item.id, name: item.name })
+                            }
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
                         ) : (
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onClick={() =>
-                                setConfirmAction({ type: 'revoke', id: item.id, name: item.name })
-                              }
-                            >
-                              <ShieldOff className="h-4 w-4" />
-                              Revoke
-                            </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() =>
+                              setConfirmAction({ type: 'revoke', id: item.id, name: item.name })
+                            }
+                          >
+                            <ShieldOff className="h-4 w-4" />
+                            Revoke
+                          </DropdownMenuItem>
                         )}
                       </DropdownMenuContent>
                     </DropdownMenu>

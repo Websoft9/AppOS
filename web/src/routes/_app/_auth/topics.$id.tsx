@@ -486,10 +486,7 @@ function TopicDetailPage() {
       {/* Breadcrumb */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Link
-            to={'/feeds' as never}
-            className="hover:text-foreground"
-          >
+          <Link to={'/feeds' as never} className="hover:text-foreground">
             Feed
           </Link>
           <span>/</span>

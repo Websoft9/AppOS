@@ -274,7 +274,7 @@ export function useSettingsPageController() {
             entry => entry.id === 'monitor-scheduling' || entry.id === 'monitor-policy'
           ))
           ? activeSectionRef.current
-          : allEntries[0]?.id ?? 'basic'
+          : (allEntries[0]?.id ?? 'basic')
       setSchemaEntries(allEntries)
       setActiveSection(nextActiveSection)
       await loadSectionEntries(nextActiveSection)
@@ -286,10 +286,7 @@ export function useSettingsPageController() {
     } finally {
       setPbLoading(false)
     }
-  }, [
-    showToast,
-    loadSectionEntries,
-  ])
+  }, [showToast, loadSectionEntries])
 
   const loadSettingsDataRef = useRef(loadSettingsData)
 

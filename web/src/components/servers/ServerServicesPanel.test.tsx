@@ -536,17 +536,15 @@ describe('ServerServicesPanel', () => {
       response: { message: 'server already processing request' },
     })
 
-    listSystemdServicesMock
-      .mockRejectedValueOnce(inventoryBusyError)
-      .mockResolvedValueOnce([
-        {
-          name: 'docker.service',
-          load_state: 'loaded',
-          active_state: 'active',
-          sub_state: 'running',
-          description: 'Docker Application Container Engine',
-        },
-      ])
+    listSystemdServicesMock.mockRejectedValueOnce(inventoryBusyError).mockResolvedValueOnce([
+      {
+        name: 'docker.service',
+        load_state: 'loaded',
+        active_state: 'active',
+        sub_state: 'running',
+        description: 'Docker Application Container Engine',
+      },
+    ])
 
     render(<ServerServicesPanel serverId="server-1" />)
 
@@ -561,22 +559,20 @@ describe('ServerServicesPanel', () => {
     })
 
     getSystemdStatusMock.mockReset()
-    getSystemdStatusMock
-      .mockRejectedValueOnce(detailBusyError)
-      .mockResolvedValueOnce({
-        server_id: 'server-1',
-        service: 'docker.service',
-        status: {
-          Id: 'docker.service',
-          Description: 'Docker Application Container Engine',
-          ActiveState: 'active',
-          SubState: 'running',
-          UnitFileState: 'enabled',
-          MainPID: '2184',
-          FragmentPath: '/etc/systemd/system/docker.service',
-        },
-        status_text: 'active (running)',
-      })
+    getSystemdStatusMock.mockRejectedValueOnce(detailBusyError).mockResolvedValueOnce({
+      server_id: 'server-1',
+      service: 'docker.service',
+      status: {
+        Id: 'docker.service',
+        Description: 'Docker Application Container Engine',
+        ActiveState: 'active',
+        SubState: 'running',
+        UnitFileState: 'enabled',
+        MainPID: '2184',
+        FragmentPath: '/etc/systemd/system/docker.service',
+      },
+      status_text: 'active (running)',
+    })
 
     fireEvent.click(await screen.findByRole('button', { name: /^docker$/i }))
 

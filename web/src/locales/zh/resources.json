@@ -1093,8 +1093,8 @@
       "name": "名称",
       "enabled": "启用",
       "kind": "类型",
-        "host": "主机",
-        "port": "端口",
+      "host": "主机",
+      "port": "端口",
       "reachability": "可达性",
       "monitor": "监控",
       "lastChecked": "最近检查",
@@ -1245,10 +1245,10 @@
       "totalItems": "共 {{count}} 项"
     },
     "selection": {
-    "endpoint": {
-      "defaultSchemeHint": "如果没有填写协议，将自动补上 {{scheme}}。",
-      "schemeMismatchWarning": "你填写的协议 {{actual}} 与默认协议 {{expected}} 不一致，但仍然允许保存。"
-    },
+      "endpoint": {
+        "defaultSchemeHint": "如果没有填写协议，将自动补上 {{scheme}}。",
+        "schemeMismatchWarning": "你填写的协议 {{actual}} 与默认协议 {{expected}} 不一致，但仍然允许保存。"
+      },
       "title": "选择外部服务类型",
       "description": "先选择服务类型，再选择用于预填共享 schema 的厂商模板。",
       "searchPlaceholder": "搜索 SMTP、DNS、出站代理或 HTTP Gateway 等服务类型...",
@@ -1271,8 +1271,8 @@
       "enabled": "启用",
       "default": "默认",
       "kind": "类型",
-        "url": "URL",
-        "port": "端口",
+      "url": "URL",
+      "port": "端口",
       "auth": "认证",
       "reachability": "可达性",
       "lastChecked": "最近检查",

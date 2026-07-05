@@ -390,47 +390,49 @@ describe('AIProvidersPage', () => {
   }, 15000)
 
   it('keeps endpoint in advanced settings for customizable hosted providers like Kimi and submits an override', async () => {
-    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
-      if (path === '/api/ai-providers/templates') {
-        return Promise.resolve([
-          {
-            id: 'moonshot',
-            kind: 'llm',
-            title: 'Moonshot AI (Kimi)',
-            vendor: 'Moonshot AI',
-            uiGroup: 'single_provider',
-            endpointMode: 'customizable',
-            defaultEndpoint: 'https://api.moonshot.cn/v1',
-            defaultAuthScheme: 'bearer',
-            fields: [
-              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
-              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
-            ],
-          },
-        ])
-      }
-      if (path === '/api/ai-providers') {
-        if (options?.method === 'POST') {
-          return Promise.resolve({
-            id: 'moonshot-main',
-            name: 'moonshot-main',
-            template_id: 'moonshot',
-            endpoint: String(options.body?.endpoint ?? ''),
-            credential: String(options.body?.credential ?? ''),
-            is_enabled: true,
-            config: {},
-          })
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+        if (path === '/api/ai-providers/templates') {
+          return Promise.resolve([
+            {
+              id: 'moonshot',
+              kind: 'llm',
+              title: 'Moonshot AI (Kimi)',
+              vendor: 'Moonshot AI',
+              uiGroup: 'single_provider',
+              endpointMode: 'customizable',
+              defaultEndpoint: 'https://api.moonshot.cn/v1',
+              defaultAuthScheme: 'bearer',
+              fields: [
+                { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+                { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+              ],
+            },
+          ])
+        }
+        if (path === '/api/ai-providers') {
+          if (options?.method === 'POST') {
+            return Promise.resolve({
+              id: 'moonshot-main',
+              name: 'moonshot-main',
+              template_id: 'moonshot',
+              endpoint: String(options.body?.endpoint ?? ''),
+              credential: String(options.body?.credential ?? ''),
+              is_enabled: true,
+              config: {},
+            })
+          }
+          return Promise.resolve([])
+        }
+        if (path === AI_PROVIDER_SECRET_PATH) {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+          return Promise.resolve({ items: [] })
         }
         return Promise.resolve([])
       }
-      if (path === AI_PROVIDER_SECRET_PATH) {
-        return Promise.resolve({ items: [] })
-      }
-      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
-        return Promise.resolve({ items: [] })
-      }
-      return Promise.resolve([])
-    })
+    )
 
     render(<AIProvidersPage />)
 
@@ -472,46 +474,48 @@ describe('AIProvidersPage', () => {
   })
 
   it('promotes user-supplied endpoints into the primary form even for single-provider templates', async () => {
-    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
-      if (path === '/api/ai-providers/templates') {
-        return Promise.resolve([
-          {
-            id: 'writer',
-            kind: 'llm',
-            title: 'Writer',
-            vendor: 'Writer',
-            uiGroup: 'single_provider',
-            endpointMode: 'user_supplied',
-            defaultAuthScheme: 'bearer',
-            fields: [
-              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
-              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
-            ],
-          },
-        ])
-      }
-      if (path === '/api/ai-providers') {
-        if (options?.method === 'POST') {
-          return Promise.resolve({
-            id: 'writer-main',
-            name: 'writer-main',
-            template_id: 'writer',
-            endpoint: String(options.body?.endpoint ?? ''),
-            credential: String(options.body?.credential ?? ''),
-            is_enabled: true,
-            config: {},
-          })
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+        if (path === '/api/ai-providers/templates') {
+          return Promise.resolve([
+            {
+              id: 'writer',
+              kind: 'llm',
+              title: 'Writer',
+              vendor: 'Writer',
+              uiGroup: 'single_provider',
+              endpointMode: 'user_supplied',
+              defaultAuthScheme: 'bearer',
+              fields: [
+                { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+                { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+              ],
+            },
+          ])
+        }
+        if (path === '/api/ai-providers') {
+          if (options?.method === 'POST') {
+            return Promise.resolve({
+              id: 'writer-main',
+              name: 'writer-main',
+              template_id: 'writer',
+              endpoint: String(options.body?.endpoint ?? ''),
+              credential: String(options.body?.credential ?? ''),
+              is_enabled: true,
+              config: {},
+            })
+          }
+          return Promise.resolve([])
+        }
+        if (path === AI_PROVIDER_SECRET_PATH) {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+          return Promise.resolve({ items: [] })
         }
         return Promise.resolve([])
       }
-      if (path === AI_PROVIDER_SECRET_PATH) {
-        return Promise.resolve({ items: [] })
-      }
-      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
-        return Promise.resolve({ items: [] })
-      }
-      return Promise.resolve([])
-    })
+    )
 
     render(<AIProvidersPage />)
 
@@ -575,9 +579,7 @@ describe('AIProvidersPage', () => {
             vendor: 'NVIDIA',
             uiGroup: 'cloud_gateway',
             providerMode: 'gateway',
-            fields: [
-              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
-            ],
+            fields: [{ id: 'endpoint', label: 'Base URL', type: 'url', required: true }],
           },
           {
             id: 'qwen-dashscope',
@@ -673,7 +675,9 @@ describe('AIProvidersPage', () => {
     expect(screen.getByText('OpenAI Compatible URL')).toBeInTheDocument()
     const endpointLabel = screen.getByText('OpenAI Compatible URL')
     const apiKeyLabel = screen.getByText('API Key')
-    expect(endpointLabel.compareDocumentPosition(apiKeyLabel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(
+      endpointLabel.compareDocumentPosition(apiKeyLabel) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
     expect(screen.queryByText('Advanced Config (JSON)')).not.toBeInTheDocument()
   })
 
@@ -961,8 +965,13 @@ describe('AIProvidersPage', () => {
               auth_scheme: 'api_key',
               credential: 'secret-1',
               config: {
+                availability: {
+                  status: 'available',
+                  checked_at: '2025-01-06T12:00:00Z',
+                },
                 reachability: {
                   status: 'reachable',
+                  checked_at: '2025-01-06T11:55:00Z',
                 },
               },
               created: '2025-01-05T10:30:00Z',
@@ -973,12 +982,12 @@ describe('AIProvidersPage', () => {
         if (path === '/api/collections/groups/records?perPage=500&sort=name') {
           return Promise.resolve({ items: [] })
         }
-        if (path.startsWith('/api/ai-providers/availability?')) {
+        if (path.startsWith('/api/ai-providers/reachability?')) {
           return Promise.resolve({
             items: [
               {
                 id: 'provider-xai',
-                status: 'available',
+                status: 'reachable',
                 checked_at: '2025-01-06T12:00:00Z',
               },
             ],
@@ -1003,6 +1012,12 @@ describe('AIProvidersPage', () => {
     fireEvent.click(screen.getByTitle('Refresh'))
 
     expect(await screen.findByText('Available')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(
+        expect.stringContaining('/api/ai-providers/reachability?'),
+        { method: 'GET' }
+      )
+    })
     expect(screen.getByText('Availability')).toBeInTheDocument()
     expect(screen.getByText('Last Checked')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'List settings' })).toBeInTheDocument()
@@ -1010,7 +1025,7 @@ describe('AIProvidersPage', () => {
     expect(screen.getByText('1/1')).toBeInTheDocument()
     expect(screen.queryByText('Type')).not.toBeInTheDocument()
     expect(screen.queryByText('Auth')).not.toBeInTheDocument()
-    expect(screen.getByText('2025-01-06 12:00:00')).toBeInTheDocument()
+    expect(screen.getByText('2025-01-06 12:00')).toBeInTheDocument()
     expect(screen.queryByText('Created')).not.toBeInTheDocument()
     expect(screen.queryByText('Updated')).not.toBeInTheDocument()
     expect(screen.queryByText('api_key')).not.toBeInTheDocument()
@@ -1073,14 +1088,18 @@ describe('AIProvidersPage', () => {
             endpoint: 'https://api.x.ai/v1',
             credential: 'secret-1',
             is_enabled: false,
-            config: {},
+            config: {
+              availability: {
+                status: 'unknown',
+              },
+            },
             created: '2025-01-05T10:30:00Z',
             updated: '2025-01-06T11:45:00Z',
           },
         ])
       }
-      if (path.startsWith('/api/ai-providers/availability?')) {
-        return Promise.resolve({ items: [{ id: 'provider-xai', status: 'available' }] })
+      if (path.startsWith('/api/ai-providers/reachability?')) {
+        return Promise.resolve({ items: [{ id: 'provider-xai', status: 'reachable' }] })
       }
       if (path === '/api/ai-providers/models/provider-xai') {
         return Promise.resolve({ models: [{ id: 'grok-4' }] })
@@ -1102,19 +1121,119 @@ describe('AIProvidersPage', () => {
     expect(await screen.findByRole('button', { name: 'xai-main' })).toBeInTheDocument()
     expect(screen.getByText('Provider')).toBeInTheDocument()
 
-    await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith(
-        expect.stringContaining('/api/ai-providers/availability?'),
-        {
-          method: 'GET',
-        }
-      )
-    })
-
     fireEvent.click(screen.getByRole('button', { name: 'xai-main' }))
 
     // Inline detail expands with List Models feedback
     expect(await screen.findByText(/Loading models/)).toBeInTheDocument()
+  })
+
+  it('lets the user click an Unknown availability cell to run the existing test flow', async () => {
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/ai-providers/templates') {
+        return Promise.resolve([
+          {
+            id: 'openrouter',
+            kind: 'llm',
+            title: 'OpenRouter',
+            vendor: 'OpenRouter',
+            providerMode: 'gateway',
+            defaultEndpoint: 'https://openrouter.ai/api/v1',
+            defaultAuthScheme: 'api_key',
+            fields: [
+              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+            ],
+          },
+        ])
+      }
+      if (path === '/api/ai-providers') {
+        return Promise.resolve([
+          {
+            id: 'provider-openrouter',
+            name: 'openrouter-main',
+            template_id: 'openrouter',
+            endpoint: 'https://openrouter.ai/api/v1',
+            credential: 'secret-1',
+            is_enabled: true,
+            enabled_models: ['openai/gpt-4.1-mini'],
+            config: {},
+          },
+        ])
+      }
+      if (path === '/api/ai-providers/models/provider-openrouter') {
+        return Promise.resolve({ models: [{ id: 'openai/gpt-4.1-mini' }] })
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === AI_PROVIDER_SECRET_PATH) {
+        return Promise.resolve({
+          items: [{ id: 'secret-1', name: 'shared-secret', template_id: 'single_value' }],
+        })
+      }
+      return Promise.resolve([])
+    })
+
+    render(<AIProvidersPage />)
+
+    expect(await screen.findByRole('button', { name: 'openrouter-main' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Test it openrouter-main' }))
+
+    expect(await screen.findByText('shared-secret')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/ai-providers/models/provider-openrouter', {
+        method: 'GET',
+      })
+    })
+  })
+
+  it('shows a visible refresh affordance inside the Availability action', async () => {
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/ai-providers/templates') {
+        return Promise.resolve([
+          {
+            id: 'openrouter',
+            kind: 'llm',
+            title: 'OpenRouter',
+            vendor: 'OpenRouter',
+            defaultEndpoint: 'https://openrouter.ai/api/v1',
+            defaultAuthScheme: 'api_key',
+            fields: [
+              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+            ],
+          },
+        ])
+      }
+      if (path === '/api/ai-providers') {
+        return Promise.resolve([
+          {
+            id: 'provider-openrouter',
+            name: 'openrouter-main',
+            template_id: 'openrouter',
+            endpoint: 'https://openrouter.ai/api/v1',
+            credential: 'secret-1',
+            is_enabled: true,
+            config: {},
+          },
+        ])
+      }
+      if (path === AI_PROVIDER_SECRET_PATH) {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      return Promise.resolve([])
+    })
+
+    render(<AIProvidersPage />)
+
+    expect(await screen.findByRole('button', { name: 'openrouter-main' })).toBeInTheDocument()
+
+    const availabilityButton = screen.getByRole('button', { name: 'Test it openrouter-main' })
+    expect(within(availabilityButton).getByTestId('availability-refresh-icon')).toBeInTheDocument()
   })
 
   it('renders List Models feedback inline under the selected row and lets the name toggle it', async () => {
@@ -1177,6 +1296,17 @@ describe('AIProvidersPage', () => {
     // Inline detail panel expands below the row
     expect(screen.getByText('Secret')).toBeInTheDocument()
     expect(screen.getByText('shared-secret')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Collapse details' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse details' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('shared-secret')).not.toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'openrouter-main' })[0])
+
+    expect(await screen.findByText('shared-secret')).toBeInTheDocument()
 
     fireEvent.click(screen.getAllByRole('button', { name: 'openrouter-main' })[0])
 

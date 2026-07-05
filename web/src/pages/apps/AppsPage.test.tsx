@@ -197,7 +197,9 @@ describe('AppsPage', () => {
 
     fireEvent.pointerDown(screen.getByRole('button', { name: 'Open activity for Demo App' }))
 
-    expect(await screen.findByRole('menuitem', { name: 'Redeploy' })).toHaveAttribute('data-disabled')
+    expect(await screen.findByRole('menuitem', { name: 'Redeploy' })).toHaveAttribute(
+      'data-disabled'
+    )
     expect(screen.getByRole('menuitem', { name: 'Upgrade' })).toHaveAttribute('data-disabled')
     expect(screen.getByRole('menuitem', { name: 'Start' })).toHaveAttribute('data-disabled')
     expect(screen.getByRole('menuitem', { name: 'Stop' })).toHaveAttribute('data-disabled')

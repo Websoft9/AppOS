@@ -472,7 +472,9 @@ export function AppDetailPage({ appId }: { appId: string }) {
       pb.send<unknown>('/api/instances', { method: 'GET' }),
       blockServerRuntime
         ? Promise.resolve({ output: '' })
-        : pb.send<{ output?: string }>(dockerApiPath(app?.server_id, '/volumes'), { method: 'GET' }),
+        : pb.send<{ output?: string }>(dockerApiPath(app?.server_id, '/volumes'), {
+            method: 'GET',
+          }),
       pb.send<unknown>('/api/ext/backup/list', { method: 'GET' }),
     ])
 

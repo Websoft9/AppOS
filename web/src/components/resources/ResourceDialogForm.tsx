@@ -131,11 +131,11 @@ export function ResourceDialogForm({
                   <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                     {advancedFields.length}
                   </span>
-                {advancedOpen ? (
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                )}
+                  {advancedOpen ? (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  )}
                 </div>
               </button>
 

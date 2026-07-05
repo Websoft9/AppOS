@@ -7,6 +7,7 @@ import (
 )
 
 const (
+	// #nosec G101 -- capability identifier only; no credential material is stored here.
 	CapabilityCredentialProbeRedis = "credential_probe_redis"
 )
 

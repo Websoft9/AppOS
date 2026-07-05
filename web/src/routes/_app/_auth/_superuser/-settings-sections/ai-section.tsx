@@ -35,20 +35,16 @@ function buildProviderOptionLabel(
   const template = templatesById.get(String(provider.template_id ?? ''))
   const recordName = String(provider.name ?? '').trim()
   const model = String(provider.config?.defaultModel ?? provider.config?.model ?? '').trim()
-  const providerName = template ? chooserTitle(template) : humanizeTemplateId(String(provider.template_id ?? ''))
+  const providerName = template
+    ? chooserTitle(template)
+    : humanizeTemplateId(String(provider.template_id ?? ''))
   if (recordName && model) return `${recordName} · ${model}`
   if (recordName) return recordName
   if (model) return `${providerName} · ${model}`
   return providerName || 'Unnamed AI Provider'
 }
 
-function InlineTooltip({
-  label,
-  content,
-}: {
-  label: string
-  content: string
-}) {
+function InlineTooltip({ label, content }: { label: string; content: string }) {
   return (
     <TooltipProvider delayDuration={150}>
       <Tooltip>
@@ -295,8 +291,7 @@ export function AISettingsSection({
               </div>
 
               <p className="text-sm text-muted-foreground">
-                Need to add or manage accounts first?
-                {' '}
+                Need to add or manage accounts first?{' '}
                 <a
                   className="font-medium text-foreground underline underline-offset-4"
                   href="/resources/ai-providers"

@@ -230,7 +230,15 @@ function TokenUsageRing({ percent }: { percent: number }) {
   return (
     <span className={cn('inline-flex h-5 w-5 items-center justify-center', colorClass)}>
       <svg viewBox="0 0 20 20" className="h-5 w-5 -rotate-90" aria-hidden="true">
-        <circle cx="10" cy="10" r={radius} fill="none" stroke="currentColor" strokeOpacity="0.16" strokeWidth="2.4" />
+        <circle
+          cx="10"
+          cy="10"
+          r={radius}
+          fill="none"
+          stroke="currentColor"
+          strokeOpacity="0.16"
+          strokeWidth="2.4"
+        />
         <circle
           cx="10"
           cy="10"
@@ -268,9 +276,7 @@ async function buildDraftAttachment(
     if (file.size > BINARY_DOCUMENT_BYTES_LIMIT) {
       return {
         ...draft,
-        error: labels.binaryDocumentTooLarge(
-          formatAttachmentSize(BINARY_DOCUMENT_BYTES_LIMIT)
-        ),
+        error: labels.binaryDocumentTooLarge(formatAttachmentSize(BINARY_DOCUMENT_BYTES_LIMIT)),
       }
     }
     try {
@@ -284,9 +290,7 @@ async function buildDraftAttachment(
     if (file.size > BINARY_DOCUMENT_BYTES_LIMIT) {
       return {
         ...draft,
-        error: labels.binaryDocumentTooLarge(
-          formatAttachmentSize(BINARY_DOCUMENT_BYTES_LIMIT)
-        ),
+        error: labels.binaryDocumentTooLarge(formatAttachmentSize(BINARY_DOCUMENT_BYTES_LIMIT)),
       }
     }
     try {
@@ -300,9 +304,7 @@ async function buildDraftAttachment(
     if (file.size > BINARY_DOCUMENT_BYTES_LIMIT) {
       return {
         ...draft,
-        error: labels.binaryDocumentTooLarge(
-          formatAttachmentSize(BINARY_DOCUMENT_BYTES_LIMIT)
-        ),
+        error: labels.binaryDocumentTooLarge(formatAttachmentSize(BINARY_DOCUMENT_BYTES_LIMIT)),
       }
     }
     try {
@@ -423,11 +425,7 @@ export function AICopilotPage() {
     setLoadingPromptAssets(true)
     try {
       const assets = await listAssets()
-      setPromptAssets(
-        assets.filter(
-          item => item.kind === 'prompt'
-        )
-      )
+      setPromptAssets(assets.filter(item => item.kind === 'prompt'))
     } catch {
       setPromptAssets([])
     } finally {
@@ -540,7 +538,9 @@ export function AICopilotPage() {
   )
 
   const draftTokenEstimate = useMemo(
-    () => estimateTextTokens(draft) + attachments.reduce((total, item) => total + estimateAttachmentTokens(item), 0),
+    () =>
+      estimateTextTokens(draft) +
+      attachments.reduce((total, item) => total + estimateAttachmentTokens(item), 0),
     [draft, attachments]
   )
 
@@ -558,9 +558,13 @@ export function AICopilotPage() {
   const currentContextSize = Number(selectedModelMeta?.context_size ?? 0)
   const estimatedNextRequestTokens = conversationTokenEstimate + draftTokenEstimate
   const estimatedRemainingInput = Math.max(0, currentInputBudget - estimatedNextRequestTokens)
-  const tokenUsagePercent = currentInputBudget > 0
-    ? Math.min(999, Math.max(0, Math.round((estimatedNextRequestTokens / currentInputBudget) * 100)))
-    : 0
+  const tokenUsagePercent =
+    currentInputBudget > 0
+      ? Math.min(
+          999,
+          Math.max(0, Math.round((estimatedNextRequestTokens / currentInputBudget) * 100))
+        )
+      : 0
 
   useEffect(() => {
     let cancelled = false
@@ -758,8 +762,7 @@ export function AICopilotPage() {
         buildDraftAttachment(file, {
           textPreviewSkipped: limit => t('messages.textPreviewSkipped', { limit }),
           textPreviewUnavailable: t('messages.textPreviewUnavailable'),
-          binaryDocumentTooLarge: limit =>
-            t('messages.binaryDocumentTooLarge', { limit }),
+          binaryDocumentTooLarge: limit => t('messages.binaryDocumentTooLarge', { limit }),
           unsupportedAttachmentType: t('messages.unsupportedAttachmentType'),
         })
       )
@@ -1094,36 +1097,36 @@ export function AICopilotPage() {
                           </div>
                         </button>
                         {batchDeleteMode ? null : (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7 shrink-0"
-                              aria-label={t('aria.conversationActions', {
-                                title: session.title || defaultSessionTitle,
-                              })}
-                              disabled={isBusy}
-                            >
-                              {isBusy ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <MoreVertical className="h-3.5 w-3.5" />
-                              )}
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => startRename(session)}>
-                              <Pencil className="mr-2 h-4 w-4" />
-                              {t('actions.editName')}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setDeleteTarget(session)}>
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              {t('actions.delete')}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 shrink-0"
+                                aria-label={t('aria.conversationActions', {
+                                  title: session.title || defaultSessionTitle,
+                                })}
+                                disabled={isBusy}
+                              >
+                                {isBusy ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <MoreVertical className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => startRename(session)}>
+                                <Pencil className="mr-2 h-4 w-4" />
+                                {t('actions.editName')}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setDeleteTarget(session)}>
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                {t('actions.delete')}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         )}
                       </div>
                     )}
@@ -1177,7 +1180,9 @@ export function AICopilotPage() {
                                 await deleteAICopilotSession(id)
                                 setSessions(prev => prev.filter(s => s.id !== id))
                                 if (activeSessionId === id) {
-                                  const remaining = sessions.filter(s => s.id !== id && !ids.includes(s.id))
+                                  const remaining = sessions.filter(
+                                    s => s.id !== id && !ids.includes(s.id)
+                                  )
                                   if (remaining.length > 0 && first) {
                                     setActiveSessionId(remaining[0].id)
                                     await loadMessages(remaining[0].id)
@@ -1274,10 +1279,15 @@ export function AICopilotPage() {
                       <PanelLeft className="h-4 w-4" />
                     </Button>
                   ) : null}
-                  <h2 className="truncate text-lg font-semibold">{activeSession?.title || t('page.title')}</h2>
+                  <h2 className="truncate text-lg font-semibold">
+                    {activeSession?.title || t('page.title')}
+                  </h2>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
-                  <DropdownMenu open={headerSystemPromptMenuOpen} onOpenChange={setHeaderSystemPromptMenuOpen}>
+                  <DropdownMenu
+                    open={headerSystemPromptMenuOpen}
+                    onOpenChange={setHeaderSystemPromptMenuOpen}
+                  >
                     <DropdownMenuTrigger asChild>
                       <button
                         type="button"
@@ -1325,53 +1335,79 @@ export function AICopilotPage() {
                       </button>
                     </PopoverTrigger>
                     <PopoverContent className="w-72 p-3" align="end">
-                    <div className="space-y-3 text-xs">
-                      <div>
-                        <div className="font-medium text-foreground">{t('tokens.title')}</div>
-                        <div className="mt-1 text-muted-foreground">{t('tokens.description')}</div>
-                      </div>
-                      <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
-                        <div className="flex items-center gap-2">
-                          <TokenUsageRing percent={tokenUsagePercent} />
-                          <div className="text-muted-foreground">{selectedModelMeta?.label ?? '-'}</div>
+                      <div className="space-y-3 text-xs">
+                        <div>
+                          <div className="font-medium text-foreground">{t('tokens.title')}</div>
+                          <div className="mt-1 text-muted-foreground">
+                            {t('tokens.description')}
+                          </div>
                         </div>
-                        <div className="text-sm font-medium text-foreground">{Math.min(tokenUsagePercent, 999)}%</div>
+                        <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            <TokenUsageRing percent={tokenUsagePercent} />
+                            <div className="text-muted-foreground">
+                              {selectedModelMeta?.label ?? '-'}
+                            </div>
+                          </div>
+                          <div className="text-sm font-medium text-foreground">
+                            {Math.min(tokenUsagePercent, 999)}%
+                          </div>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-muted">
+                          <div
+                            className={cn(
+                              'h-full rounded-full transition-[width]',
+                              tokenUsagePercent >= 100
+                                ? 'bg-destructive'
+                                : tokenUsagePercent >= 80
+                                  ? 'bg-amber-500'
+                                  : 'bg-primary'
+                            )}
+                            style={{ width: `${Math.min(tokenUsagePercent, 100)}%` }}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                          <div className="text-muted-foreground">{t('tokens.currentModel')}</div>
+                          <div className="text-right text-foreground">
+                            {selectedModelMeta?.label ?? '-'}
+                          </div>
+                          <div className="text-muted-foreground">{t('tokens.contextWindow')}</div>
+                          <div className="text-right text-foreground">
+                            {currentContextSize > 0 ? currentContextSize.toLocaleString() : '-'}
+                          </div>
+                          <div className="text-muted-foreground">{t('tokens.maxOutput')}</div>
+                          <div className="text-right text-foreground">
+                            {currentCompletionCap > 0 ? currentCompletionCap.toLocaleString() : '-'}
+                          </div>
+                          <div className="text-muted-foreground">{t('tokens.inputBudget')}</div>
+                          <div className="text-right text-foreground">
+                            {currentInputBudget.toLocaleString()}
+                          </div>
+                          <div className="text-muted-foreground">
+                            {t('tokens.visibleConversation')}
+                          </div>
+                          <div className="text-right text-foreground">
+                            {conversationTokenEstimate.toLocaleString()}
+                          </div>
+                          <div className="text-muted-foreground">{t('tokens.currentDraft')}</div>
+                          <div className="text-right text-foreground">
+                            {draftTokenEstimate.toLocaleString()}
+                          </div>
+                          <div className="text-muted-foreground">
+                            {t('tokens.nextRequestEstimate')}
+                          </div>
+                          <div className="text-right text-foreground">
+                            {estimatedNextRequestTokens.toLocaleString()}
+                          </div>
+                          <div className="text-muted-foreground">{t('tokens.remainingInput')}</div>
+                          <div className="text-right text-foreground">
+                            {estimatedRemainingInput.toLocaleString()}
+                          </div>
+                        </div>
+                        <div className="rounded-md border border-border/60 bg-muted/20 px-2.5 py-2 text-muted-foreground">
+                          {t('tokens.note')}
+                        </div>
                       </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-muted">
-                        <div
-                          className={cn(
-                            'h-full rounded-full transition-[width]',
-                            tokenUsagePercent >= 100
-                              ? 'bg-destructive'
-                              : tokenUsagePercent >= 80
-                                ? 'bg-amber-500'
-                                : 'bg-primary'
-                          )}
-                          style={{ width: `${Math.min(tokenUsagePercent, 100)}%` }}
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-                        <div className="text-muted-foreground">{t('tokens.currentModel')}</div>
-                        <div className="text-right text-foreground">{selectedModelMeta?.label ?? '-'}</div>
-                        <div className="text-muted-foreground">{t('tokens.contextWindow')}</div>
-                        <div className="text-right text-foreground">{currentContextSize > 0 ? currentContextSize.toLocaleString() : '-'}</div>
-                        <div className="text-muted-foreground">{t('tokens.maxOutput')}</div>
-                        <div className="text-right text-foreground">{currentCompletionCap > 0 ? currentCompletionCap.toLocaleString() : '-'}</div>
-                        <div className="text-muted-foreground">{t('tokens.inputBudget')}</div>
-                        <div className="text-right text-foreground">{currentInputBudget.toLocaleString()}</div>
-                        <div className="text-muted-foreground">{t('tokens.visibleConversation')}</div>
-                        <div className="text-right text-foreground">{conversationTokenEstimate.toLocaleString()}</div>
-                        <div className="text-muted-foreground">{t('tokens.currentDraft')}</div>
-                        <div className="text-right text-foreground">{draftTokenEstimate.toLocaleString()}</div>
-                        <div className="text-muted-foreground">{t('tokens.nextRequestEstimate')}</div>
-                        <div className="text-right text-foreground">{estimatedNextRequestTokens.toLocaleString()}</div>
-                        <div className="text-muted-foreground">{t('tokens.remainingInput')}</div>
-                        <div className="text-right text-foreground">{estimatedRemainingInput.toLocaleString()}</div>
-                      </div>
-                      <div className="rounded-md border border-border/60 bg-muted/20 px-2.5 py-2 text-muted-foreground">
-                        {t('tokens.note')}
-                      </div>
-                    </div>
                     </PopoverContent>
                   </Popover>
                 </div>
@@ -1387,13 +1423,16 @@ export function AICopilotPage() {
                   <div className="font-medium text-foreground">{t('page.emptyTitle')}</div>
                   <div className="mt-1">{t('page.emptyDescription')}</div>
                   <div className="mt-4 flex flex-col items-center gap-2">
-                    <span className="text-xs text-muted-foreground">{t('prompts.selectSystemPrompt')}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {t('prompts.selectSystemPrompt')}
+                    </span>
                     <div className="grid w-full max-w-md grid-cols-3 gap-1.5">
                       <button
                         type="button"
                         className={cn(
                           'rounded-full border px-2.5 py-1 text-xs transition-colors hover:bg-accent hover:text-accent-foreground',
-                          !selectedSystemPromptAssetId && 'bg-primary/10 border-primary/30 text-primary font-medium',
+                          !selectedSystemPromptAssetId &&
+                            'bg-primary/10 border-primary/30 text-primary font-medium'
                         )}
                         onClick={() => void applySystemPromptSelection('')}
                       >
@@ -1405,7 +1444,8 @@ export function AICopilotPage() {
                           type="button"
                           className={cn(
                             'truncate rounded-full border px-2.5 py-1 text-xs transition-colors hover:bg-accent hover:text-accent-foreground',
-                            asset.id === selectedSystemPromptAssetId && 'bg-primary/10 border-primary/30 text-primary font-medium',
+                            asset.id === selectedSystemPromptAssetId &&
+                              'bg-primary/10 border-primary/30 text-primary font-medium'
                           )}
                           onClick={() => void applySystemPromptSelection(asset.id)}
                         >
@@ -1550,7 +1590,12 @@ export function AICopilotPage() {
                               'h-7 shrink-0 rounded-md text-muted-foreground hover:bg-background/70 hover:text-foreground px-2',
                               taskInstructions.length > 0 && 'text-foreground'
                             )}
-                            disabled={sending || loadingPromptAssets || loadingTaskContent || busySessionId === activeSessionId}
+                            disabled={
+                              sending ||
+                              loadingPromptAssets ||
+                              loadingTaskContent ||
+                              busySessionId === activeSessionId
+                            }
                             aria-label="Task instruction"
                             title={t('prompts.taskInstructionTitle')}
                           >
@@ -1558,7 +1603,10 @@ export function AICopilotPage() {
                               <Loader2 className="h-3 w-3 animate-spin" />
                             ) : (
                               <>
-                                <span className="inline-flex items-center gap-1 text-xs" title={t('prompts.taskInstructionTitle')}>
+                                <span
+                                  className="inline-flex items-center gap-1 text-xs"
+                                  title={t('prompts.taskInstructionTitle')}
+                                >
                                   <File className="h-3 w-3" />
                                   <span>{t('prompts.taskInstruction')}</span>
                                 </span>
@@ -1567,11 +1615,13 @@ export function AICopilotPage() {
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-72 p-1" align="start">
-                          <div className="px-2 py-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{t('prompts.taskInstructionGroup')}</div>
+                          <div className="px-2 py-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                            {t('prompts.taskInstructionGroup')}
+                          </div>
                           <button
                             type="button"
                             className={cn(
-                              'flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                              'flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                             )}
                             onClick={() => setTaskPromptPopoverOpen(false)}
                           >
@@ -1579,19 +1629,23 @@ export function AICopilotPage() {
                           </button>
                           <div className="max-h-56 overflow-y-auto">
                             {taskInstructions.length === 0 ? (
-                              <div className="px-2 py-3 text-center text-xs text-muted-foreground">{t('prompts.noTaskInstructions')}</div>
-                            ) : taskInstructions.map(asset => (
-                              <button
-                                key={asset.id}
-                                type="button"
-                                className={cn(
-                                  'flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-left text-xs hover:bg-accent hover:text-accent-foreground',
-                                )}
-                                onClick={() => void applyTaskInstruction(asset.id)}
-                              >
-                                <span className="truncate">{asset.name}</span>
-                              </button>
-                            ))}
+                              <div className="px-2 py-3 text-center text-xs text-muted-foreground">
+                                {t('prompts.noTaskInstructions')}
+                              </div>
+                            ) : (
+                              taskInstructions.map(asset => (
+                                <button
+                                  key={asset.id}
+                                  type="button"
+                                  className={cn(
+                                    'flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-left text-xs hover:bg-accent hover:text-accent-foreground'
+                                  )}
+                                  onClick={() => void applyTaskInstruction(asset.id)}
+                                >
+                                  <span className="truncate">{asset.name}</span>
+                                </button>
+                              ))
+                            )}
                           </div>
                         </PopoverContent>
                       </Popover>

@@ -131,7 +131,11 @@ export function AssetsPage() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {ASSET_FAMILY_CARDS.map(family => {
           const count =
-            family.key === 'script' ? scriptCount : family.key === 'skill' ? skillCount : promptCount
+            family.key === 'script'
+              ? scriptCount
+              : family.key === 'skill'
+                ? skillCount
+                : promptCount
           return (
             <Link
               key={family.key}

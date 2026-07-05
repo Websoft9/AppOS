@@ -18,6 +18,7 @@ import {
   Pencil,
   Power,
   PowerOff,
+  RefreshCw,
   X,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -91,24 +92,10 @@ type AIProviderAvailabilityOverride = {
   checked_at: string
 }
 
-type MonitorLatestStatusRecord = {
-  target_id?: string
-  status?: string
-  reason?: string | null
-  last_checked_at?: string | null
-}
-
-function monitorStatusToAvailability(monitorStatus: string, t: Translate): string {
-  switch (monitorStatus.toLowerCase().trim()) {
-    case 'healthy':
-      return t('aiProviders.status.available')
-    case 'degraded':
-    case 'unreachable':
-    case 'credential_invalid':
-      return t('aiProviders.status.unavailable')
-    default:
-      return t('aiProviders.status.unknown')
-  }
+type AIProviderReachabilityOverride = {
+  status: string
+  reason: string
+  checked_at: string
 }
 
 function humanizeTemplateId(templateId: string) {
@@ -123,19 +110,14 @@ function providerSelectionGroupLabel(t: Translate, group: AIProviderSelectionGro
   return t(`aiProviders.selection.groups.${group}`)
 }
 
-function resolveEndpointFieldTitle(
-  t: Translate,
-  template: AIProviderTemplate | null | undefined
-) {
+function resolveEndpointFieldTitle(t: Translate, template: AIProviderTemplate | null | undefined) {
   return defaultTemplateProtocol(template) === 'anthropic'
     ? t('aiProviders.fields.apiEndpoint')
     : t('aiProviders.fields.openaiCompatibleUrl')
 }
 
 function renderEndpointFieldLabel(label: string) {
-  return (
-    <label className="text-sm font-medium text-foreground">{label}</label>
-  )
+  return <label className="text-sm font-medium text-foreground">{label}</label>
 }
 
 function moveFieldBefore(fields: FieldDef[], fieldKey: string, beforeKey: string) {
@@ -316,6 +298,19 @@ function normalizeAvailabilityStatus(value: unknown, t: Translate) {
   return t('aiProviders.status.unknown')
 }
 
+function normalizeReachabilityStatus(value: unknown, t: Translate) {
+  const normalized = String(value ?? '')
+    .trim()
+    .toLowerCase()
+  if (normalized === 'reachable' || normalized === 'available') {
+    return t('aiProviders.status.reachable')
+  }
+  if (normalized === 'unreachable' || normalized === 'unavailable') {
+    return t('aiProviders.status.unreachable')
+  }
+  return t('aiProviders.status.unknown')
+}
+
 function resolveAvailability(item: AIProviderRecord, t: Translate) {
   const config = item.config ?? {}
   const availability = config.availability
@@ -325,11 +320,55 @@ function resolveAvailability(item: AIProviderRecord, t: Translate) {
   if (config.availability_status !== undefined) {
     return normalizeAvailabilityStatus(config.availability_status, t)
   }
+  return t('aiProviders.status.unknown')
+}
+
+function resolveAvailabilityCheckedAt(item: AIProviderRecord) {
+  const config = item.config ?? {}
+  const availability = config.availability
+  if (availability && typeof availability === 'object') {
+    return String((availability as Record<string, unknown>).checked_at ?? '').trim()
+  }
+  return String(config.availability_checked_at ?? '').trim()
+}
+
+function resolveAvailabilityReason(item: AIProviderRecord) {
+  const config = item.config ?? {}
+  const availability = config.availability
+  if (availability && typeof availability === 'object') {
+    return String((availability as Record<string, unknown>).reason ?? '').trim()
+  }
+  return String(config.availability_reason ?? '').trim()
+}
+
+function resolveReachability(item: AIProviderRecord, t: Translate) {
+  const config = item.config ?? {}
   const reachability = config.reachability
   if (reachability && typeof reachability === 'object') {
-    return normalizeAvailabilityStatus((reachability as Record<string, unknown>).status, t)
+    return normalizeReachabilityStatus((reachability as Record<string, unknown>).status, t)
   }
-  return normalizeAvailabilityStatus(config.reachability_status, t)
+  if (config.reachability_status !== undefined) {
+    return normalizeReachabilityStatus(config.reachability_status, t)
+  }
+  return t('aiProviders.status.unknown')
+}
+
+function resolveReachabilityCheckedAt(item: AIProviderRecord) {
+  const config = item.config ?? {}
+  const reachability = config.reachability
+  if (reachability && typeof reachability === 'object') {
+    return String((reachability as Record<string, unknown>).checked_at ?? '').trim()
+  }
+  return String(config.reachability_checked_at ?? '').trim()
+}
+
+function resolveReachabilityReason(item: AIProviderRecord) {
+  const config = item.config ?? {}
+  const reachability = config.reachability
+  if (reachability && typeof reachability === 'object') {
+    return String((reachability as Record<string, unknown>).reason ?? '').trim()
+  }
+  return String(config.reachability_reason ?? '').trim()
 }
 
 function normalizeEnabledStatus(value: unknown) {
@@ -389,8 +428,7 @@ function mapAIProviderRow(
   item: AIProviderRecord,
   templatesById: Map<string, AIProviderTemplate>,
   secretNamesById: Map<string, string>,
-  t: Translate,
-  availabilityOverrides?: Map<string, AIProviderAvailabilityOverride>
+  t: Translate
 ): Record<string, unknown> {
   const template = templatesById.get(String(item.template_id ?? ''))
   const flattenedConfig: Record<string, unknown> = {}
@@ -409,7 +447,9 @@ function mapAIProviderRow(
 
   const advancedConfig = Object.fromEntries(
     Object.entries(item.config ?? {}).filter(
-      ([key]) => !knownFieldIDs.has(key) && !['enabled_models', 'default_protocol', 'protocol_endpoints'].includes(key)
+      ([key]) =>
+        !knownFieldIDs.has(key) &&
+        !['enabled_models', 'default_protocol', 'protocol_endpoints'].includes(key)
     )
   )
 
@@ -429,8 +469,12 @@ function mapAIProviderRow(
     provider: template?.title ?? humanizeTemplateId(String(item.template_id ?? '')),
     is_enabled: resolveAIProviderEnabled(item.is_enabled),
     enabled_status: normalizeEnabledStatus(item.is_enabled),
-    availability:
-      availabilityOverrides?.get(String(item.id ?? ''))?.status ?? resolveAvailability(item, t),
+    availability: resolveAvailability(item, t),
+    availability_reason: resolveAvailabilityReason(item),
+    availability_last_checked_at: resolveAvailabilityCheckedAt(item),
+    reachability: resolveReachability(item, t),
+    reachability_reason: resolveReachabilityReason(item),
+    reachability_last_checked_at: resolveReachabilityCheckedAt(item),
     endpoint: String(item.endpoint ?? ''),
     default_protocol: defaultProtocol,
     auth_scheme: String(item.auth_scheme ?? ''),
@@ -466,17 +510,29 @@ function buildColumns(
   onNameClick: (id: string, row: Record<string, unknown>) => void,
   onToggleEnabled: (item: Record<string, unknown>) => void,
   onShowModels: (id: string, row: Record<string, unknown>) => void,
+  onTestAvailability: (row: Record<string, unknown>) => void,
   availabilityOverrides: Record<string, AIProviderAvailabilityOverride>,
   availabilityLoading: Set<string>,
+  reachabilityOverrides: Record<string, AIProviderReachabilityOverride>,
+  reachabilityLoading: Set<string>,
   enabledModelsCount: Record<string, number>
 ): Column[] {
   const resolveStatusMeta = (row: Record<string, unknown>) => {
     const override = availabilityOverrides[String(row.id ?? '')]
     return {
       status: String(override?.status ?? row.availability ?? '').trim(),
-      reason: String(override?.reason ?? '').trim(),
-      checkedAt: String(override?.checked_at ?? '').trim(),
+      reason: String(override?.reason ?? row.availability_reason ?? '').trim(),
+      checkedAt: String(override?.checked_at ?? row.availability_last_checked_at ?? '').trim(),
       sourceLabel: override ? t('aiProviders.lastCheckedSources.liveAvailability') : '',
+    }
+  }
+
+  const resolveReachabilityMeta = (row: Record<string, unknown>) => {
+    const override = reachabilityOverrides[String(row.id ?? '')]
+    return {
+      status: String(override?.status ?? row.reachability ?? '').trim(),
+      reason: String(override?.reason ?? row.reachability_reason ?? '').trim(),
+      checkedAt: String(override?.checked_at ?? row.reachability_last_checked_at ?? '').trim(),
     }
   }
 
@@ -549,6 +605,35 @@ function buildColumns(
       ),
     },
     {
+      key: 'reachability',
+      label: t('aiProviders.columns.reachability'),
+      sortable: true,
+      filterOptions: [
+        { label: t('aiProviders.status.reachable'), value: t('aiProviders.status.reachable') },
+        { label: t('aiProviders.status.unreachable'), value: t('aiProviders.status.unreachable') },
+        { label: t('aiProviders.status.unknown'), value: t('aiProviders.status.unknown') },
+      ],
+      filterValue: row => resolveReachabilityMeta(row).status,
+      render: (value, row) => {
+        const meta = resolveReachabilityMeta(row)
+        const status = normalizeReachabilityStatus(meta.status || value, t)
+        const variant =
+          status === t('aiProviders.status.reachable')
+            ? 'default'
+            : status === t('aiProviders.status.unreachable')
+              ? 'destructive'
+              : 'secondary'
+        return (
+          <Badge variant={variant} className="gap-1">
+            {reachabilityLoading.has(String(row.id ?? '')) && (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            )}
+            {status}
+          </Badge>
+        )
+      },
+    },
+    {
       key: 'availability',
       label: t('aiProviders.columns.availability'),
       sortable: true,
@@ -570,13 +655,25 @@ function buildColumns(
             : status === t('aiProviders.status.unavailable')
               ? 'destructive'
               : 'secondary'
+        const rowName = String(row.name ?? row.id ?? 'provider').trim() || 'provider'
         return (
-          <Badge variant={variant} className="gap-1">
-            {availabilityLoading.has(String(row.id ?? '')) && (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            )}
-            {status}
-          </Badge>
+          <button
+            type="button"
+            className="inline-flex"
+            title={t('aiProviders.actions.testConnection')}
+            aria-label={`${t('aiProviders.actions.testConnection')} ${rowName}`}
+            onClick={() => onTestAvailability(row)}
+          >
+            <Badge variant={variant} className="gap-1">
+              {availabilityLoading.has(String(row.id ?? '')) && (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              )}
+              {!availabilityLoading.has(String(row.id ?? '')) && (
+                <RefreshCw data-testid="availability-refresh-icon" className="h-3 w-3 opacity-70" />
+              )}
+              {status}
+            </Badge>
+          </button>
         )
       },
     },
@@ -621,7 +718,14 @@ export function AIProvidersPage() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [pageSize, setPageSize] = useState(10)
   const [visibleOptionalColumns, setVisibleOptionalColumns] = useState<Set<string>>(
-    () => new Set(['provider', 'enabled_models_count', 'endpoint', 'availability', 'availability_last_checked_at'])
+    () =>
+      new Set([
+        'provider',
+        'enabled_models_count',
+        'reachability',
+        'availability',
+        'availability_last_checked_at',
+      ])
   )
   const [secretDialogOpen, setSecretDialogOpen] = useState(false)
   const [providerTemplates, setProviderTemplates] = useState<AIProviderTemplate[]>([])
@@ -640,6 +744,10 @@ export function AIProvidersPage() {
     Record<string, AIProviderAvailabilityOverride>
   >({})
   const [availabilityLoading, setAvailabilityLoading] = useState<Set<string>>(new Set())
+  const [reachabilityOverrides, setReachabilityOverrides] = useState<
+    Record<string, AIProviderReachabilityOverride>
+  >({})
+  const [reachabilityLoading, setReachabilityLoading] = useState<Set<string>>(new Set())
   const [expandedDetailId, setExpandedDetailId] = useState<string | null>(null)
   const [expandedModelsId, setExpandedModelsId] = useState<string | null>(null)
   const [enabledModelsCount, setEnabledModelsCount] = useState<Record<string, number>>({})
@@ -647,7 +755,7 @@ export function AIProvidersPage() {
   const [detailNameDraft, setDetailNameDraft] = useState('')
   const editingTemplateIdRef = useRef('')
   const enabledModelsCountRef = useRef<Record<string, number>>({})
-  const availabilityRequestVersionRef = useRef(0)
+  const reachabilityRequestVersionRef = useRef(0)
 
   function groupModelsByPrefix(modelIds: string[]): { label: string; models: string[] }[] {
     const groups: Record<string, string[]> = {}
@@ -721,34 +829,64 @@ export function AIProvidersPage() {
     []
   )
 
-  const handleListTestConnection = useCallback(async (item: Record<string, unknown>) => {
-    const providerId = String(item.id ?? '')
-    if (!providerId) return
-    setExpandedDetailId(providerId)
-    setListTestState({ providerId, summary: { loading: true } })
-    try {
-      const result = await pb.send<ProviderModelsResponse>(
-        `/api/ai-providers/models/${providerId}`,
-        { method: 'GET' }
-      )
-      const rawModels = sanitizeProviderModelOptions(result?.models ?? [])
-      const modelIds = rawModels.map(model => model.id)
-      const apiGroups = sanitizeProviderModelGroups(result?.groups ?? [])
-      const modelGroups =
-        apiGroups.length > 1
-          ? apiGroups.map(group => ({
-              label: group.label,
-              models: (group.models ?? []).map(m => m.id).filter(Boolean),
-            }))
-          : groupModelsByPrefix(modelIds)
-      setListTestState({ providerId, summary: { models: modelIds, modelGroups } })
-    } catch (err) {
-      setListTestState({
-        providerId,
-        summary: { error: err instanceof Error ? err.message : 'Connection test failed' },
+  const handleListTestConnection = useCallback(
+    async (item: Record<string, unknown>) => {
+      const providerId = String(item.id ?? '')
+      if (!providerId) return
+      setExpandedDetailId(providerId)
+      setListTestState({ providerId, summary: { loading: true } })
+      setAvailabilityLoading(prev => {
+        const next = new Set(prev)
+        next.add(providerId)
+        return next
       })
-    }
-  }, [])
+      try {
+        const result = await pb.send<ProviderModelsResponse>(
+          `/api/ai-providers/models/${providerId}`,
+          { method: 'GET' }
+        )
+        const rawModels = sanitizeProviderModelOptions(result?.models ?? [])
+        const modelIds = rawModels.map(model => model.id)
+        const apiGroups = sanitizeProviderModelGroups(result?.groups ?? [])
+        const modelGroups =
+          apiGroups.length > 1
+            ? apiGroups.map(group => ({
+                label: group.label,
+                models: (group.models ?? []).map(m => m.id).filter(Boolean),
+              }))
+            : groupModelsByPrefix(modelIds)
+        setAvailabilityOverrides(prev => ({
+          ...prev,
+          [providerId]: {
+            status: t('aiProviders.status.available'),
+            reason: '',
+            checked_at: new Date().toISOString(),
+          },
+        }))
+        setListTestState({ providerId, summary: { models: modelIds, modelGroups } })
+      } catch (err) {
+        setAvailabilityOverrides(prev => ({
+          ...prev,
+          [providerId]: {
+            status: t('aiProviders.status.unavailable'),
+            reason: err instanceof Error ? err.message : 'Connection test failed',
+            checked_at: new Date().toISOString(),
+          },
+        }))
+        setListTestState({
+          providerId,
+          summary: { error: err instanceof Error ? err.message : 'Connection test failed' },
+        })
+      } finally {
+        setAvailabilityLoading(prev => {
+          const next = new Set(prev)
+          next.delete(providerId)
+          return next
+        })
+      }
+    },
+    [t]
+  )
 
   const handleShowModels = useCallback(
     (id: string, row: Record<string, unknown>) => {
@@ -778,37 +916,34 @@ export function AIProvidersPage() {
     setEnabledModelsCount({ ...counts })
   }, [])
 
-  const fetchAvailabilityStatuses = useCallback(
+  const fetchReachabilityStatuses = useCallback(
     async (ids: string[]) => {
       if (ids.length === 0) {
-        setAvailabilityOverrides({})
+        setReachabilityOverrides({})
         return
       }
-      setAvailabilityLoading(prev => {
+      setReachabilityLoading(prev => {
         const next = new Set(prev)
         for (const id of ids) next.add(id)
         return next
       })
-      const requestVersion = availabilityRequestVersionRef.current + 1
-      availabilityRequestVersionRef.current = requestVersion
+      const requestVersion = reachabilityRequestVersionRef.current + 1
+      reachabilityRequestVersionRef.current = requestVersion
       try {
         const params = new URLSearchParams({ ids: ids.join(',') })
         const result = await pb.send<{
           items?: Array<{ id: string; status: string; reason?: string; checked_at?: string }>
-        }>(
-          `/api/ai-providers/availability?${params.toString()}`,
-          { method: 'GET' }
-        )
-        if (availabilityRequestVersionRef.current !== requestVersion) {
+        }>(`/api/ai-providers/reachability?${params.toString()}`, { method: 'GET' })
+        if (reachabilityRequestVersionRef.current !== requestVersion) {
           return
         }
-        setAvailabilityOverrides(prev => {
+        setReachabilityOverrides(prev => {
           const next = { ...prev }
           for (const entry of result.items ?? []) {
             const id = String(entry.id ?? '').trim()
             if (!id) continue
             next[id] = {
-              status: normalizeAvailabilityStatus(entry.status, t),
+              status: normalizeReachabilityStatus(entry.status, t),
               reason: String(entry.reason ?? ''),
               checked_at: String(entry.checked_at ?? ''),
             }
@@ -816,11 +951,11 @@ export function AIProvidersPage() {
           return next
         })
       } catch {
-        if (availabilityRequestVersionRef.current !== requestVersion) {
+        if (reachabilityRequestVersionRef.current !== requestVersion) {
           return
         }
       } finally {
-        setAvailabilityLoading(prev => {
+        setReachabilityLoading(prev => {
           const next = new Set(prev)
           for (const id of ids) next.delete(id)
           return next
@@ -1052,7 +1187,11 @@ export function AIProvidersPage() {
               type="button"
               variant="outline"
               size="icon"
-              title={endpointEditing ? t('aiProviders.actions.finishEditingEndpoint') : t('aiProviders.actions.editEndpoint')}
+              title={
+                endpointEditing
+                  ? t('aiProviders.actions.finishEditingEndpoint')
+                  : t('aiProviders.actions.editEndpoint')
+              }
               onClick={() => updateField('endpoint_editing', !endpointEditing)}
             >
               {endpointEditing ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
@@ -1143,7 +1282,9 @@ export function AIProvidersPage() {
             }
           }
           Object.assign(nextDefaults, buildProtocolFieldDefaults(template, nextDefaults))
-          for (const [key, defaultValue] of Object.entries(buildProtocolFieldDefaults(template, nextDefaults))) {
+          for (const [key, defaultValue] of Object.entries(
+            buildProtocolFieldDefaults(template, nextDefaults)
+          )) {
             update(key, defaultValue)
           }
           update('endpoint', resolveTemplateEndpoint(template, nextDefaults))
@@ -1243,22 +1384,22 @@ export function AIProvidersPage() {
         relationLabelKey: 'name',
         defaultValue: [],
       },
-    {
-      key: 'is_enabled',
-      label: t('aiProviders.fields.enableIt'),
-      type: 'boolean',
-      defaultValue: true,
-      advanced: true,
-      render: ({ field, inputId, value, setValue }) =>
-        renderEnabledChoiceField({
-          inputId,
-          label: field.label,
-          value: Boolean(value ?? true),
-          setValue: nextValue => setValue(nextValue),
-          enabledLabel: t('aiProviders.enabled.yes'),
-          disabledLabel: t('aiProviders.enabled.no'),
-        }),
-    },
+      {
+        key: 'is_enabled',
+        label: t('aiProviders.fields.enableIt'),
+        type: 'boolean',
+        defaultValue: true,
+        advanced: true,
+        render: ({ field, inputId, value, setValue }) =>
+          renderEnabledChoiceField({
+            inputId,
+            label: field.label,
+            value: Boolean(value ?? true),
+            setValue: nextValue => setValue(nextValue),
+            enabledLabel: t('aiProviders.enabled.yes'),
+            disabledLabel: t('aiProviders.enabled.no'),
+          }),
+      },
     ],
     [providerProfileOptions, providerTemplatesById, t]
   )
@@ -1313,15 +1454,15 @@ export function AIProvidersPage() {
             {
               ...mappedField,
               onValueChange: (value: unknown, update: (key: string, value: unknown) => void) => {
-                const protocol = defaultTemplateProtocol(selectedTemplate, formData.default_protocol)
+                const protocol = defaultTemplateProtocol(
+                  selectedTemplate,
+                  formData.default_protocol
+                )
                 const nextEndpoint = resolveTemplateEndpoint(selectedTemplate, {
                   ...formData,
                   region: value,
                 })
-                update(
-                  protocolEndpointFieldKey(protocol),
-                  nextEndpoint
-                )
+                update(protocolEndpointFieldKey(protocol), nextEndpoint)
                 update('endpoint', nextEndpoint)
               },
             },
@@ -1393,8 +1534,11 @@ export function AIProvidersPage() {
         handleNameClick,
         handleToggleEnabled,
         handleShowModels,
+        handleListTestConnection,
         availabilityOverrides,
         availabilityLoading,
+        reachabilityOverrides,
+        reachabilityLoading,
         enabledModelsCount
       ),
     [
@@ -1403,8 +1547,11 @@ export function AIProvidersPage() {
       providerFilterOptions,
       t,
       handleShowModels,
+      handleListTestConnection,
       availabilityOverrides,
       availabilityLoading,
+      reachabilityOverrides,
+      reachabilityLoading,
       enabledModelsCount,
     ]
   )
@@ -1417,6 +1564,7 @@ export function AIProvidersPage() {
           column.key === 'enabled_models_count' ||
           column.key === 'endpoint' ||
           column.key === 'availability' ||
+          column.key === 'reachability' ||
           column.key === 'availability_last_checked_at' ||
           column.key === 'created' ||
           column.key === 'updated'
@@ -1453,6 +1601,11 @@ export function AIProvidersPage() {
             key: 'endpoint',
             label: t('aiProviders.columns.endpoint'),
             checked: visibleOptionalColumns.has('endpoint'),
+          },
+          {
+            key: 'reachability',
+            label: t('aiProviders.columns.reachability'),
+            checked: visibleOptionalColumns.has('reachability'),
           },
           {
             key: 'availability',
@@ -1514,7 +1667,8 @@ export function AIProvidersPage() {
           paginationPlacement: 'header',
           paginationVariant: 'minimal',
           paginationSummary: false,
-          paginationTotalLabel: totalCount => t('aiProviders.page.totalItems', { count: totalCount }),
+          paginationTotalLabel: totalCount =>
+            t('aiProviders.page.totalItems', { count: totalCount }),
           headerTrailingControls: renderListSettings,
           expandedRowId: expandedDetailId,
           renderRowDetail: item => {
@@ -1709,6 +1863,28 @@ export function AIProvidersPage() {
 
             return (
               <div className="space-y-4 rounded-lg border bg-muted/10 px-4 py-3">
+                <div className="flex items-center justify-between gap-3 border-b pb-3">
+                  <div>
+                    <div className="text-sm font-medium text-foreground">Provider details</div>
+                    <div className="text-xs text-muted-foreground">
+                      Use the provider name again or this action to collapse the inline panel.
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() => {
+                      setExpandedDetailId(null)
+                      setExpandedModelsId(null)
+                      setEditingDetailName(null)
+                    }}
+                  >
+                    <ChevronDown className="mr-1.5 h-4 w-4" />
+                    Collapse details
+                  </Button>
+                </div>
                 <div className="grid grid-cols-[100px_1fr] gap-x-4 gap-y-2 text-sm">
                   {fields.map(field => (
                     <Fragment key={field.label}>
@@ -1921,54 +2097,23 @@ export function AIProvidersPage() {
           refreshButtonShowIcon: true,
           wrapTableInCard: false,
           refreshKey,
+          onRefresh: async ({ items, refreshList }) => {
+            await refreshList()
+            const ids = items.map(item => String(item.id ?? '')).filter(Boolean)
+            await fetchReachabilityStatuses(ids)
+          },
           listItems: async () => {
-            const [items, monitorResponse] = await Promise.all([
+            const [items, secretResponse] = await Promise.all([
               pb.send<AIProviderRecord[]>('/api/ai-providers', { method: 'GET' }),
-              pb.send<{ items?: MonitorLatestStatusRecord[] }>(
-                `/api/collections/monitor_latest_status/records?${new URLSearchParams({
-                  perPage: '500',
-                  sort: '-updated',
-                  filter: `(target_type='ai_provider')`,
-                }).toString()}`,
-                { method: 'GET' }
-              ).catch(() => ({ items: [] })),
+              pb
+                .send<{ items?: Array<Record<string, unknown>> }>(
+                  buildUserVisibleSecretRelationApiPath('ai_provider', {
+                    secretTemplate: AI_PROVIDER_CREDENTIAL_TEMPLATE_ID,
+                  }),
+                  { method: 'GET' }
+                )
+                .catch(() => ({ items: [] })),
             ])
-            const ids = Array.isArray(items)
-              ? items.map(item => String(item.id ?? '')).filter(Boolean)
-              : []
-
-            // Seed availability overrides from monitor cache before live check
-            const monitorByTargetId = new Map(
-              Array.isArray(monitorResponse?.items)
-                ? monitorResponse.items
-                    .map(record => [String(record.target_id ?? '').trim(), record] as const)
-                    .filter(([targetId]) => Boolean(targetId))
-                : []
-            )
-            const cachedOverrides: Record<string, AIProviderAvailabilityOverride> = {}
-            for (const id of ids) {
-              const monitor = monitorByTargetId.get(id)
-              if (monitor?.status) {
-                cachedOverrides[id] = {
-                  status: monitorStatusToAvailability(String(monitor.status), t),
-                  reason: String(monitor.reason ?? ''),
-                  checked_at: String(monitor.last_checked_at ?? ''),
-                }
-              }
-            }
-            if (Object.keys(cachedOverrides).length > 0) {
-              setAvailabilityOverrides(prev => ({ ...prev, ...cachedOverrides }))
-            }
-
-            void fetchAvailabilityStatuses(ids)
-            const secretResponse = await pb
-              .send<{ items?: Array<Record<string, unknown>> }>(
-                buildUserVisibleSecretRelationApiPath('ai_provider', {
-                  secretTemplate: AI_PROVIDER_CREDENTIAL_TEMPLATE_ID,
-                }),
-                { method: 'GET' }
-              )
-              .catch(() => ({ items: [] }))
             const secretNamesById = new Map(
               (secretResponse.items ?? []).map(secret => [
                 String(secret.id ?? '').trim(),
@@ -2065,6 +2210,7 @@ export function AIProvidersPage() {
         }}
         onCreated={() => {
           setAvailabilityOverrides({})
+          setReachabilityOverrides({})
           setRefreshKey(current => current + 1)
         }}
       />

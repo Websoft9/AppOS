@@ -1675,7 +1675,12 @@ function FeedsPage() {
   }
 
   useEffect(() => {
-    if (loading || feedLoadingMore || itemSourceFilter === 'bookmark' || items.length >= feedTotalItems)
+    if (
+      loading ||
+      feedLoadingMore ||
+      itemSourceFilter === 'bookmark' ||
+      items.length >= feedTotalItems
+    )
       return
 
     const scrollContainer = document.querySelector<HTMLElement>('[data-app-scroll-container]')
@@ -1703,8 +1708,7 @@ function FeedsPage() {
 
     const maybeLoadMore = () => {
       const remaining =
-        scrollContainer.scrollHeight -
-        (scrollContainer.scrollTop + scrollContainer.clientHeight)
+        scrollContainer.scrollHeight - (scrollContainer.scrollTop + scrollContainer.clientHeight)
       if (remaining > FEED_LOAD_MORE_THRESHOLD_PX) return
       loadNextFeedPage()
     }
@@ -1716,13 +1720,7 @@ function FeedsPage() {
       scrollContainer.removeEventListener('scroll', maybeLoadMore)
       window.removeEventListener('resize', maybeLoadMore)
     }
-  }, [
-    feedLoadingMore,
-    loading,
-    loadNextFeedPage,
-    itemSourceFilter,
-    items.length,
-  ])
+  }, [feedLoadingMore, loading, loadNextFeedPage, itemSourceFilter, items.length])
 
   return (
     <div className="space-y-6">
@@ -2373,7 +2371,9 @@ function FeedsPage() {
                       Loading more... ({items.length}/{feedTotalItems})
                     </span>
                   ) : (
-                    <span>Loaded {items.length} of {feedTotalItems}. Scroll to load more</span>
+                    <span>
+                      Loaded {items.length} of {feedTotalItems}. Scroll to load more
+                    </span>
                   )}
                   {!feedLoadingMore ? (
                     <Button type="button" variant="outline" size="sm" onClick={loadNextFeedPage}>
