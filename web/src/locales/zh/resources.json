@@ -1113,15 +1113,14 @@
       "yes": "是",
       "no": "否"
     },
-    "monitor": {
+    "status": {
+      "reachable": "可达",
+      "healthy": "健康",
+      "offline": "离线",
+      "unreachable": "不可达",
       "unknown": "未知",
-      "status": {
-        "healthy": "健康",
-        "offline": "离线",
-        "unreachable": "不可达",
-        "credential_invalid": "凭据无效",
-        "degraded": "降级"
-      }
+      "credential_invalid": "凭据无效",
+      "degraded": "降级"
     },
     "ssl": {
       "oneWay": "单向 SSL",
@@ -1380,7 +1379,9 @@
       "updated": "更新时间"
     },
     "lastCheckedSources": {
-      "liveAvailability": "实时可用性检查"
+      "liveAvailability": "实时可用性检查",
+      "liveReachability": "实时可达性检查",
+      "scheduledMonitor": "定时监控检查"
     },
     "actions": {
       "enable": "启用",

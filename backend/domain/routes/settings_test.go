@@ -648,7 +648,7 @@ func TestSettingsEntryPatchPersistsUnifiedValues(t *testing.T) {
 		t.Fatalf("expected factsPullIntervalMinutes 8, got %d", got)
 	}
 
-	monitorPolicyBody := `{"metricsFreshnessLookbackSeconds":600,"metricsStaleSeconds":120,"metricsMissingSeconds":240,"controlProbeTimeoutSeconds":10,"factsPullTimeoutSeconds":30,"runtimePullTimeoutSeconds":40,"factsPullConcurrency":6,"runtimePullConcurrency":7}`
+	monitorPolicyBody := `{"reachabilityProbeTimeoutMs":1500,"metricsFreshnessLookbackSeconds":600,"metricsStaleSeconds":120,"metricsMissingSeconds":240,"controlProbeTimeoutSeconds":10,"factsPullTimeoutSeconds":30,"runtimePullTimeoutSeconds":40,"factsPullConcurrency":6,"runtimePullConcurrency":7}`
 	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/monitor-policy", monitorPolicyBody, true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 for monitor-policy patch, got %d: %s", rec.Code, rec.Body.String())
@@ -659,6 +659,9 @@ func TestSettingsEntryPatchPersistsUnifiedValues(t *testing.T) {
 	}
 	if got := sysconfig.Int(storedMonitorPolicy, "metricsMissingSeconds", 0); got != 240 {
 		t.Fatalf("expected metricsMissingSeconds 240, got %d", got)
+	}
+	if got := sysconfig.Int(storedMonitorPolicy, "reachabilityProbeTimeoutMs", 0); got != 1500 {
+		t.Fatalf("expected reachabilityProbeTimeoutMs 1500, got %d", got)
 	}
 
 	monitorPlatformSelfObservationBody := `{"platformObserverIntervalSeconds":30,"platformSchedulerStaleThresholdSeconds":20,"enableHostTelemetry":true,"enableContainerTelemetry":true}`

@@ -24,10 +24,11 @@ import (
 )
 
 const componentsInventoryCronJobID = "appos_components_inventory_probe"
-const monitorReachabilityCronJobID = "monitor_reachability_checks"
+const monitorInstanceReachabilityCronJobID = "monitor_instance_reachability_checks"
+const monitorAIProviderReachabilityCronJobID = "monitor_ai_provider_reachability_checks"
 const monitorConnectorReachabilityCronJobID = "monitor_connector_reachability_checks"
 const monitorMetricsFreshnessCronJobID = "monitor_metrics_freshness"
-const monitorControlReachabilityCronJobID = "monitor_control_reachability"
+const monitorServerReachabilityCronJobID = "monitor_server_reachability_checks"
 const monitorFactsPullCronJobID = "monitor_facts_pull"
 const monitorRuntimeSnapshotPullCronJobID = "monitor_runtime_snapshot_pull"
 const monitorCredentialCronJobID = "monitor_credential_checks"
@@ -88,13 +89,26 @@ func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 	}
 
 	app.Cron().MustAdd(
-		monitorReachabilityCronJobID,
+		monitorInstanceReachabilityCronJobID,
 		"*/1 * * * *",
-		cronutil.Wrap(app, monitorReachabilityCronJobID, func() {
+		cronutil.Wrap(app, monitorInstanceReachabilityCronJobID, func() {
 			if !shouldRunMonitorInterval(time.Now().UTC(), monitor.LoadSchedulingSettings(app).ReachabilityIntervalMinutes) {
 				return
 			}
 			if err := worker.EnqueueMonitorReachabilitySweep(asynqClient); err != nil {
+				panic(err)
+			}
+		}),
+	)
+
+	app.Cron().MustAdd(
+		monitorAIProviderReachabilityCronJobID,
+		"*/1 * * * *",
+		cronutil.Wrap(app, monitorAIProviderReachabilityCronJobID, func() {
+			if !shouldRunMonitorInterval(time.Now().UTC(), monitor.LoadSchedulingSettings(app).ReachabilityIntervalMinutes) {
+				return
+			}
+			if err := worker.EnqueueMonitorAIProviderReachabilitySweep(asynqClient); err != nil {
 				panic(err)
 			}
 		}),
@@ -127,9 +141,9 @@ func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 	)
 
 	app.Cron().MustAdd(
-		monitorControlReachabilityCronJobID,
+		monitorServerReachabilityCronJobID,
 		"*/1 * * * *",
-		cronutil.Wrap(app, monitorControlReachabilityCronJobID, func() {
+		cronutil.Wrap(app, monitorServerReachabilityCronJobID, func() {
 			if !shouldRunMonitorInterval(time.Now().UTC(), monitor.LoadSchedulingSettings(app).ControlReachabilityIntervalMinutes) {
 				return
 			}

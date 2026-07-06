@@ -2,5 +2,5 @@
   "id": "generic-influxdb",
   "title": "Generic InfluxDB",
   "description": "InfluxDB-compatible time-series database dependency.",
-  "defaultEndpoint": "https://influxdb.internal:8086"
+  "defaultEndpoint": "https://influxdb.yourhost.com:8086"
 }

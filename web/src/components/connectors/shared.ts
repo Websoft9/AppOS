@@ -1,4 +1,4 @@
-import { createElement, useState } from 'react'
+import { createElement } from 'react'
 import { pb } from '@/lib/pb'
 import {
   cloneConfig,
@@ -13,14 +13,11 @@ import type {
   ResourceTemplateField,
 } from '@/lib/resource-types'
 import type { FieldDef } from '@/components/resources/ResourcePage'
-import { ReferenceSelect } from '@/components/resources/ReferenceSelect'
 import { renderBooleanSwitchField } from '@/components/resources/resource-status'
 import { SecretCredentialField } from '@/components/secrets/SecretCredentialField'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { type ResourceSecretVisibleTo } from '@/components/secrets/SecretVisibilityField'
 import { buildUserVisibleSecretRelationApiPath as buildSharedUserVisibleSecretRelationApiPath } from '@/components/secrets/resource-secret-relations'
-import { Pencil, X } from 'lucide-react'
 
 export type ConnectorRecord = AccessResourceRecord
 
@@ -76,99 +73,33 @@ function secretFieldInlineValueKey(fieldID: string) {
 
 function InlineSecretEditorField({
   inputId,
-  referenceValue,
-  referenceOptions,
-  inlineEditing,
   inlineValue,
-  onReferenceValueChange,
-  onStartInlineEdit,
   onInlineValueChange,
-  onCancelInlineEdit,
 }: {
   inputId: string
-  referenceValue: string
-  referenceOptions: Array<{ id: string; label: string }>
-  inlineEditing: boolean
   inlineValue: string
-  onReferenceValueChange: (value: string) => void
-  onStartInlineEdit: () => void
   onInlineValueChange: (value: string) => void
-  onCancelInlineEdit: () => void
 }) {
-  const [referencePickerOpen, setReferencePickerOpen] = useState(false)
-
-  if (inlineEditing) {
-    return createElement(
-      'div',
-      { className: 'space-y-1.5' },
-      createElement(
-        'div',
-        { className: 'flex items-center gap-2' },
-        createElement(Input, {
-          id: inputId,
-          type: 'password',
-          value: inlineValue,
-          onChange: (event: { target: { value: string } }) =>
-            onInlineValueChange(event.target.value),
-          placeholder: 'Enter a new secret value to update the current secret',
-          autoFocus: true,
-        }),
-        createElement(
-          Button,
-          {
-            type: 'button',
-            variant: 'ghost',
-            size: 'icon',
-            title: 'Cancel secret edit',
-            onClick: onCancelInlineEdit,
-          },
-          createElement(X, { className: 'h-3.5 w-3.5' })
-        )
-      ),
-      createElement(
-        'div',
-        { className: 'text-xs text-muted-foreground' },
-        'Saving this external service will update the current secret value in place.'
-      )
-    )
-  }
-
   return createElement(
     'div',
-    { className: 'flex flex-wrap items-start gap-3' },
+    { className: 'space-y-1.5' },
     createElement(
       'div',
-      { className: 'min-w-[220px] flex-1' },
-      createElement(ReferenceSelect, {
-        id: `${inputId}-reference`,
-        value: referenceValue,
-        options: referenceOptions,
-        onSelect: value => {
-          onReferenceValueChange(value)
-          onCancelInlineEdit()
-        },
-        placeholder: 'Select a Secret',
-        searchPlaceholder: 'Search secrets...',
-        emptyMessage: 'No matching secrets.',
-        showNoneOption: false,
-        borderlessMenu: true,
-        onOpenChange: setReferencePickerOpen,
+      { className: 'flex items-center gap-2' },
+      createElement(Input, {
+        id: inputId,
+        type: 'password',
+        value: inlineValue,
+        onChange: (event: { target: { value: string } }) => onInlineValueChange(event.target.value),
+        placeholder: 'Leave blank to keep the current secret value',
+        autoFocus: true,
       })
     ),
-    referenceValue
-      ? createElement(
-          Button,
-          {
-            type: 'button',
-            variant: 'ghost',
-            size: 'icon',
-            className: `h-10 w-10 shrink-0 ${referencePickerOpen ? 'self-start' : 'self-center'}`,
-            title: 'Edit Secret',
-            onClick: onStartInlineEdit,
-          },
-          createElement(Pencil, { className: 'h-3.5 w-3.5' })
-        )
-      : null
+    createElement(
+      'div',
+      { className: 'text-xs text-muted-foreground' },
+      'Leave this field blank to keep the current secret. Saving this external service will update the current secret value in place when a new value is provided.'
+    )
   )
 }
 
@@ -469,7 +400,6 @@ export function normalizeConnectorEndpointValue(
 export function mapTemplateFieldToResourceField(
   template: ConnectorTemplate,
   field: ConnectorTemplateField,
-  openSecretDialog: (callbacks: { addOption: (id: string, label: string) => void }) => void,
   t?: Translate
 ): FieldDef {
   if (field.type === 'select') {
@@ -491,46 +421,21 @@ export function mapTemplateFieldToResourceField(
     return {
       key: field.id,
       label: field.label,
-      type: 'relation',
+      type: 'text',
       required: field.required,
-      relationApiPath: buildUserVisibleSecretRelationApiPath('connector', field.secretTemplate),
-      relationFormatLabel: raw => formatSecretLabel(raw),
       showWhen: field.showWhen,
       render: ({
         inputId,
         formData,
         editingItem,
         updateField,
-        relationOptions,
-        addRelationOption,
       }) => {
-        const referenceValue = String(formData[field.id] ?? '')
-        const useSecretValue = formData[secretFieldUseSecretKey(field.id)]
-        const useSecret =
-          typeof useSecretValue === 'boolean' ? useSecretValue : referenceValue.trim() !== ''
-
         if (editingItem) {
           return createElement(InlineSecretEditorField, {
             inputId,
-            referenceValue,
-            referenceOptions: relationOptions,
-            inlineEditing: Boolean(formData[secretFieldEditModeKey(field.id)]),
             inlineValue: String(formData[secretFieldInlineValueKey(field.id)] ?? ''),
-            onReferenceValueChange: (value: string) => {
-              updateField(field.id, value)
-              updateField(secretFieldEditModeKey(field.id), false)
-              updateField(secretFieldInlineValueKey(field.id), '')
-            },
-            onStartInlineEdit: () => {
-              updateField(secretFieldEditModeKey(field.id), true)
-              updateField(secretFieldInlineValueKey(field.id), '')
-            },
             onInlineValueChange: (value: string) => {
               updateField(secretFieldInlineValueKey(field.id), value)
-            },
-            onCancelInlineEdit: () => {
-              updateField(secretFieldEditModeKey(field.id), false)
-              updateField(secretFieldInlineValueKey(field.id), '')
             },
           })
         }
@@ -546,27 +451,11 @@ export function mapTemplateFieldToResourceField(
             updateField(secretFieldInlineValueKey(field.id), value)
             updateField(secretFieldManualValueKey(field.id), value)
           },
-          useReference: useSecret,
-          onUseReferenceChange: checked => {
-            updateField(secretFieldUseSecretKey(field.id), checked)
-            updateField(secretFieldEditModeKey(field.id), true)
-            if (!checked) {
-              updateField(field.id, '')
-            }
-          },
-          referenceValue,
-          onReferenceValueChange: value => updateField(field.id, value),
-          options: relationOptions,
-          onCreateReference: () => {
-            openSecretDialog({
-              addOption: (id, label) => {
-                addRelationOption(id, label)
-                updateField(secretFieldEditModeKey(field.id), true)
-                updateField(secretFieldUseSecretKey(field.id), true)
-                updateField(field.id, id)
-              },
-            })
-          },
+          useReference: false,
+          onUseReferenceChange: () => {},
+          referenceValue: '',
+          onReferenceValueChange: () => {},
+          options: [],
           editMode: false,
           manualPlaceholder: translateOrFallback(
             t,
@@ -576,8 +465,7 @@ export function mapTemplateFieldToResourceField(
           showLabel: translateOrFallback(t, 'connectors.secret.show', 'Show secret'),
           hideLabel: translateOrFallback(t, 'connectors.secret.hide', 'Hide secret'),
           allowGenerate: false,
-          referenceToggleMode: 'icon',
-          editReferenceMode: 'icon',
+          allowReference: false,
         })
       },
     }
@@ -683,13 +571,9 @@ async function createSecretForConnectorField(
   t?: Translate
 ) {
   const manualValue = String(payload[secretFieldManualValueKey(field.id)] ?? '').trim()
-  const useReferenceValue = payload[secretFieldUseSecretKey(field.id)]
-  const useReference =
-    typeof useReferenceValue === 'boolean'
-      ? useReferenceValue
-      : String(payload[field.id] ?? '').trim() !== ''
+  const secretId = String(payload[field.id] ?? '').trim()
 
-  if (!useReference && manualValue) {
+  if (!secretId && manualValue) {
     const connectorName = String(payload.name ?? '').trim()
     const secret = await pb.collection('secrets').create({
       name: `${slugifyNamePart(connectorName || template.title || 'external-service') || 'external-service'}-${slugifyNamePart(field.id) || 'secret'}`,
@@ -874,11 +758,11 @@ export function mapConnectorRow(
   let reachabilityReason = ''
   let reachabilityLastCheckedAt = ''
   if (monitorStatus === 'healthy') {
-    reachability = translateConnectorLabel(t, 'connectors.status.reachable', 'Reachable')
+    reachability = 'reachable'
   } else if (monitorStatus === 'unreachable') {
-    reachability = translateConnectorLabel(t, 'connectors.status.unreachable', 'Unreachable')
+    reachability = 'unreachable'
   } else if (monitorStatus) {
-    reachability = translateConnectorLabel(t, 'connectors.status.unknown', 'Unknown')
+    reachability = 'unknown'
   }
   reachabilityReason = String(monitor?.reason ?? '')
   reachabilityLastCheckedAt = String(monitor?.last_checked_at ?? '')
@@ -917,10 +801,4 @@ export function mapConnectorRow(
     reachability_last_checked_at: reachabilityLastCheckedAt,
     ...flattenedConfig,
   }
-}
-
-function translateConnectorLabel(t: Translate | undefined, key: string, fallback: string): string {
-  if (!t) return fallback
-  const value = t(key)
-  return value === key ? fallback : value
 }

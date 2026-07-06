@@ -1,12 +1,20 @@
 {
   "kind": "redis-compatible",
   "category": "cache",
-  "endpointShape": "url",
+  "layoutPreset": "database_connection",
+  "endpointShape": "host_port",
   "defaultPort": 6379,
   "defaultProtocolHint": "redis",
   "credentialPresentation": "secret_or_inline",
   "credentialLabel": "password",
   "fields": [
+    {
+      "id": "username",
+      "label": "Username",
+      "type": "text",
+      "default": "default",
+      "placeholder": "appuser"
+    },
     {
       "id": "database",
       "label": "Database Index",

@@ -8,8 +8,6 @@ const SERVICE_INSTANCE_SECRET_PATH =
 
 const sendMock = vi.fn()
 const createSecretMock = vi.fn()
-const getSecretMock = vi.fn()
-const updateSecretMock = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute:
@@ -134,10 +132,10 @@ vi.mock('react-i18next', () => ({
         'serviceInstances.columns.lastChecked': 'Last Checked',
         'serviceInstances.columns.created': 'Created',
         'serviceInstances.columns.updated': 'Updated',
-        'serviceInstances.monitor.unknown': 'Unknown',
-        'serviceInstances.monitor.status.healthy': 'Healthy',
+        'serviceInstances.status.unknown': 'Unknown',
+        'serviceInstances.status.reachable': 'Reachable',
         'serviceInstances.monitor.status.offline': 'Offline',
-        'serviceInstances.monitor.status.unreachable': 'Unreachable',
+        'serviceInstances.status.unreachable': 'Unreachable',
         'serviceInstances.monitor.status.credential_invalid': 'Credential Invalid',
         'serviceInstances.monitor.status.degraded': 'Degraded',
         'serviceInstances.ssl.oneWay': 'One-way SSL',
@@ -193,8 +191,6 @@ vi.mock('@/lib/pb', () => ({
       }
       return {
         create: (...args: unknown[]) => createSecretMock(...args),
-        getOne: (...args: unknown[]) => getSecretMock(...args),
-        update: (...args: unknown[]) => updateSecretMock(...args),
       }
     },
   },
@@ -253,6 +249,7 @@ function buildMySQLTemplate() {
     category: 'database',
     kind: 'mysql-compatible',
     title: 'Generic MySQL',
+    defaultEndpoint: 'mysql.yourhost.com:3306',
     layoutPreset: 'database_connection',
     endpointShape: 'host_port',
     defaultPort: 3306,
@@ -305,6 +302,7 @@ function buildPostgresTemplate() {
     category: 'database',
     kind: 'postgres-compatible',
     title: 'Generic PostgreSQL',
+    defaultEndpoint: 'postgres.yourhost.com:5432',
     layoutPreset: 'database_connection',
     endpointShape: 'host_port',
     defaultPort: 5432,
@@ -360,7 +358,7 @@ function buildDefaultInstanceTemplatesFixture() {
       category: 'database',
       kind: 'mongodb-compatible',
       title: 'Generic MongoDB',
-      defaultEndpoint: 'mongodb://mongo.internal:27017',
+      defaultEndpoint: 'mongodb://mongo.yourhost.com:27017',
       layoutPreset: 'database_connection',
       endpointShape: 'host_port',
       defaultPort: 27017,
@@ -416,7 +414,7 @@ function buildDefaultInstanceTemplatesFixture() {
       category: 'database',
       kind: 'clickhouse-compatible',
       title: 'Generic ClickHouse',
-      defaultEndpoint: 'https://clickhouse.internal:8123',
+      defaultEndpoint: 'https://clickhouse.yourhost.com:8123',
       layoutPreset: 'database_connection',
       endpointShape: 'host_port',
       defaultPort: 8123,
@@ -460,7 +458,7 @@ function buildDefaultInstanceTemplatesFixture() {
       category: 'database',
       kind: 'neo4j-compatible',
       title: 'Generic Neo4j',
-      defaultEndpoint: 'neo4j://neo4j.internal:7687',
+      defaultEndpoint: 'neo4j://neo4j.yourhost.com:7687',
       layoutPreset: 'database_connection',
       endpointShape: 'host_port',
       defaultPort: 7687,
@@ -504,7 +502,7 @@ function buildDefaultInstanceTemplatesFixture() {
       category: 'database',
       kind: 'influxdb-compatible',
       title: 'Generic InfluxDB',
-      defaultEndpoint: 'https://influxdb.internal:8086',
+      defaultEndpoint: 'https://influxdb.yourhost.com:8086',
       layoutPreset: 'database_connection',
       endpointShape: 'host_port',
       defaultPort: 8086,
@@ -548,7 +546,7 @@ function buildDefaultInstanceTemplatesFixture() {
       category: 'cache',
       kind: 'redis-compatible',
       title: 'Generic Redis',
-      defaultEndpoint: 'redis.internal:6379',
+      defaultEndpoint: 'redis.yourhost.com:6379',
       endpointShape: 'url',
       defaultPort: 6379,
       defaultProtocolHint: 'redis',
@@ -569,7 +567,7 @@ function buildDefaultInstanceTemplatesFixture() {
       kind: 'elasticsearch-compatible',
       title: 'Generic Elasticsearch',
       vendor: 'OpenSearch',
-      defaultEndpoint: 'https://elasticsearch.internal:9200',
+      defaultEndpoint: 'https://elasticsearch.yourhost.com:9200',
       endpointShape: 'url',
       defaultPort: 9200,
       defaultProtocolHint: 'https',
@@ -586,7 +584,7 @@ function buildDefaultInstanceTemplatesFixture() {
       kind: 'kafka-compatible',
       title: 'Generic Kafka',
       vendor: 'Redpanda',
-      defaultEndpoint: 'kafka.internal:9092',
+      defaultEndpoint: 'kafka.yourhost.com:9092',
       endpointShape: 'url',
       defaultPort: 9092,
       defaultProtocolHint: 'kafka',
@@ -618,7 +616,7 @@ function buildDefaultInstanceTemplatesFixture() {
       category: 'message-queue',
       kind: 'amqp-compatible',
       title: 'Generic RabbitMQ',
-      defaultEndpoint: 'amqp://rabbitmq.internal:5672',
+      defaultEndpoint: 'amqp://rabbitmq.yourhost.com:5672',
       endpointShape: 'url',
       defaultPort: 5672,
       defaultProtocolHint: 'amqp',
@@ -640,7 +638,7 @@ function buildDefaultInstanceTemplatesFixture() {
       category: 'message-queue',
       kind: 'nats-compatible',
       title: 'Generic NATS',
-      defaultEndpoint: 'nats://nats.internal:4222',
+      defaultEndpoint: 'nats://nats.yourhost.com:4222',
       endpointShape: 'url',
       defaultPort: 4222,
       defaultProtocolHint: 'nats',
@@ -653,7 +651,7 @@ function buildDefaultInstanceTemplatesFixture() {
       category: 'message-queue',
       kind: 'mqtt-compatible',
       title: 'Generic MQTT',
-      defaultEndpoint: 'mqtt://broker.internal:1883',
+      defaultEndpoint: 'mqtt://broker.yourhost.com:1883',
       endpointShape: 'url',
       defaultPort: 1883,
       defaultProtocolHint: 'mqtt',
@@ -669,7 +667,7 @@ function buildDefaultInstanceTemplatesFixture() {
       category: 'storage',
       kind: 's3-compatible',
       title: 'Generic S3',
-      defaultEndpoint: 'https://s3.example.com',
+      defaultEndpoint: 'https://s3.yourhost.com',
       endpointShape: 'url',
       defaultPort: 443,
       defaultProtocolHint: 'https',
@@ -699,7 +697,7 @@ function buildDefaultInstanceTemplatesFixture() {
       category: 'application-service',
       kind: 'onlyoffice-compatible',
       title: 'Generic ONLYOFFICE',
-      defaultEndpoint: 'https://onlyoffice.internal',
+      defaultEndpoint: 'https://onlyoffice.yourhost.com',
       endpointShape: 'url',
       defaultPort: 443,
       defaultProtocolHint: 'https',
@@ -734,16 +732,7 @@ describe('ServiceInstancesPage', () => {
   beforeEach(() => {
     sendMock.mockReset()
     createSecretMock.mockReset()
-    getSecretMock.mockReset()
-    updateSecretMock.mockReset()
     createSecretMock.mockResolvedValue({ id: 'secret-created' })
-    getSecretMock.mockResolvedValue({
-      id: 'secret-1',
-      name: 'db-password',
-      description: 'existing description',
-      template_id: 'single_value',
-    })
-    updateSecretMock.mockResolvedValue({ id: 'secret-1' })
 
     sendMock.mockImplementation(
       (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
@@ -878,22 +867,12 @@ describe('ServiceInstancesPage', () => {
     expect(screen.getByLabelText(/^Password/)).toBeInTheDocument()
     expect(screen.getByTitle('Show password')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Search secrets...')).not.toBeInTheDocument()
+    expect(screen.queryByTitle('Use a saved secret')).not.toBeInTheDocument()
     expect(screen.getByLabelText(/^Host/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Port/)).toBeInTheDocument()
     expect(screen.queryByText('Selected Product')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByTitle('Use a saved secret'))
-    expect(screen.getByPlaceholderText('Search secrets...')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument()
-
-    await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith(SERVICE_INSTANCE_SECRET_PATH, {})
-    })
-
-    expect(sendMock).not.toHaveBeenCalledWith(
-      '/api/collections/secrets/records?perPage=500&sort=name',
-      {}
-    )
 
     expect(screen.queryByLabelText('Platform Account')).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/^Connection Timeout/)).not.toBeInTheDocument()
@@ -1009,14 +988,17 @@ describe('ServiceInstancesPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
     expect(screen.getByText('Force Path-Style Addressing')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Enter password')).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Credential/)).toBeInTheDocument()
 
+    fireEvent.change(screen.getByLabelText(/^Endpoint/), {
+      target: { value: 'https://s3.yourhost.com' },
+    })
     fireEvent.change(screen.getByLabelText(/^Access Key ID/), {
       target: { value: 'APPOSACCESSKEY' },
     })
     fireEvent.change(screen.getByLabelText(/^Bucket/), { target: { value: 'assets' } })
     fireEvent.change(screen.getByLabelText(/^Region/), { target: { value: 'us-east-1' } })
-    fireEvent.change(screen.getByPlaceholderText('Enter password'), {
+    fireEvent.change(screen.getByLabelText(/^Credential/), {
       target: { value: 'secret-key' },
     })
     fireEvent.click(screen.getByText('Force Path-Style Addressing'))
@@ -1058,7 +1040,7 @@ describe('ServiceInstancesPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
     expect(screen.getByLabelText(/^JWT Header/)).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Enter password')).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Credential/)).toBeInTheDocument()
     const callbackPathInput = (await screen.findByLabelText(
       /Callback Path|Backend Callback Path Label/
     )) as HTMLInputElement
@@ -1067,11 +1049,11 @@ describe('ServiceInstancesPage', () => {
     )) as HTMLInputElement
 
     fireEvent.change(screen.getByLabelText(/^Endpoint/), {
-      target: { value: 'https://onlyoffice.internal' },
+      target: { value: 'https://onlyoffice.yourhost.com' },
     })
     fireEvent.change(callbackPathInput, { target: { value: '/track' } })
     fireEvent.change(documentPathInput, { target: { value: '/healthcheck' } })
-    fireEvent.change(screen.getByPlaceholderText('Enter password'), {
+    fireEvent.change(screen.getByLabelText(/^Credential/), {
       target: { value: 'jwt-secret' },
     })
     fireEvent.change(screen.getByLabelText(/^JWT Header/), {
@@ -1087,7 +1069,7 @@ describe('ServiceInstancesPage', () => {
           body: expect.objectContaining({
             kind: 'onlyoffice-compatible',
             template_id: 'generic-onlyoffice',
-            endpoint: 'https://onlyoffice.internal',
+            endpoint: 'https://onlyoffice.yourhost.com',
             credential: 'secret-created',
             config: expect.objectContaining({
               callbackPath: '/track',
@@ -1135,7 +1117,7 @@ describe('ServiceInstancesPage', () => {
                 target_id: 'instance-1',
                 status: 'unreachable',
                 reason: 'dial tcp 127.0.0.1:6379: connect: connection refused',
-                last_checked_at: '2026-04-11T10:00:00Z',
+                last_checked_at: '2099-04-11T10:00:00Z',
               },
             ],
           })
@@ -1163,9 +1145,16 @@ describe('ServiceInstancesPage', () => {
     })
 
     expect(screen.getByText('Unreachable')).toBeInTheDocument()
-    expect(screen.getByText('2026-04-11 10:00')).toBeInTheDocument()
+  expect(screen.getByText('2099-04-11 10:00')).toBeInTheDocument()
     expect(screen.queryByText('Created')).not.toBeInTheDocument()
     expect(screen.queryByText('Updated')).not.toBeInTheDocument()
+    expect(
+      sendMock.mock.calls.some(
+        ([path, options]) => path === '/api/instances/reachability' && options?.method === 'POST'
+      )
+    ).toBe(false)
+
+    fireEvent.click(screen.getByTitle('Refresh'))
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/instances/reachability', {
@@ -1177,14 +1166,11 @@ describe('ServiceInstancesPage', () => {
     fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }))
     fireEvent.click(await screen.findByText('Edit'))
 
-    await waitFor(() => {
-      expect(screen.getByText('db-password')).toBeInTheDocument()
-    })
-
     expect(screen.queryByPlaceholderText('Search secrets...')).not.toBeInTheDocument()
-    expect(screen.queryByTitle('Show password')).not.toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Leave blank to keep the current secret value')).toBeInTheDocument()
+    expect(screen.getByTitle('Show password')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Edit secret' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit secret' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
     expect(screen.getByLabelText('One-way SSL')).toBeChecked()
@@ -1273,32 +1259,34 @@ describe('ServiceInstancesPage', () => {
     await screen.findByText('MySQL-Compatible')
     clickChooserOption('MySQL-Compatible')
 
-    fireEvent.click(screen.getByTitle('Use a saved secret'))
-    fireEvent.click(screen.getByRole('button', { name: 'New Secret' }))
-
-    expect(
-      await screen.findByText(
-        'Create a reusable password secret and attach it to this service instance.'
-      )
-    ).toBeInTheDocument()
-
-    fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'mysql-prod-password' } })
-    fireEvent.change(screen.getByLabelText('Value *'), { target: { value: 's3cr3t' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Create Credential' }))
+    expect(screen.queryByTitle('Use a saved secret')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 's3cr3t' } })
+    fireEvent.change(screen.getByLabelText(/^Host/), { target: { value: 'db.internal' } })
+    fireEvent.change(screen.getByLabelText(/^Port/), { target: { value: '3306' } })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Create' }).at(-1) as HTMLElement)
 
     await waitFor(() => {
-      expect(createSecretMock).toHaveBeenCalledWith({
-        name: 'mysql-prod-password',
-        description: '',
-        template_id: 'single_value',
-        scope: 'global',
-        visible_to: ['service_instance'],
-        payload: { value: 's3cr3t' },
-      })
+      expect(createSecretMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          template_id: 'single_value',
+          scope: 'global',
+          visible_to: ['service_instance'],
+          payload: { value: 's3cr3t' },
+        })
+      )
     })
   })
 
   it('overlays live reachability results on top of cached monitor status', async () => {
+    let cachedStatuses = [
+      {
+        target_id: 'instance-live',
+        status: 'unreachable',
+        reason: 'cached failure',
+        last_checked_at: '2099-04-11T10:00:00Z',
+      },
+    ]
+
     sendMock.mockImplementation(
       (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
         if (path === '/api/instances/templates') {
@@ -1322,22 +1310,108 @@ describe('ServiceInstancesPage', () => {
               name: 'redis-live',
               kind: 'redis-compatible',
               template_id: 'generic-redis',
-              endpoint: 'redis.internal:6379',
+              endpoint: 'redis.yourhost.com:6379',
               config: {},
             },
           ])
         }
         if (path.startsWith('/api/collections/monitor_latest_status/records?')) {
           return Promise.resolve({
-            items: [
-              {
-                target_id: 'instance-live',
-                status: 'unreachable',
-                reason: 'cached failure',
-                last_checked_at: '2026-04-11T10:00:00Z',
-              },
-            ],
+            items: cachedStatuses,
           })
+        }
+        if (path === '/api/settings/entries/monitor/scheduling') {
+          return Promise.resolve({ id: 'monitor/scheduling', value: { reachabilityIntervalMinutes: 10 } })
+        }
+        if (path === '/api/instances/reachability' && options?.method === 'POST') {
+          cachedStatuses = [
+            {
+              target_id: 'instance-live',
+              status: 'healthy',
+              reason: '',
+              last_checked_at: '2099-04-11T10:05:00Z',
+            },
+          ]
+          return Promise.resolve([
+            {
+              id: 'instance-live',
+              status: 'online',
+              checked_at: '2099-04-11T10:05:00Z',
+            },
+          ])
+        }
+        if (path === '/api/provider-accounts') {
+          return Promise.resolve([])
+        }
+        if (path === SERVICE_INSTANCE_SECRET_PATH) {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === "/api/collections/certificates/records?filter=(status='active')&sort=name") {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === '/api/secrets/templates') {
+          return Promise.resolve([])
+        }
+        return Promise.resolve([])
+      }
+    )
+
+    render(<ServiceInstancesPage />)
+
+    expect(await screen.findByText('redis-live')).toBeInTheDocument()
+    expect(screen.getByText('Unreachable')).toBeInTheDocument()
+    expect(screen.getByText('2099-04-11 10:00')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTitle('Refresh'))
+
+    expect(await screen.findByText('Reachable')).toBeInTheDocument()
+    expect(screen.getByText('2099-04-11 10:05')).toBeInTheDocument()
+
+    cleanup()
+    render(<ServiceInstancesPage />)
+
+    expect(await screen.findByText('redis-live')).toBeInTheDocument()
+    expect(screen.getByText('Reachable')).toBeInTheDocument()
+    expect(screen.getByText('2099-04-11 10:05')).toBeInTheDocument()
+  })
+
+  it('silently probes unknown instances on first load and converges from unknown', async () => {
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+        if (path === '/api/instances/templates') {
+          return Promise.resolve([
+            {
+              id: 'generic-redis',
+              category: 'cache',
+              kind: 'redis-compatible',
+              title: 'Generic Redis',
+              endpointShape: 'url',
+              credentialPresentation: 'secret_or_inline',
+              credentialLabel: 'password',
+              fields: [],
+            },
+          ])
+        }
+        if (path === '/api/instances' && (!options?.method || options.method === 'GET')) {
+          return Promise.resolve([
+            {
+              id: 'instance-live',
+              name: 'redis-live',
+              kind: 'redis-compatible',
+              template_id: 'generic-redis',
+              endpoint: 'redis.yourhost.com:6379',
+              config: {},
+            },
+          ])
+        }
+        if (path.startsWith('/api/collections/monitor_latest_status/records?')) {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === '/api/settings/entries/monitor/scheduling') {
+          return Promise.resolve({ id: 'monitor/scheduling', value: { reachabilityIntervalMinutes: 1 } })
         }
         if (path === '/api/instances/reachability' && options?.method === 'POST') {
           return Promise.resolve([
@@ -1370,8 +1444,13 @@ describe('ServiceInstancesPage', () => {
     render(<ServiceInstancesPage />)
 
     expect(await screen.findByText('redis-live')).toBeInTheDocument()
-    expect(await screen.findByText('Healthy')).toBeInTheDocument()
+    expect(await screen.findByText('Reachable')).toBeInTheDocument()
     expect(screen.getByText('2026-04-11 10:05')).toBeInTheDocument()
+    expect(
+      sendMock.mock.calls.some(
+        ([path, options]) => String(path) === '/api/instances/reachability' && options?.method === 'POST'
+      )
+    ).toBe(true)
   })
 
   it('edits an existing secret inline without navigating away', async () => {
@@ -1379,15 +1458,6 @@ describe('ServiceInstancesPage', () => {
       (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
         if (path === '/api/instances/templates') {
           return Promise.resolve([buildMySQLTemplate()])
-        }
-        if (path === '/api/secrets/templates') {
-          return Promise.resolve([
-            {
-              id: 'single_value',
-              label: 'Single Value',
-              fields: [{ key: 'value', label: 'Value', type: 'password', required: true }],
-            },
-          ])
         }
         if (path === '/api/instances' && (!options?.method || options.method === 'GET')) {
           return Promise.resolve([
@@ -1423,6 +1493,9 @@ describe('ServiceInstancesPage', () => {
         if (path === "/api/collections/certificates/records?filter=(status='active')&sort=name") {
           return Promise.resolve({ items: [] })
         }
+        if (path === '/api/instances/instance-1' && options?.method === 'PUT') {
+          return Promise.resolve({ ok: true })
+        }
         if (path === '/api/secrets/secret-1/payload') {
           return Promise.resolve({ ok: true })
         }
@@ -1439,34 +1512,10 @@ describe('ServiceInstancesPage', () => {
     fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }))
     fireEvent.click(await screen.findByText('Edit'))
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Edit secret' })).toBeInTheDocument()
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Edit secret' }))
-
-    expect(
-      await screen.findByText(
-        'Update the selected Secret without leaving service instance editing.'
-      )
-    ).toBeInTheDocument()
-    expect(getSecretMock).toHaveBeenCalledWith('secret-1')
-
-    fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'db-password-updated' } })
-    fireEvent.change(screen.getByLabelText('Description'), {
-      target: { value: 'updated description' },
-    })
-    fireEvent.change(await screen.findByLabelText('Value *'), {
+    fireEvent.change(await screen.findByPlaceholderText('Leave blank to keep the current secret value'), {
       target: { value: 'new-secret-value' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Save Secret' }))
-
-    await waitFor(() => {
-      expect(updateSecretMock).toHaveBeenCalledWith('secret-1', {
-        name: 'db-password-updated',
-        description: 'updated description',
-      })
-    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/secrets/secret-1/payload', {
@@ -1476,9 +1525,16 @@ describe('ServiceInstancesPage', () => {
     })
 
     await waitFor(() => {
-      expect(
-        screen.queryByText('Update the selected Secret without leaving service instance editing.')
-      ).not.toBeInTheDocument()
+      expect(sendMock).toHaveBeenCalledWith(
+        '/api/instances/instance-1',
+        expect.objectContaining({
+          method: 'PUT',
+          body: expect.objectContaining({
+            credential: 'secret-1',
+            template_id: 'generic-mysql',
+          }),
+        })
+      )
     })
   }, 15000)
 
@@ -1523,7 +1579,7 @@ describe('ServiceInstancesPage', () => {
     })
   })
 
-  it('reuses the password-or-secret credential flow for redis and kafka kinds', async () => {
+  it('uses direct password fields for redis and kafka kinds', async () => {
     render(<ServiceInstancesPage />)
 
     await waitFor(() => {
@@ -1537,12 +1593,7 @@ describe('ServiceInstancesPage', () => {
 
     expect(await screen.findByLabelText(/^Password/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByTitle('Use a saved secret'))
-    expect(screen.getByPlaceholderText('Search secrets...')).toBeInTheDocument()
-
-    await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith(SERVICE_INSTANCE_SECRET_PATH, {})
-    })
+    expect(screen.queryByTitle('Use a saved secret')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
@@ -1552,16 +1603,6 @@ describe('ServiceInstancesPage', () => {
 
     expect(await screen.findByLabelText(/^Password/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByTitle('Use a saved secret'))
-    expect(screen.getByPlaceholderText('Search secrets...')).toBeInTheDocument()
-
-    await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith(SERVICE_INSTANCE_SECRET_PATH, {})
-    })
-
-    expect(sendMock).not.toHaveBeenCalledWith(
-      '/api/collections/secrets/records?perPage=500&sort=name',
-      {}
-    )
+    expect(screen.queryByTitle('Use a saved secret')).not.toBeInTheDocument()
   }, 15000)
 })

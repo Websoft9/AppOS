@@ -2,6 +2,14 @@ import { Power, PowerOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Column } from './resource-page-types'
 
+export type CanonicalReachabilityStatus = 'reachable' | 'unreachable' | 'unknown'
+
+type ReachabilityLabels = {
+  reachable: string
+  unreachable: string
+  unknown: string
+}
+
 type ResolveEnabled = (value: unknown) => boolean
 
 type EnabledStatusColumnOptions = {
@@ -33,6 +41,43 @@ type RenderBooleanSwitchFieldOptions = {
   setValue: (value: boolean) => void
   enabledLabel?: string
   disabledLabel?: string
+}
+
+export function canonicalReachabilityStatus(value: unknown): CanonicalReachabilityStatus {
+  switch (
+    String(value ?? '')
+      .trim()
+      .toLowerCase()
+  ) {
+    case 'reachable':
+    case 'healthy':
+    case 'online':
+      return 'reachable'
+    case 'unreachable':
+    case 'offline':
+    case 'credential_invalid':
+      return 'unreachable'
+    default:
+      return 'unknown'
+  }
+}
+
+export function localizeReachabilityStatus(value: unknown, labels: ReachabilityLabels): string {
+  const status = canonicalReachabilityStatus(value)
+  return labels[status]
+}
+
+export function reachabilityStatusVariant(
+  value: unknown
+): 'default' | 'secondary' | 'destructive' {
+  switch (canonicalReachabilityStatus(value)) {
+    case 'reachable':
+      return 'default'
+    case 'unreachable':
+      return 'destructive'
+    default:
+      return 'secondary'
+  }
 }
 
 export function renderBooleanSwitchField({

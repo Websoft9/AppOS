@@ -2,7 +2,6 @@ package routes
 
 import (
 	"errors"
-	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -12,6 +11,7 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/audit"
+	monitorchecks "github.com/websoft9/appos/backend/domain/monitor/signals/checks"
 	"github.com/websoft9/appos/backend/domain/resource/accounts"
 	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	"github.com/websoft9/appos/backend/domain/secrets"
@@ -110,13 +110,26 @@ func handleConnectorReachability(e *core.RequestEvent) error {
 	}
 
 	result := make([]connectorReachabilityItem, 0, len(items))
-	for _, item := range items {
+	now := time.Now().UTC()
+	timeout := monitorchecks.LoadReachabilityProbeTimeout(e.App)
+	for _, snapshot := range monitorchecks.ProbeConnectorBatchWithTimeout(items, timeout) {
+		item := snapshot.Item
 		if len(filterIDs) > 0 {
 			if _, ok := filterIDs[item.ID()]; !ok {
 				continue
 			}
 		}
-		result = append(result, probeConnectorReachability(item))
+		row := connectorReachabilityResponseItem(item, snapshot.Result, now)
+		if err := monitorchecks.ProjectConnectorReachability(e.App, item, monitorchecks.ReachabilityResult{
+			Status:    row.Status,
+			LatencyMS: row.LatencyMS,
+			Reason:    row.Reason,
+			Host:      row.Host,
+			Port:      row.Port,
+		}, now); err != nil {
+			return e.InternalServerError("failed to project connector reachability", err)
+		}
+		result = append(result, row)
 	}
 	return e.JSON(http.StatusOK, connectorReachabilityResponse{Items: result})
 }
@@ -400,25 +413,22 @@ func isConnectorNotFound(err error) bool {
 	return errors.As(err, &notFoundErr)
 }
 
-func probeConnectorReachability(item *connectors.Connector) connectorReachabilityItem {
-	host, port, err := connectorProbeTarget(item)
-	result := connectorReachabilityItem{ID: item.ID(), Host: host, Port: port, LastCheckedAt: time.Now().UTC().Format(time.RFC3339)}
-	if err != nil {
-		result.Status = "unknown"
-		result.Reason = err.Error()
-		return result
-	}
 
-	start := time.Now()
-	conn, dialErr := net.DialTimeout("tcp", net.JoinHostPort(host, strconv.Itoa(port)), 3*time.Second)
-	if dialErr != nil {
-		result.Status = "unreachable"
-		result.Reason = dialErr.Error()
-		return result
+
+func connectorReachabilityResponseItem(
+	item *connectors.Connector,
+	reachability monitorchecks.ReachabilityResult,
+	checkedAt time.Time,
+) connectorReachabilityItem {
+	result := connectorReachabilityItem{
+		ID:            item.ID(),
+		Status:        reachability.Status,
+		LatencyMS:     reachability.LatencyMS,
+		Reason:        reachability.Reason,
+		Host:          reachability.Host,
+		Port:          reachability.Port,
+		LastCheckedAt: checkedAt.Format(time.RFC3339),
 	}
-	_ = conn.Close()
-	result.Status = "reachable"
-	result.LatencyMS = time.Since(start).Milliseconds()
 	return result
 }
 

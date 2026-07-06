@@ -2,5 +2,5 @@
   "id": "generic-neo4j",
   "title": "Generic Neo4j",
   "description": "Neo4j-compatible graph database dependency.",
-  "defaultEndpoint": "neo4j://neo4j.internal:7687"
+  "defaultEndpoint": "neo4j://neo4j.yourhost.com:7687"
 }

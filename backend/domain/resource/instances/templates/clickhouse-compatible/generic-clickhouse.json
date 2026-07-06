@@ -2,5 +2,5 @@
   "id": "generic-clickhouse",
   "title": "Generic ClickHouse",
   "description": "ClickHouse-compatible analytical database dependency.",
-  "defaultEndpoint": "https://clickhouse.internal:8123"
+  "defaultEndpoint": "https://clickhouse.yourhost.com:8123"
 }

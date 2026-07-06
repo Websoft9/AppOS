@@ -2,5 +2,5 @@
   "id": "generic-s3",
   "title": "Generic S3",
   "description": "S3-compatible object storage dependency.",
-  "defaultEndpoint": "https://s3.example.com"
+  "defaultEndpoint": "https://s3.yourhost.com"
 }

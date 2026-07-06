@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -14,6 +15,15 @@ import (
 	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	persistence "github.com/websoft9/appos/backend/infra/persistence"
 )
+
+const connectorReachabilityProbeConcurrency = 5
+
+var connectorProbeFunc = probeConnector
+
+type ConnectorProbeSnapshot struct {
+	Item   *connectors.Connector
+	Result ReachabilityResult
+}
 
 var connectorReachabilityPriority = map[string]int{
 	monitor.StatusHealthy:     0,
@@ -75,6 +85,10 @@ func resolveConnectorProbeTarget(item *connectors.Connector) (string, int, error
 }
 
 func probeConnector(item *connectors.Connector) ReachabilityResult {
+	return probeConnectorWithTimeout(item, monitor.DefaultPolicySettings().ReachabilityProbeTimeout)
+}
+
+func probeConnectorWithTimeout(item *connectors.Connector, timeout time.Duration) ReachabilityResult {
 	host, port, err := resolveConnectorProbeTarget(item)
 	if err != nil {
 		return ReachabilityResult{
@@ -86,7 +100,7 @@ func probeConnector(item *connectors.Connector) ReachabilityResult {
 	}
 
 	start := time.Now()
-	conn, dialErr := net.DialTimeout("tcp", net.JoinHostPort(host, strconv.Itoa(port)), 3*time.Second)
+	conn, dialErr := net.DialTimeout("tcp", net.JoinHostPort(host, strconv.Itoa(port)), normalizedReachabilityProbeTimeout(timeout))
 	if dialErr != nil {
 		return ReachabilityResult{
 			Status: "unreachable",
@@ -104,6 +118,55 @@ func probeConnector(item *connectors.Connector) ReachabilityResult {
 	}
 }
 
+func ProbeConnectorBatch(items []*connectors.Connector) []ConnectorProbeSnapshot {
+	return ProbeConnectorBatchWithTimeout(items, monitor.DefaultPolicySettings().ReachabilityProbeTimeout)
+}
+
+func ProbeConnectorBatchWithTimeout(items []*connectors.Connector, timeout time.Duration) []ConnectorProbeSnapshot {
+	return probeConnectorBatch(items, func(item *connectors.Connector) ReachabilityResult {
+		return probeConnectorWithTimeout(item, timeout)
+	})
+}
+
+func probeConnectorBatch(items []*connectors.Connector, worker func(*connectors.Connector) ReachabilityResult) []ConnectorProbeSnapshot {
+	if len(items) == 0 {
+		return nil
+	}
+	if worker == nil {
+		worker = probeConnector
+	}
+	results := make([]ConnectorProbeSnapshot, len(items))
+	concurrency := connectorReachabilityProbeConcurrency
+	if concurrency < 1 {
+		concurrency = 1
+	}
+	if concurrency > len(items) {
+		concurrency = len(items)
+	}
+
+	jobs := make(chan int)
+	var wg sync.WaitGroup
+	for workerIndex := 0; workerIndex < concurrency; workerIndex++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for index := range jobs {
+				item := items[index]
+				results[index] = ConnectorProbeSnapshot{
+					Item:   item,
+					Result: worker(item),
+				}
+			}
+		}()
+	}
+	for index := range items {
+		jobs <- index
+	}
+	close(jobs)
+	wg.Wait()
+	return results
+}
+
 func RunConnectorReachabilitySweep(app core.App, now time.Time) error {
 	repo := persistence.NewConnectorRepository(app)
 	items, err := connectors.List(repo, nil)
@@ -112,8 +175,10 @@ func RunConnectorReachabilitySweep(app core.App, now time.Time) error {
 	}
 
 	var sweepErrors []error
-	for _, item := range items {
-		result := probeConnector(item)
+	timeout := LoadReachabilityProbeTimeout(app)
+	for _, snapshot := range ProbeConnectorBatchWithTimeout(items, timeout) {
+		item := snapshot.Item
+		result := snapshot.Result
 		status := connectorReachabilityToMonitorStatus(result.Status)
 
 		displayName := item.Name()
@@ -147,4 +212,36 @@ func RunConnectorReachabilitySweep(app core.App, now time.Time) error {
 		}
 	}
 	return errors.Join(sweepErrors...)
+}
+
+func ProjectConnectorReachability(app core.App, item *connectors.Connector, result ReachabilityResult, now time.Time) error {
+	if app == nil || item == nil {
+		return nil
+	}
+	status := connectorReachabilityToMonitorStatus(result.Status)
+	displayName := item.Name()
+	if displayName == "" {
+		displayName = item.ID()
+	}
+	summary := map[string]any{
+		"check_kind": monitor.CheckKindReachability,
+		"host":       result.Host,
+		"port":       result.Port,
+	}
+	if result.LatencyMS > 0 {
+		summary["latency_ms"] = result.LatencyMS
+	}
+	return monitorstatus.ProjectResourceCheckLatestStatus(
+		app,
+		monitor.TargetTypeConnector,
+		item.ID(),
+		displayName,
+		monitor.SignalSourceAppOS,
+		monitor.CheckKindReachability,
+		status,
+		result.Reason,
+		summary,
+		connectorReachabilityPriority,
+		now,
+	)
 }

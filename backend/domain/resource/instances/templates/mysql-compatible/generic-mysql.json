@@ -2,6 +2,7 @@
   "id": "generic-mysql",
   "title": "Generic MySQL",
   "description": "Self-hosted or managed MySQL service instance.",
+  "defaultEndpoint": "mysql.yourhost.com:3306",
   "fields": [
     {
       "id": "engine",

@@ -87,6 +87,7 @@ func resetWorkerTestState(t *testing.T, app *tests.TestApp) {
 		"software_operations",
 		"deployments",
 		"instances",
+		"ai_providers",
 		"servers",
 		"secrets",
 		"app_instances",

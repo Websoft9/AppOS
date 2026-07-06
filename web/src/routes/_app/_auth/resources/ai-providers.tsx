@@ -19,7 +19,7 @@ import {
   Power,
   PowerOff,
   RefreshCw,
-  X,
+  X, 
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -33,23 +33,24 @@ import {
 } from '@/components/resources/ResourcePage'
 import { ResourceListSettingsButton } from '@/components/resources/ResourceListSettingsButton'
 import { ResourceStatusTimestamp } from '@/components/resources/ResourceStatusTimestamp'
-import { ReferenceSelect } from '@/components/resources/ReferenceSelect'
 import { formatResourceDateTime } from '@/components/resources/resource-formatters'
 import {
   buildEnabledStatusColumn,
+  localizeReachabilityStatus,
+  reachabilityStatusVariant,
   renderEnabledChoiceField,
 } from '@/components/resources/resource-status'
-import type { RelationOption } from '@/components/resources/resource-page-types'
 import { ResourcesBreadcrumb } from '@/components/resources/ResourcesBreadcrumb'
 import { buildApiKeyValue, SecretCredentialField } from '@/components/secrets/SecretCredentialField'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { buildUserVisibleSecretRelationApiPath } from '@/components/secrets/resource-secret-relations'
 import {
   AI_PROVIDER_CREDENTIAL_TEMPLATE_ID,
+  aiProviderSecretFieldInlineValueKey,
+  aiProviderSecretFieldManualValueKey,
   buildAIProviderPayload,
   buildProtocolFieldDefaults,
   defaultTemplateProtocol,
-  formatSecretLabel,
   inferAWSRegionFromEndpoint,
   type AIProviderRecord,
   type AIProviderSelectionGroupKey,
@@ -61,6 +62,7 @@ import {
   providerSelectionGroupKey,
   protocolEndpointFieldKey,
   productTitle,
+  regenerateTemplateEndpoint,
   resolveCurrentProtocolEndpoint,
   resolveTemplateEndpoint,
   resolveAIProviderEnabled,
@@ -96,6 +98,13 @@ type AIProviderReachabilityOverride = {
   status: string
   reason: string
   checked_at: string
+}
+
+type MonitorLatestStatusRecord = {
+  target_id?: string
+  status?: string
+  reason?: string | null
+  last_checked_at?: string | null
 }
 
 function humanizeTemplateId(templateId: string) {
@@ -134,88 +143,28 @@ function moveFieldBefore(fields: FieldDef[], fieldKey: string, beforeKey: string
 
 function InlineSecretEditorField({
   inputId,
-  referenceValue,
-  referenceOptions,
-  inlineEditing,
   inlineValue,
-  onReferenceValueChange,
-  onStartInlineEdit,
   onInlineValueChange,
-  onCancelInlineEdit,
 }: {
   inputId: string
-  referenceValue: string
-  referenceOptions: RelationOption[]
-  inlineEditing: boolean
   inlineValue: string
-  onReferenceValueChange: (value: string) => void
-  onStartInlineEdit: () => void
   onInlineValueChange: (value: string) => void
-  onCancelInlineEdit: () => void
 }) {
-  const [referencePickerOpen, setReferencePickerOpen] = useState(false)
-
-  if (inlineEditing) {
-    return (
-      <div className="space-y-1.5">
-        <div className="flex items-center gap-2">
-          <Input
-            id={inputId}
-            type="password"
-            value={inlineValue}
-            onChange={event => onInlineValueChange(event.target.value)}
-            placeholder="Enter a new API key to update the current secret"
-            autoFocus
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-10 w-10 shrink-0"
-            title="Cancel secret edit"
-            onClick={onCancelInlineEdit}
-          >
-            <X className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-        <div className="text-xs text-muted-foreground">
-          Saving this provider will update the current secret value in place.
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className="flex flex-wrap items-start gap-3">
-      <div className="min-w-[220px] flex-1">
-        <ReferenceSelect
-          id={`${inputId}-reference`}
-          value={referenceValue}
-          options={referenceOptions}
-          onSelect={value => {
-            onReferenceValueChange(value)
-            onCancelInlineEdit()
-          }}
-          placeholder="Select a Secret"
-          searchPlaceholder="Search secrets..."
-          emptyMessage="No matching secrets."
-          showNoneOption={false}
-          borderlessMenu
-          onOpenChange={setReferencePickerOpen}
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2">
+        <Input
+          id={inputId}
+          type="password"
+          value={inlineValue}
+          onChange={event => onInlineValueChange(event.target.value)}
+          placeholder="Leave blank to keep the current API key"
+          autoFocus
         />
       </div>
-      {referenceValue ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className={`h-10 w-10 shrink-0 ${referencePickerOpen ? 'self-start' : 'self-center'}`}
-          title="Edit secret value"
-          onClick={onStartInlineEdit}
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </Button>
-      ) : null}
+      <div className="text-xs text-muted-foreground">
+        Leave this field blank to keep the current API key. Saving this provider will update the current secret value in place when a new value is provided.
+      </div>
     </div>
   )
 }
@@ -298,29 +247,16 @@ function normalizeAvailabilityStatus(value: unknown, t: Translate) {
   return t('aiProviders.status.unknown')
 }
 
-function normalizeReachabilityStatus(value: unknown, t: Translate) {
-  const normalized = String(value ?? '')
-    .trim()
-    .toLowerCase()
-  if (normalized === 'reachable' || normalized === 'available') {
-    return t('aiProviders.status.reachable')
-  }
-  if (normalized === 'unreachable' || normalized === 'unavailable') {
-    return t('aiProviders.status.unreachable')
-  }
-  return t('aiProviders.status.unknown')
-}
-
-function resolveAvailability(item: AIProviderRecord, t: Translate) {
+function resolveAvailability(item: AIProviderRecord) {
   const config = item.config ?? {}
   const availability = config.availability
   if (availability && typeof availability === 'object') {
-    return normalizeAvailabilityStatus((availability as Record<string, unknown>).status, t)
+    return String((availability as Record<string, unknown>).status ?? '').trim()
   }
   if (config.availability_status !== undefined) {
-    return normalizeAvailabilityStatus(config.availability_status, t)
+    return String(config.availability_status ?? '').trim()
   }
-  return t('aiProviders.status.unknown')
+  return 'unknown'
 }
 
 function resolveAvailabilityCheckedAt(item: AIProviderRecord) {
@@ -341,16 +277,16 @@ function resolveAvailabilityReason(item: AIProviderRecord) {
   return String(config.availability_reason ?? '').trim()
 }
 
-function resolveReachability(item: AIProviderRecord, t: Translate) {
+function resolveReachability(item: AIProviderRecord) {
   const config = item.config ?? {}
   const reachability = config.reachability
   if (reachability && typeof reachability === 'object') {
-    return normalizeReachabilityStatus((reachability as Record<string, unknown>).status, t)
+    return String((reachability as Record<string, unknown>).status ?? '').trim()
   }
   if (config.reachability_status !== undefined) {
-    return normalizeReachabilityStatus(config.reachability_status, t)
+    return String(config.reachability_status ?? '').trim()
   }
-  return t('aiProviders.status.unknown')
+  return 'unknown'
 }
 
 function resolveReachabilityCheckedAt(item: AIProviderRecord) {
@@ -375,30 +311,74 @@ function normalizeEnabledStatus(value: unknown) {
   return resolveAIProviderEnabled(value) ? 'Enabled' : 'Disabled'
 }
 
+function renderDirectSecretField(
+  field: AIProviderTemplateField,
+  inputId: string,
+  formData: Record<string, unknown>,
+  editingItem: Record<string, unknown> | null,
+  updateField: (key: string, value: unknown) => void,
+  t: Translate
+) {
+  if (editingItem) {
+    return (
+      <InlineSecretEditorField
+        inputId={inputId}
+        inlineValue={String(formData[aiProviderSecretFieldInlineValueKey(field.id)] ?? '')}
+        onInlineValueChange={value =>
+          updateField(aiProviderSecretFieldInlineValueKey(field.id), value)
+        }
+      />
+    )
+  }
+
+  return (
+    <SecretCredentialField
+      inputId={inputId}
+      manualValue={String(
+        formData[aiProviderSecretFieldInlineValueKey(field.id)] ??
+          formData[aiProviderSecretFieldManualValueKey(field.id)] ??
+          ''
+      )}
+      onManualValueChange={value => {
+        updateField(aiProviderSecretFieldInlineValueKey(field.id), value)
+        updateField(aiProviderSecretFieldManualValueKey(field.id), value)
+      }}
+      useReference={false}
+      onUseReferenceChange={() => {}}
+      referenceValue=""
+      onReferenceValueChange={() => {}}
+      options={[]}
+      manualPlaceholder={t('aiProviders.credential.enterField', {
+        field: String(field.label ?? t('aiProviders.fields.apiKey')),
+      })}
+      showLabel={t('aiProviders.credential.showField', {
+        field: String(field.label ?? t('aiProviders.fields.apiKey')),
+      })}
+      hideLabel={t('aiProviders.credential.hideField', {
+        field: String(field.label ?? t('aiProviders.fields.apiKey')),
+      })}
+      generateValue={buildApiKeyValue}
+      generatorTitle={t('aiProviders.credential.generateTitle')}
+      generatorDescription={t('aiProviders.credential.generateDescription')}
+      generatorLengthLabel={t('aiProviders.credential.generateLengthLabel')}
+      generatorConfirmLabel={t('aiProviders.credential.generateConfirmLabel')}
+      allowReference={false}
+    />
+  )
+}
+
 function mapTemplateFieldToResourceField(
   field: AIProviderTemplateField,
-  openSecretDialog: (callbacks: { addOption: (id: string, label: string) => void }) => void,
-  openSecretEditor: (secretId: string) => void,
   t: Translate
 ): FieldDef {
   if (field.type === 'secret_ref') {
     return {
       key: field.id,
       label: field.label,
-      type: 'relation',
+      type: 'text',
       required: field.required,
-      relationApiPath: buildUserVisibleSecretRelationApiPath('ai_provider', {
-        secretTemplate: field.secretTemplate,
-      }),
-      relationFormatLabel: formatSecretLabel,
-      relationCreateButton: {
-        label: t('aiProviders.secret.new'),
-        onClick: openSecretDialog,
-      },
-      relationEditButton: {
-        label: t('aiProviders.secret.edit'),
-        onClick: openSecretEditor,
-      },
+      render: ({ inputId, formData, editingItem, updateField }) =>
+        renderDirectSecretField(field, inputId, formData, editingItem, updateField, t),
     }
   }
 
@@ -428,9 +408,10 @@ function mapAIProviderRow(
   item: AIProviderRecord,
   templatesById: Map<string, AIProviderTemplate>,
   secretNamesById: Map<string, string>,
-  t: Translate
+  monitorByTargetId: Map<string, MonitorLatestStatusRecord>
 ): Record<string, unknown> {
   const template = templatesById.get(String(item.template_id ?? ''))
+  const monitor = monitorByTargetId.get(String(item.id ?? '').trim())
   const flattenedConfig: Record<string, unknown> = {}
   const knownFieldIDs = new Set((template?.fields ?? []).map(field => field.id))
 
@@ -443,6 +424,10 @@ function mapAIProviderRow(
       continue
     }
     flattenedConfig[field.id] = field.type === 'json' ? JSON.stringify(value, null, 2) : value
+    if (field.type === 'secret_ref') {
+      flattenedConfig[aiProviderSecretFieldManualValueKey(field.id)] = ''
+      flattenedConfig[aiProviderSecretFieldInlineValueKey(field.id)] = ''
+    }
   }
 
   const advancedConfig = Object.fromEntries(
@@ -461,6 +446,8 @@ function mapAIProviderRow(
       ? String(item.config?.region ?? '').trim() ||
         inferAWSRegionFromEndpoint(String(item.endpoint ?? ''))
       : ''
+  const cachedReachability = resolveReachability(item)
+  const monitorReachability = String(monitor?.status ?? '').trim()
 
   return {
     id: item.id,
@@ -469,12 +456,14 @@ function mapAIProviderRow(
     provider: template?.title ?? humanizeTemplateId(String(item.template_id ?? '')),
     is_enabled: resolveAIProviderEnabled(item.is_enabled),
     enabled_status: normalizeEnabledStatus(item.is_enabled),
-    availability: resolveAvailability(item, t),
+    availability: resolveAvailability(item),
     availability_reason: resolveAvailabilityReason(item),
     availability_last_checked_at: resolveAvailabilityCheckedAt(item),
-    reachability: resolveReachability(item, t),
-    reachability_reason: resolveReachabilityReason(item),
-    reachability_last_checked_at: resolveReachabilityCheckedAt(item),
+    reachability: monitorReachability || cachedReachability,
+    reachability_reason:
+      String(monitor?.reason ?? '').trim() || resolveReachabilityReason(item),
+    reachability_last_checked_at:
+      String(monitor?.last_checked_at ?? '').trim() || resolveReachabilityCheckedAt(item),
     endpoint: String(item.endpoint ?? ''),
     default_protocol: defaultProtocol,
     auth_scheme: String(item.auth_scheme ?? ''),
@@ -517,6 +506,12 @@ function buildColumns(
   reachabilityLoading: Set<string>,
   enabledModelsCount: Record<string, number>
 ): Column[] {
+  const reachabilityLabels = {
+    reachable: t('aiProviders.status.reachable'),
+    unreachable: t('aiProviders.status.unreachable'),
+    unknown: t('aiProviders.status.unknown'),
+  }
+
   const resolveStatusMeta = (row: Record<string, unknown>) => {
     const override = availabilityOverrides[String(row.id ?? '')]
     return {
@@ -533,6 +528,9 @@ function buildColumns(
       status: String(override?.status ?? row.reachability ?? '').trim(),
       reason: String(override?.reason ?? row.reachability_reason ?? '').trim(),
       checkedAt: String(override?.checked_at ?? row.reachability_last_checked_at ?? '').trim(),
+      sourceLabel: override
+        ? t('aiProviders.lastCheckedSources.liveReachability')
+        : t('aiProviders.lastCheckedSources.scheduledMonitor'),
     }
   }
 
@@ -613,18 +611,18 @@ function buildColumns(
         { label: t('aiProviders.status.unreachable'), value: t('aiProviders.status.unreachable') },
         { label: t('aiProviders.status.unknown'), value: t('aiProviders.status.unknown') },
       ],
-      filterValue: row => resolveReachabilityMeta(row).status,
+      filterValue: row =>
+        localizeReachabilityStatus(resolveReachabilityMeta(row).status, reachabilityLabels),
       render: (value, row) => {
         const meta = resolveReachabilityMeta(row)
-        const status = normalizeReachabilityStatus(meta.status || value, t)
-        const variant =
-          status === t('aiProviders.status.reachable')
-            ? 'default'
-            : status === t('aiProviders.status.unreachable')
-              ? 'destructive'
-              : 'secondary'
+        const rawStatus = meta.status || value
+        const status = localizeReachabilityStatus(rawStatus, reachabilityLabels)
         return (
-          <Badge variant={variant} className="gap-1">
+          <Badge
+            variant={reachabilityStatusVariant(rawStatus)}
+            title={meta.reason || undefined}
+            className="gap-1"
+          >
             {reachabilityLoading.has(String(row.id ?? '')) && (
               <Loader2 className="h-3 w-3 animate-spin" />
             )}
@@ -638,21 +636,22 @@ function buildColumns(
       label: t('aiProviders.columns.availability'),
       sortable: true,
       filterOptions: [
-        { label: t('aiProviders.status.available'), value: t('aiProviders.status.available') },
+        { label: t('aiProviders.status.available'), value: 'available' },
         {
           label: t('aiProviders.status.unavailable'),
-          value: t('aiProviders.status.unavailable'),
+          value: 'unavailable',
         },
-        { label: t('aiProviders.status.unknown'), value: t('aiProviders.status.unknown') },
+        { label: t('aiProviders.status.unknown'), value: 'unknown' },
       ],
       filterValue: row => resolveStatusMeta(row).status,
       render: (value, row) => {
         const meta = resolveStatusMeta(row)
-        const status = normalizeAvailabilityStatus(meta.status || value, t)
+        const rawStatus = (meta.status || value || '').toString().trim().toLowerCase()
+        const status = normalizeAvailabilityStatus(rawStatus, t)
         const variant =
-          status === t('aiProviders.status.available')
+          rawStatus === 'available' || rawStatus === 'reachable'
             ? 'default'
-            : status === t('aiProviders.status.unavailable')
+            : rawStatus === 'unavailable' || rawStatus === 'unreachable'
               ? 'destructive'
               : 'secondary'
         const rowName = String(row.name ?? row.id ?? 'provider').trim() || 'provider'
@@ -943,7 +942,7 @@ export function AIProvidersPage() {
             const id = String(entry.id ?? '').trim()
             if (!id) continue
             next[id] = {
-              status: normalizeReachabilityStatus(entry.status, t),
+              status: String(entry.status ?? '').trim(),
               reason: String(entry.reason ?? ''),
               checked_at: String(entry.checked_at ?? ''),
             }
@@ -1074,30 +1073,15 @@ export function AIProvidersPage() {
       formData,
       editingItem,
       updateField,
-      relationOptions,
-      addRelationOption,
     }: Parameters<NonNullable<FieldDef['render']>>[0]) => {
       const editMode = Boolean(editingItem)
-      const useSecret = editMode ? true : Boolean(formData.credential_use_secret)
 
       if (editMode) {
         return (
           <InlineSecretEditorField
             inputId={inputId}
-            referenceValue={String(formData.credential ?? '')}
-            referenceOptions={relationOptions}
-            inlineEditing={Boolean(formData.credential_secret_editing)}
             inlineValue={String(formData.credential_secret_value ?? '')}
-            onReferenceValueChange={value => updateField('credential', value)}
-            onStartInlineEdit={() => {
-              updateField('credential_secret_editing', true)
-              updateField('credential_secret_value', '')
-            }}
             onInlineValueChange={value => updateField('credential_secret_value', value)}
-            onCancelInlineEdit={() => {
-              updateField('credential_secret_editing', false)
-              updateField('credential_secret_value', '')
-            }}
           />
         )
       }
@@ -1107,26 +1091,11 @@ export function AIProvidersPage() {
           inputId={inputId}
           manualValue={String(formData.api_key_value ?? '')}
           onManualValueChange={value => updateField('api_key_value', value)}
-          useReference={useSecret}
-          onUseReferenceChange={checked => {
-            updateField('credential_use_secret', checked)
-            if (!checked) {
-              updateField('credential', '')
-            }
-          }}
-          referenceValue={String(formData.credential ?? '')}
-          onReferenceValueChange={value => updateField('credential', value)}
-          options={relationOptions}
-          onCreateReference={() => {
-            openSecretDialog({
-              addOption: (id, label) => {
-                addRelationOption(id, label)
-                updateField('credential_use_secret', true)
-                updateField('credential', id)
-              },
-            })
-          }}
-          onEditReference={openSecretEditor}
+          useReference={false}
+          onUseReferenceChange={() => {}}
+          referenceValue=""
+          onReferenceValueChange={() => {}}
+          options={[]}
           editMode={editMode}
           manualPlaceholder={t('aiProviders.credential.enterField', {
             field: String(field.label ?? t('aiProviders.fields.apiKey')),
@@ -1142,12 +1111,11 @@ export function AIProvidersPage() {
           generatorDescription={t('aiProviders.credential.generateDescription')}
           generatorLengthLabel={t('aiProviders.credential.generateLengthLabel')}
           generatorConfirmLabel={t('aiProviders.credential.generateConfirmLabel')}
-          referenceToggleMode="icon"
-          editReferenceMode="icon"
+          allowReference={false}
         />
       )
     },
-    [openSecretDialog, openSecretEditor, t]
+    [t]
   )
 
   const renderEndpointField = useCallback<NonNullable<FieldDef['render']>>(
@@ -1208,8 +1176,7 @@ export function AIProvidersPage() {
       const selectedTemplate = providerTemplatesById.get(String(formData.template_id ?? ''))
       const selectedModels = normalizeEnabledModels(formData.enabled_models)
       const inlineSecretValue = String(formData.credential_secret_value ?? '').trim()
-      const shouldUseInlineSecret =
-        Boolean(formData.credential_secret_editing) && inlineSecretValue.length > 0
+      const shouldUseInlineSecret = inlineSecretValue.length > 0
       return (
         <AIProviderModelSelector
           selectedModels={selectedModels}
@@ -1315,25 +1282,11 @@ export function AIProvidersPage() {
         defaultValue: false,
       },
       {
-        key: 'credential_use_secret',
-        label: t('aiProviders.fields.credentialUseSecret'),
-        type: 'boolean',
-        hidden: true,
-        defaultValue: false,
-      },
-      {
         key: 'api_key_value',
         label: t('aiProviders.fields.apiKeyValue'),
         type: 'password',
         hidden: true,
         defaultValue: '',
-      },
-      {
-        key: 'credential_secret_editing',
-        label: 'Credential Secret Editing',
-        type: 'boolean',
-        hidden: true,
-        defaultValue: false,
       },
       {
         key: 'credential_secret_value',
@@ -1418,16 +1371,8 @@ export function AIProvidersPage() {
           const credentialField: FieldDef = {
             key: field.id,
             label: field.label,
-            type: 'relation',
+            type: 'text',
             required: field.required,
-            relationApiPath: buildUserVisibleSecretRelationApiPath('ai_provider', {
-              secretTemplate: AI_PROVIDER_CREDENTIAL_TEMPLATE_ID,
-            }),
-            relationFormatLabel: formatSecretLabel,
-            relationCreateButton: {
-              label: t('aiProviders.secret.new'),
-              onClick: openSecretDialog,
-            },
             render: renderCredentialField,
           }
 
@@ -1445,8 +1390,6 @@ export function AIProvidersPage() {
 
         const mappedField = mapTemplateFieldToResourceField(
           field,
-          openSecretDialog,
-          openSecretEditor,
           t
         )
         if (selectedTemplate?.id === 'aws-bedrock' && field.id === 'region') {
@@ -1458,9 +1401,28 @@ export function AIProvidersPage() {
                   selectedTemplate,
                   formData.default_protocol
                 )
-                const nextEndpoint = resolveTemplateEndpoint(selectedTemplate, {
+                const nextEndpoint = regenerateTemplateEndpoint(selectedTemplate, {
                   ...formData,
                   region: value,
+                })
+                update(protocolEndpointFieldKey(protocol), nextEndpoint)
+                update('endpoint', nextEndpoint)
+              },
+            },
+          ]
+        }
+        if (selectedTemplate?.id === 'vertex-ai' && (field.id === 'location' || field.id === 'project_id')) {
+          return [
+            {
+              ...mappedField,
+              onValueChange: (value: unknown, update: (key: string, value: unknown) => void) => {
+                const protocol = defaultTemplateProtocol(
+                  selectedTemplate,
+                  formData.default_protocol
+                )
+                const nextEndpoint = regenerateTemplateEndpoint(selectedTemplate, {
+                  ...formData,
+                  [field.id]: value,
                 })
                 update(protocolEndpointFieldKey(protocol), nextEndpoint)
                 update('endpoint', nextEndpoint)
@@ -1491,6 +1453,10 @@ export function AIProvidersPage() {
 
       if (selectedTemplate?.id === 'aws-bedrock') {
         normalizedDynamicFields = moveFieldBefore(normalizedDynamicFields, 'region', 'endpoint')
+      }
+      if (selectedTemplate?.id === 'vertex-ai') {
+        normalizedDynamicFields = moveFieldBefore(normalizedDynamicFields, 'project_id', 'endpoint')
+        normalizedDynamicFields = moveFieldBefore(normalizedDynamicFields, 'location', 'endpoint')
       }
 
       if (editingItem) {
@@ -2103,13 +2069,23 @@ export function AIProvidersPage() {
             await fetchReachabilityStatuses(ids)
           },
           listItems: async () => {
-            const [items, secretResponse] = await Promise.all([
+            const [items, secretResponse, monitorResponse] = await Promise.all([
               pb.send<AIProviderRecord[]>('/api/ai-providers', { method: 'GET' }),
               pb
                 .send<{ items?: Array<Record<string, unknown>> }>(
                   buildUserVisibleSecretRelationApiPath('ai_provider', {
                     secretTemplate: AI_PROVIDER_CREDENTIAL_TEMPLATE_ID,
                   }),
+                  { method: 'GET' }
+                )
+                .catch(() => ({ items: [] })),
+              pb
+                .send<{ items?: MonitorLatestStatusRecord[] }>(
+                  `/api/collections/monitor_latest_status/records?${new URLSearchParams({
+                    perPage: '500',
+                    sort: '-updated',
+                    filter: `(target_type='ai_provider')`,
+                  }).toString()}`,
                   { method: 'GET' }
                 )
                 .catch(() => ({ items: [] })),
@@ -2120,8 +2096,17 @@ export function AIProvidersPage() {
                 String(secret.name ?? secret.id ?? '').trim(),
               ])
             )
+            const monitorByTargetId = new Map(
+              Array.isArray(monitorResponse?.items)
+                ? monitorResponse.items
+                    .map(record => [String(record.target_id ?? '').trim(), record] as const)
+                    .filter(([targetId]) => Boolean(targetId))
+                : []
+            )
             const rows = Array.isArray(items)
-              ? items.map(item => mapAIProviderRow(item, providerTemplatesById, secretNamesById, t))
+              ? items.map(item =>
+                  mapAIProviderRow(item, providerTemplatesById, secretNamesById, monitorByTargetId)
+                )
               : []
             fetchEnabledModelCounts(rows)
             return rows
@@ -2131,21 +2116,39 @@ export function AIProvidersPage() {
             if (!nextPayload.template_id) {
               nextPayload.template_id = editingTemplateIdRef.current
             }
+            const template = providerTemplatesById.get(String(nextPayload.template_id ?? '').trim())
             const credentialID = String(nextPayload.credential ?? '').trim()
-            if (Boolean(nextPayload.credential_secret_editing)) {
-              const secretValue = String(nextPayload.credential_secret_value ?? '').trim()
+            const secretValue = String(nextPayload.credential_secret_value ?? '').trim()
+            if (secretValue) {
               if (!credentialID) {
-                throw new Error('Select an API key secret before editing it.')
-              }
-              if (!secretValue) {
-                throw new Error('API Key is required when editing the current secret.')
+                throw new Error('Missing API key secret for this provider.')
               }
               await pb.send(`/api/secrets/${credentialID}/payload`, {
                 method: 'PUT',
                 body: { payload: { value: secretValue } },
               })
-              nextPayload.credential_secret_editing = false
               nextPayload.credential_secret_value = ''
+            }
+            for (const field of template?.fields ?? []) {
+              if (field.type !== 'secret_ref' || field.id === 'credential') {
+                continue
+              }
+              const fieldSecretId = String(nextPayload[field.id] ?? '').trim()
+              const inlineFieldValue = String(
+                nextPayload[aiProviderSecretFieldInlineValueKey(field.id)] ?? ''
+              ).trim()
+              if (!inlineFieldValue) {
+                continue
+              }
+              if (!fieldSecretId) {
+                throw new Error(`Missing secret for ${field.label || field.id}.`)
+              }
+              await pb.send(`/api/secrets/${fieldSecretId}/payload`, {
+                method: 'PUT',
+                body: { payload: { value: inlineFieldValue } },
+              })
+              nextPayload[aiProviderSecretFieldInlineValueKey(field.id)] = ''
+              nextPayload[aiProviderSecretFieldManualValueKey(field.id)] = ''
             }
             if (!editModelsValidated) {
               delete nextPayload.enabled_models

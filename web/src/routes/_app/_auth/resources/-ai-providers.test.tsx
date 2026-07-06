@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AIProvidersPage, buildAIProviderPayload } from './ai-providers'
 import { shouldAutoListModels } from '@/components/ai/AIProviderCreateFlowDialog'
+import { regenerateTemplateEndpoint } from '@/lib/ai-providers'
 
 const AI_PROVIDER_SECRET_PATH =
   "/api/collections/secrets/records?filter=(created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value')%26%26(visible_to:length=0||visible_to:each%3F='ai_provider')&sort=name"
@@ -80,6 +81,9 @@ vi.mock('react-i18next', () => ({
         'aiProviders.columns.lastChecked': 'Last Checked',
         'aiProviders.columns.created': 'Created',
         'aiProviders.columns.updated': 'Updated',
+        'aiProviders.lastCheckedSources.liveAvailability': 'Live availability check',
+        'aiProviders.lastCheckedSources.liveReachability': 'Live reachability check',
+        'aiProviders.lastCheckedSources.scheduledMonitor': 'Scheduled monitor check',
         'servers.listSettings.title': 'List settings',
         'servers.listSettings.rowsPerPage': 'Rows per page',
         'servers.listSettings.columns': 'Columns',
@@ -374,7 +378,7 @@ describe('AIProvidersPage', () => {
     expect(screen.queryByText('Auth Scheme')).not.toBeInTheDocument()
     expect(screen.getByText('API Key')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Enter API Key')).toBeInTheDocument()
-    expect(screen.getByTitle('Use a saved secret')).toBeInTheDocument()
+    expect(screen.queryByTitle('Use a saved secret')).not.toBeInTheDocument()
     expect(screen.queryByText('Enable Models')).not.toBeInTheDocument()
     expect(screen.queryByText('API Version')).not.toBeInTheDocument()
     expect(screen.queryByText('Max Completion Tokens')).not.toBeInTheDocument()
@@ -739,6 +743,100 @@ describe('AIProvidersPage', () => {
     expect(endpointInput).toBeInTheDocument()
   })
 
+  it('rebuilds the Vertex AI endpoint in the create flow when project and location change', async () => {
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/ai-providers/templates') {
+        return Promise.resolve([
+          {
+            id: 'vertex-ai',
+            kind: 'llm',
+            title: 'Google Vertex AI',
+            vendor: 'Google Cloud',
+            uiGroup: 'cloud_gateway',
+            endpointMode: 'customizable',
+            defaultEndpoint:
+              'https://{location}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/endpoints/openapi',
+            defaultAuthScheme: 'api_key',
+            protocols: [{ id: 'openai', label: 'OpenAI', default: true }],
+            fields: [
+              {
+                id: 'endpoint',
+                label: 'OpenAI Compatible URL',
+                type: 'url',
+                required: true,
+                placeholder:
+                  'https://us-central1-aiplatform.googleapis.com/v1/projects/my-gcp-project/locations/us-central1/endpoints/openapi',
+              },
+              { id: 'project_id', label: 'Project ID', type: 'string', required: true },
+              {
+                id: 'location',
+                label: 'Location',
+                type: 'string',
+                required: true,
+                default: 'us-central1',
+                placeholder: 'us-central1',
+              },
+              {
+                id: 'credential',
+                label: 'API Key',
+                type: 'secret_ref',
+                required: true,
+                secretTemplate: 'single_value',
+              },
+            ],
+          },
+        ])
+      }
+      if (path === '/api/ai-providers') {
+        return Promise.resolve([])
+      }
+      if (path === AI_PROVIDER_SECRET_PATH) {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      return Promise.resolve([])
+    })
+
+    render(<AIProvidersPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add AI Provider' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add AI Provider' }))
+    await screen.findByRole('dialog')
+    fireEvent.click(getProductButton('Google Vertex AI'))
+
+    await waitFor(() => {
+      expect(screen.getByText('Add Google Vertex AI AI Provider')).toBeInTheDocument()
+    })
+
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(screen.getByRole('button', { name: /Advanced/i }))
+
+    const [projectInput, locationInput, endpointInput] = within(dialog).getAllByRole(
+      'textbox'
+    ) as HTMLInputElement[]
+
+    fireEvent.change(projectInput, { target: { value: 'copilot-vertex-e2e' } })
+
+    await waitFor(() => {
+      expect(endpointInput).toHaveValue(
+        'https://us-central1-aiplatform.googleapis.com/v1/projects/copilot-vertex-e2e/locations/us-central1/endpoints/openapi'
+      )
+    })
+
+    fireEvent.change(locationInput, { target: { value: 'asia-east1' } })
+
+    await waitFor(() => {
+      expect(endpointInput).toHaveValue(
+        'https://asia-east1-aiplatform.googleapis.com/v1/projects/copilot-vertex-e2e/locations/asia-east1/endpoints/openapi'
+      )
+    })
+  })
+
   it('sorts Custom OpenAI-compatible to the top of the self-hosted chooser group', async () => {
     sendMock.mockImplementation((path: string) => {
       if (path === '/api/ai-providers/templates') {
@@ -862,7 +960,6 @@ describe('AIProvidersPage', () => {
         name: 'openai-main',
         template_id: 'openai',
         endpoint: 'https://api.openai.com/v1',
-        credential_use_secret: false,
         api_key_value: 'sk-test-manual-key',
       },
       templatesById
@@ -919,7 +1016,6 @@ describe('AIProvidersPage', () => {
         template_id: 'openrouter',
         endpoint: 'https://openrouter.ai/api/v1',
         credential: 'secret-1',
-        credential_use_secret: true,
         max_completion_tokens: '31100',
       },
       templatesById
@@ -969,15 +1065,23 @@ describe('AIProvidersPage', () => {
                   status: 'available',
                   checked_at: '2025-01-06T12:00:00Z',
                 },
-                reachability: {
-                  status: 'reachable',
-                  checked_at: '2025-01-06T11:55:00Z',
-                },
               },
               created: '2025-01-05T10:30:00Z',
               updated: '2025-01-06T11:45:00Z',
             },
           ])
+        }
+        if (path.startsWith('/api/collections/monitor_latest_status/records?')) {
+          return Promise.resolve({
+            items: [
+              {
+                target_id: 'provider-xai',
+                status: 'unreachable',
+                reason: 'cached failure',
+                last_checked_at: '2025-01-06T11:55:00Z',
+              },
+            ],
+          })
         }
         if (path === '/api/collections/groups/records?perPage=500&sort=name') {
           return Promise.resolve({ items: [] })
@@ -1009,9 +1113,12 @@ describe('AIProvidersPage', () => {
       expect(sendMock).toHaveBeenCalledWith('/api/ai-providers/templates', { method: 'GET' })
     })
 
+    expect(screen.getByText('Unreachable')).toBeInTheDocument()
+
     fireEvent.click(screen.getByTitle('Refresh'))
 
     expect(await screen.findByText('Available')).toBeInTheDocument()
+    expect(await screen.findByText('Reachable')).toBeInTheDocument()
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
         expect.stringContaining('/api/ai-providers/reachability?'),
@@ -1031,9 +1138,7 @@ describe('AIProvidersPage', () => {
     expect(screen.queryByText('api_key')).not.toBeInTheDocument()
   })
 
-  it('lets the user jump to edit a selected generic secret field', async () => {
-    const openSpy = vi.spyOn(window, 'open').mockReturnValue({} as Window)
-
+  it('renders generic provider secret fields as direct input instead of secret pickers', async () => {
     render(<AIProvidersPage />)
 
     await waitFor(() => {
@@ -1045,20 +1150,10 @@ describe('AIProvidersPage', () => {
     fireEvent.click(getProductButton('OpenAI'))
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Organization Secret' })).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('Enter Organization Secret')).toBeInTheDocument()
     })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Organization Secret' }))
-    fireEvent.click(await screen.findByRole('button', { name: /shared-secret/i }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit Secret' }))
-
-    expect(openSpy).toHaveBeenCalledWith(
-      'http://localhost:3000/secrets?id=secret-1&edit=secret-1',
-      '_blank',
-      'noopener,noreferrer'
-    )
-
-    openSpy.mockRestore()
+    expect(screen.queryByText('shared-secret')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit Secret' })).not.toBeInTheDocument()
   })
 
   it('shows provider and enabled status, loads availability, and opens edit from name', async () => {
@@ -1501,6 +1596,175 @@ describe('AIProvidersPage', () => {
     })
   })
 
+  it('rebuilds the AWS Bedrock endpoint when region changes in edit mode', async () => {
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+        if (path === '/api/ai-providers/templates') {
+          return Promise.resolve([
+            {
+              id: 'aws-bedrock',
+              kind: 'llm',
+              title: 'AWS Bedrock',
+              vendor: 'Amazon Web Services',
+              defaultEndpoint: 'https://bedrock-mantle.{region}.api.aws/v1',
+              defaultAuthScheme: 'api_key',
+              protocols: [{ id: 'openai', label: 'OpenAI', default: true }],
+              fields: [
+                { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+                { id: 'region', label: 'Region Code', type: 'string' },
+                { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+              ],
+            },
+          ])
+        }
+        if (path === '/api/ai-providers') {
+          return Promise.resolve([
+            {
+              id: 'provider-bedrock',
+              name: 'bedrock-main',
+              template_id: 'aws-bedrock',
+              endpoint: 'https://bedrock-mantle.us-east-1.api.aws/v1',
+              credential: 'secret-1',
+              is_enabled: true,
+              enabled_models: [],
+              config: {
+                region: 'us-east-1',
+                default_protocol: 'openai',
+                protocol_endpoints: {
+                  openai: 'https://bedrock-mantle.us-east-1.api.aws/v1',
+                },
+              },
+            },
+          ])
+        }
+        if (path.startsWith('/api/ai-providers/availability?')) {
+          return Promise.resolve({ items: [{ id: 'provider-bedrock', status: 'available' }] })
+        }
+        if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === AI_PROVIDER_SECRET_PATH) {
+          return Promise.resolve({
+            items: [{ id: 'secret-1', name: 'bedrock-secret', template_id: 'single_value' }],
+          })
+        }
+        if (path.startsWith('/api/ai-providers/') && options?.method === 'PUT') {
+          return Promise.resolve({ ok: true, body: options.body })
+        }
+        return Promise.resolve([])
+      }
+    )
+
+    render(<AIProvidersPage />)
+
+    expect(await screen.findByRole('button', { name: 'bedrock-main' })).toBeInTheDocument()
+
+    fireEvent.pointerDown(screen.getByTitle('More actions'))
+    fireEvent.click(await screen.findByText('Edit'))
+    fireEvent.click(await screen.findByRole('button', { name: /Advanced/i }))
+
+    const regionInput = (await screen.findByLabelText('Region Code')) as HTMLInputElement
+    const endpointInput = (await screen.findByDisplayValue(
+      'https://bedrock-mantle.us-east-1.api.aws/v1'
+    )) as HTMLInputElement
+
+    fireEvent.change(regionInput, { target: { value: 'eu-west-1' } })
+
+    await waitFor(() => {
+      expect(endpointInput).toHaveValue('https://bedrock-mantle.eu-west-1.api.aws/v1')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /^Save/i }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/ai-providers/provider-bedrock', {
+        method: 'PUT',
+        body: expect.objectContaining({
+          endpoint: 'https://bedrock-mantle.eu-west-1.api.aws/v1',
+          config: expect.objectContaining({
+            region: 'eu-west-1',
+            default_protocol: 'openai',
+            protocol_endpoints: expect.objectContaining({
+              openai: 'https://bedrock-mantle.eu-west-1.api.aws/v1',
+            }),
+          }),
+        }),
+      })
+    })
+  })
+
+  it('rebuilds and persists the Vertex AI endpoint when project and location change', async () => {
+    const template = {
+      id: 'vertex-ai',
+      kind: 'llm',
+      title: 'Google Vertex AI',
+      vendor: 'Google Cloud',
+      defaultEndpoint:
+        'https://{location}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/endpoints/openapi',
+      defaultAuthScheme: 'api_key',
+      protocols: [{ id: 'openai', label: 'OpenAI', default: true }],
+      fields: [
+        { id: 'endpoint', label: 'OpenAI Compatible URL', type: 'url', required: true },
+        { id: 'project_id', label: 'Project ID', type: 'string', required: true },
+        { id: 'location', label: 'Location', type: 'string', required: true },
+        {
+          id: 'credential',
+          label: 'API Key',
+          type: 'secret_ref',
+          required: true,
+          secretTemplate: 'single_value',
+        },
+      ],
+    }
+    const templatesById = new Map([['vertex-ai', template]])
+
+    getOneMock.mockResolvedValue({ id: 'secret-1', template_id: 'single_value' })
+
+    const nextEndpoint = regenerateTemplateEndpoint(template, {
+      endpoint:
+        'https://us-central1-aiplatform.googleapis.com/v1/projects/original-project/locations/us-central1/endpoints/openapi',
+      default_protocol: 'openai',
+      protocol_endpoint_openai:
+        'https://us-central1-aiplatform.googleapis.com/v1/projects/original-project/locations/us-central1/endpoints/openapi',
+      project_id: 'next-project',
+      location: 'asia-east1',
+    })
+
+    expect(nextEndpoint).toBe(
+      'https://asia-east1-aiplatform.googleapis.com/v1/projects/next-project/locations/asia-east1/endpoints/openapi'
+    )
+
+    const payload = await buildAIProviderPayload(
+      {
+        name: 'vertex-main',
+        template_id: 'vertex-ai',
+        endpoint: nextEndpoint,
+        default_protocol: 'openai',
+        protocol_endpoint_openai: nextEndpoint,
+        project_id: 'next-project',
+        location: 'asia-east1',
+        credential: 'secret-1',
+      },
+      templatesById
+    )
+
+    expect(payload).toEqual(
+      expect.objectContaining({
+        endpoint:
+          'https://asia-east1-aiplatform.googleapis.com/v1/projects/next-project/locations/asia-east1/endpoints/openapi',
+        config: expect.objectContaining({
+          project_id: 'next-project',
+          location: 'asia-east1',
+          default_protocol: 'openai',
+          protocol_endpoints: expect.objectContaining({
+            openai:
+              'https://asia-east1-aiplatform.googleapis.com/v1/projects/next-project/locations/asia-east1/endpoints/openapi',
+          }),
+        }),
+      })
+    )
+  })
+
   it('updates enabled models and edits the current secret inline without opening a new page', async () => {
     sendMock.mockImplementation(
       (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
@@ -1572,9 +1836,8 @@ describe('AIProvidersPage', () => {
     expect(await screen.findByLabelText('gemini-3.1-pro-preview')).toBeInTheDocument()
     fireEvent.click(screen.getByLabelText('gemini-3.1-pro-preview'))
 
-    fireEvent.click(screen.getByTitle('Edit secret value'))
     fireEvent.change(
-      screen.getByPlaceholderText('Enter a new API key to update the current secret'),
+      screen.getByPlaceholderText('Leave blank to keep the current API key'),
       {
         target: { value: 'replacement-secret-value' },
       }
@@ -1663,9 +1926,8 @@ describe('AIProvidersPage', () => {
     fireEvent.pointerDown(screen.getByTitle('More actions'))
     fireEvent.click(await screen.findByText('Edit'))
 
-    fireEvent.click(screen.getByTitle('Edit secret value'))
     fireEvent.change(
-      screen.getByPlaceholderText('Enter a new API key to update the current secret'),
+      screen.getByPlaceholderText('Leave blank to keep the current API key'),
       {
         target: { value: 'replacement-secret-value' },
       }

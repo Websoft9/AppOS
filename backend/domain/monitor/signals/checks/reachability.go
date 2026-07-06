@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/monitor"
 	"github.com/websoft9/appos/backend/domain/resource/instances"
 )
 
@@ -18,6 +20,17 @@ type ReachabilityResult struct {
 }
 
 func ProbeInstanceReachability(item *instances.Instance) ReachabilityResult {
+	return ProbeInstanceReachabilityWithTimeout(item, monitor.DefaultPolicySettings().ReachabilityProbeTimeout)
+}
+
+func LoadReachabilityProbeTimeout(app core.App) time.Duration {
+	if app == nil {
+		return monitor.DefaultPolicySettings().ReachabilityProbeTimeout
+	}
+	return monitor.LoadPolicySettings(app).ReachabilityProbeTimeout
+}
+
+func ProbeInstanceReachabilityWithTimeout(item *instances.Instance, timeout time.Duration) ReachabilityResult {
 	target, err := instances.ResolveProbeTarget(item)
 	if err != nil {
 		return ReachabilityResult{
@@ -31,7 +44,7 @@ func ProbeInstanceReachability(item *instances.Instance) ReachabilityResult {
 
 	addr := net.JoinHostPort(target.Host, strconv.Itoa(target.Port))
 	start := time.Now()
-	conn, dialErr := net.DialTimeout("tcp", addr, 3*time.Second)
+	conn, dialErr := net.DialTimeout("tcp", addr, normalizedReachabilityProbeTimeout(timeout))
 	if dialErr != nil {
 		return ReachabilityResult{
 			Status:   "offline",
@@ -49,4 +62,11 @@ func ProbeInstanceReachability(item *instances.Instance) ReachabilityResult {
 		Host:      target.Host,
 		Port:      target.Port,
 	}
+}
+
+func normalizedReachabilityProbeTimeout(timeout time.Duration) time.Duration {
+	if timeout <= 0 {
+		return monitor.DefaultPolicySettings().ReachabilityProbeTimeout
+	}
+	return timeout
 }

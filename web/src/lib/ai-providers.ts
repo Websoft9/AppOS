@@ -67,6 +67,14 @@ export const SECRET_TEMPLATE_LABELS: Record<string, string> = {
 
 export const AI_PROVIDER_CREDENTIAL_TEMPLATE_ID = 'single_value'
 
+export function aiProviderSecretFieldManualValueKey(fieldId: string) {
+  return `${fieldId}__manual_value`
+}
+
+export function aiProviderSecretFieldInlineValueKey(fieldId: string) {
+  return `${fieldId}__inline_value`
+}
+
 export function formatSecretLabel(raw: Record<string, unknown>): string {
   return formatResourceSecretLabel(raw)
 }
@@ -186,19 +194,36 @@ export function resolveTemplateProtocolEndpoint(
   })
 }
 
+function resolveTemplateEndpointString(
+  endpointTemplate: string,
+  values: Record<string, unknown> = {}
+) {
+  const trimmedTemplate = String(endpointTemplate ?? '').trim()
+  if (!trimmedTemplate) return ''
+  return trimmedTemplate.replaceAll(/\{([^}]+)\}/g, (_match, key: string) => {
+    const resolved = String(values[key] ?? '').trim()
+    if (resolved) return resolved
+    if (key === 'region') return 'us-east-1'
+    return ''
+  })
+}
+
 export function buildProtocolFieldDefaults(
   template: AIProviderTemplate | null | undefined,
   values: Record<string, unknown> = {}
 ) {
   const protocols = normalizeTemplateProtocols(template)
+  const defaultProtocol = defaultTemplateProtocol(template)
   const defaults: Record<string, unknown> = {
-    default_protocol: defaultTemplateProtocol(template),
+    default_protocol: defaultProtocol,
   }
   for (const protocol of protocols) {
-    defaults[protocolEndpointFieldKey(protocol.id)] = resolveTemplateProtocolEndpoint(
-      protocol,
-      values
-    )
+    const resolvedProtocolEndpoint = resolveTemplateProtocolEndpoint(protocol, values)
+    defaults[protocolEndpointFieldKey(protocol.id)] =
+      resolvedProtocolEndpoint ||
+      (protocol.id === defaultProtocol
+        ? resolveTemplateEndpointString(String(template?.defaultEndpoint ?? ''), values)
+        : '')
   }
   return defaults
 }
@@ -346,16 +371,25 @@ export function resolveTemplateEndpoint(
   if (configured) return configured
   const protocolConfig = normalizeTemplateProtocols(template).find(item => item.id === protocol)
   if (protocolConfig) {
-    return resolveTemplateProtocolEndpoint(protocolConfig, values)
+    const resolvedProtocolEndpoint = resolveTemplateProtocolEndpoint(protocolConfig, values)
+    if (resolvedProtocolEndpoint) {
+      return resolvedProtocolEndpoint
+    }
   }
-  const endpointTemplate = String(template?.defaultEndpoint ?? '').trim()
-  if (!endpointTemplate) return ''
-  return endpointTemplate.replaceAll(/\{([^}]+)\}/g, (_match, key: string) => {
-    const resolved = String(values[key] ?? '').trim()
-    if (resolved) return resolved
-    if (key === 'region') return 'us-east-1'
-    return ''
-  })
+  return resolveTemplateEndpointString(String(template?.defaultEndpoint ?? ''), values)
+}
+
+export function regenerateTemplateEndpoint(
+  template: AIProviderTemplate | null | undefined,
+  values: Record<string, unknown> = {}
+) {
+  const protocol = defaultTemplateProtocol(template, values.default_protocol)
+  const nextValues = { ...values }
+
+  delete nextValues.endpoint
+  delete nextValues[protocolEndpointFieldKey(protocol)]
+
+  return resolveTemplateEndpoint(template, nextValues)
 }
 
 export function inferAWSRegionFromEndpoint(endpoint: string) {
@@ -433,10 +467,10 @@ export async function buildAIProviderPayload(
   }
 
   const credentialField = (template.fields ?? []).find(field => field.id === 'credential')
-  const useCredentialReference = Boolean(body.credential_use_secret)
   const manualCredentialValue = String(body.api_key_value ?? '').trim()
+  const existingCredentialId = String(body.credential ?? '').trim()
 
-  if (!useCredentialReference && manualCredentialValue) {
+  if (!existingCredentialId && manualCredentialValue) {
     const providerName = String(body.name ?? '').trim()
     const createdSecret = await pb.collection('secrets').create({
       name: `${slugifyNamePart(providerName || productTitle(template)) || 'ai-provider'}-api-key`,
@@ -451,6 +485,35 @@ export async function buildAIProviderPayload(
       payload: { value: manualCredentialValue },
     })
     body.credential = String(createdSecret.id ?? '')
+  }
+
+  for (const field of template.fields ?? []) {
+    if (field.type !== 'secret_ref' || field.id === 'credential') {
+      continue
+    }
+    const secretId = String(body[field.id] ?? '').trim()
+    const manualValue = String(
+      body[aiProviderSecretFieldManualValueKey(field.id)] ??
+        body[aiProviderSecretFieldInlineValueKey(field.id)] ??
+        ''
+    ).trim()
+    if (secretId || !manualValue) {
+      continue
+    }
+    const providerName = String(body.name ?? '').trim()
+    const createdSecret = await pb.collection('secrets').create({
+      name: `${slugifyNamePart(providerName || productTitle(template)) || 'ai-provider'}-${slugifyNamePart(field.id) || 'secret'}`,
+      description: t
+        ? t('aiProviders.secret.generatedDescription', {
+            name: providerName || productTitle(template),
+          })
+        : `${field.label || field.id} for ${providerName || productTitle(template)}`,
+      template_id: field.secretTemplate || AI_PROVIDER_CREDENTIAL_TEMPLATE_ID,
+      scope: 'global',
+      visible_to: ['ai_provider'],
+      payload: { value: manualValue },
+    })
+    body[field.id] = String(createdSecret.id ?? '')
   }
 
   const credentialId = String(body.credential ?? '').trim()

@@ -27,6 +27,7 @@ type SchedulingSettings struct {
 }
 
 type PolicySettings struct {
+	ReachabilityProbeTimeout time.Duration
 	MetricsFreshnessLookback time.Duration
 	MetricsStaleThreshold    time.Duration
 	MetricsMissingThreshold  time.Duration
@@ -67,6 +68,7 @@ func DefaultSchedulingSettings() SchedulingSettings {
 
 func DefaultPolicySettings() PolicySettings {
 	return PolicySettings{
+		ReachabilityProbeTimeout: 1500 * time.Millisecond,
 		MetricsFreshnessLookback: 5 * time.Minute,
 		MetricsStaleThreshold:    90 * time.Second,
 		MetricsMissingThreshold:  180 * time.Second,
@@ -117,6 +119,7 @@ func LoadPolicySettings(app core.App) PolicySettings {
 	defaults := DefaultPolicySettings()
 	group, _ := sysconfig.GetGroup(app, SettingsModule, PolicySettingsKey, settingsschema.DefaultGroup(SettingsModule, PolicySettingsKey))
 	settings := PolicySettings{
+		ReachabilityProbeTimeout: time.Duration(clampRange(sysconfig.Int(group, "reachabilityProbeTimeoutMs", int(defaults.ReachabilityProbeTimeout/time.Millisecond)), 100, 300000, int(defaults.ReachabilityProbeTimeout/time.Millisecond))) * time.Millisecond,
 		MetricsFreshnessLookback: time.Duration(clampMinimum(sysconfig.Int(group, "metricsFreshnessLookbackSeconds", int(defaults.MetricsFreshnessLookback/time.Second)), 1, int(defaults.MetricsFreshnessLookback/time.Second))) * time.Second,
 		MetricsStaleThreshold:    time.Duration(clampRange(sysconfig.Int(group, "metricsStaleSeconds", int(defaults.MetricsStaleThreshold/time.Second)), 30, 300, int(defaults.MetricsStaleThreshold/time.Second))) * time.Second,
 		MetricsMissingThreshold:  time.Duration(clampRange(sysconfig.Int(group, "metricsMissingSeconds", int(defaults.MetricsMissingThreshold/time.Second)), 31, 600, int(defaults.MetricsMissingThreshold/time.Second))) * time.Second,

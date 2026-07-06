@@ -164,13 +164,19 @@ func handleInstanceReachability(e *core.RequestEvent) error {
 	}
 
 	result := make([]map[string]any, 0, len(items))
+	now := time.Now().UTC()
+	timeout := monitorchecks.LoadReachabilityProbeTimeout(e.App)
 	for _, item := range items {
 		if len(filterIDs) > 0 {
 			if _, ok := filterIDs[item.ID()]; !ok {
 				continue
 			}
 		}
-		result = append(result, instanceReachabilityResponse(item))
+		probe := monitorchecks.ProbeInstanceReachabilityWithTimeout(item, timeout)
+		if err := monitorchecks.ProjectInstanceReachability(e.App, item, probe, now); err != nil {
+			return e.InternalServerError("failed to project instance reachability", err)
+		}
+		result = append(result, instanceReachabilityResponse(item, probe, now))
 	}
 	return e.JSON(http.StatusOK, result)
 }
@@ -490,12 +496,11 @@ func instanceSnapshotMap(snap *instances.Snapshot) map[string]any {
 	}
 }
 
-func instanceReachabilityResponse(item *instances.Instance) map[string]any {
-	result := monitorchecks.ProbeInstanceReachability(item)
+func instanceReachabilityResponse(item *instances.Instance, result monitorchecks.ReachabilityResult, checkedAt time.Time) map[string]any {
 	response := map[string]any{
 		"id":         item.ID(),
 		"status":     result.Status,
-		"checked_at": time.Now().UTC().Format(time.RFC3339),
+		"checked_at": checkedAt.Format(time.RFC3339),
 	}
 	if result.LatencyMS > 0 {
 		response["latency_ms"] = result.LatencyMS

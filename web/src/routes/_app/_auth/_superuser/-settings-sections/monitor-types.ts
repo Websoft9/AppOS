@@ -9,6 +9,7 @@ export interface MonitorSchedulingGroup {
 }
 
 export interface MonitorPolicyGroup {
+  reachabilityProbeTimeoutMs: number
   metricsFreshnessLookbackSeconds: number
   metricsStaleSeconds: number
   metricsMissingSeconds: number
@@ -46,6 +47,7 @@ export const DEFAULT_MONITOR_SCHEDULING: MonitorSchedulingGroup = {
 }
 
 export const DEFAULT_MONITOR_POLICY: MonitorPolicyGroup = {
+  reachabilityProbeTimeoutMs: 1500,
   metricsFreshnessLookbackSeconds: 300,
   metricsStaleSeconds: 90,
   metricsMissingSeconds: 180,

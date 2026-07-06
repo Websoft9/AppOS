@@ -644,6 +644,15 @@ func validateMonitorPolicy(v map[string]any) map[string]string {
 		v["metricsMissingSeconds"] = missing
 	}
 
+	reachabilityProbeTimeoutMs, err := parseIntWithDefault(v["reachabilityProbeTimeoutMs"], 1500)
+	if err != nil {
+		errors["reachabilityProbeTimeoutMs"] = "must be an integer"
+	} else if reachabilityProbeTimeoutMs < 100 || reachabilityProbeTimeoutMs > 300000 {
+		errors["reachabilityProbeTimeoutMs"] = "must be between 100 and 300000"
+	} else {
+		v["reachabilityProbeTimeoutMs"] = reachabilityProbeTimeoutMs
+	}
+
 	for _, field := range []string{"controlProbeTimeoutSeconds", "factsPullTimeoutSeconds", "runtimePullTimeoutSeconds"} {
 		value, err := parseIntWithDefault(v[field], 1)
 		if err != nil {

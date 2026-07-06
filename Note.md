@@ -122,9 +122,14 @@ Runtime Instances 列表页
 1. 元数据要有默认协议，不同的 kind 不同：例如：rest api 默认为 https，当用户没有填写 协议时，它就自动将 https 组合到用户填写的 url 中。如果用户填写了协议，就不管它
 
 
-
-前端列表页统一加载策略
-AI Providers Google Vertex AI 的 endpoint 
-
-继续审查每个 database 模板的“语义准确性”，例如 InfluxDB 的 username/password 模型是否应改成 token-oriented
 进一步清理后端 instances 模型里已经不再使用的 commonFieldDefaults / omitCommonFields 结构，彻底去掉旧时代遗留
+
+
+整理 instance 下 MQ 分类的元数据
+
+1. username 可选
+2. Credential 的 UI 显示时，toolpit 内容应该是 This Credential may be a Password, Token, or Secret Key.
+3. 协议不固定
+
+
+onlyoffice 存放在哪里的问题

@@ -198,6 +198,7 @@ func (w *Worker) newServeMux() *asynq.ServeMux {
 	mux := asynq.NewServeMux()
 	mux.HandleFunc(TaskDeployApp, w.handleDeployApp)
 	mux.HandleFunc(TaskMonitorAppHealthSweep, w.handleMonitorAppHealthSweep)
+	mux.HandleFunc(TaskMonitorAIProviderReachabilitySweep, w.handleMonitorAIProviderReachabilitySweep)
 	mux.HandleFunc(TaskMonitorCredentialSweep, w.handleMonitorCredentialSweep)
 	mux.HandleFunc(TaskMonitorFactsPull, w.handleMonitorFactsPull)
 	mux.HandleFunc(TaskMonitorControlReachability, w.handleMonitorControlReachability)

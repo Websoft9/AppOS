@@ -384,6 +384,175 @@ describe('ConnectorsPage', () => {
     cleanup()
   })
 
+  it('uses cached reachability on initial load and refreshes it only when requested', async () => {
+    let cachedStatuses = [
+      {
+        target_id: 'connector-1',
+        status: 'unreachable',
+        reason: 'cached failure',
+        last_checked_at: '2099-04-11T10:00:00Z',
+      },
+    ]
+
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/connectors/templates') {
+        return Promise.resolve([
+          {
+            id: 'generic-rest',
+            kind: 'rest_api',
+            title: 'Generic REST API',
+            authPresentation: 'token',
+            endpointShape: 'url',
+            endpointScheme: 'https',
+            fields: [{ id: 'endpoint', label: 'API Endpoint', type: 'url', required: true }],
+          },
+        ])
+      }
+      if (
+        path === '/api/connectors?kind=rest_api,webhook,mcp,http-gateway,proxy,smtp,registry,dns'
+      ) {
+        return Promise.resolve([
+          {
+            id: 'connector-1',
+            name: 'rest-main',
+            kind: 'rest_api',
+            template_id: 'generic-rest',
+            endpoint: 'https://api.example.com',
+            auth_scheme: 'none',
+            config: {},
+          },
+        ])
+      }
+      if (path.startsWith('/api/collections/monitor_latest_status/records?')) {
+        return Promise.resolve({
+          items: cachedStatuses,
+        })
+      }
+      if (path.startsWith('/api/connectors/reachability?')) {
+        cachedStatuses = [
+          {
+            target_id: 'connector-1',
+            status: 'healthy',
+            reason: '',
+            last_checked_at: '2099-04-11T10:05:00Z',
+          },
+        ]
+        return Promise.resolve({
+          items: [
+            {
+              id: 'connector-1',
+              status: 'reachable',
+              lastCheckedAt: '2099-04-11T10:05:00Z',
+            },
+          ],
+        })
+      }
+      if (path === '/api/settings/entries/monitor/scheduling') {
+        return Promise.resolve({ id: 'monitor/scheduling', value: { reachabilityIntervalMinutes: 10 } })
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      if (
+        path ===
+        "/api/collections/secrets/records?filter=(created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value')%26%26(visible_to:length=0||visible_to:each%3F='connector')&sort=name"
+      ) {
+        return Promise.resolve({ items: [] })
+      }
+      return Promise.resolve({ items: [] })
+    })
+
+    render(<ConnectorsPage />)
+
+    expect(await screen.findByText('rest-main')).toBeInTheDocument()
+    expect(screen.getByText('Unreachable')).toBeInTheDocument()
+    expect(screen.getByText('2099-04-11 10:00')).toBeInTheDocument()
+    expect(
+      sendMock.mock.calls.some(([path]) => String(path).startsWith('/api/connectors/reachability?'))
+    ).toBe(false)
+
+    fireEvent.click(screen.getByTitle('Refresh'))
+
+    expect(await screen.findByText('Reachable')).toBeInTheDocument()
+    expect(screen.getByText('2099-04-11 10:05')).toBeInTheDocument()
+
+    cleanup()
+    render(<ConnectorsPage />)
+
+    expect(await screen.findByText('rest-main')).toBeInTheDocument()
+    expect(screen.getByText('Reachable')).toBeInTheDocument()
+    expect(screen.getByText('2099-04-11 10:05')).toBeInTheDocument()
+  })
+
+  it('silently probes unknown connectors on first load and converges from unknown', async () => {
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/connectors/templates') {
+        return Promise.resolve([
+          {
+            id: 'generic-rest',
+            kind: 'rest_api',
+            title: 'Generic REST API',
+            authPresentation: 'token',
+            endpointShape: 'url',
+            endpointScheme: 'https',
+            fields: [{ id: 'endpoint', label: 'API Endpoint', type: 'url', required: true }],
+          },
+        ])
+      }
+      if (
+        path === '/api/connectors?kind=rest_api,webhook,mcp,http-gateway,proxy,smtp,registry,dns'
+      ) {
+        return Promise.resolve([
+          {
+            id: 'connector-1',
+            name: 'rest-main',
+            kind: 'rest_api',
+            template_id: 'generic-rest',
+            endpoint: 'https://api.example.com',
+            auth_scheme: 'none',
+            config: {},
+          },
+        ])
+      }
+      if (path.startsWith('/api/collections/monitor_latest_status/records?')) {
+        return Promise.resolve({ items: [] })
+      }
+      if (path.startsWith('/api/connectors/reachability?')) {
+        return Promise.resolve({
+          items: [
+            {
+              id: 'connector-1',
+              status: 'reachable',
+              lastCheckedAt: '2026-04-11T10:05:00Z',
+            },
+          ],
+        })
+      }
+      if (path === '/api/settings/entries/monitor/scheduling') {
+        return Promise.resolve({ id: 'monitor/scheduling', value: { reachabilityIntervalMinutes: 1 } })
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      if (
+        path ===
+        "/api/collections/secrets/records?filter=(created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value')%26%26(visible_to:length=0||visible_to:each%3F='connector')&sort=name"
+      ) {
+        return Promise.resolve({ items: [] })
+      }
+      return Promise.resolve({ items: [] })
+    })
+
+    render(<ConnectorsPage />)
+
+    expect(await screen.findByText('rest-main')).toBeInTheDocument()
+    expect(await screen.findByText('Reachable')).toBeInTheDocument()
+    expect(screen.getByText('2026-04-11 10:05')).toBeInTheDocument()
+    expect(
+      sendMock.mock.calls.some(([path]) => String(path).startsWith('/api/connectors/reachability?ids=connector-1'))
+    ).toBe(true)
+  })
+
   it('starts create flow from connector type and then narrows profiles to that kind schema', async () => {
     render(<ConnectorsPage />)
 
@@ -649,15 +818,11 @@ describe('ConnectorsPage', () => {
 
     const dialog = await screen.findByRole('dialog')
     expect(
-      screen.queryByPlaceholderText('Enter a new secret value to update the current secret')
-    ).not.toBeInTheDocument()
-    expect(screen.getByText('smtp-password')).toBeInTheDocument()
-    expect(dialog.querySelector('select')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Secret' }))
-
-    expect(
-      await screen.findByPlaceholderText('Enter a new secret value to update the current secret')
+      await screen.findByPlaceholderText('Leave blank to keep the current secret value')
     ).toBeInTheDocument()
+    expect(dialog.querySelector('select')).toBeNull()
+    expect(screen.queryByText('smtp-password')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit Secret' })).not.toBeInTheDocument()
   })
 
   it('falls back to the editing item template_id when edit payload omits it', () => {

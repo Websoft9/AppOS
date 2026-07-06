@@ -60,6 +60,7 @@ interface SecretCredentialFieldProps {
   generatorConfirmLabel?: string
   referenceToggleMode?: 'checkbox' | 'icon'
   editReferenceMode?: 'button' | 'icon'
+  allowReference?: boolean
 }
 
 export function SecretCredentialField({
@@ -85,13 +86,14 @@ export function SecretCredentialField({
   generatorConfirmLabel = 'Fill Password',
   referenceToggleMode = 'checkbox',
   editReferenceMode = 'button',
+  allowReference = true,
 }: SecretCredentialFieldProps) {
   const [generatorOpen, setGeneratorOpen] = useState(false)
   const [length, setLength] = useState(24)
   const [revealed, setRevealed] = useState(false)
   const [referencePickerOpen, setReferencePickerOpen] = useState(false)
-  const showReferencePicker = editMode || useReference
-  const iconToggleMode = !editMode && referenceToggleMode === 'icon'
+  const showReferencePicker = allowReference && (editMode || useReference)
+  const iconToggleMode = allowReference && !editMode && referenceToggleMode === 'icon'
   const pickerActionAlignmentClass = referencePickerOpen ? 'self-start' : 'self-center'
 
   const toggleReferenceMode = () => {
@@ -102,7 +104,7 @@ export function SecretCredentialField({
     onUseReferenceChange(nextValue)
   }
 
-  const referenceToggle = !editMode ? (
+  const referenceToggle = allowReference && !editMode ? (
     iconToggleMode ? (
       <Button
         type="button"

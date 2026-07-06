@@ -156,11 +156,12 @@ const AppAuthProfileRoute = AppAuthProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => AppAuthRoute,
 } as any)
-const AppAuthPlatformComponentsRoute = AppAuthPlatformComponentsRouteImport.update({
-  id: '/platform-components',
-  path: '/platform-components',
-  getParentRoute: () => AppAuthRoute,
-} as any)
+const AppAuthPlatformComponentsRoute =
+  AppAuthPlatformComponentsRouteImport.update({
+    id: '/platform-components',
+    path: '/platform-components',
+    getParentRoute: () => AppAuthRoute,
+  } as any)
 const AppAuthOverviewRoute = AppAuthOverviewRouteImport.update({
   id: '/overview',
   path: '/overview',
@@ -265,31 +266,35 @@ const AppAuthResourcesTunnelsRoute = AppAuthResourcesTunnelsRouteImport.update({
   path: '/resources/tunnels',
   getParentRoute: () => AppAuthRoute,
 } as any)
-const AppAuthResourcesServiceInstancesRoute = AppAuthResourcesServiceInstancesRouteImport.update({
-  id: '/resources/service-instances',
-  path: '/resources/service-instances',
-  getParentRoute: () => AppAuthRoute,
-} as any)
+const AppAuthResourcesServiceInstancesRoute =
+  AppAuthResourcesServiceInstancesRouteImport.update({
+    id: '/resources/service-instances',
+    path: '/resources/service-instances',
+    getParentRoute: () => AppAuthRoute,
+  } as any)
 const AppAuthResourcesServersRoute = AppAuthResourcesServersRouteImport.update({
   id: '/resources/servers',
   path: '/resources/servers',
   getParentRoute: () => AppAuthRoute,
 } as any)
-const AppAuthResourcesPlatformAccountsRoute = AppAuthResourcesPlatformAccountsRouteImport.update({
-  id: '/resources/platform-accounts',
-  path: '/resources/platform-accounts',
-  getParentRoute: () => AppAuthRoute,
-} as any)
-const AppAuthResourcesConnectorsRoute = AppAuthResourcesConnectorsRouteImport.update({
-  id: '/resources/connectors',
-  path: '/resources/connectors',
-  getParentRoute: () => AppAuthRoute,
-} as any)
-const AppAuthResourcesAiProvidersRoute = AppAuthResourcesAiProvidersRouteImport.update({
-  id: '/resources/ai-providers',
-  path: '/resources/ai-providers',
-  getParentRoute: () => AppAuthRoute,
-} as any)
+const AppAuthResourcesPlatformAccountsRoute =
+  AppAuthResourcesPlatformAccountsRouteImport.update({
+    id: '/resources/platform-accounts',
+    path: '/resources/platform-accounts',
+    getParentRoute: () => AppAuthRoute,
+  } as any)
+const AppAuthResourcesConnectorsRoute =
+  AppAuthResourcesConnectorsRouteImport.update({
+    id: '/resources/connectors',
+    path: '/resources/connectors',
+    getParentRoute: () => AppAuthRoute,
+  } as any)
+const AppAuthResourcesAiProvidersRoute =
+  AppAuthResourcesAiProvidersRouteImport.update({
+    id: '/resources/ai-providers',
+    path: '/resources/ai-providers',
+    getParentRoute: () => AppAuthRoute,
+  } as any)
 const AppAuthGroupsIdRoute = AppAuthGroupsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -315,26 +320,29 @@ const AppAuthSuperuserTunnelsRoute = AppAuthSuperuserTunnelsRouteImport.update({
   path: '/tunnels',
   getParentRoute: () => AppAuthSuperuserRoute,
 } as any)
-const AppAuthSuperuserSystemTasksRoute = AppAuthSuperuserSystemTasksRouteImport.update({
-  id: '/system-tasks',
-  path: '/system-tasks',
-  getParentRoute: () => AppAuthSuperuserRoute,
-} as any)
+const AppAuthSuperuserSystemTasksRoute =
+  AppAuthSuperuserSystemTasksRouteImport.update({
+    id: '/system-tasks',
+    path: '/system-tasks',
+    getParentRoute: () => AppAuthSuperuserRoute,
+  } as any)
 const AppAuthSuperuserStatusRoute = AppAuthSuperuserStatusRouteImport.update({
   id: '/status',
   path: '/status',
   getParentRoute: () => AppAuthSuperuserRoute,
 } as any)
-const AppAuthSuperuserSettingsRoute = AppAuthSuperuserSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => AppAuthSuperuserRoute,
-} as any)
-const AppAuthSuperuserPlatformRuntimeRoute = AppAuthSuperuserPlatformRuntimeRouteImport.update({
-  id: '/platform-runtime',
-  path: '/platform-runtime',
-  getParentRoute: () => AppAuthSuperuserRoute,
-} as any)
+const AppAuthSuperuserSettingsRoute =
+  AppAuthSuperuserSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AppAuthSuperuserRoute,
+  } as any)
+const AppAuthSuperuserPlatformRuntimeRoute =
+  AppAuthSuperuserPlatformRuntimeRouteImport.update({
+    id: '/platform-runtime',
+    path: '/platform-runtime',
+    getParentRoute: () => AppAuthSuperuserRoute,
+  } as any)
 const AppAuthSuperuserLogsRoute = AppAuthSuperuserLogsRouteImport.update({
   id: '/logs',
   path: '/logs',
@@ -345,41 +353,48 @@ const AppAuthSuperuserIacRoute = AppAuthSuperuserIacRouteImport.update({
   path: '/iac',
   getParentRoute: () => AppAuthSuperuserRoute,
 } as any)
-const AppAuthSuperuserAiAssetsRoute = AppAuthSuperuserAiAssetsRouteImport.update({
-  id: '/ai-assets',
-  path: '/ai-assets',
-  getParentRoute: () => AppAuthSuperuserRoute,
-} as any)
-const AppAuthSuperuserUsersIndexRoute = AppAuthSuperuserUsersIndexRouteImport.update({
-  id: '/users/',
-  path: '/users/',
-  getParentRoute: () => AppAuthSuperuserRoute,
-} as any)
-const AppAuthSuperuserTerminalIndexRoute = AppAuthSuperuserTerminalIndexRouteImport.update({
-  id: '/terminal/',
-  path: '/terminal/',
-  getParentRoute: () => AppAuthSuperuserRoute,
-} as any)
-const AppAuthAdminCredentialsEnvVarsRoute = AppAuthAdminCredentialsEnvVarsRouteImport.update({
-  id: '/admin/credentials/env-vars',
-  path: '/admin/credentials/env-vars',
-  getParentRoute: () => AppAuthRoute,
-} as any)
-const AppAuthSuperuserAiAssetsSkillsRoute = AppAuthSuperuserAiAssetsSkillsRouteImport.update({
-  id: '/skills',
-  path: '/skills',
-  getParentRoute: () => AppAuthSuperuserAiAssetsRoute,
-} as any)
-const AppAuthSuperuserAiAssetsScriptsRoute = AppAuthSuperuserAiAssetsScriptsRouteImport.update({
-  id: '/scripts',
-  path: '/scripts',
-  getParentRoute: () => AppAuthSuperuserAiAssetsRoute,
-} as any)
-const AppAuthSuperuserAiAssetsPromptsRoute = AppAuthSuperuserAiAssetsPromptsRouteImport.update({
-  id: '/prompts',
-  path: '/prompts',
-  getParentRoute: () => AppAuthSuperuserAiAssetsRoute,
-} as any)
+const AppAuthSuperuserAiAssetsRoute =
+  AppAuthSuperuserAiAssetsRouteImport.update({
+    id: '/ai-assets',
+    path: '/ai-assets',
+    getParentRoute: () => AppAuthSuperuserRoute,
+  } as any)
+const AppAuthSuperuserUsersIndexRoute =
+  AppAuthSuperuserUsersIndexRouteImport.update({
+    id: '/users/',
+    path: '/users/',
+    getParentRoute: () => AppAuthSuperuserRoute,
+  } as any)
+const AppAuthSuperuserTerminalIndexRoute =
+  AppAuthSuperuserTerminalIndexRouteImport.update({
+    id: '/terminal/',
+    path: '/terminal/',
+    getParentRoute: () => AppAuthSuperuserRoute,
+  } as any)
+const AppAuthAdminCredentialsEnvVarsRoute =
+  AppAuthAdminCredentialsEnvVarsRouteImport.update({
+    id: '/admin/credentials/env-vars',
+    path: '/admin/credentials/env-vars',
+    getParentRoute: () => AppAuthRoute,
+  } as any)
+const AppAuthSuperuserAiAssetsSkillsRoute =
+  AppAuthSuperuserAiAssetsSkillsRouteImport.update({
+    id: '/skills',
+    path: '/skills',
+    getParentRoute: () => AppAuthSuperuserAiAssetsRoute,
+  } as any)
+const AppAuthSuperuserAiAssetsScriptsRoute =
+  AppAuthSuperuserAiAssetsScriptsRouteImport.update({
+    id: '/scripts',
+    path: '/scripts',
+    getParentRoute: () => AppAuthSuperuserAiAssetsRoute,
+  } as any)
+const AppAuthSuperuserAiAssetsPromptsRoute =
+  AppAuthSuperuserAiAssetsPromptsRouteImport.update({
+    id: '/prompts',
+    path: '/prompts',
+    getParentRoute: () => AppAuthSuperuserAiAssetsRoute,
+  } as any)
 const AppAuthSuperuserTerminalServerServerIdRoute =
   AppAuthSuperuserTerminalServerServerIdRouteImport.update({
     id: '/terminal/server/$serverId',
@@ -1221,15 +1236,17 @@ interface AppAuthSuperuserAiAssetsRouteChildren {
   AppAuthSuperuserAiAssetsSkillsRoute: typeof AppAuthSuperuserAiAssetsSkillsRoute
 }
 
-const AppAuthSuperuserAiAssetsRouteChildren: AppAuthSuperuserAiAssetsRouteChildren = {
-  AppAuthSuperuserAiAssetsPromptsRoute: AppAuthSuperuserAiAssetsPromptsRoute,
-  AppAuthSuperuserAiAssetsScriptsRoute: AppAuthSuperuserAiAssetsScriptsRoute,
-  AppAuthSuperuserAiAssetsSkillsRoute: AppAuthSuperuserAiAssetsSkillsRoute,
-}
+const AppAuthSuperuserAiAssetsRouteChildren: AppAuthSuperuserAiAssetsRouteChildren =
+  {
+    AppAuthSuperuserAiAssetsPromptsRoute: AppAuthSuperuserAiAssetsPromptsRoute,
+    AppAuthSuperuserAiAssetsScriptsRoute: AppAuthSuperuserAiAssetsScriptsRoute,
+    AppAuthSuperuserAiAssetsSkillsRoute: AppAuthSuperuserAiAssetsSkillsRoute,
+  }
 
-const AppAuthSuperuserAiAssetsRouteWithChildren = AppAuthSuperuserAiAssetsRoute._addFileChildren(
-  AppAuthSuperuserAiAssetsRouteChildren
-)
+const AppAuthSuperuserAiAssetsRouteWithChildren =
+  AppAuthSuperuserAiAssetsRoute._addFileChildren(
+    AppAuthSuperuserAiAssetsRouteChildren,
+  )
 
 interface AppAuthSuperuserRouteChildren {
   AppAuthSuperuserAiAssetsRoute: typeof AppAuthSuperuserAiAssetsRouteWithChildren
@@ -1256,12 +1273,12 @@ const AppAuthSuperuserRouteChildren: AppAuthSuperuserRouteChildren = {
   AppAuthSuperuserTunnelsRoute: AppAuthSuperuserTunnelsRoute,
   AppAuthSuperuserTerminalIndexRoute: AppAuthSuperuserTerminalIndexRoute,
   AppAuthSuperuserUsersIndexRoute: AppAuthSuperuserUsersIndexRoute,
-  AppAuthSuperuserTerminalServerServerIdRoute: AppAuthSuperuserTerminalServerServerIdRoute,
+  AppAuthSuperuserTerminalServerServerIdRoute:
+    AppAuthSuperuserTerminalServerServerIdRoute,
 }
 
-const AppAuthSuperuserRouteWithChildren = AppAuthSuperuserRoute._addFileChildren(
-  AppAuthSuperuserRouteChildren
-)
+const AppAuthSuperuserRouteWithChildren =
+  AppAuthSuperuserRoute._addFileChildren(AppAuthSuperuserRouteChildren)
 
 interface AppAuthActivityRouteChildren {
   AppAuthActivityActionIdRoute: typeof AppAuthActivityActionIdRoute
@@ -1272,7 +1289,7 @@ const AppAuthActivityRouteChildren: AppAuthActivityRouteChildren = {
 }
 
 const AppAuthActivityRouteWithChildren = AppAuthActivityRoute._addFileChildren(
-  AppAuthActivityRouteChildren
+  AppAuthActivityRouteChildren,
 )
 
 interface AppAuthAppsRouteChildren {
@@ -1283,7 +1300,9 @@ const AppAuthAppsRouteChildren: AppAuthAppsRouteChildren = {
   AppAuthAppsAppIdRoute: AppAuthAppsAppIdRoute,
 }
 
-const AppAuthAppsRouteWithChildren = AppAuthAppsRoute._addFileChildren(AppAuthAppsRouteChildren)
+const AppAuthAppsRouteWithChildren = AppAuthAppsRoute._addFileChildren(
+  AppAuthAppsRouteChildren,
+)
 
 interface AppAuthDeployRouteChildren {
   AppAuthDeployCreateRoute: typeof AppAuthDeployCreateRoute
@@ -1296,7 +1315,7 @@ const AppAuthDeployRouteChildren: AppAuthDeployRouteChildren = {
 }
 
 const AppAuthDeployRouteWithChildren = AppAuthDeployRoute._addFileChildren(
-  AppAuthDeployRouteChildren
+  AppAuthDeployRouteChildren,
 )
 
 interface AppAuthGroupsRouteChildren {
@@ -1310,7 +1329,7 @@ const AppAuthGroupsRouteChildren: AppAuthGroupsRouteChildren = {
 }
 
 const AppAuthGroupsRouteWithChildren = AppAuthGroupsRoute._addFileChildren(
-  AppAuthGroupsRouteChildren
+  AppAuthGroupsRouteChildren,
 )
 
 interface AppAuthTopicsRouteChildren {
@@ -1324,7 +1343,7 @@ const AppAuthTopicsRouteChildren: AppAuthTopicsRouteChildren = {
 }
 
 const AppAuthTopicsRouteWithChildren = AppAuthTopicsRoute._addFileChildren(
-  AppAuthTopicsRouteChildren
+  AppAuthTopicsRouteChildren,
 )
 
 interface AppAuthRouteChildren {
@@ -1395,7 +1414,8 @@ const AppAuthRouteChildren: AppAuthRouteChildren = {
   AppAuthAdminCredentialsEnvVarsRoute: AppAuthAdminCredentialsEnvVarsRoute,
 }
 
-const AppAuthRouteWithChildren = AppAuthRoute._addFileChildren(AppAuthRouteChildren)
+const AppAuthRouteWithChildren =
+  AppAuthRoute._addFileChildren(AppAuthRouteChildren)
 
 interface AppRouteChildren {
   AppAuthRoute: typeof AppAuthRouteWithChildren

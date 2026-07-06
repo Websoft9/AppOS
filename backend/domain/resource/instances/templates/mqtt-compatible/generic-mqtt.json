@@ -2,5 +2,5 @@
   "id": "generic-mqtt",
   "title": "Generic MQTT",
   "description": "MQTT-compatible message broker instance.",
-  "defaultEndpoint": "mqtt://broker.internal:1883"
+  "defaultEndpoint": "mqtt://broker.yourhost.com:1883"
 }

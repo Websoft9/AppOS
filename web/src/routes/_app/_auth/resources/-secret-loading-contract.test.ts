@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 
 const SHARED_SECRET_PICKER_FILES = [
   '/data/dev/appos/web/src/routes/_app/_auth/resources/servers.tsx',
-  '/data/dev/appos/web/src/routes/_app/_auth/resources/service-instances.tsx',
   '/data/dev/appos/web/src/routes/_app/_auth/resources/ai-providers.tsx',
   '/data/dev/appos/web/src/routes/_app/_auth/resources/platform-accounts.tsx',
 ] as const

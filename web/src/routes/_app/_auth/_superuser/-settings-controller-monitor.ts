@@ -139,6 +139,8 @@ export function useMonitorSettingsController(showToast: ShowToast) {
             ? (err.response.errors as Record<string, unknown>)
             : {}
         setMonitorPolicyErrors({
+          reachabilityProbeTimeoutMs:
+            extractFieldError(bag.reachabilityProbeTimeoutMs) ?? undefined,
           metricsFreshnessLookbackSeconds:
             extractFieldError(bag.metricsFreshnessLookbackSeconds) ?? undefined,
           metricsStaleSeconds: extractFieldError(bag.metricsStaleSeconds) ?? undefined,

@@ -114,6 +114,11 @@ describe('SettingsPage shared settings paths', () => {
               source: 'custom',
               fields: [
                 {
+                  id: 'reachabilityProbeTimeoutMs',
+                  label: 'Reachability Probe Timeout Ms',
+                  type: 'integer',
+                },
+                {
                   id: 'metricsFreshnessLookbackSeconds',
                   label: 'Metrics Freshness Lookback Seconds',
                   type: 'integer',
@@ -1002,6 +1007,9 @@ describe('SettingsPage shared settings paths', () => {
     fireEvent.change(screen.getByLabelText('Metrics Freshness Lookback Seconds'), {
       target: { value: '600' },
     })
+    fireEvent.change(screen.getByLabelText('Reachability Probe Timeout Ms'), {
+      target: { value: '1500' },
+    })
     const policyInput = screen.getByLabelText('Metrics Freshness Lookback Seconds')
     const policyCard = policyInput.closest('.rounded-lg.border') as HTMLElement | null
     if (!policyCard) {
@@ -1013,6 +1021,7 @@ describe('SettingsPage shared settings paths', () => {
       expect(sendMock).toHaveBeenCalledWith(settingsEntryPath('monitor-policy'), {
         method: 'PATCH',
         body: expect.objectContaining({
+          reachabilityProbeTimeoutMs: 1500,
           metricsFreshnessLookbackSeconds: 600,
         }),
       })

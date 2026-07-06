@@ -5,7 +5,7 @@
   "endpointShape": "host_port",
   "defaultPort": 8086,
   "credentialPresentation": "secret_or_inline",
-  "credentialLabel": "credential",
+  "credentialLabel": "password",
   "fields": [
     {
       "id": "organization",

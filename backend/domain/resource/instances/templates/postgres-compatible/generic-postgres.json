@@ -2,6 +2,7 @@
   "id": "generic-postgres",
   "title": "Generic PostgreSQL",
   "description": "Self-hosted or managed PostgreSQL service instance.",
+  "defaultEndpoint": "postgres.yourhost.com:5432",
   "fields": [
     {
       "id": "engine",

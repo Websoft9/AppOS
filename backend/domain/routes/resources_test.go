@@ -1179,7 +1179,7 @@ func TestInstanceTemplateMetadataVariants(t *testing.T) {
 		t.Fatalf("get influxdb template: expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 	influxTemplate := parseJSON(t, rec)
-	if influxTemplate["credentialLabel"] != "credential" {
+	if influxTemplate["credentialLabel"] != "password" {
 		t.Fatalf("expected influxdb credentialLabel credential, got %v", influxTemplate["credentialLabel"])
 	}
 	influxFields, ok := influxTemplate["fields"].([]any)
@@ -1265,7 +1265,7 @@ func TestInstancesCRUD(t *testing.T) {
 
 	created := parseJSON(t, rec)
 	id := created["id"].(string)
-	if created["endpoint"] != "amqp://rabbitmq.internal:5672" {
+	if created["endpoint"] != "amqp://rabbitmq.yourhost.com:5672" {
 		t.Fatalf("expected template default endpoint, got %v", created["endpoint"])
 	}
 	if created["template_id"] != "generic-rabbitmq" {
@@ -1409,6 +1409,72 @@ func TestInstanceReachability(t *testing.T) {
 	if _, ok := byID[offlineID]["reason"]; !ok {
 		t.Fatal("expected offline instance to include reason")
 	}
+
+	monitorRecords, err := te.app.FindRecordsByFilter(
+		"monitor_latest_status",
+		"target_type = {:targetType}",
+		"-updated",
+		0, 0,
+		map[string]any{"targetType": "resource"},
+	)
+	if err != nil {
+		t.Fatalf("failed to query instance monitor_latest_status: %v", err)
+	}
+	monitorByTargetID := map[string]*core.Record{}
+	for _, record := range monitorRecords {
+		monitorByTargetID[record.GetString("target_id")] = record
+	}
+	if got := monitorByTargetID[reachableID].GetString("status"); got != "healthy" {
+		t.Fatalf("expected reachable instance to project healthy monitor status, got %q", got)
+	}
+	if got := monitorByTargetID[offlineID].GetString("status"); got != "unreachable" {
+		t.Fatalf("expected offline instance to project unreachable monitor status, got %q", got)
+	}
+}
+
+func TestInstanceReachabilityProjectsKindsOutsideInitialRegistry(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.do(t, http.MethodPost, "/api/instances",
+		`{"name":"mongodb-primary","kind":"mongodb-compatible","template_id":"generic-mongodb","endpoint":"mongo.invalid:27017"}`,
+		true,
+	)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create mongodb instance: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	instanceID := parseJSON(t, rec)["id"].(string)
+
+	rec = te.do(t, http.MethodPost, "/api/instances/reachability",
+		fmt.Sprintf(`{"ids":["%s"]}`, instanceID), true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("probe mongodb reachability: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rows := parseJSONArray(t, rec)
+	if len(rows) != 1 {
+		t.Fatalf("expected 1 reachability row, got %d", len(rows))
+	}
+	if rows[0]["status"] != "offline" {
+		t.Fatalf("expected mongodb instance offline, got %v", rows[0]["status"])
+	}
+
+	monitorRecords, err := te.app.FindRecordsByFilter(
+		"monitor_latest_status",
+		"target_type = {:targetType} && target_id = {:targetID}",
+		"-updated",
+		0, 0,
+		map[string]any{"targetType": "resource", "targetID": instanceID},
+	)
+	if err != nil {
+		t.Fatalf("failed to query mongodb monitor_latest_status: %v", err)
+	}
+	if len(monitorRecords) != 1 {
+		t.Fatalf("expected 1 mongodb monitor record, got %d", len(monitorRecords))
+	}
+	if got := monitorRecords[0].GetString("status"); got != "unreachable" {
+		t.Fatalf("expected mongodb instance to project unreachable monitor status, got %q", got)
+	}
 }
 
 func TestAIProviderReachabilityAndAvailability(t *testing.T) {
@@ -1536,12 +1602,8 @@ func TestAIProviderReachabilityAndAvailability(t *testing.T) {
 	if availabilityState["status"] != "available" {
 		t.Fatalf("expected persisted availability status 'available', got %#v", availabilityState)
 	}
-	reachabilityState, ok := availableConfig["reachability"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected available provider reachability state to persist, got %#v", availableConfig["reachability"])
-	}
-	if reachabilityState["status"] != "reachable" {
-		t.Fatalf("expected persisted reachability status 'reachable', got %#v", reachabilityState)
+	if _, exists := availableConfig["reachability"]; exists {
+		t.Fatalf("expected available provider reachability to live in monitor projection only, got %#v", availableConfig["reachability"])
 	}
 
 	unavailableProvider, err := providerRepo.Get(unavailableID)
@@ -1556,12 +1618,8 @@ func TestAIProviderReachabilityAndAvailability(t *testing.T) {
 	if unavailableAvailability["status"] != "unavailable" {
 		t.Fatalf("expected persisted availability status 'unavailable', got %#v", unavailableAvailability)
 	}
-	unavailableReachability, ok := unavailableConfig["reachability"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected unavailable provider reachability state to persist, got %#v", unavailableConfig["reachability"])
-	}
-	if unavailableReachability["status"] != "reachable" {
-		t.Fatalf("expected persisted reachability status 'reachable', got %#v", unavailableReachability)
+	if _, exists := unavailableConfig["reachability"]; exists {
+		t.Fatalf("expected unavailable provider reachability to live in monitor projection only, got %#v", unavailableConfig["reachability"])
 	}
 }
 
@@ -1595,6 +1653,24 @@ func TestConnectorReachabilityReturnsProbeStatus(t *testing.T) {
 	}
 	if _, ok := item["reason"].(string); !ok {
 		t.Fatal("expected reason in probe response")
+	}
+
+	monitorRecords, err := te.app.FindRecordsByFilter(
+		"monitor_latest_status",
+		"target_type = {:targetType}",
+		"-updated",
+		0, 0,
+		map[string]any{"targetType": "connector"},
+	)
+	if err != nil {
+		t.Fatalf("failed to query connector monitor_latest_status: %v", err)
+	}
+	monitorByTargetID := map[string]*core.Record{}
+	for _, record := range monitorRecords {
+		monitorByTargetID[record.GetString("target_id")] = record
+	}
+	if got := monitorByTargetID[connectorID].GetString("status"); got != "unreachable" {
+		t.Fatalf("expected connector to project unreachable monitor status, got %q", got)
 	}
 }
 

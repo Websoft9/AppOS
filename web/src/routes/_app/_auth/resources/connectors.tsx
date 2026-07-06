@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { Check, Loader2, Pencil, Power, PowerOff, RotateCw } from 'lucide-react'
@@ -18,7 +18,13 @@ import { ResourceStatusTimestamp } from '@/components/resources/ResourceStatusTi
 import { ResourcesBreadcrumb } from '@/components/resources/ResourcesBreadcrumb'
 import { formatResourceDateTime } from '@/components/resources/resource-formatters'
 import {
+  resolveReachabilityStaleAfterMs,
+  shouldBackgroundProbeReachability,
+} from '@/components/resources/reachability-policy'
+import {
   buildEnabledStatusColumn,
+  localizeReachabilityStatus,
+  reachabilityStatusVariant,
   renderEnabledChoiceField,
 } from '@/components/resources/resource-status'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
@@ -65,17 +71,6 @@ function translateConnectorCopy(
   return value === key ? fallback : value
 }
 
-function normalizeConnectorReachability(value: unknown, t: Translate) {
-  const normalized = String(value ?? '')
-    .trim()
-    .toLowerCase()
-  if (normalized === 'reachable')
-    return translateStatus(t, 'connectors.status.reachable', 'Reachable')
-  if (normalized === 'unreachable')
-    return translateStatus(t, 'connectors.status.unreachable', 'Unreachable')
-  return translateStatus(t, 'connectors.status.unknown', 'Unknown')
-}
-
 type MonitorLatestStatusRecord = {
   target_id?: string
   status?: string
@@ -83,10 +78,26 @@ type MonitorLatestStatusRecord = {
   last_checked_at?: string | null
 }
 
-function reachabilityVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-  if (status === 'Reachable') return 'default'
-  if (status === 'Unreachable') return 'destructive'
-  return 'outline'
+type MonitorSchedulingEntryResponse = {
+  value?: {
+    reachabilityIntervalMinutes?: number
+  }
+}
+
+const CONNECTOR_BACKGROUND_PROBE_BATCH_SIZE = 10
+
+async function runBatchedIds(
+  ids: string[],
+  batchSize: number,
+  worker: (ids: string[]) => Promise<void>
+) {
+  if (batchSize < 1) {
+    throw new Error('batchSize must be at least 1')
+  }
+  for (let index = 0; index < ids.length; index += batchSize) {
+    const batch = ids.slice(index, index + batchSize)
+    await worker(batch)
+  }
 }
 
 function buildColumns(
@@ -96,6 +107,12 @@ function buildColumns(
   reachabilityOverrides: Map<string, { status: string; reason: string; checked_at?: string }>,
   reachabilityLoading: Set<string>
 ): Column[] {
+  const reachabilityLabels = {
+    reachable: translateStatus(t, 'connectors.status.reachable', 'Reachable'),
+    unreachable: translateStatus(t, 'connectors.status.unreachable', 'Unreachable'),
+    unknown: translateStatus(t, 'connectors.status.unknown', 'Unknown'),
+  }
+
   const resolveStatusMeta = (row: Record<string, unknown>) => {
     const override = reachabilityOverrides.get(String(row.id ?? ''))
     if (override) {
@@ -120,6 +137,7 @@ function buildColumns(
     { label: getConnectorAuthSchemeLabel('bearer', t), value: 'bearer' },
     { label: getConnectorAuthSchemeLabel('api_key', t), value: 'api_key' },
   ]
+
   return [
     { key: 'name', label: t('connectors.columns.name'), searchable: true, sortable: true },
     buildEnabledStatusColumn({
@@ -186,28 +204,28 @@ function buildColumns(
       sortable: true,
       filterOptions: [
         {
-          label: normalizeConnectorReachability('reachable', t),
-          value: normalizeConnectorReachability('reachable', t),
+          label: reachabilityLabels.reachable,
+          value: reachabilityLabels.reachable,
         },
         {
-          label: normalizeConnectorReachability('unreachable', t),
-          value: normalizeConnectorReachability('unreachable', t),
+          label: reachabilityLabels.unreachable,
+          value: reachabilityLabels.unreachable,
         },
         {
-          label: normalizeConnectorReachability('unknown', t),
-          value: normalizeConnectorReachability('unknown', t),
+          label: reachabilityLabels.unknown,
+          value: reachabilityLabels.unknown,
         },
       ],
-      filterValue: row => resolveStatusMeta(row).status,
+      filterValue: row =>
+        localizeReachabilityStatus(resolveStatusMeta(row).status, reachabilityLabels),
       render: (value, row) => {
         const meta = resolveStatusMeta(row)
         const status = meta.status || String(value ?? '').trim()
         const reason = meta.reason
-        const hasStatus = status.length > 0 && status !== '—'
-        const displayStatus = hasStatus ? status : normalizeConnectorReachability('unknown', t)
+        const displayStatus = localizeReachabilityStatus(status, reachabilityLabels)
         return (
           <Badge
-            variant={reachabilityVariant(displayStatus)}
+            variant={reachabilityStatusVariant(status)}
             title={reason || undefined}
             className="gap-1"
           >
@@ -280,6 +298,7 @@ export function ConnectorsPage() {
   const [secretAddOption, setSecretAddOption] = useState<
     ((id: string, label: string) => void) | null
   >(null)
+  const bgProbeKeyRef = useRef('')
 
   useEffect(() => {
     if (!setHeaderRightStartContent) return undefined
@@ -376,7 +395,6 @@ export function ConnectorsPage() {
             fields: [],
           },
           effectiveField,
-          openSecretDialog,
           t
         )
         const endpointTemplate = selectedTemplate ?? {
@@ -622,7 +640,7 @@ export function ConnectorsPage() {
             const id = String(entry.id ?? '').trim()
             if (!id) continue
             next.set(id, {
-              status: normalizeConnectorReachability(entry.status, t),
+              status: String(entry.status ?? '').trim(),
               reason: String(entry.reason ?? ''),
               checked_at: entry.lastCheckedAt,
             })
@@ -861,6 +879,11 @@ export function ConnectorsPage() {
           createButtonShowIcon: false,
           wrapTableInCard: false,
           refreshKey,
+          onRefresh: async ({ items, refreshList }) => {
+            await refreshList()
+            const ids = items.map(item => String(item.id ?? '')).filter(Boolean)
+            await fetchReachabilityStatuses(ids)
+          },
           listControlsBorder: false,
           listControlsShowReset: false,
           headerFilters: true,
@@ -946,7 +969,7 @@ export function ConnectorsPage() {
             }
           },
           listItems: async () => {
-            const [items, monitorResponse] = await Promise.all([
+            const [items, monitorResponse, schedulingResponse] = await Promise.all([
               pb.send<ConnectorRecord[]>(`/api/connectors?kind=${CONNECTOR_KIND_QUERY}`, {
                 method: 'GET',
               }),
@@ -960,6 +983,11 @@ export function ConnectorsPage() {
                   { method: 'GET' }
                 )
                 .catch(() => ({ items: [] })),
+              pb
+                .send<MonitorSchedulingEntryResponse>('/api/settings/entries/monitor/scheduling', {
+                  method: 'GET',
+                })
+                .catch(() => ({ value: { reachabilityIntervalMinutes: 1 } })),
             ])
             if (!Array.isArray(items)) {
               return []
@@ -973,11 +1001,32 @@ export function ConnectorsPage() {
                 : []
             )
 
+            const staleAfterMs = resolveReachabilityStaleAfterMs(
+              schedulingResponse?.value?.reachabilityIntervalMinutes
+            )
             const rows = items.map(item =>
               mapConnectorRow(item, connectorTemplatesById, t, monitorByTargetId)
             )
-            const ids = rows.map(row => String(row.id ?? '')).filter(Boolean)
-            void fetchReachabilityStatuses(ids)
+
+            const backgroundProbeIDs = rows
+              .filter(row =>
+                shouldBackgroundProbeReachability(
+                  String(row.reachability_last_checked_at ?? '').trim(),
+                  staleAfterMs
+                )
+              )
+              .map(row => String(row.id ?? '').trim())
+              .filter(Boolean)
+
+            const probeKey = backgroundProbeIDs.join(',')
+            if (probeKey && bgProbeKeyRef.current !== probeKey) {
+              bgProbeKeyRef.current = probeKey
+              void runBatchedIds(
+                backgroundProbeIDs,
+                CONNECTOR_BACKGROUND_PROBE_BATCH_SIZE,
+                fetchReachabilityStatuses
+              )
+            }
             return rows
           },
           createItem: async payload => {

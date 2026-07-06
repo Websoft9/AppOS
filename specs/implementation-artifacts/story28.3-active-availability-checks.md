@@ -114,7 +114,10 @@ Why this split:
 
 | Job ID | Purpose | Interval |
 |--------|---------|----------|
-| `monitor_reachability_checks` | endpoint and connector reachability | `1m` |
+| `monitor_instance_reachability_checks` | instance endpoint reachability | `1m` |
+| `monitor_ai_provider_reachability_checks` | AI provider endpoint reachability | `1m` |
+| `monitor_connector_reachability_checks` | connector endpoint reachability | `1m` |
+| `monitor_server_reachability_checks` | managed server control reachability | `1m` |
 | `monitor_credential_checks` | minimal credential validation | `5m` |
 | `monitor_app_health_checks` | selected app-owned health probes | `1m` |
 | `monitor_heartbeat_freshness` | stale and offline state evaluation | `30s` |

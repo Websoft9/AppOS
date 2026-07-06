@@ -15,7 +15,6 @@ import {
   type AIProviderModelGroup,
   type AIProviderModelOption,
 } from '@/components/ai/AIProviderModelSelector'
-import { buildUserVisibleSecretRelationApiPath } from '@/components/secrets/resource-secret-relations'
 import { SecretCredentialField } from '@/components/secrets/SecretCredentialField'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { ResourceDialogForm } from '@/components/resources/ResourceDialogForm'
@@ -41,13 +40,14 @@ import {
 import { Input } from '@/components/ui/input'
 import {
   AI_PROVIDER_CREDENTIAL_TEMPLATE_ID,
+  aiProviderSecretFieldInlineValueKey,
+  aiProviderSecretFieldManualValueKey,
   SECRET_TEMPLATE_LABELS,
   buildAIProviderPayload,
   buildProtocolFieldDefaults,
   buildDefaultProviderName,
   chooserTitle,
   defaultTemplateProtocol,
-  formatSecretLabel,
   type AIProviderRecord,
   type AIProviderSelectionGroupKey,
   type AIProviderTemplate,
@@ -58,6 +58,7 @@ import {
   providerSelectionGroupKey,
   protocolEndpointFieldKey,
   productTitle,
+  regenerateTemplateEndpoint,
   resolveCurrentProtocolEndpoint,
   resolveTemplateEndpoint,
   shouldAssignDefaultReplica,
@@ -88,8 +89,6 @@ function resolveEndpointFieldTitle(t: Translate, template: AIProviderTemplate | 
 
 function mapTemplateFieldToResourceField(
   field: AIProviderTemplateField,
-  openSecretDialog: (callbacks: { addOption: (id: string, label: string) => void }) => void,
-  openSecretEditor: (secretId: string) => void,
   t: Translate,
   renderCredentialField: NonNullable<FieldDef['render']>,
   renderEndpointField: NonNullable<FieldDef['render']>
@@ -98,20 +97,8 @@ function mapTemplateFieldToResourceField(
     return {
       key: field.id,
       label: field.label,
-      type: 'relation',
+      type: 'text',
       required: field.required,
-      relationApiPath: buildUserVisibleSecretRelationApiPath('ai_provider', {
-        secretTemplate: AI_PROVIDER_CREDENTIAL_TEMPLATE_ID,
-      }),
-      relationFormatLabel: formatSecretLabel,
-      relationCreateButton: {
-        label: t('aiProviders.secret.new'),
-        onClick: openSecretDialog,
-      },
-      relationEditButton: {
-        label: t('aiProviders.secret.edit'),
-        onClick: openSecretEditor,
-      },
       render: renderCredentialField,
     }
   }
@@ -133,20 +120,38 @@ function mapTemplateFieldToResourceField(
     return {
       key: field.id,
       label: field.label,
-      type: 'relation',
+      type: 'text',
       required: field.required,
-      relationApiPath: buildUserVisibleSecretRelationApiPath('ai_provider', {
-        secretTemplate: field.secretTemplate,
-      }),
-      relationFormatLabel: formatSecretLabel,
-      relationCreateButton: {
-        label: t('aiProviders.secret.new'),
-        onClick: openSecretDialog,
-      },
-      relationEditButton: {
-        label: t('aiProviders.secret.edit'),
-        onClick: openSecretEditor,
-      },
+      render: ({ inputId, formData, updateField }) => (
+        <SecretCredentialField
+          inputId={inputId}
+          manualValue={String(
+            formData[aiProviderSecretFieldInlineValueKey(field.id)] ??
+              formData[aiProviderSecretFieldManualValueKey(field.id)] ??
+              ''
+          )}
+          onManualValueChange={value => {
+            updateField(aiProviderSecretFieldInlineValueKey(field.id), value)
+            updateField(aiProviderSecretFieldManualValueKey(field.id), value)
+          }}
+          useReference={false}
+          onUseReferenceChange={() => {}}
+          referenceValue=""
+          onReferenceValueChange={() => {}}
+          options={[]}
+          manualPlaceholder={t('aiProviders.credential.enterField', {
+            field: String(field.label ?? t('aiProviders.fields.apiKey')),
+          })}
+          showLabel={t('aiProviders.credential.showField', {
+            field: String(field.label ?? t('aiProviders.fields.apiKey')),
+          })}
+          hideLabel={t('aiProviders.credential.hideField', {
+            field: String(field.label ?? t('aiProviders.fields.apiKey')),
+          })}
+          allowGenerate={false}
+          allowReference={false}
+        />
+      ),
     }
   }
 
@@ -421,30 +426,20 @@ export function AIProviderCreateFlowDialog({
       formData: currentFormData,
       editingItem,
       updateField,
-      relationOptions: options,
     }) => {
       const editMode = Boolean(editingItem)
-      const useSecret = editMode ? true : Boolean(currentFormData.credential_use_secret)
 
       return (
         <SecretCredentialField
           inputId={inputId}
           manualValue={String(currentFormData.api_key_value ?? '')}
           onManualValueChange={value => updateField('api_key_value', value)}
-          useReference={useSecret}
-          onUseReferenceChange={checked => {
-            updateField('credential_use_secret', checked)
-            if (!checked) {
-              updateField('credential', '')
-            }
-          }}
-          referenceValue={String(currentFormData.credential ?? '')}
-          onReferenceValueChange={value => updateField('credential', value)}
-          options={options}
-          onCreateReference={() => setSecretDialogOpen(true)}
-          onEditReference={openSecretEditor}
+          useReference={false}
+          onUseReferenceChange={() => {}}
+          referenceValue=""
+          onReferenceValueChange={() => {}}
+          options={[]}
           editMode={editMode}
-          editReferenceMode="icon"
           manualPlaceholder={t('aiProviders.credential.enterField', {
             field: String(field.label ?? t('aiProviders.fields.apiKey')),
           })}
@@ -455,7 +450,7 @@ export function AIProviderCreateFlowDialog({
             field: String(field.label ?? t('aiProviders.fields.apiKey')),
           })}
           allowGenerate={false}
-          referenceToggleMode="icon"
+          allowReference={false}
         />
       )
     },
@@ -536,17 +531,9 @@ export function AIProviderCreateFlowDialog({
   }> => {
     const endpoint = resolveCurrentProtocolEndpoint(selectedTemplate, formData)
     const apiKey = String(formData.api_key_value ?? '').trim()
-    const usingSavedSecret =
-      Boolean(formData.credential_use_secret) && String(formData.credential ?? '').trim() !== ''
-    if (!endpoint || (!apiKey && !usingSavedSecret)) {
+    if (!endpoint || !apiKey) {
       const message =
         'Load all available models requires an API endpoint and API key before testing this provider.'
-      setFetchModelsError(message)
-      return { success: false, selected: [], error: message }
-    }
-    if (!apiKey && usingSavedSecret) {
-      const message =
-        'Load all available models cannot use a saved secret during provider creation. Continue saving now, then load models in edit mode, or switch to direct API key input.'
       setFetchModelsError(message)
       return { success: false, selected: [], error: message }
     }
@@ -677,13 +664,6 @@ export function AIProviderCreateFlowDialog({
         defaultValue: false,
       },
       {
-        key: 'credential_use_secret',
-        label: 'Credential Use Secret',
-        type: 'boolean',
-        hidden: true,
-        defaultValue: false,
-      },
-      {
         key: 'api_key_value',
         label: 'API Key Value',
         type: 'password',
@@ -719,8 +699,6 @@ export function AIProviderCreateFlowDialog({
     let dynamicFields = (selectedTemplate?.fields ?? []).flatMap(field => {
       const mapped = mapTemplateFieldToResourceField(
         field,
-        () => setSecretDialogOpen(true),
-        openSecretEditor,
         t,
         renderCredentialField,
         renderEndpointField
@@ -731,10 +709,33 @@ export function AIProviderCreateFlowDialog({
           {
             ...mapped,
             onValueChange: (value: unknown, update: (key: string, value: unknown) => void) => {
-              update(
-                'endpoint',
-                resolveTemplateEndpoint(selectedTemplate, { ...formData, region: value })
-              )
+              const protocol = defaultTemplateProtocol(selectedTemplate, formData.default_protocol)
+              const nextEndpoint = regenerateTemplateEndpoint(selectedTemplate, {
+                ...formData,
+                region: value,
+              })
+              update(protocolEndpointFieldKey(protocol), nextEndpoint)
+              update('endpoint', nextEndpoint)
+            },
+          },
+        ]
+      }
+
+      if (
+        selectedTemplate?.id === 'vertex-ai' &&
+        (field.id === 'location' || field.id === 'project_id')
+      ) {
+        return [
+          {
+            ...mapped,
+            onValueChange: (value: unknown, update: (key: string, value: unknown) => void) => {
+              const protocol = defaultTemplateProtocol(selectedTemplate, formData.default_protocol)
+              const nextEndpoint = regenerateTemplateEndpoint(selectedTemplate, {
+                ...formData,
+                [field.id]: value,
+              })
+              update(protocolEndpointFieldKey(protocol), nextEndpoint)
+              update('endpoint', nextEndpoint)
             },
           },
         ]
@@ -868,7 +869,6 @@ export function AIProviderCreateFlowDialog({
       template_id: template.id,
       name: buildDefaultProviderName(template),
       auth_scheme: String(template.defaultAuthScheme ?? ''),
-      credential_use_secret: false,
       api_key_value: '',
       is_enabled: true,
       title_name_editing: false,

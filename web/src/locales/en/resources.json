@@ -214,9 +214,11 @@
       "no": "No"
     },
     "status": {
+      "reachable": "Reachable",
       "healthy": "Healthy",
       "offline": "Offline",
       "unreachable": "Unreachable",
+      "unknown": "Unknown",
       "credential_invalid": "Credential Invalid",
       "degraded": "Degraded"
     },
@@ -1381,7 +1383,9 @@
       "updated": "Updated"
     },
     "lastCheckedSources": {
-      "liveAvailability": "Live availability check"
+      "liveAvailability": "Live availability check",
+      "liveReachability": "Live reachability check",
+      "scheduledMonitor": "Scheduled monitor check"
     },
     "actions": {
       "enable": "Enable",

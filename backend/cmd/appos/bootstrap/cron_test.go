@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hibiken/asynq"
 	"github.com/pocketbase/pocketbase"
 	swcatalog "github.com/websoft9/appos/backend/domain/software/catalog"
 )
@@ -118,5 +119,40 @@ func TestRegisterCronHooksRegistersFeedsPollJob(t *testing.T) {
 	}
 	if !foundFeedsRetention {
 		t.Fatalf("expected cron job %q to be registered", feedsRetentionCronJobID)
+	}
+}
+
+func TestRegisterCronHooksRegistersMonitorReachabilityJobs(t *testing.T) {
+	app := pocketbase.New()
+	registerCronHooks(app, &asynq.Client{})
+
+	foundInstance := false
+	foundAIProvider := false
+	foundConnector := false
+	foundServer := false
+	for _, job := range app.Cron().Jobs() {
+		switch job.Id() {
+		case monitorInstanceReachabilityCronJobID:
+			foundInstance = true
+		case monitorAIProviderReachabilityCronJobID:
+			foundAIProvider = true
+		case monitorConnectorReachabilityCronJobID:
+			foundConnector = true
+		case monitorServerReachabilityCronJobID:
+			foundServer = true
+		}
+	}
+
+	if !foundInstance {
+		t.Fatalf("expected cron job %q to be registered", monitorInstanceReachabilityCronJobID)
+	}
+	if !foundAIProvider {
+		t.Fatalf("expected cron job %q to be registered", monitorAIProviderReachabilityCronJobID)
+	}
+	if !foundConnector {
+		t.Fatalf("expected cron job %q to be registered", monitorConnectorReachabilityCronJobID)
+	}
+	if !foundServer {
+		t.Fatalf("expected cron job %q to be registered", monitorServerReachabilityCronJobID)
 	}
 }

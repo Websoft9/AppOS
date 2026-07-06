@@ -9,11 +9,9 @@ import {
 } from 'react'
 import { ResourceDialogForm } from '@/components/resources/ResourceDialogForm'
 import type { FieldDef, RelationOption, SelectOption } from '@/components/resources/ResourcePage'
-import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { pb } from '@/lib/pb'
 import {
   KIND_LABELS,
-  SECRET_TEMPLATE_LABELS,
   buildConnectorPayload,
   mapTemplateFieldToResourceField,
   normalizeTemplateFieldDefault,
@@ -82,10 +80,6 @@ export function ProxyConnectorDialog({
   const [relationOptions, setRelationOptions] = useState<Record<string, RelationOption[]>>({})
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [secretDialogOpen, setSecretDialogOpen] = useState(false)
-  const [secretAddOption, setSecretAddOption] = useState<
-    ((id: string, label: string) => void) | null
-  >(null)
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   useEffect(() => {
@@ -123,21 +117,6 @@ export function ProxyConnectorDialog({
     [templates]
   )
 
-  const openSecretDialog = useCallback(
-    (callbacks: { addOption: (id: string, label: string) => void }) => {
-      setSecretAddOption(() => callbacks.addOption)
-      setSecretDialogOpen(true)
-    },
-    []
-  )
-
-  const openSecretEditor = useCallback((secretId: string) => {
-    const targetUrl = new URL('/secrets', window.location.origin)
-    targetUrl.searchParams.set('id', secretId)
-    targetUrl.searchParams.set('edit', secretId)
-    window.open(targetUrl.toString(), '_blank', 'noopener,noreferrer')
-  }, [])
-
   const baseFields = useMemo<FieldDef[]>(
     () => [
       { key: 'name', label: 'Name', type: 'text', required: true, placeholder: 'my-proxy' },
@@ -173,11 +152,11 @@ export function ProxyConnectorDialog({
     const selectedTemplate = templatesById.get(String(formData.template_id ?? ''))
     const dynamicFields = selectedTemplate
       ? (selectedTemplate.fields ?? []).map(field =>
-          mapTemplateFieldToResourceField(selectedTemplate, field, openSecretDialog)
+          mapTemplateFieldToResourceField(selectedTemplate, field)
         )
       : []
     return [baseFields[0], baseFields[1], ...dynamicFields, ...baseFields.slice(2)]
-  }, [baseFields, formData.template_id, openSecretDialog, openSecretEditor, templatesById])
+  }, [baseFields, formData.template_id, templatesById])
 
   useEffect(() => {
     if (!open) {
@@ -272,51 +251,34 @@ export function ProxyConnectorDialog({
   )
 
   return (
-    <>
-      <ResourceDialogForm
-        open={open}
-        onOpenChange={onOpenChange}
-        className="max-w-2xl"
-        title="Create Proxy Connector"
-        description="Use the same proxy connector form as Resources."
-        formData={formData}
-        editingItem={null}
-        headerFields={[]}
-        primaryFields={activeFields
-          .filter(field => !field.hidden)
-          .filter(
-            field =>
-              !field.showWhen ||
-              field.showWhen.values.includes(String(formData[field.showWhen.field] ?? ''))
-          )}
-        advancedFields={[]}
-        relationOptions={relationOptions}
-        updateField={updateField}
-        handleChange={handleChange}
-        addRelationOption={addRelationOption}
-        openRelationCreate={() => {}}
-        handleFileUpload={handleFileUpload}
-        fileInputRef={fileInputRef}
-        error={error}
-        saving={saving}
-        submitLabel={saving ? 'Creating...' : 'Create Proxy Connector'}
-        onSubmit={handleFormSubmit}
-      />
-
-      <SecretCreateDialog
-        open={secretDialogOpen}
-        onOpenChange={setSecretDialogOpen}
-        title="New Secret"
-        description="Create a reusable secret and attach it to this connector."
-        allowedTemplateIds={['single_value']}
-        templateLabels={SECRET_TEMPLATE_LABELS}
-        defaultTemplateId="single_value"
-        defaultVisibleTo={['connector']}
-        onCreated={({ id, name, templateId }) => {
-          const suffix = SECRET_TEMPLATE_LABELS[templateId]
-          secretAddOption?.(id, suffix ? `${name} (${suffix})` : name)
-        }}
-      />
-    </>
+    <ResourceDialogForm
+      open={open}
+      onOpenChange={onOpenChange}
+      className="max-w-2xl"
+      title="Create Proxy Connector"
+      description="Use the same proxy connector form as Resources."
+      formData={formData}
+      editingItem={null}
+      headerFields={[]}
+      primaryFields={activeFields
+        .filter(field => !field.hidden)
+        .filter(
+          field =>
+            !field.showWhen ||
+            field.showWhen.values.includes(String(formData[field.showWhen.field] ?? ''))
+        )}
+      advancedFields={[]}
+      relationOptions={relationOptions}
+      updateField={updateField}
+      handleChange={handleChange}
+      addRelationOption={addRelationOption}
+      openRelationCreate={() => {}}
+      handleFileUpload={handleFileUpload}
+      fileInputRef={fileInputRef}
+      error={error}
+      saving={saving}
+      submitLabel={saving ? 'Creating...' : 'Create Proxy Connector'}
+      onSubmit={handleFormSubmit}
+    />
   )
 }

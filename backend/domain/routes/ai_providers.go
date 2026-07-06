@@ -21,6 +21,7 @@ import (
 	"github.com/websoft9/appos/backend/domain/audit"
 	sysconfig "github.com/websoft9/appos/backend/domain/config/sysconfig"
 	"github.com/websoft9/appos/backend/domain/monitor"
+	monitorchecks "github.com/websoft9/appos/backend/domain/monitor/signals/checks"
 	monitorstatus "github.com/websoft9/appos/backend/domain/monitor/status"
 	"github.com/websoft9/appos/backend/domain/resource/accounts"
 	"github.com/websoft9/appos/backend/domain/resource/aiproviders"
@@ -485,21 +486,19 @@ func handleAIProviderReachability(e *core.RequestEvent) error {
 	results := make([]aiProviderReachabilityItem, len(items))
 	var waitGroup sync.WaitGroup
 	now := time.Now().UTC()
+	timeout := monitorchecks.LoadReachabilityProbeTimeout(e.App)
 	for index, item := range items {
 		waitGroup.Add(1)
-		go func(index int, item *aiproviders.AIProvider) {
+		go func(index int, item *aiproviders.AIProvider, timeout time.Duration) {
 			defer waitGroup.Done()
-			results[index] = probeAIProviderReachability(item)
-		}(index, item)
+			results[index] = probeAIProviderReachabilityWithTimeout(item, timeout)
+		}(index, item, timeout)
 	}
 	waitGroup.Wait()
 
 	for _, result := range results {
 		if result.ID == "" {
 			continue
-		}
-		if item := findAIProviderByID(items, result.ID); item != nil {
-			persistAIProviderProbeResult(e.App, item, "reachability", result.Status, result.Reason, result.CheckedAt, map[string]any{"latency_ms": result.LatencyMS})
 		}
 		projectAIProviderStatus(e.App, result.ID, result.ID, monitor.CheckKindReachability,
 			aiProviderReachabilityMonitorStatus(result.Status), result.Reason,
@@ -635,6 +634,10 @@ func persistAIProviderProbeResult(app core.App, item *aiproviders.AIProvider, ke
 }
 
 func probeAIProviderReachability(item *aiproviders.AIProvider) aiProviderReachabilityItem {
+	return probeAIProviderReachabilityWithTimeout(item, monitorchecks.LoadReachabilityProbeTimeout(nil))
+}
+
+func probeAIProviderReachabilityWithTimeout(item *aiproviders.AIProvider, timeout time.Duration) aiProviderReachabilityItem {
 	status := aiProviderReachabilityItem{
 		ID:        item.ID(),
 		Status:    "unknown",
@@ -647,7 +650,7 @@ func probeAIProviderReachability(item *aiproviders.AIProvider) aiProviderReachab
 		return status
 	}
 	start := time.Now()
-	conn, dialErr := net.DialTimeout("tcp", net.JoinHostPort(host, strconv.Itoa(port)), 3*time.Second)
+	conn, dialErr := net.DialTimeout("tcp", net.JoinHostPort(host, strconv.Itoa(port)), timeout)
 	if dialErr != nil {
 		status.Status = "unreachable"
 		status.Reason = dialErr.Error()

@@ -383,6 +383,7 @@ var entryCatalog = []EntrySchema{
 		Module:  "monitor",
 		Key:     "policy",
 		Fields: []FieldSchema{
+			{ID: "reachabilityProbeTimeoutMs", Label: "Reachability Probe Timeout Ms", Type: "integer"},
 			{ID: "metricsFreshnessLookbackSeconds", Label: "Metrics Freshness Lookback Seconds", Type: "integer"},
 			{ID: "metricsStaleSeconds", Label: "Metrics Stale Seconds", Type: "integer"},
 			{ID: "metricsMissingSeconds", Label: "Metrics Missing Seconds", Type: "integer"},
@@ -500,6 +501,7 @@ var customSettingDefaults = map[string]map[string]any{
 		"factsPullIntervalMinutes":           15,
 	},
 	"monitor/policy": {
+		"reachabilityProbeTimeoutMs":      1500,
 		"metricsFreshnessLookbackSeconds": 300,
 		"metricsStaleSeconds":             90,
 		"metricsMissingSeconds":           180,

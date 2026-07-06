@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useOptionalLayout } from '@/contexts/LayoutContext'
@@ -7,14 +7,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { ResourcePage, type Column, type FieldDef } from '@/components/resources/ResourcePage'
 import { ResourceListSettingsButton } from '@/components/resources/ResourceListSettingsButton'
@@ -22,7 +14,13 @@ import { ResourceStatusTimestamp } from '@/components/resources/ResourceStatusTi
 import { ResourcesBreadcrumb } from '@/components/resources/ResourcesBreadcrumb'
 import { formatResourceDateTime } from '@/components/resources/resource-formatters'
 import {
+  resolveReachabilityStaleAfterMs,
+  shouldBackgroundProbeReachability,
+} from '@/components/resources/reachability-policy'
+import {
   buildEnabledStatusColumn,
+  localizeReachabilityStatus,
+  reachabilityStatusVariant,
   renderEnabledChoiceField,
 } from '@/components/resources/resource-status'
 import {
@@ -33,10 +31,7 @@ import {
   buildResourceProductTitle,
   isGenericResourceTemplate,
 } from '@/components/resources/resource-template-display'
-import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
-import { buildApiKeyValue, SecretCredentialField } from '@/components/secrets/SecretCredentialField'
-import { SecretForm, type SecretTemplate } from '@/components/secrets/SecretForm'
-import { buildUserVisibleSecretRelationApiPath } from '@/components/secrets/resource-secret-relations'
+import { SecretCredentialField } from '@/components/secrets/SecretCredentialField'
 import { pb } from '@/lib/pb'
 
 type InstanceRecord = {
@@ -67,6 +62,14 @@ type InstanceReachabilityRecord = {
   reason?: string | null
   checked_at?: string | null
 }
+
+type MonitorSchedulingEntryResponse = {
+  value?: {
+    reachabilityIntervalMinutes?: number
+  }
+}
+
+const SERVICE_INSTANCE_BACKGROUND_PROBE_BATCH_SIZE = 10
 
 type InstanceTemplateField = {
   id: string
@@ -101,12 +104,6 @@ type InstanceTemplate = {
 }
 
 type Translate = (key: string, options?: Record<string, unknown>) => string
-
-const SECRET_TEMPLATE_LABELS: Record<string, string> = {
-  single_value: 'Password / Single Value',
-}
-
-const SECRET_TEMPLATE_IDS = new Set(Object.keys(SECRET_TEMPLATE_LABELS))
 
 const CATEGORY_LABELS: Record<string, string> = {
   database: 'Databases',
@@ -253,6 +250,20 @@ function slugifyNamePart(value: string) {
     .replace(/^-+|-+$/g, '')
 }
 
+async function runBatchedIds(
+  ids: string[],
+  batchSize: number,
+  worker: (ids: string[]) => Promise<void>
+) {
+  if (batchSize < 1) {
+    throw new Error('batchSize must be at least 1')
+  }
+  for (let index = 0; index < ids.length; index += batchSize) {
+    const batch = ids.slice(index, index + batchSize)
+    await worker(batch)
+  }
+}
+
 function kindLabel(kind: string, t: Translate) {
   return buildResourceKindLabel(kind, t, TEMPLATE_DISPLAY_OPTIONS)
 }
@@ -368,16 +379,14 @@ function applyInstanceTemplateDefaults(
   update('selected_product', productTitle(template, t))
   update('selected_product_meta', productMeta(template, t))
   update('selected_product_description', productDescription(template, t))
-  update('endpoint', template.defaultEndpoint ?? '')
+  update('endpoint', '')
   update('credential', '')
-  update('credential_use_secret', false)
   update('password_value', '')
   update('ssl_mode', '')
 
   if (usesHostPortEndpoint(template)) {
-    const endpointParts = splitEndpoint(template.defaultEndpoint ?? '')
-    update('host', endpointParts.host)
-    update('port', Number(endpointParts.port || defaultPortForTemplate(template)))
+    update('host', '')
+    update('port', Number(defaultPortForTemplate(template)))
   } else {
     update('host', '')
     update('port', '')
@@ -463,11 +472,11 @@ function buildInstanceEndpoint(template: InstanceTemplate, payload: Record<strin
     return buildEndpoint(
       payload.host,
       payload.port,
-      String(payload.endpoint ?? template.defaultEndpoint ?? '')
+      ''
     )
   }
 
-  const rawEndpoint = String(payload.endpoint ?? template.defaultEndpoint ?? '').trim()
+  const rawEndpoint = String(payload.endpoint ?? '').trim()
   if (!rawEndpoint) {
     return ''
   }
@@ -523,58 +532,6 @@ function resolveInstanceEnabled(value: unknown) {
   }
   if (typeof value === 'number') return value !== 0
   return true
-}
-
-function formatMonitorStatusLabel(value: unknown, t: Translate) {
-  const raw = String(value ?? '')
-    .trim()
-    .toLowerCase()
-  if (!raw) return t('serviceInstances.monitor.unknown')
-  const key = `serviceInstances.monitor.status.${raw}`
-  const localized = t(key)
-  if (localized !== key) {
-    return localized
-  }
-  return raw
-    .split('_')
-    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ')
-}
-
-function monitorStatusVariant(
-  status: unknown
-): 'default' | 'secondary' | 'destructive' | 'outline' {
-  switch (
-    String(status ?? '')
-      .trim()
-      .toLowerCase()
-  ) {
-    case 'healthy':
-      return 'default'
-    case 'offline':
-    case 'unreachable':
-    case 'credential_invalid':
-      return 'destructive'
-    case 'degraded':
-      return 'outline'
-    default:
-      return 'secondary'
-  }
-}
-
-function normalizeLiveReachabilityStatus(value: unknown) {
-  switch (
-    String(value ?? '')
-      .trim()
-      .toLowerCase()
-  ) {
-    case 'online':
-      return 'healthy'
-    case 'offline':
-      return 'unreachable'
-    default:
-      return 'unknown'
-  }
 }
 
 function mergeTemplateFields(template: InstanceTemplate | null | undefined, t: Translate) {
@@ -637,13 +594,14 @@ export async function buildInstancePayload(
   }
 
   if (supportsInlineCredentialSecret(template)) {
-    const useCredentialReference = Boolean(body.credential_use_secret)
-    if (!useCredentialReference) {
-      const passwordValue = String(body.password_value ?? '')
-      if (!passwordValue.trim() && usesDatabaseConnectionLayout(template)) {
+    const credentialId = String(body.credential ?? '').trim()
+    const passwordValue = String(body.password_value ?? '').trim()
+
+    if (!credentialId) {
+      if (!passwordValue && usesDatabaseConnectionLayout(template)) {
         throw new Error(t('serviceInstances.errors.passwordRequired'))
       }
-      if (passwordValue.trim()) {
+      if (passwordValue) {
         const instanceName = String(body.name ?? '').trim()
         const createdSecret = await pb.collection('secrets').create({
           name: buildDefaultCredentialSecretName(template, instanceName, t),
@@ -746,7 +704,6 @@ export function mapInstanceRow(
     monitor_status: String(monitor?.status ?? ''),
     monitor_reason: String(monitor?.reason ?? ''),
     monitor_last_checked_at: String(monitor?.last_checked_at ?? ''),
-    credential_use_secret: Boolean(credentialId),
     password_value: '',
     description: String(item.description ?? ''),
     ...flattenedConfig,
@@ -790,6 +747,12 @@ function buildColumns(
   reachabilityOverrides: Map<string, InstanceReachabilityRecord>,
   reachabilityLoading: Set<string>
 ): Column[] {
+  const reachabilityLabels = {
+    reachable: t('serviceInstances.status.reachable'),
+    unreachable: t('serviceInstances.status.unreachable'),
+    unknown: t('serviceInstances.status.unknown'),
+  }
+
   const resolveStatusMeta = (row: Record<string, unknown>) => {
     const override = reachabilityOverrides.get(String(row.id ?? ''))
     if (override) {
@@ -853,28 +816,23 @@ function buildColumns(
       key: 'monitor_status',
       label: t('serviceInstances.columns.reachability'),
       sortable: true,
-      sortValue: row => resolveStatusMeta(row).status,
-      filterValue: row => resolveStatusMeta(row).status,
+      sortValue: row => localizeReachabilityStatus(resolveStatusMeta(row).status, reachabilityLabels),
+      filterValue: row =>
+        localizeReachabilityStatus(resolveStatusMeta(row).status, reachabilityLabels),
       render: (value, row) => {
         const meta = resolveStatusMeta(row)
         const status = meta.status || String(value ?? '').trim()
         const reason = meta.reason
-        if (!status && !reachabilityLoading) {
-          return <span className="text-sm text-muted-foreground">—</span>
-        }
-        const displayStatus = status || 'Unknown'
         const isLoading = reachabilityLoading.has(String(row.id ?? ''))
-        if (!status && !isLoading) {
-          return <span className="text-sm text-muted-foreground">—</span>
-        }
+        const displayStatus = localizeReachabilityStatus(status, reachabilityLabels)
         return (
           <Badge
-            variant={monitorStatusVariant(displayStatus)}
+            variant={reachabilityStatusVariant(status)}
             title={reason || undefined}
             className="gap-1"
           >
             {isLoading && <Loader2 className="h-3 w-3 animate-spin" />}
-            {formatMonitorStatusLabel(displayStatus, t)}
+            {displayStatus}
           </Badge>
         )
       },
@@ -920,15 +878,6 @@ export function ServiceInstancesPage() {
   const setHeaderRightStartContent = layout?.setHeaderRightStartContent
   const autoCreate = new URLSearchParams(window.location.search).get('create') === '1'
   const [instanceTemplates, setInstanceTemplates] = useState<InstanceTemplate[]>([])
-  const [secretDialogOpen, setSecretDialogOpen] = useState(false)
-  const [secretAddOption, setSecretAddOption] = useState<
-    ((id: string, label: string) => void) | null
-  >(null)
-  const [secretEditOpen, setSecretEditOpen] = useState(false)
-  const [secretEditLoading, setSecretEditLoading] = useState(false)
-  const [secretEditSaving, setSecretEditSaving] = useState(false)
-  const [secretEditError, setSecretEditError] = useState('')
-  const [secretEditId, setSecretEditId] = useState('')
   const [pageSize, setPageSize] = useState(10)
   const [visibleOptionalColumns, setVisibleOptionalColumns] = useState<Set<string>>(
     () => new Set(['kind_label', 'host', 'port', 'monitor_status', 'monitor_last_checked_at'])
@@ -937,12 +886,8 @@ export function ServiceInstancesPage() {
     Map<string, InstanceReachabilityRecord>
   >(new Map())
   const [reachabilityLoading, setReachabilityLoading] = useState<Set<string>>(new Set())
-  const [secretEditName, setSecretEditName] = useState('')
-  const [secretEditDescription, setSecretEditDescription] = useState('')
-  const [secretEditTemplateId, setSecretEditTemplateId] = useState('')
-  const [secretEditPayload, setSecretEditPayload] = useState<Record<string, string>>({})
-  const [secretEditTemplates, setSecretEditTemplates] = useState<SecretTemplate[]>([])
   const [refreshKey, setRefreshKey] = useState(0)
+  const bgProbeKeyRef = useRef('')
 
   useEffect(() => {
     if (!setHeaderRightStartContent) return undefined
@@ -1030,7 +975,6 @@ export function ServiceInstancesPage() {
         name: '',
         is_enabled: true,
         title_name_editing: false,
-        credential_use_secret: false,
         password_value: '',
         ssl_mode: '',
         selected_product: '',
@@ -1076,7 +1020,7 @@ export function ServiceInstancesPage() {
           if (!id) continue
           next.set(id, {
             id,
-            status: normalizeLiveReachabilityStatus(row.status),
+            status: String(row.status ?? '').trim(),
             reason: String(row.reason ?? ''),
             checked_at: String(row.checked_at ?? ''),
           })
@@ -1095,7 +1039,7 @@ export function ServiceInstancesPage() {
   }, [])
 
   const listItems = useCallback(async () => {
-    const [items, monitorResponse] = await Promise.all([
+    const [items, monitorResponse, schedulingResponse] = await Promise.all([
       pb.send<InstanceRecord[]>('/api/instances', { method: 'GET' }),
       pb.send<{ items?: MonitorLatestStatusRecord[] }>(
         `/api/collections/monitor_latest_status/records?${new URLSearchParams({
@@ -1105,6 +1049,11 @@ export function ServiceInstancesPage() {
         }).toString()}`,
         { method: 'GET' }
       ),
+      pb
+        .send<MonitorSchedulingEntryResponse>('/api/settings/entries/monitor/scheduling', {
+          method: 'GET',
+        })
+        .catch(() => ({ value: { reachabilityIntervalMinutes: 1 } })),
     ])
 
     const monitorByTargetId = new Map(
@@ -1115,162 +1064,71 @@ export function ServiceInstancesPage() {
         : []
     )
 
+    const staleAfterMs = resolveReachabilityStaleAfterMs(
+      schedulingResponse?.value?.reachabilityIntervalMinutes
+    )
     const rows = Array.isArray(items)
       ? items.map(item => mapInstanceRow(item, templatesById, monitorByTargetId, t))
       : []
-    void fetchReachabilityStatuses(rows.map(row => String(row.id ?? '')).filter(Boolean))
+
+    const backgroundProbeIDs = rows
+      .filter(row =>
+        shouldBackgroundProbeReachability(
+          String(row.monitor_last_checked_at ?? '').trim(),
+          staleAfterMs
+        )
+      )
+      .map(row => String(row.id ?? '').trim())
+      .filter(Boolean)
+
+    const probeKey = backgroundProbeIDs.join(',')
+    if (probeKey && bgProbeKeyRef.current !== probeKey) {
+      bgProbeKeyRef.current = probeKey
+      void runBatchedIds(
+        backgroundProbeIDs,
+        SERVICE_INSTANCE_BACKGROUND_PROBE_BATCH_SIZE,
+        fetchReachabilityStatuses
+      )
+    }
     return rows
   }, [fetchReachabilityStatuses, t, templatesById])
 
-  const openSecretDialog = useCallback(
-    (callbacks: { addOption: (id: string, label: string) => void }) => {
-      setSecretAddOption(() => callbacks.addOption)
-      setSecretDialogOpen(true)
-    },
-    []
-  )
+  const renderCredentialField = useCallback(
+    ({ inputId, formData, editingItem, updateField, field }: Parameters<NonNullable<FieldDef['render']>>[0]) => {
+      const fieldLabel = String(field.label ?? '').trim() || t('serviceInstances.fields.credential')
+      const passwordLabel = t('serviceInstances.fields.password').trim().toLowerCase()
+      const isPasswordField = fieldLabel.trim().toLowerCase() === passwordLabel
 
-  const loadAllowedSecretTemplates = useCallback(async () => {
-    const data = await pb.send<SecretTemplate[]>('/api/secrets/templates', { method: 'GET' })
-    return (Array.isArray(data) ? data : [])
-      .filter(template => SECRET_TEMPLATE_IDS.has(template.id))
-      .map(template => ({
-        ...template,
-        label:
-          template.id === 'single_value'
-            ? t('serviceInstances.secret.singleValueTemplate')
-            : (SECRET_TEMPLATE_LABELS[template.id] ?? template.label),
-      }))
-  }, [t])
-
-  const openSecretEditor = useCallback(
-    async (secretId: string) => {
-      setSecretEditOpen(true)
-      setSecretEditLoading(true)
-      setSecretEditSaving(false)
-      setSecretEditError('')
-      setSecretEditId(secretId)
-      setSecretEditPayload({})
-
-      try {
-        const [secret, templates] = await Promise.all([
-          pb.collection('secrets').getOne(secretId),
-          loadAllowedSecretTemplates(),
-        ])
-
-        setSecretEditTemplates(templates)
-        setSecretEditName(String(secret.name ?? ''))
-        setSecretEditDescription(String(secret.description ?? ''))
-        setSecretEditTemplateId(String(secret.template_id ?? ''))
-      } catch (error) {
-        setSecretEditError(
-          error instanceof Error ? error.message : t('serviceInstances.secret.errors.load')
-        )
-      } finally {
-        setSecretEditLoading(false)
-      }
-    },
-    [loadAllowedSecretTemplates, t]
-  )
-
-  const closeSecretEditor = useCallback((open: boolean) => {
-    setSecretEditOpen(open)
-    if (!open) {
-      setSecretEditLoading(false)
-      setSecretEditSaving(false)
-      setSecretEditError('')
-      setSecretEditId('')
-      setSecretEditName('')
-      setSecretEditDescription('')
-      setSecretEditTemplateId('')
-      setSecretEditPayload({})
-      setSecretEditTemplates([])
-    }
-  }, [])
-
-  const handleSecretEditSave = useCallback(async () => {
-    if (!secretEditId) {
-      return
-    }
-    if (!secretEditName.trim()) {
-      setSecretEditError(t('serviceInstances.secret.errors.nameRequired'))
-      return
-    }
-
-    setSecretEditSaving(true)
-    setSecretEditError('')
-    try {
-      await pb.collection('secrets').update(secretEditId, {
-        name: secretEditName.trim(),
-        description: secretEditDescription.trim(),
-      })
-
-      const payloadHasValues = Object.values(secretEditPayload).some(value => value.trim() !== '')
-      if (payloadHasValues) {
-        await pb.send(`/api/secrets/${secretEditId}/payload`, {
-          method: 'PUT',
-          body: { payload: secretEditPayload },
-        })
-      }
-
-      closeSecretEditor(false)
-    } catch (error) {
-      setSecretEditError(
-        error instanceof Error ? error.message : t('serviceInstances.secret.errors.update')
-      )
-    } finally {
-      setSecretEditSaving(false)
-    }
-  }, [closeSecretEditor, secretEditDescription, secretEditId, secretEditName, secretEditPayload, t])
-
-  const renderDatabaseCredentialField = useCallback(
-    ({
-      inputId,
-      formData,
-      editingItem,
-      updateField,
-      relationOptions,
-      addRelationOption,
-    }: Parameters<NonNullable<FieldDef['render']>>[0]) => {
-      const editMode = Boolean(editingItem)
-      const useSecret = editMode ? true : Boolean(formData.credential_use_secret)
       return (
         <SecretCredentialField
           inputId={inputId}
           manualValue={String(formData.password_value ?? '')}
           onManualValueChange={value => updateField('password_value', value)}
-          useReference={useSecret}
-          onUseReferenceChange={checked => {
-            updateField('credential_use_secret', checked)
-            if (!checked) {
-              updateField('credential', '')
-            }
-          }}
-          referenceValue={String(formData.credential ?? '')}
-          onReferenceValueChange={value => updateField('credential', value)}
-          options={relationOptions}
-          onCreateReference={() => {
-            openSecretDialog({
-              addOption: (id, label) => {
-                addRelationOption(id, label)
-                updateField('credential_use_secret', true)
-                updateField('credential', id)
-              },
-            })
-          }}
-          onEditReference={openSecretEditor}
-          editMode={editMode}
-          manualPlaceholder={t('serviceInstances.credential.enterPassword')}
-          showLabel={t('serviceInstances.credential.showPassword')}
-          hideLabel={t('serviceInstances.credential.hidePassword')}
+          useReference={false}
+          onUseReferenceChange={() => {}}
+          referenceValue=""
+          onReferenceValueChange={() => {}}
+          options={[]}
+          editMode={Boolean(editingItem)}
+          manualPlaceholder={
+            editingItem
+              ? 'Leave blank to keep the current secret value'
+              : isPasswordField
+                ? t('serviceInstances.credential.enterPassword')
+                : `Enter ${fieldLabel}`
+          }
+          showLabel={
+            isPasswordField ? t('serviceInstances.credential.showPassword') : `Show ${fieldLabel}`
+          }
+          hideLabel={
+            isPasswordField ? t('serviceInstances.credential.hidePassword') : `Hide ${fieldLabel}`
+          }
           allowGenerate={false}
-          referenceToggleMode="icon"
-          editReferenceMode="icon"
-          generateValue={buildApiKeyValue}
+          allowReference={false}
         />
       )
     },
-    [openSecretDialog, openSecretEditor, t]
+    [t]
   )
 
   const renderEnabledField = useCallback(
@@ -1288,7 +1146,7 @@ export function ServiceInstancesPage() {
   )
 
   const renderHostPortField = useCallback(
-    ({ formData, updateField }: Parameters<NonNullable<FieldDef['render']>>[0]) => {
+    ({ formData, updateField, field }: Parameters<NonNullable<FieldDef['render']>>[0]) => {
       return (
         <div className="grid gap-3 md:grid-cols-2">
           <div className="space-y-1.5">
@@ -1300,7 +1158,7 @@ export function ServiceInstancesPage() {
               id="resource-field-host"
               value={String(formData.host ?? '')}
               onChange={event => updateField('host', event.target.value)}
-              placeholder={t('serviceInstances.placeholders.host')}
+              placeholder={field.placeholder || t('serviceInstances.placeholders.host')}
             />
           </div>
           <div className="space-y-1.5">
@@ -1415,7 +1273,6 @@ export function ServiceInstancesPage() {
               update('port', '')
               update('provider_account', '')
               update('credential', '')
-              update('credential_use_secret', false)
               update('password_value', '')
               update('ssl_mode', '')
               return
@@ -1473,8 +1330,8 @@ export function ServiceInstancesPage() {
           hidden: !selectedTemplate || usesHostPortEndpoint(selectedTemplate),
           required: Boolean(endpointMeta.required),
           advanced: Boolean(endpointMeta.advanced),
-          placeholder: t('serviceInstances.placeholders.endpoint'),
-          defaultValue: selectedTemplate?.defaultEndpoint ?? '',
+          placeholder: selectedTemplate?.defaultEndpoint || t('serviceInstances.placeholders.endpoint'),
+          defaultValue: '',
         },
         {
           key: 'host',
@@ -1484,8 +1341,10 @@ export function ServiceInstancesPage() {
           hidden: !selectedTemplate || !usesHostPortEndpoint(selectedTemplate),
           required: Boolean(hostMeta.required),
           advanced: Boolean(hostMeta.advanced),
-          placeholder: t('serviceInstances.placeholders.host'),
-          defaultValue: splitEndpoint(selectedTemplate?.defaultEndpoint ?? '').host,
+          placeholder:
+            splitEndpoint(selectedTemplate?.defaultEndpoint ?? '').host ||
+            t('serviceInstances.placeholders.host'),
+          defaultValue: '',
           render: usesHostPortEndpoint(selectedTemplate) ? renderHostPortField : undefined,
         },
         {
@@ -1495,10 +1354,7 @@ export function ServiceInstancesPage() {
           hidden: true,
           required: Boolean(portMeta.required),
           advanced: Boolean(portMeta.advanced),
-          defaultValue: Number(
-            splitEndpoint(selectedTemplate?.defaultEndpoint ?? '').port ||
-              defaultPortForTemplate(selectedTemplate)
-          ),
+          defaultValue: Number(defaultPortForTemplate(selectedTemplate)),
         },
         {
           key: 'provider_account',
@@ -1515,27 +1371,11 @@ export function ServiceInstancesPage() {
         {
           key: 'credential',
           label: resolveCredentialFieldLabel(selectedTemplate, t),
-          type: 'relation',
+          type: 'text',
           hidden: !selectedTemplate,
           required: Boolean(selectedTemplate && credentialMeta.required),
           advanced: selectedTemplate ? Boolean(credentialMeta.advanced) : true,
-          relationApiPath: buildUserVisibleSecretRelationApiPath('service_instance', {
-            secretTemplate: 'single_value',
-          }),
-          relationLabelKey: 'name',
-          render: supportsInlineCredentialSecret(selectedTemplate)
-            ? renderDatabaseCredentialField
-            : undefined,
-          relationShowNoneOption: false,
-          relationShowSelectedIndicator: false,
-          relationBorderlessMenu: true,
-        },
-        {
-          key: 'credential_use_secret',
-          label: t('serviceInstances.fields.credentialUsesSecret'),
-          type: 'boolean',
-          hidden: true,
-          defaultValue: false,
+          render: renderCredentialField,
         },
         {
           key: 'password_value',
@@ -1586,7 +1426,7 @@ export function ServiceInstancesPage() {
     },
     [
       creatableTemplates,
-      renderDatabaseCredentialField,
+      renderCredentialField,
       renderEnabledField,
       renderHostPortField,
       renderSslModeField,
@@ -1643,7 +1483,6 @@ export function ServiceInstancesPage() {
           baseFieldByKey.get('selected_product')!,
           baseFieldByKey.get('selected_product_meta')!,
           baseFieldByKey.get('selected_product_description')!,
-          baseFieldByKey.get('credential_use_secret')!,
           baseFieldByKey.get('password_value')!,
           ...hiddenTemplateFields,
           baseFieldByKey.get('template_id')!,
@@ -1653,6 +1492,7 @@ export function ServiceInstancesPage() {
           baseFieldByKey.get('credential')!,
           ...databaseFields,
           baseFieldByKey.get('host')!,
+          baseFieldByKey.get('port')!,
           ...extraFields,
           baseFieldByKey.get('ssl_mode')!,
           ...certificateFields,
@@ -1679,7 +1519,6 @@ export function ServiceInstancesPage() {
         baseFieldByKey.get('host')!,
         baseFieldByKey.get('provider_account')!,
         baseFieldByKey.get('credential')!,
-        baseFieldByKey.get('credential_use_secret')!,
         baseFieldByKey.get('password_value')!,
         baseFieldByKey.get('ssl_mode')!,
         baseFieldByKey.get('description')!,
@@ -1912,6 +1751,11 @@ export function ServiceInstancesPage() {
           showRefreshButton: true,
           wrapTableInCard: false,
           refreshKey,
+          onRefresh: async ({ items, refreshList }) => {
+            await refreshList()
+            const ids = items.map(item => String(item.id ?? '')).filter(Boolean)
+            await fetchReachabilityStatuses(ids)
+          },
           listItems,
           createItem: async payload => {
             const body = await buildInstancePayload(payload, templatesById, t)
@@ -1922,7 +1766,19 @@ export function ServiceInstancesPage() {
             return mapInstanceRow(created, templatesById, new Map(), t)
           },
           updateItem: async (id, payload) => {
-            const body = await buildInstancePayload(payload, templatesById, t)
+            const nextPayload = { ...payload }
+            const credentialId = String(nextPayload.credential ?? '').trim()
+            const secretValue = String(nextPayload.password_value ?? '').trim()
+
+            if (secretValue && credentialId) {
+              await pb.send(`/api/secrets/${credentialId}/payload`, {
+                method: 'PUT',
+                body: { payload: { value: secretValue } },
+              })
+              nextPayload.password_value = ''
+            }
+
+            const body = await buildInstancePayload(nextPayload, templatesById, t)
             await pb.send(`/api/instances/${id}`, { method: 'PUT', body })
           },
           extraActions: item => {
@@ -1956,104 +1812,6 @@ export function ServiceInstancesPage() {
         }}
       />
 
-      <SecretCreateDialog
-        open={secretDialogOpen}
-        onOpenChange={setSecretDialogOpen}
-        title={t('serviceInstances.secret.newTitle')}
-        description={t('serviceInstances.secret.newDescription')}
-        allowedTemplateIds={Array.from(SECRET_TEMPLATE_IDS)}
-        templateLabels={{
-          ...SECRET_TEMPLATE_LABELS,
-          single_value: t('serviceInstances.secret.singleValueTemplate'),
-        }}
-        defaultTemplateId="single_value"
-        defaultVisibleTo={['service_instance']}
-        onCreated={({ id, label }) => {
-          secretAddOption?.(id, label)
-        }}
-      />
-
-      <Dialog open={secretEditOpen} onOpenChange={closeSecretEditor}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{t('serviceInstances.secret.editTitle')}</DialogTitle>
-            <DialogDescription>{t('serviceInstances.secret.editDescription')}</DialogDescription>
-          </DialogHeader>
-
-          {secretEditLoading ? (
-            <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              {t('serviceInstances.secret.loading')}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label
-                  htmlFor="instance-secret-edit-name"
-                  className="text-sm font-medium text-foreground"
-                >
-                  {t('serviceInstances.fields.name')} <span className="text-destructive">*</span>
-                </label>
-                <input
-                  id="instance-secret-edit-name"
-                  type="text"
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                  value={secretEditName}
-                  onChange={event => setSecretEditName(event.target.value)}
-                  required
-                />
-              </div>
-
-              <SecretForm
-                templates={secretEditTemplates}
-                templateId={secretEditTemplateId}
-                payload={secretEditPayload}
-                onTemplateChange={() => {}}
-                onPayloadChange={(key, value) => {
-                  setSecretEditPayload(prev => ({ ...prev, [key]: value }))
-                }}
-                disableTemplateChange
-              />
-
-              <div className="space-y-2">
-                <label
-                  htmlFor="instance-secret-edit-description"
-                  className="text-sm font-medium text-foreground"
-                >
-                  {t('serviceInstances.fields.description')}
-                </label>
-                <input
-                  id="instance-secret-edit-description"
-                  type="text"
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                  value={secretEditDescription}
-                  onChange={event => setSecretEditDescription(event.target.value)}
-                />
-              </div>
-
-              {secretEditError ? (
-                <p className="text-sm text-destructive">{secretEditError}</p>
-              ) : null}
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => closeSecretEditor(false)}>
-              {t('serviceInstances.page.cancel')}
-            </Button>
-            <Button
-              type="button"
-              onClick={() => {
-                void handleSecretEditSave()
-              }}
-              disabled={secretEditLoading || secretEditSaving}
-            >
-              {secretEditSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {t('serviceInstances.secret.save')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   )
 }

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
@@ -15,6 +17,7 @@ import (
 	"github.com/websoft9/appos/backend/domain/monitor/metrics"
 	monitorchecks "github.com/websoft9/appos/backend/domain/monitor/signals/checks"
 	"github.com/websoft9/appos/backend/domain/monitor/status/store"
+	"github.com/websoft9/appos/backend/domain/resource/aiproviders"
 	"github.com/websoft9/appos/backend/domain/resource/instances"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/domain/terminal"
@@ -39,7 +42,7 @@ func TestHandleMonitorReachabilitySweepProjectsInstanceStatuses(t *testing.T) {
 
 	reachable := seedInstanceRecord(t, app, "reachable-redis", "redis", listener.Addr().String())
 	offline := seedInstanceRecord(t, app, "offline-redis", "redis", closedAddr)
-	skipped := seedInstanceRecord(t, app, "bucket-s3", "s3", "https://s3.example.com")
+	skipped := seedInstanceRecord(t, app, "bucket-s3", "s3", "http://"+closedAddr)
 
 	w, err := New(app)
 	if err != nil {
@@ -89,17 +92,87 @@ func TestHandleMonitorReachabilitySweepProjectsInstanceStatuses(t *testing.T) {
 		t.Fatalf("expected endpoint_unreachable reason_code, got %+v", offlineSummary)
 	}
 
-	if _, err := app.FindFirstRecordByFilter(
-		collections.MonitorLatestStatus,
-		"target_type = {:targetType} && target_id = {:targetID}",
-		map[string]any{"targetType": monitor.TargetTypeResource, "targetID": skipped.Id},
-	); err == nil {
-		t.Fatal("expected s3 instance to stay outside initial reachability registry")
+	skippedStatus := loadLatestStatus(t, app, skipped.Id)
+	if got := skippedStatus.GetString("status"); got != monitor.StatusUnreachable {
+		t.Fatalf("expected s3-compatible instance to persist unreachable status via default projection, got %q", got)
+	}
+	skippedSummary, err := store.SummaryFromRecord(skippedStatus)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if skippedSummary["check_kind"] != monitor.CheckKindReachability {
+		t.Fatalf("expected s3-compatible summary to keep reachability check_kind, got %+v", skippedSummary)
 	}
 }
 
 func TestEnqueueMonitorReachabilitySweepRequiresClient(t *testing.T) {
 	if err := EnqueueMonitorReachabilitySweep(nil); err == nil {
+		t.Fatal("expected nil client error")
+	}
+}
+
+func TestHandleMonitorAIProviderReachabilitySweepProjectsStatuses(t *testing.T) {
+	app := newWorkerTestApp(t)
+
+	reachableServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`ok`))
+	}))
+	defer reachableServer.Close()
+
+	unreachableServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`ok`))
+	}))
+	unreachableEndpoint := unreachableServer.URL
+	unreachableServer.Close()
+
+	reachable := seedAIProviderRecord(t, app, "reachable-provider", reachableServer.URL)
+	offline := seedAIProviderRecord(t, app, "offline-provider", unreachableEndpoint)
+
+	w, err := New(app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := NewMonitorAIProviderReachabilitySweepTask()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.handleMonitorAIProviderReachabilitySweep(context.Background(), task); err != nil {
+		t.Fatal(err)
+	}
+
+	reachableStatus := loadTargetLatestStatus(t, app, monitor.TargetTypeAIProvider, reachable.Id)
+	if got := reachableStatus.GetString("status"); got != monitor.StatusHealthy {
+		t.Fatalf("expected reachable AI provider status healthy, got %q", got)
+	}
+	reachableSummary, err := store.SummaryFromRecord(reachableStatus)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reachableSummary["check_kind"] != monitor.CheckKindReachability {
+		t.Fatalf("expected AI provider check_kind reachability, got %+v", reachableSummary)
+	}
+
+	offlineStatus := loadTargetLatestStatus(t, app, monitor.TargetTypeAIProvider, offline.Id)
+	if got := offlineStatus.GetString("status"); got != monitor.StatusUnreachable {
+		t.Fatalf("expected offline AI provider status unreachable, got %q", got)
+	}
+	offlineSummary, err := store.SummaryFromRecord(offlineStatus)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if offlineSummary["check_kind"] != monitor.CheckKindReachability {
+		t.Fatalf("expected offline AI provider reachability summary, got %+v", offlineSummary)
+	}
+	if strings.TrimSpace(offlineStatus.GetString("reason")) == "" {
+		t.Fatalf("expected monitor-backed unreachable reason, got %q", offlineStatus.GetString("reason"))
+	}
+	if strings.TrimSpace(offlineStatus.GetDateTime("last_checked_at").String()) == "" {
+		t.Fatalf("expected monitor-backed checked_at timestamp on AI provider status")
+	}
+}
+
+func TestEnqueueMonitorAIProviderReachabilitySweepRequiresClient(t *testing.T) {
+	if err := EnqueueMonitorAIProviderReachabilitySweep(nil); err == nil {
 		t.Fatal("expected nil client error")
 	}
 }
@@ -579,6 +652,26 @@ func seedInstanceRecord(t *testing.T, app core.App, name string, kind string, en
 	rec.Set("kind", kind)
 	rec.Set("template_id", templateID)
 	rec.Set("endpoint", endpoint)
+	rec.Set("config", map[string]any{})
+	if err := app.Save(rec); err != nil {
+		t.Fatal(err)
+	}
+	return rec
+}
+
+func seedAIProviderRecord(t *testing.T, app core.App, name string, endpoint string) *core.Record {
+	t.Helper()
+	col, err := app.FindCollectionByNameOrId("ai_providers")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := core.NewRecord(col)
+	rec.Set("name", name)
+	rec.Set("kind", aiproviders.KindLLM)
+	rec.Set("is_enabled", true)
+	rec.Set("template_id", "openai")
+	rec.Set("endpoint", endpoint)
+	rec.Set("auth_scheme", aiproviders.AuthSchemeNone)
 	rec.Set("config", map[string]any{})
 	if err := app.Save(rec); err != nil {
 		t.Fatal(err)
