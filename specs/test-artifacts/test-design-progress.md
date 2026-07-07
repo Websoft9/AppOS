@@ -1,7 +1,10 @@
 ---
-stepsCompleted: ['step-02-load-context', 'step-03-risk-and-testability', 'step-04-coverage-plan', 'step-05-generate-output']
-lastStep: 'step-05-generate-output'
-lastSaved: '2026-04-01'
+workflowStatus: 'in-progress'
+totalSteps: 5
+stepsCompleted: ['step-02-load-context', 'step-03-risk-and-testability', 'step-04-coverage-plan', 'step-05-generate-output', 'step-01-detect-mode', 'step-02-load-context']
+lastStep: 'step-02-load-context'
+nextStep: '{skill-root}/steps-c/step-03-risk-and-testability.md'
+lastSaved: '2026-07-07'
 inputDocuments:
   - specs/planning-artifacts/prd.md
   - specs/planning-artifacts/architecture.md
@@ -12,7 +15,15 @@ inputDocuments:
   - backend/domain/lifecycle/service/install_preflight_test.go
 ---
 
-## Step 02: Load Context
+## Step 01: Mode Detection (2026-07-07 — System-Level Re-run)
+
+- **Mode:** System-Level
+- **Rationale:** User explicitly chose system-level; PRD + ADR + Architecture all available
+- **Prerequisites Check:** All passed (PRD at `specs/planning-artifacts/prd.md`, 27 ADRs, Architecture at `specs/planning-artifacts/architecture.md`)
+
+---
+
+## Step 02: Load Context (Previous Run — 2026-04-01)
 
 - Loaded TEA config from `_bmad/tea/config.yaml`
 - Inferred relevant scope as Epic 17 / Story 17.4e-A based on active implementation artifacts and current backend changes

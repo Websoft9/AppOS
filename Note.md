@@ -115,9 +115,6 @@ connector api 路径
 
 Runtime Instances 列表页
 
-1. runtime instance 针对 同一个catalog  的各个 kind 没有做到 UI 上的统一，必须根据类别统一
-- 例如：Database 需要全部统一，它们都以 MySQL 为例
-
 
 1. 元数据要有默认协议，不同的 kind 不同：例如：rest api 默认为 https，当用户没有填写 协议时，它就自动将 https 组合到用户填写的 url 中。如果用户填写了协议，就不管它
 
