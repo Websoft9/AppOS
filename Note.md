@@ -116,9 +116,6 @@ connector api 路径
 Runtime Instances 列表页
 
 
-1. 元数据要有默认协议，不同的 kind 不同：例如：rest api 默认为 https，当用户没有填写 协议时，它就自动将 https 组合到用户填写的 url 中。如果用户填写了协议，就不管它
-
-
 进一步清理后端 instances 模型里已经不再使用的 commonFieldDefaults / omitCommonFields 结构，彻底去掉旧时代遗留
 
 

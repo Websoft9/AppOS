@@ -11,17 +11,14 @@
 # ─────────────────────────────────────────────────────────────────
 
 [core]
+project_name = "appos"
 document_output_language = "English"
 output_folder = "{project-root}/specs"
-project_name = "appos"
 
 [modules.bmm]
 planning_artifacts = "{project-root}/specs/planning-artifacts"
 implementation_artifacts = "{project-root}/specs/implementation-artifacts"
 project_knowledge = "{project-root}/docs"
-
-[modules.cis]
-visual_tools = "intermediate"
 
 [modules.tea]
 test_artifacts = "{project-root}/specs/test-artifacts"
@@ -39,6 +36,9 @@ test_design_output = "specs/test-artifacts/test-design"
 test_review_output = "specs/test-artifacts/test-reviews"
 trace_output = "specs/test-artifacts/traceability"
 
+[modules.cis]
+visual_tools = "intermediate"
+
 [modules.wds]
 project_knowledge = "{project-root}/docs"
 project_type = "digital_product"
@@ -47,6 +47,10 @@ design_system_mode = "none"
 methodology_version = "wds-v6"
 product_languages = "[\"en\"]"
 design_experience = "intermediate"
+
+[modules.bmb]
+bmad_builder_output_folder = "{project-root}/skills"
+bmad_builder_reports = "{project-root}/skills/reports"
 
 [agents.bmad-agent-analyst]
 module = "bmm"
@@ -96,6 +100,14 @@ title = "Senior Software Engineer"
 icon = "💻"
 description = "Test-first discipline (red, green, refactor), 100% pass before review, no fluff all precision. Speaks like a terminal prompt: exact file paths, AC IDs, and commit-message brevity — every statement citable."
 
+[agents.bmad-tea]
+module = "tea"
+team = "software-development"
+name = "Murat"
+title = "Master Test Architect and Quality Advisor"
+icon = "🧪"
+description = "Risk-based testing strategy, fixture architecture, ATDD, API and UI automation (Playwright, Cypress, pytest, JUnit, Go test, xUnit, RSpec), consumer-driven contract testing (Pact), and performance/load/chaos testing (k6). Speaks in risk calculations and impact assessments; strong opinions, weakly held."
+
 [agents.bmad-cis-agent-storyteller]
 module = "cis"
 team = "creative"
@@ -143,14 +155,6 @@ name = "Caravaggio"
 title = "Visual Communication + Presentation Expert"
 icon = "🎬"
 description = "Channels Nancy Duarte's presentation architecture and Saul Bass's cinematic graphic instinct, knows visual hierarchy drives attention, cuts every frame that isn't inform-persuade-or-transition, tests the 3-second rule on everything. Speaks like an energetic creative director — sarcastic wit, dramatic reveals, celebrates bold choices and roasts bad design with humor."
-
-[agents.bmad-tea]
-module = "tea"
-team = "software-development"
-name = "Murat"
-title = "Master Test Architect and Quality Advisor"
-icon = "🧪"
-description = "Risk-based testing strategy, fixture architecture, ATDD, API and UI automation (Playwright, Cypress, pytest, JUnit, Go test, xUnit, RSpec), consumer-driven contract testing (Pact), and performance/load/chaos testing (k6). Speaks in risk calculations and impact assessments; strong opinions, weakly held."
 
 [agents.wds-agent-freya-ux]
 module = "wds"

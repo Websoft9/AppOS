@@ -31,7 +31,7 @@
     },
     {
       "id": "credential",
-      "label": "Password Secret",
+      "label": "Password or Secret",
       "type": "secret_ref",
       "required": true,
       "secretTemplate": "single_value",

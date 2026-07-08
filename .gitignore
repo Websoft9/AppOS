@@ -20,3 +20,5 @@ sbom.spdx.json
 # other
 session
 
+.bmad-loop/runs/
+.bmad-loop/cache/
