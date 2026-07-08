@@ -36,8 +36,31 @@ describe('SystemCronsContent', () => {
       if (path === '/api/crons') {
         return Promise.resolve([
           { id: '__pb_logs_cleanup__', expression: '0 0 * * *' },
-          { id: 'monitor_reachability_checks', expression: '*/1 * * * *' },
+          { id: 'monitor_instance_reachability_checks', expression: '0 * * * *' },
         ])
+      }
+      if (path === '/api/settings/entries/monitor-scheduling') {
+        return Promise.resolve({
+          id: 'monitor-scheduling',
+          value: {
+            reachabilityIntervalMinutes: 60,
+            metricsFreshnessIntervalMinutes: 1,
+            controlReachabilityIntervalMinutes: 1,
+            runtimeSnapshotIntervalMinutes: 1,
+            credentialSweepIntervalMinutes: 5,
+            appHealthIntervalMinutes: 1,
+            factsPullIntervalMinutes: 15,
+          },
+        })
+      }
+      if (path === '/api/crons/monitor_instance_reachability_checks/logs') {
+        return Promise.resolve({
+          jobId: 'monitor_instance_reachability_checks',
+          lastRun: '2026-07-08T01:00:00Z',
+          lastStatus: 'success',
+          lastDurationMs: 25,
+          items: [],
+        })
       }
       return Promise.resolve({ items: [] })
     })
@@ -55,11 +78,53 @@ describe('SystemCronsContent', () => {
     expect(screen.getByRole('button', { name: 'Refresh platform crons' })).toBeInTheDocument()
 
     expect(screen.getByText('Type')).toBeInTheDocument()
+    expect(screen.getByText('Effective Interval')).toBeInTheDocument()
     expect(screen.getByText('Core')).toBeInTheDocument()
     expect(screen.getByText('Platform')).toBeInTheDocument()
+    expect(await screen.findByText('60 min')).toBeInTheDocument()
+    expect(await screen.findByText('Success')).toBeInTheDocument()
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/crons', { method: 'GET' })
     })
+  })
+
+  it('falls back to parsed cron expressions when monitor scheduling settings are unavailable', async () => {
+    sendMock.mockReset()
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/crons') {
+        return Promise.resolve([
+          { id: 'feeds_poll', expression: '*/5 * * * *' },
+          { id: 'monitor_instance_reachability_checks', expression: '0 * * * *' },
+        ])
+      }
+      if (path === '/api/settings/entries/monitor-scheduling') {
+        return Promise.reject(new Error('settings unavailable'))
+      }
+      if (path === '/api/crons/feeds_poll/logs') {
+        return Promise.resolve({
+          jobId: 'feeds_poll',
+          lastRun: null,
+          lastStatus: null,
+          lastDurationMs: null,
+          items: [],
+        })
+      }
+      if (path === '/api/crons/monitor_instance_reachability_checks/logs') {
+        return Promise.resolve({
+          jobId: 'monitor_instance_reachability_checks',
+          lastRun: null,
+          lastStatus: null,
+          lastDurationMs: null,
+          items: [],
+        })
+      }
+      return Promise.resolve({ items: [] })
+    })
+
+    render(<SystemCronsContent />)
+
+    expect(await screen.findByText('60 min')).toBeInTheDocument()
+    expect(await screen.findByText('5 min')).toBeInTheDocument()
   })
 })

@@ -203,7 +203,7 @@ func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 		case "secrets-policy":
 			foundSecrets = value != nil && value["defaultAccessMode"] == string(secrets.AccessModeUseOnly)
 		case "monitor-scheduling":
-			foundMonitorScheduling = value != nil && int(value["factsPullIntervalMinutes"].(float64)) == 15
+			foundMonitorScheduling = value != nil && int(value["factsPullIntervalMinutes"].(float64)) == 15 && int(value["reachabilityIntervalMinutes"].(float64)) == 60 && int(value["controlReachabilityIntervalMinutes"].(float64)) == 1
 		case "monitor-policy":
 			foundMonitorPolicy = value != nil && int(value["metricsMissingSeconds"].(float64)) == 180
 		case "monitor-platform-self-observation":
@@ -409,6 +409,24 @@ func TestSettingsEntryPatchValidation(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "metricsMissingSeconds") {
 		t.Fatalf("expected monitor-policy validation error, got %s", rec.Body.String())
+	}
+
+	badMonitorScheduling := `{"reachabilityIntervalMinutes":59}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/monitor-scheduling", badMonitorScheduling, true)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 for invalid monitor-scheduling, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "reachabilityIntervalMinutes") {
+		t.Fatalf("expected monitor-scheduling validation error, got %s", rec.Body.String())
+	}
+
+	badMonitorScheduling = `{"reachabilityIntervalMinutes":90}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/monitor-scheduling", badMonitorScheduling, true)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 for non-hourly monitor-scheduling, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "reachabilityIntervalMinutes") {
+		t.Fatalf("expected monitor-scheduling step validation error, got %s", rec.Body.String())
 	}
 
 	badMonitorPlatformSelfObservation := `{"platformObserverIntervalSeconds":100,"platformSchedulerStaleThresholdSeconds":200,"enableHostTelemetry":"not-bool"}`
@@ -635,7 +653,7 @@ func TestSettingsEntryPatchPersistsUnifiedValues(t *testing.T) {
 		t.Fatalf("expected defaultComposePath deploy/custom-compose.yml, got %q", got)
 	}
 
-	monitorSchedulingBody := `{"reachabilityIntervalMinutes":2,"metricsFreshnessIntervalMinutes":3,"controlReachabilityIntervalMinutes":4,"runtimeSnapshotIntervalMinutes":5,"credentialSweepIntervalMinutes":6,"appHealthIntervalMinutes":7,"factsPullIntervalMinutes":8}`
+	monitorSchedulingBody := `{"reachabilityIntervalMinutes":60,"metricsFreshnessIntervalMinutes":3,"controlReachabilityIntervalMinutes":4,"runtimeSnapshotIntervalMinutes":5,"credentialSweepIntervalMinutes":6,"appHealthIntervalMinutes":7,"factsPullIntervalMinutes":8}`
 	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/monitor-scheduling", monitorSchedulingBody, true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 for monitor-scheduling patch, got %d: %s", rec.Code, rec.Body.String())
@@ -643,6 +661,9 @@ func TestSettingsEntryPatchPersistsUnifiedValues(t *testing.T) {
 	storedMonitorScheduling, err := sysconfig.GetGroup(te.app, "monitor", "scheduling", nil)
 	if err != nil {
 		t.Fatalf("expected stored monitor scheduling, got error: %v", err)
+	}
+	if got := sysconfig.Int(storedMonitorScheduling, "reachabilityIntervalMinutes", 0); got != 60 {
+		t.Fatalf("expected reachabilityIntervalMinutes 60, got %d", got)
 	}
 	if got := sysconfig.Int(storedMonitorScheduling, "factsPullIntervalMinutes", 0); got != 8 {
 		t.Fatalf("expected factsPullIntervalMinutes 8, got %d", got)

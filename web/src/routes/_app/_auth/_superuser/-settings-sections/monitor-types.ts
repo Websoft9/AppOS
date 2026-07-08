@@ -37,7 +37,7 @@ export interface MonitorManagedCollectorPolicyGroup {
 }
 
 export const DEFAULT_MONITOR_SCHEDULING: MonitorSchedulingGroup = {
-  reachabilityIntervalMinutes: 1,
+  reachabilityIntervalMinutes: 60,
   metricsFreshnessIntervalMinutes: 1,
   controlReachabilityIntervalMinutes: 1,
   runtimeSnapshotIntervalMinutes: 1,

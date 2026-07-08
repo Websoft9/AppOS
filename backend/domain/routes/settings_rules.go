@@ -591,6 +591,7 @@ func itemsToMaps(items []egress.ConsumerEnrollment) []map[string]any {
 
 func validateMonitorScheduling(v map[string]any) map[string]string {
 	errors := map[string]string{}
+	const maxIntervalMinutes = 1440
 	for _, field := range []string{
 		"reachabilityIntervalMinutes",
 		"metricsFreshnessIntervalMinutes",
@@ -603,8 +604,14 @@ func validateMonitorScheduling(v map[string]any) map[string]string {
 		value, err := parseIntWithDefault(v[field], 1)
 		if err != nil {
 			errors[field] = "must be an integer"
+		} else if field == "reachabilityIntervalMinutes" && value < monitor.ReachabilityIntervalMinMinutes {
+			errors[field] = "must be >= 60"
+		} else if field == "reachabilityIntervalMinutes" && value%monitor.ReachabilityIntervalStepMinutes != 0 {
+			errors[field] = "must be a multiple of 60"
 		} else if value < 1 {
 			errors[field] = "must be >= 1"
+		} else if value > maxIntervalMinutes {
+			errors[field] = "must be <= 1440"
 		} else {
 			v[field] = value
 		}

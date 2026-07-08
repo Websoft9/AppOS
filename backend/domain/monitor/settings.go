@@ -14,6 +14,9 @@ const (
 	PolicySettingsKey                  = "policy"
 	PlatformSelfObservationSettingsKey = "platform-self-observation"
 	ManagedCollectorPolicySettingsKey  = "managed-collector-policy"
+	ReachabilityIntervalMinMinutes     = 60
+	ReachabilityIntervalMaxMinutes     = 1440
+	ReachabilityIntervalStepMinutes    = 60
 )
 
 type SchedulingSettings struct {
@@ -56,7 +59,7 @@ type ManagedCollectorPolicySettings struct {
 
 func DefaultSchedulingSettings() SchedulingSettings {
 	return SchedulingSettings{
-		ReachabilityIntervalMinutes:        1,
+		ReachabilityIntervalMinutes:        60,
 		MetricsFreshnessIntervalMinutes:    1,
 		ControlReachabilityIntervalMinutes: 1,
 		RuntimeSnapshotIntervalMinutes:     1,
@@ -64,6 +67,32 @@ func DefaultSchedulingSettings() SchedulingSettings {
 		AppHealthIntervalMinutes:           1,
 		FactsPullIntervalMinutes:           15,
 	}
+}
+
+func NormalizeReachabilityIntervalMinutes(value int) int {
+	if value < ReachabilityIntervalMinMinutes {
+		return ReachabilityIntervalMinMinutes
+	}
+	if value > ReachabilityIntervalMaxMinutes {
+		value = ReachabilityIntervalMaxMinutes
+	}
+	if remainder := value % ReachabilityIntervalStepMinutes; remainder != 0 {
+		value += ReachabilityIntervalStepMinutes - remainder
+		if value > ReachabilityIntervalMaxMinutes {
+			value = ReachabilityIntervalMaxMinutes
+		}
+	}
+	return value
+}
+
+func NormalizeSchedulingMap(value map[string]any) map[string]any {
+	if value == nil {
+		return nil
+	}
+	value["reachabilityIntervalMinutes"] = NormalizeReachabilityIntervalMinutes(
+		sysconfig.Int(value, "reachabilityIntervalMinutes", DefaultSchedulingSettings().ReachabilityIntervalMinutes),
+	)
+	return value
 }
 
 func DefaultPolicySettings() PolicySettings {
@@ -104,7 +133,7 @@ func LoadSchedulingSettings(app core.App) SchedulingSettings {
 	defaults := DefaultSchedulingSettings()
 	group, _ := sysconfig.GetGroup(app, SettingsModule, SchedulingSettingsKey, settingsschema.DefaultGroup(SettingsModule, SchedulingSettingsKey))
 	settings := SchedulingSettings{
-		ReachabilityIntervalMinutes:        clampMinimum(sysconfig.Int(group, "reachabilityIntervalMinutes", defaults.ReachabilityIntervalMinutes), 1, defaults.ReachabilityIntervalMinutes),
+		ReachabilityIntervalMinutes:        NormalizeReachabilityIntervalMinutes(sysconfig.Int(group, "reachabilityIntervalMinutes", defaults.ReachabilityIntervalMinutes)),
 		MetricsFreshnessIntervalMinutes:    clampMinimum(sysconfig.Int(group, "metricsFreshnessIntervalMinutes", defaults.MetricsFreshnessIntervalMinutes), 1, defaults.MetricsFreshnessIntervalMinutes),
 		ControlReachabilityIntervalMinutes: clampMinimum(sysconfig.Int(group, "controlReachabilityIntervalMinutes", defaults.ControlReachabilityIntervalMinutes), 1, defaults.ControlReachabilityIntervalMinutes),
 		RuntimeSnapshotIntervalMinutes:     clampMinimum(sysconfig.Int(group, "runtimeSnapshotIntervalMinutes", defaults.RuntimeSnapshotIntervalMinutes), 1, defaults.RuntimeSnapshotIntervalMinutes),

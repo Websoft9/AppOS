@@ -90,7 +90,7 @@ func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 
 	app.Cron().MustAdd(
 		monitorInstanceReachabilityCronJobID,
-		"*/1 * * * *",
+		"0 * * * *",
 		cronutil.Wrap(app, monitorInstanceReachabilityCronJobID, func() {
 			if !shouldRunMonitorInterval(time.Now().UTC(), monitor.LoadSchedulingSettings(app).ReachabilityIntervalMinutes) {
 				return
@@ -103,7 +103,7 @@ func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 
 	app.Cron().MustAdd(
 		monitorAIProviderReachabilityCronJobID,
-		"*/1 * * * *",
+		"0 * * * *",
 		cronutil.Wrap(app, monitorAIProviderReachabilityCronJobID, func() {
 			if !shouldRunMonitorInterval(time.Now().UTC(), monitor.LoadSchedulingSettings(app).ReachabilityIntervalMinutes) {
 				return
@@ -116,7 +116,7 @@ func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 
 	app.Cron().MustAdd(
 		monitorConnectorReachabilityCronJobID,
-		"*/1 * * * *",
+		"0 * * * *",
 		cronutil.Wrap(app, monitorConnectorReachabilityCronJobID, func() {
 			if !shouldRunMonitorInterval(time.Now().UTC(), monitor.LoadSchedulingSettings(app).ReachabilityIntervalMinutes) {
 				return

@@ -462,7 +462,7 @@ describe('SettingsPage shared settings paths', () => {
               },
             },
             { id: 'logs', value: { maxDays: 7, minLevel: 5, logIP: false, logAuthId: false } },
-            { id: 'monitor-scheduling', value: { reachabilityIntervalMinutes: 1 } },
+            { id: 'monitor-scheduling', value: { reachabilityIntervalMinutes: 60 } },
             { id: 'monitor-policy', value: { metricsFreshnessLookbackSeconds: 300 } },
             {
               id: 'monitor-platform-self-observation',
@@ -1747,7 +1747,7 @@ describe('SettingsPage shared settings paths', () => {
               },
             },
             { id: 'logs', value: { maxDays: 7, minLevel: 5, logIP: false, logAuthId: false } },
-            { id: 'monitor-scheduling', value: { reachabilityIntervalMinutes: 1 } },
+            { id: 'monitor-scheduling', value: { reachabilityIntervalMinutes: 60 } },
             { id: 'monitor-policy', value: { metricsFreshnessLookbackSeconds: 300 } },
             {
               id: 'monitor-platform-self-observation',
