@@ -443,15 +443,6 @@ export function ConnectorsPage() {
                             { actual: enteredScheme, expected: defaultScheme }
                           )}
                         </p>
-                      ) : defaultScheme ? (
-                        <p className="text-xs text-muted-foreground">
-                          {translateConnectorCopy(
-                            t,
-                            'connectors.endpoint.defaultSchemeHint',
-                            `If no protocol is entered, ${defaultScheme} will be added automatically.`,
-                            { scheme: defaultScheme }
-                          )}
-                        </p>
                       ) : null}
                     </div>
                   )
@@ -572,7 +563,7 @@ export function ConnectorsPage() {
   )
 
   const baseConnectorFields = useMemo<FieldDef[]>(
-    () => buildConnectorFields('', null, []),
+    () => buildConnectorFields('', null, [], false),
     [buildConnectorFields]
   )
 
@@ -774,6 +765,9 @@ export function ConnectorsPage() {
         (selectedTemplate.fields ?? []).map(field => [field.id, field])
       )
       for (const field of activeFields) {
+        if (field.key === 'auth_mode') {
+          continue
+        }
         if (!field.required) {
           continue
         }

@@ -1,0 +1,38 @@
+{
+  "contractVersion": "0.1",
+  "env": {
+    "W9_ID": "${app_id}",
+    "W9_REPO": "metabase/metabase",
+    "W9_DIST": "oss",
+    "W9_VERSION": "${version}",
+    "W9_HTTP_PORT": "3000",
+    "W9_HTTP_PORT_SET": "${http_port}",
+    "W9_URL": "${site_url}",
+    "W9_DB_EXPOSE": "postgresql",
+    "W9_DB_VERSION": "16",
+    "W9_NETWORK": "${platform.network}",
+    "MB_DB_TYPE": "postgres",
+    "MB_DB_DBNAME": "metabaseappdb",
+    "MB_DB_PORT": "5432",
+    "MB_DB_USER": "metabase",
+    "MB_DB_PASS": "${secret:db_password}",
+    "MB_DB_HOST": "${app_id}-postgresql",
+    "POSTGRES_DB": "metabaseappdb",
+    "POSTGRES_USER": "metabase",
+    "POSTGRES_PASSWORD": "${secret:db_password}"
+  },
+  "compose_values": {
+    "primaryService": "metabase",
+    "databaseService": "postgresql"
+  },
+  "files": [],
+  "exposures": [
+    {
+      "label": "Web",
+      "service": "metabase",
+      "port": 3000,
+      "protocol": "http",
+      "default": true
+    }
+  ]
+}

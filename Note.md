@@ -116,6 +116,8 @@ connector api 路径
 Runtime Instances 列表页
 
 
+onlyoffice 存放在哪里的问题
+
 进一步清理后端 instances 模型里已经不再使用的 commonFieldDefaults / omitCommonFields 结构，彻底去掉旧时代遗留
 
 
@@ -126,4 +128,3 @@ Runtime Instances 列表页
 3. 协议不固定
 
 
-onlyoffice 存放在哪里的问题

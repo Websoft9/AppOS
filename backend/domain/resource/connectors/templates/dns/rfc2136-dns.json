@@ -1,0 +1,16 @@
+{
+  "id": "rfc2136-dns",
+  "title": "RFC 2136",
+  "vendor": "RFC 2136",
+  "description": "RFC 2136 dynamic DNS profile.",
+  "defaultEndpoint": "https://dns.example.com",
+  "aliases": ["rfc2136", "dynamic-dns", "tsig-dns"],
+  "fields": [
+    {
+      "id": "region_id",
+      "label": "Server / Zone Hint",
+      "type": "string",
+      "placeholder": "optional hint"
+    }
+  ]
+}

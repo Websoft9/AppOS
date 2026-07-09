@@ -1,0 +1,19 @@
+{
+  "originKind": "official",
+  "sourceRepo": "metabase/metabase",
+  "sourcePath": "docs/installation-and-operation/running-metabase-on-docker.md",
+  "sourceBranch": "master",
+  "observedFiles": [
+    "docker-compose.yml"
+  ],
+  "references": {
+    "docs": "https://www.metabase.com/docs/latest/installation-and-operation/running-metabase-on-docker",
+    "image": "https://hub.docker.com/r/metabase/metabase",
+    "envVars": "https://www.metabase.com/docs/latest/configuring-metabase/environment-variables"
+  },
+  "notes": [
+    "This sample preserves upstream identity for Epic 32 adaptation work.",
+    "The compose shape is derived from the official 'Example Docker compose YAML file' section of the Docker install docs.",
+    "The first pass stores source metadata rather than a full upstream file mirror."
+  ]
+}

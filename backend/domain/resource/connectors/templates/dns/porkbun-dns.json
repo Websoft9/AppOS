@@ -1,0 +1,8 @@
+{
+  "id": "porkbun-dns",
+  "title": "Porkbun DNS",
+  "vendor": "Porkbun",
+  "description": "Porkbun DNS API profile.",
+  "defaultEndpoint": "https://api.porkbun.com/api/json/v3",
+  "aliases": ["porkbun", "porkbun-dns"]
+}

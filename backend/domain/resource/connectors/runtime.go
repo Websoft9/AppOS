@@ -1,6 +1,7 @@
 package connectors
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/url"
 	"sort"
@@ -39,6 +40,7 @@ type RegistryConfig struct {
 	Endpoint    string
 	Host        string
 	Username    string
+	KeyID       string
 	Password    string
 	Namespace   string
 	Insecure    bool
@@ -54,9 +56,38 @@ type ProxyConfig struct {
 	Host        string
 	Port        int
 	Username    string
+	KeyID       string
 	Password    string
 	NoProxy     string
 	AuthScheme  string
+}
+
+func (c *ProxyConfig) ProxyAuthorizationHeader() string {
+	if c == nil {
+		return ""
+	}
+	switch strings.TrimSpace(c.AuthScheme) {
+	case AuthSchemeBasic:
+		if strings.TrimSpace(c.Username) == "" {
+			return ""
+		}
+		return "Basic " + base64.StdEncoding.EncodeToString([]byte(strings.TrimSpace(c.Username)+":"+strings.TrimSpace(c.Password)))
+	case AuthSchemeBearer:
+		if strings.TrimSpace(c.Password) == "" {
+			return ""
+		}
+		return "Bearer " + strings.TrimSpace(c.Password)
+	case AuthSchemeAPIKey:
+		if strings.TrimSpace(c.Password) == "" {
+			return ""
+		}
+		if strings.TrimSpace(c.KeyID) != "" {
+			return strings.TrimSpace(c.KeyID) + " " + strings.TrimSpace(c.Password)
+		}
+		return strings.TrimSpace(c.Password)
+	default:
+		return ""
+	}
 }
 
 type SecretResolver func(secretID string) (*ResolvedSecret, error)
@@ -173,7 +204,7 @@ func BuildProxyEnvWith(repo Repository, secrets SecretResolvePort, enabled bool,
 		if socks5Cfg == nil {
 			return nil, nil
 		}
-		socks5Proxy := ProxyURLWithCredentials(socks5Cfg.Endpoint, socks5Cfg.Username, socks5Cfg.Password)
+		socks5Proxy := ProxyURLWithCredentials(socks5Cfg.Endpoint, socks5Cfg)
 		if socks5Proxy == "" {
 			return nil, nil
 		}
@@ -184,6 +215,9 @@ func BuildProxyEnvWith(repo Repository, secrets SecretResolvePort, enabled bool,
 			"http_proxy":  socks5Proxy,
 			"HTTPS_PROXY": socks5Proxy,
 			"https_proxy": socks5Proxy,
+		}
+		if header := socks5Cfg.ProxyAuthorizationHeader(); header != "" {
+			env["APPOS_PROXY_AUTHORIZATION"] = header
 		}
 		noProxy := mergeNoProxyValues(socks5Cfg)
 		if noProxy != "" {
@@ -204,17 +238,23 @@ func BuildProxyEnvWith(repo Repository, secrets SecretResolvePort, enabled bool,
 
 	env := map[string]string{}
 	if httpCfg != nil {
-		httpProxy := ProxyURLWithCredentials(httpCfg.Endpoint, httpCfg.Username, httpCfg.Password)
+		httpProxy := ProxyURLWithCredentials(httpCfg.Endpoint, httpCfg)
 		if httpProxy != "" {
 			env["HTTP_PROXY"] = httpProxy
 			env["http_proxy"] = httpProxy
+			if header := httpCfg.ProxyAuthorizationHeader(); header != "" {
+				env["APPOS_HTTP_PROXY_AUTHORIZATION"] = header
+			}
 		}
 	}
 	if httpsCfg != nil {
-		httpsProxy := ProxyURLWithCredentials(httpsCfg.Endpoint, httpsCfg.Username, httpsCfg.Password)
+		httpsProxy := ProxyURLWithCredentials(httpsCfg.Endpoint, httpsCfg)
 		if httpsProxy != "" {
 			env["HTTPS_PROXY"] = httpsProxy
 			env["https_proxy"] = httpsProxy
+			if header := httpsCfg.ProxyAuthorizationHeader(); header != "" {
+				env["APPOS_HTTPS_PROXY_AUTHORIZATION"] = header
+			}
 		}
 	}
 	noProxy := mergeNoProxyValues(httpCfg, httpsCfg)
@@ -320,12 +360,13 @@ func registryConfigFromConnector(secrets SecretResolvePort, connector *Connector
 		Endpoint:    endpoint,
 		Host:        host,
 		Username:    stringValue(config, "username", "user"),
+		KeyID:       stringValue(config, "key_id", "keyId", "access_key", "accessKey"),
 		Namespace:   stringValue(config, "namespace", "project"),
 		Insecure:    boolValue(config, "insecure"),
 		AuthScheme:  connector.AuthScheme(),
 	}
 	if secret != nil {
-		result.Password = stringValue(secret.Payload, "password", "value", "api_key")
+		result.Password = stringValue(secret.Payload, "password", "value", "api_key", "secret", "token")
 	}
 	return result, nil
 }
@@ -356,16 +397,17 @@ func proxyConfigFromConnector(secrets SecretResolvePort, connector *Connector) (
 		Host:        host,
 		Port:        port,
 		Username:    stringValue(config, "username", "user"),
+		KeyID:       stringValue(config, "key_id", "keyId", "token_id", "tokenId"),
 		NoProxy:     strings.TrimSpace(stringValue(config, "no_proxy", "noProxy")),
 		AuthScheme:  connector.AuthScheme(),
 	}
 	if secret != nil {
-		result.Password = stringValue(secret.Payload, "password", "value", "api_key")
+		result.Password = stringValue(secret.Payload, "password", "value", "api_key", "secret", "token")
 	}
 	return result, nil
 }
 
-func ProxyURLWithCredentials(rawValue, username, password string) string {
+func ProxyURLWithCredentials(rawValue string, cfg *ProxyConfig) string {
 	rawValue = strings.TrimSpace(rawValue)
 	if rawValue == "" {
 		return ""
@@ -374,10 +416,27 @@ func ProxyURLWithCredentials(rawValue, username, password string) string {
 	if err != nil {
 		return rawValue
 	}
-	if parsed.User != nil || strings.TrimSpace(username) == "" {
+	if parsed.User != nil || cfg == nil {
 		return rawValue
 	}
-	parsed.User = url.UserPassword(strings.TrimSpace(username), strings.TrimSpace(password))
+	switch strings.TrimSpace(cfg.AuthScheme) {
+	case AuthSchemeBasic:
+		if strings.TrimSpace(cfg.Username) == "" {
+			return rawValue
+		}
+		parsed.User = url.UserPassword(strings.TrimSpace(cfg.Username), strings.TrimSpace(cfg.Password))
+	case AuthSchemeBearer, AuthSchemeAPIKey:
+		identifier := strings.TrimSpace(cfg.KeyID)
+		if identifier == "" {
+			identifier = "token"
+		}
+		if strings.TrimSpace(cfg.Password) == "" {
+			return rawValue
+		}
+		parsed.User = url.UserPassword(identifier, strings.TrimSpace(cfg.Password))
+	default:
+		return rawValue
+	}
 	return parsed.String()
 }
 

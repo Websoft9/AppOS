@@ -1,0 +1,38 @@
+{
+  "contractVersion": "0.1",
+  "key": "metabase",
+  "name": "metabase",
+  "trademark": "Metabase",
+  "category": "analytics",
+  "docs": {
+    "website": "https://www.metabase.com/",
+    "installRequirements": "https://www.metabase.com/docs/latest/installation-and-operation/running-metabase-on-docker",
+    "upstream": "https://hub.docker.com/r/metabase/metabase"
+  },
+  "capabilities": {
+    "web": true,
+    "requiresDomain": false,
+    "hasBuiltinDatabase": true,
+    "supportsPublish": true
+  },
+  "requirements": {
+    "cpu": 2,
+    "memoryGb": 4,
+    "diskGb": 2
+  },
+  "versions": {
+    "default": {
+      "edition": "oss",
+      "version": "latest"
+    },
+    "supported": [
+      { "edition": "oss", "version": "latest" },
+      { "edition": "oss", "version": "v0.55.9" },
+      { "edition": "oss", "version": "v0.54.14" }
+    ]
+  },
+  "serviceRoles": {
+    "metabase": "primary",
+    "postgresql": "database"
+  }
+}

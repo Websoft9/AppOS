@@ -98,7 +98,7 @@ func buildDialContextFromEnv(proxyEnv map[string]string, timeout time.Duration) 
 			}
 			return dialer.Dial(network, address)
 		case "http", "https":
-			return dialViaHTTPConnect(ctx, proxyURL, address, timeout)
+			return dialViaHTTPConnect(ctx, proxyEnv, proxyURL, address, timeout)
 		default:
 			return direct(ctx, network, address)
 		}
@@ -140,7 +140,7 @@ func shouldBypassProxy(host string, proxyEnv map[string]string) bool {
 	return err == nil && proxyURL == nil
 }
 
-func dialViaHTTPConnect(ctx context.Context, proxyURL *url.URL, address string, timeout time.Duration) (net.Conn, error) {
+func dialViaHTTPConnect(ctx context.Context, proxyEnv map[string]string, proxyURL *url.URL, address string, timeout time.Duration) (net.Conn, error) {
 	dialer := &net.Dialer{Timeout: timeout}
 	proxyAddr := canonicalProxyAddress(proxyURL)
 	conn, err := dialer.DialContext(ctx, "tcp", proxyAddr)
@@ -156,7 +156,9 @@ func dialViaHTTPConnect(ctx context.Context, proxyURL *url.URL, address string, 
 		conn = tlsConn
 	}
 	req := &http.Request{Method: http.MethodConnect, URL: &url.URL{Opaque: address}, Host: address, Header: make(http.Header)}
-	if proxyURL.User != nil {
+	if header := proxyAuthorizationHeader(proxyEnv, proxyURL); header != "" {
+		req.Header.Set("Proxy-Authorization", header)
+	} else if proxyURL.User != nil {
 		username := proxyURL.User.Username()
 		password, _ := proxyURL.User.Password()
 		token := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
@@ -177,6 +179,22 @@ func dialViaHTTPConnect(ctx context.Context, proxyURL *url.URL, address string, 
 		return nil, fmt.Errorf("proxy CONNECT failed: %s", resp.Status)
 	}
 	return conn, nil
+}
+
+func proxyAuthorizationHeader(proxyEnv map[string]string, proxyURL *url.URL) string {
+	if proxyURL == nil {
+		return ""
+	}
+	if allProxy := firstNonEmptyString(proxyEnv["ALL_PROXY"], proxyEnv["all_proxy"]); allProxy != "" && allProxy == proxyURL.String() {
+		return strings.TrimSpace(proxyEnv["APPOS_PROXY_AUTHORIZATION"])
+	}
+	if httpsProxy := firstNonEmptyString(proxyEnv["HTTPS_PROXY"], proxyEnv["https_proxy"]); httpsProxy != "" && httpsProxy == proxyURL.String() {
+		return strings.TrimSpace(proxyEnv["APPOS_HTTPS_PROXY_AUTHORIZATION"])
+	}
+	if httpProxy := firstNonEmptyString(proxyEnv["HTTP_PROXY"], proxyEnv["http_proxy"]); httpProxy != "" && httpProxy == proxyURL.String() {
+		return strings.TrimSpace(proxyEnv["APPOS_HTTP_PROXY_AUTHORIZATION"])
+	}
+	return strings.TrimSpace(proxyEnv["APPOS_PROXY_AUTHORIZATION"])
 }
 
 func canonicalProxyAddress(proxyURL *url.URL) string {

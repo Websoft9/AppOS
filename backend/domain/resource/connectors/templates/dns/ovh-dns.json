@@ -1,0 +1,8 @@
+{
+  "id": "ovh-dns",
+  "title": "OVH DNS",
+  "vendor": "OVH",
+  "description": "OVH DNS API profile.",
+  "defaultEndpoint": "https://api.ovh.com/1.0",
+  "aliases": ["ovh", "ovh-dns"]
+}

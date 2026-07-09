@@ -1,0 +1,8 @@
+{
+  "id": "azure-dns",
+  "title": "Azure DNS",
+  "vendor": "Microsoft Azure",
+  "description": "Azure DNS API profile.",
+  "defaultEndpoint": "https://management.azure.com",
+  "aliases": ["azure", "azure-dns", "microsoft-azure-dns"]
+}

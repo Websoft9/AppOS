@@ -1,0 +1,8 @@
+{
+  "id": "route53-dns",
+  "title": "Amazon Route 53",
+  "vendor": "Amazon Web Services",
+  "description": "Amazon Route 53 DNS API profile.",
+  "defaultEndpoint": "https://route53.amazonaws.com",
+  "aliases": ["route53", "aws-route53", "amazon-route53"]
+}

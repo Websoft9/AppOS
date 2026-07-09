@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  metabase:
+    image: ${W9_REPO}:${W9_VERSION}
+    container_name: ${W9_ID}
+    hostname: ${W9_ID}
+    ports:
+      - ${W9_HTTP_PORT_SET}:3000
+    volumes:
+      - /dev/urandom:/dev/random:ro
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_DBNAME: metabaseappdb
+      MB_DB_PORT: 5432
+      MB_DB_USER: metabase
+      MB_DB_PASS: ${MB_DB_PASS}
+      MB_DB_HOST: ${W9_ID}-postgresql
+    depends_on:
+      - postgresql
+    healthcheck:
+      test: curl --fail -I http://localhost:3000/api/health || exit 1
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  postgresql:
+    image: postgres:${W9_DB_VERSION}
+    container_name: ${W9_ID}-postgresql
+    hostname: ${W9_ID}-postgresql
+    restart: unless-stopped
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: metabaseappdb
+      POSTGRES_USER: metabase
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGDATA: /var/lib/postgresql/data
+
+volumes:
+  postgres:
+
+networks:
+  default:
+    name: ${W9_NETWORK}
+    external: true

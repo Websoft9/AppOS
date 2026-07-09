@@ -2,9 +2,9 @@
   "kind": "proxy",
   "category": "Integration",
   "description": "Reusable externally managed proxy connector profile.",
-  "authPresentation": "username_password",
+  "authPresentation": "mixed",
   "endpointShape": "url",
-  "defaultAuthScheme": "basic",
+  "defaultAuthScheme": "none",
   "capabilities": ["proxy"],
   "fields": [
     {
@@ -15,17 +15,30 @@
       "placeholder": "http://proxy.example.com:8080"
     },
     {
+      "id": "auth_mode",
+      "label": "Authentication",
+      "type": "select",
+      "default": "none",
+      "options": [
+        { "label": "No authentication", "value": "none" },
+        { "label": "Username + Password", "value": "username_password" },
+        { "label": "Single Token / Secret", "value": "single_secret" }
+      ]
+    },
+    {
       "id": "username",
       "label": "Username",
       "type": "string",
-      "required": true,
+      "required": false,
+      "showWhen": { "field": "auth_mode", "values": ["username_password"] },
       "placeholder": "proxy-user"
     },
     {
       "id": "credential",
-      "label": "Password or Secret",
+      "label": "Password / Token / Secret",
       "type": "secret_ref",
-      "required": true,
+      "required": false,
+      "showWhen": { "field": "auth_mode", "values": ["username_password", "single_secret"] },
       "secretTemplate": "single_value",
       "placeholder": "secretRef:..."
     },

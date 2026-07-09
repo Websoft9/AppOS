@@ -9,8 +9,8 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/forms"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	"github.com/websoft9/appos/backend/domain/monitor"
 	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
+	"github.com/websoft9/appos/backend/domain/monitor"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/infra/egress"
 )

@@ -413,8 +413,6 @@ func isConnectorNotFound(err error) bool {
 	return errors.As(err, &notFoundErr)
 }
 
-
-
 func connectorReachabilityResponseItem(
 	item *connectors.Connector,
 	reachability monitorchecks.ReachabilityResult,

@@ -1,0 +1,8 @@
+{
+  "id": "aliyun-dns",
+  "title": "Aliyun DNS",
+  "vendor": "Alibaba Cloud",
+  "description": "Aliyun DNS API profile.",
+  "defaultEndpoint": "https://alidns.aliyuncs.com",
+  "aliases": ["aliyun", "alidns", "alibaba-cloud-dns"]
+}

@@ -357,6 +357,7 @@ func NewHTTPClientPlan(app core.App, consumerKey string, timeout time.Duration, 
 		return plan, nil
 	}
 	proxyTransport := transport.Clone()
+	proxyTransport.ProxyConnectHeader = buildProxyConnectHeader(env)
 	if dialContext := socks5DialContextFromEnv(env); dialContext != nil {
 		proxyTransport.Proxy = nil
 		proxyTransport.DialContext = dialContext
@@ -388,6 +389,7 @@ func NewTunnelHTTPClientPlan(app core.App, consumerKey string, timeout time.Dura
 	}
 	if dialerMode == EffectiveDialerModeExternal {
 		proxyTransport := transport.Clone()
+		proxyTransport.ProxyConnectHeader = buildProxyConnectHeader(env)
 		if dialContext := socks5DialContextFromEnv(env); dialContext != nil {
 			proxyTransport.Proxy = nil
 			proxyTransport.DialContext = dialContext
@@ -871,6 +873,20 @@ func proxyFuncFromEnv(proxyEnv map[string]string) func(*http.Request) (*url.URL,
 		}
 		return proxyURL, nil
 	}
+}
+
+func buildProxyConnectHeader(proxyEnv map[string]string) http.Header {
+	headerValue := firstNonEmptyString(
+		proxyEnv["APPOS_HTTPS_PROXY_AUTHORIZATION"],
+		proxyEnv["APPOS_HTTP_PROXY_AUTHORIZATION"],
+		proxyEnv["APPOS_PROXY_AUTHORIZATION"],
+	)
+	if strings.TrimSpace(headerValue) == "" {
+		return nil
+	}
+	headers := make(http.Header)
+	headers.Set("Proxy-Authorization", strings.TrimSpace(headerValue))
+	return headers
 }
 
 func firstNonEmptyString(values ...string) string {

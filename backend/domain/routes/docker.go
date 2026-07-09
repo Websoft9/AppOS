@@ -137,7 +137,11 @@ func getDockerClient(e *core.RequestEvent) (*docker.Client, error) {
 }
 
 func proxyURLWithCredentials(rawValue, username, password string) string {
-	return connectors.ProxyURLWithCredentials(rawValue, username, password)
+	return connectors.ProxyURLWithCredentials(rawValue, &connectors.ProxyConfig{
+		AuthScheme: connectors.AuthSchemeBasic,
+		Username:   username,
+		Password:   password,
+	})
 }
 
 // handleDockerServers lists managed-server Docker targets with their online/offline ping status.

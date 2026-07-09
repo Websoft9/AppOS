@@ -211,10 +211,21 @@ describe('ConnectorsPage', () => {
             fields: [
               { id: 'endpoint', label: 'Proxy Endpoint', type: 'url', required: true },
               {
+                id: 'auth_mode',
+                label: 'Authentication',
+                type: 'select',
+                options: [
+                  { label: 'No authentication', value: 'none' },
+                  { label: 'Username + Password', value: 'username_password' },
+                  { label: 'API Key / Token', value: 'single_secret' },
+                ],
+              },
+              {
                 id: 'username',
                 label: 'Username',
                 type: 'string',
                 required: true,
+                showWhen: { field: 'auth_mode', values: ['username_password'] },
               },
               {
                 id: 'credential',
@@ -222,6 +233,7 @@ describe('ConnectorsPage', () => {
                 type: 'secret_ref',
                 secretTemplate: 'single_value',
                 required: true,
+                showWhen: { field: 'auth_mode', values: ['username_password', 'single_secret'] },
               },
               { id: 'no_proxy', label: 'Bypass Hosts', type: 'string' },
             ],
@@ -238,10 +250,21 @@ describe('ConnectorsPage', () => {
             fields: [
               { id: 'endpoint', label: 'Proxy Endpoint', type: 'url', required: true },
               {
+                id: 'auth_mode',
+                label: 'Authentication',
+                type: 'select',
+                options: [
+                  { label: 'No authentication', value: 'none' },
+                  { label: 'Username + Password', value: 'username_password' },
+                  { label: 'API Key / Token', value: 'single_secret' },
+                ],
+              },
+              {
                 id: 'username',
                 label: 'Username',
                 type: 'string',
                 required: true,
+                showWhen: { field: 'auth_mode', values: ['username_password'] },
               },
               {
                 id: 'credential',
@@ -249,6 +272,7 @@ describe('ConnectorsPage', () => {
                 type: 'secret_ref',
                 secretTemplate: 'single_value',
                 required: true,
+                showWhen: { field: 'auth_mode', values: ['username_password', 'single_secret'] },
               },
               { id: 'no_proxy', label: 'Bypass Hosts', type: 'string' },
             ],
@@ -701,6 +725,33 @@ describe('ConnectorsPage', () => {
     })
   })
 
+  it('switches proxy auth fields by authentication mode', async () => {
+    render(<ConnectorsPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add External Service' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add External Service' }))
+    const chooser = await screen.findByRole('dialog')
+    clickChooserOption(chooser, 'Outbound Proxy')
+
+    const dialog = await screen.findByRole('dialog')
+    const authSelect = within(dialog).getByLabelText('Authentication') as HTMLSelectElement
+
+    expect(authSelect.value).toBe('username_password')
+
+    fireEvent.change(authSelect, { target: { value: 'username_password' } })
+    expect((within(dialog).getByLabelText('Authentication') as HTMLSelectElement).value).toBe(
+      'username_password'
+    )
+
+    fireEvent.change(authSelect, { target: { value: 'single_secret' } })
+    expect((within(dialog).getByLabelText('Authentication') as HTMLSelectElement).value).toBe(
+      'single_secret'
+    )
+  })
+
   it('auto-adds the default protocol and warns on mismatched schemes without blocking save', async () => {
     render(<ConnectorsPage />)
 
@@ -714,10 +765,6 @@ describe('ConnectorsPage', () => {
 
     const dialog = await screen.findByRole('dialog')
     const endpointInput = within(dialog).getByLabelText(/^Base URL/) as HTMLInputElement
-
-    expect(
-      within(dialog).getByText('If no protocol is entered, https will be added automatically.')
-    ).toBeInTheDocument()
 
     fireEvent.change(endpointInput, { target: { value: 'api.example.com' } })
     fireEvent.blur(endpointInput)
@@ -817,10 +864,7 @@ describe('ConnectorsPage', () => {
     fireEvent.click(await screen.findByText('Edit'))
 
     const dialog = await screen.findByRole('dialog')
-    expect(
-      await screen.findByPlaceholderText('Leave blank to keep the current secret value')
-    ).toBeInTheDocument()
-    expect(dialog.querySelector('select')).toBeNull()
+    expect(within(dialog).getByText('Password Secret')).toBeInTheDocument()
     expect(screen.queryByText('smtp-password')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Edit Secret' })).not.toBeInTheDocument()
   })

@@ -55,6 +55,13 @@ export const SECRET_TEMPLATE_LABELS: Record<string, string> = {
   single_value: 'Token / Single Value',
 }
 
+export const CONNECTOR_AUTH_MODE_TO_SCHEME: Record<string, string> = {
+  none: 'none',
+  username_password: 'basic',
+  single_secret: 'bearer',
+  key_pair: 'api_key',
+}
+
 function secretFieldUseSecretKey(fieldID: string) {
   return `${fieldID}__use_secret`
 }
@@ -139,6 +146,68 @@ export function getConnectorAuthSchemeLabel(authScheme: string, t?: Translate) {
   }
   const fallback = normalized || 'none'
   return translateOrFallback(t, `connectors.authValues.${normalized || 'none'}`, fallback)
+}
+
+export function resolveConnectorAuthMode(template: ConnectorTemplate, payload: Record<string, unknown>) {
+  const explicit = String(payload.auth_mode ?? '')
+    .trim()
+    .toLowerCase()
+  if (explicit) {
+    return explicit
+  }
+
+  const fieldIds = new Set((template.fields ?? []).map(field => field.id))
+  if (fieldIds.has('key_id') && fieldIds.has('key_secret')) {
+    return 'key_pair'
+  }
+  if (fieldIds.has('username')) {
+    return 'username_password'
+  }
+  if (fieldIds.has('credential')) {
+    const defaultScheme = String(template.defaultAuthScheme ?? '')
+      .trim()
+      .toLowerCase()
+    if (defaultScheme === 'none') {
+      return 'none'
+    }
+    return 'single_secret'
+  }
+  return 'none'
+}
+
+export function resolveConnectorAuthScheme(
+  template: ConnectorTemplate,
+  payload: Record<string, unknown>
+) {
+  const mode = resolveConnectorAuthMode(template, payload)
+  return (
+    (CONNECTOR_AUTH_MODE_TO_SCHEME[mode] ?? String(template.defaultAuthScheme ?? 'none').trim()) ||
+    'none'
+  )
+}
+
+export function connectorFieldVisible(
+  field: ConnectorTemplateField,
+  template: ConnectorTemplate,
+  payload: Record<string, unknown>
+) {
+  if (field.showWhen) {
+    return field.showWhen.values.includes(String(payload[field.showWhen.field] ?? ''))
+  }
+
+  const authMode = resolveConnectorAuthMode(template, payload)
+  switch (field.id) {
+    case 'username':
+      return authMode === 'username_password'
+    case 'credential':
+      return authMode === 'username_password' || authMode === 'single_secret'
+    case 'key_id':
+      return authMode === 'key_pair'
+    case 'key_secret':
+      return authMode === 'key_pair'
+    default:
+      return true
+  }
 }
 
 export function buildDefaultConnectorName(kind?: string) {
@@ -412,7 +481,10 @@ export function mapTemplateFieldToResourceField(
         label: option.label,
         value: option.value,
       })),
-      defaultValue: normalizeTemplateFieldDefault(field),
+      defaultValue:
+        field.id === 'auth_mode'
+          ? resolveConnectorAuthMode(template, {})
+          : normalizeTemplateFieldDefault(field),
       showWhen: field.showWhen,
     }
   }
@@ -625,6 +697,9 @@ export async function buildConnectorPayload(
     if (field.type !== 'secret_ref') {
       continue
     }
+    if (!connectorFieldVisible(field, template, body)) {
+      continue
+    }
     const secretID = await createSecretForConnectorField(body, template, field, t)
     if (field.required && !secretID) {
       throw new Error(
@@ -636,7 +711,7 @@ export async function buildConnectorPayload(
   }
 
   const credentialId = String(body.credential ?? '').trim()
-  const authScheme = String(template.defaultAuthScheme ?? 'none').trim() || 'none'
+  const authScheme = resolveConnectorAuthScheme(template, body)
 
   const extra =
     typeof body.advanced_config === 'string' ? body.advanced_config.trim() : body.advanced_config
@@ -659,6 +734,9 @@ export async function buildConnectorPayload(
         )
 
   for (const field of template.fields ?? []) {
+    if (!connectorFieldVisible(field, template, body)) {
+      continue
+    }
     if (
       field.id === 'endpoint' ||
       field.id === 'credential' ||
@@ -788,8 +866,17 @@ export function mapConnectorRow(
     [secretFieldUseSecretKey('credential')]: true,
     [secretFieldManualValueKey('credential')]: '',
     [secretFieldInlineValueKey('credential')]: '',
+    key_secret: String(item.config?.key_secret ?? ''),
+    [secretFieldUseSecretKey('key_secret')]: true,
+    [secretFieldManualValueKey('key_secret')]: '',
+    [secretFieldInlineValueKey('key_secret')]: '',
     description: String(item.description ?? ''),
     [secretFieldEditModeKey('credential')]: false,
+    [secretFieldEditModeKey('key_secret')]: false,
+    auth_mode: resolveConnectorAuthMode(template ?? { id: '', kind, title: '', fields: [] }, {
+      ...flattenedConfig,
+      auth_scheme: String(item.auth_scheme ?? 'none'),
+    }),
     tls:
       template?.endpointShape === 'host_port_tls'
         ? parsedEndpoint.scheme === 'smtps' || parsedEndpoint.port === 465

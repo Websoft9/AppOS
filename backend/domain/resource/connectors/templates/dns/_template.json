@@ -2,10 +2,10 @@
   "kind": "dns",
   "category": "Network",
   "description": "Reusable DNS automation connector profile.",
-  "authPresentation": "token",
+  "authPresentation": "mixed",
   "endpointShape": "url",
   "endpointScheme": "https",
-  "defaultAuthScheme": "api_key",
+  "defaultAuthScheme": "basic",
   "capabilities": ["dns", "records", "zones"],
   "fields": [
     {
@@ -16,12 +16,55 @@
       "placeholder": "https://api.provider.com"
     },
     {
+      "id": "auth_mode",
+      "label": "Authentication",
+      "type": "select",
+      "default": "username_password",
+      "options": [
+        { "label": "Username / Password", "value": "username_password" },
+        { "label": "Single Password / Token", "value": "single_secret" },
+        { "label": "Key ID / Key Secret", "value": "key_pair" }
+      ]
+    },
+    {
+      "id": "username",
+      "label": "Username",
+      "type": "string",
+      "required": false,
+      "showWhen": { "field": "auth_mode", "values": ["username_password"] },
+      "placeholder": "username"
+    },
+    {
       "id": "credential",
-      "label": "Credential",
+      "label": "Password / Token",
       "type": "secret_ref",
-      "required": true,
+      "required": false,
+      "showWhen": { "field": "auth_mode", "values": ["username_password", "single_secret"] },
       "secretTemplate": "single_value",
       "placeholder": "secretRef:..."
+    },
+    {
+      "id": "key_id",
+      "label": "Key ID",
+      "type": "string",
+      "required": false,
+      "showWhen": { "field": "auth_mode", "values": ["key_pair"] },
+      "placeholder": "key-id"
+    },
+    {
+      "id": "key_secret",
+      "label": "Key Secret",
+      "type": "secret_ref",
+      "required": false,
+      "showWhen": { "field": "auth_mode", "values": ["key_pair"] },
+      "secretTemplate": "single_value",
+      "placeholder": "secretRef:..."
+    },
+    {
+      "id": "region_id",
+      "label": "Region ID",
+      "type": "string",
+      "placeholder": "optional-region-id"
     }
   ]
 }

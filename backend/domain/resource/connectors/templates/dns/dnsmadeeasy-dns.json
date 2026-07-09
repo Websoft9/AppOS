@@ -1,0 +1,8 @@
+{
+  "id": "dnsmadeeasy-dns",
+  "title": "DNS Made Easy",
+  "vendor": "DNS Made Easy",
+  "description": "DNS Made Easy API profile.",
+  "defaultEndpoint": "https://api.dnsmadeeasy.com/V2.0",
+  "aliases": ["dnsmadeeasy", "dns-made-easy"]
+}
