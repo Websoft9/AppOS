@@ -11,7 +11,6 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
-	"github.com/websoft9/appos/backend/domain/deploy"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	"gopkg.in/yaml.v3"
 )
@@ -615,7 +614,7 @@ func parseRangePorts(ranges string) []int {
 }
 
 func normalizeProjectName(value string) string {
-	return deploy.NormalizeProjectName(value)
+	return NormalizeProjectName(value)
 }
 
 func parseComposePublishedPortNumber(value any) int {

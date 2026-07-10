@@ -28,6 +28,8 @@ type OperationChannel string
 
 type OperationExecutionMode string
 
+type RuleProfileKey string
+
 const (
 	ProvisionPipeline   = "ProvisionPipeline"
 	ChangePipeline      = "ChangePipeline"
@@ -143,6 +145,17 @@ const (
 	ExecutionModeBuild   OperationExecutionMode = "build"
 )
 
+const (
+	RuleProfileComposeStandard     RuleProfileKey = "compose_standard"
+	RuleProfileSourceBuild         RuleProfileKey = "source_build"
+	RuleProfileRuntimeControl      RuleProfileKey = "runtime_control"
+	RuleProfileChangeStandard      RuleProfileKey = "change_standard"
+	RuleProfileExposureSensitive   RuleProfileKey = "exposure_sensitive"
+	RuleProfileRecoveryStrict      RuleProfileKey = "recovery_strict"
+	RuleProfileMaintenanceStandard RuleProfileKey = "maintenance_standard"
+	RuleProfileRetireStandard      RuleProfileKey = "retire_standard"
+)
+
 var PipelineFamilies = []string{
 	ProvisionPipeline,
 	ChangePipeline,
@@ -199,6 +212,17 @@ var OperationChannels = []string{
 var OperationExecutionModes = []string{
 	string(ExecutionModeCompose),
 	string(ExecutionModeBuild),
+}
+
+var RuleProfileKeys = []string{
+	string(RuleProfileComposeStandard),
+	string(RuleProfileSourceBuild),
+	string(RuleProfileRuntimeControl),
+	string(RuleProfileChangeStandard),
+	string(RuleProfileExposureSensitive),
+	string(RuleProfileRecoveryStrict),
+	string(RuleProfileMaintenanceStandard),
+	string(RuleProfileRetireStandard),
 }
 
 func NormalizeOperationTrigger(value string) string {

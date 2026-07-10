@@ -11,6 +11,7 @@ import (
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	"github.com/websoft9/appos/backend/domain/lifecycle/orchestration"
 	"github.com/websoft9/appos/backend/domain/lifecycle/projection"
+	"github.com/websoft9/appos/backend/domain/lifecycle/rules"
 )
 
 var ErrDuplicateAppName = errors.New("application name already exists")
@@ -96,9 +97,15 @@ func CreateOperationFromCompose(app core.App, auth *core.Record, request Compose
 }
 
 func CreateOperationFromNormalizedInstallSpec(app core.App, auth *core.Record, normalizedSpec NormalizedInstallSpec, options ComposeOperationOptions) (*core.Record, error) {
+	ruleProfile, err := rules.Resolve(normalizedSpec.OperationType, normalizedSpec.ExecutionMode, normalizedRuleProfile(normalizedSpec.Metadata))
+	if err != nil {
+		return nil, err
+	}
+
 	pipelineDefinition, err := metadata.DefinitionForSelector(model.DefinitionSelector{
 		OperationType: normalizedSpec.OperationType,
 		ExecutionMode: normalizedSpec.ExecutionMode,
+		RuleProfile:   ruleProfile.Key,
 	})
 	if err != nil {
 		return nil, err
@@ -168,6 +175,7 @@ func CreateOperationFromNormalizedInstallSpec(app core.App, auth *core.Record, n
 		operationRecord.Set("app", appRecord.Id)
 		operationRecord.Set("server_id", normalizedSpec.ServerID)
 		operationRecord.Set("operation_type", normalizedSpec.OperationType)
+		operationRecord.Set("rule_profile", ruleProfile.Key)
 		operationRecord.Set("trigger", normalizedSpec.Trigger)
 		operationRecord.Set("execution_mode", normalizedSpec.ExecutionMode)
 		if auth != nil && auth.Collection() != nil && auth.Collection().Name == "users" {
@@ -206,6 +214,13 @@ func CreateOperationFromNormalizedInstallSpec(app core.App, auth *core.Record, n
 	}
 
 	return operationRecord, nil
+}
+
+func normalizedRuleProfile(metadata map[string]any) string {
+	if len(metadata) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprint(metadata["rule_profile"]))
 }
 
 func operationUserID(auth *core.Record) string {

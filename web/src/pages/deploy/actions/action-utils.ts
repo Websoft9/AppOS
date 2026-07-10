@@ -14,13 +14,17 @@ export function statusVariant(status: string): 'default' | 'secondary' | 'destru
     case 'timeout':
     case 'cancelled':
     case 'manual_intervention_required':
-    case 'rolled_back':
+    case 'compensated':
       return 'destructive'
     case 'running':
+    case 'executing':
     case 'validating':
     case 'preparing':
     case 'verifying':
     case 'rolling_back':
+    case 'compensating':
+    case 'waiting':
+    case 'manual_gate':
       return 'secondary'
     default:
       return 'outline'
@@ -34,6 +38,7 @@ export function actionStatusLabel(status: string): string {
     case 'failed':
       return 'Failed'
     case 'running':
+    case 'executing':
       return 'Executing'
     case 'queued':
       return 'Queued'
@@ -45,8 +50,14 @@ export function actionStatusLabel(status: string): string {
       return 'Verifying'
     case 'rolling_back':
       return 'Rolling back'
-    case 'rolled_back':
-      return 'Rolled back'
+    case 'compensating':
+      return 'Compensating'
+    case 'compensated':
+      return 'Compensated'
+    case 'waiting':
+      return 'Waiting'
+    case 'manual_gate':
+      return 'Manual gate'
     case 'timeout':
       return 'Timed out'
     case 'cancelled':
@@ -59,7 +70,7 @@ export function actionStatusLabel(status: string): string {
 }
 
 export function isActiveStatus(status: string): boolean {
-  return ['queued', 'validating', 'preparing', 'running', 'verifying', 'rolling_back'].includes(
+  return ['queued', 'validating', 'preparing', 'running', 'executing', 'verifying', 'rolling_back', 'compensating', 'waiting', 'manual_gate'].includes(
     status
   )
 }
@@ -69,11 +80,17 @@ export function canCancelAction(action: Pick<ActionRecord, 'status'>): boolean {
 }
 
 export function canForceFailAction(action: Pick<ActionRecord, 'status'>): boolean {
-  return action.status === 'running'
+  return action.status === 'running' || action.status === 'executing'
+}
+
+export function canResumeAction(action: Pick<ActionRecord, 'status'>): boolean {
+  return action.status === 'waiting' || action.status === 'manual_gate'
 }
 
 export function actionControlLabel(kind: ActionControlKind): string {
-  return kind === 'cancel' ? 'Cancel' : 'Force Fail'
+  if (kind === 'cancel') return 'Cancel'
+  if (kind === 'resume') return 'Resume'
+  return 'Force Fail'
 }
 
 export function formatTime(value?: string): string {

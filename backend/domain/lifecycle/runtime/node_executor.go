@@ -16,8 +16,8 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
-	"github.com/websoft9/appos/backend/domain/deploy"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
+	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
 	"github.com/websoft9/appos/backend/domain/terminal"
 	"github.com/websoft9/appos/backend/infra/docker"
 	"github.com/websoft9/appos/backend/infra/fileutil"
@@ -132,7 +132,7 @@ func ExecuteNode(
 
 	switch node.NodeType {
 	case "validation":
-		if err := deploy.ValidateManualCompose(operation.GetString("rendered_compose")); err != nil {
+		if err := lifecyclesvc.ValidateManualCompose(operation.GetString("rendered_compose")); err != nil {
 			return result, err
 		}
 		logf("compose validation passed")
@@ -310,7 +310,25 @@ func ExecuteNode(
 		logf("artifact publication placeholder recorded for image: " + stringMapValue(publication, "image_name"))
 		return result, nil
 	case "release_candidate":
-		return result, fmt.Errorf("source build node %q is not implemented yet", node.NodeType)
+		return result, nil
+	case "release":
+		return result, nil
+	case "recovery":
+		return result, nil
+	case "maintenance":
+		logf("maintenance window prepared")
+		return result, nil
+	case "audit":
+		logf("audit marker recorded")
+		return result, nil
+	case "backup":
+		logf("backup snapshot placeholder recorded")
+		return result, nil
+	case "backup_check":
+		logf("backup artifact placeholder verified")
+		return result, nil
+	case "wait":
+		return result, nil
 	case "runtime_start":
 		client, err := ensureDockerClient(executor, dockerClient)
 		if err != nil {

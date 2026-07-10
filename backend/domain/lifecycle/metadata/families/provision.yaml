@@ -20,6 +20,8 @@ definitions:
       - install
     execution_modes:
       - compose
+    rule_profiles:
+      - compose_standard
     initial_phase: validating
     nodes:
       - key: validate_spec
@@ -74,6 +76,8 @@ definitions:
       - install
     execution_modes:
       - build
+    rule_profiles:
+      - source_build
     initial_phase: validating
     nodes:
       - key: validate_source_build_request
@@ -157,6 +161,8 @@ definitions:
     family: ProvisionPipeline
     operation_types:
       - start
+    rule_profiles:
+      - runtime_control
     initial_phase: validating
     nodes:
       - key: validate_runtime_target
@@ -195,6 +201,8 @@ definitions:
     family: ProvisionPipeline
     operation_types:
       - restart
+    rule_profiles:
+      - runtime_control
     initial_phase: validating
     nodes:
       - key: validate_runtime_target

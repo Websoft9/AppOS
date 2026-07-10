@@ -1,6 +1,10 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { canCancelAction, canForceFailAction } from '@/pages/deploy/actions/action-utils'
+import {
+  canCancelAction,
+  canForceFailAction,
+  canResumeAction,
+} from '@/pages/deploy/actions/action-utils'
 import {
   Table,
   TableBody,
@@ -19,6 +23,7 @@ type AppDetailActionHistoryTableProps = {
   buildActionDetailHref: (actionId: string) => string
   onRequestCancel?: (action: ActionRecord) => void
   onRequestForceFail?: (action: ActionRecord) => void
+  onRequestResume?: (action: ActionRecord) => void
 }
 
 export function AppDetailActionHistoryTable({
@@ -26,6 +31,7 @@ export function AppDetailActionHistoryTable({
   buildActionDetailHref,
   onRequestCancel,
   onRequestForceFail,
+  onRequestResume,
 }: AppDetailActionHistoryTableProps) {
   return (
     <Table containerClassName="rounded-xl border">
@@ -78,6 +84,11 @@ export function AppDetailActionHistoryTable({
                     onClick={() => onRequestForceFail(action)}
                   >
                     Force Fail
+                  </Button>
+                ) : null}
+                {onRequestResume && canResumeAction(action) ? (
+                  <Button variant="outline" size="sm" onClick={() => onRequestResume(action)}>
+                    Resume
                   </Button>
                 ) : null}
                 <Button variant="outline" size="sm" asChild>

@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/pocketbase/pocketbase/tests"
-	"github.com/websoft9/appos/backend/domain/deploy"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 
 	_ "github.com/websoft9/appos/backend/infra/migrations"
@@ -242,7 +241,7 @@ func TestCheckInstallFromComposeIncludesExposureIntentPortInChecks(t *testing.T)
 		Compose:       "services:\n  web:\n    image: nginx:alpine\n",
 		Trigger:       string(model.TriggerManual),
 		Channel:       string(model.ChannelCustom),
-		ExecutionMode: deploy.ExecutionModeCompose,
+		ExecutionMode: string(model.ExecutionModeCompose),
 		ExposureIntent: &ExposureIntent{
 			ExposureType: "port",
 			TargetPort:   8080,
@@ -274,7 +273,7 @@ func TestPreflightAndCreateOperationFromComposeBlocksExposureIntentPortConflict(
 		Compose:       "services:\n  web:\n    image: nginx:alpine\n",
 		Trigger:       string(model.TriggerManual),
 		Channel:       string(model.ChannelCustom),
-		ExecutionMode: deploy.ExecutionModeCompose,
+		ExecutionMode: string(model.ExecutionModeCompose),
 		ExposureIntent: &ExposureIntent{
 			ExposureType: "port",
 			TargetPort:   8080,

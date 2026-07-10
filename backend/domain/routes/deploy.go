@@ -16,7 +16,6 @@ import (
 	"github.com/websoft9/appos/backend/domain/audit"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
-	"github.com/websoft9/appos/backend/domain/deploy"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	"github.com/websoft9/appos/backend/domain/lifecycle/projection"
 	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
@@ -47,6 +46,8 @@ func registerOperationRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	controls.POST("/{id}/cancel", handleOperationCancel)
 	// @swagger auth=auth summary="Force fail running action"
 	controls.POST("/{id}/force-fail", handleOperationForceFail)
+	// @swagger auth=auth summary="Resume waiting or manual-gate action"
+	controls.POST("/{id}/resume", handleOperationResume)
 
 	o := g.Group("/actions")
 	o.Bind(apis.RequireSuperuserAuth())
@@ -384,6 +385,65 @@ func handleOperationForceFail(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, response)
 }
 
+// @Summary Resume waiting action
+// @Description Resumes one lifecycle action paused in waiting or manual-gate state. Authenticated users only.
+// @Tags Actions
+// @Security BearerAuth
+// @Param id path string true "action id"
+// @Success 200 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 409 {object} map[string]any
+// @Router /api/actions/{id}/resume [post]
+func handleOperationResume(e *core.RequestEvent) error {
+	id := e.Request.PathValue("id")
+	if id == "" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "id is required"})
+	}
+
+	var response map[string]any
+	err := e.App.RunInTransaction(func(txApp core.App) error {
+		record, err := txApp.FindRecordById("app_operations", id)
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(record.GetString("terminal_status")) != "" {
+			return fmt.Errorf("terminal operations cannot be resumed")
+		}
+		if !canResumeOperation(record) {
+			return fmt.Errorf("only waiting or manual-gate operations can be resumed")
+		}
+		if err := resumePausedOperation(txApp, record); err != nil {
+			return err
+		}
+		response, err = operationRecordResponse(txApp, record)
+		return err
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "terminal operations cannot be resumed") || strings.Contains(err.Error(), "only waiting or manual-gate operations can be resumed") {
+			return e.JSON(http.StatusConflict, map[string]any{"code": 409, "message": err.Error()})
+		}
+		return e.JSON(http.StatusNotFound, map[string]any{"code": 404, "message": "operation not found"})
+	}
+
+	userID, userEmail, ip, ua := clientInfo(e)
+	audit.Write(e.App, audit.Entry{
+		UserID:       userID,
+		UserEmail:    userEmail,
+		Action:       "operation.resume",
+		ResourceType: "app_operation",
+		ResourceID:   id,
+		ResourceName: fmt.Sprint(response["compose_project_name"]),
+		Status:       audit.StatusSuccess,
+		IP:           ip,
+		UserAgent:    ua,
+		Detail: map[string]any{
+			"status": response["status"],
+		},
+	})
+
+	return e.JSON(http.StatusOK, response)
+}
+
 func cancelQueuedOperation(app core.App, operation *core.Record, message string) error {
 	now := time.Now()
 	if strings.TrimSpace(message) == "" {
@@ -494,6 +554,48 @@ func forceFailOperation(app core.App, operation *core.Record, message string) er
 	}
 
 	return nil
+}
+
+func canResumeOperation(operation *core.Record) bool {
+	if operation == nil {
+		return false
+	}
+	phase := strings.TrimSpace(operation.GetString("phase"))
+	return phase == string(model.OperationPhaseVerifying) || phase == string(model.OperationPhaseCompensating)
+}
+
+func resumePausedOperation(app core.App, operation *core.Record) error {
+	if app == nil || operation == nil {
+		return nil
+	}
+	_, pipelineRecord, nodeRuns, err := loadOperationRelations(app, operation)
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	for _, nodeRun := range nodeRuns {
+		status := strings.TrimSpace(nodeRun.GetString("status"))
+		if status != "waiting" && status != "manual_gate" {
+			continue
+		}
+		nodeRun.Set("status", "pending")
+		nodeRun.Set("error_message", "")
+		nodeRun.Set("ended_at", nil)
+		if err := app.Save(nodeRun); err != nil {
+			return err
+		}
+	}
+	if pipelineRecord != nil {
+		pipelineRecord.Set("status", "active")
+		pipelineRecord.Set("ended_at", nil)
+		if err := app.Save(pipelineRecord); err != nil {
+			return err
+		}
+	}
+	operation.Set("ended_at", nil)
+	operation.Set("error_message", "")
+	operation.Set("updated", now)
+	return app.Save(operation)
 }
 
 func loadOperationRelations(app core.App, operation *core.Record) (*core.Record, *core.Record, []*core.Record, error) {
@@ -674,7 +776,7 @@ func handleOperationInstallGitCompose(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "invalid request body"})
 	}
 
-	req := deploy.GitComposeRequest{
+	req := lifecyclesvc.GitComposeRequest{
 		ServerID:        bodyString(body, "server_id"),
 		ProjectName:     bodyString(body, "project_name"),
 		RepositoryURL:   bodyString(body, "repository_url"),
@@ -755,7 +857,7 @@ func handleOperationInstallGitComposeCheck(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "invalid request body"})
 	}
 
-	req := deploy.GitComposeRequest{
+	req := lifecyclesvc.GitComposeRequest{
 		ServerID:        bodyString(body, "server_id"),
 		ProjectName:     bodyString(body, "project_name"),
 		RepositoryURL:   bodyString(body, "repository_url"),
@@ -808,7 +910,7 @@ func handleOperationInstallManualCompose(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "invalid request body"})
 	}
 
-	req := deploy.ManualComposeRequest{
+	req := lifecyclesvc.ManualComposeRequest{
 		ServerID:    bodyString(body, "server_id"),
 		ProjectName: bodyString(body, "project_name"),
 		Compose:     bodyString(body, "compose"),
@@ -868,7 +970,7 @@ func handleOperationInstallManualComposeCheck(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "invalid request body"})
 	}
 
-	req := deploy.ManualComposeRequest{
+	req := lifecyclesvc.ManualComposeRequest{
 		ServerID:    bodyString(body, "server_id"),
 		ProjectName: bodyString(body, "project_name"),
 		Compose:     bodyString(body, "compose"),
@@ -916,7 +1018,7 @@ func handleOperationInstallTemplate(e *core.RequestEvent) error {
 		rendered.Compose,
 		string(model.ChannelStore),
 		string(model.TriggerManual),
-		deploy.ExecutionModeCompose,
+		string(model.ExecutionModeCompose),
 		map[string]any{
 			"template_key": rendered.TemplateKey,
 			"project_name": rendered.ProjectName,
@@ -966,7 +1068,7 @@ func handleOperationInstallTemplateCheck(e *core.RequestEvent) error {
 			rendered.Compose,
 			string(model.TriggerManual),
 			string(model.ChannelStore),
-			deploy.ExecutionModeCompose,
+			string(model.ExecutionModeCompose),
 			ingressOptions,
 		)},
 		newRouteInstallPreflightProbe(e),
@@ -1252,36 +1354,36 @@ func operationDisplayStatus(record *core.Record) string {
 	if terminalStatus != "" {
 		switch terminalStatus {
 		case "success":
-			return deploy.StatusSuccess
+			return "success"
 		case "failed":
 			if failureReason == "timeout" {
-				return deploy.StatusTimeout
+				return "timeout"
 			}
-			return deploy.StatusFailed
+			return "failed"
 		case "cancelled":
-			return deploy.StatusCancelled
+			return "cancelled"
 		case "compensated":
-			return deploy.StatusRolledBack
+			return "compensated"
 		case "manual_intervention_required":
-			return deploy.StatusManualInterventionRequired
+			return "manual_intervention_required"
 		}
 	}
 
 	switch strings.TrimSpace(record.GetString("phase")) {
 	case string(model.OperationPhaseQueued):
-		return deploy.StatusQueued
+		return "queued"
 	case string(model.OperationPhaseValidating):
-		return deploy.StatusValidating
+		return "validating"
 	case string(model.OperationPhasePreparing):
-		return deploy.StatusPreparing
+		return "preparing"
 	case string(model.OperationPhaseExecuting):
-		return deploy.StatusRunning
+		return "executing"
 	case string(model.OperationPhaseVerifying):
-		return deploy.StatusVerifying
+		return "verifying"
 	case string(model.OperationPhaseCompensating):
-		return deploy.StatusRollingBack
+		return "compensating"
 	default:
-		return deploy.StatusQueued
+		return "queued"
 	}
 }
 
@@ -1590,18 +1692,18 @@ func externalPipelineFamilyKey(family string) string {
 func buildOperationLifecycle(record *core.Record) []map[string]any {
 	status := operationDisplayStatus(record)
 	lifecycle := []map[string]any{
-		{"key": deploy.StatusQueued, "label": "Queued", "status": "pending"},
-		{"key": deploy.StatusValidating, "label": "Validating", "status": "pending"},
-		{"key": deploy.StatusPreparing, "label": "Preparing", "status": "pending"},
-		{"key": deploy.StatusRunning, "label": "Running", "status": "pending"},
-		{"key": deploy.StatusVerifying, "label": "Verifying", "status": "pending"},
-		{"key": deploy.StatusSuccess, "label": "Success", "status": "pending"},
-		{"key": deploy.StatusFailed, "label": "Failed", "status": "pending"},
-		{"key": deploy.StatusRollingBack, "label": "Rolling Back", "status": "pending"},
-		{"key": deploy.StatusRolledBack, "label": "Rolled Back", "status": "pending"},
-		{"key": deploy.StatusCancelled, "label": "Cancelled", "status": "pending"},
-		{"key": deploy.StatusTimeout, "label": "Timeout", "status": "pending"},
-		{"key": deploy.StatusManualInterventionRequired, "label": "Manual Intervention", "status": "pending"},
+		{"key": "queued", "label": "Queued", "status": "pending"},
+		{"key": "validating", "label": "Validating", "status": "pending"},
+		{"key": "preparing", "label": "Preparing", "status": "pending"},
+		{"key": "executing", "label": "Executing", "status": "pending"},
+		{"key": "verifying", "label": "Verifying", "status": "pending"},
+		{"key": "success", "label": "Success", "status": "pending"},
+		{"key": "failed", "label": "Failed", "status": "pending"},
+		{"key": "compensating", "label": "Compensating", "status": "pending"},
+		{"key": "compensated", "label": "Compensated", "status": "pending"},
+		{"key": "cancelled", "label": "Cancelled", "status": "pending"},
+		{"key": "timeout", "label": "Timeout", "status": "pending"},
+		{"key": "manual_intervention_required", "label": "Manual Intervention", "status": "pending"},
 	}
 	byKey := map[string]map[string]any{}
 	for _, item := range lifecycle {
@@ -1627,41 +1729,41 @@ func buildOperationLifecycle(record *core.Record) []map[string]any {
 	}
 
 	switch status {
-	case deploy.StatusQueued:
-		activate(deploy.StatusQueued)
-	case deploy.StatusValidating:
-		complete(deploy.StatusQueued)
-		activate(deploy.StatusValidating)
-	case deploy.StatusPreparing:
-		complete(deploy.StatusQueued, deploy.StatusValidating)
-		activate(deploy.StatusPreparing)
-	case deploy.StatusRunning:
-		complete(deploy.StatusQueued, deploy.StatusValidating, deploy.StatusPreparing)
-		activate(deploy.StatusRunning)
-	case deploy.StatusVerifying:
-		complete(deploy.StatusQueued, deploy.StatusValidating, deploy.StatusPreparing, deploy.StatusRunning)
-		activate(deploy.StatusVerifying)
-	case deploy.StatusSuccess:
-		complete(deploy.StatusQueued, deploy.StatusValidating, deploy.StatusPreparing, deploy.StatusRunning, deploy.StatusVerifying, deploy.StatusSuccess)
-	case deploy.StatusFailed:
-		terminal(deploy.StatusFailed)
-	case deploy.StatusRollingBack:
-		complete(deploy.StatusFailed)
-		activate(deploy.StatusRollingBack)
-	case deploy.StatusRolledBack:
-		complete(deploy.StatusFailed, deploy.StatusRollingBack, deploy.StatusRolledBack)
-	case deploy.StatusCancelled:
-		terminal(deploy.StatusCancelled)
-	case deploy.StatusTimeout:
-		terminal(deploy.StatusTimeout)
-	case deploy.StatusManualInterventionRequired:
-		terminal(deploy.StatusManualInterventionRequired)
+	case "queued":
+		activate("queued")
+	case "validating":
+		complete("queued")
+		activate("validating")
+	case "preparing":
+		complete("queued", "validating")
+		activate("preparing")
+	case "executing":
+		complete("queued", "validating", "preparing")
+		activate("executing")
+	case "verifying":
+		complete("queued", "validating", "preparing", "executing")
+		activate("verifying")
+	case "success":
+		complete("queued", "validating", "preparing", "executing", "verifying", "success")
+	case "failed":
+		terminal("failed")
+	case "compensating":
+		complete("failed")
+		activate("compensating")
+	case "compensated":
+		complete("failed", "compensating", "compensated")
+	case "cancelled":
+		terminal("cancelled")
+	case "timeout":
+		terminal("timeout")
+	case "manual_intervention_required":
+		terminal("manual_intervention_required")
 	default:
-		activate(deploy.StatusQueued)
+		activate("queued")
 	}
 
 	if summary := record.GetString("error_message"); summary != "" {
-		for _, key := range []string{deploy.StatusFailed, deploy.StatusTimeout, deploy.StatusCancelled, deploy.StatusManualInterventionRequired} {
+		for _, key := range []string{"failed", "timeout", "cancelled", "manual_intervention_required"} {
 			if item := byKey[key]; item != nil && item["status"] == "terminal" {
 				item["detail"] = summary
 			}
@@ -1736,7 +1838,7 @@ func escapePBFilterValue(value string) string {
 	return strings.ReplaceAll(value, "'", "\\'")
 }
 
-func resolveGitComposeRawURL(req deploy.GitComposeRequest) (string, error) {
+func resolveGitComposeRawURL(req lifecyclesvc.GitComposeRequest) (string, error) {
 	if strings.TrimSpace(req.RawURL) != "" {
 		parsed, err := url.Parse(req.RawURL)
 		if err != nil || parsed.Scheme == "" || parsed.Host == "" {

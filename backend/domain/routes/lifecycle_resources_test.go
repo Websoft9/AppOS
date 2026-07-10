@@ -45,6 +45,10 @@ func seedReleaseAndExposure(t *testing.T, te *testEnv, appRecord *core.Record) (
 	t.Helper()
 
 	operation := seedAppOperation(t, te, appRecord)
+	operation.Set("rule_profile", "compose_standard")
+	if err := te.app.Save(operation); err != nil {
+		t.Fatal(err)
+	}
 
 	releasesCol, err := te.app.FindCollectionByNameOrId("app_releases")
 	if err != nil {

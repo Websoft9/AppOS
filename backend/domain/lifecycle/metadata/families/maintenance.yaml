@@ -18,6 +18,8 @@ definitions:
     family: MaintenancePipeline
     operation_types:
       - maintain
+    rule_profiles:
+      - maintenance_standard
     initial_phase: validating
     nodes:
       - key: validate_maintenance_request
@@ -34,6 +36,13 @@ definitions:
         retryable: false
         depends_on:
           - validate_maintenance_request
+      - key: snapshot_maintenance_context
+        node_type: audit
+        display_name: Snapshot Maintenance Context
+        phase: preparing
+        retryable: true
+        depends_on:
+          - validate_maintenance_request
       - key: write_audit_event
         node_type: audit
         display_name: Write Audit Event
@@ -43,12 +52,15 @@ definitions:
           - OperationJob
         depends_on:
           - prepare_maintenance_window
+          - snapshot_maintenance_context
 
   - key: maintenance.backup
     version: v1
     family: MaintenancePipeline
     operation_types:
       - backup
+    rule_profiles:
+      - maintenance_standard
     initial_phase: validating
     nodes:
       - key: validate_backup_request
@@ -67,6 +79,13 @@ definitions:
           - ReleaseSnapshot
         depends_on:
           - validate_backup_request
+      - key: prepare_backup_audit
+        node_type: audit
+        display_name: Prepare Backup Audit
+        phase: preparing
+        retryable: true
+        depends_on:
+          - validate_backup_request
       - key: verify_backup_artifact
         node_type: backup_check
         display_name: Verify Backup Artifact
@@ -76,3 +95,4 @@ definitions:
           - ReleaseSnapshot
         depends_on:
           - create_backup_snapshot
+          - prepare_backup_audit

@@ -18,6 +18,8 @@ definitions:
     family: ExposurePipeline
     operation_types:
       - publish
+    rule_profiles:
+      - exposure_sensitive
     initial_phase: validating
     nodes:
       - key: validate_exposure_request
@@ -36,6 +38,13 @@ definitions:
           - Exposure
         depends_on:
           - validate_exposure_request
+      - key: prepare_exposure_audit
+        node_type: audit
+        display_name: Prepare Exposure Audit
+        phase: preparing
+        retryable: true
+        depends_on:
+          - validate_exposure_request
       - key: verify_public_endpoint
         node_type: exposure_check
         display_name: Verify Public Endpoint
@@ -46,12 +55,15 @@ definitions:
           - AppInstance
         depends_on:
           - register_proxy_route
+          - prepare_exposure_audit
 
   - key: exposure.unpublish
     version: v1
     family: ExposurePipeline
     operation_types:
       - unpublish
+    rule_profiles:
+      - exposure_sensitive
     initial_phase: validating
     nodes:
       - key: validate_exposure_request
@@ -70,6 +82,13 @@ definitions:
           - Exposure
         depends_on:
           - validate_exposure_request
+      - key: prepare_exposure_audit
+        node_type: audit
+        display_name: Prepare Exposure Audit
+        phase: preparing
+        retryable: true
+        depends_on:
+          - validate_exposure_request
       - key: verify_unpublished_state
         node_type: exposure_check
         display_name: Verify Unpublished State
@@ -80,3 +99,4 @@ definitions:
           - AppInstance
         depends_on:
           - remove_proxy_route
+          - prepare_exposure_audit

@@ -4,12 +4,24 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/websoft9/appos/backend/domain/deploy"
+	"github.com/pocketbase/pocketbase/tests"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
+
+	_ "github.com/websoft9/appos/backend/infra/migrations"
 )
 
+func newServiceTestApp(t *testing.T) *tests.TestApp {
+	t.Helper()
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(app.Cleanup)
+	return app
+}
+
 func TestBuildManualComposeInstallResolutionRequestSetsCandidateKind(t *testing.T) {
-	request := deploy.ManualComposeRequest{
+	request := ManualComposeRequest{
 		ServerID:    "local",
 		ProjectName: "Demo App",
 		Compose:     "services:\n  web:\n    image: nginx:alpine\n",
@@ -18,7 +30,7 @@ func TestBuildManualComposeInstallResolutionRequestSetsCandidateKind(t *testing.
 		Metadata: map[string]any{"channel": "stable"},
 	})
 
-	if resolution.Trigger != string(model.TriggerManual) || resolution.Channel != string(model.ChannelCustom) || resolution.ExecutionMode != deploy.ExecutionModeCompose {
+	if resolution.Trigger != string(model.TriggerManual) || resolution.Channel != string(model.ChannelCustom) || resolution.ExecutionMode != string(model.ExecutionModeCompose) {
 		t.Fatalf("expected manual trigger/channel/execution_mode, got %q/%q/%q", resolution.Trigger, resolution.Channel, resolution.ExecutionMode)
 	}
 	if resolution.Metadata["candidate_kind"] != string(InstallCandidateKindManualCompose) {
@@ -28,7 +40,7 @@ func TestBuildManualComposeInstallResolutionRequestSetsCandidateKind(t *testing.
 	if !ok {
 		t.Fatalf("expected origin_context map, got %T", resolution.Metadata["origin_context"])
 	}
-	if originContext["trigger"] != string(model.TriggerManual) || originContext["channel"] != string(model.ChannelCustom) || originContext["execution_mode"] != deploy.ExecutionModeCompose {
+	if originContext["trigger"] != string(model.TriggerManual) || originContext["channel"] != string(model.ChannelCustom) || originContext["execution_mode"] != string(model.ExecutionModeCompose) {
 		t.Fatalf("expected manual origin_context, got %v", originContext)
 	}
 	if resolution.Metadata["channel"] != "stable" {
@@ -37,7 +49,7 @@ func TestBuildManualComposeInstallResolutionRequestSetsCandidateKind(t *testing.
 }
 
 func TestBuildManualComposeInstallResolutionRequestHonorsExplicitCandidateKind(t *testing.T) {
-	request := deploy.ManualComposeRequest{
+	request := ManualComposeRequest{
 		ServerID:    "local",
 		ProjectName: "Demo App",
 		Compose:     "services:\n  web:\n    image: nginx:alpine\n",
@@ -66,13 +78,13 @@ func TestBuildManualComposeInstallResolutionRequestHonorsExplicitCandidateKind(t
 	if !ok {
 		t.Fatalf("expected origin_context map, got %T", resolution.Metadata["origin_context"])
 	}
-	if originContext["trigger"] != string(model.TriggerManual) || originContext["channel"] != string(model.ChannelCustom) || originContext["execution_mode"] != deploy.ExecutionModeCompose {
+	if originContext["trigger"] != string(model.TriggerManual) || originContext["channel"] != string(model.ChannelCustom) || originContext["execution_mode"] != string(model.ExecutionModeCompose) {
 		t.Fatalf("expected manual origin_context, got %v", originContext)
 	}
 }
 
 func TestBuildManualComposeInstallResolutionRequestUsesSourceBuildAdapterWhenPresent(t *testing.T) {
-	request := deploy.ManualComposeRequest{
+	request := ManualComposeRequest{
 		ServerID:    "local",
 		ProjectName: "Demo App",
 		Compose:     "services:\n  web:\n    image: nginx:alpine\n",
@@ -90,7 +102,7 @@ func TestBuildManualComposeInstallResolutionRequestUsesSourceBuildAdapterWhenPre
 		},
 	})
 
-	if resolution.Channel != string(model.ChannelCustom) || resolution.ExecutionMode != deploy.ExecutionModeBuild {
+	if resolution.Channel != string(model.ChannelCustom) || resolution.ExecutionMode != string(model.ExecutionModeBuild) {
 		t.Fatalf("expected custom channel/build execution mode, got %q/%q", resolution.Channel, resolution.ExecutionMode)
 	}
 	if resolution.Metadata["candidate_kind"] != string(InstallCandidateKindInstallScript) {
@@ -100,7 +112,7 @@ func TestBuildManualComposeInstallResolutionRequestUsesSourceBuildAdapterWhenPre
 	if !ok {
 		t.Fatalf("expected origin_context map, got %T", resolution.Metadata["origin_context"])
 	}
-	if originContext["execution_mode"] != deploy.ExecutionModeBuild {
+	if originContext["execution_mode"] != string(model.ExecutionModeBuild) {
 		t.Fatalf("expected build execution mode in origin_context, got %v", originContext)
 	}
 	if originContext["channel"] != string(model.ChannelCustom) {
@@ -109,7 +121,7 @@ func TestBuildManualComposeInstallResolutionRequestUsesSourceBuildAdapterWhenPre
 }
 
 func TestBuildGitComposeInstallResolutionRequestSetsCandidateKind(t *testing.T) {
-	request := deploy.GitComposeRequest{
+	request := GitComposeRequest{
 		ServerID:      "local",
 		RepositoryURL: "https://github.com/example/demo",
 		ComposePath:   "docker-compose.yml",
@@ -119,7 +131,7 @@ func TestBuildGitComposeInstallResolutionRequestSetsCandidateKind(t *testing.T) 
 		Metadata: map[string]any{"channel": "stable"},
 	})
 
-	if resolution.Trigger != string(model.TriggerManual) || resolution.Channel != string(model.ChannelGit) || resolution.ExecutionMode != deploy.ExecutionModeCompose {
+	if resolution.Trigger != string(model.TriggerManual) || resolution.Channel != string(model.ChannelGit) || resolution.ExecutionMode != string(model.ExecutionModeCompose) {
 		t.Fatalf("expected manual trigger/git channel/compose execution mode, got %q/%q/%q", resolution.Trigger, resolution.Channel, resolution.ExecutionMode)
 	}
 	if resolution.ProjectName != "demo" {
@@ -132,7 +144,7 @@ func TestBuildGitComposeInstallResolutionRequestSetsCandidateKind(t *testing.T) 
 	if !ok {
 		t.Fatalf("expected origin_context map, got %T", resolution.Metadata["origin_context"])
 	}
-	if originContext["trigger"] != string(model.TriggerManual) || originContext["channel"] != string(model.ChannelGit) || originContext["execution_mode"] != deploy.ExecutionModeCompose {
+	if originContext["trigger"] != string(model.TriggerManual) || originContext["channel"] != string(model.ChannelGit) || originContext["execution_mode"] != string(model.ExecutionModeCompose) {
 		t.Fatalf("expected manual trigger/git source origin_context, got %v", originContext)
 	}
 	candidatePayload, ok := resolution.Metadata["candidate_payload"].(map[string]any)
@@ -281,7 +293,7 @@ func TestNormalizedInstallSpecOperationSpecIncludesSourceBuild(t *testing.T) {
 		OperationType:      "install",
 		Trigger:            string(model.TriggerManual),
 		Channel:            string(model.ChannelCustom),
-		ExecutionMode:      deploy.ExecutionModeBuild,
+		ExecutionMode:      string(model.ExecutionModeBuild),
 		SourceBuild: &InstallSourceBuildInput{
 			SourceKind:      "uploaded-package",
 			SourceRef:       "upload://app.tar.gz",
@@ -298,7 +310,7 @@ func TestNormalizedInstallSpecOperationSpecIncludesSourceBuild(t *testing.T) {
 	if op["mode"] != "source-build" {
 		t.Fatalf("expected mode=source-build, got %v", op["mode"])
 	}
-	if op["trigger"] != string(model.TriggerManual) || op["channel"] != string(model.ChannelCustom) || op["execution_mode"] != deploy.ExecutionModeBuild {
+	if op["trigger"] != string(model.TriggerManual) || op["channel"] != string(model.ChannelCustom) || op["execution_mode"] != string(model.ExecutionModeBuild) {
 		t.Fatalf("expected trigger/channel/execution_mode in operation spec, got %v/%v/%v", op["trigger"], op["channel"], op["execution_mode"])
 	}
 	sourceBuild, ok := op["source_build"].(map[string]any)
@@ -318,7 +330,7 @@ func TestResolveInstallFromComposeRewritesSingleServiceSourceBuildCompose(t *tes
 		OperationType: string(model.OperationTypeInstall),
 		Trigger:       string(model.TriggerManual),
 		Channel:       string(model.ChannelCustom),
-		ExecutionMode: deploy.ExecutionModeBuild,
+		ExecutionMode: string(model.ExecutionModeBuild),
 		SourceBuild: &InstallSourceBuildInput{
 			SourceKind:      "uploaded-package",
 			SourceRef:       "upload://app.tar.gz",
@@ -349,7 +361,7 @@ func TestResolveInstallFromComposeRejectsMultiServiceSourceBuildWithoutTargetSer
 		OperationType: string(model.OperationTypeInstall),
 		Trigger:       string(model.TriggerManual),
 		Channel:       string(model.ChannelCustom),
-		ExecutionMode: deploy.ExecutionModeBuild,
+		ExecutionMode: string(model.ExecutionModeBuild),
 		SourceBuild: &InstallSourceBuildInput{
 			SourceKind:      "uploaded-package",
 			SourceRef:       "upload://app.tar.gz",
@@ -377,7 +389,7 @@ func TestResolveInstallFromComposeUsesExplicitTargetServiceForMultiServiceSource
 		OperationType: string(model.OperationTypeInstall),
 		Trigger:       string(model.TriggerManual),
 		Channel:       string(model.ChannelCustom),
-		ExecutionMode: deploy.ExecutionModeBuild,
+		ExecutionMode: string(model.ExecutionModeBuild),
 		SourceBuild: &InstallSourceBuildInput{
 			SourceKind:      "uploaded-package",
 			SourceRef:       "upload://app.tar.gz",
@@ -398,6 +410,33 @@ func TestResolveInstallFromComposeUsesExplicitTargetServiceForMultiServiceSource
 	}
 	if !strings.Contains(spec.RenderedCompose, "image: postgres:16") {
 		t.Fatalf("expected non-target services to remain unchanged, got %q", spec.RenderedCompose)
+	}
+}
+
+func TestBuildManualComposeOperationPersistsResolvedRuleProfile(t *testing.T) {
+	app := newServiceTestApp(t)
+	projectDir := t.TempDir()
+	operation, err := CreateOperationFromCompose(
+		app,
+		nil,
+		ComposeOperationRequest{
+			ServerID:      "local",
+			ProjectName:   "Rule Profile Demo",
+			Compose:       "services:\n  web:\n    image: nginx:alpine\n",
+			Trigger:       string(model.TriggerManual),
+			Channel:       string(model.ChannelCustom),
+			ExecutionMode: string(model.ExecutionModeCompose),
+			Metadata: map[string]any{
+				"rule_profile": string(model.RuleProfileComposeStandard),
+			},
+		},
+		ComposeOperationOptions{ProjectDir: projectDir},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := operation.GetString("rule_profile"); got != string(model.RuleProfileComposeStandard) {
+		t.Fatalf("expected rule_profile %q, got %q", model.RuleProfileComposeStandard, got)
 	}
 }
 

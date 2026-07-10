@@ -28,6 +28,7 @@ func EnsureAppOperationsCollection(app core.App) error {
 	addFieldIfMissing(col, &core.RelationField{Name: "app", CollectionId: appInstances.Id, Required: true, MaxSelect: 1})
 	addFieldIfMissing(col, &core.TextField{Name: "server_id", Required: true})
 	addFieldIfMissing(col, &core.SelectField{Name: "operation_type", Required: true, MaxSelect: 1, Values: append([]string(nil), model.OperationTypes...)})
+	addFieldIfMissing(col, &core.SelectField{Name: "rule_profile", Required: true, MaxSelect: 1, Values: append([]string(nil), model.RuleProfileKeys...)})
 	addFieldIfMissing(col, &core.SelectField{Name: "trigger", Required: true, MaxSelect: 1, Values: append([]string(nil), model.OperationTriggers...)})
 	addFieldIfMissing(col, &core.TextField{Name: "execution_mode"})
 	addFieldIfMissing(col, &core.RelationField{Name: "requested_by", CollectionId: usersCol.Id, MaxSelect: 1})

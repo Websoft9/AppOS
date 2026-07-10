@@ -1120,6 +1120,56 @@ paths:
             summary: Get actions by id logs
             tags:
                 - Actions
+    /api/actions/{id}/resume:
+        post:
+            description: Resumes one lifecycle action paused in waiting or manual-gate state. Authenticated users only.
+            operationId: post_api_actions_id_resume
+            parameters:
+                - description: action id
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Conflict
+            security:
+                - bearerAuth: []
+            summary: Resume waiting action
+            tags:
+                - Actions
     /api/actions/{id}/stream:
         get:
             operationId: get_api_actions_id_stream

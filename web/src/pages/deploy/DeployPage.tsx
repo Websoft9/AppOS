@@ -118,6 +118,7 @@ export function DeployPage({
     submitActionControl,
     canCancelAction,
     canForceFailAction,
+    canResumeAction,
     fetchOperations,
   } = useActionsController({
     prefillMode,
@@ -203,6 +204,11 @@ export function DeployPage({
               onClick={() => openActionControl(item, 'force-fail')}
             >
               Force Fail
+            </DropdownMenuItem>
+          ) : null}
+          {canResumeAction(item) ? (
+            <DropdownMenuItem onClick={() => openActionControl(item, 'resume')}>
+              Resume
             </DropdownMenuItem>
           ) : null}
           <DropdownMenuItem

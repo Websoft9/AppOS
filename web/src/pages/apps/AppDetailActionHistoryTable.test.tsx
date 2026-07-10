@@ -6,6 +6,7 @@ describe('AppDetailActionHistoryTable', () => {
   it('shows cancel and force-fail controls only for eligible actions', () => {
     const onRequestCancel = vi.fn()
     const onRequestForceFail = vi.fn()
+    const onRequestResume = vi.fn()
 
     render(
       <AppDetailActionHistoryTable
@@ -37,6 +38,19 @@ describe('AppDetailActionHistoryTable', () => {
             updated: '2026-03-21T07:15:00Z',
           },
           {
+            id: 'waiting-1',
+            server_id: 'local',
+            source: 'manualops',
+            status: 'waiting',
+            adapter: 'manual',
+            compose_project_name: 'upgrade-prod',
+            project_dir: '/srv/upgrade',
+            rendered_compose: '',
+            error_summary: '',
+            created: '2026-03-21T07:30:00Z',
+            updated: '2026-03-21T07:45:00Z',
+          },
+          {
             id: 'done-1',
             server_id: 'local',
             source: 'manualops',
@@ -53,14 +67,17 @@ describe('AppDetailActionHistoryTable', () => {
         buildActionDetailHref={actionId => `/activity/${actionId}`}
         onRequestCancel={onRequestCancel}
         onRequestForceFail={onRequestForceFail}
+        onRequestResume={onRequestResume}
       />
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     fireEvent.click(screen.getByRole('button', { name: 'Force Fail' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Resume' }))
 
     expect(onRequestCancel).toHaveBeenCalledWith(expect.objectContaining({ id: 'queued-1' }))
     expect(onRequestForceFail).toHaveBeenCalledWith(expect.objectContaining({ id: 'running-1' }))
-    expect(screen.getAllByRole('link', { name: 'Open Detail' })).toHaveLength(3)
+    expect(onRequestResume).toHaveBeenCalledWith(expect.objectContaining({ id: 'waiting-1' }))
+    expect(screen.getAllByRole('link', { name: 'Open Detail' })).toHaveLength(4)
   })
 })

@@ -52,3 +52,4 @@ See `README.md` for spec maintenance conventions.
 - [Epic 31: AI Runtime](../implementation-artifacts/epic31-ai-runtime.md)
 - [Epic 34: Publish](../implementation-artifacts/epic34-publish.md)
 - [Epic 33: App Migration](../implementation-artifacts/epic33-app-migration.md)
+- [Epic 35: Deployment Core Convergence](../implementation-artifacts/epic35-deployment-core-convergence.md)

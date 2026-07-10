@@ -17,21 +17,21 @@ func TestDefaultRegistryCoversLifecycleOperations(t *testing.T) {
 		family        string
 		definitionKey string
 	}{
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), ExecutionMode: string(model.ExecutionModeCompose)}, family: model.ProvisionPipeline, definitionKey: "provision.install.manual_compose"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), ExecutionMode: string(model.ExecutionModeBuild)}, family: model.ProvisionPipeline, definitionKey: "provision.install.source_build"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeStart)}, family: model.ProvisionPipeline, definitionKey: "provision.start"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeRestart)}, family: model.ProvisionPipeline, definitionKey: "provision.restart"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeUpgrade)}, family: model.ChangePipeline, definitionKey: "change.upgrade"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeRedeploy)}, family: model.ChangePipeline, definitionKey: "change.redeploy"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeReconfigure)}, family: model.ChangePipeline, definitionKey: "change.reconfigure"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypePublish)}, family: model.ExposurePipeline, definitionKey: "exposure.publish"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeUnpublish)}, family: model.ExposurePipeline, definitionKey: "exposure.unpublish"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeRecover)}, family: model.RecoveryPipeline, definitionKey: "recovery.recover"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeRollback)}, family: model.RecoveryPipeline, definitionKey: "recovery.rollback"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeMaintain)}, family: model.MaintenancePipeline, definitionKey: "maintenance.maintain"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeBackup)}, family: model.MaintenancePipeline, definitionKey: "maintenance.backup"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeStop)}, family: model.RetirePipeline, definitionKey: "retire.stop"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeUninstall)}, family: model.RetirePipeline, definitionKey: "retire.uninstall"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), ExecutionMode: string(model.ExecutionModeCompose), RuleProfile: string(model.RuleProfileComposeStandard)}, family: model.ProvisionPipeline, definitionKey: "provision.install.manual_compose"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), ExecutionMode: string(model.ExecutionModeBuild), RuleProfile: string(model.RuleProfileSourceBuild)}, family: model.ProvisionPipeline, definitionKey: "provision.install.source_build"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeStart), RuleProfile: string(model.RuleProfileRuntimeControl)}, family: model.ProvisionPipeline, definitionKey: "provision.start"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeRestart), RuleProfile: string(model.RuleProfileRuntimeControl)}, family: model.ProvisionPipeline, definitionKey: "provision.restart"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeUpgrade), RuleProfile: string(model.RuleProfileChangeStandard)}, family: model.ChangePipeline, definitionKey: "change.upgrade"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeRedeploy), RuleProfile: string(model.RuleProfileChangeStandard)}, family: model.ChangePipeline, definitionKey: "change.redeploy"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeReconfigure), RuleProfile: string(model.RuleProfileChangeStandard)}, family: model.ChangePipeline, definitionKey: "change.reconfigure"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypePublish), RuleProfile: string(model.RuleProfileExposureSensitive)}, family: model.ExposurePipeline, definitionKey: "exposure.publish"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeUnpublish), RuleProfile: string(model.RuleProfileExposureSensitive)}, family: model.ExposurePipeline, definitionKey: "exposure.unpublish"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeRecover), RuleProfile: string(model.RuleProfileRecoveryStrict)}, family: model.RecoveryPipeline, definitionKey: "recovery.recover"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeRollback), RuleProfile: string(model.RuleProfileRecoveryStrict)}, family: model.RecoveryPipeline, definitionKey: "recovery.rollback"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeMaintain), RuleProfile: string(model.RuleProfileMaintenanceStandard)}, family: model.MaintenancePipeline, definitionKey: "maintenance.maintain"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeBackup), RuleProfile: string(model.RuleProfileMaintenanceStandard)}, family: model.MaintenancePipeline, definitionKey: "maintenance.backup"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeStop), RuleProfile: string(model.RuleProfileRetireStandard)}, family: model.RetirePipeline, definitionKey: "retire.stop"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeUninstall), RuleProfile: string(model.RuleProfileRetireStandard)}, family: model.RetirePipeline, definitionKey: "retire.uninstall"},
 	}
 
 	for _, item := range operations {
@@ -52,7 +52,7 @@ func TestDefaultRegistryCoversLifecycleOperations(t *testing.T) {
 }
 
 func TestDefinitionForOperationNormalizesInput(t *testing.T) {
-	definition, err := DefinitionForSelector(model.DefinitionSelector{OperationType: "  INSTALL ", ExecutionMode: " compose "})
+	definition, err := DefinitionForSelector(model.DefinitionSelector{OperationType: "  INSTALL ", ExecutionMode: " compose ", RuleProfile: " compose_standard "})
 	if err != nil {
 		t.Fatalf("definition lookup failed: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestDefinitionForOperationNormalizesInput(t *testing.T) {
 }
 
 func TestDefinitionForSelectorChoosesStoreManualComposeInstall(t *testing.T) {
-	definition, err := DefinitionForSelector(model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), ExecutionMode: string(model.ExecutionModeCompose)})
+	definition, err := DefinitionForSelector(model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), ExecutionMode: string(model.ExecutionModeCompose), RuleProfile: string(model.RuleProfileComposeStandard)})
 	if err != nil {
 		t.Fatalf("definition lookup failed: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestDefinitionForSelectorChoosesStoreManualComposeInstall(t *testing.T) {
 }
 
 func TestDefinitionForSelectorChoosesSourceBuildInstall(t *testing.T) {
-	definition, err := DefinitionForSelector(model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), ExecutionMode: string(model.ExecutionModeBuild)})
+	definition, err := DefinitionForSelector(model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), ExecutionMode: string(model.ExecutionModeBuild), RuleProfile: string(model.RuleProfileSourceBuild)})
 	if err != nil {
 		t.Fatalf("definition lookup failed: %v", err)
 	}
@@ -121,6 +121,19 @@ func TestDefinitionForSelectorChoosesSourceBuildInstall(t *testing.T) {
 	}
 }
 
+func TestDefinitionForSelectorChoosesRuleProfileSpecificDefinition(t *testing.T) {
+	definition, err := DefinitionForSelector(model.DefinitionSelector{
+		OperationType: string(model.OperationTypePublish),
+		RuleProfile:   string(model.RuleProfileExposureSensitive),
+	})
+	if err != nil {
+		t.Fatalf("definition lookup failed: %v", err)
+	}
+	if definition.Key != "exposure.publish" {
+		t.Fatalf("expected exposure.publish, got %s", definition.Key)
+	}
+}
+
 func TestDefinitionForOperationRejectsAmbiguousInstall(t *testing.T) {
 	_, err := DefinitionForOperation(string(model.OperationTypeInstall))
 	if err == nil {
@@ -129,7 +142,7 @@ func TestDefinitionForOperationRejectsAmbiguousInstall(t *testing.T) {
 }
 
 func TestDefinitionForOperationExposesNodeMetadata(t *testing.T) {
-	definition, err := DefinitionForOperation(string(model.OperationTypeUpgrade))
+	definition, err := DefinitionForSelector(model.DefinitionSelector{OperationType: string(model.OperationTypeUpgrade), RuleProfile: string(model.RuleProfileChangeStandard)})
 	if err != nil {
 		t.Fatalf("definition lookup failed: %v", err)
 	}

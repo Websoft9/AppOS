@@ -13,11 +13,11 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
 	"github.com/websoft9/appos/backend/domain/audit"
-	"github.com/websoft9/appos/backend/domain/deploy"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	"github.com/websoft9/appos/backend/domain/lifecycle/orchestration"
 	"github.com/websoft9/appos/backend/domain/lifecycle/projection"
 	lifecycleruntime "github.com/websoft9/appos/backend/domain/lifecycle/runtime"
+	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
 	"github.com/websoft9/appos/backend/infra/docker"
 )
 
@@ -351,9 +351,10 @@ func (w *Worker) handleRunOperation(ctx context.Context, t *asynq.Task) error {
 		IsCancelledError: func(err error) bool {
 			return errors.Is(err, errOperationCancelled)
 		},
-		ExecuteNode: func(ctx context.Context, runCtx *orchestration.ExecutionContext, nodeRun *core.Record, node model.NodeDefinition) error {
+		ExecuteNode: func(ctx context.Context, runCtx *orchestration.ExecutionContext, nodeRun *core.Record, node model.NodeDefinition) (orchestration.NodeExecutionResult, error) {
 			execCtx.ExecutionContext = runCtx
-			return w.executeNode(ctx, execCtx, nodeRun, node)
+			err := w.executeNode(ctx, execCtx, nodeRun, node)
+			return orchestration.NodeExecutionResult{Outcome: orchestration.NodeOutcomeSucceeded}, err
 		},
 		OnNodeStarted: func(runCtx *orchestration.ExecutionContext, nodeRun *core.Record, node model.NodeDefinition) {
 			execCtx.ExecutionContext = runCtx
@@ -1027,8 +1028,8 @@ func appendOperationLog(app core.App, record *core.Record, line string) {
 		current += "\n" + entry
 	}
 	truncated := false
-	if len(current) > deploy.MaxExecutionLogBytes {
-		current = current[len(current)-deploy.MaxExecutionLogBytes:]
+	if len(current) > lifecyclesvc.MaxExecutionLogBytes {
+		current = current[len(current)-lifecyclesvc.MaxExecutionLogBytes:]
 		if idx := strings.IndexByte(current, '\n'); idx >= 0 && idx < len(current)-1 {
 			current = current[idx+1:]
 		}
@@ -1054,8 +1055,8 @@ func appendNodeRunLog(app core.App, record *core.Record, line string) {
 		current += "\n" + entry
 	}
 	truncated := false
-	if len(current) > deploy.MaxExecutionLogBytes {
-		current = current[len(current)-deploy.MaxExecutionLogBytes:]
+	if len(current) > lifecyclesvc.MaxExecutionLogBytes {
+		current = current[len(current)-lifecyclesvc.MaxExecutionLogBytes:]
 		if idx := strings.IndexByte(current, '\n'); idx >= 0 && idx < len(current)-1 {
 			current = current[idx+1:]
 		}

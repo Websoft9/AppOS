@@ -25,7 +25,7 @@ func EnsurePipelineNodeRunsCollection(app core.App) error {
 	addFieldIfMissing(col, &core.TextField{Name: "display_name", Required: true})
 	addFieldIfMissing(col, &core.SelectField{Name: "phase", Required: true, MaxSelect: 1, Values: append([]string(nil), model.PipelinePhases...)})
 	addFieldIfMissing(col, &core.JSONField{Name: "depends_on_json"})
-	addFieldIfMissing(col, &core.SelectField{Name: "status", Required: true, MaxSelect: 1, Values: []string{"pending", "running", "succeeded", "failed", "skipped", "cancelled", "compensated"}})
+	addFieldIfMissing(col, &core.SelectField{Name: "status", Required: true, MaxSelect: 1, Values: []string{"pending", "running", "succeeded", "failed", "skipped", "cancelled", "compensated", "waiting", "manual_gate"}})
 	addFieldIfMissing(col, &core.NumberField{Name: "retry_count", OnlyInt: true})
 	addFieldIfMissing(col, &core.TextField{Name: "compensation_node_key"})
 	addFieldIfMissing(col, &core.TextField{Name: "error_code"})

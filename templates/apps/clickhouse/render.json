@@ -1,0 +1,30 @@
+{
+  "contractVersion": "0.1",
+  "env": {
+    "W9_ID": "${app_id}",
+    "W9_REPO": "clickhouse/clickhouse-server",
+    "W9_DIST": "community",
+    "W9_VERSION": "${version}",
+    "W9_HTTP_PORT": "8123",
+    "W9_HTTP_PORT_SET": "${http_port}",
+    "W9_URL": "${site_url}",
+    "W9_NETWORK": "${platform.network}",
+    "CLICKHOUSE_DB": "${db_name}",
+    "CLICKHOUSE_USER": "${db_user}",
+    "CLICKHOUSE_PASSWORD": "${secret:db_password}",
+    "CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT": "1"
+  },
+  "compose_values": {
+    "primaryService": "clickhouse"
+  },
+  "files": [],
+  "exposures": [
+    {
+      "label": "Web",
+      "service": "clickhouse",
+      "port": 8123,
+      "protocol": "http",
+      "default": true
+    }
+  ]
+}

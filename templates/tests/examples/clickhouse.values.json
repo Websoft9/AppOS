@@ -1,0 +1,8 @@
+{
+  "app_id": "clickhouse-demo",
+  "version": "25.11",
+  "http_port": 18123,
+  "site_url": "clickhouse.example.com",
+  "db_user": "analyst",
+  "db_name": "analytics"
+}

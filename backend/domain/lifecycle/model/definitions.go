@@ -16,6 +16,7 @@ type Definition struct {
 	Family         string           `yaml:"family"`
 	OperationTypes []string         `yaml:"operation_types"`
 	ExecutionModes []string         `yaml:"execution_modes"`
+	RuleProfiles   []string         `yaml:"rule_profiles"`
 	InitialPhase   string           `yaml:"initial_phase"`
 	Nodes          []NodeDefinition `yaml:"nodes"`
 }
@@ -23,6 +24,7 @@ type Definition struct {
 type DefinitionSelector struct {
 	OperationType string
 	ExecutionMode string
+	RuleProfile   string
 }
 
 type NodeDefinition struct {

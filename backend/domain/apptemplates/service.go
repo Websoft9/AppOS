@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/domain/deploy"
+	"github.com/websoft9/appos/backend/domain/lifecycle/service"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	"gopkg.in/yaml.v3"
 )
@@ -147,7 +147,7 @@ func ancestorTemplateRoots(start string) []string {
 }
 
 func (s *Service) Render(app core.App, request RenderRequest) (*RenderedTemplate, error) {
-	projectName := deploy.NormalizeProjectName(request.ProjectName)
+	projectName := service.NormalizeProjectName(request.ProjectName)
 	if projectName == "" {
 		return nil, errors.New("project_name is required")
 	}

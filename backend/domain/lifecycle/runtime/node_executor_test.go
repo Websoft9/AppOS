@@ -588,7 +588,7 @@ func TestExecuteNodePublishesArtifactForConcreteTargetRef(t *testing.T) {
 	}
 }
 
-func TestExecuteNodeRejectsUnimplementedSourceBuildNodeTypes(t *testing.T) {
+func TestExecuteNodeAllowsSourceBuildReleaseCandidatePlaceholder(t *testing.T) {
 	operation := core.NewRecord(core.NewBaseCollection("app_operations"))
 	operation.Set("project_dir", "/appos/data/apps/operations/demo")
 	operation.Set("rendered_compose", "services:\n  web:\n    image: nginx:alpine\n")
@@ -596,12 +596,8 @@ func TestExecuteNodeRejectsUnimplementedSourceBuildNodeTypes(t *testing.T) {
 
 	for _, nodeType := range []string{"release_candidate"} {
 		t.Run(nodeType, func(t *testing.T) {
-			_, err := ExecuteNode(context.Background(), operation, model.NodeDefinition{NodeType: nodeType}, noopExecutor{}, nil, NodeExecutionHooks{})
-			if err == nil {
-				t.Fatalf("expected %s to fail fast", nodeType)
-			}
-			if !strings.Contains(err.Error(), "not implemented yet") {
-				t.Fatalf("expected not implemented error for %s, got %v", nodeType, err)
+			if _, err := ExecuteNode(context.Background(), operation, model.NodeDefinition{NodeType: nodeType}, noopExecutor{}, nil, NodeExecutionHooks{}); err != nil {
+				t.Fatalf("expected %s placeholder to succeed, got %v", nodeType, err)
 			}
 		})
 	}

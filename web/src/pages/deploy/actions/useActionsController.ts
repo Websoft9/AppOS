@@ -19,6 +19,7 @@ import {
   buildActionDetailSearch,
   canCancelAction,
   canForceFailAction,
+  canResumeAction,
   isActiveStatus,
 } from '@/pages/deploy/actions/action-utils'
 import type {
@@ -1253,8 +1254,8 @@ export function useActionsController({
   }
 
   async function submitActionControl(pending: PendingActionControl) {
-    const endpoint = pending.kind === 'cancel' ? 'cancel' : 'force-fail'
-    const successLabel = pending.kind === 'cancel' ? 'cancelled' : 'force-failed'
+    const endpoint = pending.kind === 'cancel' ? 'cancel' : pending.kind === 'resume' ? 'resume' : 'force-fail'
+    const successLabel = pending.kind === 'cancel' ? 'cancelled' : pending.kind === 'resume' ? 'resumed' : 'force-failed'
     setActionControlSubmitting(true)
     setNotice(null)
     try {
@@ -1270,7 +1271,7 @@ export function useActionsController({
         'destructive',
         err instanceof Error
           ? err.message
-          : `Failed to ${pending.kind === 'cancel' ? 'cancel' : 'force-fail'} action`
+          : `Failed to ${pending.kind === 'cancel' ? 'cancel' : pending.kind === 'resume' ? 'resume' : 'force-fail'} action`
       )
     } finally {
       setActionControlSubmitting(false)
@@ -1512,6 +1513,7 @@ export function useActionsController({
     submitActionControl,
     canCancelAction,
     canForceFailAction,
+    canResumeAction,
     fetchOperations,
   }
 }

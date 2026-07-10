@@ -5,14 +5,72 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sharedenv"
-	"github.com/websoft9/appos/backend/domain/deploy"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	"gopkg.in/yaml.v3"
 )
+
+const MaxExecutionLogBytes = 64 * 1024
+
+type ManualComposeRequest struct {
+	ServerID    string `json:"server_id"`
+	ProjectName string `json:"project_name"`
+	Compose     string `json:"compose"`
+}
+
+type GitComposeRequest struct {
+	ServerID        string `json:"server_id"`
+	ProjectName     string `json:"project_name"`
+	RepositoryURL   string `json:"repository_url"`
+	Ref             string `json:"ref"`
+	ComposePath     string `json:"compose_path"`
+	RawURL          string `json:"raw_url"`
+	AuthHeaderName  string `json:"auth_header_name"`
+	AuthHeaderValue string `json:"auth_header_value"`
+}
+
+func NormalizeProjectName(input string) string {
+	trimmed := strings.TrimSpace(strings.ToLower(input))
+	if trimmed == "" {
+		return ""
+	}
+	var b strings.Builder
+	lastDash := false
+	for _, r := range trimmed {
+		switch {
+		case unicode.IsLetter(r) || unicode.IsDigit(r):
+			b.WriteRune(r)
+			lastDash = false
+		case !lastDash:
+			b.WriteByte('-')
+			lastDash = true
+		}
+	}
+	return strings.Trim(b.String(), "-")
+}
+
+func ValidateManualCompose(raw string) error {
+	if strings.TrimSpace(raw) == "" {
+		return fmt.Errorf("compose is required")
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal([]byte(raw), &doc); err != nil {
+		return fmt.Errorf("invalid compose yaml: %w", err)
+	}
+	services, ok := doc["services"]
+	if !ok {
+		return fmt.Errorf("compose must contain services")
+	}
+	serviceMap, ok := services.(map[string]any)
+	if !ok || len(serviceMap) == 0 {
+		return fmt.Errorf("compose services must be a non-empty map")
+	}
+	return nil
+}
 
 type ExposureIntent struct {
 	ExposureType  string
@@ -379,12 +437,12 @@ func BuildInstallResolutionRequest(serverID string, projectName string, compose 
 	}
 }
 
-func BuildManualComposeInstallResolutionRequest(request deploy.ManualComposeRequest, options InstallIngressOptions) InstallResolutionRequest {
-	executionMode := deploy.ExecutionModeCompose
+func BuildManualComposeInstallResolutionRequest(request ManualComposeRequest, options InstallIngressOptions) InstallResolutionRequest {
+	executionMode := string(model.ExecutionModeCompose)
 	candidateKind := InstallCandidateKindManualCompose
 	channel := string(model.ChannelCustom)
 	if options.SourceBuild != nil {
-		executionMode = deploy.ExecutionModeBuild
+		executionMode = string(model.ExecutionModeBuild)
 		candidateKind = InstallCandidateKindInstallScript
 		channel = sourceBuildOperationChannel(options.SourceBuild)
 	}
@@ -392,17 +450,17 @@ func BuildManualComposeInstallResolutionRequest(request deploy.ManualComposeRequ
 	return BuildInstallResolutionRequest(request.ServerID, request.ProjectName, request.Compose, string(model.TriggerManual), channel, executionMode, options)
 }
 
-func BuildGitComposeInstallResolutionRequest(request deploy.GitComposeRequest, compose string, rawURL string, options InstallIngressOptions) InstallResolutionRequest {
+func BuildGitComposeInstallResolutionRequest(request GitComposeRequest, compose string, rawURL string, options InstallIngressOptions) InstallResolutionRequest {
 	projectName := strings.TrimSpace(request.ProjectName)
 	if projectName == "" {
 		projectName = deriveGitComposeProjectName(request.RepositoryURL, request.ComposePath, rawURL)
 	}
 	options.Metadata = MergeMetadata(gitComposeMetadata(request, rawURL), options.Metadata)
-	options.Metadata = applyInstallCandidateMetadata(options.Metadata, InstallCandidateKindGitCompose, string(model.TriggerManual), string(model.ChannelGit), deploy.ExecutionModeCompose, gitComposeMetadata(request, rawURL))
-	return BuildInstallResolutionRequest(request.ServerID, projectName, compose, string(model.TriggerManual), string(model.ChannelGit), deploy.ExecutionModeCompose, options)
+	options.Metadata = applyInstallCandidateMetadata(options.Metadata, InstallCandidateKindGitCompose, string(model.TriggerManual), string(model.ChannelGit), string(model.ExecutionModeCompose), gitComposeMetadata(request, rawURL))
+	return BuildInstallResolutionRequest(request.ServerID, projectName, compose, string(model.TriggerManual), string(model.ChannelGit), string(model.ExecutionModeCompose), options)
 }
 
-func GitComposeAuditDetail(request deploy.GitComposeRequest, rawURL string) map[string]any {
+func GitComposeAuditDetail(request GitComposeRequest, rawURL string) map[string]any {
 	return gitComposeMetadata(request, rawURL)
 }
 
@@ -511,11 +569,11 @@ func NormalizeInstallSourceBuild(raw map[string]any) *InstallSourceBuildInput {
 }
 
 func ResolveInstallFromCompose(app core.App, request InstallResolutionRequest) (NormalizedInstallSpec, error) {
-	if err := deploy.ValidateManualCompose(request.Compose); err != nil {
+	if err := ValidateManualCompose(request.Compose); err != nil {
 		return NormalizedInstallSpec{}, err
 	}
 
-	normalizedProjectName := deploy.NormalizeProjectName(request.ProjectName)
+	normalizedProjectName := NormalizeProjectName(request.ProjectName)
 	if normalizedProjectName == "" {
 		normalizedProjectName = "app"
 	}
@@ -876,7 +934,7 @@ func mapBool(input map[string]any, key string) bool {
 	}
 }
 
-func gitComposeMetadata(request deploy.GitComposeRequest, rawURL string) map[string]any {
+func gitComposeMetadata(request GitComposeRequest, rawURL string) map[string]any {
 	return map[string]any{
 		"repository_url": request.RepositoryURL,
 		"ref":            request.Ref,
@@ -1223,10 +1281,10 @@ func deriveGitComposeProjectName(repositoryURL string, composePath string, rawUR
 	trimmed := strings.Trim(strings.TrimSuffix(strings.TrimSpace(value), ".git"), "/")
 	segments := strings.Split(trimmed, "/")
 	if len(segments) >= 2 {
-		return deploy.NormalizeProjectName(segments[len(segments)-1])
+		return NormalizeProjectName(segments[len(segments)-1])
 	}
 	if base := strings.TrimSuffix(filepath.Base(composePath), filepath.Ext(composePath)); base != "" {
-		return deploy.NormalizeProjectName(base)
+		return NormalizeProjectName(base)
 	}
 	return "git-deploy"
 }

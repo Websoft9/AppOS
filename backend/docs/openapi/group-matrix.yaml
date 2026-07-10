@@ -88,6 +88,7 @@ groups:
       - DELETE /api/actions/{id}
       - POST /api/actions/{id}/cancel
       - POST /api/actions/{id}/force-fail
+      - POST /api/actions/{id}/resume
       - GET /api/actions/{id}/logs
       - GET /api/actions/{id}/stream
       - POST /api/actions/install/git-compose
@@ -671,5 +672,4 @@ groups:
         - ../certs/generate_routes.go
       nativeRefs:
         - https://pocketbase.io/docs/api-records/#crud-actions
-
 

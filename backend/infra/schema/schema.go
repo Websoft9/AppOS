@@ -26,7 +26,6 @@ func EnsureAllCollections(app core.App) error {
 		EnsureTopicCommentsCollection,
 		EnsureEnvSetsCollection,
 		EnsureEnvSetVarsCollection,
-		EnsureDeploymentsCollection,
 		EnsureAppInstancesCollection,
 		EnsureAppOperationsCollection,
 		EnsureAppReleasesCollection,

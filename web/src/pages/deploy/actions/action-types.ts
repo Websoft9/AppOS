@@ -84,7 +84,7 @@ export type ActionRecord = {
   steps?: ActionStep[]
 }
 
-export type ActionControlKind = 'cancel' | 'force-fail'
+export type ActionControlKind = 'cancel' | 'force-fail' | 'resume'
 
 export type PendingActionControl = {
   kind: ActionControlKind

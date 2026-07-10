@@ -20,6 +20,7 @@ var (
 	allowedProjectionTargets    = sliceSet(model.ProjectionTargets)
 	allowedOperationTypes       = sliceSet(model.OperationTypes)
 	allowedExecutionModes       = sliceSet(model.OperationExecutionModes)
+	allowedRuleProfiles         = sliceSet(model.RuleProfileKeys)
 	defaultRegistryOnce         sync.Once
 	defaultRegistry             *Registry
 	defaultRegistryErr          error
@@ -296,6 +297,7 @@ func normalizeDefinition(definition model.Definition) model.Definition {
 	definition.InitialPhase = strings.TrimSpace(definition.InitialPhase)
 	definition.OperationTypes = normalizeTokens(definition.OperationTypes)
 	definition.ExecutionModes = normalizeTokens(definition.ExecutionModes)
+	definition.RuleProfiles = normalizeTokens(definition.RuleProfiles)
 	for index := range definition.Nodes {
 		definition.Nodes[index].Key = strings.TrimSpace(definition.Nodes[index].Key)
 		definition.Nodes[index].NodeType = strings.TrimSpace(definition.Nodes[index].NodeType)
@@ -332,6 +334,11 @@ func validateDefinition(definition model.Definition) error {
 	for _, executionMode := range definition.ExecutionModes {
 		if _, ok := allowedExecutionModes[executionMode]; !ok {
 			return fmt.Errorf("pipeline definition %q has unsupported execution_mode %q", definition.Key, executionMode)
+		}
+	}
+	for _, ruleProfile := range definition.RuleProfiles {
+		if _, ok := allowedRuleProfiles[ruleProfile]; !ok {
+			return fmt.Errorf("pipeline definition %q has unsupported rule_profile %q", definition.Key, ruleProfile)
 		}
 	}
 	if len(definition.Nodes) == 0 {
@@ -401,6 +408,7 @@ func normalizeTokens(values []string) []string {
 func selectDefinition(candidates []model.Definition, selector model.DefinitionSelector) (model.Definition, error) {
 	normalizedOperation := normalizeToken(selector.OperationType)
 	normalizedExecutionMode := normalizeToken(selector.ExecutionMode)
+	normalizedRuleProfile := normalizeToken(selector.RuleProfile)
 
 	type scoredDefinition struct {
 		definition model.Definition
@@ -412,16 +420,22 @@ func selectDefinition(candidates []model.Definition, selector model.DefinitionSe
 		if !matchesSelectorValue(definition.ExecutionModes, normalizedExecutionMode) {
 			continue
 		}
+		if !matchesSelectorValue(definition.RuleProfiles, normalizedRuleProfile) {
+			continue
+		}
 
 		score := 0
 		if len(definition.ExecutionModes) > 0 && normalizedExecutionMode != "" {
 			score += 1
 		}
+		if len(definition.RuleProfiles) > 0 && normalizedRuleProfile != "" {
+			score += 2
+		}
 		matches = append(matches, scoredDefinition{definition: definition, score: score})
 	}
 
 	if len(matches) == 0 {
-		return model.Definition{}, fmt.Errorf("pipeline definition not found for operation type %q with execution_mode %q", normalizedOperation, normalizedExecutionMode)
+		return model.Definition{}, fmt.Errorf("pipeline definition not found for operation type %q with execution_mode %q and rule_profile %q", normalizedOperation, normalizedExecutionMode, normalizedRuleProfile)
 	}
 
 	best := matches[0]
@@ -438,7 +452,7 @@ func selectDefinition(candidates []model.Definition, selector model.DefinitionSe
 	}
 
 	if ambiguous {
-		return model.Definition{}, fmt.Errorf("pipeline definition is ambiguous for operation type %q with execution_mode %q", normalizedOperation, normalizedExecutionMode)
+		return model.Definition{}, fmt.Errorf("pipeline definition is ambiguous for operation type %q with execution_mode %q and rule_profile %q", normalizedOperation, normalizedExecutionMode, normalizedRuleProfile)
 	}
 
 	return best.definition, nil

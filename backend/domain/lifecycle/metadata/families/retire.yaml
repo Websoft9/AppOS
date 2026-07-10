@@ -19,6 +19,8 @@ definitions:
     family: RetirePipeline
     operation_types:
       - stop
+    rule_profiles:
+      - retire_standard
     initial_phase: validating
     nodes:
       - key: validate_retirement_request
@@ -37,6 +39,13 @@ definitions:
           - AppInstance
         depends_on:
           - validate_retirement_request
+      - key: prepare_retirement_audit
+        node_type: audit
+        display_name: Prepare Retirement Audit
+        phase: preparing
+        retryable: true
+        depends_on:
+          - validate_retirement_request
       - key: verify_stopped_state
         node_type: runtime_check
         display_name: Verify Stopped State
@@ -46,12 +55,15 @@ definitions:
           - AppInstance
         depends_on:
           - stop_runtime
+          - prepare_retirement_audit
 
   - key: retire.uninstall
     version: v1
     family: RetirePipeline
     operation_types:
       - uninstall
+    rule_profiles:
+      - retire_standard
     initial_phase: validating
     nodes:
       - key: validate_retirement_request
@@ -68,6 +80,13 @@ definitions:
         retryable: true
         writes_projection:
           - AppInstance
+        depends_on:
+          - validate_retirement_request
+      - key: prepare_retirement_audit
+        node_type: audit
+        display_name: Prepare Retirement Audit
+        phase: preparing
+        retryable: true
         depends_on:
           - validate_retirement_request
       - key: finalize_retirement
@@ -81,3 +100,4 @@ definitions:
           - ReleaseSnapshot
         depends_on:
           - stop_runtime
+          - prepare_retirement_audit

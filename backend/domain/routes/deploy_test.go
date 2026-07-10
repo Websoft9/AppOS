@@ -14,7 +14,6 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sharedenv"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	"github.com/websoft9/appos/backend/domain/deploy"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
 )
@@ -391,7 +390,7 @@ func TestOperationQueuedCancelImmediatelyTerminalizesForAuthenticatedUser(t *tes
 		t.Fatalf("cancel: expected 200, got %d: %s", cancelRec.Code, cancelRec.Body.String())
 	}
 	body := parseJSON(t, cancelRec)
-	if body["status"] != deploy.StatusCancelled {
+	if body["status"] != "cancelled" {
 		t.Fatalf("expected cancelled status, got %v", body["status"])
 	}
 
@@ -484,7 +483,7 @@ func TestOperationExecutingForceFailImmediatelyTerminalizesForAuthenticatedUser(
 		t.Fatalf("force-fail: expected 200, got %d: %s", forceFailRec.Code, forceFailRec.Body.String())
 	}
 	body := parseJSON(t, forceFailRec)
-	if body["status"] != deploy.StatusFailed {
+	if body["status"] != "failed" {
 		t.Fatalf("expected failed status, got %v", body["status"])
 	}
 
