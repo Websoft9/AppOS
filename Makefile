@@ -2,7 +2,7 @@
 .PHONY: help install tidy build run test test-strict test-fast lint lint-strict lint-fast fmt fmt-strict fmt-fast check check-fast sec sec-strict sec-fast artifact-scan \
 	backend web backend-targeted backend-iac backend-software fast strict latest \
 	image start stop restart logs stats delete rm kill-port redo sync-store tl \
-	openapi-gen openapi-merge openapi-check openapi-sync opencode
+	openapi-gen openapi-merge openapi-check openapi-sync opencode opencode-clear
 
 # ============================================================
 # Default values
@@ -93,6 +93,7 @@ help:
 	@echo ""
 	@printf "\033[36mUtilities:\033[0m\n"
 	@echo "  make opencode             Launch opencode with proxy disabled"
+	@echo "  make opencode-clear       Clear ALL opencode session data (with confirmation)"
 	@echo "  make kill-port 9091       Kill process using port"
 	@echo "  make tl                   Show template tooling commands"
 	@echo "  make tl validate          Validate normalized templates"
@@ -353,9 +354,8 @@ endif
 else ifeq ($(QUALITY_SCOPE),web)
 	@echo "Running web tests..."
 	@cd web && log_file=$$(mktemp); \
-		NO_COLOR=1 npm test >"$$log_file" 2>&1; \
+		bash -lc 'NO_COLOR=1 npm test 2>&1 | tee "$$1"; exit $${PIPESTATUS[0]}' _ "$$log_file"; \
 		status=$$?; \
-		cat "$$log_file"; \
 		if [ "$$status" -ne 0 ]; then \
 			fail_summary=$$(grep -E '^ FAIL |^ × ' "$$log_file" || true); \
 			echo "✗ Web tests failed"; \
@@ -364,7 +364,7 @@ else ifeq ($(QUALITY_SCOPE),web)
 				printf '%s\n' "$$fail_summary"; \
 			fi; \
 			rm -f "$$log_file"; \
-			exit 1; \
+			exit $$status; \
 		fi; \
 		rm -f "$$log_file"
 	@echo "✓ Web tests completed"
@@ -417,7 +417,20 @@ ifeq ($(QUALITY_MODE),fast)
 	fi
 	@if [ -f "web/package.json" ]; then \
 		echo "→ JS tests..."; \
-		cd web && npm test 2>/dev/null; \
+		cd web && log_file=$$(mktemp); \
+		bash -lc 'NO_COLOR=1 npm test 2>&1 | tee "$$1"; exit $${PIPESTATUS[0]}' _ "$$log_file"; \
+		status=$$?; \
+		if [ "$$status" -ne 0 ]; then \
+			fail_summary=$$(grep -E '^ FAIL |^ × ' "$$log_file" || true); \
+			echo "✗ Web tests failed"; \
+			if [ -n "$$fail_summary" ]; then \
+				echo "Fail summary:"; \
+				printf '%s\n' "$$fail_summary"; \
+			fi; \
+			rm -f "$$log_file"; \
+			exit $$status; \
+		fi; \
+		rm -f "$$log_file"; \
 	fi
 	@echo "→ E2E skipped in fast mode"
 else
@@ -445,9 +458,8 @@ else
 	@if [ -f "web/package.json" ]; then \
 		echo "→ JS tests..."; \
 		cd web && log_file=$$(mktemp); \
-		NO_COLOR=1 npm test >"$$log_file" 2>&1; \
+		bash -lc 'NO_COLOR=1 npm test 2>&1 | tee "$$1"; exit $${PIPESTATUS[0]}' _ "$$log_file"; \
 		status=$$?; \
-		cat "$$log_file"; \
 		if [ "$$status" -ne 0 ]; then \
 			fail_summary=$$(grep -E '^ FAIL |^ × ' "$$log_file" || true); \
 			echo "✗ Web tests failed"; \
@@ -456,7 +468,7 @@ else
 				printf '%s\n' "$$fail_summary"; \
 			fi; \
 			rm -f "$$log_file"; \
-			exit 1; \
+			exit $$status; \
 		fi; \
 		rm -f "$$log_file"; \
 	fi
@@ -1094,6 +1106,42 @@ opencode:
 	@echo "Starting opencode (proxy disabled)..."
 	@unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy ALL_PROXY all_proxy; \
 	no_proxy="*" NO_PROXY="*" opencode
+
+opencode-clear:
+	@OPENCODE_DATA="$${OPENCODE_DIR:-$$HOME/.local/share/opencode}"; \
+	if [ ! -d "$$OPENCODE_DATA" ]; then \
+		echo "✓ No opencode data directory found at $$OPENCODE_DATA"; \
+		exit 0; \
+	fi; \
+	DB="$$OPENCODE_DATA/opencode.db"; \
+	if [ ! -f "$$DB" ]; then \
+		echo "✓ No opencode database found (nothing to clear)"; \
+		exit 0; \
+	fi; \
+	SESSION_COUNT=$$(sqlite3 "$$DB" "SELECT COUNT(*) FROM session WHERE parent_id IS NULL;" 2>/dev/null || echo "0"); \
+	DB_SIZE=" ($$(du -h "$$DB" | cut -f1))"; \
+	echo ""; \
+	echo "========================================="; \
+	printf "  Sessions in opencode store (%s sessions)%s\n" "$$SESSION_COUNT" "$$DB_SIZE"; \
+	echo "========================================="; \
+	if [ "$$SESSION_COUNT" -gt 0 ]; then \
+		sqlite3 -header -column "$$DB" \
+			"SELECT ROW_NUMBER() OVER (ORDER BY time_updated DESC) as '#', \
+			        title, \
+			        datetime(time_updated / 1000, 'unixepoch', 'localtime') as updated \
+			 FROM session WHERE parent_id IS NULL ORDER BY time_updated DESC;" 2>/dev/null; \
+	fi; \
+	echo ""; \
+	echo "⚠  This will clear ALL opencode session data at $$OPENCODE_DATA"; \
+	printf "   This includes: conversations, repo caches, snapshots, tool outputs, and logs.\n\n"; \
+	read -p "Continue? [y/N] " confirm; \
+	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
+		rm -f "$$DB" "$$DB-wal" "$$DB-shm"; \
+		rm -rf "$$OPENCODE_DATA/repos" "$$OPENCODE_DATA/snapshot" "$$OPENCODE_DATA/tool-output" "$$OPENCODE_DATA/log"; \
+		echo "✓ OpenCode session data cleared"; \
+	else \
+		echo "Cancelled."; \
+	fi
 
 backend web backend-targeted backend-iac backend-software fast strict latest:
 	@:

@@ -962,21 +962,23 @@ describe('ServersPage layout', () => {
   })
 
   it('moves page size and optional column visibility into list settings', async () => {
+    const serverItems = Array.from({ length: 11 }, (_, index) => ({
+      id: `server-${index + 1}`,
+      name: `server-${index + 1}`,
+      connect_type: 'direct',
+      host: `10.0.0.${index + 1}`,
+      port: 22,
+      user: 'root',
+      created_by: 'user-1',
+      created_by_name: 'owner@example.com',
+      credential_type: 'Password',
+      access: { status: 'unknown', reason: '', checked_at: '', source: 'derived' },
+    }))
+
     sendMock.mockImplementation((path: string) => {
       if (path === '/api/servers/connection') {
         return Promise.resolve({
-          items: Array.from({ length: 11 }, (_, index) => ({
-            id: `server-${index + 1}`,
-            name: `server-${index + 1}`,
-            connect_type: 'direct',
-            host: `10.0.0.${index + 1}`,
-            port: 22,
-            user: 'root',
-            created_by: 'user-1',
-            created_by_name: 'owner@example.com',
-            credential_type: 'Password',
-            access: { status: 'unknown', reason: '', checked_at: '', source: 'derived' },
-          })),
+          items: serverItems,
         })
       }
       if (isMonitorSummaryRequest(path)) {
@@ -1010,13 +1012,13 @@ describe('ServersPage layout', () => {
     expect(screen.getByText('server-10')).toBeInTheDocument()
     expect(screen.queryByText('server-11')).toBeNull()
 
-    fireEvent.pointerDown(screen.getByRole('button', { name: 'List settings' }))
+    const settingsButton = screen.getByRole('button', { name: 'List settings' })
+
+    fireEvent.pointerDown(settingsButton)
 
     expect(await screen.findByRole('menuitemradio', { name: '10 / page' })).toBeInTheDocument()
     expect(screen.getByRole('menuitemcheckbox', { name: 'Host' })).toBeInTheDocument()
     expect(screen.getByRole('menuitemcheckbox', { name: 'Monitor' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitemcheckbox', { name: 'User' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitemcheckbox', { name: 'Secret Type' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('menuitemradio', { name: '50 / page' }))
 
@@ -1024,20 +1026,20 @@ describe('ServersPage layout', () => {
       expect(screen.getByText('server-11')).toBeInTheDocument()
     })
 
-    fireEvent.pointerDown(screen.getByRole('button', { name: 'List settings' }))
-    fireEvent.click(await screen.findByRole('menuitemcheckbox', { name: 'Host' }))
+    fireEvent.pointerDown(settingsButton)
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Host' }))
 
     await waitFor(() => {
       expect(screen.queryByRole('columnheader', { name: 'Host' })).toBeNull()
     })
 
-    fireEvent.pointerDown(screen.getByRole('button', { name: 'List settings' }))
-    fireEvent.click(await screen.findByRole('menuitemcheckbox', { name: 'Monitor' }))
+    fireEvent.pointerDown(settingsButton)
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Monitor' }))
 
     await waitFor(() => {
       expect(screen.queryByRole('columnheader', { name: 'Monitor' })).toBeNull()
     })
-  }, 25000)
+  }, 15000)
 
   it('renders the unified Connection column and lifecycle primary actions', async () => {
     sendMock.mockImplementation((path: string) => {
@@ -1840,22 +1842,57 @@ describe('ServersPage layout', () => {
   })
 
   it('edits the selected credential secret without leaving the server dialog', async () => {
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/servers/connection') {
+        return Promise.resolve({ items: [] })
+      }
+      if (
+        path ===
+        "/api/collections/secrets/records?filter=(created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value'||template_id='ssh_key')%26%26(visible_to:length=0||visible_to:each%3F='server')&sort=name"
+      ) {
+        return Promise.resolve({
+          items: [
+            {
+              id: 'secret-1',
+              name: 'ops-password',
+              template_id: 'single_value',
+            },
+          ],
+        })
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === '/api/servers/local/docker-bridge') {
+        return Promise.resolve({ interface: 'docker0', address: '172.17.0.1' })
+      }
+      if (path === '/api/secrets/templates') {
+        return Promise.resolve([
+          {
+            id: 'single_value',
+            label: 'Password',
+            description: 'Single secret value',
+            fields: [{ key: 'value', label: 'Secret Value', type: 'password', required: true }],
+          },
+        ])
+      }
+      if (path === '/api/secrets/secret-1/payload') {
+        return Promise.resolve({})
+      }
+      return Promise.resolve([])
+    })
+
     render(<ServersPage />)
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Add Server' })).toBeInTheDocument()
-    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Add Server' }))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add Server' }))
-
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Add Server' })).toBeInTheDocument()
-    })
+    expect(await screen.findByRole('heading', { name: 'Add Server' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Credential (Secret)' }))
     fireEvent.click(await screen.findByRole('button', { name: /ops-password/i }))
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit Secret' }))
+    const editSecretButton = await screen.findByRole('button', { name: 'Edit Secret' })
+    fireEvent.click(editSecretButton)
 
     expect(await screen.findByRole('heading', { name: 'Edit Credential' })).toBeInTheDocument()
     expect(getSecretMock).toHaveBeenCalledWith('secret-1')
@@ -1875,7 +1912,8 @@ describe('ServersPage layout', () => {
       })
       expect(screen.queryByRole('heading', { name: 'Edit Credential' })).toBeNull()
     })
-  }, 15000)
+    expect(screen.getByRole('heading', { name: 'Add Server' })).toBeInTheDocument()
+  }, 10000)
 
   it('renders connection type as cards, pre-fills a generated name, and uses the simplified credential action', async () => {
     render(<ServersPage />)

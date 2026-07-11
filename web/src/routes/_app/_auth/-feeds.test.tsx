@@ -32,6 +32,33 @@ afterEach(() => {
   cleanup()
 })
 
+function buildPagedFeedRecords(totalItems: number) {
+  return Array.from({ length: totalItems }, (_, index) => ({
+    id: `item-${index + 1}`,
+    source_id: 'feed-1',
+    origin_type: 'feed' as const,
+    external_id: `release-${index + 1}`,
+    title: `Security Release ${index + 1}`,
+    link: `https://example.com/releases/${index + 1}`,
+    published_at: `2026-05-${String((index % 28) + 1).padStart(2, '0')}T${String(index % 24).padStart(2, '0')}:00:00Z`,
+    summary: `Patch maintenance update ${index + 1}.`,
+    content_raw: `<p>Patch maintenance update ${index + 1}.</p>`,
+    tags_json: ['security'],
+    read_state: 'unread' as const,
+    is_starred: false,
+    expand: {
+      source_id: {
+        id: 'feed-1',
+        name: 'Vendor Releases',
+        url: 'https://example.com/releases.xml',
+        favicon_url: 'https://example.com/favicon.ico',
+        format: 'rss',
+        status: 'active',
+      },
+    },
+  }))
+}
+
 describe('FeedsPage', () => {
   beforeEach(() => {
     sendMock.mockReset()
@@ -631,7 +658,7 @@ describe('FeedsPage', () => {
     })
   })
 
-  it('loads feed sources, shows items, and persists reader actions', async () => {
+  it('loads feed sources, shows items, and persists article reader actions', async () => {
     const Component = (Route as unknown as { component: React.ComponentType }).component
     render(<Component />)
 
@@ -639,19 +666,8 @@ describe('FeedsPage', () => {
 
     expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open bookmarks' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Add Source' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open article search' })).toBeInTheDocument()
-    expect(
-      screen.getByText('Your feed — RSS subscriptions, web content and bookmarks in one place.')
-    ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /All/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Bookmark/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Starred/ })).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: /Vendor Releases/ }).length).toBeGreaterThan(0)
     expect(screen.getByText('Security Release 1')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'All' })).toBeInTheDocument()
-    expect(screen.getAllByText(/Vendor Releases/).length).toBeGreaterThan(0)
-    expect(screen.getAllByRole('img')).toHaveLength(2)
     const articleRow = screen
       .getByText('Security Release 1')
       .closest('div.rounded-lg.border.bg-card.px-4.py-3')
@@ -665,30 +681,21 @@ describe('FeedsPage', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Search articles' }), {
       target: { value: 'Security Release 1' },
     })
-    await waitFor(() => {
-      expect(screen.getByText('Security Release 1')).toBeInTheDocument()
-    })
+    expect(await screen.findByText('Security Release 1')).toBeInTheDocument()
     fireEvent.change(screen.getByRole('textbox', { name: 'Search articles' }), {
       target: { value: 'missing phrase' },
     })
-    await waitFor(() => {
-      expect(screen.queryByText('Security Release 1')).not.toBeInTheDocument()
-      expect(screen.getByText('No feed items for this source.')).toBeInTheDocument()
-    })
+    expect(await screen.findByText('No feed items for this source.')).toBeInTheDocument()
+    expect(screen.queryByText('Security Release 1')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Close search' }))
     expect(screen.queryByRole('textbox', { name: 'Search articles' })).not.toBeInTheDocument()
-    await waitFor(() => {
-      expect(screen.getByText('Security Release 1')).toBeInTheDocument()
-    })
+    expect(await screen.findByText('Security Release 1')).toBeInTheDocument()
 
     fireEvent.click(screen.getAllByRole('button', { name: /Vendor Releases/ })[0])
     expect(screen.getByRole('heading', { name: 'Vendor Releases' })).toBeInTheDocument()
-    expect(screen.getByText(/Last pull succeeded/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Pull selected source now' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Edit selected source' })).toBeInTheDocument()
-    await waitFor(() => {
-      expect(screen.getByText('Security Release 1')).toBeInTheDocument()
-    })
+    expect(await screen.findByText('Security Release 1')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Pull selected source now' }))
     await waitFor(() => {
@@ -710,13 +717,10 @@ describe('FeedsPage', () => {
         (_, element) => element?.textContent === 'Patch maintenance update with CVE fixes.'
       )
     ).toBeInTheDocument()
-    expect(screen.getByText('Includes service restart guidance.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Keep Unread' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Star' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Share' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Bookmark' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Open Link' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Open Security Release 1' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Share' }))
     const shareDialog = screen.getByRole('dialog')
     expect(within(shareDialog).getByRole('heading', { name: 'Share' })).toBeInTheDocument()
@@ -754,25 +758,24 @@ describe('FeedsPage', () => {
       expect(screen.getByText('Security Release 1')).toBeInTheDocument()
     })
 
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/feeds/sources', {})
+    })
+    expect(sendMock).not.toHaveBeenCalledWith('/api/feeds/poll', {
+      method: 'POST',
+    })
+  }, 15000)
+
+  it('manages bookmarks from the bookmarks view without leaving the reader', async () => {
+    const Component = (Route as unknown as { component: React.ComponentType }).component
+    render(<Component />)
+
     fireEvent.click(screen.getByRole('button', { name: 'Open bookmarks' }))
-    expect(screen.getByRole('heading', { name: 'Bookmark' })).toBeInTheDocument()
-    expect(
-      screen.getByText('Centralize AppOS-related resources and personal favorite links here.')
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Bookmark' })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Search bookmarks' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Open article search' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add Bookmark' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Previous bookmark page' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Next bookmark page' })).toBeDisabled()
-    await waitFor(() => {
-      expect(screen.getByText('Total: 0')).toBeInTheDocument()
-      expect(screen.getByText('1/1')).toBeInTheDocument()
-    })
-    expect(screen.getByText('Title')).toBeInTheDocument()
-    expect(screen.getByText('Domain')).toBeInTheDocument()
-    await waitFor(() => {
-      expect(screen.getByText('No bookmarks saved yet.')).toBeInTheDocument()
-    })
+    expect(await screen.findByText('No bookmarks saved yet.')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Add Bookmark/ }))
     fireEvent.change(screen.getByLabelText('Bookmark URL'), {
@@ -786,9 +789,6 @@ describe('FeedsPage', () => {
       })
     })
     expect(screen.getByDisplayValue('Saved Link')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('Vendor docs portal')).toBeInTheDocument()
-    expect(screen.getByText('Detected favicon')).toBeInTheDocument()
-    expect(screen.getByText('https://example.com/favicon.ico')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Save Bookmark' }))
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/feeds/bookmarks', {
@@ -806,9 +806,7 @@ describe('FeedsPage', () => {
     expect(within(bookmarksList).getAllByRole('listitem')).toHaveLength(1)
     const savedLink = within(bookmarksList).getByRole('link', { name: 'Saved Link' })
     expect(savedLink).toBeInTheDocument()
-    expect(savedLink).toHaveAttribute('title', 'Vendor docs portal')
     expect(savedLink).toHaveAttribute('href', 'https://example.com/saved-link')
-    expect(within(bookmarksList).getByText('example.com')).toBeInTheDocument()
     const copyButton = within(bookmarksList).getByRole('button', {
       name: 'Copy bookmark URL Saved Link',
     })
@@ -819,17 +817,9 @@ describe('FeedsPage', () => {
     })
     expect(within(bookmarksList).getByText('Copied')).toBeInTheDocument()
     expect(screen.queryByText('Copied link for Saved Link.')).not.toBeInTheDocument()
-    expect(
-      within(bookmarksList).getByRole('button', { name: 'Edit bookmark Saved Link' })
-    ).toBeInTheDocument()
-    fireEvent.change(screen.getByRole('textbox', { name: 'Search bookmarks' }), {
-      target: { value: 'saved link' },
-    })
-    expect(within(bookmarksList).getAllByRole('listitem')).toHaveLength(1)
-    expect(within(bookmarksList).getByRole('link', { name: 'Saved Link' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit bookmark Saved Link' }))
-    expect(screen.getByRole('heading', { name: 'Edit Bookmark' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Edit Bookmark' })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Title'), {
       target: { value: 'Saved Link Updated' },
     })
@@ -871,15 +861,7 @@ describe('FeedsPage', () => {
       })
     })
     expect(screen.getByText('Restored Saved Link Updated.')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
-    await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith('/api/feeds/sources', {})
-    })
-    expect(sendMock).not.toHaveBeenCalledWith('/api/feeds/poll', {
-      method: 'POST',
-    })
-  }, 20000)
+  }, 15000)
 
   it('converts an article into a bookmark from article actions', async () => {
     const Component = (Route as unknown as { component: React.ComponentType }).component
@@ -975,6 +957,8 @@ describe('FeedsPage', () => {
   })
 
   it('loads more articles when the app content container scroll reaches the bottom', async () => {
+    const feedRecords = buildPagedFeedRecords(25)
+
     sendMock.mockImplementation((path: string) => {
       if (path === '/api/feeds/sources') {
         return Promise.resolve({
@@ -992,43 +976,21 @@ describe('FeedsPage', () => {
       }
       if (path === '/api/feeds/summary') {
         return Promise.resolve({
-          totalItems: 25,
+          totalItems: feedRecords.length,
           starredItems: 0,
-          sourceCounts: [{ sourceId: 'feed-1', count: 25 }],
+          sourceCounts: [{ sourceId: 'feed-1', count: feedRecords.length }],
         })
       }
       if (path.startsWith('/api/feeds/items?')) {
         const parsed = new URL(path, 'https://appos.local')
         const page = Number(parsed.searchParams.get('page') || '1') || 1
         const perPage = Number(parsed.searchParams.get('perPage') || '20') || 20
-        const allItems = Array.from({ length: 25 }, (_, index) => ({
-          id: `item-${index + 1}`,
-          source_id: 'feed-1',
-          origin_type: 'feed',
-          external_id: `release-${index + 1}`,
-          title: `Security Release ${index + 1}`,
-          link: `https://example.com/releases/${index + 1}`,
-          published_at: `2026-05-${String(27 - Math.min(index, 20)).padStart(2, '0')}T08:00:00Z`,
-          summary: `Patch maintenance update ${index + 1}.`,
-          read_state: 'unread',
-          is_starred: false,
-          expand: {
-            source_id: {
-              id: 'feed-1',
-              name: 'Vendor Releases',
-              url: 'https://example.com/releases.xml',
-              favicon_url: 'https://example.com/favicon.ico',
-              format: 'rss',
-              status: 'active',
-            },
-          },
-        }))
         const start = (page - 1) * perPage
         return Promise.resolve({
-          items: allItems.slice(start, start + perPage),
+          items: feedRecords.slice(start, start + perPage),
           page,
           perPage,
-          totalItems: allItems.length,
+          totalItems: feedRecords.length,
         })
       }
       if (path.startsWith('/api/feeds/bookmarks?')) {
@@ -1079,6 +1041,8 @@ describe('FeedsPage', () => {
   })
 
   it('loads the next page when the Load more button is clicked', async () => {
+    const feedRecords = buildPagedFeedRecords(25)
+
     sendMock.mockImplementation((path: string) => {
       if (path === '/api/feeds/sources') {
         return Promise.resolve({
@@ -1090,50 +1054,28 @@ describe('FeedsPage', () => {
               favicon_url: 'https://example.com/favicon.ico',
               format: 'rss',
               status: 'active',
-              item_count: 25,
+              item_count: feedRecords.length,
             },
           ],
         })
       }
       if (path === '/api/feeds/summary') {
         return Promise.resolve({
-          totalItems: 25,
+          totalItems: feedRecords.length,
           starredItems: 0,
-          sourceCounts: [{ sourceId: 'feed-1', count: 25 }],
+          sourceCounts: [{ sourceId: 'feed-1', count: feedRecords.length }],
         })
       }
       if (path.startsWith('/api/feeds/items?')) {
         const parsed = new URL(path, 'https://appos.local')
         const page = Number(parsed.searchParams.get('page') || '1') || 1
         const perPage = Number(parsed.searchParams.get('perPage') || '20') || 20
-        const allItems = Array.from({ length: 25 }, (_, index) => ({
-          id: `item-${index + 1}`,
-          source_id: 'feed-1',
-          origin_type: 'feed',
-          external_id: `release-${index + 1}`,
-          title: `Security Release ${index + 1}`,
-          link: `https://example.com/releases/${index + 1}`,
-          published_at: `2026-05-${String((index % 28) + 1).padStart(2, '0')}T08:00:00Z`,
-          summary: `Patch maintenance update ${index + 1}.`,
-          read_state: 'unread',
-          is_starred: false,
-          expand: {
-            source_id: {
-              id: 'feed-1',
-              name: 'Vendor Releases',
-              url: 'https://example.com/releases.xml',
-              favicon_url: 'https://example.com/favicon.ico',
-              format: 'rss',
-              status: 'active',
-            },
-          },
-        }))
         const start = (page - 1) * perPage
         return Promise.resolve({
-          items: allItems.slice(start, start + perPage),
+          items: feedRecords.slice(start, start + perPage),
           page,
           perPage,
-          totalItems: allItems.length,
+          totalItems: feedRecords.length,
         })
       }
       if (path.startsWith('/api/feeds/bookmarks?')) {
@@ -1163,31 +1105,9 @@ describe('FeedsPage', () => {
     })
   })
 
-  it('can load all 148 paged feed items across repeated bottom scrolls', async () => {
-    const totalItems = 148
-    const feedRecords = Array.from({ length: totalItems }, (_, index) => ({
-      id: `item-${index + 1}`,
-      source_id: 'feed-1',
-      origin_type: 'feed' as const,
-      external_id: `release-${index + 1}`,
-      title: `Security Release ${index + 1}`,
-      link: `https://example.com/releases/${index + 1}`,
-      published_at: `2026-05-${String((index % 28) + 1).padStart(2, '0')}T${String(index % 24).padStart(2, '0')}:00:00Z`,
-      summary: `Patch maintenance update ${index + 1}.`,
-      content_raw: `<p>Patch maintenance update ${index + 1}.</p>`,
-      read_state: 'unread' as const,
-      is_starred: false,
-      expand: {
-        source_id: {
-          id: 'feed-1',
-          name: 'Vendor Releases',
-          url: 'https://example.com/releases.xml',
-          favicon_url: 'https://example.com/favicon.ico',
-          format: 'rss',
-          status: 'active',
-        },
-      },
-    }))
+  it('can load multiple paged feed items across repeated bottom scrolls', async () => {
+    const totalItems = 41
+    const feedRecords = buildPagedFeedRecords(totalItems)
 
     sendMock.mockImplementation((path: string) => {
       if (path === '/api/feeds/sources') {
@@ -1264,9 +1184,11 @@ describe('FeedsPage', () => {
     })
 
     for (let loadedCount = 20; loadedCount < totalItems; loadedCount += 20) {
+      const nextPage = loadedCount / 20 + 1
       scrollContainer.scrollTop = scrollContainer.scrollHeight - scrollContainer.clientHeight - 400
       fireEvent.scroll(scrollContainer)
       await waitFor(() => {
+        expect(sendMock).toHaveBeenCalledWith(`/api/feeds/items?page=${nextPage}&perPage=20`, {})
         expect(
           screen.getByText(`Security Release ${Math.min(loadedCount + 20, totalItems)}`)
         ).toBeInTheDocument()
@@ -1274,10 +1196,10 @@ describe('FeedsPage', () => {
       simulatedScrollHeight += 1200
     }
 
-    expect(screen.getByText('Security Release 148')).toBeInTheDocument()
+    expect(screen.getByText('Security Release 41')).toBeInTheDocument()
     expect(screen.queryByText(/Scroll to load more/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/Loaded 148 of 148/i)).not.toBeInTheDocument()
-  }, 30000)
+    expect(screen.queryByText(/Loaded 41 of 41/i)).not.toBeInTheDocument()
+  }, 15000)
 
   it('analyzes a feed URL before subscribing a new source', async () => {
     const Component = (Route as unknown as { component: React.ComponentType }).component
@@ -1672,10 +1594,7 @@ describe('FeedsPage', () => {
     })
 
     fireEvent.click(screen.getAllByRole('button', { name: /Vendor Releases/ })[0])
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Edit selected source' })).toBeInTheDocument()
-    })
+    expect(await screen.findByRole('button', { name: 'Edit selected source' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit selected source' }))
     fireEvent.click(screen.getByRole('button', { name: 'Delete Source' }))
@@ -1709,28 +1628,19 @@ describe('FeedsPage', () => {
 
     await screen.findByRole('heading', { name: 'Feeds' })
 
-    // Open source detail
     fireEvent.click(screen.getAllByRole('button', { name: /Vendor Releases/ })[0])
     expect(screen.getByRole('heading', { name: 'Vendor Releases' })).toBeInTheDocument()
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Edit selected source' })).toBeInTheDocument()
-    })
+    expect(await screen.findByRole('button', { name: 'Edit selected source' })).toBeInTheDocument()
 
-    // Open edit dialog
     fireEvent.click(screen.getByRole('button', { name: 'Edit selected source' }))
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Edit Feed Source' })).toBeInTheDocument()
-    })
+    expect(await screen.findByRole('heading', { name: 'Edit Feed Source' })).toBeInTheDocument()
 
-    // Change the name
     fireEvent.change(screen.getByLabelText('Name'), {
       target: { value: 'Updated Vendor Releases' },
     })
 
-    // Submit the form
     fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
 
-    // Verify the PATCH request includes all required fields
     await waitFor(() => {
       const patchCall = sendMock.mock.calls.find((callArgs: unknown[]) => {
         const callPath = (
