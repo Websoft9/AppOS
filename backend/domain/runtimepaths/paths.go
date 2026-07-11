@@ -18,6 +18,8 @@ const (
 	SystemRootEnv  = "APPOS_SYSTEM_ROOT"
 
 	LegacyDataRootEnv = "DATA_DIR"
+
+	testDataRootFolderName = "appos-test-data"
 )
 
 func DataRoot() string {
@@ -30,7 +32,14 @@ func DataRoot() string {
 	if configured := strings.TrimSpace(os.Getenv(LegacyDataRootEnv)); configured != "" {
 		return filepath.Clean(configured)
 	}
+	if isTestBinary() {
+		return filepath.Join(os.TempDir(), testDataRootFolderName)
+	}
 	return DefaultDataRoot
+}
+
+func isTestBinary() bool {
+	return strings.HasSuffix(filepath.Base(os.Args[0]), ".test")
 }
 
 func LibraryRoot() string {
