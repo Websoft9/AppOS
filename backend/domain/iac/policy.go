@@ -3,13 +3,19 @@ package iac
 import (
 	"path/filepath"
 	"strings"
+
+	"github.com/websoft9/appos/backend/domain/runtimepaths"
 )
 
-const (
-	WorkspaceBasePath = "/appos/data"
-	LibraryBasePath   = "/appos/library"
-	AllowedArchive    = ".zip"
-)
+const AllowedArchive = ".zip"
+
+func WorkspaceBasePath() string {
+	return runtimepaths.DataRoot()
+}
+
+func LibraryBasePath() string {
+	return runtimepaths.LibraryRoot()
+}
 
 var workspaceRoots = []string{"apps", "workflows", "templates"}
 var libraryRoots = []string{"apps"}

@@ -58,7 +58,7 @@ func (r RemoteManagedCronRepository) Write(ctx context.Context, doc ManagedCronR
 func loadManagedCrontabCommand() string {
 	script := strings.Join([]string{
 		"set -eu",
-		fmt.Sprintf("registry_path=%s", shellQuote(ManagedCronRegistryPath)),
+		fmt.Sprintf("registry_path=%s", shellQuote(ManagedCronRegistryPath())),
 		fmt.Sprintf("runtime_dir=%s", shellQuote(ManagedCronRuntimeDir)),
 		fmt.Sprintf("file_prefix=%s", shellQuote(ManagedCronFilePrefix)),
 		"registry_b64=''",
@@ -76,7 +76,7 @@ func buildManagedCronWriteScript(doc ManagedCronRegistryDocument) (string, error
 		"tmp_dir=$(mktemp -d)",
 		"cleanup() { rm -rf \"$tmp_dir\"; }",
 		"trap cleanup EXIT",
-		fmt.Sprintf("registry_path=%s", shellQuote(ManagedCronRegistryPath)),
+		fmt.Sprintf("registry_path=%s", shellQuote(ManagedCronRegistryPath())),
 		fmt.Sprintf("runtime_dir=%s", shellQuote(ManagedCronRuntimeDir)),
 		fmt.Sprintf("file_prefix=%s", shellQuote(ManagedCronFilePrefix)),
 		"registry_dir=$(dirname \"$registry_path\")",

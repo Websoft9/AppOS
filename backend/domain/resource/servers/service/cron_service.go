@@ -11,11 +11,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
+	"github.com/websoft9/appos/backend/domain/runtimepaths"
 )
 
 const (
 	ManagedCronMarkerPrefix = "# APPOS-CRON "
-	ManagedCronRegistryPath = "/appos/data/system/crontab/managed-registry.json"
 	ManagedCronRuntimeDir   = "/etc/cron.d"
 	ManagedCronFilePrefix   = "appos-managed-cron-"
 	ManagedCronRunUser      = "root"
@@ -27,6 +27,10 @@ var (
 	managedCronScheduleParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 	ErrManagedCronNotFound    = errors.New("managed cron entry not found")
 )
+
+func ManagedCronRegistryPath() string {
+	return runtimepaths.ManagedCronRegistryPath()
+}
 
 type ManagedCronService struct {
 	Repository ManagedCronRepository

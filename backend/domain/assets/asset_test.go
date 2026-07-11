@@ -1,6 +1,7 @@
 package assets
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -80,7 +81,7 @@ func TestStorageDirName(t *testing.T) {
 
 func TestStoragePath(t *testing.T) {
 	got := StoragePath("Backup Script", "abc123")
-	want := "/appos/data/assets/backup-script-abc123"
+	want := filepath.Join(BaseContentPath(), "backup-script-abc123")
 	if got != want {
 		t.Fatalf("expected %q, got %q", want, got)
 	}
@@ -152,7 +153,7 @@ func TestAssetAccessorsAndHelpers(t *testing.T) {
 	if got := asset.StorageDirName(); got != "backup-script" {
 		t.Fatalf("expected backup-script for unsaved record, got %q", got)
 	}
-	if got := asset.StoragePath(); got != "/appos/data/assets/backup-script" {
+	if got := asset.StoragePath(); got != filepath.Join(BaseContentPath(), "backup-script") {
 		t.Fatalf("unexpected storage path %q", got)
 	}
 	if asset.Entrypoint() != "main.sh" {

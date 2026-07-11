@@ -8,12 +8,12 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/websoft9/appos/backend/domain/runtimepaths"
 )
 
 //go:embed seed/*.json
 var embeddedCatalogSeed embed.FS
-
-const defaultRuntimeCatalogDir = "/appos/data/catalog"
 
 var embeddedCatalogSeedFiles = []string{
 	"catalog_en.json",
@@ -125,10 +125,11 @@ func resolveStoreDir() (string, error) {
 		return configured, nil
 	}
 
-	if err := ensureCatalogSeedDir(defaultRuntimeCatalogDir); err != nil {
+	defaultDir := runtimepaths.CatalogDir()
+	if err := ensureCatalogSeedDir(defaultDir); err != nil {
 		return "", err
 	}
-	return defaultRuntimeCatalogDir, nil
+	return defaultDir, nil
 }
 
 func ensureCatalogSeedDir(dir string) error {

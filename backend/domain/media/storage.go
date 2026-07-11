@@ -8,7 +8,7 @@ import (
 )
 
 func ResolveStoragePath(rel string) (string, error) {
-	return fileutil.ResolveSafePath(BaseContentPath, rel, []string{ScopePublic, ScopePrivate})
+	return fileutil.ResolveSafePath(BaseContentPath(), rel, []string{ScopePublic, ScopePrivate})
 }
 
 func WriteFile(rel string, data []byte) (string, error) {

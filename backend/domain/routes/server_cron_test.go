@@ -125,7 +125,7 @@ func TestServerCronJobsListReturnsManagedEntriesOnly(t *testing.T) {
 	originalExec := executeServerCronCommand
 	executeServerCronCommand = func(_ context.Context, _ terminal.ConnectorConfig, command string, _ time.Duration) (string, error) {
 		decoded := decodeCrontabWriteCommand(t, command)
-		if !strings.Contains(decoded, "registry_path='/appos/data/system/crontab/managed-registry.json'") {
+		if !strings.Contains(decoded, "registry_path='"+serversvc.ManagedCronRegistryPath()+"'") {
 			t.Fatalf("expected managed registry load command, got %q", command)
 		}
 		return encodeManagedCronLoadOutput(t, registry.Render(), serversvc.ManagedCronFileName("cron_alpha")), nil

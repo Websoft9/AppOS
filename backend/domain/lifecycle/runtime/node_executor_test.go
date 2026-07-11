@@ -13,6 +13,7 @@ import (
 	"github.com/pocketbase/pocketbase/tests"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
+	"github.com/websoft9/appos/backend/domain/runtimepaths"
 	"github.com/websoft9/appos/backend/infra/docker"
 	_ "github.com/websoft9/appos/backend/infra/migrations"
 )
@@ -590,7 +591,7 @@ func TestExecuteNodePublishesArtifactForConcreteTargetRef(t *testing.T) {
 
 func TestExecuteNodeAllowsSourceBuildReleaseCandidatePlaceholder(t *testing.T) {
 	operation := core.NewRecord(core.NewBaseCollection("app_operations"))
-	operation.Set("project_dir", "/appos/data/apps/operations/demo")
+	operation.Set("project_dir", filepath.Join(runtimepaths.OperationsAppsDir(), "demo"))
 	operation.Set("rendered_compose", "services:\n  web:\n    image: nginx:alpine\n")
 	operation.Set("operation_type", string(model.OperationTypeInstall))
 

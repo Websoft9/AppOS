@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/websoft9/appos/backend/domain/runtimepaths"
 	"github.com/websoft9/appos/backend/infra/egress"
 )
 
@@ -218,7 +219,7 @@ func faviconCachePaths(rawURL string) (string, string) {
 	baseName := hex.EncodeToString(cacheKey[:])
 	baseDir := os.Getenv("APPOS_FAVICON_CACHE_DIR")
 	if strings.TrimSpace(baseDir) == "" {
-		baseDir = "/appos/data/cache/favicons"
+		baseDir = runtimepaths.FaviconCacheDir()
 	}
 	return filepath.Join(baseDir, baseName+".bin"), filepath.Join(baseDir, baseName+".json")
 }

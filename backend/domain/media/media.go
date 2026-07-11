@@ -2,15 +2,18 @@ package media
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/runtimecfg"
+	"github.com/websoft9/appos/backend/domain/runtimepaths"
 )
 
 const (
-	Collection      = "media"
-	BaseContentPath = "/appos/data/media"
+	Collection  = "media"
+	MediaDirEnv = "APPOS_MEDIA_DIR"
 
 	ScopePublic  = "public"
 	ScopePrivate = "private"
@@ -47,6 +50,19 @@ func (m *Media) OriginalName() string { return m.rec.GetString("original_name") 
 func (m *Media) ContentType() string  { return m.rec.GetString("content_type") }
 func (m *Media) StoragePath() string  { return m.rec.GetString("storage_path") }
 func (m *Media) PublicURL() string    { return m.rec.GetString("public_url") }
+
+func BaseContentPath() string {
+	if configured := strings.TrimSpace(os.Getenv(MediaDirEnv)); configured != "" {
+		return filepath.Clean(configured)
+	}
+	if dataDir := strings.TrimSpace(runtimecfg.DataDir()); dataDir != "" {
+		return filepath.Join(filepath.Clean(dataDir), "media")
+	}
+	if strings.HasSuffix(filepath.Base(os.Args[0]), ".test") {
+		return filepath.Join(os.TempDir(), "appos-test-media")
+	}
+	return runtimepaths.MediaDir()
+}
 
 func RelativePath(scope, category, id, originalName string) string {
 	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(originalName), "."))

@@ -846,7 +846,9 @@ func seedNamedCustomApp(t *testing.T, te *testEnv, key, visibility, createdBy st
 
 func ensureCustomAppTemplateFile(t *testing.T, key, compose string) {
 	t.Helper()
-	dir := filepath.Join("/appos/data/templates/apps", key)
+	root := t.TempDir()
+	t.Setenv("APPOS_CUSTOM_TEMPLATE_ROOT", root)
+	dir := filepath.Join(root, key)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -854,9 +856,6 @@ func ensureCustomAppTemplateFile(t *testing.T, key, compose string) {
 	if err := os.WriteFile(path, []byte(compose), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		_ = os.RemoveAll(dir)
-	})
 }
 
 func containsCatalogTestString(values []string, target string) bool {

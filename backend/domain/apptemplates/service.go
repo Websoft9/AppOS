@@ -12,6 +12,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/lifecycle/service"
+	"github.com/websoft9/appos/backend/domain/runtimepaths"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	"gopkg.in/yaml.v3"
 )
@@ -125,14 +126,7 @@ func defaultRoots() []string {
 	if executable, err := os.Executable(); err == nil {
 		roots = append(roots, ancestorTemplateRoots(filepath.Dir(executable))...)
 	}
-	roots = append(roots,
-		"/appos/data/templates/apps",
-		"/appos/data/templates/custom/apps",
-		"/appos/data/templates/official/apps",
-		"/appos/system/templates/official/apps",
-		"/appos/library/templates/apps",
-		"/appos/library/apps",
-	)
+	roots = append(roots, runtimepaths.TemplateAppRoots()...)
 	return uniqueStrings(roots)
 }
 

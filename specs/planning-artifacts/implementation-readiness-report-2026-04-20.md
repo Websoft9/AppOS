@@ -16,7 +16,7 @@
 | PRD | `specs/planning-artifacts/prd.md` (27K) | Primary requirements source |
 | Architecture | `specs/planning-artifacts/architecture.md` (6.5K) | Technical design baseline |
 | Epics Index | `specs/planning-artifacts/epics.md` (2.9K) | Navigation index |
-| UX Design Spec | `specs/planning-artifacts/ux-design-specification.md` (58K) | UX baseline |
+| UX Design Spec | `specs/planning-artifacts/ux-designs/ux-appos-canonical/EXPERIENCE.md` + `DESIGN.md` | Canonical UX baseline (migrated from legacy UX docs) |
 | Coding Decisions | `specs/planning-artifacts/coding-decisions.md` | API and code conventions |
 
 ### Implementation Artifacts Assessed
@@ -75,7 +75,7 @@ FR-2 coverage is **adequate** for MVP scope. No other epic in the epics index cl
 
 ## UX Alignment
 
-The UX design specification (`ux-design-specification.md`, 58K) does not contain mockups or navigation specs for the Software Delivery surface. This is understandable for a new capability, but creates the following gap:
+The canonical UX contract (`ux-designs/ux-appos-canonical/EXPERIENCE.md` and `DESIGN.md`) still does not contain a dedicated mockup or navigation contract for the Software Delivery surface. This is understandable for a new capability, but creates the following gap:
 
 - Story 29.6 defines its own minimal UI contract (panel, card per component, 3 actions)
 - No UX review has validated this contract against the broader product navigation model

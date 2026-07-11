@@ -9,7 +9,10 @@ import (
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/runtimepaths"
 )
+
+const customTemplateRootEnv = "APPOS_CUSTOM_TEMPLATE_ROOT"
 
 type PersonalizationState struct {
 	IsFavorite bool
@@ -260,7 +263,7 @@ func (s *Service) DeploySource(app core.App, auth *core.Record, locale, key stri
 			},
 			Capabilities: DeployCapabilities{
 				HasComposeTemplate:   available,
-				HasEnvTemplate:       fileExists(filepath.Join("/appos/data/templates/apps", key, ".env")),
+				HasEnvTemplate:       customTemplateFileExists(key, ".env"),
 				SupportsDirectDeploy: available,
 			},
 		}, nil
@@ -281,7 +284,7 @@ func (s *Service) DeploySource(app core.App, auth *core.Record, locale, key stri
 			},
 			Capabilities: DeployCapabilities{
 				HasComposeTemplate:   true,
-				HasEnvTemplate:       fileExists(filepath.Join("/appos/library/apps", key, ".env")),
+				HasEnvTemplate:       fileExists(filepath.Join(runtimepaths.LibraryAppsDir(), key, ".env")),
 				SupportsDirectDeploy: true,
 			},
 		}, nil
@@ -956,7 +959,28 @@ func stringSliceFromAny(v any) ([]string, error) {
 
 func customTemplateAvailable(key, composeYAML string) bool {
 	_ = composeYAML
-	return fileExists(filepath.Join("/appos/data/templates/apps", key, "docker-compose.yml"))
+	return customTemplateFileExists(key, "docker-compose.yml")
+}
+
+func customTemplateFileExists(key, name string) bool {
+	trimmedKey := strings.TrimSpace(key)
+	trimmedName := strings.TrimSpace(name)
+	if trimmedKey == "" || trimmedName == "" {
+		return false
+	}
+	for _, root := range customTemplateRoots() {
+		if fileExists(filepath.Join(root, trimmedKey, trimmedName)) {
+			return true
+		}
+	}
+	return false
+}
+
+func customTemplateRoots() []string {
+	if configured := strings.TrimSpace(os.Getenv(customTemplateRootEnv)); configured != "" {
+		return []string{filepath.Clean(configured)}
+	}
+	return []string{runtimepaths.RuntimeTemplateAppsDir()}
 }
 
 func fileExists(path string) bool {

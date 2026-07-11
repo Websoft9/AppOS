@@ -1,11 +1,13 @@
 package service
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/pocketbase/pocketbase/tests"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
+	"github.com/websoft9/appos/backend/domain/runtimepaths"
 
 	_ "github.com/websoft9/appos/backend/infra/migrations"
 )
@@ -288,7 +290,7 @@ func TestNormalizedInstallSpecOperationSpecIncludesSourceBuild(t *testing.T) {
 		ServerID:           "local",
 		ProjectName:        "demo",
 		ComposeProjectName: "demo",
-		ProjectDir:         "/appos/data/apps/operations/demo",
+		ProjectDir:         filepath.Join(runtimepaths.OperationsAppsDir(), "demo"),
 		RenderedCompose:    "services:\n  web:\n    image: nginx:alpine\n",
 		OperationType:      "install",
 		Trigger:            string(model.TriggerManual),

@@ -61,6 +61,40 @@ mutations.PUT("/{id}", handleInstanceUpdate)
 - Web tests: Vitest + jsdom. Mock `@/lib/pb` via `vi.mock`. Test files colocated with source as `-*.test.tsx`.
 - E2E tests in `tests/` (container smoke tests).
 
+## Runtime Paths (`runtimepaths`)
+
+All filesystem paths under the AppOS data root must go through `backend/domain/runtimepaths`. **Never hardcode `/appos/...` in business logic or tests.**
+
+### Entry points
+
+| Function | Default | Override env |
+|---|---|---|
+| `DataRoot()` | `/appos/data` | `APPOS_DATA_ROOT` → `runtimecfg.DataDir()` → `DATA_DIR` |
+| `LibraryRoot()` | `/appos/library` | `APPOS_LIBRARY_ROOT` |
+| `SystemRoot()` | `/appos/system` | `APPOS_SYSTEM_ROOT` |
+| `AssetsDir()` | `<DataRoot>/assets` | `APPOS_ASSETS_DIR` (fine-grained) |
+| `MediaDir()` | `<DataRoot>/media` | `APPOS_MEDIA_DIR` (fine-grained) |
+| `CatalogDir()` | `<DataRoot>/catalog` | `APPOS_CATALOG_STORE_PATH` (legacy) |
+| `FaviconCacheDir()` | `<DataRoot>/cache/favicons` | `APPOS_FAVICON_CACHE_DIR` |
+| `OperationsAppsDir()` | `<DataRoot>/apps/operations` | — |
+| `ManagedCronRegistryPath()` | `<DataRoot>/system/crontab/managed-registry.json` | — |
+| `RuntimeTemplateAppsDir()` | `<DataRoot>/templates/apps` | — |
+| `TemplateAppRoots()` | all template roots in priority order | — |
+
+### Rules for new modules
+
+1. **Import `runtimepaths`** and call its functions — don't write `"/appos/data/..."` directly.
+2. **Tests use `t.TempDir()`** for temp files. For path assertions, compute expected values from `runtimepaths.*()` instead of hardcoding.
+3. **Package-level vars must not bind paths at init time.** Use lazy initialization (`ensure…Initialized()`) or a resolver function (`resolved…BasePath()`).
+4. **Guard test enforces this**: `backend/domain/runtimepaths/paths_guard_test.go` fails the build if any `*_test.go` calls `filepath.Join("/appos…")`, `os.MkdirAll("/appos…")`, `os.WriteFile("/appos…")`, etc.
+
+### Intentionally retained defaults (not in `runtimepaths`)
+
+These are deployment conventions, not test-stability concerns:
+- `runtimecfg.DefaultContainerWebDir = "/appos/web"`
+- `ManagedCronRuntimeDir = "/etc/cron.d"`
+- `infra/docker` container mount `/appos-compose/docker-compose.yml`
+
 ## Style
 
 - **Prettier**: no semicolons, single quotes, tabWidth 2, printWidth 100 (`web/.prettierrc`)

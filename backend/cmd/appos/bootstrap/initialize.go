@@ -12,6 +12,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/certs"
 	"github.com/websoft9/appos/backend/domain/runtimecfg"
+	"github.com/websoft9/appos/backend/domain/runtimepaths"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	appschema "github.com/websoft9/appos/backend/infra/schema"
 )
@@ -50,8 +51,7 @@ func initializeRuntime(cfg runtimecfg.Config) (InitializationState, error) {
 		secretDataDir = strings.TrimSpace(os.Getenv("DATA_DIR"))
 	}
 	if secretDataDir == "" {
-		// #nosec G101 -- fixed data directory path, not a secret.
-		secretDataDir = "/appos/data"
+		secretDataDir = runtimepaths.DataRoot()
 	}
 
 	warning, generated, err := secrets.EnsureRuntimeKey(secretDataDir)

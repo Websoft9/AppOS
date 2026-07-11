@@ -10,6 +10,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sharedenv"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
+	"github.com/websoft9/appos/backend/domain/runtimepaths"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	"gopkg.in/yaml.v3"
 )
@@ -581,7 +582,7 @@ func ResolveInstallFromCompose(app core.App, request InstallResolutionRequest) (
 	if value := strings.TrimSpace(request.ComposeProjectName); value != "" {
 		composeProjectName = value
 	}
-	projectDir := filepath.Join("/appos/data/apps/operations", normalizedProjectName)
+	projectDir := filepath.Join(runtimepaths.OperationsAppsDir(), normalizedProjectName)
 	if value := strings.TrimSpace(request.ProjectDir); value != "" {
 		projectDir = value
 	}

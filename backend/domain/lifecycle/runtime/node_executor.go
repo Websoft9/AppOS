@@ -18,13 +18,14 @@ import (
 	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
+	"github.com/websoft9/appos/backend/domain/runtimepaths"
 	"github.com/websoft9/appos/backend/domain/terminal"
 	"github.com/websoft9/appos/backend/infra/docker"
 	"github.com/websoft9/appos/backend/infra/fileutil"
 	"gopkg.in/yaml.v3"
 )
 
-var sourceWorkspaceBasePath = "/appos/data"
+var sourceWorkspaceBasePath = runtimepaths.DataRoot()
 var sourceWorkspaceAllowedRoots = []string{"apps", "templates", "workflows"}
 var runtimeImagePullTimeout = 3 * time.Minute
 var runtimeMirrorRetryCount = 2

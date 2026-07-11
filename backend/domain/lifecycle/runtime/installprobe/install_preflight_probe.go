@@ -9,6 +9,7 @@ import (
 	"time"
 
 	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
+	"github.com/websoft9/appos/backend/domain/runtimepaths"
 	"github.com/websoft9/appos/backend/domain/terminal"
 )
 
@@ -237,7 +238,7 @@ func (p *Adapter) CheckDiskSpace(ctx context.Context, serverID string, projectDi
 
 	path := strings.TrimSpace(projectDir)
 	if path == "" {
-		path = "/appos/data/apps/operations"
+		path = runtimepaths.OperationsAppsDir()
 	}
 	diskPath := filepath.Dir(path)
 	raw, err := p.deps.ExecuteSSHCommand(ctx, target.Config, fmt.Sprintf("target_dir=%s; if df -Pk --output=avail,target \"$target_dir\" >/dev/null 2>&1; then df -Pk --output=avail,target \"$target_dir\" 2>/dev/null | tail -n 1; else df -Pk \"$target_dir\" 2>/dev/null | tail -n 1; fi", p.deps.ShellQuote(diskPath)), 20*time.Second)

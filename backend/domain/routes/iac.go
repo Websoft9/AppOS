@@ -21,10 +21,22 @@ import (
 )
 
 var (
-	iacLocalFiles     = mustNewLocalFilesService("iac", iac.WorkspaceBasePath, iac.WorkspaceRoots(), false)
-	libraryLocalFiles = mustNewLocalFilesService("iac-library", iac.LibraryBasePath, iac.LibraryRoots(), true)
-	iacService        = iac.NewService(iacLocalFiles, libraryLocalFiles, libraryToWorkspaceCopier{src: libraryLocalFiles, dst: iacLocalFiles})
+	iacLocalFiles     *filesvc.LocalService
+	libraryLocalFiles *filesvc.LocalService
+	iacService        *iac.Service
 )
+
+func ensureIACServicesInitialized() {
+	if iacLocalFiles == nil {
+		iacLocalFiles = mustNewLocalFilesService("iac", iac.WorkspaceBasePath(), iac.WorkspaceRoots(), false)
+	}
+	if libraryLocalFiles == nil {
+		libraryLocalFiles = mustNewLocalFilesService("iac-library", iac.LibraryBasePath(), iac.LibraryRoots(), true)
+	}
+	if iacService == nil {
+		iacService = iac.NewService(iacLocalFiles, libraryLocalFiles, libraryToWorkspaceCopier{src: libraryLocalFiles, dst: iacLocalFiles})
+	}
+}
 
 type libraryToWorkspaceCopier struct {
 	src *filesvc.LocalService
@@ -51,6 +63,7 @@ func mustNewLocalFilesService(name, basePath string, allowedRoots []string, read
 
 // registerIaCRoutes mounts /api/ext/iac with superuser-only access.
 func registerIaCRoutes(g *router.RouterGroup[*core.RequestEvent]) {
+	ensureIACServicesInitialized()
 	iac := g.Group("/iac")
 	iac.Bind(apis.RequireSuperuserAuth())
 

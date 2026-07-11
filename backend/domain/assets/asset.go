@@ -1,16 +1,20 @@
 package assets
 
 import (
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/runtimecfg"
+	"github.com/websoft9/appos/backend/domain/runtimepaths"
 )
 
 const (
-	Collection      = "assets"
-	BaseContentPath = "/appos/data/assets"
+	Collection              = "assets"
+	AssetsDirEnv            = "APPOS_ASSETS_DIR"
+	testAssetsDirFolderName = "appos-test-assets"
 
 	KindScript = "script"
 	KindSkill  = "skill"
@@ -121,9 +125,22 @@ func (a *Asset) StorageDirName() string {
 	return StorageDirName(a.Name(), a.ID())
 }
 
+func BaseContentPath() string {
+	if configured := strings.TrimSpace(os.Getenv(AssetsDirEnv)); configured != "" {
+		return filepath.Clean(configured)
+	}
+	if dataDir := strings.TrimSpace(runtimecfg.DataDir()); dataDir != "" {
+		return filepath.Join(filepath.Clean(dataDir), "assets")
+	}
+	if isTestBinary() {
+		return filepath.Join(os.TempDir(), testAssetsDirFolderName)
+	}
+	return runtimepaths.AssetsDir()
+}
+
 // StoragePath returns the canonical filesystem directory path for this asset.
 func (a *Asset) StoragePath() string {
-	return filepath.Join(BaseContentPath, a.StorageDirName())
+	return filepath.Join(BaseContentPath(), a.StorageDirName())
 }
 
 // StorageDirName returns the canonical `{assetName}-{assetId}` directory name.
@@ -138,7 +155,7 @@ func StorageDirName(name, assetID string) string {
 
 // StoragePath returns the canonical phase-1 filesystem path for an asset.
 func StoragePath(name, assetID string) string {
-	return filepath.Join(BaseContentPath, StorageDirName(name, assetID))
+	return filepath.Join(BaseContentPath(), StorageDirName(name, assetID))
 }
 
 // ScriptFileName returns the derived script filename stored under the asset directory.
@@ -200,4 +217,8 @@ func SlugName(name string) string {
 		return "asset"
 	}
 	return name
+}
+
+func isTestBinary() bool {
+	return strings.HasSuffix(filepath.Base(os.Args[0]), ".test")
 }
