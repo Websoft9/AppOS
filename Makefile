@@ -476,20 +476,20 @@ lint:
 	@echo "Running linters ($(QUALITY_MODE))..."
 ifeq ($(QUALITY_MODE),fast)
 	@set -e; advisory_failures=""; \
-	if [ -x "$(GOLANGCI_LINT_BIN)" ] || command -v "$(GOLANGCI_LINT_BIN)" >/dev/null 2>&1; then \
+	lint_bin="$(GOLANGCI_LINT_BIN)"; \
+	if ! [ -x "$$lint_bin" ] && ! command -v "$$lint_bin" >/dev/null 2>&1; then \
+		lint_bin="$(DEFAULT_GOLANGCI_LINT_BIN)"; \
+	fi; \
+	if [ -x "$$lint_bin" ]; then \
 		echo "→ golangci-lint..."; \
 		log_file=$$(mktemp); \
-		set +e; cd backend && "$(GOLANGCI_LINT_BIN)" run --config ../.golangci.yml ./... >"$$log_file" 2>&1; status=$$?; set -e; \
+		set +e; cd backend && "$$lint_bin" run --config ../.golangci.yml ./... >"$$log_file" 2>&1; status=$$?; set -e; \
 		cat "$$log_file"; \
 		if [ "$$status" -ne 0 ]; then advisory_failures="$$advisory_failures golangci-lint"; fi; \
 		rm -f "$$log_file"; \
 	else \
-		echo "→ go vet (golangci-lint not installed)..."; \
-		log_file=$$(mktemp); \
-		set +e; cd backend && go vet ./... >"$$log_file" 2>&1; status=$$?; set -e; \
-		cat "$$log_file"; \
-		if [ "$$status" -ne 0 ]; then advisory_failures="$$advisory_failures go-vet"; fi; \
-		rm -f "$$log_file"; \
+		echo "✗ golangci-lint is not installed. Run 'make install' first, then re-run 'make lint fast'."; \
+		exit 1; \
 	fi; \
 	if [ -d ".github/workflows" ]; then \
 		actionlint_bin="$(ACTIONLINT_BIN)"; \

@@ -633,10 +633,6 @@ func persistAIProviderProbeResult(app core.App, item *aiproviders.AIProvider, ke
 	_ = persistence.NewAIProviderRepository(app).Save(item)
 }
 
-func probeAIProviderReachability(item *aiproviders.AIProvider) aiProviderReachabilityItem {
-	return probeAIProviderReachabilityWithTimeout(item, monitorchecks.LoadReachabilityProbeTimeout(nil))
-}
-
 func probeAIProviderReachabilityWithTimeout(item *aiproviders.AIProvider, timeout time.Duration) aiProviderReachabilityItem {
 	status := aiProviderReachabilityItem{
 		ID:        item.ID(),

@@ -3,8 +3,6 @@ package routes
 import (
 	"errors"
 	"net/http"
-	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -428,48 +426,6 @@ func connectorReachabilityResponseItem(
 		LastCheckedAt: checkedAt.Format(time.RFC3339),
 	}
 	return result
-}
-
-func connectorProbeTarget(item *connectors.Connector) (string, int, error) {
-	raw := strings.TrimSpace(item.Endpoint())
-	if raw == "" {
-		return "", 0, errors.New("endpoint is empty")
-	}
-	parsedRaw := raw
-	if !strings.Contains(parsedRaw, "://") {
-		parsedRaw = "tcp://" + parsedRaw
-	}
-	parsed, err := url.Parse(parsedRaw)
-	if err != nil {
-		return "", 0, err
-	}
-	host := strings.TrimSpace(parsed.Hostname())
-	if host == "" {
-		return "", 0, errors.New("endpoint host is empty")
-	}
-	port := 0
-	if rawPort := strings.TrimSpace(parsed.Port()); rawPort != "" {
-		port, err = strconv.Atoi(rawPort)
-		if err != nil {
-			return host, 0, err
-		}
-	} else {
-		switch strings.ToLower(strings.TrimSpace(parsed.Scheme)) {
-		case "http":
-			port = 80
-		case "https":
-			port = 443
-		case "smtp", "tcp":
-			port = 587
-		case "smtps":
-			port = 465
-		case "socks5":
-			port = 1080
-		default:
-			return host, 0, errors.New("endpoint port is required")
-		}
-	}
-	return host, port, nil
 }
 
 type connectorCredentialValidator struct {

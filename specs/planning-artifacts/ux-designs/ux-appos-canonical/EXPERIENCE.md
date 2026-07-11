@@ -85,10 +85,20 @@ Behavioral rules. Visual rules live in `DESIGN.md.Components`.
 | Resource entry card | Resources hub | Full card is the click target. Hover/focus must clearly indicate navigation. No inline secondary actions on the hub card. |
 | Add Resource dialog | Resources hub header action | Search-first chooser that lets users jump directly into the target family list page with create mode opened. No extra decision tree before the family choice. |
 | Add Resource option row | Inside Add Resource dialog | Title first, practical helper text second, examples third. One click selects and routes. |
+| ResourcePage list template | Canonical resource family list pages | Shared list shell for servers, runtime instances, AI providers, external services, and platform accounts. It owns search, sorting, pagination, create/edit/delete flows, optional favorites, and optional side-detail presentation through configuration rather than page-specific layout reinvention. |
 | Standard list/index page | Resource family pages | Search input; Refresh and Create on the right; minimal chrome; sortable tables; empty state replaces table header when there are no records. |
+| Resource list settings button | ResourcePage-based list pages | Secondary header control opened from a sliders icon. It adjusts rows-per-page and visible columns in one lightweight menu rather than opening a modal. |
+| Minimal pagination controls | ResourcePage-based list pages | Resource family lists prefer compact pagination in the header: previous/next, total-count label, and page-size management nearby. Pagination summary prose is optional and usually suppressed on dense operator lists. |
+| App shell | Authenticated application frame | Fixed header, persistent sidebar on desktop, mobile navigation sheet on smaller screens, scrollable content area, and a compact bottom utility bar. Shell chrome stays structurally useful but visually quiet. |
+| Header content slot | App shell header | Page-specific header content may occupy the left edge of the header-right zone; global actions remain grouped on the far right. |
+| Sidebar navigation group | App shell sidebar | Navigation is grouped by workspace/platform ownership. Parents may expand to reveal children without changing the meaning of the overall nav tree. |
+| Bottom utility bar | App shell footer | Compact always-available status strip. Expands into a lightweight notification/help panel without taking over the main content workspace. |
 | Inline row expansion | Resource lists without separate detail page | Triggered from the name cell with a chevron affordance. Expanded content stays inside the row context. |
 | Three-dot action menu | Resource rows | Holds secondary actions by default. Inline actions are reserved for the single best next step only. |
 | Detail drawer | Resource pages with side detail workflow | Right-side sheet by default. Width uses standardized drawer tiers from `coding-decisions-ui.md`. |
+| Resource dialog form | Resource create/edit flows | Dialog-based form with optional header fields, primary fields, optional selected-summary block, collapsible advanced section, inline errors, and footer actions. |
+| Reference select | Resource form relation fields | Searchable relation picker used for single- and multi-select references. Creation and editing of related records may be handed off from the same field surface when the form config allows it. |
+| Advanced section accordion | Resource dialog form | Optional operational fields stay collapsed by default and expand inline inside the dialog rather than branching to another screen. |
 | Server detail workspace | Servers page | Multi-tab operational workspace. Tabs segment tasks; they do not duplicate each other. |
 | Inventory + selected-item split view | Server operational tabs such as Components, Systemd, and Crontab | Left side is the searchable/selectable inventory. Right side is the selected item's detail or log workspace. The right pane must still explain itself when nothing is selected. |
 | Overview metadata grid | Server detail -> Overview | Read-only key/value presentation. Primary facts stay in a dense grid; edit and refresh remain lightweight header actions rather than inline controls on every field. |
@@ -109,6 +119,7 @@ Behavioral rules. Visual rules live in `DESIGN.md.Components`.
 |---|---|---|
 | Cold load | Resources hub | Preserve layout and show loading counts or skeleton-like placeholders instead of collapsing structure. |
 | Empty list | Any resource family list page | Hide table header. Show dedicated empty state with one clear create action. |
+| Filtered no results | ResourcePage-based list pages | Keep search/filter controls visible and show a no-match message inside the list body; this is different from a truly empty dataset. |
 | No create-search matches | Add Resource dialog | Keep the dialog open; show a quiet empty message instead of closing or clearing input. |
 | Hover / focus targetable | Resource entry card and chooser row | Entry affordance becomes stronger through border/lift/icon treatment; focus must be stronger than hover. |
 | Selected item | Detail workspaces and inventories | Selection should persist long enough for inspection and follow-up action. |
@@ -117,12 +128,19 @@ Behavioral rules. Visual rules live in `DESIGN.md.Components`.
 | Permission denied | Navigation and protected routes | Hide or gate surfaces through auth guards; do not reveal dead-end screens for admin-only sections when routing can prevent entry. |
 | In-progress operation | Server components / crontab / systemd | Keep the current item context visible; surface phase and recent updates in-place. |
 | Error | Forms and live operations | Show concrete, recovery-oriented copy. Errors must describe what failed, not just that something failed. |
+| Sidebar collapsed | App shell desktop nav | Reduce to icon-led navigation without changing route availability or group order. |
+| Mobile navigation open | App shell mobile nav | Sidebar becomes a sheet; opening it should not permanently displace page content. |
+| Bottom bar expanded | App shell bottom utility bar | Expands into a shallow auxiliary panel and collapses again when users click away or close it intentionally. |
+| Advanced form section closed | Resource dialog form | Optional fields stay hidden but visibly discoverable through title, summary copy, and field count badge. |
+| Form submission error | Resource dialog form | Keep all current input values intact, show the error inline near the footer, and avoid silently closing the dialog. |
 | No selected inventory item | Components / Systemd / Crontab right pane | Show a quiet prompt telling the user to choose one item from the left-side inventory; do not leave the pane visually empty. |
 | Operation already in progress | Server Components | Surface a conflict alert that points the user straight to the current operation history or live status for that component. |
 | Streaming live operation | Server Components | Switch the selected detail workspace into a live-log mode and preserve both acceptance and progress messages. |
 | Missing monitor dependency | Server Monitor | Show an alert with the direct repair path from the same tab, usually by handing off into Components. |
 | No host facts yet | Server detail -> Overview | Preserve the section structure and replace only the facts grid with a compact empty message. |
 | No service or cron matches | Systemd / Crontab inventory | Filtering empties the list but keeps filters, pagination, and the selected-item pane shell visible. |
+| Search, filter, or page-size change | ResourcePage-based list pages | Reset pagination back to page 1 so users never land on an empty later page after narrowing the result set. |
+| Page overflow after filtering | ResourcePage-based list pages | If the current page becomes out of range after filtering or page-size changes, clamp to the last valid page automatically. |
 | No live log yet | Components / Crontab | Explain that the user must run an action before log streaming exists. |
 | Dismissed monitor conclusions | Server Monitor | If all conclusions are dismissed, keep the panel present and explain that refresh will rebuild the list. |
 | Destructive prerequisite action pending confirmation | Server Components | `upgrade` / `reinstall` for prerequisites must pause on a confirm dialog before execution. |
@@ -133,14 +151,20 @@ Behavioral rules. Visual rules live in `DESIGN.md.Components`.
 - **Cards:** the whole card is the target; no tiny "open" link inside a mostly decorative surface.
 - **Dialogs and drawers:** `Esc` closes the topmost overlay; focus returns predictably to the trigger.
 - **List surfaces:** search narrows content; row actions stay secondary; state changes should be immediate when safe.
+- **Resource lists:** common resource pages inherit one list template. Per-page code configures columns, search placeholder, page-size options, and detail mode, but should not invent a new list interaction model.
+- **App shell:** navigation grouping is stable across desktop and mobile; the presentation may change, but the information architecture should not fork by breakpoint.
 - **Hover:** may enrich navigation cues on desktop, but must degrade gracefully on touch and keyboard.
 - **Responsive adaptation:** reduce columns before reducing conceptual structure. On small screens, secondary enhancements disappear before primary navigation does.
+- **Dialog forms:** primary fields stay in the default reading path; advanced fields remain in-place but out of the way until requested.
+- **Reference picking:** relation fields should support search before scrolling, especially when the option list is long or grouped.
 - **Selected-item workspaces:** inventory rows select context; selection should be reversible, preserved long enough for inspection, and keyboard reachable.
 - **Operational tabs:** tabs inside the server detail drawer change concern, not object identity. Tabs inside a selected-item workspace change representation of the same object, such as overview vs logs.
 - **Live operations:** destructive or repair actions may require explicit confirmation before execution; once accepted, the UI should pivot into progress/history rather than leaving the user in an ambiguous idle state.
 - **Action-menu isolation:** row action menus inside selectable inventories must stop event propagation so opening a menu does not unintentionally switch selection.
 - **Recommended next step bias:** when one next action is clearly best, show exactly one inline primary action and demote all others into the menu.
 - **Context handoff:** when a monitor or docker dependency issue originates elsewhere, the receiving server tab should open with the relevant component/card/panel already focused.
+- **Pagination behavior:** resource-family lists use lightweight pagination over the currently processed result set. Search, favorites, and filters are upstream of pagination, not parallel to it.
+- **List settings behavior:** rows-per-page and visible-column controls belong in a compact dropdown, not a full settings screen.
 
 Banned or discouraged by default:
 
@@ -159,6 +183,124 @@ Behavioral accessibility contract. Visual contrast rules live in `DESIGN.md`.
 - Add Resource chooser, expandable helper content, and all overlays must be keyboard reachable and screen-reader coherent.
 - Focus order must follow the visual/reading order and avoid hidden secondary areas on mobile.
 - Explanatory meaning must never depend on color alone.
+
+## List Page Template
+
+This section defines the reusable contract for AppOS resource-family list pages built on the shared `ResourcePage` pattern.
+
+### Header
+
+- Page title and one-line description anchor the surface.
+- Primary header actions stay compact and right-aligned.
+- The standard action pair is `Refresh` then `Create`.
+- Secondary controls such as list settings may sit in the same header band without becoming visually primary.
+
+### Search, Filters, and Favorites
+
+- Search is always available when the page exposes searchable columns.
+- Search, favorites, and filters refine the result set before pagination is applied.
+- Filter controls should stay visible when the result set becomes empty because of the current query.
+- Reset behavior should be lightweight; users should not need to reopen a modal just to clear list narrowing.
+
+### Table Behavior
+
+- Tables remain the default presentation for dense operator lists.
+- Sortable columns use a single current-direction indicator rather than dual-arrow noise.
+- Row identity remains the primary navigation target.
+- Secondary actions live in a three-dot menu unless one clearly dominant inline action is justified.
+- Pages without a dedicated detail surface may expand details inline from the identity cell.
+
+### Pagination
+
+- Resource-family list pages prefer lightweight pagination rather than oversized footer controls.
+- Compact header pagination is the default posture for operator lists.
+- A total-count label may appear next to pagination when it improves scanability.
+- Search, filters, favorites, and page-size changes reset the list back to page 1.
+- If filtering shrinks the dataset, the current page must clamp back into the valid range automatically.
+
+### List Settings
+
+- Rows-per-page and visible-column toggles belong in a compact dropdown opened from the sliders icon.
+- List settings are local tuning controls, not a separate management workflow.
+- The control should feel optional and low-noise for repeat operators.
+
+### Empty and No-Match States
+
+- A truly empty dataset replaces the table header with a dedicated empty state and a clear create action.
+- A filtered no-match state keeps the list shell, controls, and current narrowing visible.
+- Empty states should explain the next useful action without sounding promotional.
+
+## App Shell Template
+
+This section defines the reusable contract for the authenticated application frame.
+
+### Header
+
+- The header is a structural frame, not a product marketing banner.
+- On desktop, the left header box aligns with sidebar width so page chrome feels continuous.
+- Page-scoped header content may appear before global utilities, but must not push them off-screen.
+- Language, theme, and account/global actions remain grouped together on the far right.
+
+### Sidebar
+
+- Desktop keeps a persistent sidebar; mobile turns it into a sheet.
+- Grouping order is stable across breakpoints.
+- Collapsing the sidebar reduces width and emphasizes icons, but does not rearrange the IA.
+
+### Content Area
+
+- Main content owns the primary scroll container.
+- Shell chrome should remain fixed enough that users do not lose navigation context while scrolling.
+
+### Bottom Utility Bar
+
+- The bottom bar is secondary product chrome for connection state, notifications, and quick external references.
+- Its expanded state is auxiliary and should never become the main workspace.
+
+## Form Template
+
+This section defines the reusable contract for create/edit flows that use dialog-based forms.
+
+### Structure
+
+- Dialog header establishes title, one-line description, and any header-scoped fields.
+- Primary fields follow in the default reading path.
+- Optional selected-summary content may appear between the header and the main fields when context from a prior selection matters.
+- Advanced fields live in a collapsible in-dialog section rather than a separate screen.
+
+### Field Behavior
+
+- Required fields must be visually explicit.
+- Help links or help text should appear next to the field they clarify, not in a distant appendix.
+- Relation fields should support search and, where configured, create/edit handoff from the same surface.
+- File-backed textareas should allow file upload without changing the conceptual field type.
+
+### Footer Actions
+
+- Footer keeps one cancel/reset action and one submit action.
+- Submission errors stay inline and preserve all typed values.
+- Successful submission may close the dialog; failed submission must not.
+
+## Split Workspace Template
+
+This section defines the reusable contract for dense operational workspaces that pair an inventory with a selected-item pane.
+
+### Layout
+
+- Left: searchable/filterable inventory.
+- Right: selected-item details, logs, or task-specific secondary tabs.
+- The right pane must still explain itself when nothing is selected.
+
+### Selection
+
+- Selecting a row changes right-pane context without leaving the page.
+- Per-row action menus must not hijack selection accidentally.
+- Selection should remain stable while users inspect or act unless the underlying item disappears.
+
+### Secondary Tabs
+
+- Secondary tabs in the right pane switch representations of the same object, such as details vs logs vs history.
+- They should not silently switch the user to another object or another area of the product.
 
 ## Key Flows
 

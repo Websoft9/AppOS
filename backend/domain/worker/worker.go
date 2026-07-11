@@ -14,7 +14,6 @@ import (
 
 	"github.com/hibiken/asynq"
 	"github.com/pocketbase/pocketbase/core"
-	lifecycleruntime "github.com/websoft9/appos/backend/domain/lifecycle/runtime"
 	"github.com/websoft9/appos/backend/domain/runtimecfg"
 )
 
@@ -95,8 +94,6 @@ type Snapshot struct {
 	LastServerError   string
 	LastDispatchError string
 }
-
-var deploymentExecutorFactory = lifecycleruntime.NewDeploymentExecutor
 
 var deployServerLocks = struct {
 	mu    sync.Mutex

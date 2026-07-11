@@ -18,8 +18,6 @@ import (
 
 const connectorReachabilityProbeConcurrency = 5
 
-var connectorProbeFunc = probeConnector
-
 type ConnectorProbeSnapshot struct {
 	Item   *connectors.Connector
 	Result ReachabilityResult

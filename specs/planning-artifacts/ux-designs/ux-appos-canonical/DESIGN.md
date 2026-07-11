@@ -90,6 +90,15 @@ spacing:
   page-padding-desktop: 24px
   page-padding-mobile: 16px
 components:
+  app-shell-header:
+    background: '{colors.surface-page}'
+    border: '{colors.border-subtle}'
+  app-shell-sidebar:
+    background: '{colors.surface-page}'
+    border: '{colors.border-subtle}'
+  app-shell-bottom-bar:
+    background: '{colors.surface-page}'
+    border: '{colors.border-subtle}'
   button-primary:
     background: '{colors.action-primary}'
     foreground: '{colors.action-primary-foreground}'
@@ -104,6 +113,14 @@ components:
     background-dark: '{colors.surface-page-dark}'
     radius: '{rounded.section}'
     border: 'none'
+  inventory-surface:
+    background: '{colors.panel}'
+    border: '{colors.border-subtle}'
+    radius: '{rounded.section}'
+  selected-item-surface:
+    background: '{colors.panel}'
+    border: '{colors.border-subtle}'
+    radius: '{rounded.section}'
   resource-entry-card:
     background: '{colors.panel}'
     border: '{colors.border-subtle}'
@@ -121,9 +138,21 @@ components:
     background: '#F4F4F5'
     foreground: '{colors.text-secondary}'
     radius: '{rounded.pill}'
+  list-settings-trigger:
+    background: 'transparent'
+    foreground: '{colors.text-secondary}'
+    radius: '{rounded.md}'
   overlay-dialog:
     background: '{colors.panel}'
     radius: '{rounded.dialog}'
+  form-section-advanced:
+    background: '#FAFAFA'
+    background-dark: '#18181B'
+    border: '{colors.border-subtle}'
+    radius: '{rounded.card}'
+  key-value-grid:
+    foreground-label: '{colors.text-secondary}'
+    foreground-value: '{colors.text-primary}'
 ---
 
 ## Brand & Style
@@ -203,10 +232,16 @@ The majority of AppOS components inherit shadcn defaults. The following componen
 - **Primary button**: uses `{colors.action-primary}` in light mode and `{colors.action-primary-dark}` in dark mode. It should feel confident but not oversized.
 - **Secondary button / refresh button**: neutral border, neutral background, low emphasis.
 - **Section surface**: lightweight grouped wrapper for orientation or overview sections. Use it when the section boundary itself helps comprehension.
+- **App shell header / sidebar / bottom bar**: neutral structural chrome. These areas organize the product; they should not compete visually with page content.
+- **Inventory surface**: bordered container for dense selectable inventories such as Systemd, Crontab, and component lists.
+- **Selected-item surface**: paired companion to the inventory surface. Same visual family, but allowed to feel slightly more focused through stronger title hierarchy.
 - **Resource entry card**: canonical navigation card for resource families. Border remains subtle at rest; hover/focus increases emphasis, not saturation.
 - **Resource icon chip**: muted icon container inside resource cards. On hover/focus it may tint toward the brand blue family.
 - **Metadata pill**: low-noise counts and secondary labels. Never louder than the title.
+- **List settings trigger**: ghost icon button with low default emphasis. It should look like an optional tuning control, not a primary action.
 - **Overlay dialog**: standard shadcn dialog shell with AppOS spacing and page-heading hierarchy.
+- **Advanced form section**: collapsible bordered block inside dialogs. It should read as optional, not hidden or scary.
+- **Key-value grid**: read-only metadata presentation where labels are muted, values are foreground, and spacing carries structure.
 
 Inherited as-is unless a story says otherwise: `Button`, `Card`, `Dialog`, `Sheet`, `DropdownMenu`, `Popover`, `Tabs`, `Table`, `Input`, `Badge`.
 

@@ -138,10 +138,14 @@ func Run(ctx context.Context, app core.App, execCtx *ExecutionContext, hooks Run
 			}
 			switch item.result.Outcome {
 			case NodeOutcomeWaiting:
-				markNodeTerminal(app, item.nodeRun, "waiting", item.result.Message)
+				if err := markNodeTerminal(app, item.nodeRun, "waiting", item.result.Message); err != nil {
+					return RunResult{}, err
+				}
 				return RunResult{Waiting: true, NodeRun: item.nodeRun, Node: item.node}, nil
 			case NodeOutcomeManualGate:
-				markNodeTerminal(app, item.nodeRun, "manual_gate", item.result.Message)
+				if err := markNodeTerminal(app, item.nodeRun, "manual_gate", item.result.Message); err != nil {
+					return RunResult{}, err
+				}
 				return RunResult{ManualGate: true, NodeRun: item.nodeRun, Node: item.node}, nil
 			default:
 				if err := CompleteNode(app, execCtx, item.nodeRun); err != nil {

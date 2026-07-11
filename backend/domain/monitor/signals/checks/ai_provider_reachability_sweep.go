@@ -72,10 +72,6 @@ func resolveAIProviderProbeTarget(item *aiproviders.AIProvider) (string, int, er
 	}
 }
 
-func probeAIProvider(item *aiproviders.AIProvider) ReachabilityResult {
-	return probeAIProviderWithTimeout(item, monitor.DefaultPolicySettings().ReachabilityProbeTimeout)
-}
-
 func probeAIProviderWithTimeout(item *aiproviders.AIProvider, timeout time.Duration) ReachabilityResult {
 	host, port, err := resolveAIProviderProbeTarget(item)
 	if err != nil {
