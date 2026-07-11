@@ -1,0 +1,42 @@
+{
+  "contractVersion": "0.1",
+  "fields": [
+    {
+      "key": "app_id",
+      "type": "string",
+      "label": "App ID",
+      "required": true,
+      "default": "mariadb",
+      "visibility": "system",
+      "storage_mode": "system_managed"
+    },
+    {
+      "key": "version",
+      "type": "select",
+      "label": "Version",
+      "required": true,
+      "default": "12.0",
+      "visibility": "basic",
+      "storage_mode": "operator_editable",
+      "options": ["12.0", "11.8", "10.11", "10.6"]
+    },
+    {
+      "key": "db_port",
+      "type": "port",
+      "label": "Database Port",
+      "required": true,
+      "default": 3306,
+      "visibility": "basic",
+      "storage_mode": "operator_editable"
+    },
+    {
+      "key": "db_password",
+      "type": "secret_ref",
+      "label": "Root Password",
+      "required": true,
+      "default": null,
+      "visibility": "basic",
+      "storage_mode": "secret_backed"
+    }
+  ]
+}

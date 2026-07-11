@@ -1,0 +1,38 @@
+{
+  "contractVersion": "0.1",
+  "key": "mysql",
+  "name": "mysql",
+  "trademark": "MySQL",
+  "category": "database",
+  "docs": {
+    "website": "https://www.mysql.com/",
+    "installRequirements": "https://hub.docker.com/_/mysql",
+    "upstream": "https://hub.docker.com/_/mysql"
+  },
+  "capabilities": {
+    "web": false,
+    "requiresDomain": false,
+    "hasBuiltinDatabase": true,
+    "supportsPublish": false
+  },
+  "requirements": {
+    "cpu": 1,
+    "memoryGb": 2,
+    "diskGb": 8
+  },
+  "versions": {
+    "default": {
+      "edition": "community",
+      "version": "9.5"
+    },
+    "supported": [
+      { "edition": "community", "version": "9.5" },
+      { "edition": "community", "version": "8.2" },
+      { "edition": "community", "version": "8.0" },
+      { "edition": "community", "version": "5.7" }
+    ]
+  },
+  "serviceRoles": {
+    "mysql": "primary"
+  }
+}

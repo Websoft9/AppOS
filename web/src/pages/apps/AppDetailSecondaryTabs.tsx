@@ -91,10 +91,8 @@ export function AppDetailRuntimeTab({
     <TabsContent value="runtime" className="space-y-2.5">
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle>Containers</CardTitle>
-          <CardDescription>
-            App-related runtime projection from Docker inventory and container stats.
-          </CardDescription>
+          <CardTitle>Runtime Summary</CardTitle>
+          <CardDescription>Container state and quick runtime actions.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <ServerRuntimeUnavailableAlert app={app} />
@@ -230,13 +228,10 @@ export function AppDetailRuntimeTab({
 
       <Card>
         <CardHeader className="pb-2.5">
-          <CardTitle>Runtime Operations</CardTitle>
+          <CardTitle>Next Step</CardTitle>
         </CardHeader>
         <CardContent className="space-y-1.5 text-sm text-muted-foreground">
-          <p>
-            This page exposes app-related container projection and resource summary. Deep runtime
-            control still belongs to the server workspace and Docker views.
-          </p>
+          <p>Use server or Docker workspaces only when the summary above is not enough.</p>
           <div className="flex flex-wrap gap-2 pt-1">
             <Button variant="outline" size="sm" onClick={() => setTab('observability')}>
               Open Observability
@@ -300,7 +295,7 @@ export function AppDetailComposeTab({
     <TabsContent value="compose" className="space-y-2.5">
       <Card>
         <CardHeader className="pb-2.5">
-          <CardTitle>Compose Asset</CardTitle>
+          <CardTitle>Compose</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <ServerRuntimeUnavailableAlert app={app} />
@@ -454,16 +449,18 @@ export function AppDetailComposeTab({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="pb-2.5">
-          <CardTitle>Validation and Diff</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <pre className="max-h-[320px] overflow-auto rounded-xl border bg-muted/20 p-4 font-mono text-xs leading-5">
-            {diffText}
-          </pre>
-        </CardContent>
-      </Card>
+      {diffText ? (
+        <Card>
+          <CardHeader className="pb-2.5">
+            <CardTitle>Draft Diff</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <pre className="max-h-[220px] overflow-auto rounded-xl border bg-muted/20 p-4 font-mono text-xs leading-5">
+              {diffText}
+            </pre>
+          </CardContent>
+        </Card>
+      ) : null}
     </TabsContent>
   )
 }
@@ -563,7 +560,7 @@ export function AppDetailObservabilityTab({
         </Card>
         <Card>
           <CardHeader className="pb-2.5">
-            <CardTitle>Health and Heartbeat</CardTitle>
+            <CardTitle>Signals</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2.5 text-sm">
             <ServerRuntimeUnavailableAlert app={app} />
@@ -674,8 +671,8 @@ export function AppDetailDataTab({
     <TabsContent value="data" className="space-y-2.5">
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle>Service Instances</CardTitle>
-          <CardDescription>Projected matches from shared resource inventory.</CardDescription>
+          <CardTitle>Connected Data</CardTitle>
+          <CardDescription>Matched services, volumes, backups, and mounts.</CardDescription>
           <CardAction>
             <Button variant="outline" size="sm" asChild>
               <Link to="/resources/service-instances" search={{ create: undefined }}>
@@ -731,7 +728,7 @@ export function AppDetailDataTab({
       <Card>
         <CardHeader className="pb-3">
           <CardTitle>Volumes and Restore Points</CardTitle>
-          <CardDescription>App-matched Docker volumes plus platform backup status.</CardDescription>
+          <CardDescription>Runtime storage and backup coverage.</CardDescription>
           <CardAction>
             <Button variant="outline" size="sm" asChild>
               <Link
@@ -810,9 +807,7 @@ export function AppDetailDataTab({
       <Card>
         <CardHeader className="pb-3">
           <CardTitle>Container Mounts</CardTitle>
-          <CardDescription>
-            Bind mounts and named volume attachments projected from container inspect data.
-          </CardDescription>
+          <CardDescription>Files and paths that back the current runtime.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {mountProjectionLoading ? (

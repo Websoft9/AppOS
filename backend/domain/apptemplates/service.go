@@ -113,6 +113,10 @@ func NewService() *Service {
 	return &Service{roots: defaultRoots()}
 }
 
+func NewServiceWithRoots(roots ...string) *Service {
+	return &Service{roots: roots}
+}
+
 func defaultRoots() []string {
 	roots := []string{}
 	if cwd, err := os.Getwd(); err == nil {

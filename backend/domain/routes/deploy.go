@@ -830,7 +830,11 @@ func handleOperationInstallGitCompose(e *core.RequestEvent) error {
 	)
 	if err != nil {
 		if isOperationCreateConflict(err) {
-			return e.JSON(http.StatusConflict, map[string]any{"code": 409, "message": err.Error()})
+			payload := map[string]any{"code": 409, "message": err.Error()}
+			for key, value := range operationConflictPayload(err) {
+				payload[key] = value
+			}
+			return e.JSON(http.StatusConflict, payload)
 		}
 		if isOperationCreateBadRequest(err) {
 			return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
@@ -943,7 +947,11 @@ func handleOperationInstallManualCompose(e *core.RequestEvent) error {
 	)
 	if err != nil {
 		if isOperationCreateConflict(err) {
-			return e.JSON(http.StatusConflict, map[string]any{"code": 409, "message": err.Error()})
+			payload := map[string]any{"code": 409, "message": err.Error()}
+			for key, value := range operationConflictPayload(err) {
+				payload[key] = value
+			}
+			return e.JSON(http.StatusConflict, payload)
 		}
 		if isOperationCreateBadRequest(err) {
 			return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
@@ -1035,7 +1043,11 @@ func handleOperationInstallTemplate(e *core.RequestEvent) error {
 	)
 	if err != nil {
 		if isOperationCreateConflict(err) {
-			return e.JSON(http.StatusConflict, map[string]any{"code": 409, "message": err.Error()})
+			payload := map[string]any{"code": 409, "message": err.Error()}
+			for key, value := range operationConflictPayload(err) {
+				payload[key] = value
+			}
+			return e.JSON(http.StatusConflict, payload)
 		}
 		if isOperationCreateBadRequest(err) {
 			return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
@@ -1345,7 +1357,36 @@ func isOperationCreateConflict(err error) bool {
 		return false
 	}
 	message := strings.ToLower(strings.TrimSpace(err.Error()))
-	return strings.Contains(message, "already exists") || strings.Contains(message, "duplicate") || strings.Contains(message, "preflight blocked")
+	return strings.Contains(message, "already exists") || strings.Contains(message, "duplicate") || strings.Contains(message, "preflight blocked") || strings.Contains(message, "application already has an active action")
+}
+
+func operationConflictPayload(err error) map[string]any {
+	if err == nil {
+		return nil
+	}
+	message := strings.TrimSpace(err.Error())
+	if !strings.Contains(strings.ToLower(message), "application already has an active action") {
+		return nil
+	}
+	payload := map[string]any{"message": message}
+	parts := strings.Split(message, ":")
+	if len(parts) < 2 {
+		return payload
+	}
+	fields := strings.Fields(strings.Join(parts[1:], ":"))
+	active := map[string]any{}
+	for _, field := range fields {
+		pair := strings.SplitN(field, "=", 2)
+		if len(pair) != 2 {
+			continue
+		}
+		active[pair[0]] = pair[1]
+	}
+	if len(active) > 0 {
+		payload["active_operation"] = active
+		payload["allow_force_fail"] = true
+	}
+	return payload
 }
 
 func operationDisplayStatus(record *core.Record) string {

@@ -1,0 +1,60 @@
+{
+  "contractVersion": "0.1",
+  "fields": [
+    {
+      "key": "app_id",
+      "type": "string",
+      "label": "App ID",
+      "required": true,
+      "default": "pgadmin",
+      "visibility": "system",
+      "storage_mode": "system_managed"
+    },
+    {
+      "key": "version",
+      "type": "select",
+      "label": "Version",
+      "required": true,
+      "default": "latest",
+      "visibility": "basic",
+      "storage_mode": "operator_editable",
+      "options": ["latest", "9.8"]
+    },
+    {
+      "key": "http_port",
+      "type": "port",
+      "label": "HTTP Port",
+      "required": true,
+      "default": 9090,
+      "visibility": "basic",
+      "storage_mode": "operator_editable"
+    },
+    {
+      "key": "site_url",
+      "type": "domain",
+      "label": "Site URL",
+      "required": false,
+      "default": "appname.example.com",
+      "visibility": "advanced",
+      "storage_mode": "operator_editable"
+    },
+    {
+      "key": "admin_email",
+      "type": "string",
+      "label": "Admin Email",
+      "required": true,
+      "default": "user@domain.com",
+      "visibility": "basic",
+      "storage_mode": "operator_editable"
+    },
+    {
+      "key": "admin_password",
+      "type": "secret_ref",
+      "label": "Admin Password",
+      "required": true,
+      "default": null,
+      "visibility": "basic",
+      "storage_mode": "secret_backed"
+    }
+  ]
+}

@@ -17,19 +17,27 @@ var deploymentImagePullTimeout = 3 * time.Minute
 var deploymentMirrorRetryCount = 2
 
 type deployRuntimePolicy struct {
-	ImagePullTimeout     time.Duration
-	ComposeUpTimeout     time.Duration
-	HealthCheckTimeout   time.Duration
-	RuntimePullHeartbeat time.Duration
+	ImagePullTimeout          time.Duration
+	ComposeUpTimeout          time.Duration
+	HealthCheckTimeout        time.Duration
+	RuntimePullHeartbeat      time.Duration
+	OperationHeartbeat        time.Duration
+	SameAppConflictMode       string
+	DefaultComposeRuleProfile string
+	DefaultBuildRuleProfile   string
 }
 
 func loadDeployRuntimePolicy(app core.App) deployRuntimePolicy {
 	group, _ := sysconfig.GetGroup(app, "deploy", "runtime", settingsschema.DefaultGroup("deploy", "runtime"))
 	policy := deployRuntimePolicy{
-		ImagePullTimeout:     time.Duration(sysconfig.Int(group, "imagePullTimeoutSeconds", int((3*time.Minute)/time.Second))) * time.Second,
-		ComposeUpTimeout:     time.Duration(sysconfig.Int(group, "composeUpTimeoutSeconds", int((10*time.Minute)/time.Second))) * time.Second,
-		HealthCheckTimeout:   time.Duration(sysconfig.Int(group, "healthCheckTimeoutSeconds", int((2*time.Minute)/time.Second))) * time.Second,
-		RuntimePullHeartbeat: time.Duration(sysconfig.Int(group, "runtimePullIdleHeartbeatSeconds", int((20*time.Second)/time.Second))) * time.Second,
+		ImagePullTimeout:          time.Duration(sysconfig.Int(group, "imagePullTimeoutSeconds", int((3*time.Minute)/time.Second))) * time.Second,
+		ComposeUpTimeout:          time.Duration(sysconfig.Int(group, "composeUpTimeoutSeconds", int((10*time.Minute)/time.Second))) * time.Second,
+		HealthCheckTimeout:        time.Duration(sysconfig.Int(group, "healthCheckTimeoutSeconds", int((2*time.Minute)/time.Second))) * time.Second,
+		RuntimePullHeartbeat:      time.Duration(sysconfig.Int(group, "runtimePullIdleHeartbeatSeconds", int((20*time.Second)/time.Second))) * time.Second,
+		OperationHeartbeat:        time.Duration(sysconfig.Int(group, "operationProgressHeartbeatSeconds", int((20*time.Second)/time.Second))) * time.Second,
+		SameAppConflictMode:       strings.TrimSpace(sysconfig.String(group, "sameAppConflictMode", "suggest_force_fail")),
+		DefaultComposeRuleProfile: strings.TrimSpace(sysconfig.String(group, "defaultRuleProfileCompose", "compose_standard")),
+		DefaultBuildRuleProfile:   strings.TrimSpace(sysconfig.String(group, "defaultRuleProfileBuild", "source_build")),
 	}
 	if policy.ImagePullTimeout < time.Second {
 		policy.ImagePullTimeout = time.Second
@@ -42,6 +50,18 @@ func loadDeployRuntimePolicy(app core.App) deployRuntimePolicy {
 	}
 	if policy.RuntimePullHeartbeat < time.Second {
 		policy.RuntimePullHeartbeat = time.Second
+	}
+	if policy.OperationHeartbeat < time.Second {
+		policy.OperationHeartbeat = time.Second
+	}
+	if policy.SameAppConflictMode == "" {
+		policy.SameAppConflictMode = "suggest_force_fail"
+	}
+	if policy.DefaultComposeRuleProfile == "" {
+		policy.DefaultComposeRuleProfile = "compose_standard"
+	}
+	if policy.DefaultBuildRuleProfile == "" {
+		policy.DefaultBuildRuleProfile = "source_build"
 	}
 	return policy
 }

@@ -8,7 +8,8 @@ import (
 
 func TestDescribeFindsRuntimeTemplateUnderApposDataTemplatesApps(t *testing.T) {
 	const key = "runtime-template-test"
-	templateDir := filepath.Join("/appos/data/templates/apps", key)
+	root := t.TempDir()
+	templateDir := filepath.Join(root, key)
 	composeDir := filepath.Join(templateDir, "compose")
 
 	if err := os.MkdirAll(composeDir, 0o755); err != nil {
@@ -25,11 +26,8 @@ func TestDescribeFindsRuntimeTemplateUnderApposDataTemplatesApps(t *testing.T) {
 	write(filepath.Join(templateDir, "render.json"), `{"env":{"ADMIN_EMAIL":"${admin_email}"},"compose_values":{},"exposures":[{"label":"Web","service":"app","port":80,"protocol":"http","default":true}],"files":[]}`)
 	write(filepath.Join(templateDir, "source.json"), `{"template_revision":"test","origin_kind":"runtime","origin_ref":"unit-test"}`)
 	write(filepath.Join(composeDir, "base.yml"), "services:\n  app:\n    image: nginx:alpine\n")
-	t.Cleanup(func() {
-		_ = os.RemoveAll(templateDir)
-	})
 
-	response, err := NewService().Describe(key)
+	response, err := NewServiceWithRoots(root).Describe(key)
 	if err != nil {
 		t.Fatalf("describe runtime template: %v", err)
 	}

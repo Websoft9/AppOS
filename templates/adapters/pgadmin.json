@@ -1,0 +1,35 @@
+{
+  "templateKey": "pgadmin",
+  "upstreamRef": "templates/upstream/pgadmin/source.json",
+  "normalizedTemplateRef": "templates/apps/pgadmin",
+  "adapterVersion": "v0",
+  "automaticNormalization": [
+    "service inventory",
+    "image and tag extraction",
+    "env and env-file references",
+    "port exposure extraction",
+    "volume and network extraction",
+    "basic service-role candidate mapping"
+  ],
+  "reviewRequired": [
+    "primary service identity",
+    "secret-backed value classification",
+    "publish semantics",
+    "backup-critical data paths"
+  ],
+  "currentDecisions": {
+    "primaryService": "pgadmin",
+    "databaseService": null,
+    "publishKind": "http",
+    "secretBackedInputs": [
+      "admin_password"
+    ]
+  },
+  "notes": [
+    "This is sample adapter metadata for Epic 32 story work.",
+    "pgAdmin is a stateless web admin client with no built-in database service.",
+    "admin_password maps to PGADMIN_DEFAULT_PASSWORD, the initial login password for PGADMIN_DEFAULT_EMAIL.",
+    "The upstream reference throwaway postgres test container is intentionally not adapted.",
+    "It describes adaptation intent before a full adapter engine exists."
+  ]
+}

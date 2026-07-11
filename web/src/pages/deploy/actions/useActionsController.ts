@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { ClientResponseError } from 'pocketbase'
 import { useNavigate } from '@tanstack/react-router'
 import { getLocale } from '@/lib/i18n'
 import { iacLoadLibraryAppFiles, iacRead } from '@/lib/iac-api'
@@ -1010,6 +1011,45 @@ export function useActionsController({
     return item.user_email || item.user_id || '-'
   }
 
+  function maybeOpenConflictForceFail(
+    err: unknown,
+    continuation: () => Promise<void>
+  ): boolean {
+    if (!(err instanceof ClientResponseError)) return false
+    const payload = err.response as
+      | {
+          active_operation?: {
+            id?: string
+            status?: string
+            action?: string
+            phase?: string
+            project?: string
+          }
+        }
+      | undefined
+    const active = payload?.active_operation
+    if (!active?.id) return false
+
+    setPendingActionControl({
+      kind: 'force-fail',
+      action: {
+        id: active.id,
+        server_id: '',
+        source: '',
+        status: active.status || 'executing',
+        adapter: '',
+        compose_project_name: active.project || active.id,
+        project_dir: '',
+        rendered_compose: '',
+        error_summary: '',
+        created: '',
+        updated: '',
+      },
+      continuation,
+    })
+    return true
+  }
+
   async function submitManualOperation(
     runtimeInputs?: RuntimeInputsPayload,
     sourceBuild?: SourceBuildPayload,
@@ -1038,6 +1078,9 @@ export function useActionsController({
       await fetchOperations()
       openOperationDetail(created.id)
     } catch (err) {
+      if (maybeOpenConflictForceFail(err, () => submitManualOperation(runtimeInputs, sourceBuild, exposureIntent))) {
+        return
+      }
       showNotice('destructive', err instanceof Error ? err.message : 'Failed to create action')
     } finally {
       setSubmitting(false)
@@ -1112,6 +1155,9 @@ export function useActionsController({
       await fetchOperations()
       openOperationDetail(created.id)
     } catch (err) {
+      if (maybeOpenConflictForceFail(err, () => submitGitOperation(exposureIntent))) {
+        return
+      }
       showNotice('destructive', err instanceof Error ? err.message : 'Failed to create git action')
     } finally {
       setGitSubmitting(false)
@@ -1144,6 +1190,9 @@ export function useActionsController({
       await fetchOperations()
       openOperationDetail(created.id)
     } catch (err) {
+      if (maybeOpenConflictForceFail(err, () => submitTemplateOperation(templateKey, inputValues, exposureIntent))) {
+        return
+      }
       showNotice(
         'destructive',
         err instanceof Error ? err.message : 'Failed to create template action'
@@ -1261,6 +1310,10 @@ export function useActionsController({
     try {
       await pb.send(`/api/actions/${pending.action.id}/${endpoint}`, { method: 'POST' })
       await fetchOperations()
+      if (pending.kind === 'force-fail' && pending.continuation) {
+        await pending.continuation()
+        return
+      }
       showNotice(
         'default',
         `Action ${pending.action.compose_project_name || pending.action.id} ${successLabel}`

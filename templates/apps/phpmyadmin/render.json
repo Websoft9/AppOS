@@ -1,0 +1,30 @@
+{
+  "contractVersion": "0.1",
+  "env": {
+    "W9_ID": "${app_id}",
+    "W9_REPO": "phpmyadmin",
+    "W9_DIST": "community",
+    "W9_VERSION": "${version}",
+    "W9_HTTP_PORT": "80",
+    "W9_HTTP_PORT_SET": "${http_port}",
+    "W9_URL": "${site_url}",
+    "W9_NETWORK": "${platform.network}",
+    "PMA_ARBITRARY": "1",
+    "PMA_HOST": "${db_host}",
+    "PMA_PORT": "${db_port}",
+    "UPLOAD_LIMIT": "1000M"
+  },
+  "compose_values": {
+    "primaryService": "phpmyadmin"
+  },
+  "files": [],
+  "exposures": [
+    {
+      "label": "Web",
+      "service": "phpmyadmin",
+      "port": 80,
+      "protocol": "http",
+      "default": true
+    }
+  ]
+}

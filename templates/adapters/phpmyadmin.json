@@ -1,0 +1,33 @@
+{
+  "templateKey": "phpmyadmin",
+  "upstreamRef": "templates/upstream/phpmyadmin/source.json",
+  "normalizedTemplateRef": "templates/apps/phpmyadmin",
+  "adapterVersion": "v0",
+  "automaticNormalization": [
+    "service inventory",
+    "image and tag extraction",
+    "env and env-file references",
+    "port exposure extraction",
+    "volume and network extraction",
+    "basic service-role candidate mapping"
+  ],
+  "reviewRequired": [
+    "primary service identity",
+    "secret-backed value classification",
+    "publish semantics",
+    "backup-critical data paths"
+  ],
+  "currentDecisions": {
+    "primaryService": "phpmyadmin",
+    "databaseService": null,
+    "publishKind": "http",
+    "secretBackedInputs": []
+  },
+  "notes": [
+    "This is sample adapter metadata for Epic 32 story work.",
+    "phpMyAdmin is a stateless web admin client with no built-in database service.",
+    "Login credentials are entered by the end user at runtime against the target database, so there is no contract-level secret-backed input.",
+    "The upstream reference throwaway mariadb test container is intentionally not adapted.",
+    "It describes adaptation intent before a full adapter engine exists."
+  ]
+}

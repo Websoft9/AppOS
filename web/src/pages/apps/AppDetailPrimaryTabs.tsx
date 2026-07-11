@@ -696,14 +696,15 @@ export function AppDetailActionsTab({
   buildActionDetailHref,
   onRequestCancelAction,
   onRequestForceFailAction,
+  onRequestResumeAction,
 }: ActionsTabProps) {
   return (
     <TabsContent value="actions" className="space-y-2.5">
       <Card>
         <CardHeader className="pb-2.5">
-          <CardTitle>Current and Recent</CardTitle>
+          <CardTitle>Current State</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-2 text-sm md:grid-cols-2">
+        <CardContent className="grid gap-2 text-sm md:grid-cols-2 xl:grid-cols-4">
           <div>
             <span className="text-muted-foreground">Last operation:</span>{' '}
             {app.last_operation || '-'}
@@ -719,6 +720,10 @@ export function AppDetailActionsTab({
           <div>
             <span className="text-muted-foreground">Source:</span>{' '}
             {app.source || app.current_pipeline?.selector?.source || '-'}
+          </div>
+          <div>
+            <span className="text-muted-foreground">Pipeline status:</span>{' '}
+            {app.current_pipeline?.status || '-'}
           </div>
         </CardContent>
       </Card>
@@ -825,6 +830,7 @@ export function AppDetailActionsTab({
               buildActionDetailHref={buildActionDetailHref}
               onRequestCancel={onRequestCancelAction}
               onRequestForceFail={onRequestForceFailAction}
+              onRequestResume={onRequestResumeAction}
             />
           ) : scopedActions.length > 0 ? (
             <div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">

@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/config/sysconfig"
+	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 	"github.com/websoft9/appos/backend/domain/lifecycle/metadata"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	"github.com/websoft9/appos/backend/domain/lifecycle/orchestration"
@@ -15,6 +17,7 @@ import (
 )
 
 var ErrDuplicateAppName = errors.New("application name already exists")
+var ErrAppOperationConflict = errors.New("application already has an active action")
 
 type ComposeOperationOptions struct {
 	ExistingAppID      string
@@ -97,7 +100,7 @@ func CreateOperationFromCompose(app core.App, auth *core.Record, request Compose
 }
 
 func CreateOperationFromNormalizedInstallSpec(app core.App, auth *core.Record, normalizedSpec NormalizedInstallSpec, options ComposeOperationOptions) (*core.Record, error) {
-	ruleProfile, err := rules.Resolve(normalizedSpec.OperationType, normalizedSpec.ExecutionMode, normalizedRuleProfile(normalizedSpec.Metadata))
+	ruleProfile, err := rules.Resolve(normalizedSpec.OperationType, normalizedSpec.ExecutionMode, normalizedRuleProfile(app, normalizedSpec.Metadata, normalizedSpec.ExecutionMode, normalizedSpec.OperationType))
 	if err != nil {
 		return nil, err
 	}
@@ -129,6 +132,11 @@ func CreateOperationFromNormalizedInstallSpec(app core.App, auth *core.Record, n
 			appRecord, err = txApp.FindRecordById("app_instances", existingAppID)
 			if err != nil {
 				return err
+			}
+			if activeOperation, activeErr := findActiveOperationForApp(txApp, existingAppID); activeErr != nil {
+				return activeErr
+			} else if activeOperation != nil {
+				return buildAppOperationConflictError(activeOperation)
 			}
 		} else {
 			existing, err := txApp.FindRecordsByFilter(
@@ -216,11 +224,90 @@ func CreateOperationFromNormalizedInstallSpec(app core.App, auth *core.Record, n
 	return operationRecord, nil
 }
 
-func normalizedRuleProfile(metadata map[string]any) string {
+func normalizedRuleProfile(app core.App, metadata map[string]any, executionMode string, operationType string) string {
 	if len(metadata) == 0 {
+		return defaultRuleProfile(app, executionMode, operationType)
+	}
+	value := strings.TrimSpace(fmt.Sprint(metadata["rule_profile"]))
+	if value != "" {
+		return value
+	}
+	return defaultRuleProfile(app, executionMode, operationType)
+}
+
+func defaultRuleProfile(app core.App, executionMode string, operationType string) string {
+	if strings.TrimSpace(operationType) != string(model.OperationTypeInstall) {
 		return ""
 	}
-	return strings.TrimSpace(fmt.Sprint(metadata["rule_profile"]))
+	group := settingsschema.DefaultGroup("deploy", "runtime")
+	if app != nil {
+		group, _ = sysconfig.GetGroup(app, "deploy", "runtime", group)
+	}
+	composeProfile := strings.TrimSpace(sysconfig.String(group, "defaultRuleProfileCompose", "compose_standard"))
+	buildProfile := strings.TrimSpace(sysconfig.String(group, "defaultRuleProfileBuild", "source_build"))
+	if strings.TrimSpace(executionMode) == string(model.ExecutionModeBuild) {
+		return buildProfile
+	}
+	return composeProfile
+}
+
+func findActiveOperationForApp(app core.App, appID string) (*core.Record, error) {
+	if app == nil || strings.TrimSpace(appID) == "" {
+		return nil, nil
+	}
+	records, err := app.FindRecordsByFilter(
+		"app_operations",
+		"app = {:appID} && terminal_status = ''",
+		"-updated",
+		1,
+		0,
+		map[string]any{"appID": appID},
+	)
+	if err != nil || len(records) == 0 {
+		return nil, err
+	}
+	return records[0], nil
+}
+
+func buildAppOperationConflictError(operation *core.Record) error {
+	if operation == nil {
+		return ErrAppOperationConflict
+	}
+	return fmt.Errorf(
+		"%w: id=%s status=%s action=%s phase=%s project=%s",
+		ErrAppOperationConflict,
+		strings.TrimSpace(operation.Id),
+		strings.TrimSpace(operationDisplayStatusCompat(operation)),
+		strings.TrimSpace(operation.GetString("operation_type")),
+		strings.TrimSpace(operation.GetString("phase")),
+		strings.TrimSpace(operation.GetString("compose_project_name")),
+	)
+}
+
+func operationDisplayStatusCompat(record *core.Record) string {
+	if record == nil {
+		return ""
+	}
+	terminalStatus := strings.TrimSpace(record.GetString("terminal_status"))
+	failureReason := strings.TrimSpace(record.GetString("failure_reason"))
+	if terminalStatus != "" {
+		switch terminalStatus {
+		case "success":
+			return "success"
+		case "failed":
+			if failureReason == "timeout" {
+				return "timeout"
+			}
+			return "failed"
+		case "cancelled":
+			return "cancelled"
+		case "compensated":
+			return "compensated"
+		case "manual_intervention_required":
+			return "manual_intervention_required"
+		}
+	}
+	return strings.TrimSpace(record.GetString("phase"))
 }
 
 func operationUserID(auth *core.Record) string {

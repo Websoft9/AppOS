@@ -1653,8 +1653,46 @@ export function DeployRuntimeSection({
                   inputId: 'runtimePullIdleHeartbeatSeconds',
                   min: 1,
                 },
+                operationProgressHeartbeatSeconds: {
+                  inputId: 'operationProgressHeartbeatSeconds',
+                  min: 1,
+                },
               },
             })}
+            <div className="space-y-1">
+              <Label htmlFor="sameAppConflictMode">Same App Conflict Mode</Label>
+              <select
+                id="sameAppConflictMode"
+                className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                value={form.sameAppConflictMode}
+                onChange={event =>
+                  setForm(current => ({ ...current, sameAppConflictMode: event.target.value }))
+                }
+              >
+                <option value="block">Block</option>
+                <option value="suggest_force_fail">Suggest force fail</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="defaultRuleProfileCompose">Default Compose Rule Profile</Label>
+              <Input
+                id="defaultRuleProfileCompose"
+                value={form.defaultRuleProfileCompose}
+                onChange={event =>
+                  setForm(current => ({ ...current, defaultRuleProfileCompose: event.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="defaultRuleProfileBuild">Default Build Rule Profile</Label>
+              <Input
+                id="defaultRuleProfileBuild"
+                value={form.defaultRuleProfileBuild}
+                onChange={event =>
+                  setForm(current => ({ ...current, defaultRuleProfileBuild: event.target.value }))
+                }
+              />
+            </div>
           </div>
           <SaveButton onClick={save} saving={saving} />
         </div>

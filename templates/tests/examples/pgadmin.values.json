@@ -1,0 +1,7 @@
+{
+  "app_id": "pgadmin-demo",
+  "version": "9.8",
+  "http_port": 9090,
+  "site_url": "pgadmin.example.com",
+  "admin_email": "admin@example.com"
+}

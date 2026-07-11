@@ -1251,12 +1251,18 @@ export function AppDetailPage({ appId }: { appId: string }) {
     setPendingActionControl({ kind: 'force-fail', action })
   }, [])
 
+  const requestResumeAction = useCallback((action: ActionRecord) => {
+    setPendingActionControl({ kind: 'resume', action })
+  }, [])
+
   const submitActionControl = useCallback(
     async (pending: PendingActionControl) => {
-      const endpoint = pending.kind === 'cancel' ? 'cancel' : 'force-fail'
+      const endpoint = pending.kind === 'cancel' ? 'cancel' : pending.kind === 'resume' ? 'resume' : 'force-fail'
       const successMessage =
         pending.kind === 'cancel'
           ? `Action ${pending.action.compose_project_name || pending.action.id} cancelled`
+          : pending.kind === 'resume'
+            ? `Action ${pending.action.compose_project_name || pending.action.id} resumed`
           : `Action ${pending.action.compose_project_name || pending.action.id} force-failed`
       setActionControlSubmitting(true)
       try {
@@ -1269,7 +1275,11 @@ export function AppDetailPage({ appId }: { appId: string }) {
         setError(
           getApiErrorMessage(
             err,
-            pending.kind === 'cancel' ? 'Failed to cancel action' : 'Failed to force-fail action'
+            pending.kind === 'cancel'
+              ? 'Failed to cancel action'
+              : pending.kind === 'resume'
+                ? 'Failed to resume action'
+                : 'Failed to force-fail action'
           )
         )
       } finally {
@@ -1594,6 +1604,7 @@ export function AppDetailPage({ appId }: { appId: string }) {
             buildActionDetailHref={buildActionDetailHref}
             onRequestCancelAction={requestCancelAction}
             onRequestForceFailAction={requestForceFailAction}
+            onRequestResumeAction={requestResumeAction}
           />
           <AppDetailRuntimeTab
             app={app}

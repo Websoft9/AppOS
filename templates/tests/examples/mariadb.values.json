@@ -1,0 +1,5 @@
+{
+  "app_id": "mariadb-demo",
+  "version": "11.8",
+  "db_port": 13306
+}

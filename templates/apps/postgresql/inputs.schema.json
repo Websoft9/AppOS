@@ -1,0 +1,60 @@
+{
+  "contractVersion": "0.1",
+  "fields": [
+    {
+      "key": "app_id",
+      "type": "string",
+      "label": "App ID",
+      "required": true,
+      "default": "postgresql",
+      "visibility": "system",
+      "storage_mode": "system_managed"
+    },
+    {
+      "key": "version",
+      "type": "select",
+      "label": "Version",
+      "required": true,
+      "default": "17",
+      "visibility": "basic",
+      "storage_mode": "operator_editable",
+      "options": ["17", "16", "15", "14"]
+    },
+    {
+      "key": "db_port",
+      "type": "port",
+      "label": "Database Port",
+      "required": true,
+      "default": 5432,
+      "visibility": "basic",
+      "storage_mode": "operator_editable"
+    },
+    {
+      "key": "db_user",
+      "type": "string",
+      "label": "Database User",
+      "required": true,
+      "default": "postgres",
+      "visibility": "basic",
+      "storage_mode": "operator_editable"
+    },
+    {
+      "key": "db_name",
+      "type": "string",
+      "label": "Database Name",
+      "required": true,
+      "default": "postgres",
+      "visibility": "advanced",
+      "storage_mode": "operator_editable"
+    },
+    {
+      "key": "db_password",
+      "type": "secret_ref",
+      "label": "Database Password",
+      "required": true,
+      "default": null,
+      "visibility": "basic",
+      "storage_mode": "secret_backed"
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "contractVersion": "0.1",
+  "fields": [
+    {
+      "key": "app_id",
+      "type": "string",
+      "label": "App ID",
+      "required": true,
+      "default": "phpmyadmin",
+      "visibility": "system",
+      "storage_mode": "system_managed"
+    },
+    {
+      "key": "version",
+      "type": "select",
+      "label": "Version",
+      "required": true,
+      "default": "latest",
+      "visibility": "basic",
+      "storage_mode": "operator_editable",
+      "options": ["latest", "5.2.1"]
+    },
+    {
+      "key": "http_port",
+      "type": "port",
+      "label": "HTTP Port",
+      "required": true,
+      "default": 9001,
+      "visibility": "basic",
+      "storage_mode": "operator_editable"
+    },
+    {
+      "key": "site_url",
+      "type": "domain",
+      "label": "Site URL",
+      "required": false,
+      "default": "appname.example.com",
+      "visibility": "advanced",
+      "storage_mode": "operator_editable"
+    },
+    {
+      "key": "db_host",
+      "type": "string",
+      "label": "Database Host",
+      "required": true,
+      "default": "mysql",
+      "visibility": "basic",
+      "storage_mode": "operator_editable"
+    },
+    {
+      "key": "db_port",
+      "type": "port",
+      "label": "Database Port",
+      "required": true,
+      "default": 3306,
+      "visibility": "advanced",
+      "storage_mode": "operator_editable"
+    }
+  ]
+}

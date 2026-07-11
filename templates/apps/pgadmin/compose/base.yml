@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  pgadmin:
+    image: ${W9_REPO}:${W9_VERSION}
+    container_name: ${W9_ID}
+    hostname: ${W9_ID}
+    restart: unless-stopped
+    ports:
+      - ${W9_HTTP_PORT_SET}:80
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+      PGADMIN_LISTEN_ADDRESS: ${PGADMIN_LISTEN_ADDRESS}
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:80/misc/ping || exit 1
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgadmin_data:
+
+networks:
+  default:
+    name: ${W9_NETWORK}
+    external: true

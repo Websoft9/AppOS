@@ -89,6 +89,7 @@ export type ActionControlKind = 'cancel' | 'force-fail' | 'resume'
 export type PendingActionControl = {
   kind: ActionControlKind
   action: ActionRecord
+  continuation?: (() => Promise<void>) | null
 }
 
 export type ActionListResponse = {

@@ -208,6 +208,10 @@ var entryCatalog = []EntrySchema{
 			{ID: "composeUpTimeoutSeconds", Label: "Compose Up Timeout Seconds", Type: "integer", HelpText: "Wait time for docker compose up."},
 			{ID: "healthCheckTimeoutSeconds", Label: "Health Check Timeout Seconds", Type: "integer", HelpText: "Wait time for health checks."},
 			{ID: "runtimePullIdleHeartbeatSeconds", Label: "Runtime Pull Idle Heartbeat Seconds", Type: "integer", HelpText: "Idle time before pull heartbeat logs."},
+			{ID: "operationProgressHeartbeatSeconds", Label: "Operation Progress Heartbeat Seconds", Type: "integer", HelpText: "Idle time before long-running lifecycle or software actions write progress heartbeat logs."},
+			{ID: "sameAppConflictMode", Label: "Same App Conflict Mode", Type: "string", HelpText: "Conflict policy for creating a new action when the same app already has an active action. Use block or suggest_force_fail."},
+			{ID: "defaultRuleProfileCompose", Label: "Default Compose Rule Profile", Type: "string", HelpText: "Default rule profile for compose-based app operations."},
+			{ID: "defaultRuleProfileBuild", Label: "Default Build Rule Profile", Type: "string", HelpText: "Default rule profile for source-build app operations."},
 		},
 	},
 	{

@@ -1,0 +1,35 @@
+{
+  "templateKey": "postgresql",
+  "upstreamRef": "templates/upstream/postgresql/source.json",
+  "normalizedTemplateRef": "templates/apps/postgresql",
+  "adapterVersion": "v0",
+  "automaticNormalization": [
+    "service inventory",
+    "image and tag extraction",
+    "env and env-file references",
+    "port exposure extraction",
+    "volume and network extraction",
+    "basic service-role candidate mapping"
+  ],
+  "reviewRequired": [
+    "primary service identity",
+    "secret-backed value classification",
+    "publish semantics",
+    "backup-critical data paths"
+  ],
+  "currentDecisions": {
+    "primaryService": "postgresql",
+    "databaseService": null,
+    "publishKind": "tcp",
+    "secretBackedInputs": [
+      "db_password"
+    ]
+  },
+  "notes": [
+    "This is sample adapter metadata for Epic 32 story work.",
+    "PostgreSQL is a single-service application with a built-in datastore, so there is no separate database service.",
+    "db_password maps to POSTGRES_PASSWORD, the superuser password on first start.",
+    "The upstream reference database-backup-service sidecar is intentionally not adapted.",
+    "It describes adaptation intent before a full adapter engine exists."
+  ]
+}

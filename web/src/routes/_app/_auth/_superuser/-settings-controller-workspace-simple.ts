@@ -383,6 +383,7 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     const composeUpTimeoutSeconds = Number(runtime.composeUpTimeoutSeconds)
     const healthCheckTimeoutSeconds = Number(runtime.healthCheckTimeoutSeconds)
     const runtimePullIdleHeartbeatSeconds = Number(runtime.runtimePullIdleHeartbeatSeconds)
+    const operationProgressHeartbeatSeconds = Number(runtime.operationProgressHeartbeatSeconds)
     setDeployRuntimeForm({
       imagePullTimeoutSeconds:
         Number.isFinite(imagePullTimeoutSeconds) && imagePullTimeoutSeconds >= 1
@@ -400,6 +401,22 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
         Number.isFinite(runtimePullIdleHeartbeatSeconds) && runtimePullIdleHeartbeatSeconds >= 1
           ? Math.floor(runtimePullIdleHeartbeatSeconds)
           : DEFAULT_DEPLOY_RUNTIME.runtimePullIdleHeartbeatSeconds,
+      operationProgressHeartbeatSeconds:
+        Number.isFinite(operationProgressHeartbeatSeconds) && operationProgressHeartbeatSeconds >= 1
+          ? Math.floor(operationProgressHeartbeatSeconds)
+          : DEFAULT_DEPLOY_RUNTIME.operationProgressHeartbeatSeconds,
+      sameAppConflictMode:
+        typeof runtime.sameAppConflictMode === 'string' && runtime.sameAppConflictMode.trim().length > 0
+          ? runtime.sameAppConflictMode
+          : DEFAULT_DEPLOY_RUNTIME.sameAppConflictMode,
+      defaultRuleProfileCompose:
+        typeof runtime.defaultRuleProfileCompose === 'string' && runtime.defaultRuleProfileCompose.trim().length > 0
+          ? runtime.defaultRuleProfileCompose
+          : DEFAULT_DEPLOY_RUNTIME.defaultRuleProfileCompose,
+      defaultRuleProfileBuild:
+        typeof runtime.defaultRuleProfileBuild === 'string' && runtime.defaultRuleProfileBuild.trim().length > 0
+          ? runtime.defaultRuleProfileBuild
+          : DEFAULT_DEPLOY_RUNTIME.defaultRuleProfileBuild,
     })
 
     const gitDefaults =
@@ -1074,9 +1091,11 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
       'composeUpTimeoutSeconds',
       'healthCheckTimeoutSeconds',
       'runtimePullIdleHeartbeatSeconds',
+      'operationProgressHeartbeatSeconds',
     ]
     for (const field of integerFields) {
-      if (!Number.isInteger(deployRuntimeForm[field]) || deployRuntimeForm[field] < 1) {
+	      const value = Number(deployRuntimeForm[field])
+	      if (!Number.isInteger(value) || value < 1) {
         errors[field] = 'Must be an integer ≥ 1 second'
       }
     }
@@ -1108,6 +1127,22 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
           runtime.runtimePullIdleHeartbeatSeconds ??
             deployRuntimeForm.runtimePullIdleHeartbeatSeconds
         ),
+        operationProgressHeartbeatSeconds: Number(
+          runtime.operationProgressHeartbeatSeconds ??
+            deployRuntimeForm.operationProgressHeartbeatSeconds
+        ),
+        sameAppConflictMode:
+          typeof runtime.sameAppConflictMode === 'string'
+            ? runtime.sameAppConflictMode
+            : deployRuntimeForm.sameAppConflictMode,
+        defaultRuleProfileCompose:
+          typeof runtime.defaultRuleProfileCompose === 'string'
+            ? runtime.defaultRuleProfileCompose
+            : deployRuntimeForm.defaultRuleProfileCompose,
+        defaultRuleProfileBuild:
+          typeof runtime.defaultRuleProfileBuild === 'string'
+            ? runtime.defaultRuleProfileBuild
+            : deployRuntimeForm.defaultRuleProfileBuild,
       })
       showToast('Deploy runtime settings saved')
     } catch (err) {
@@ -1123,6 +1158,12 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
           healthCheckTimeoutSeconds: extractFieldError(bag.healthCheckTimeoutSeconds) ?? undefined,
           runtimePullIdleHeartbeatSeconds:
             extractFieldError(bag.runtimePullIdleHeartbeatSeconds) ?? undefined,
+          operationProgressHeartbeatSeconds:
+            extractFieldError(bag.operationProgressHeartbeatSeconds) ?? undefined,
+          sameAppConflictMode: extractFieldError(bag.sameAppConflictMode) ?? undefined,
+          defaultRuleProfileCompose:
+            extractFieldError(bag.defaultRuleProfileCompose) ?? undefined,
+          defaultRuleProfileBuild: extractFieldError(bag.defaultRuleProfileBuild) ?? undefined,
         }
         if (Object.values(nextErrors).some(Boolean)) {
           setDeployRuntimeErrors(nextErrors)

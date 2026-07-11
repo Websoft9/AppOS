@@ -112,6 +112,10 @@ export interface DeployRuntimeGroup {
   composeUpTimeoutSeconds: number
   healthCheckTimeoutSeconds: number
   runtimePullIdleHeartbeatSeconds: number
+  operationProgressHeartbeatSeconds: number
+  sameAppConflictMode: string
+  defaultRuleProfileCompose: string
+  defaultRuleProfileBuild: string
 }
 
 export interface DeployGitDefaultsGroup {
@@ -193,6 +197,10 @@ export const DEFAULT_DEPLOY_RUNTIME: DeployRuntimeGroup = {
   composeUpTimeoutSeconds: 600,
   healthCheckTimeoutSeconds: 120,
   runtimePullIdleHeartbeatSeconds: 20,
+  operationProgressHeartbeatSeconds: 20,
+  sameAppConflictMode: 'suggest_force_fail',
+  defaultRuleProfileCompose: 'compose_standard',
+  defaultRuleProfileBuild: 'source_build',
 }
 
 export const DEFAULT_DEPLOY_GIT_DEFAULTS: DeployGitDefaultsGroup = {

@@ -1,0 +1,21 @@
+{
+  "originKind": "official",
+  "sourceRepo": "docker-library/mysql",
+  "sourcePath": "docker-compose.yml",
+  "sourceBranch": "master",
+  "observedFiles": [
+    "docker-compose.yml"
+  ],
+  "references": {
+    "docs": "https://hub.docker.com/_/mysql",
+    "image": "https://hub.docker.com/_/mysql",
+    "envVars": "https://hub.docker.com/_/mysql",
+    "secondary": "https://github.com/Websoft9/docker-library/tree/main/apps/mysql"
+  },
+  "notes": [
+    "This sample preserves upstream identity for Epic 32 adaptation work.",
+    "The compose shape is derived from the official MySQL Docker image documentation; the Websoft9 docker-library entry is used as a secondary reference only.",
+    "MySQL is a single-service application: the server serves the TCP wire protocol (3306) and stores data. No separate database service is modeled.",
+    "The first pass stores source metadata rather than a full upstream file mirror."
+  ]
+}

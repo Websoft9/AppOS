@@ -85,13 +85,17 @@ function statusHeadline(status: string): { label: string; tone: string } {
     case 'timeout':
     case 'cancelled':
     case 'manual_intervention_required':
-    case 'rolled_back':
+    case 'compensated':
       return { label: actionStatusLabel(status), tone: 'text-rose-700 dark:text-rose-300' }
     case 'running':
+    case 'executing':
     case 'preparing':
     case 'validating':
     case 'verifying':
     case 'rolling_back':
+    case 'compensating':
+    case 'waiting':
+    case 'manual_gate':
       return { label: actionStatusLabel(status), tone: 'text-sky-700 dark:text-sky-300' }
     default:
       return { label: actionStatusLabel(status), tone: 'text-foreground' }
@@ -549,6 +553,8 @@ export function ActionDetailContent({
                                   ? 'border-rose-300 bg-rose-50/70 dark:border-rose-800 dark:bg-rose-950/20'
                                   : step.status === 'pending'
                                     ? 'border-slate-200 bg-slate-50/80 text-slate-500 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-400'
+                                    : step.status === 'waiting' || step.status === 'manual_gate'
+                                      ? 'border-amber-300 bg-amber-50/70 dark:border-amber-800 dark:bg-amber-950/20'
                                     : 'bg-muted/20'
                               )}
                             >
@@ -562,8 +568,10 @@ export function ActionDetailContent({
                                         ? 'text-emerald-700 dark:text-emerald-300'
                                         : step.status === 'failed'
                                           ? 'text-rose-700 dark:text-rose-300'
-                                          : step.status === 'running'
+                                          : step.status === 'running' || step.status === 'executing'
                                             ? 'text-sky-700 dark:text-sky-300'
+                                            : step.status === 'waiting' || step.status === 'manual_gate'
+                                              ? 'text-amber-700 dark:text-amber-300'
                                             : 'text-foreground'
                                     )}
                                     onClick={() =>
@@ -603,6 +611,16 @@ export function ActionDetailContent({
                                   {step.detail ? (
                                     <div className="rounded-md border border-rose-200 bg-rose-50/60 px-3 py-1.5 text-xs text-rose-700 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-300">
                                       {step.detail}
+                                    </div>
+                                  ) : null}
+                                  {step.status === 'waiting' || step.status === 'manual_gate' ? (
+                                    <div className="rounded-md border border-amber-200 bg-amber-50/70 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-200">
+                                      This step is paused and requires operator resume before the pipeline can continue.
+                                    </div>
+                                  ) : null}
+                                  {step.status === 'compensated' ? (
+                                    <div className="rounded-md border border-sky-200 bg-sky-50/70 px-3 py-1.5 text-xs text-sky-800 dark:border-sky-800 dark:bg-sky-950/20 dark:text-sky-200">
+                                      This step failed earlier and was later compensated by a recovery node.
                                     </div>
                                   ) : null}
                                   <div className="flex items-center justify-between text-xs text-muted-foreground">

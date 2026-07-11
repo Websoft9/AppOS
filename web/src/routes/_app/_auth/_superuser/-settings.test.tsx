@@ -260,6 +260,22 @@ describe('SettingsPage shared settings paths', () => {
                   label: 'Runtime Pull Idle Heartbeat Seconds',
                   type: 'integer',
                 },
+                {
+                  id: 'operationProgressHeartbeatSeconds',
+                  label: 'Operation Progress Heartbeat Seconds',
+                  type: 'integer',
+                },
+                { id: 'sameAppConflictMode', label: 'Same App Conflict Mode', type: 'string' },
+                {
+                  id: 'defaultRuleProfileCompose',
+                  label: 'Default Compose Rule Profile',
+                  type: 'string',
+                },
+                {
+                  id: 'defaultRuleProfileBuild',
+                  label: 'Default Build Rule Profile',
+                  type: 'string',
+                },
               ],
             },
             {
@@ -521,6 +537,10 @@ describe('SettingsPage shared settings paths', () => {
                 composeUpTimeoutSeconds: 600,
                 healthCheckTimeoutSeconds: 120,
                 runtimePullIdleHeartbeatSeconds: 20,
+                operationProgressHeartbeatSeconds: 20,
+                sameAppConflictMode: 'suggest_force_fail',
+                defaultRuleProfileCompose: 'compose_standard',
+                defaultRuleProfileBuild: 'source_build',
               },
             },
             {
@@ -831,6 +851,9 @@ describe('SettingsPage shared settings paths', () => {
     fireEvent.change(screen.getByLabelText('Image Pull Timeout Seconds'), {
       target: { value: '240' },
     })
+    fireEvent.change(screen.getByLabelText('Operation Progress Heartbeat Seconds'), {
+      target: { value: '25' },
+    })
     const runtimeInput = screen.getByLabelText('Image Pull Timeout Seconds')
     const runtimeCard = runtimeInput.closest('.rounded-lg.border') as HTMLElement | null
     if (!runtimeCard) {
@@ -841,7 +864,10 @@ describe('SettingsPage shared settings paths', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(settingsEntryPath('deploy-runtime'), {
         method: 'PATCH',
-        body: expect.objectContaining({ imagePullTimeoutSeconds: 240 }),
+        body: expect.objectContaining({
+          imagePullTimeoutSeconds: 240,
+          operationProgressHeartbeatSeconds: 25,
+        }),
       })
     })
 

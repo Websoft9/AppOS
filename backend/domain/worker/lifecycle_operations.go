@@ -339,6 +339,7 @@ func (w *Worker) handleRunOperation(ctx context.Context, t *asynq.Task) error {
 	appendOperationLog(w.app, execCtx.Operation, "job accepted by lifecycle worker")
 	runCtx, cancelRunTimeout, runTimeout := applyLifecycleOperationTimeout(ctx, execCtx.Operation)
 	defer cancelRunTimeout()
+	go w.lifecycleOperationHeartbeat(runCtx, execCtx.Operation)
 	if runTimeout > 0 {
 		appendOperationLog(w.app, execCtx.Operation, fmt.Sprintf("operation timeout set to %s", runTimeout))
 	}
@@ -382,6 +383,27 @@ func (w *Worker) handleRunOperation(ctx context.Context, t *asynq.Task) error {
 	}
 
 	return w.finishOperationSucceeded(execCtx)
+}
+
+func (w *Worker) lifecycleOperationHeartbeat(ctx context.Context, operation *core.Record) {
+	if w == nil || w.app == nil || operation == nil {
+		return
+	}
+	policy := loadDeployRuntimePolicy(w.app)
+	interval := policy.OperationHeartbeat
+	if interval < time.Second {
+		interval = 20 * time.Second
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			appendOperationLog(w.app, operation, "operation still running")
+		}
+	}
 }
 
 func applyLifecycleOperationTimeout(ctx context.Context, operation *core.Record) (context.Context, context.CancelFunc, time.Duration) {

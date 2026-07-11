@@ -1,0 +1,36 @@
+{
+  "contractVersion": "0.1",
+  "key": "pgadmin",
+  "name": "pgadmin",
+  "trademark": "pgAdmin",
+  "category": "database",
+  "docs": {
+    "website": "https://www.pgadmin.org/",
+    "installRequirements": "https://www.pgadmin.org/docs/pgadmin4/latest/container_deployment.html",
+    "upstream": "https://hub.docker.com/r/dpage/pgadmin4"
+  },
+  "capabilities": {
+    "web": true,
+    "requiresDomain": false,
+    "hasBuiltinDatabase": false,
+    "supportsPublish": true
+  },
+  "requirements": {
+    "cpu": 1,
+    "memoryGb": 1,
+    "diskGb": 2
+  },
+  "versions": {
+    "default": {
+      "edition": "community",
+      "version": "latest"
+    },
+    "supported": [
+      { "edition": "community", "version": "latest" },
+      { "edition": "community", "version": "9.8" }
+    ]
+  },
+  "serviceRoles": {
+    "pgadmin": "primary"
+  }
+}

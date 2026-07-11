@@ -1,0 +1,28 @@
+{
+  "contractVersion": "0.1",
+  "env": {
+    "W9_ID": "${app_id}",
+    "W9_REPO": "postgres",
+    "W9_DIST": "community",
+    "W9_VERSION": "${version}",
+    "W9_DB_PORT": "5432",
+    "W9_DB_PORT_SET": "${db_port}",
+    "W9_NETWORK": "${platform.network}",
+    "POSTGRES_DB": "${db_name}",
+    "POSTGRES_USER": "${db_user}",
+    "POSTGRES_PASSWORD": "${secret:db_password}"
+  },
+  "compose_values": {
+    "primaryService": "postgresql"
+  },
+  "files": [],
+  "exposures": [
+    {
+      "label": "PostgreSQL",
+      "service": "postgresql",
+      "port": 5432,
+      "protocol": "tcp",
+      "default": true
+    }
+  ]
+}

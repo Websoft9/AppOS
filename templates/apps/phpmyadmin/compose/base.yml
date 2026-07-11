@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  phpmyadmin:
+    image: ${W9_REPO}:${W9_VERSION}
+    container_name: ${W9_ID}
+    hostname: ${W9_ID}
+    restart: unless-stopped
+    ports:
+      - ${W9_HTTP_PORT_SET}:80
+    environment:
+      PMA_ARBITRARY: ${PMA_ARBITRARY}
+      PMA_HOST: ${PMA_HOST}
+      PMA_PORT: ${PMA_PORT}
+      UPLOAD_LIMIT: ${UPLOAD_LIMIT}
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+networks:
+  default:
+    name: ${W9_NETWORK}
+    external: true

@@ -9,18 +9,10 @@ export function AppDetailAutomationTab() {
     <TabsContent value="automation" className="space-y-2.5">
       <Card>
         <CardHeader className="pb-2.5">
-          <CardTitle>Schedules</CardTitle>
+          <CardTitle>Automation</CardTitle>
         </CardHeader>
         <CardContent className="space-y-1.5 text-sm text-muted-foreground">
-          <p>App-scoped schedules and cron entries are not connected yet.</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="pb-2.5">
-          <CardTitle>Recent Runs</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-1.5 text-sm text-muted-foreground">
-          <p>Recent automation runs and their latest status will appear here.</p>
+          <p>App-scoped schedules and automation runs are not connected yet.</p>
         </CardContent>
       </Card>
     </TabsContent>
@@ -32,7 +24,7 @@ export function AppDetailSettingsTab({ app, displaySection }: SettingsTabProps) 
     <TabsContent value="settings" className="space-y-2.5">
       <Card>
         <CardHeader className="pb-2.5">
-          <CardTitle>App Settings</CardTitle>
+          <CardTitle>Metadata</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid gap-2 text-sm md:grid-cols-2">
@@ -53,25 +45,6 @@ export function AppDetailSettingsTab({ app, displaySection }: SettingsTabProps) 
           </div>
         </CardContent>
       </Card>
-      <Card>
-        <CardHeader className="pb-2.5">
-          <CardTitle>Security Summary</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-1.5 text-sm text-muted-foreground">
-          <p>Security scanning and app-scoped hardening summary are not connected yet.</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="pb-2.5">
-          <CardTitle>Metadata and Notes</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-1.5 text-sm text-muted-foreground">
-          <p>
-            Operator notes, ownership, maintenance windows, and tags are planned for this section.
-          </p>
-        </CardContent>
-      </Card>
-
       <AppDetailDisplaySection
         iconValue={displaySection.iconValue}
         labelValue={displaySection.labelValue}

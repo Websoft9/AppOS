@@ -13,6 +13,7 @@ import {
 import { CircleHelp } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ActionControlDialog } from '@/pages/deploy/actions/ActionControlDialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -201,6 +202,10 @@ export function CreateDeploymentPage({
     submitManualOperation,
     submitTemplateOperation,
     submitGitOperation,
+    pendingActionControl,
+    setPendingActionControl,
+    actionControlSubmitting,
+    submitActionControl,
   } = useActionsController({
     prefillMode,
     prefillSource,
@@ -1711,6 +1716,16 @@ export function CreateDeploymentPage({
           onSubmit={() => void handleSubmit()}
         />
       </div>
+      <ActionControlDialog
+        pending={pendingActionControl}
+        busy={actionControlSubmitting}
+        onOpenChange={open => {
+          if (!open) setPendingActionControl(null)
+        }}
+        onConfirm={pending => {
+          void submitActionControl(pending)
+        }}
+      />
     </div>
   )
 }

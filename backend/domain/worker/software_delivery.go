@@ -980,6 +980,7 @@ func (w *Worker) runSoftwarePhaseLoop(ctx context.Context, record *core.Record, 
 	if actionTimeout > 0 {
 		w.logSoftwareOperationEvent(record, fmt.Sprintf("Action timeout set to %s.", actionTimeout))
 	}
+	go w.softwareActionHeartbeat(actionCtx, record, fmt.Sprintf("%s action still running", action))
 
 	executor, exErr := softwareExecutorFactory(w.app, serverID, payload.UserID)
 	if exErr != nil {
@@ -1055,6 +1056,27 @@ func (w *Worker) runSoftwarePhaseLoop(ctx context.Context, record *core.Record, 
 
 	// ── Phase: Succeeded ─────────────────────────────────
 	w.succeedSoftwareOperationAndRefreshSnapshot(ctx, record, payload, entry, resolved, executor)
+}
+
+func (w *Worker) softwareActionHeartbeat(ctx context.Context, record *core.Record, message string) {
+	if w == nil || w.app == nil || record == nil {
+		return
+	}
+	policy := loadDeployRuntimePolicy(w.app)
+	interval := policy.OperationHeartbeat
+	if interval < time.Second {
+		interval = 20 * time.Second
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			w.logSoftwareOperationEvent(record, message)
+		}
+	}
 }
 
 func (w *Worker) refreshSoftwareSnapshot(ctx context.Context, record *core.Record, payload SoftwareActionPayload, entry software.CatalogEntry, resolved software.ResolvedTemplate, executor software.ComponentExecutor) {
