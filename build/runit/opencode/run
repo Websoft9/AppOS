@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+
+export HOME=${HOME:-/root}
+export OPENCODE_DIR=${OPENCODE_DIR:-/appos/data/opencode/config}
+export XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-/appos/data/opencode/config-home}
+export XDG_DATA_HOME=${XDG_DATA_HOME:-/appos/data/opencode/data-home}
+
+mkdir -p \
+  "$OPENCODE_DIR" \
+  "$XDG_CONFIG_HOME/opencode" \
+  "$XDG_DATA_HOME/opencode" \
+  /appos/data/opencode/prompts
+
+cd /appos/data
+unset OPENCODE_SERVER_USERNAME OPENCODE_SERVER_PASSWORD
+exec opencode serve --hostname 127.0.0.1 --port 4096

@@ -39,6 +39,7 @@ import { Route as AppAuthCertificatesRouteImport } from './routes/_app/_auth/cer
 import { Route as AppAuthAuditRouteImport } from './routes/_app/_auth/audit'
 import { Route as AppAuthAppsRouteImport } from './routes/_app/_auth/apps'
 import { Route as AppAuthAiCopilotRouteImport } from './routes/_app/_auth/ai-copilot'
+import { Route as AppAuthAiAgentRouteImport } from './routes/_app/_auth/ai-agent'
 import { Route as AppAuthActivityRouteImport } from './routes/_app/_auth/activity'
 import { Route as AppAuthSuperuserRouteImport } from './routes/_app/_auth/_superuser'
 import { Route as AppAuthTopicsIndexRouteImport } from './routes/_app/_auth/topics.index'
@@ -220,6 +221,11 @@ const AppAuthAppsRoute = AppAuthAppsRouteImport.update({
 const AppAuthAiCopilotRoute = AppAuthAiCopilotRouteImport.update({
   id: '/ai-copilot',
   path: '/ai-copilot',
+  getParentRoute: () => AppAuthRoute,
+} as any)
+const AppAuthAiAgentRoute = AppAuthAiAgentRouteImport.update({
+  id: '/ai-agent',
+  path: '/ai-agent',
   getParentRoute: () => AppAuthRoute,
 } as any)
 const AppAuthActivityRoute = AppAuthActivityRouteImport.update({
@@ -410,6 +416,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof AppResetPasswordRoute
   '/setup': typeof AppSetupRoute
   '/activity': typeof AppAuthActivityRouteWithChildren
+  '/ai-agent': typeof AppAuthAiAgentRoute
   '/ai-copilot': typeof AppAuthAiCopilotRoute
   '/apps': typeof AppAuthAppsRouteWithChildren
   '/audit': typeof AppAuthAuditRoute
@@ -472,6 +479,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof AppResetPasswordRoute
   '/setup': typeof AppSetupRoute
   '/activity': typeof AppAuthActivityRouteWithChildren
+  '/ai-agent': typeof AppAuthAiAgentRoute
   '/ai-copilot': typeof AppAuthAiCopilotRoute
   '/apps': typeof AppAuthAppsRouteWithChildren
   '/audit': typeof AppAuthAuditRoute
@@ -535,6 +543,7 @@ export interface FileRoutesById {
   '/_app/setup': typeof AppSetupRoute
   '/_app/_auth/_superuser': typeof AppAuthSuperuserRouteWithChildren
   '/_app/_auth/activity': typeof AppAuthActivityRouteWithChildren
+  '/_app/_auth/ai-agent': typeof AppAuthAiAgentRoute
   '/_app/_auth/ai-copilot': typeof AppAuthAiCopilotRoute
   '/_app/_auth/apps': typeof AppAuthAppsRouteWithChildren
   '/_app/_auth/audit': typeof AppAuthAuditRoute
@@ -599,6 +608,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/setup'
     | '/activity'
+    | '/ai-agent'
     | '/ai-copilot'
     | '/apps'
     | '/audit'
@@ -661,6 +671,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/setup'
     | '/activity'
+    | '/ai-agent'
     | '/ai-copilot'
     | '/apps'
     | '/audit'
@@ -723,6 +734,7 @@ export interface FileRouteTypes {
     | '/_app/setup'
     | '/_app/_auth/_superuser'
     | '/_app/_auth/activity'
+    | '/_app/_auth/ai-agent'
     | '/_app/_auth/ai-copilot'
     | '/_app/_auth/apps'
     | '/_app/_auth/audit'
@@ -994,6 +1006,13 @@ declare module '@tanstack/react-router' {
       path: '/ai-copilot'
       fullPath: '/ai-copilot'
       preLoaderRoute: typeof AppAuthAiCopilotRouteImport
+      parentRoute: typeof AppAuthRoute
+    }
+    '/_app/_auth/ai-agent': {
+      id: '/_app/_auth/ai-agent'
+      path: '/ai-agent'
+      fullPath: '/ai-agent'
+      preLoaderRoute: typeof AppAuthAiAgentRouteImport
       parentRoute: typeof AppAuthRoute
     }
     '/_app/_auth/activity': {
@@ -1349,6 +1368,7 @@ const AppAuthTopicsRouteWithChildren = AppAuthTopicsRoute._addFileChildren(
 interface AppAuthRouteChildren {
   AppAuthSuperuserRoute: typeof AppAuthSuperuserRouteWithChildren
   AppAuthActivityRoute: typeof AppAuthActivityRouteWithChildren
+  AppAuthAiAgentRoute: typeof AppAuthAiAgentRoute
   AppAuthAiCopilotRoute: typeof AppAuthAiCopilotRoute
   AppAuthAppsRoute: typeof AppAuthAppsRouteWithChildren
   AppAuthAuditRoute: typeof AppAuthAuditRoute
@@ -1383,6 +1403,7 @@ interface AppAuthRouteChildren {
 const AppAuthRouteChildren: AppAuthRouteChildren = {
   AppAuthSuperuserRoute: AppAuthSuperuserRouteWithChildren,
   AppAuthActivityRoute: AppAuthActivityRouteWithChildren,
+  AppAuthAiAgentRoute: AppAuthAiAgentRoute,
   AppAuthAiCopilotRoute: AppAuthAiCopilotRoute,
   AppAuthAppsRoute: AppAuthAppsRouteWithChildren,
   AppAuthAuditRoute: AppAuthAuditRoute,

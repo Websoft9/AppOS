@@ -5,6 +5,8 @@ DATA_DIR=${DATA_DIR:-/appos/data}
 APPOS_CONFIG_DIR=$DATA_DIR/config
 APPOS_CONFIG_FILE=$APPOS_CONFIG_DIR/appos.yaml
 APPOS_WEB_DIR=${APPOS_WEB_DIR:-/appos/web}
+OPENCODE_PROMPTS_DIR=$DATA_DIR/opencode/prompts
+OPENCODE_AGENTS_FILE=$DATA_DIR/opencode/AGENTS.md
 
 export DATA_DIR
 
@@ -23,6 +25,8 @@ mkdir -p \
     "$DATA_DIR/apps" \
   "$DATA_DIR/traefik" \
     "$DATA_DIR/victoriametrics" \
+    "$DATA_DIR/opencode" \
+    "$DATA_DIR/opencode/prompts" \
     "$DATA_DIR/workflows" \
     "$DATA_DIR/templates/apps" \
     "$DATA_DIR/templates/workflows" \
@@ -36,6 +40,40 @@ chmod -R 755 "$DATA_DIR"
 # Create directories
 mkdir -p /etc/traefik/dynamic
 mkdir -p "$APPOS_WEB_DIR"
+
+cat > "$OPENCODE_AGENTS_FILE" <<'EOF'
+# AGENTS.md — AppOS AI Agent Context
+
+You are running inside AppOS.
+
+## Working Context
+
+- AppOS is the control plane.
+- Use the local filesystem for project context and shared skills.
+- Use AppOS-managed servers through explicit SSH commands when you need remote inspection or changes.
+
+## Shared Assets
+
+- Shared skills live under `.agents/skills/`.
+- OpenCode command shortcuts live under `.opencode/commands/`.
+- Exported AppOS prompts live under `/appos/data/opencode/prompts/`.
+
+## Guardrails
+
+- Treat AppOS as a multi-server control plane.
+- Prefer read-first investigation before making changes.
+- Explain risky production changes before executing them.
+- Keep edits minimal and verifiable.
+
+## Validation
+
+- For AppOS code changes, prefer `make build` and `make test`.
+- For runtime validation, use the AppOS UI or authenticated HTTP requests when helpful.
+EOF
+
+if [ -d /appos/data/prompts ]; then
+	find /appos/data/prompts -type f -name '*.md' -exec cp {} "$OPENCODE_PROMPTS_DIR" \; 2>/dev/null || true
+fi
 
 echo "==> Data directories ready"
 

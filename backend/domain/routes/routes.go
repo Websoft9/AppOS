@@ -97,6 +97,7 @@ func Register(se *core.ServeEvent) {
 	registerBackupRoutes(g)
 	registerAIProviderRoutes(se)
 	registerAICopilotRoutes(se)
+	registerAIAgentRoutes(se)
 	registerConnectorRoutes(se)
 	registerInstanceRoutes(se)
 	registerProviderAccountRoutes(se)

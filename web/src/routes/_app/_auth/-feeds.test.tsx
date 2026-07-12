@@ -59,6 +59,57 @@ function buildPagedFeedRecords(totalItems: number) {
   }))
 }
 
+function mockPagedFeedList(feedRecords: ReturnType<typeof buildPagedFeedRecords>, itemCount?: number) {
+  const totalItems = itemCount ?? feedRecords.length
+
+  sendMock.mockImplementation((path: string) => {
+    if (path === '/api/feeds/sources') {
+      return Promise.resolve({
+        items: [
+          {
+            id: 'feed-1',
+            name: 'Vendor Releases',
+            url: 'https://example.com/releases.xml',
+            favicon_url: 'https://example.com/favicon.ico',
+            format: 'rss',
+            status: 'active',
+            item_count: totalItems,
+          },
+        ],
+      })
+    }
+    if (path === '/api/feeds/summary') {
+      return Promise.resolve({
+        totalItems,
+        starredItems: 0,
+        sourceCounts: [{ sourceId: 'feed-1', count: totalItems }],
+      })
+    }
+    if (path.startsWith('/api/feeds/items?')) {
+      const parsed = new URL(path, 'https://appos.local')
+      const page = Number(parsed.searchParams.get('page') || '1') || 1
+      const perPage = Number(parsed.searchParams.get('perPage') || '20') || 20
+      const start = (page - 1) * perPage
+      return Promise.resolve({
+        items: feedRecords.slice(start, start + perPage),
+        page,
+        perPage,
+        totalItems,
+      })
+    }
+    if (path.startsWith('/api/feeds/bookmarks?')) {
+      return Promise.resolve({
+        items: [],
+        page: 1,
+        perPage: 10,
+        totalItems: 0,
+        totalBookmarks: 0,
+      })
+    }
+    return Promise.resolve({})
+  })
+}
+
 describe('FeedsPage', () => {
   beforeEach(() => {
     sendMock.mockReset()
@@ -958,52 +1009,7 @@ describe('FeedsPage', () => {
 
   it('loads more articles when the app content container scroll reaches the bottom', async () => {
     const feedRecords = buildPagedFeedRecords(25)
-
-    sendMock.mockImplementation((path: string) => {
-      if (path === '/api/feeds/sources') {
-        return Promise.resolve({
-          items: [
-            {
-              id: 'feed-1',
-              name: 'Vendor Releases',
-              url: 'https://example.com/releases.xml',
-              favicon_url: 'https://example.com/favicon.ico',
-              format: 'rss',
-              status: 'active',
-            },
-          ],
-        })
-      }
-      if (path === '/api/feeds/summary') {
-        return Promise.resolve({
-          totalItems: feedRecords.length,
-          starredItems: 0,
-          sourceCounts: [{ sourceId: 'feed-1', count: feedRecords.length }],
-        })
-      }
-      if (path.startsWith('/api/feeds/items?')) {
-        const parsed = new URL(path, 'https://appos.local')
-        const page = Number(parsed.searchParams.get('page') || '1') || 1
-        const perPage = Number(parsed.searchParams.get('perPage') || '20') || 20
-        const start = (page - 1) * perPage
-        return Promise.resolve({
-          items: feedRecords.slice(start, start + perPage),
-          page,
-          perPage,
-          totalItems: feedRecords.length,
-        })
-      }
-      if (path.startsWith('/api/feeds/bookmarks?')) {
-        return Promise.resolve({
-          items: [],
-          page: 1,
-          perPage: 10,
-          totalItems: 0,
-          totalBookmarks: 0,
-        })
-      }
-      return Promise.resolve({})
-    })
+    mockPagedFeedList(feedRecords)
 
     const Component = (Route as unknown as { component: React.ComponentType }).component
     render(
@@ -1042,53 +1048,7 @@ describe('FeedsPage', () => {
 
   it('loads the next page when the Load more button is clicked', async () => {
     const feedRecords = buildPagedFeedRecords(25)
-
-    sendMock.mockImplementation((path: string) => {
-      if (path === '/api/feeds/sources') {
-        return Promise.resolve({
-          items: [
-            {
-              id: 'feed-1',
-              name: 'Vendor Releases',
-              url: 'https://example.com/releases.xml',
-              favicon_url: 'https://example.com/favicon.ico',
-              format: 'rss',
-              status: 'active',
-              item_count: feedRecords.length,
-            },
-          ],
-        })
-      }
-      if (path === '/api/feeds/summary') {
-        return Promise.resolve({
-          totalItems: feedRecords.length,
-          starredItems: 0,
-          sourceCounts: [{ sourceId: 'feed-1', count: feedRecords.length }],
-        })
-      }
-      if (path.startsWith('/api/feeds/items?')) {
-        const parsed = new URL(path, 'https://appos.local')
-        const page = Number(parsed.searchParams.get('page') || '1') || 1
-        const perPage = Number(parsed.searchParams.get('perPage') || '20') || 20
-        const start = (page - 1) * perPage
-        return Promise.resolve({
-          items: feedRecords.slice(start, start + perPage),
-          page,
-          perPage,
-          totalItems: feedRecords.length,
-        })
-      }
-      if (path.startsWith('/api/feeds/bookmarks?')) {
-        return Promise.resolve({
-          items: [],
-          page: 1,
-          perPage: 10,
-          totalItems: 0,
-          totalBookmarks: 0,
-        })
-      }
-      return Promise.resolve({})
-    })
+    mockPagedFeedList(feedRecords)
 
     const Component = (Route as unknown as { component: React.ComponentType }).component
     render(<Component />)
@@ -1108,53 +1068,7 @@ describe('FeedsPage', () => {
   it('can load multiple paged feed items across repeated bottom scrolls', async () => {
     const totalItems = 41
     const feedRecords = buildPagedFeedRecords(totalItems)
-
-    sendMock.mockImplementation((path: string) => {
-      if (path === '/api/feeds/sources') {
-        return Promise.resolve({
-          items: [
-            {
-              id: 'feed-1',
-              name: 'Vendor Releases',
-              url: 'https://example.com/releases.xml',
-              favicon_url: 'https://example.com/favicon.ico',
-              format: 'rss',
-              status: 'active',
-              item_count: totalItems,
-            },
-          ],
-        })
-      }
-      if (path === '/api/feeds/summary') {
-        return Promise.resolve({
-          totalItems,
-          starredItems: 0,
-          sourceCounts: [{ sourceId: 'feed-1', count: totalItems }],
-        })
-      }
-      if (path.startsWith('/api/feeds/items?')) {
-        const parsed = new URL(path, 'https://appos.local')
-        const page = Number(parsed.searchParams.get('page') || '1') || 1
-        const perPage = Number(parsed.searchParams.get('perPage') || '20') || 20
-        const start = (page - 1) * perPage
-        return Promise.resolve({
-          items: feedRecords.slice(start, start + perPage),
-          page,
-          perPage,
-          totalItems,
-        })
-      }
-      if (path.startsWith('/api/feeds/bookmarks?')) {
-        return Promise.resolve({
-          items: [],
-          page: 1,
-          perPage: 10,
-          totalItems: 0,
-          totalBookmarks: 0,
-        })
-      }
-      return Promise.resolve({})
-    })
+    mockPagedFeedList(feedRecords, totalItems)
 
     const Component = (Route as unknown as { component: React.ComponentType }).component
     render(

@@ -15,9 +15,13 @@ LABEL maintainer="Websoft9<help@websoft9.com>" \
 RUN apk add --no-cache \
 		ca-certificates \
 		curl \
+		nodejs \
+		npm \
 		redis \
 		runit \
 		tzdata
+
+RUN npm install -g opencode-ai@1.17.18
 
 # Download external binaries from GitHub releases (bypasses registry mirrors).
 RUN set -eux; \
@@ -43,6 +47,7 @@ COPY templates/apps /appos/data/templates/apps
 
 # Copy configuration files and set up runit services
 COPY --chmod=755 build/runit/appos/run /etc/sv/appos/run
+COPY --chmod=755 build/runit/opencode/run /etc/sv/opencode/run
 COPY --chmod=755 build/runit/redis/run /etc/sv/redis/run
 COPY --chmod=755 build/runit/victoriametrics/run /etc/sv/victoriametrics/run
 COPY --chmod=755 build/runit/traefik/run /etc/sv/traefik/run
@@ -56,6 +61,7 @@ RUN mkdir -p \
     /etc/sv \
     /etc/traefik/dynamic \
     && ln -s /etc/sv/appos /etc/service/appos \
+    && ln -s /etc/sv/opencode /etc/service/opencode \
     && ln -s /etc/sv/redis /etc/service/redis \
     && ln -s /etc/sv/victoriametrics /etc/service/victoriametrics \
     && ln -s /etc/sv/traefik /etc/service/traefik
@@ -68,6 +74,7 @@ RUN set -eux; \
 	command -v runsvdir >/dev/null 2>&1 || { echo "ERROR: runsvdir binary not found"; exit 1; }; \
 	command -v sv >/dev/null 2>&1 || { echo "ERROR: sv binary not found"; exit 1; }; \
 	command -v redis-server >/dev/null 2>&1 || { echo "ERROR: redis-server binary not found"; exit 1; }; \
+    command -v opencode >/dev/null 2>&1 || { echo "ERROR: opencode binary not found"; exit 1; }; \
     test -x /entrypoint.sh || { echo "ERROR: entrypoint.sh not executable"; exit 1; }; \
     traefik version >/dev/null 2>&1 || { echo "ERROR: traefik binary invalid"; exit 1; }
 

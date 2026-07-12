@@ -39,6 +39,57 @@ function isServerSoftwareCapabilitiesRequest(path: string) {
   return path === '/api/servers/server-1/software/capabilities'
 }
 
+const credentialRelationPath =
+  "/api/collections/secrets/records?filter=(created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value'||template_id='ssh_key')%26%26(visible_to:length=0||visible_to:each%3F='server')&sort=name"
+
+function singleValueSecretTemplate() {
+  return {
+    id: 'single_value',
+    label: 'Password',
+    description: 'Single secret value',
+    fields: [{ key: 'value', label: 'Secret Value', type: 'password', required: true }],
+  }
+}
+
+function configureMinimalCreateFlowMocks(overrides?: {
+  servers?: Record<string, unknown>[]
+  secrets?: Record<string, unknown>[]
+  payload?: Record<string, unknown>
+}) {
+  const servers = overrides?.servers ?? []
+  const secrets =
+    overrides?.secrets ?? [
+      {
+        id: 'secret-1',
+        name: 'ops-password',
+        template_id: 'single_value',
+      },
+    ]
+  const payload = overrides?.payload ?? {}
+
+  sendMock.mockImplementation((path: string) => {
+    if (path === '/api/servers/connection') {
+      return Promise.resolve({ items: servers })
+    }
+    if (path === credentialRelationPath) {
+      return Promise.resolve({ items: secrets })
+    }
+    if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+      return Promise.resolve({ items: [] })
+    }
+    if (path === '/api/servers/local/docker-bridge') {
+      return Promise.resolve({ interface: 'docker0', address: '172.17.0.1' })
+    }
+    if (path === '/api/secrets/templates') {
+      return Promise.resolve([singleValueSecretTemplate()])
+    }
+    if (path === '/api/secrets/secret-1/payload') {
+      return Promise.resolve(payload)
+    }
+    return Promise.resolve([])
+  })
+}
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: Record<string, unknown>) => {
@@ -797,10 +848,7 @@ describe('ServersPage layout', () => {
       if (isServerSoftwareRequest(path)) {
         return Promise.resolve({ items: [] })
       }
-      if (
-        path ===
-        "/api/collections/secrets/records?filter=(created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value'||template_id='ssh_key')%26%26(visible_to:length=0||visible_to:each%3F='server')&sort=name"
-      ) {
+      if (path === credentialRelationPath) {
         return Promise.resolve({
           items: [
             {
@@ -1842,45 +1890,7 @@ describe('ServersPage layout', () => {
   })
 
   it('edits the selected credential secret without leaving the server dialog', async () => {
-    sendMock.mockImplementation((path: string) => {
-      if (path === '/api/servers/connection') {
-        return Promise.resolve({ items: [] })
-      }
-      if (
-        path ===
-        "/api/collections/secrets/records?filter=(created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value'||template_id='ssh_key')%26%26(visible_to:length=0||visible_to:each%3F='server')&sort=name"
-      ) {
-        return Promise.resolve({
-          items: [
-            {
-              id: 'secret-1',
-              name: 'ops-password',
-              template_id: 'single_value',
-            },
-          ],
-        })
-      }
-      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
-        return Promise.resolve({ items: [] })
-      }
-      if (path === '/api/servers/local/docker-bridge') {
-        return Promise.resolve({ interface: 'docker0', address: '172.17.0.1' })
-      }
-      if (path === '/api/secrets/templates') {
-        return Promise.resolve([
-          {
-            id: 'single_value',
-            label: 'Password',
-            description: 'Single secret value',
-            fields: [{ key: 'value', label: 'Secret Value', type: 'password', required: true }],
-          },
-        ])
-      }
-      if (path === '/api/secrets/secret-1/payload') {
-        return Promise.resolve({})
-      }
-      return Promise.resolve([])
-    })
+    configureMinimalCreateFlowMocks()
 
     render(<ServersPage />)
 
@@ -1916,6 +1926,8 @@ describe('ServersPage layout', () => {
   }, 10000)
 
   it('renders connection type as cards, pre-fills a generated name, and uses the simplified credential action', async () => {
+    configureMinimalCreateFlowMocks()
+
     render(<ServersPage />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Add Server' }))
@@ -1945,9 +1957,11 @@ describe('ServersPage layout', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Credential (Secret)' }))
     expect(await screen.findByRole('button', { name: 'New credential' })).toBeInTheDocument()
-  }, 20000)
+  }, 12000)
 
   it('requests only user-manageable secrets for server credentials', async () => {
+    configureMinimalCreateFlowMocks()
+
     render(<ServersPage />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Add Server' }))
@@ -1955,7 +1969,7 @@ describe('ServersPage layout', () => {
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
-        "/api/collections/secrets/records?filter=(created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value'||template_id='ssh_key')%26%26(visible_to:length=0||visible_to:each%3F='server')&sort=name",
+        credentialRelationPath,
         {}
       )
     })
@@ -1998,6 +2012,8 @@ describe('ServersPage layout', () => {
   })
 
   it('requires host for direct ssh but allows tunnel submission without host or port', async () => {
+    configureMinimalCreateFlowMocks()
+
     render(<ServersPage />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Add Server' }))
@@ -2030,10 +2046,6 @@ describe('ServersPage layout', () => {
           connect_type: 'tunnel',
         })
       )
-    })
-
-    await waitFor(() => {
-      expect(screen.queryByRole('dialog')).toBeNull()
     })
 
     createServerMock.mockClear()

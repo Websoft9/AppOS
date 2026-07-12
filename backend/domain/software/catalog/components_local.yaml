@@ -265,6 +265,31 @@ components:
       restart: false
     notes: Go toolchain version embedded in the AppOS build metadata.
 
+  - id: opencode
+    name: OpenCode
+    enabled: true
+    criticality: optional
+    runtime_kind: service
+    role: embedded ai agent runtime
+    owned_capability: ai agent workspace
+    version_probe:
+      type: command
+      command: ["sh", "-c", "opencode --version 2>/dev/null || echo unavailable"]
+    availability_probe:
+      type: http
+      url: http://127.0.0.1:4096/global/health
+      expect_status: 200
+    update_probe:
+      type: file_mtime
+      path: /usr/local/bin/opencode
+    log_access:
+      type: stdout
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Embedded OpenCode agent server used by the AI Agent workspace.
+
 services:
   - name: appos
     component_id: appos
@@ -323,6 +348,22 @@ services:
     role: Embedded time-series metrics storage service.
     lifecycle: always_on
     visibility: diagnostic
+    log_access:
+      type: stdout
+    operations:
+      start: false
+      stop: false
+      restart: false
+
+  - name: opencode
+    component_id: opencode
+    enabled: true
+    manager: process
+    program: opencode
+    declared_in: runtime
+    role: Embedded OpenCode agent server.
+    lifecycle: always_on
+    visibility: default
     log_access:
       type: stdout
     operations:

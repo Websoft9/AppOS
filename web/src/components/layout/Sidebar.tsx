@@ -60,7 +60,7 @@ type NavLabels = {
     workspace: string
     platform: string
   }
-  items: {
+    items: {
     overview: string
     applications: string
     myApps: string
@@ -70,9 +70,11 @@ type NavLabels = {
     actions: string
     groups: string
     feed: string
-    terminal: string
-    aiCopilot: string
-    topics: string
+      terminal: string
+      aiCopilot: string
+      aiChat: string
+      aiAgent: string
+      topics: string
     feeds: string
     assets: string
     space: string
@@ -117,6 +119,8 @@ const DEFAULT_NAV_LABELS: NavLabels = {
     feed: 'Feed',
     terminal: 'Terminal',
     aiCopilot: 'AI Copilot',
+    aiChat: 'AI Chat',
+    aiAgent: 'AI Agent',
     topics: 'Topics',
     feeds: 'Feeds',
     assets: 'Assets',
@@ -188,6 +192,10 @@ function buildWorkspaceGroup(labels: NavLabels): NavGroup {
         label: labels.items.aiCopilot,
         icon: <BotMessageSquare className="h-5 w-5" />,
         href: '/ai-copilot',
+        children: [
+          { id: 'ai-chat', label: labels.items.aiChat, href: '/ai-copilot' },
+          { id: 'ai-agent', label: labels.items.aiAgent, href: '/ai-agent' },
+        ],
       },
       {
         id: 'feed',
@@ -543,6 +551,8 @@ export function Sidebar({ groups }: SidebarProps) {
         feed: t('items.feed'),
         terminal: t('items.terminal'),
         aiCopilot: t('items.aiCopilot'),
+        aiChat: t('items.aiChat'),
+        aiAgent: t('items.aiAgent'),
         topics: t('items.topics'),
         feeds: t('items.feeds'),
         assets: t('items.assets'),
