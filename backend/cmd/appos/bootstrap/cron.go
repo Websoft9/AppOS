@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/hibiken/asynq"
+	"github.com/pocketbase/pocketbase/core"
+	"github.com/robfig/cron/v3"
 	"github.com/websoft9/appos/backend/domain/feeds"
 	"github.com/websoft9/appos/backend/domain/monitor"
 	"github.com/websoft9/appos/backend/domain/resource/aiproviders"
@@ -16,6 +18,7 @@ import (
 	swcatalog "github.com/websoft9/appos/backend/domain/software/catalog"
 	swinventory "github.com/websoft9/appos/backend/domain/software/inventory"
 	"github.com/websoft9/appos/backend/domain/worker"
+	"github.com/websoft9/appos/backend/domain/workflow"
 	"github.com/websoft9/appos/backend/infra/cronutil"
 	"github.com/websoft9/appos/backend/infra/egress"
 	"github.com/websoft9/appos/backend/infra/persistence"
@@ -36,6 +39,7 @@ const monitorAppHealthCronJobID = "monitor_app_health_checks"
 const feedsPollCronJobID = "feeds_poll"
 const feedsRetentionCronJobID = "feeds_retention_sweep"
 const aiProviderEnabledModelsPruneCronJobID = "ai_provider_enabled_models_prune"
+const workflowDispatchCronJobID = "workflow_cron_dispatch"
 
 var newAIProviderPruneHTTPClientPlan = egress.NewHTTPClientPlan
 
@@ -87,6 +91,16 @@ func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 	if asynqClient == nil {
 		return
 	}
+
+	app.Cron().MustAdd(
+		workflowDispatchCronJobID,
+		"*/1 * * * *",
+		cronutil.Wrap(app, workflowDispatchCronJobID, func() {
+			if err := dispatchWorkflowCronRuns(app, asynqClient, time.Now().UTC()); err != nil {
+				panic(err)
+			}
+		}),
+	)
 
 	app.Cron().MustAdd(
 		monitorInstanceReachabilityCronJobID,
@@ -204,6 +218,54 @@ func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 			}
 		}),
 	)
+}
+
+func dispatchWorkflowCronRuns(app core.App, asynqClient *asynq.Client, now time.Time) error {
+	repo := persistence.NewWorkflowRepository(app)
+	svc := workflow.NewService(repo)
+	definitions, err := svc.ListCronEnabledDefinitions(context.Background())
+	if err != nil {
+		return err
+	}
+	for _, definition := range definitions {
+		schedules, err := workflow.CronSchedules(definition.DefinitionYAML)
+		if err != nil {
+			app.Logger().Error("workflow cron parse failed", "workflow_id", definition.ID, "error", err)
+			continue
+		}
+		for _, schedule := range schedules {
+			if !shouldRunWorkflowSchedule(now, schedule) {
+				continue
+			}
+			prepared, prepErr := svc.PrepareRun(context.Background(), workflow.PrepareRunInput{
+				WorkflowID:       definition.ID,
+				TriggerType:      workflow.TriggerCron,
+				RequestedBy:      secrets.CreatedSourceSystem,
+				RequestedByEmail: secrets.CreatedSourceSystem,
+				Params:           map[string]any{},
+			})
+			if prepErr != nil {
+				if errors.Is(prepErr, workflow.ErrOverlapSkipped) {
+					continue
+				}
+				return prepErr
+			}
+			if err := worker.EnqueueWorkflowRun(asynqClient, prepared.Run.ID); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func shouldRunWorkflowSchedule(now time.Time, schedule string) bool {
+	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+	parsed, err := parser.Parse(strings.TrimSpace(schedule))
+	if err != nil {
+		return false
+	}
+	next := parsed.Next(now.Add(-1 * time.Minute))
+	return next.UTC().Year() == now.UTC().Year() && next.UTC().Month() == now.UTC().Month() && next.UTC().Day() == now.UTC().Day() && next.UTC().Hour() == now.UTC().Hour() && next.UTC().Minute() == now.UTC().Minute()
 }
 
 func shouldRunMonitorInterval(now time.Time, intervalMinutes int) bool {

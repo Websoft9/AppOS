@@ -1,6 +1,6 @@
 # Coding decisions
 
-Scope: frontend/UI engineering decisions are maintained in [coding-decisions-ui.md](coding-decisions-ui.md). Canonical UX contracts are maintained in [ux-designs/ux-appos-canonical/DESIGN.md](ux-designs/ux-appos-canonical/DESIGN.md) and [ux-designs/ux-appos-canonical/EXPERIENCE.md](ux-designs/ux-appos-canonical/EXPERIENCE.md).
+Scope: frontend/UI decisions are maintained in [coding-decisions-ui.md](coding-decisions-ui.md).
 
 ## Story/Epic Guidelines{#story}
 

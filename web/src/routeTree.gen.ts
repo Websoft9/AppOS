@@ -58,6 +58,7 @@ import { Route as AppAuthGroupsIdRouteImport } from './routes/_app/_auth/groups.
 import { Route as AppAuthDeployCreateRouteImport } from './routes/_app/_auth/deploy.create'
 import { Route as AppAuthAppsAppIdRouteImport } from './routes/_app/_auth/apps.$appId'
 import { Route as AppAuthActivityActionIdRouteImport } from './routes/_app/_auth/activity.$actionId'
+import { Route as AppAuthSuperuserWorkflowsRouteImport } from './routes/_app/_auth/_superuser/workflows'
 import { Route as AppAuthSuperuserTunnelsRouteImport } from './routes/_app/_auth/_superuser/tunnels'
 import { Route as AppAuthSuperuserSystemTasksRouteImport } from './routes/_app/_auth/_superuser/system-tasks'
 import { Route as AppAuthSuperuserStatusRouteImport } from './routes/_app/_auth/_superuser/status'
@@ -321,6 +322,12 @@ const AppAuthActivityActionIdRoute = AppAuthActivityActionIdRouteImport.update({
   path: '/$actionId',
   getParentRoute: () => AppAuthActivityRoute,
 } as any)
+const AppAuthSuperuserWorkflowsRoute =
+  AppAuthSuperuserWorkflowsRouteImport.update({
+    id: '/workflows',
+    path: '/workflows',
+    getParentRoute: () => AppAuthSuperuserRoute,
+  } as any)
 const AppAuthSuperuserTunnelsRoute = AppAuthSuperuserTunnelsRouteImport.update({
   id: '/tunnels',
   path: '/tunnels',
@@ -447,6 +454,7 @@ export interface FileRoutesByFullPath {
   '/status': typeof AppAuthSuperuserStatusRoute
   '/system-tasks': typeof AppAuthSuperuserSystemTasksRoute
   '/tunnels': typeof AppAuthSuperuserTunnelsRoute
+  '/workflows': typeof AppAuthSuperuserWorkflowsRoute
   '/activity/$actionId': typeof AppAuthActivityActionIdRoute
   '/apps/$appId': typeof AppAuthAppsAppIdRoute
   '/deploy/create': typeof AppAuthDeployCreateRoute
@@ -507,6 +515,7 @@ export interface FileRoutesByTo {
   '/status': typeof AppAuthSuperuserStatusRoute
   '/system-tasks': typeof AppAuthSuperuserSystemTasksRoute
   '/tunnels': typeof AppAuthSuperuserTunnelsRoute
+  '/workflows': typeof AppAuthSuperuserWorkflowsRoute
   '/activity/$actionId': typeof AppAuthActivityActionIdRoute
   '/apps/$appId': typeof AppAuthAppsAppIdRoute
   '/deploy/create': typeof AppAuthDeployCreateRoute
@@ -574,6 +583,7 @@ export interface FileRoutesById {
   '/_app/_auth/_superuser/status': typeof AppAuthSuperuserStatusRoute
   '/_app/_auth/_superuser/system-tasks': typeof AppAuthSuperuserSystemTasksRoute
   '/_app/_auth/_superuser/tunnels': typeof AppAuthSuperuserTunnelsRoute
+  '/_app/_auth/_superuser/workflows': typeof AppAuthSuperuserWorkflowsRoute
   '/_app/_auth/activity/$actionId': typeof AppAuthActivityActionIdRoute
   '/_app/_auth/apps/$appId': typeof AppAuthAppsAppIdRoute
   '/_app/_auth/deploy/create': typeof AppAuthDeployCreateRoute
@@ -639,6 +649,7 @@ export interface FileRouteTypes {
     | '/status'
     | '/system-tasks'
     | '/tunnels'
+    | '/workflows'
     | '/activity/$actionId'
     | '/apps/$appId'
     | '/deploy/create'
@@ -699,6 +710,7 @@ export interface FileRouteTypes {
     | '/status'
     | '/system-tasks'
     | '/tunnels'
+    | '/workflows'
     | '/activity/$actionId'
     | '/apps/$appId'
     | '/deploy/create'
@@ -765,6 +777,7 @@ export interface FileRouteTypes {
     | '/_app/_auth/_superuser/status'
     | '/_app/_auth/_superuser/system-tasks'
     | '/_app/_auth/_superuser/tunnels'
+    | '/_app/_auth/_superuser/workflows'
     | '/_app/_auth/activity/$actionId'
     | '/_app/_auth/apps/$appId'
     | '/_app/_auth/deploy/create'
@@ -1141,6 +1154,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthActivityActionIdRouteImport
       parentRoute: typeof AppAuthActivityRoute
     }
+    '/_app/_auth/_superuser/workflows': {
+      id: '/_app/_auth/_superuser/workflows'
+      path: '/workflows'
+      fullPath: '/workflows'
+      preLoaderRoute: typeof AppAuthSuperuserWorkflowsRouteImport
+      parentRoute: typeof AppAuthSuperuserRoute
+    }
     '/_app/_auth/_superuser/tunnels': {
       id: '/_app/_auth/_superuser/tunnels'
       path: '/tunnels'
@@ -1276,6 +1296,7 @@ interface AppAuthSuperuserRouteChildren {
   AppAuthSuperuserStatusRoute: typeof AppAuthSuperuserStatusRoute
   AppAuthSuperuserSystemTasksRoute: typeof AppAuthSuperuserSystemTasksRoute
   AppAuthSuperuserTunnelsRoute: typeof AppAuthSuperuserTunnelsRoute
+  AppAuthSuperuserWorkflowsRoute: typeof AppAuthSuperuserWorkflowsRoute
   AppAuthSuperuserTerminalIndexRoute: typeof AppAuthSuperuserTerminalIndexRoute
   AppAuthSuperuserUsersIndexRoute: typeof AppAuthSuperuserUsersIndexRoute
   AppAuthSuperuserTerminalServerServerIdRoute: typeof AppAuthSuperuserTerminalServerServerIdRoute
@@ -1290,6 +1311,7 @@ const AppAuthSuperuserRouteChildren: AppAuthSuperuserRouteChildren = {
   AppAuthSuperuserStatusRoute: AppAuthSuperuserStatusRoute,
   AppAuthSuperuserSystemTasksRoute: AppAuthSuperuserSystemTasksRoute,
   AppAuthSuperuserTunnelsRoute: AppAuthSuperuserTunnelsRoute,
+  AppAuthSuperuserWorkflowsRoute: AppAuthSuperuserWorkflowsRoute,
   AppAuthSuperuserTerminalIndexRoute: AppAuthSuperuserTerminalIndexRoute,
   AppAuthSuperuserUsersIndexRoute: AppAuthSuperuserUsersIndexRoute,
   AppAuthSuperuserTerminalServerServerIdRoute:

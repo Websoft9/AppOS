@@ -61,6 +61,7 @@ func Register(se *core.ServeEvent) {
 	// Topic routes (authenticated share management + public share token)
 	registerTopicRoutes(se)
 	registerAssetsRoutes(se)
+	registerWorkflowRoutes(se)
 
 	// Space routes (authenticated quota/fetch/share + public share/preview)
 	registerSpaceRoutes(se)

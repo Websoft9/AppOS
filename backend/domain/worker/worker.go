@@ -148,6 +148,9 @@ func (w *Worker) Start() {
 	if err := w.recoverOrphanedDockerImagePullOperations(); err != nil {
 		log.Printf("recover orphaned docker image pull operations: %v", err)
 	}
+	if err := w.recoverOrphanedWorkflowRuns(); err != nil {
+		log.Printf("recover orphaned workflow runs: %v", err)
+	}
 
 	mux := w.newServeMux()
 	w.startLifecycleScheduler()
@@ -194,6 +197,7 @@ func (w *Worker) newServeMux() *asynq.ServeMux {
 	mux.HandleFunc(TaskSoftwareUninstall, w.handleSoftwareAction)
 	mux.HandleFunc(TaskSoftwareWarmSnapshot, w.handleSoftwareSnapshotWarm)
 	mux.HandleFunc(TaskDockerImagePull, w.handleDockerImagePull)
+	mux.HandleFunc(TaskWorkflowRun, w.handleWorkflowRun)
 	return mux
 }
 

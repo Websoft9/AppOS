@@ -7,7 +7,11 @@ import { pb } from '@/lib/pb'
 export function AIAgentPage() {
 	const { t } = useTranslation('aiAgent')
 	const token = pb.authStore.token
-	const iframeSrc = token ? `/api/ai/agent?token=${encodeURIComponent(token)}` : '/api/ai/agent'
+	const iframeQuery = new URLSearchParams({ embedded: '1' })
+	if (token) {
+		iframeQuery.set('token', token)
+	}
+	const iframeSrc = `/api/ai/agent?${iframeQuery.toString()}`
 
 	return (
 		<div className="-m-6 flex h-[calc(100%+3rem)] min-h-0 flex-col overflow-hidden px-6 py-6">
@@ -18,7 +22,7 @@ export function AIAgentPage() {
 						<p className="mt-0.5 text-sm text-muted-foreground">{t('page.subtitle')}</p>
 					</div>
 					<Button asChild size="sm" variant="outline">
-						<a href="/api/ai/agent" target="_blank" rel="noreferrer">
+						<a href={iframeSrc} target="_blank" rel="noreferrer">
 							<ExternalLink className="mr-2 h-4 w-4" />
 							{t('actions.openNewTab')}
 						</a>

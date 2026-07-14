@@ -33,6 +33,7 @@
     "audit": "审计",
     "logs": "日志",
     "platformCrons": "平台计划任务",
+    "workflows": "工作流",
     "sharedEnvs": "共享环境",
     "orchestrationFiles": "编排文件",
     "platformComponents": "平台组件",

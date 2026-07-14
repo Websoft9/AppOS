@@ -9,7 +9,12 @@ import (
 
 	"github.com/hibiken/asynq"
 	"github.com/pocketbase/pocketbase"
+	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tests"
 	swcatalog "github.com/websoft9/appos/backend/domain/software/catalog"
+	"github.com/websoft9/appos/backend/infra/collections"
+	_ "github.com/websoft9/appos/backend/infra/migrations"
+	"github.com/websoft9/appos/backend/infra/schema"
 )
 
 func TestRunComponentsInventoryProbeSuccess(t *testing.T) {
@@ -154,5 +159,59 @@ func TestRegisterCronHooksRegistersMonitorReachabilityJobs(t *testing.T) {
 	}
 	if !foundServer {
 		t.Fatalf("expected cron job %q to be registered", monitorServerReachabilityCronJobID)
+	}
+	foundWorkflowDispatch := false
+	for _, job := range app.Cron().Jobs() {
+		if job.Id() == workflowDispatchCronJobID {
+			foundWorkflowDispatch = true
+		}
+	}
+	if !foundWorkflowDispatch {
+		t.Fatalf("expected cron job %q to be registered", workflowDispatchCronJobID)
+	}
+}
+
+func TestDispatchWorkflowCronRunsCreatesRunForDueWorkflow(t *testing.T) {
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Cleanup()
+	if err := schema.EnsureAllCollections(app); err != nil {
+		t.Fatal(err)
+	}
+	workflowCol, err := app.FindCollectionByNameOrId(collections.Workflows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := core.NewRecord(workflowCol)
+	record.Set("name", "due-workflow")
+	record.Set("description", "due")
+	record.Set("is_enabled", true)
+	record.Set("definition_yaml", "name: due-workflow\ndefault_server_id: srv_1\ntriggers:\n  - type: cron\n    schedule: '0 6 * * *'\nnodes:\n  - key: collect\n    type: shell\n    config:\n      command: echo ok\n")
+	record.Set("default_server_id", "srv_1")
+	record.Set("trigger_types_json", []any{"cron"})
+	record.Set("node_count", 1)
+	record.Set("has_ai_nodes", false)
+	if err := app.Save(record); err != nil {
+		t.Fatal(err)
+	}
+	client := asynq.NewClient(asynq.RedisClientOpt{Addr: "127.0.0.1:6379"})
+	defer client.Close()
+	now := time.Date(2026, time.May, 25, 6, 0, 0, 0, time.UTC)
+	err = dispatchWorkflowCronRuns(app, client, now)
+	if err != nil {
+		if strings.Contains(err.Error(), "connect") || strings.Contains(err.Error(), "dial tcp") {
+			// Queueing may fail in tests without Redis. The dispatch preparation still happened.
+		} else {
+			t.Fatalf("dispatchWorkflowCronRuns: %v", err)
+		}
+	}
+	runs, findErr := app.FindRecordsByFilter(collections.WorkflowRuns, "workflow_definition = {:workflow}", "created", 0, 0, map[string]any{"workflow": record.Id})
+	if findErr != nil {
+		t.Fatalf("find runs: %v", findErr)
+	}
+	if len(runs) != 1 {
+		t.Fatalf("expected 1 workflow run, got %d", len(runs))
 	}
 }

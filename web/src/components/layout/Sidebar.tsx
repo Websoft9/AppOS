@@ -90,6 +90,7 @@ type NavLabels = {
     audit: string
     logs: string
     platformCrons: string
+    workflows: string
     sharedEnvs: string
     orchestrationFiles: string
     platformComponents: string
@@ -137,6 +138,7 @@ const DEFAULT_NAV_LABELS: NavLabels = {
     audit: 'Audit',
     logs: 'Logs',
     platformCrons: 'Platform Crons',
+    workflows: 'Workflows',
     sharedEnvs: 'Shared Envs',
     orchestrationFiles: 'Orchestration Files',
     platformComponents: 'Platform Components',
@@ -195,6 +197,7 @@ function buildWorkspaceGroup(labels: NavLabels): NavGroup {
         children: [
           { id: 'ai-chat', label: labels.items.aiChat, href: '/ai-copilot' },
           { id: 'ai-agent', label: labels.items.aiAgent, href: '/ai-agent' },
+          { id: 'workflow', label: labels.items.workflows, href: '/workflows' },
         ],
       },
       {
@@ -261,6 +264,7 @@ function buildPlatformGroup(isSuperuser: boolean, labels: NavLabels): NavGroup {
       { id: 'audit', label: labels.items.audit, href: '/audit' },
       { id: 'logs', label: labels.items.logs, href: '/logs' },
       { id: 'system-tasks', label: labels.items.platformCrons, href: '/system-tasks' },
+      { id: 'workflows', label: labels.items.workflows, href: '/workflows' },
       { id: 'shared-envs', label: labels.items.sharedEnvs, href: '/shared-envs' },
       { id: 'iac', label: labels.items.orchestrationFiles, href: '/iac' },
     ],
@@ -569,6 +573,7 @@ export function Sidebar({ groups }: SidebarProps) {
         audit: t('items.audit'),
         logs: t('items.logs'),
         platformCrons: t('items.platformCrons'),
+        workflows: t('items.workflows'),
         sharedEnvs: t('items.sharedEnvs'),
         orchestrationFiles: t('items.orchestrationFiles'),
         platformComponents: t('items.platformComponents'),

@@ -41,6 +41,9 @@ func EnsureAllCollections(app core.App) error {
 		EnsureAssetsCollection,
 		EnsureAICopilotSessionsCollection,
 		EnsureAICopilotMessagesCollection,
+		EnsureWorkflowsCollection,
+		EnsureWorkflowRunsCollection,
+		EnsureWorkflowNodeRunsCollection,
 		EnsureMediaCollection,
 	}
 

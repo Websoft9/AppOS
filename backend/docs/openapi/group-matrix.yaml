@@ -209,6 +209,28 @@ groups:
         - media.go
       nativeRefs: []
 
+  - group: Workflow
+    description: User-level workflow definition, run, and node-run APIs for AppOS orchestration.
+    apiType: Ext
+    extSurface:
+      - GET /api/workflows
+      - POST /api/workflows
+      - GET /api/workflows/{id}
+      - PUT /api/workflows/{id}
+      - DELETE /api/workflows/{id}
+      - POST /api/workflows/{id}/run
+      - GET /api/workflows/{id}/runs
+      - GET /api/workflow-runs/{runId}
+      - GET /api/workflow-runs/{runId}/nodes
+      - POST /api/workflow-runs/{runId}/cancel
+      - POST /api/workflow-runs/{runId}/approve/{nodeKey}
+      - POST /api/workflow-runs/{runId}/reject/{nodeKey}
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - workflows.go
+      nativeRefs: []
+
   - group: Apps
     description: Installed app inventory and lifecycle APIs backed by compose projects.
     apiType: Ext
@@ -672,4 +694,3 @@ groups:
         - ../certs/generate_routes.go
       nativeRefs:
         - https://pocketbase.io/docs/api-records/#crud-actions
-

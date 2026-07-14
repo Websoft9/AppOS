@@ -33,6 +33,7 @@
     "audit": "Audit",
     "logs": "Logs",
     "platformCrons": "Platform Crons",
+    "workflows": "Workflows",
     "sharedEnvs": "Shared Envs",
     "orchestrationFiles": "Orchestration Files",
     "platformComponents": "Platform Components",

@@ -8,6 +8,12 @@ const AICopilotSessions = "ai_copilot_sessions"
 
 const AICopilotMessages = "ai_copilot_messages"
 
+const Workflows = "workflows"
+
+const WorkflowRuns = "workflow_runs"
+
+const WorkflowNodeRuns = "workflow_node_runs"
+
 const Instances = "instances"
 
 const ProviderAccounts = "provider_accounts"
