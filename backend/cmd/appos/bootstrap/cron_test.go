@@ -214,4 +214,7 @@ func TestDispatchWorkflowCronRunsCreatesRunForDueWorkflow(t *testing.T) {
 	if len(runs) != 1 {
 		t.Fatalf("expected 1 workflow run, got %d", len(runs))
 	}
+	if got := strings.TrimSpace(runs[0].GetString("execution_owner_id")); got == "" {
+		t.Fatal("expected cron-dispatched run to persist execution_owner_id")
+	}
 }

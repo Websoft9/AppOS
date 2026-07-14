@@ -25,6 +25,15 @@ type RunResult struct {
 	Node   *NodeRunRecord
 }
 
+func IsTerminalRunStatus(status string) bool {
+	for _, candidate := range TerminalRunStatuses {
+		if candidate == strings.TrimSpace(status) {
+			return true
+		}
+	}
+	return false
+}
+
 func NewRunner(repo Repository) *Runner {
 	return &Runner{repo: repo}
 }
@@ -148,7 +157,12 @@ func (r *Runner) Run(ctx context.Context, execCtx *ExecutionContext, execute fun
 		return RunResult{}, fmt.Errorf("execution context is required")
 	}
 	for {
-		if execCtx.Run.Status == RunStatusCancelled {
+		currentRun, err := r.repo.GetRun(ctx, execCtx.Run.ID)
+		if err != nil {
+			return RunResult{}, err
+		}
+		execCtx.Run = currentRun
+		if currentRun.Status == RunStatusCancelled {
 			return RunResult{Status: RunStatusCancelled}, nil
 		}
 		ready := ReadyNodes(execCtx)
@@ -195,6 +209,23 @@ func (r *Runner) Run(ctx context.Context, execCtx *ExecutionContext, execute fun
 			}(i)
 		}
 		wg.Wait()
+		currentRun, err = r.repo.GetRun(ctx, execCtx.Run.ID)
+		if err != nil {
+			return RunResult{}, err
+		}
+		execCtx.Run = currentRun
+		if currentRun.Status == RunStatusCancelled {
+			for _, item := range results {
+				cancelled := NodeStatusCancelled
+				endedAt := nowRFC3339()
+				updated, updateErr := r.repo.UpdateNodeRun(ctx, item.nodeRun.ID, UpdateNodeRunInput{Status: &cancelled, EndedAt: &endedAt})
+				if updateErr != nil {
+					return RunResult{}, updateErr
+				}
+				execCtx.NodeRuns[item.node.Key] = updated
+			}
+			return RunResult{Status: RunStatusCancelled}, nil
+		}
 		var pendingResult *RunResult
 		for _, item := range results {
 			endedAt := nowRFC3339()

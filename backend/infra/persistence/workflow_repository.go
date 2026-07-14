@@ -111,6 +111,7 @@ func (r *pocketBaseWorkflowRepository) CreateRun(_ context.Context, input workfl
 	record.Set("definition_yaml", strings.TrimSpace(input.DefinitionYAML))
 	record.Set("status", strings.TrimSpace(input.Status))
 	record.Set("trigger_type", strings.TrimSpace(input.TriggerType))
+	record.Set("execution_owner_id", strings.TrimSpace(input.ExecutionOwnerID))
 	record.Set("requested_by", strings.TrimSpace(input.RequestedBy))
 	record.Set("requested_by_email", strings.TrimSpace(input.RequestedByEmail))
 	record.Set("params_json", mustDecodeJSONMap(input.ParamsJSON))
@@ -297,6 +298,7 @@ func workflowRunFromRecord(record *core.Record) *workflow.RunRecord {
 		DefinitionYAML:   record.GetString("definition_yaml"),
 		Status:           record.GetString("status"),
 		TriggerType:      record.GetString("trigger_type"),
+		ExecutionOwnerID: record.GetString("execution_owner_id"),
 		RequestedBy:      record.GetString("requested_by"),
 		RequestedByEmail: record.GetString("requested_by_email"),
 		ParamsJSON:       marshalJSONString(record.Get("params_json")),

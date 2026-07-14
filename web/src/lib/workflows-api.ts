@@ -21,6 +21,7 @@ export type WorkflowRunRecord = {
   definition_yaml: string
   status: string
   trigger_type: string
+  execution_owner_id: string
   requested_by: string
   requested_by_email: string
   params_json: string
@@ -50,6 +51,13 @@ export type WorkflowNodeRunRecord = {
   ended_at: string
   created: string
   updated: string
+}
+
+export type ServerOptionRecord = {
+  id: string
+  name?: string
+  host?: string
+  is_enabled?: boolean | string | number | null
 }
 
 const noAutoCancel = { requestKey: null }
@@ -119,6 +127,21 @@ export async function listWorkflowNodeRuns(runId: string): Promise<WorkflowNodeR
     }
   )
   return Array.isArray(result) ? result : []
+}
+
+export async function getWorkflowRun(runId: string) {
+  return pb.send<WorkflowRunRecord>(`/api/workflow-runs/${encodeURIComponent(runId)}`, {
+    ...noAutoCancel,
+    method: 'GET',
+  })
+}
+
+export async function listWorkflowServers(): Promise<ServerOptionRecord[]> {
+  const result = await pb.send<{ items?: ServerOptionRecord[] }>('/api/servers/connection', {
+    ...noAutoCancel,
+    method: 'GET',
+  })
+  return Array.isArray(result?.items) ? result.items : []
 }
 
 export async function cancelWorkflowRun(runId: string) {

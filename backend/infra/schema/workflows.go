@@ -53,6 +53,7 @@ func EnsureWorkflowRunsCollection(app core.App) error {
 	addFieldIfMissing(col, &core.TextField{Name: "definition_yaml", Required: true, Max: 1 << 20})
 	addFieldIfMissing(col, &core.SelectField{Name: "status", Required: true, MaxSelect: 1, Values: []string{workflow.RunStatusPending, workflow.RunStatusRunning, workflow.RunStatusSucceeded, workflow.RunStatusFailed, workflow.RunStatusCancelled, workflow.RunStatusWaiting, workflow.RunStatusManualGate}})
 	addFieldIfMissing(col, &core.SelectField{Name: "trigger_type", Required: true, MaxSelect: 1, Values: workflow.SupportedTriggerTypes})
+	addFieldIfMissing(col, &core.TextField{Name: "execution_owner_id", Max: 100})
 	addFieldIfMissing(col, &core.TextField{Name: "requested_by", Max: 100})
 	addFieldIfMissing(col, &core.TextField{Name: "requested_by_email", Max: 200})
 	addFieldIfMissing(col, &core.JSONField{Name: "params_json"})

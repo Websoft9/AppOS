@@ -18,6 +18,7 @@ type PreparedRun struct {
 type PrepareRunInput struct {
 	WorkflowID       string
 	TriggerType      string
+	ExecutionOwnerID string
 	RequestedBy      string
 	RequestedByEmail string
 	Params           map[string]any
@@ -50,6 +51,12 @@ func (s *Service) PrepareRun(ctx context.Context, input PrepareRunInput) (*Prepa
 	if !definition.IsEnabled && input.TriggerType == TriggerCron {
 		return nil, fmt.Errorf("workflow is disabled")
 	}
+	if strings.TrimSpace(input.ExecutionOwnerID) == "" {
+		input.ExecutionOwnerID = strings.TrimSpace(definition.CreatedBy)
+	}
+	if strings.TrimSpace(input.ExecutionOwnerID) == "" {
+		return nil, fmt.Errorf("workflow execution owner is required")
+	}
 	paramsJSON, _ := json.Marshal(input.Params)
 	seeds := make([]NodeRunSeed, 0, len(def.Nodes))
 	for _, node := range def.Nodes {
@@ -71,6 +78,7 @@ func (s *Service) PrepareRun(ctx context.Context, input PrepareRunInput) (*Prepa
 		DefinitionYAML:   definition.DefinitionYAML,
 		Status:           RunStatusPending,
 		TriggerType:      input.TriggerType,
+		ExecutionOwnerID: input.ExecutionOwnerID,
 		RequestedBy:      input.RequestedBy,
 		RequestedByEmail: input.RequestedByEmail,
 		ParamsJSON:       string(paramsJSON),

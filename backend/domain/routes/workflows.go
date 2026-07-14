@@ -206,6 +206,7 @@ func handleWorkflowRunCreate(e *core.RequestEvent) error {
 	prepared, err := svc.PrepareRun(context.Background(), workflow.PrepareRunInput{
 		WorkflowID:       e.Request.PathValue("id"),
 		TriggerType:      workflow.TriggerManual,
+		ExecutionOwnerID: authID(e),
 		RequestedBy:      authID(e),
 		RequestedByEmail: authEmail(e),
 		Params:           req.Params,
@@ -310,6 +311,15 @@ func handleWorkflowRunCancel(e *core.RequestEvent) error {
 	}
 	if run.Status == workflow.RunStatusSucceeded || run.Status == workflow.RunStatusFailed || run.Status == workflow.RunStatusCancelled {
 		return e.BadRequestError("workflow run is already terminal", nil)
+	}
+	if run.Status == workflow.RunStatusPending || run.Status == workflow.RunStatusRunning || run.Status == workflow.RunStatusWaiting || run.Status == workflow.RunStatusManualGate {
+		status := workflow.RunStatusCancelled
+		now := time.Now().UTC().Format(time.RFC3339)
+		item, err := repo.UpdateRun(context.Background(), e.Request.PathValue("runId"), workflow.UpdateRunInput{Status: &status, EndedAt: &now})
+		if err != nil {
+			return mapWorkflowError(e, err)
+		}
+		return e.JSON(http.StatusOK, item)
 	}
 	status := workflow.RunStatusCancelled
 	now := time.Now().UTC().Format(time.RFC3339)

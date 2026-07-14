@@ -86,11 +86,16 @@ func (w *Worker) handleWorkflowRun(ctx context.Context, t *asynq.Task) error {
 	if run.Status == workflow.RunStatusCancelled || run.Status == workflow.RunStatusFailed || run.Status == workflow.RunStatusSucceeded {
 		return nil
 	}
+	if workflow.IsTerminalRunStatus(run.Status) && run.Status != workflow.RunStatusPending {
+		return nil
+	}
 	status := workflow.RunStatusRunning
 	startedAt := time.Now().UTC().Format(time.RFC3339)
-	run, err = repo.UpdateRun(ctx, run.ID, workflow.UpdateRunInput{Status: &status, StartedAt: &startedAt})
-	if err != nil {
-		return err
+	if run.Status == workflow.RunStatusPending {
+		run, err = repo.UpdateRun(ctx, run.ID, workflow.UpdateRunInput{Status: &status, StartedAt: &startedAt})
+		if err != nil {
+			return err
+		}
 	}
 	defer func() {
 		if err != nil {
@@ -112,11 +117,11 @@ func (w *Worker) handleWorkflowRun(ctx context.Context, t *asynq.Task) error {
 	executorRegistry := workflow.NewExecutorRegistry(w.app)
 	providers := persistence.NewAIProviderRepository(w.app)
 	resolver := copilot.NewDefaultProviderResolver(providers, workflowSecretResolver{app: w.app}, workflowProviderSelectionResolver{})
-	result, err := runner.Run(ctx, execCtx, func(_ context.Context, nodeRun *workflow.NodeRunRecord, node workflow.NodeDefinition) (string, map[string]any, error) {
-		return executorRegistry.Execute(ctx, &workflow.ExecutorContext{
+	result, err := runner.Run(ctx, execCtx, func(runCtx context.Context, nodeRun *workflow.NodeRunRecord, node workflow.NodeDefinition) (string, map[string]any, error) {
+		return executorRegistry.Execute(runCtx, &workflow.ExecutorContext{
 			App:        w.app,
 			Definition: definition,
-			Run:        run,
+			Run:        execCtx.Run,
 			NodeRuns:   execCtx.NodeRuns,
 			Params:     decodeRunParams(run.ParamsJSON),
 			Repo:       repo,

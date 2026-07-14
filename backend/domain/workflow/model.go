@@ -84,6 +84,7 @@ type RunRecord struct {
 	DefinitionYAML   string `json:"definition_yaml"`
 	Status           string `json:"status"`
 	TriggerType      string `json:"trigger_type"`
+	ExecutionOwnerID string `json:"execution_owner_id"`
 	RequestedBy      string `json:"requested_by"`
 	RequestedByEmail string `json:"requested_by_email"`
 	ParamsJSON       string `json:"params_json"`

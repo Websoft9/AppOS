@@ -51,6 +51,7 @@ type CreateRunInput struct {
 	DefinitionYAML   string
 	Status           string
 	TriggerType      string
+	ExecutionOwnerID string
 	RequestedBy      string
 	RequestedByEmail string
 	ParamsJSON       string

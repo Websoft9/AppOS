@@ -240,6 +240,7 @@ func dispatchWorkflowCronRuns(app core.App, asynqClient *asynq.Client, now time.
 			prepared, prepErr := svc.PrepareRun(context.Background(), workflow.PrepareRunInput{
 				WorkflowID:       definition.ID,
 				TriggerType:      workflow.TriggerCron,
+				ExecutionOwnerID: definition.CreatedBy,
 				RequestedBy:      secrets.CreatedSourceSystem,
 				RequestedByEmail: secrets.CreatedSourceSystem,
 				Params:           map[string]any{},

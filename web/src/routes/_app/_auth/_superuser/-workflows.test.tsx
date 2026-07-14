@@ -3,6 +3,12 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { WorkflowsPage } from './workflows'
 
 const sendMock = vi.fn()
+const saveDraftHandoffMock = vi.fn()
+const windowOpenMock = vi.fn()
+
+async function openRowActions() {
+  fireEvent.click(screen.getByRole('button', { name: 'Actions' }))
+}
 
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (config: Record<string, unknown>) => config,
@@ -18,6 +24,14 @@ vi.mock('@/contexts/LayoutContext', () => ({
   useOptionalLayout: () => ({ setHeaderRightStartContent: vi.fn() }),
 }))
 
+vi.mock('@/lib/ai-copilot-draft-handoff', () => ({
+  saveAICopilotDraftHandoff: (...args: unknown[]) => saveDraftHandoffMock(...args),
+}))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}))
+
 describe('WorkflowsPage', () => {
   afterEach(() => {
     cleanup()
@@ -25,6 +39,10 @@ describe('WorkflowsPage', () => {
 
   beforeEach(() => {
     sendMock.mockReset()
+    saveDraftHandoffMock.mockReset()
+    windowOpenMock.mockReset()
+    window.open = windowOpenMock as typeof window.open
+    Element.prototype.scrollIntoView = vi.fn()
     sendMock.mockImplementation((path: string, options?: { method?: string }) => {
       if (path === '/api/workflows' && options?.method === 'GET') {
         return Promise.resolve([
@@ -44,6 +62,14 @@ describe('WorkflowsPage', () => {
           },
         ])
       }
+      if (path === '/api/servers/connection' && options?.method === 'GET') {
+        return Promise.resolve({
+          items: [
+            { id: 'srv-1', name: 'Primary Server', host: '10.0.0.10', is_enabled: true },
+            { id: 'srv-2', name: 'Backup Server', host: '10.0.0.11', is_enabled: true },
+          ],
+        })
+      }
       if (path === '/api/workflows/wf-1/runs' && options?.method === 'GET') {
         return Promise.resolve([
           {
@@ -52,6 +78,7 @@ describe('WorkflowsPage', () => {
             definition_yaml: 'name: Daily Health Check',
             status: 'manual_gate',
             trigger_type: 'manual',
+            execution_owner_id: 'su-1',
             requested_by: 'su-1',
             requested_by_email: 'admin@websoft9.com',
             params_json: '{}',
@@ -64,6 +91,26 @@ describe('WorkflowsPage', () => {
             updated: '2026-07-13T08:10:00Z',
           },
         ])
+      }
+      if (path === '/api/workflow-runs/run-1' && options?.method === 'GET') {
+        return Promise.resolve({
+          id: 'run-1',
+          workflow_id: 'wf-1',
+          definition_yaml: 'name: Daily Health Check',
+          status: 'manual_gate',
+          trigger_type: 'manual',
+          execution_owner_id: 'su-1',
+          requested_by: 'su-1',
+          requested_by_email: 'admin@websoft9.com',
+          params_json: '{}',
+          resolved_server_id: 'srv-1',
+          overlap_policy: 'skip',
+          started_at: '2026-07-13T08:10:00Z',
+          ended_at: '',
+          error_message: '',
+          created: '2026-07-13T08:10:00Z',
+          updated: '2026-07-13T08:10:00Z',
+        })
       }
       if (path === '/api/workflow-runs/run-1/nodes' && options?.method === 'GET') {
         return Promise.resolve([
@@ -100,7 +147,7 @@ describe('WorkflowsPage', () => {
         return Promise.resolve({ id: 'node-1', status: 'succeeded' })
       }
       if (path === '/api/workflow-runs/run-1/cancel' && options?.method === 'POST') {
-        return Promise.resolve({ id: 'run-1', status: 'cancelled' })
+        return Promise.resolve({ id: 'run-1', status: 'cancelled', ended_at: '2026-07-13T08:12:00Z' })
       }
       return Promise.resolve({ ok: true })
     })
@@ -111,13 +158,15 @@ describe('WorkflowsPage', () => {
 
     expect(await screen.findByText('Workflows')).toBeInTheDocument()
     expect(await screen.findByText('Daily Health Check')).toBeInTheDocument()
-    expect(screen.getByRole('cell', { name: 'srv-1' })).toBeInTheDocument()
+    expect(screen.getByRole('cell', { name: 'Primary Server' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Runs' }))
+    await openRowActions()
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Runs' }))
 
     expect(await screen.findByText(/Workflow Runs/i)).toBeInTheDocument()
     expect(await screen.findByText('approve')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument()
+    expect(screen.getByText('admin@websoft9.com')).toBeInTheDocument()
   })
 
   it('submits create workflow requests', async () => {
@@ -125,8 +174,12 @@ describe('WorkflowsPage', () => {
     await screen.findAllByText('Workflows')
 
     fireEvent.click(screen.getByRole('button', { name: 'Create Workflow' }))
+    expect(screen.getByText(/target server only applies to/i)).toBeInTheDocument()
+    const definitionValue = String((screen.getByLabelText('Definition YAML') as HTMLTextAreaElement).value)
+    expect(definitionValue).toContain('type: shell')
+    expect(definitionValue).toContain('command: hostname')
     fireEvent.change(screen.getByLabelText('Definition YAML'), {
-      target: { value: 'name: New Workflow\ndefault_server_id: srv-1\nnodes:\n  - key: a\n    type: shell\n    config:\n      command: echo hi\n' },
+      target: { value: 'name: New Workflow\ndescription: Test workflow\ndefault_server_id: srv-1\nnodes:\n  - key: a\n    type: shell\n    config:\n      command: echo hi\n' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
@@ -135,11 +188,58 @@ describe('WorkflowsPage', () => {
     })
   })
 
+  it('syncs trigger controls back into yaml', async () => {
+    render(<WorkflowsPage />)
+    await screen.findAllByText('Workflows')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create Workflow' }))
+    fireEvent.click(screen.getByLabelText('Trigger Type'))
+    fireEvent.click(await screen.findByRole('option', { name: 'Cron' }))
+
+    const cronInput = await screen.findByLabelText('Cron Schedule')
+    fireEvent.change(cronInput, { target: { value: '0 6 * * *' } })
+
+    const definitionValue = String((screen.getByLabelText('Definition YAML') as HTMLTextAreaElement).value)
+    expect(definitionValue).toContain('type: cron')
+    expect(definitionValue).toContain('schedule: 0 6 * * *')
+  })
+
+  it('opens ai copilot with a prepared workflow drafting prompt', async () => {
+    render(<WorkflowsPage />)
+    await screen.findAllByText('Workflows')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create Workflow' }))
+    fireEvent.change(screen.getByLabelText('AI Workflow Request'), {
+      target: { value: 'Create a daily disk usage workflow.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Open In AI Copilot' }))
+
+    expect(saveDraftHandoffMock).toHaveBeenCalledTimes(1)
+    expect(String(saveDraftHandoffMock.mock.calls[0][0])).toContain('Create a daily disk usage workflow.')
+    expect(String(saveDraftHandoffMock.mock.calls[0][0])).toContain('Return YAML only')
+    expect(windowOpenMock).toHaveBeenCalledWith('/ai-copilot', '_blank', 'noopener,noreferrer')
+  })
+
+  it('blocks save on invalid yaml with actionable feedback', async () => {
+	  render(<WorkflowsPage />)
+	  await screen.findAllByText('Workflows')
+
+	  fireEvent.click(screen.getByRole('button', { name: 'Create Workflow' }))
+	  fireEvent.change(screen.getByLabelText('Definition YAML'), {
+	    target: { value: 'name: Broken Workflow\nnodes: [' },
+	  })
+	  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+	  expect(await screen.findByText(/unexpected end of the stream/i)).toBeInTheDocument()
+	  expect(sendMock).not.toHaveBeenCalledWith('/api/workflows', expect.objectContaining({ method: 'POST' }))
+  })
+
   it('opens run dialog and submits params', async () => {
     render(<WorkflowsPage />)
     await screen.findByText('Daily Health Check')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Run' }))
+    await openRowActions()
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Run' }))
     fireEvent.change(screen.getByLabelText('Run Parameters JSON'), {
       target: { value: '{"dry_run":false}' },
     })
@@ -157,7 +257,7 @@ describe('WorkflowsPage', () => {
     render(<WorkflowsPage />)
     await screen.findByText('Daily Health Check')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Disable' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Enabled' }))
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
@@ -165,5 +265,24 @@ describe('WorkflowsPage', () => {
         expect.objectContaining({ method: 'PUT' })
       )
     })
+  })
+
+  it('refreshes and cancels run detail against persisted truth', async () => {
+	  render(<WorkflowsPage />)
+	  await screen.findByText('Daily Health Check')
+
+   await openRowActions()
+   fireEvent.click(await screen.findByRole('menuitem', { name: 'Runs' }))
+	  expect(await screen.findByRole('button', { name: 'Refresh' })).toBeInTheDocument()
+
+	  fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+	  await waitFor(() => {
+	    expect(sendMock).toHaveBeenCalledWith('/api/workflow-runs/run-1', expect.objectContaining({ method: 'GET' }))
+	  })
+
+	  fireEvent.click(screen.getByRole('button', { name: 'Cancel Run' }))
+	  await waitFor(() => {
+	    expect(sendMock).toHaveBeenCalledWith('/api/workflow-runs/run-1/cancel', expect.objectContaining({ method: 'POST' }))
+	  })
   })
 })

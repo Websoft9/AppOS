@@ -96,7 +96,7 @@ func (e shellExecutor) Execute(ctx context.Context, execCtx *ExecutorContext, _ 
 		return NodeStatusFailed, nil, err
 	}
 	serverID := resolvedServerID(execCtx)
-	access, err := servers.ResolveConfigForUserID(e.app, serverID, execCtx.Run.RequestedBy)
+	access, err := servers.ResolveConfigForUserID(e.app, serverID, executionActorID(execCtx))
 	if err != nil {
 		return NodeStatusFailed, nil, err
 	}
@@ -135,7 +135,7 @@ func (e dockerExecutor) Execute(ctx context.Context, execCtx *ExecutorContext, _
 		return NodeStatusFailed, nil, err
 	}
 	serverID := resolvedServerID(execCtx)
-	access, err := servers.ResolveConfigForUserID(e.app, serverID, execCtx.Run.RequestedBy)
+	access, err := servers.ResolveConfigForUserID(e.app, serverID, executionActorID(execCtx))
 	if err != nil {
 		return NodeStatusFailed, nil, err
 	}
@@ -311,9 +311,9 @@ func (e llmExecutor) Execute(ctx context.Context, execCtx *ExecutorContext, _ *N
 	var provider *copilot.ProviderConfig
 	var err error
 	if providerID != "" {
-		provider, err = execCtx.Resolver.ResolveSelection(ctx, execCtx.Run.RequestedBy, providerID)
+		provider, err = execCtx.Resolver.ResolveSelection(ctx, executionActorID(execCtx), providerID)
 	} else {
-		provider, err = execCtx.Resolver.ResolveDefault(ctx, execCtx.Run.RequestedBy)
+		provider, err = execCtx.Resolver.ResolveDefault(ctx, executionActorID(execCtx))
 	}
 	if err != nil {
 		return NodeStatusFailed, nil, err
@@ -461,6 +461,16 @@ func resolvedServerID(execCtx *ExecutorContext) string {
 		return ""
 	}
 	return strings.TrimSpace(execCtx.Run.ResolvedServerID)
+}
+
+func executionActorID(execCtx *ExecutorContext) string {
+	if execCtx == nil || execCtx.Run == nil {
+		return ""
+	}
+	if ownerID := strings.TrimSpace(execCtx.Run.ExecutionOwnerID); ownerID != "" {
+		return ownerID
+	}
+	return strings.TrimSpace(execCtx.Run.RequestedBy)
 }
 
 func ensureWorkflowWorkspace(runID string) (string, error) {

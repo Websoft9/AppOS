@@ -77,6 +77,13 @@ func TestWorkflowCRUDAndRunRoutes(t *testing.T) {
 	if len(runs) != 1 {
 		t.Fatalf("expected one prepared run, got %d", len(runs))
 	}
+	owner, err := te.app.FindFirstRecordByData("_superusers", "email", routesTestAdminEmail)
+	if err != nil {
+		t.Fatalf("find seeded superuser: %v", err)
+	}
+	if runs[0].ExecutionOwnerID != owner.Id {
+		t.Fatalf("expected execution owner %q, got %q", owner.Id, runs[0].ExecutionOwnerID)
+	}
 	nodes, err := repo.ListNodeRunsByRun(context.Background(), runs[0].ID)
 	if err != nil {
 		t.Fatalf("ListNodeRunsByRun: %v", err)
@@ -116,6 +123,58 @@ func TestWorkflowCRUDAndRunRoutes(t *testing.T) {
 	cancelled := parseJSON(t, rec)
 	if cancelled["status"] != workflow.RunStatusCancelled {
 		t.Fatalf("expected cancelled run status, got %v", cancelled["status"])
+	}
+}
+
+func TestWorkflowRunCancelReturnsPersistedTruth(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+	owner, err := te.app.FindFirstRecordByData("_superusers", "email", routesTestAdminEmail)
+	if err != nil {
+		t.Fatalf("find seeded superuser: %v", err)
+	}
+
+	repo := persistence.NewWorkflowRepository(te.app)
+	workflowRecord, err := repo.CreateDefinition(context.Background(), workflow.CreateDefinitionInput{
+		Name:             "cancel-me",
+		Description:      "",
+		IsEnabled:        true,
+		DefinitionYAML:   "name: cancel-me\ndefault_server_id: srv_1\nnodes:\n  - key: a\n    type: shell\n    config:\n      command: echo hi\n",
+		DefaultServerID:  "srv_1",
+		CreatedBy:        owner.Id,
+		TriggerTypesJSON: "[]",
+		NodeCount:        1,
+		HasAINodes:       false,
+	})
+	if err != nil {
+		t.Fatalf("CreateDefinition: %v", err)
+	}
+	run, _, err := repo.CreatePreparedRun(context.Background(), workflow.CreateRunInput{
+		WorkflowID:       workflowRecord.ID,
+		DefinitionYAML:   workflowRecord.DefinitionYAML,
+		Status:           workflow.RunStatusRunning,
+		TriggerType:      workflow.TriggerManual,
+		ExecutionOwnerID: owner.Id,
+		RequestedBy:      owner.Id,
+		RequestedByEmail: owner.GetString("email"),
+		ParamsJSON:       `{}`,
+		ResolvedServerID: workflowRecord.DefaultServerID,
+		OverlapPolicy:    workflow.OverlapPolicySkip,
+	}, []workflow.NodeRunSeed{{NodeKey: "a", NodeType: workflow.NodeTypeShell, DisplayName: "a", DependsOnJSON: "[]", Status: workflow.NodeStatusRunning}})
+	if err != nil {
+		t.Fatalf("CreatePreparedRun: %v", err)
+	}
+
+	rec := doWorkflow(t, te, http.MethodPost, "/api/workflow-runs/"+run.ID+"/cancel", "", te.token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 cancel, got %d: %s", rec.Code, rec.Body.String())
+	}
+	updated := parseJSON(t, rec)
+	if updated["status"] != workflow.RunStatusCancelled {
+		t.Fatalf("expected cancelled status, got %v", updated["status"])
+	}
+	if strings.TrimSpace(updated["ended_at"].(string)) == "" {
+		t.Fatal("expected ended_at to be set")
 	}
 }
 
