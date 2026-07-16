@@ -1,7 +1,7 @@
 
 .PHONY: help install tidy build run test test-strict test-fast lint lint-strict lint-fast fmt fmt-strict fmt-fast check check-fast sec sec-strict sec-fast artifact-scan \
 	backend web backend-targeted backend-iac backend-software fast strict latest \
-	image start stop restart logs stats delete rm kill-port redo sync-store tl \
+	image start stop restart logs stats delete rm kill-port redo sync-store tl e2e-browser \
 	openapi-gen openapi-merge openapi-check openapi-sync opencode opencode-clear
 
 # ============================================================
@@ -58,6 +58,8 @@ help:
 	@echo "  make test backend-software Run focused software catalog/executor regression tests"
 	@echo "  make test e2e            Run the full end-to-end suite entrypoint"
 	@echo "  make test e2e fast       Run the smoke E2E suite"
+	@echo "  make e2e-browser         Run Playwright browser smoke from tests/"
+	@echo "  make e2e-browser ENV=.env.local  Run Playwright smoke from tests/ with local env file loaded"
 	@echo "  make lint                 Run strict linters (golangci-lint, actionlint, eslint, web typecheck)"
 	@echo "  make lint fast            Run advisory/fast lint mode"
 	@echo "  make fmt                  Format code in strict mode"
@@ -387,9 +389,8 @@ ifeq ($(QUALITY_MODE),fast)
 	@bash tests/e2e/setup-status.sh
 	@echo "✓ E2E smoke suite completed"
 else
-	@echo "Running full E2E suite..."
-	@$(MAKE) test e2e fast
-	@echo "✓ Full E2E suite completed"
+	@tests/e2e/container-smoke.sh
+	@echo "✓ E2E suite completed"
 endif
 else
 	@echo "Running tests ($(QUALITY_MODE))..."
@@ -477,6 +478,14 @@ else
 endif
 	@echo "✓ Tests completed"
 endif
+
+e2e-browser:
+	@echo "Running browser end-to-end tests..."
+	@set -a; \
+	if [ -n "$(ENV)" ] && [ -f "$(ENV)" ]; then . "$(ENV)"; fi; \
+	set +a; \
+	cd tests && npx playwright test -c playwright.config.ts --project=chromium
+	@echo "✓ Browser E2E tests completed"
 
 test-strict:
 	@$(MAKE) test

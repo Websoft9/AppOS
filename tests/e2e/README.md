@@ -1,21 +1,34 @@
 # E2E Tests
 
-This directory is reserved for tests that require a real AppOS container runtime.
+This directory is the home for AppOS browser automation and runtime end-to-end coverage.
 
 ## Scope
 
+- Playwright browser flows
 - Container startup validation
 - Image/install smoke tests
 - Full end-to-end flows that need the publication gateway + frontend + backend + worker running together
 - System tests that require a real containerized runtime
 
-## Current Entry Point
+## Entry Points
 
 - `make test` (strict mode includes `make test e2e fast` after backend + web tests)
 - `make test e2e` (full E2E entrypoint; currently runs the smoke suite until broader scenarios are added)
 - `make test e2e fast` (smoke E2E suite)
+- `cd tests && npm ci`
+- `cd tests && npx playwright install --with-deps`
+- `cd tests && npx playwright test -c playwright.config.ts`
+- `cd tests && npx playwright test -c playwright.config.ts --project=chromium`
 - `tests/e2e/container-smoke.sh`
 - `tests/e2e/setup-status.sh`
+- `tests/e2e/*.spec.ts`
+
+Playwright config and dependencies now live in:
+
+- `tests/playwright.config.ts`
+- `tests/package.json`
+- `tests/e2e/fixtures/appos.ts`
+- `tests/e2e/remote.env.example`
 
 The smoke suite builds the local AppOS image, starts a real container, and waits for the AppOS HTTP endpoint on port `9000` to serve `/api/health`.
 
@@ -32,7 +45,15 @@ The following existing tests were reviewed and intentionally left in the regular
 
 These tests exercise Docker-aware logic, but they do not need the AppOS container itself and therefore do not belong in E2E.
 
-## Planned Layering
+## Layering
 
+- Playwright: authenticated browser automation and critical UI flows.
 - `make test e2e fast`: smoke coverage for container boot and critical public/health flows.
 - `make test e2e`: the full E2E entrypoint. It currently delegates to smoke and is intended to grow as broader runtime scenarios are added.
+
+Recommended browser smoke focus:
+
+- login
+- key system pages
+- workflow create/run/detail
+- approval and rejection paths when the deployed environment exposes them

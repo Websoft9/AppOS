@@ -29,3 +29,7 @@ session
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+/tests/test-results/
+/tests/playwright-report/
+/tests/blob-report/
+/tests/.playwright/

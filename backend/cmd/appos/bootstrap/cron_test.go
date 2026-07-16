@@ -193,6 +193,7 @@ func TestDispatchWorkflowCronRunsCreatesRunForDueWorkflow(t *testing.T) {
 	record.Set("trigger_types_json", []any{"cron"})
 	record.Set("node_count", 1)
 	record.Set("has_ai_nodes", false)
+	record.Set("created_by", "system")
 	if err := app.Save(record); err != nil {
 		t.Fatal(err)
 	}
