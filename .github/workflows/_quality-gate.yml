@@ -13,10 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
-      GOLANGCI_LINT_BIN: ${{ runner.temp }}/bin/golangci-lint
-      ACTIONLINT_BIN: ${{ runner.temp }}/bin/actionlint
-      GOVULNCHECK_BIN: ${{ runner.temp }}/bin/govulncheck
-      GITLEAKS_BIN: ${{ runner.temp }}/bin/gitleaks
       GITLEAKS_REPORT_PATH: build/reports/gitleaks-report.json
       APPOS_E2E_ARTIFACT_DIR: build/reports/e2e
       APPOS_E2E_KEEP_CONTAINER_ON_FAILURE: '1'
@@ -35,6 +31,12 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/bin"
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          {
+            echo "GOLANGCI_LINT_BIN=$RUNNER_TEMP/bin/golangci-lint"
+            echo "ACTIONLINT_BIN=$RUNNER_TEMP/bin/actionlint"
+            echo "GOVULNCHECK_BIN=$RUNNER_TEMP/bin/govulncheck"
+            echo "GITLEAKS_BIN=$RUNNER_TEMP/bin/gitleaks"
+          } >> "$GITHUB_ENV"
 
       - name: Set up Node.js
         uses: actions/setup-node@v5
