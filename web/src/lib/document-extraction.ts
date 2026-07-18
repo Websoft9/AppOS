@@ -3,6 +3,7 @@ import type { TextItem } from 'pdfjs-dist/types/src/display/api'
 const DOCUMENT_BYTES_LIMIT = 10 * 1024 * 1024 // 10 MB
 
 type PdfJsModule = typeof import('pdfjs-dist')
+type SpreadsheetSheet = import('read-excel-file/browser').Sheet<number>
 
 let pdfJsAssetsPromise: Promise<{
   pdfjsLib: PdfJsModule
@@ -27,9 +28,7 @@ export function isDocxFile(file: File): boolean {
 export function isSpreadsheetFile(file: File): boolean {
   if (
     file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-    file.type === 'application/vnd.ms-excel' ||
     file.type === 'application/vnd.ms-excel.sheet.macroEnabled.12' ||
-    file.type === 'application/vnd.oasis.opendocument.spreadsheet' ||
     file.type === 'text/csv' ||
     file.type === 'application/csv'
   ) {
@@ -37,13 +36,51 @@ export function isSpreadsheetFile(file: File): boolean {
   }
 
   const name = file.name.toLowerCase()
-  return (
-    name.endsWith('.xlsx') ||
-    name.endsWith('.xls') ||
-    name.endsWith('.xlsm') ||
-    name.endsWith('.csv') ||
-    name.endsWith('.ods')
-  )
+  return name.endsWith('.xlsx') || name.endsWith('.xlsm') || name.endsWith('.csv')
+}
+
+function spreadsheetCellText(value: unknown): string {
+  if (value == null) return ''
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value)
+  }
+  if (value instanceof Date) return value.toISOString()
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    if (typeof record.text === 'string') return record.text
+    if (record.result != null) return spreadsheetCellText(record.result)
+    if (typeof record.hyperlink === 'string') return record.hyperlink
+    if (Array.isArray(record.richText)) {
+      return record.richText
+        .map(item =>
+          item && typeof item === 'object' && 'text' in item ? String(item.text ?? '') : ''
+        )
+        .join('')
+    }
+  }
+  return JSON.stringify(value)
+}
+
+function csvCell(text: string): string {
+  if (!/[",\n]/.test(text)) return text
+  return `"${text.replaceAll('"', '""')}"`
+}
+
+function spreadsheetRowsToText(
+  rows: unknown[][],
+  options: { includeSheetHeading: boolean; sheetName: string }
+): string {
+  const lines = rows
+    .map(row =>
+      row
+        .map(value => csvCell(spreadsheetCellText(value)))
+        .join(',')
+        .trimEnd()
+    )
+    .filter(line => line.trim())
+  if (lines.length === 0) return ''
+  const csv = lines.join('\n')
+  return options.includeSheetHeading ? `# ${options.sheetName}\n${csv}` : csv
 }
 
 async function loadPdfJs() {
@@ -108,17 +145,26 @@ export async function extractSpreadsheetText(file: File): Promise<string> {
     throw new Error('Spreadsheet file too large')
   }
 
-  const XLSX = await import('xlsx')
-  const arrayBuffer = await file.arrayBuffer()
-  const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' })
+  if (
+    file.name.toLowerCase().endsWith('.csv') ||
+    file.type === 'text/csv' ||
+    file.type === 'application/csv'
+  ) {
+    return (await file.text()).trim()
+  }
 
-  const parts = workbook.SheetNames.map(sheetName => {
-    const sheet = workbook.Sheets[sheetName]
-    if (!sheet) return ''
-    const csv = XLSX.utils.sheet_to_csv(sheet, { blankrows: false }).trim()
-    if (!csv) return ''
-    return workbook.SheetNames.length > 1 ? `# ${sheetName}\n${csv}` : csv
-  }).filter(Boolean)
+  const { default: readXlsxFile } = await import('read-excel-file/browser')
+  const arrayBuffer = await file.arrayBuffer()
+  const blob = new Blob([arrayBuffer], { type: file.type || 'application/octet-stream' })
+  const sheets = (await readXlsxFile(blob)) as SpreadsheetSheet[]
+  const parts = sheets
+    .map(sheet =>
+      spreadsheetRowsToText(sheet.data, {
+        includeSheetHeading: sheets.length > 1,
+        sheetName: sheet.sheet,
+      })
+    )
+    .filter(Boolean)
 
   return parts.join('\n\n').trim()
 }

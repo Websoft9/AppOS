@@ -9,6 +9,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  quality-gate:
-    name: Quality Gate
+  gate:
+    name: Run PR Gate
     uses: ./.github/workflows/_quality-gate.yml
+    with:
+      gate_stage: pr

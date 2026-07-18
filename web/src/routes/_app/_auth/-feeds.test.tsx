@@ -59,7 +59,10 @@ function buildPagedFeedRecords(totalItems: number) {
   }))
 }
 
-function mockPagedFeedList(feedRecords: ReturnType<typeof buildPagedFeedRecords>, itemCount?: number) {
+function mockPagedFeedList(
+  feedRecords: ReturnType<typeof buildPagedFeedRecords>,
+  itemCount?: number
+) {
   const totalItems = itemCount ?? feedRecords.length
 
   sendMock.mockImplementation((path: string) => {

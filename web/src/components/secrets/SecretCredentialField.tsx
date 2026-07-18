@@ -104,34 +104,35 @@ export function SecretCredentialField({
     onUseReferenceChange(nextValue)
   }
 
-  const referenceToggle = allowReference && !editMode ? (
-    iconToggleMode ? (
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className={`h-10 w-10 shrink-0 border-0 ${showReferencePicker ? pickerActionAlignmentClass : 'self-center'}`}
-        title={useReference ? 'Use direct API key input' : 'Use a saved secret'}
-        onClick={toggleReferenceMode}
-      >
-        {useReference ? <Unlink className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
-      </Button>
-    ) : (
-      <label className="inline-flex h-10 items-center gap-2 text-sm text-muted-foreground">
-        <Checkbox
-          checked={useReference}
-          onCheckedChange={checked => {
-            const nextValue = Boolean(checked)
-            if (nextValue) {
-              setRevealed(false)
-            }
-            onUseReferenceChange(nextValue)
-          }}
-        />
-        <span>Select a Secret</span>
-      </label>
-    )
-  ) : null
+  const referenceToggle =
+    allowReference && !editMode ? (
+      iconToggleMode ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className={`h-10 w-10 shrink-0 border-0 ${showReferencePicker ? pickerActionAlignmentClass : 'self-center'}`}
+          title={useReference ? 'Use direct API key input' : 'Use a saved secret'}
+          onClick={toggleReferenceMode}
+        >
+          {useReference ? <Unlink className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
+        </Button>
+      ) : (
+        <label className="inline-flex h-10 items-center gap-2 text-sm text-muted-foreground">
+          <Checkbox
+            checked={useReference}
+            onCheckedChange={checked => {
+              const nextValue = Boolean(checked)
+              if (nextValue) {
+                setRevealed(false)
+              }
+              onUseReferenceChange(nextValue)
+            }}
+          />
+          <span>Select a Secret</span>
+        </label>
+      )
+    ) : null
 
   return (
     <div className="space-y-3">

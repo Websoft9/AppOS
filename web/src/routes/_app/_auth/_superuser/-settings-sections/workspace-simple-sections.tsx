@@ -1679,7 +1679,10 @@ export function DeployRuntimeSection({
                 id="defaultRuleProfileCompose"
                 value={form.defaultRuleProfileCompose}
                 onChange={event =>
-                  setForm(current => ({ ...current, defaultRuleProfileCompose: event.target.value }))
+                  setForm(current => ({
+                    ...current,
+                    defaultRuleProfileCompose: event.target.value,
+                  }))
                 }
               />
             </div>

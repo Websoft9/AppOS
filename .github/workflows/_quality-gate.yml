@@ -1,104 +1,25 @@
-name: Reusable Quality Gate
+name: Gate Runner
 
 on:
   workflow_call:
+    inputs:
+      gate_stage:
+        required: true
+        type: string
 
 jobs:
-  lint:
-    name: Lint
+  gate:
+    name: Gate ${{ inputs.gate_stage }}
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: backend/go.mod
-          cache-dependency-path: backend/go.sum
-
-      - name: Prepare Go tool bin
-        run: |
-          mkdir -p "$RUNNER_TEMP/bin"
-          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-
-      - name: Install frontend deps
-        run: cd web && npm ci
-
-      - name: Install golangci-lint
-        run: GOBIN="$RUNNER_TEMP/bin" go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-
-      - name: Verify golangci-lint
-        run: |
-          "$RUNNER_TEMP/bin/golangci-lint" version
-          go version
-
-      - name: Run lint
-        run: make lint
-        env:
-          GOLANGCI_LINT_BIN: ${{ runner.temp }}/bin/golangci-lint
-
-  test-backend:
-    name: Test Backend
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: backend/go.mod
-          cache-dependency-path: backend/go.sum
-
-      - name: Run backend tests
-        run: make test backend
-
-  openapi:
-    name: OpenAPI Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: backend/go.mod
-          cache-dependency-path: backend/go.sum
-
-      - name: Run OpenAPI sync check
-        run: make openapi-sync
-
-  test-frontend:
-    name: Test Frontend
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-
-      - name: Install frontend deps
-        run: cd web && npm ci
-
-      - name: Run frontend tests
-        run: make test web
-
-  sec:
-    name: Security Scan
-    runs-on: ubuntu-latest
+    timeout-minutes: 90
     env:
-      GITLEAKS_ARTIFACT_NAME: gitleaks-report-${{ github.sha }}
+      GOLANGCI_LINT_BIN: ${{ runner.temp }}/bin/golangci-lint
+      ACTIONLINT_BIN: ${{ runner.temp }}/bin/actionlint
+      GOVULNCHECK_BIN: ${{ runner.temp }}/bin/govulncheck
+      GITLEAKS_BIN: ${{ runner.temp }}/bin/gitleaks
       GITLEAKS_REPORT_PATH: build/reports/gitleaks-report.json
+      APPOS_E2E_ARTIFACT_DIR: build/reports/e2e
+      APPOS_E2E_KEEP_CONTAINER_ON_FAILURE: '1'
     steps:
       - uses: actions/checkout@v5
         with:
@@ -120,87 +41,85 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: |
+            web/package-lock.json
+            tests/package-lock.json
 
-      - name: Install govulncheck
-        run: GOBIN="$RUNNER_TEMP/bin" go install golang.org/x/vuln/cmd/govulncheck@latest
-
-      - name: Install frontend deps
+      - name: Install web deps
         run: cd web && npm ci
 
-      - name: Install gitleaks
+      - name: Install browser test deps
+        if: inputs.gate_stage != 'pr'
+        run: cd tests && npm ci
+
+      - name: Install Playwright browsers
+        if: inputs.gate_stage != 'pr'
+        run: cd tests && npx playwright install --with-deps chromium
+
+      - name: Install gate tools
         run: |
           set -euo pipefail
-          GL_VERSION="8.24.2"
-          ARCH="$(uname -m)"
-          case "$ARCH" in
-            x86_64) GL_ARCH="x64" ;;
-            aarch64|arm64) GL_ARCH="arm64" ;;
-            *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;;
-          esac
-          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GL_VERSION}/gitleaks_${GL_VERSION}_linux_${GL_ARCH}.tar.gz" \
-            | tar -xz -C "$RUNNER_TEMP/bin" gitleaks
+          GOBIN="$RUNNER_TEMP/bin" go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+          GOBIN="$RUNNER_TEMP/bin" go install github.com/rhysd/actionlint/cmd/actionlint@latest
+          if [ "${{ inputs.gate_stage }}" != 'pr' ]; then
+            GOBIN="$RUNNER_TEMP/bin" go install golang.org/x/vuln/cmd/govulncheck@latest
+            GL_VERSION="8.24.2"
+            ARCH="$(uname -m)"
+            case "$ARCH" in
+              x86_64) GL_ARCH="x64" ;;
+              aarch64|arm64) GL_ARCH="arm64" ;;
+              *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;;
+            esac
+            curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GL_VERSION}/gitleaks_${GL_VERSION}_linux_${GL_ARCH}.tar.gz" \
+              | tar -xz -C "$RUNNER_TEMP/bin" gitleaks
+          fi
+          if [ "${{ inputs.gate_stage }}" = 'release' ]; then
+            curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b "$RUNNER_TEMP/bin"
+          fi
 
-      - name: Verify security tools
+      - name: Verify gate tools
         run: |
-          "$RUNNER_TEMP/bin/govulncheck" -version
-          "$RUNNER_TEMP/bin/gitleaks" version
+          "$RUNNER_TEMP/bin/golangci-lint" version
+          "$RUNNER_TEMP/bin/actionlint" -version
+          if [ "${{ inputs.gate_stage }}" != 'pr' ]; then
+            "$RUNNER_TEMP/bin/govulncheck" -version
+            "$RUNNER_TEMP/bin/gitleaks" version
+          fi
+          if [ "${{ inputs.gate_stage }}" = 'release' ]; then
+            "$RUNNER_TEMP/bin/syft" version
+          fi
+          go version
 
-      - name: Run security checks
-        run: make sec fast
-        env:
-          GOVULNCHECK_BIN: ${{ runner.temp }}/bin/govulncheck
-          GITLEAKS_BIN: ${{ runner.temp }}/bin/gitleaks
-          GITLEAKS_REPORT_PATH: ${{ env.GITLEAKS_REPORT_PATH }}
+      - name: Prepare diagnostic dirs
+        run: mkdir -p build/reports/e2e build/reports
+
+      - name: Run gate
+        run: make gate "${{ inputs.gate_stage }}"
 
       - name: Upload gitleaks report
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: ${{ env.GITLEAKS_ARTIFACT_NAME }}
+          name: gitleaks-report-${{ inputs.gate_stage }}-${{ github.sha }}
           path: ${{ env.GITLEAKS_REPORT_PATH }}
           if-no-files-found: ignore
-
-      - name: Announce gitleaks report
-        if: always()
-        run: |
-          if [ -f "$GITLEAKS_REPORT_PATH" ]; then
-            echo "gitleaks report uploaded as artifact: $GITLEAKS_ARTIFACT_NAME"
-            echo "Report path: $GITLEAKS_REPORT_PATH"
-            {
-              echo "### Gitleaks Report"
-              echo "Artifact: $GITLEAKS_ARTIFACT_NAME"
-              echo "Path: $GITLEAKS_REPORT_PATH"
-            } >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "No gitleaks report file was generated."
-          fi
-
-  e2e:
-    name: E2E Smoke
-    runs-on: ubuntu-latest
-    needs: [lint, test-backend, test-frontend, openapi, sec]
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Prepare e2e artifact directory
-        run: mkdir -p build/reports/e2e
-
-      - name: Run container smoke test
-        run: make test e2e fast
-        env:
-          APPOS_E2E_ARTIFACT_DIR: build/reports/e2e
-          APPOS_E2E_KEEP_CONTAINER_ON_FAILURE: "1"
 
       - name: Upload e2e diagnostics
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: e2e-diagnostics-${{ github.sha }}
+          name: e2e-diagnostics-${{ inputs.gate_stage }}-${{ github.sha }}
           path: build/reports/e2e
           if-no-files-found: ignore
 
+      - name: Upload release SBOM
+        if: always() && inputs.gate_stage == 'release'
+        uses: actions/upload-artifact@v6
+        with:
+          name: sbom-${{ github.sha }}
+          path: sbom.spdx.json
+          if-no-files-found: ignore
+
       - name: Cleanup preserved e2e containers
-        if: always()
+        if: always() && inputs.gate_stage != 'pr'
         run: docker ps -aq --filter name=appos-e2e | xargs -r docker rm -f

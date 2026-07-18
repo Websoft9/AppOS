@@ -60,7 +60,7 @@ type NavLabels = {
     workspace: string
     platform: string
   }
-    items: {
+  items: {
     overview: string
     applications: string
     myApps: string
@@ -70,11 +70,11 @@ type NavLabels = {
     actions: string
     groups: string
     feed: string
-      terminal: string
-      aiCopilot: string
-      aiChat: string
-      aiAgent: string
-      topics: string
+    terminal: string
+    aiCopilot: string
+    aiChat: string
+    aiAgent: string
+    topics: string
     feeds: string
     assets: string
     space: string

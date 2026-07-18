@@ -57,14 +57,13 @@ function configureMinimalCreateFlowMocks(overrides?: {
   payload?: Record<string, unknown>
 }) {
   const servers = overrides?.servers ?? []
-  const secrets =
-    overrides?.secrets ?? [
-      {
-        id: 'secret-1',
-        name: 'ops-password',
-        template_id: 'single_value',
-      },
-    ]
+  const secrets = overrides?.secrets ?? [
+    {
+      id: 'secret-1',
+      name: 'ops-password',
+      template_id: 'single_value',
+    },
+  ]
   const payload = overrides?.payload ?? {}
 
   sendMock.mockImplementation((path: string) => {
@@ -1968,10 +1967,7 @@ describe('ServersPage layout', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Credential (Secret)' }))
 
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith(
-        credentialRelationPath,
-        {}
-      )
+      expect(sendMock).toHaveBeenCalledWith(credentialRelationPath, {})
     })
   })
 

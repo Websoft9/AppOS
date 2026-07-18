@@ -469,11 +469,7 @@ function buildEndpoint(host: unknown, port: unknown, fallback: string) {
 
 function buildInstanceEndpoint(template: InstanceTemplate, payload: Record<string, unknown>) {
   if (usesHostPortEndpoint(template)) {
-    return buildEndpoint(
-      payload.host,
-      payload.port,
-      ''
-    )
+    return buildEndpoint(payload.host, payload.port, '')
   }
 
   const rawEndpoint = String(payload.endpoint ?? '').trim()
@@ -816,7 +812,8 @@ function buildColumns(
       key: 'monitor_status',
       label: t('serviceInstances.columns.reachability'),
       sortable: true,
-      sortValue: row => localizeReachabilityStatus(resolveStatusMeta(row).status, reachabilityLabels),
+      sortValue: row =>
+        localizeReachabilityStatus(resolveStatusMeta(row).status, reachabilityLabels),
       filterValue: row =>
         localizeReachabilityStatus(resolveStatusMeta(row).status, reachabilityLabels),
       render: (value, row) => {
@@ -1094,7 +1091,13 @@ export function ServiceInstancesPage() {
   }, [fetchReachabilityStatuses, t, templatesById])
 
   const renderCredentialField = useCallback(
-    ({ inputId, formData, editingItem, updateField, field }: Parameters<NonNullable<FieldDef['render']>>[0]) => {
+    ({
+      inputId,
+      formData,
+      editingItem,
+      updateField,
+      field,
+    }: Parameters<NonNullable<FieldDef['render']>>[0]) => {
       const fieldLabel = String(field.label ?? '').trim() || t('serviceInstances.fields.credential')
       const passwordLabel = t('serviceInstances.fields.password').trim().toLowerCase()
       const isPasswordField = fieldLabel.trim().toLowerCase() === passwordLabel
@@ -1330,7 +1333,8 @@ export function ServiceInstancesPage() {
           hidden: !selectedTemplate || usesHostPortEndpoint(selectedTemplate),
           required: Boolean(endpointMeta.required),
           advanced: Boolean(endpointMeta.advanced),
-          placeholder: selectedTemplate?.defaultEndpoint || t('serviceInstances.placeholders.endpoint'),
+          placeholder:
+            selectedTemplate?.defaultEndpoint || t('serviceInstances.placeholders.endpoint'),
           defaultValue: '',
         },
         {
@@ -1811,7 +1815,6 @@ export function ServiceInstancesPage() {
           },
         }}
       />
-
     </>
   )
 }

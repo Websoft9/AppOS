@@ -1,0 +1,15 @@
+name: Staging Gate
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: staging-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: Run Staging Gate
+    uses: ./.github/workflows/_quality-gate.yml
+    with:
+      gate_stage: staging

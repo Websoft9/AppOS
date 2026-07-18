@@ -1145,7 +1145,7 @@ describe('ServiceInstancesPage', () => {
     })
 
     expect(screen.getByText('Unreachable')).toBeInTheDocument()
-  expect(screen.getByText('2099-04-11 10:00')).toBeInTheDocument()
+    expect(screen.getByText('2099-04-11 10:00')).toBeInTheDocument()
     expect(screen.queryByText('Created')).not.toBeInTheDocument()
     expect(screen.queryByText('Updated')).not.toBeInTheDocument()
     expect(
@@ -1167,7 +1167,9 @@ describe('ServiceInstancesPage', () => {
     fireEvent.click(await screen.findByText('Edit'))
 
     expect(screen.queryByPlaceholderText('Search secrets...')).not.toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Leave blank to keep the current secret value')).toBeInTheDocument()
+    expect(
+      screen.getByPlaceholderText('Leave blank to keep the current secret value')
+    ).toBeInTheDocument()
     expect(screen.getByTitle('Show password')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Edit secret' })).not.toBeInTheDocument()
@@ -1321,7 +1323,10 @@ describe('ServiceInstancesPage', () => {
           })
         }
         if (path === '/api/settings/entries/monitor/scheduling') {
-          return Promise.resolve({ id: 'monitor/scheduling', value: { reachabilityIntervalMinutes: 10 } })
+          return Promise.resolve({
+            id: 'monitor/scheduling',
+            value: { reachabilityIntervalMinutes: 10 },
+          })
         }
         if (path === '/api/instances/reachability' && options?.method === 'POST') {
           cachedStatuses = [
@@ -1411,7 +1416,10 @@ describe('ServiceInstancesPage', () => {
           return Promise.resolve({ items: [] })
         }
         if (path === '/api/settings/entries/monitor/scheduling') {
-          return Promise.resolve({ id: 'monitor/scheduling', value: { reachabilityIntervalMinutes: 1 } })
+          return Promise.resolve({
+            id: 'monitor/scheduling',
+            value: { reachabilityIntervalMinutes: 1 },
+          })
         }
         if (path === '/api/instances/reachability' && options?.method === 'POST') {
           return Promise.resolve([
@@ -1448,7 +1456,8 @@ describe('ServiceInstancesPage', () => {
     expect(screen.getByText('2026-04-11 10:05')).toBeInTheDocument()
     expect(
       sendMock.mock.calls.some(
-        ([path, options]) => String(path) === '/api/instances/reachability' && options?.method === 'POST'
+        ([path, options]) =>
+          String(path) === '/api/instances/reachability' && options?.method === 'POST'
       )
     ).toBe(true)
   })
@@ -1512,9 +1521,12 @@ describe('ServiceInstancesPage', () => {
     fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }))
     fireEvent.click(await screen.findByText('Edit'))
 
-    fireEvent.change(await screen.findByPlaceholderText('Leave blank to keep the current secret value'), {
-      target: { value: 'new-secret-value' },
-    })
+    fireEvent.change(
+      await screen.findByPlaceholderText('Leave blank to keep the current secret value'),
+      {
+        target: { value: 'new-secret-value' },
+      }
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {

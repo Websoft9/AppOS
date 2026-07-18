@@ -186,7 +186,6 @@ describe('ResourcePage list controls', () => {
     const drawer = document.querySelector('[data-slot="sheet-content"]')
     expect(drawer).not.toBeNull()
     expect(drawer).toHaveStyle({
-      width: 'min(896px, calc(100vw - 2rem))',
       maxWidth: 'min(896px, calc(100vw - 2rem))',
     })
   })

@@ -1257,13 +1257,14 @@ export function AppDetailPage({ appId }: { appId: string }) {
 
   const submitActionControl = useCallback(
     async (pending: PendingActionControl) => {
-      const endpoint = pending.kind === 'cancel' ? 'cancel' : pending.kind === 'resume' ? 'resume' : 'force-fail'
+      const endpoint =
+        pending.kind === 'cancel' ? 'cancel' : pending.kind === 'resume' ? 'resume' : 'force-fail'
       const successMessage =
         pending.kind === 'cancel'
           ? `Action ${pending.action.compose_project_name || pending.action.id} cancelled`
           : pending.kind === 'resume'
             ? `Action ${pending.action.compose_project_name || pending.action.id} resumed`
-          : `Action ${pending.action.compose_project_name || pending.action.id} force-failed`
+            : `Action ${pending.action.compose_project_name || pending.action.id} force-failed`
       setActionControlSubmitting(true)
       try {
         await pb.send(`/api/actions/${pending.action.id}/${endpoint}`, { method: 'POST' })

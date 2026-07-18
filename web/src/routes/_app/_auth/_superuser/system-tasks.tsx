@@ -550,10 +550,22 @@ export function SystemCronsContent() {
         if (!value) return
         setMonitorScheduling({
           reachabilityIntervalMinutes: coerceIntervalValue(value.reachabilityIntervalMinutes, 60),
-          metricsFreshnessIntervalMinutes: coerceIntervalValue(value.metricsFreshnessIntervalMinutes, 1),
-          controlReachabilityIntervalMinutes: coerceIntervalValue(value.controlReachabilityIntervalMinutes, 1),
-          runtimeSnapshotIntervalMinutes: coerceIntervalValue(value.runtimeSnapshotIntervalMinutes, 1),
-          credentialSweepIntervalMinutes: coerceIntervalValue(value.credentialSweepIntervalMinutes, 5),
+          metricsFreshnessIntervalMinutes: coerceIntervalValue(
+            value.metricsFreshnessIntervalMinutes,
+            1
+          ),
+          controlReachabilityIntervalMinutes: coerceIntervalValue(
+            value.controlReachabilityIntervalMinutes,
+            1
+          ),
+          runtimeSnapshotIntervalMinutes: coerceIntervalValue(
+            value.runtimeSnapshotIntervalMinutes,
+            1
+          ),
+          credentialSweepIntervalMinutes: coerceIntervalValue(
+            value.credentialSweepIntervalMinutes,
+            5
+          ),
           appHealthIntervalMinutes: coerceIntervalValue(value.appHealthIntervalMinutes, 1),
           factsPullIntervalMinutes: coerceIntervalValue(value.factsPullIntervalMinutes, 15),
         })

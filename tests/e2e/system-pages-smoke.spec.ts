@@ -7,7 +7,7 @@ const systemPages = [
 ]
 
 for (const systemPage of systemPages) {
-  test(`system page ${systemPage.path} is reachable for superuser`, async ({
+  test(`@smoke system page ${systemPage.path} is reachable for superuser`, async ({
     page,
     baseURL,
     loginAsSuperuser,

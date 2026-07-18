@@ -148,7 +148,10 @@ export function getConnectorAuthSchemeLabel(authScheme: string, t?: Translate) {
   return translateOrFallback(t, `connectors.authValues.${normalized || 'none'}`, fallback)
 }
 
-export function resolveConnectorAuthMode(template: ConnectorTemplate, payload: Record<string, unknown>) {
+export function resolveConnectorAuthMode(
+  template: ConnectorTemplate,
+  payload: Record<string, unknown>
+) {
   const explicit = String(payload.auth_mode ?? '')
     .trim()
     .toLowerCase()
@@ -496,12 +499,7 @@ export function mapTemplateFieldToResourceField(
       type: 'text',
       required: field.required,
       showWhen: field.showWhen,
-      render: ({
-        inputId,
-        formData,
-        editingItem,
-        updateField,
-      }) => {
+      render: ({ inputId, formData, editingItem, updateField }) => {
         if (editingItem) {
           return createElement(InlineSecretEditorField, {
             inputId,

@@ -9,11 +9,12 @@ import (
 
 	"github.com/hibiken/asynq"
 	"github.com/pocketbase/pocketbase"
-	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
 	swcatalog "github.com/websoft9/appos/backend/domain/software/catalog"
+	"github.com/websoft9/appos/backend/domain/workflow"
 	"github.com/websoft9/appos/backend/infra/collections"
 	_ "github.com/websoft9/appos/backend/infra/migrations"
+	"github.com/websoft9/appos/backend/infra/persistence"
 	"github.com/websoft9/appos/backend/infra/schema"
 )
 
@@ -180,21 +181,13 @@ func TestDispatchWorkflowCronRunsCreatesRunForDueWorkflow(t *testing.T) {
 	if err := schema.EnsureAllCollections(app); err != nil {
 		t.Fatal(err)
 	}
-	workflowCol, err := app.FindCollectionByNameOrId(collections.Workflows)
+	svc := workflow.NewService(persistence.NewWorkflowRepository(app))
+	record, err := svc.CreateDefinition(t.Context(), workflow.CreateDefinitionInput{
+		IsEnabled:      true,
+		DefinitionYAML: "name: due-workflow\ndefault_server_id: srv_1\ntriggers:\n  - type: cron\n    schedule: '0 6 * * *'\nnodes:\n  - key: collect\n    type: shell\n    config:\n      command: echo ok\n",
+		CreatedBy:      "system",
+	})
 	if err != nil {
-		t.Fatal(err)
-	}
-	record := core.NewRecord(workflowCol)
-	record.Set("name", "due-workflow")
-	record.Set("description", "due")
-	record.Set("is_enabled", true)
-	record.Set("definition_yaml", "name: due-workflow\ndefault_server_id: srv_1\ntriggers:\n  - type: cron\n    schedule: '0 6 * * *'\nnodes:\n  - key: collect\n    type: shell\n    config:\n      command: echo ok\n")
-	record.Set("default_server_id", "srv_1")
-	record.Set("trigger_types_json", []any{"cron"})
-	record.Set("node_count", 1)
-	record.Set("has_ai_nodes", false)
-	record.Set("created_by", "system")
-	if err := app.Save(record); err != nil {
 		t.Fatal(err)
 	}
 	client := asynq.NewClient(asynq.RedisClientOpt{Addr: "127.0.0.1:6379"})
@@ -208,7 +201,7 @@ func TestDispatchWorkflowCronRunsCreatesRunForDueWorkflow(t *testing.T) {
 			t.Fatalf("dispatchWorkflowCronRuns: %v", err)
 		}
 	}
-	runs, findErr := app.FindRecordsByFilter(collections.WorkflowRuns, "workflow_definition = {:workflow}", "created", 0, 0, map[string]any{"workflow": record.Id})
+	runs, findErr := app.FindRecordsByFilter(collections.WorkflowRuns, "workflow_definition = {:workflow}", "created", 0, 0, map[string]any{"workflow": record.ID})
 	if findErr != nil {
 		t.Fatalf("find runs: %v", findErr)
 	}

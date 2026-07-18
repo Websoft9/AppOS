@@ -19,7 +19,7 @@ import {
   Power,
   PowerOff,
   RefreshCw,
-  X, 
+  X,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -163,7 +163,8 @@ function InlineSecretEditorField({
         />
       </div>
       <div className="text-xs text-muted-foreground">
-        Leave this field blank to keep the current API key. Saving this provider will update the current secret value in place when a new value is provided.
+        Leave this field blank to keep the current API key. Saving this provider will update the
+        current secret value in place when a new value is provided.
       </div>
     </div>
   )
@@ -367,10 +368,7 @@ function renderDirectSecretField(
   )
 }
 
-function mapTemplateFieldToResourceField(
-  field: AIProviderTemplateField,
-  t: Translate
-): FieldDef {
+function mapTemplateFieldToResourceField(field: AIProviderTemplateField, t: Translate): FieldDef {
   if (field.type === 'secret_ref') {
     return {
       key: field.id,
@@ -460,8 +458,7 @@ function mapAIProviderRow(
     availability_reason: resolveAvailabilityReason(item),
     availability_last_checked_at: resolveAvailabilityCheckedAt(item),
     reachability: monitorReachability || cachedReachability,
-    reachability_reason:
-      String(monitor?.reason ?? '').trim() || resolveReachabilityReason(item),
+    reachability_reason: String(monitor?.reason ?? '').trim() || resolveReachabilityReason(item),
     reachability_last_checked_at:
       String(monitor?.last_checked_at ?? '').trim() || resolveReachabilityCheckedAt(item),
     endpoint: String(item.endpoint ?? ''),
@@ -1388,10 +1385,7 @@ export function AIProvidersPage() {
           ]
         }
 
-        const mappedField = mapTemplateFieldToResourceField(
-          field,
-          t
-        )
+        const mappedField = mapTemplateFieldToResourceField(field, t)
         if (selectedTemplate?.id === 'aws-bedrock' && field.id === 'region') {
           return [
             {
@@ -1411,7 +1405,10 @@ export function AIProvidersPage() {
             },
           ]
         }
-        if (selectedTemplate?.id === 'vertex-ai' && (field.id === 'location' || field.id === 'project_id')) {
+        if (
+          selectedTemplate?.id === 'vertex-ai' &&
+          (field.id === 'location' || field.id === 'project_id')
+        ) {
           return [
             {
               ...mappedField,

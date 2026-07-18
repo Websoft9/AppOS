@@ -406,15 +406,18 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
           ? Math.floor(operationProgressHeartbeatSeconds)
           : DEFAULT_DEPLOY_RUNTIME.operationProgressHeartbeatSeconds,
       sameAppConflictMode:
-        typeof runtime.sameAppConflictMode === 'string' && runtime.sameAppConflictMode.trim().length > 0
+        typeof runtime.sameAppConflictMode === 'string' &&
+        runtime.sameAppConflictMode.trim().length > 0
           ? runtime.sameAppConflictMode
           : DEFAULT_DEPLOY_RUNTIME.sameAppConflictMode,
       defaultRuleProfileCompose:
-        typeof runtime.defaultRuleProfileCompose === 'string' && runtime.defaultRuleProfileCompose.trim().length > 0
+        typeof runtime.defaultRuleProfileCompose === 'string' &&
+        runtime.defaultRuleProfileCompose.trim().length > 0
           ? runtime.defaultRuleProfileCompose
           : DEFAULT_DEPLOY_RUNTIME.defaultRuleProfileCompose,
       defaultRuleProfileBuild:
-        typeof runtime.defaultRuleProfileBuild === 'string' && runtime.defaultRuleProfileBuild.trim().length > 0
+        typeof runtime.defaultRuleProfileBuild === 'string' &&
+        runtime.defaultRuleProfileBuild.trim().length > 0
           ? runtime.defaultRuleProfileBuild
           : DEFAULT_DEPLOY_RUNTIME.defaultRuleProfileBuild,
     })
@@ -1094,8 +1097,8 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
       'operationProgressHeartbeatSeconds',
     ]
     for (const field of integerFields) {
-	      const value = Number(deployRuntimeForm[field])
-	      if (!Number.isInteger(value) || value < 1) {
+      const value = Number(deployRuntimeForm[field])
+      if (!Number.isInteger(value) || value < 1) {
         errors[field] = 'Must be an integer ≥ 1 second'
       }
     }
@@ -1161,8 +1164,7 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
           operationProgressHeartbeatSeconds:
             extractFieldError(bag.operationProgressHeartbeatSeconds) ?? undefined,
           sameAppConflictMode: extractFieldError(bag.sameAppConflictMode) ?? undefined,
-          defaultRuleProfileCompose:
-            extractFieldError(bag.defaultRuleProfileCompose) ?? undefined,
+          defaultRuleProfileCompose: extractFieldError(bag.defaultRuleProfileCompose) ?? undefined,
           defaultRuleProfileBuild: extractFieldError(bag.defaultRuleProfileBuild) ?? undefined,
         }
         if (Object.values(nextErrors).some(Boolean)) {

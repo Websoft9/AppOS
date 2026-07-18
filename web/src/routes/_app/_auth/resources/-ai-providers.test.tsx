@@ -1836,12 +1836,9 @@ describe('AIProvidersPage', () => {
     expect(await screen.findByLabelText('gemini-3.1-pro-preview')).toBeInTheDocument()
     fireEvent.click(screen.getByLabelText('gemini-3.1-pro-preview'))
 
-    fireEvent.change(
-      screen.getByPlaceholderText('Leave blank to keep the current API key'),
-      {
-        target: { value: 'replacement-secret-value' },
-      }
-    )
+    fireEvent.change(screen.getByPlaceholderText('Leave blank to keep the current API key'), {
+      target: { value: 'replacement-secret-value' },
+    })
 
     fireEvent.click(screen.getByRole('button', { name: /^Save/i }))
 
@@ -1926,12 +1923,9 @@ describe('AIProvidersPage', () => {
     fireEvent.pointerDown(screen.getByTitle('More actions'))
     fireEvent.click(await screen.findByText('Edit'))
 
-    fireEvent.change(
-      screen.getByPlaceholderText('Leave blank to keep the current API key'),
-      {
-        target: { value: 'replacement-secret-value' },
-      }
-    )
+    fireEvent.change(screen.getByPlaceholderText('Leave blank to keep the current API key'), {
+      target: { value: 'replacement-secret-value' },
+    })
 
     fireEvent.click(screen.getByRole('button', { name: /Load all available models/i }))
 

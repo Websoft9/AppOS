@@ -19,6 +19,8 @@ import (
 
 const aiAgentBasePath = "/api/ai/agent"
 const aiAgentUpstreamURL = "http://127.0.0.1:4096"
+
+// #nosec G101 -- this is a cookie key name, not a credential or token value.
 const aiAgentTokenCookieName = "appos_ai_agent_token"
 const aiAgentEmbeddedQueryParam = "embedded"
 const aiAgentEmbeddedBootstrapMarker = "data-appos-ai-agent-embedded-bootstrap=\"1\""

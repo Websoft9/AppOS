@@ -1011,10 +1011,7 @@ export function useActionsController({
     return item.user_email || item.user_id || '-'
   }
 
-  function maybeOpenConflictForceFail(
-    err: unknown,
-    continuation: () => Promise<void>
-  ): boolean {
+  function maybeOpenConflictForceFail(err: unknown, continuation: () => Promise<void>): boolean {
     if (!(err instanceof ClientResponseError)) return false
     const payload = err.response as
       | {
@@ -1078,7 +1075,11 @@ export function useActionsController({
       await fetchOperations()
       openOperationDetail(created.id)
     } catch (err) {
-      if (maybeOpenConflictForceFail(err, () => submitManualOperation(runtimeInputs, sourceBuild, exposureIntent))) {
+      if (
+        maybeOpenConflictForceFail(err, () =>
+          submitManualOperation(runtimeInputs, sourceBuild, exposureIntent)
+        )
+      ) {
         return
       }
       showNotice('destructive', err instanceof Error ? err.message : 'Failed to create action')
@@ -1190,7 +1191,11 @@ export function useActionsController({
       await fetchOperations()
       openOperationDetail(created.id)
     } catch (err) {
-      if (maybeOpenConflictForceFail(err, () => submitTemplateOperation(templateKey, inputValues, exposureIntent))) {
+      if (
+        maybeOpenConflictForceFail(err, () =>
+          submitTemplateOperation(templateKey, inputValues, exposureIntent)
+        )
+      ) {
         return
       }
       showNotice(
@@ -1303,8 +1308,14 @@ export function useActionsController({
   }
 
   async function submitActionControl(pending: PendingActionControl) {
-    const endpoint = pending.kind === 'cancel' ? 'cancel' : pending.kind === 'resume' ? 'resume' : 'force-fail'
-    const successLabel = pending.kind === 'cancel' ? 'cancelled' : pending.kind === 'resume' ? 'resumed' : 'force-failed'
+    const endpoint =
+      pending.kind === 'cancel' ? 'cancel' : pending.kind === 'resume' ? 'resume' : 'force-fail'
+    const successLabel =
+      pending.kind === 'cancel'
+        ? 'cancelled'
+        : pending.kind === 'resume'
+          ? 'resumed'
+          : 'force-failed'
     setActionControlSubmitting(true)
     setNotice(null)
     try {

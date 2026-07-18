@@ -70,9 +70,18 @@ export function actionStatusLabel(status: string): string {
 }
 
 export function isActiveStatus(status: string): boolean {
-  return ['queued', 'validating', 'preparing', 'running', 'executing', 'verifying', 'rolling_back', 'compensating', 'waiting', 'manual_gate'].includes(
-    status
-  )
+  return [
+    'queued',
+    'validating',
+    'preparing',
+    'running',
+    'executing',
+    'verifying',
+    'rolling_back',
+    'compensating',
+    'waiting',
+    'manual_gate',
+  ].includes(status)
 }
 
 export function canCancelAction(action: Pick<ActionRecord, 'status'>): boolean {

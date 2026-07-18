@@ -18,11 +18,10 @@ The `tests/` directory is the root for integration-style and E2E coverage.
 Common entrypoints:
 
 - `make test backend`
-- `make test backend-targeted`
-- `make test backend-iac`
-- `make test backend-software`
 - `make test web`
-- `make test e2e fast`
+- `make test e2e runtime`
+- `make test e2e smoke ENV=tests/e2e/remote.env.example`
+- `make test e2e ENV=tests/e2e/remote.env.example`
 - `cd tests && npm ci`
 - `cd tests && npx playwright install --with-deps`
 - `cd tests && npx playwright test -c playwright.config.ts`
@@ -177,3 +176,8 @@ Do not use browser tests as the primary place to validate backend logic.
 Favor API seeding and cleanup helpers over creating all test data through the UI.
 
 Playwright-related files live under `tests/`, not the repository root.
+
+Current browser tags:
+
+- `@smoke` — login, key system pages, workflow page reachability, create drawer
+- `@acceptance` — workflow create/run/detail/approve/reject flows

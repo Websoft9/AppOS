@@ -1,0 +1,38 @@
+name: Remote Playwright
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Run Remote Playwright
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    env:
+      APPOS_BASE_URL: ${{ secrets.APPOS_BASE_URL }}
+      APPOS_SUPERUSER_EMAIL: ${{ secrets.APPOS_SUPERUSER_EMAIL }}
+      APPOS_SUPERUSER_PASSWORD: ${{ secrets.APPOS_SUPERUSER_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: tests/package-lock.json
+
+      - name: Install browser test deps
+        run: cd tests && npm ci
+
+      - name: Install Playwright Browsers
+        run: cd tests && npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        run: cd tests && npx playwright test -c playwright.config.ts
+
+      - uses: actions/upload-artifact@v6
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: tests/playwright-report/
+          retention-days: 30

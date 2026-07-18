@@ -44,7 +44,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import {
   Table,
   TableBody,
@@ -196,17 +202,11 @@ export function WorkflowsPage() {
       }
       const session = await createAICopilotSession({ title: 'Workflow YAML Draft' })
       let generated = ''
-      await sendAICopilotMessage(
-        session.id,
-        request,
-        firstModel.provider_id,
-        firstModel.model_id,
-        {
-          onChunk: chunk => {
-            generated += chunk
-          },
-        }
-      )
+      await sendAICopilotMessage(session.id, request, firstModel.provider_id, firstModel.model_id, {
+        onChunk: chunk => {
+          generated += chunk
+        },
+      })
       const nextYAML = stripMarkdownFence(generated).trim()
       const validated = validateWorkflowYAML(nextYAML)
       if (!validated.valid) {
@@ -214,7 +214,9 @@ export function WorkflowsPage() {
       }
       setForm(current => ({ ...current, definition_yaml: nextYAML }))
     } catch (err) {
-      setEditorError(err instanceof Error ? err.message : 'Failed to generate YAML with AI Copilot.')
+      setEditorError(
+        err instanceof Error ? err.message : 'Failed to generate YAML with AI Copilot.'
+      )
     } finally {
       setGeneratingDraft(false)
     }
@@ -324,7 +326,10 @@ export function WorkflowsPage() {
   async function toggleEnabled(item: WorkflowDefinitionRecord) {
     setError('')
     try {
-      await updateWorkflow(item.id, { is_enabled: !item.is_enabled, definition_yaml: item.definition_yaml })
+      await updateWorkflow(item.id, {
+        is_enabled: !item.is_enabled,
+        definition_yaml: item.definition_yaml,
+      })
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update workflow.')
@@ -369,7 +374,10 @@ export function WorkflowsPage() {
     }
   }
 
-  const yamlMetadata = useMemo(() => readWorkflowMetadata(form.definition_yaml), [form.definition_yaml])
+  const yamlMetadata = useMemo(
+    () => readWorkflowMetadata(form.definition_yaml),
+    [form.definition_yaml]
+  )
   const serverOptions = useMemo(
     () =>
       servers
@@ -408,11 +416,15 @@ export function WorkflowsPage() {
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <Card>
-          <CardHeader><CardTitle>Total</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Total</CardTitle>
+          </CardHeader>
           <CardContent className="text-2xl font-semibold">{summary.total}</CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle>Enabled</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Enabled</CardTitle>
+          </CardHeader>
           <CardContent className="text-2xl font-semibold">{summary.enabled}</CardContent>
         </Card>
       </div>
@@ -468,12 +480,18 @@ export function WorkflowsPage() {
                         type="button"
                         className={cn(
                           'inline-flex items-center gap-1 text-sm',
-                          item.is_enabled ? 'text-green-600 hover:text-green-700' : 'text-muted-foreground hover:text-foreground'
+                          item.is_enabled
+                            ? 'text-green-600 hover:text-green-700'
+                            : 'text-muted-foreground hover:text-foreground'
                         )}
                         onClick={() => void toggleEnabled(item)}
                         title={item.is_enabled ? 'Disable workflow' : 'Enable workflow'}
                       >
-                        {item.is_enabled ? <Power className="h-3.5 w-3.5" /> : <PowerOff className="h-3.5 w-3.5" />}
+                        {item.is_enabled ? (
+                          <Power className="h-3.5 w-3.5" />
+                        ) : (
+                          <PowerOff className="h-3.5 w-3.5" />
+                        )}
                         {item.is_enabled ? 'Enabled' : 'Disabled'}
                       </button>
                     </TableCell>
@@ -489,15 +507,24 @@ export function WorkflowsPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => beginEdit(item)}>Edit</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => void openRuns(item)}>Runs</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => void launch(item)} disabled={runningId === item.id}>
-                            <Play className="h-4 w-4" />Run
+                          <DropdownMenuItem onClick={() => void openRuns(item)}>
+                            Runs
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => void launch(item)}
+                            disabled={runningId === item.id}
+                          >
+                            <Play className="h-4 w-4" />
+                            Run
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => void toggleEnabled(item)}>
                             {item.is_enabled ? 'Disable' : 'Enable'}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => void remove(item)}>
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => void remove(item)}
+                          >
                             Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -510,11 +537,25 @@ export function WorkflowsPage() {
           </Table>
           {items.length > PAGE_SIZE ? (
             <div className="flex items-center justify-end gap-2 border-t px-4 py-3">
-              <Button variant="outline" size="icon" aria-label="Previous page" disabled={page <= 1} onClick={() => setPage(current => Math.max(1, current - 1))}>
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Previous page"
+                disabled={page <= 1}
+                onClick={() => setPage(current => Math.max(1, current - 1))}
+              >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <span className="text-sm text-muted-foreground">{page}/{totalPages}</span>
-              <Button variant="outline" size="icon" aria-label="Next page" disabled={page >= totalPages} onClick={() => setPage(current => Math.min(totalPages, current + 1))}>
+              <span className="text-sm text-muted-foreground">
+                {page}/{totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Next page"
+                disabled={page >= totalPages}
+                onClick={() => setPage(current => Math.min(totalPages, current + 1))}
+              >
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -626,14 +667,15 @@ export function WorkflowsPage() {
                   <SelectItem value={unassignedServerValue}>Unassigned</SelectItem>
                   {serverOptions.map(server => (
                     <SelectItem key={server.id} value={server.id}>
-                      {server.name}{server.host ? ` (${server.host})` : ''}
+                      {server.name}
+                      {server.host ? ` (${server.host})` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Target server only applies to <code>shell</code> and <code>docker</code> nodes.
-                New workflows start with a server-based shell step so the selected server has an
+                Target server only applies to <code>shell</code> and <code>docker</code> nodes. New
+                workflows start with a server-based shell step so the selected server has an
                 immediate effect.
               </p>
             </div>
@@ -653,7 +695,12 @@ export function WorkflowsPage() {
                 onChange={e => setAIDraftPrompt(e.target.value)}
               />
               <div className="flex justify-end gap-2">
-                <Button type="button" variant="default" onClick={() => void generateYAMLWithAICopilot()} disabled={generatingDraft}>
+                <Button
+                  type="button"
+                  variant="default"
+                  onClick={() => void generateYAMLWithAICopilot()}
+                  disabled={generatingDraft}
+                >
                   <Sparkles className="h-4 w-4" />
                   {generatingDraft ? 'Generating...' : 'Generate YAML'}
                 </Button>
@@ -677,12 +724,18 @@ export function WorkflowsPage() {
                 aria-label="Definition YAML"
                 rows={18}
                 value={form.definition_yaml}
-                onChange={e => setForm(current => ({ ...current, definition_yaml: e.target.value }))}
+                onChange={e =>
+                  setForm(current => ({ ...current, definition_yaml: e.target.value }))
+                }
               />
             </label>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setEditorOpen(false)}>Cancel</Button>
-              <Button onClick={() => void save()} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
+              <Button variant="outline" onClick={() => setEditorOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={() => void save()} disabled={saving}>
+                {saving ? 'Saving...' : 'Save'}
+              </Button>
             </div>
           </div>
         </SheetContent>
@@ -698,17 +751,34 @@ export function WorkflowsPage() {
             <div className="mt-6 space-y-6">
               <div className="grid gap-4 md:grid-cols-2">
                 <Card>
-                  <CardHeader><CardTitle>Overview</CardTitle></CardHeader>
+                  <CardHeader>
+                    <CardTitle>Overview</CardTitle>
+                  </CardHeader>
                   <CardContent className="space-y-2 text-sm">
-                    <div><span className="font-medium">Name:</span> {detailItem.name}</div>
-                    <div><span className="font-medium">Description:</span> {detailItem.description || '—'}</div>
-                    <div><span className="font-medium">Target Server:</span> {serverLabel(detailItem.default_server_id, servers)}</div>
-                    <div><span className="font-medium">Triggers:</span> {formatTriggerTypes(detailItem.trigger_types_json)}</div>
-                    <div><span className="font-medium">Nodes:</span> {detailItem.node_count}</div>
+                    <div>
+                      <span className="font-medium">Name:</span> {detailItem.name}
+                    </div>
+                    <div>
+                      <span className="font-medium">Description:</span>{' '}
+                      {detailItem.description || '—'}
+                    </div>
+                    <div>
+                      <span className="font-medium">Target Server:</span>{' '}
+                      {serverLabel(detailItem.default_server_id, servers)}
+                    </div>
+                    <div>
+                      <span className="font-medium">Triggers:</span>{' '}
+                      {formatTriggerTypes(detailItem.trigger_types_json)}
+                    </div>
+                    <div>
+                      <span className="font-medium">Nodes:</span> {detailItem.node_count}
+                    </div>
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardHeader><CardTitle>Workflow Templates</CardTitle></CardHeader>
+                  <CardHeader>
+                    <CardTitle>Workflow Templates</CardTitle>
+                  </CardHeader>
                   <CardContent className="space-y-3 text-sm">
                     {workflowTemplates.map(template => (
                       <button
@@ -730,12 +800,16 @@ export function WorkflowsPage() {
               </div>
 
               <Card>
-                <CardHeader><CardTitle>Node Reference</CardTitle></CardHeader>
+                <CardHeader>
+                  <CardTitle>Node Reference</CardTitle>
+                </CardHeader>
                 <CardContent className="space-y-3">
                   {workflowNodeExamples.map(example => (
                     <div key={example.type} className="rounded-md border p-3">
                       <div className="font-medium">{example.type}</div>
-                      <div className="mb-2 text-xs text-muted-foreground">{example.description}</div>
+                      <div className="mb-2 text-xs text-muted-foreground">
+                        {example.description}
+                      </div>
                       <pre className="overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-2 text-xs">
                         {example.yaml}
                       </pre>
@@ -751,11 +825,15 @@ export function WorkflowsPage() {
       <Sheet open={runsOpen} onOpenChange={setRunsOpen}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-5xl">
           <SheetHeader>
-            <SheetTitle>{selected ? `Workflow Runs · ${selected.name}` : 'Workflow Runs'}</SheetTitle>
+            <SheetTitle>
+              {selected ? `Workflow Runs · ${selected.name}` : 'Workflow Runs'}
+            </SheetTitle>
           </SheetHeader>
           <div className="mt-6 grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
             <Card>
-              <CardHeader><CardTitle>Runs</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle>Runs</CardTitle>
+              </CardHeader>
               <CardContent className="space-y-2">
                 {runsError ? <div className="text-sm text-destructive">{runsError}</div> : null}
                 {runs.length === 0 ? (
@@ -772,7 +850,9 @@ export function WorkflowsPage() {
                         <span className="text-sm font-medium">{run.trigger_type}</span>
                         <RunStatusBadge status={run.status} />
                       </div>
-                      <div className="mt-1 text-xs text-muted-foreground">{formatDate(run.created)}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {formatDate(run.created)}
+                      </div>
                     </button>
                   ))
                 )}
@@ -781,16 +861,23 @@ export function WorkflowsPage() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between gap-4">
-                 <CardTitle>Run Detail</CardTitle>
+                <CardTitle>Run Detail</CardTitle>
                 <div className="flex gap-2">
                   {selectedRun ? (
-                    <Button variant="outline" size="sm" onClick={() => void refreshSelectedRun()} disabled={refreshingRun}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void refreshSelectedRun()}
+                      disabled={refreshingRun}
+                    >
                       <RefreshCw className="mr-2 h-4 w-4" />
                       {refreshingRun ? 'Refreshing...' : 'Refresh'}
                     </Button>
                   ) : null}
                   {selectedRun && !isTerminalStatus(selectedRun.status) ? (
-                    <Button variant="outline" size="sm" onClick={() => void cancelRun()}>Cancel Run</Button>
+                    <Button variant="outline" size="sm" onClick={() => void cancelRun()}>
+                      Cancel Run
+                    </Button>
                   ) : null}
                 </div>
               </CardHeader>
@@ -799,27 +886,47 @@ export function WorkflowsPage() {
                   <div className="space-y-4">
                     <div className="grid gap-3 md:grid-cols-3">
                       <div>
-                        <div className="text-xs uppercase tracking-wide text-muted-foreground">Status</div>
-                        <div className="mt-1"><RunStatusBadge status={selectedRun.status} /></div>
+                        <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Status
+                        </div>
+                        <div className="mt-1">
+                          <RunStatusBadge status={selectedRun.status} />
+                        </div>
                       </div>
                       <div>
-                        <div className="text-xs uppercase tracking-wide text-muted-foreground">Trigger</div>
+                        <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Trigger
+                        </div>
                         <div className="mt-1 text-sm">{selectedRun.trigger_type}</div>
                       </div>
                       <div>
-                        <div className="text-xs uppercase tracking-wide text-muted-foreground">Requester</div>
-                        <div className="mt-1 text-sm">{selectedRun.requested_by_email || selectedRun.requested_by || '—'}</div>
+                        <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Requester
+                        </div>
+                        <div className="mt-1 text-sm">
+                          {selectedRun.requested_by_email || selectedRun.requested_by || '—'}
+                        </div>
                       </div>
                       <div>
-                        <div className="text-xs uppercase tracking-wide text-muted-foreground">Target Server</div>
-                        <div className="mt-1 text-sm">{serverLabel(selectedRun.resolved_server_id, servers)}</div>
+                        <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Target Server
+                        </div>
+                        <div className="mt-1 text-sm">
+                          {serverLabel(selectedRun.resolved_server_id, servers)}
+                        </div>
                       </div>
                       <div>
-                        <div className="text-xs uppercase tracking-wide text-muted-foreground">Started</div>
-                        <div className="mt-1 text-sm">{formatDate(selectedRun.started_at || selectedRun.created)}</div>
+                        <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Started
+                        </div>
+                        <div className="mt-1 text-sm">
+                          {formatDate(selectedRun.started_at || selectedRun.created)}
+                        </div>
                       </div>
                       <div>
-                        <div className="text-xs uppercase tracking-wide text-muted-foreground">Ended</div>
+                        <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Ended
+                        </div>
                         <div className="mt-1 text-sm">{formatDate(selectedRun.ended_at)}</div>
                       </div>
                     </div>
@@ -839,17 +946,30 @@ export function WorkflowsPage() {
                           <TableRow key={node.id}>
                             <TableCell>{node.display_name}</TableCell>
                             <TableCell>{node.node_type}</TableCell>
-                            <TableCell><RunStatusBadge status={node.status} /></TableCell>
+                            <TableCell>
+                              <RunStatusBadge status={node.status} />
+                            </TableCell>
                             <TableCell>
                               <pre className="max-w-[420px] overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-2 text-xs">
-                                {node.execution_log || node.output_json || node.error_message || '—'}
+                                {node.execution_log ||
+                                  node.output_json ||
+                                  node.error_message ||
+                                  '—'}
                               </pre>
                             </TableCell>
                             <TableCell className="text-right">
                               {node.status === 'manual_gate' ? (
                                 <div className="flex justify-end gap-2">
-                                  <Button size="sm" onClick={() => void decideNode(node, true)}>Approve</Button>
-                                  <Button size="sm" variant="destructive" onClick={() => void decideNode(node, false)}>Reject</Button>
+                                  <Button size="sm" onClick={() => void decideNode(node, true)}>
+                                    Approve
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => void decideNode(node, false)}
+                                  >
+                                    Reject
+                                  </Button>
                                 </div>
                               ) : (
                                 '—'
@@ -861,7 +981,9 @@ export function WorkflowsPage() {
                     </Table>
                   </div>
                 ) : (
-                  <div className="text-sm text-muted-foreground">Select a run to inspect details.</div>
+                  <div className="text-sm text-muted-foreground">
+                    Select a run to inspect details.
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -887,8 +1009,15 @@ export function WorkflowsPage() {
             />
           </label>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRunDialogOpen(false)}>Cancel</Button>
-            <Button onClick={() => void confirmRun()} disabled={!runTarget || runningId === runTarget.id}>Run Now</Button>
+            <Button variant="outline" onClick={() => setRunDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void confirmRun()}
+              disabled={!runTarget || runningId === runTarget.id}
+            >
+              Run Now
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1169,7 +1298,10 @@ function stripMarkdownFence(value: string) {
   if (!trimmed.startsWith('```')) {
     return trimmed
   }
-  return trimmed.replace(/^```[a-zA-Z]*\n?/, '').replace(/\n?```$/, '').trim()
+  return trimmed
+    .replace(/^```[a-zA-Z]*\n?/, '')
+    .replace(/\n?```$/, '')
+    .trim()
 }
 
 function serverLabel(serverId: string | null | undefined, servers: ServerOptionRecord[]) {
@@ -1208,12 +1340,27 @@ function formatTriggerTypes(raw: string) {
 
 function RunStatusBadge({ status }: { status: string }) {
   if (status === 'succeeded') {
-    return <Badge className="gap-1"><CheckCircle2 className="h-3 w-3" />Succeeded</Badge>
+    return (
+      <Badge className="gap-1">
+        <CheckCircle2 className="h-3 w-3" />
+        Succeeded
+      </Badge>
+    )
   }
   if (status === 'failed' || status === 'cancelled') {
-    return <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" />{status}</Badge>
+    return (
+      <Badge variant="destructive" className="gap-1">
+        <XCircle className="h-3 w-3" />
+        {status}
+      </Badge>
+    )
   }
-  return <Badge variant="outline" className="gap-1"><Clock className="h-3 w-3" />{status}</Badge>
+  return (
+    <Badge variant="outline" className="gap-1">
+      <Clock className="h-3 w-3" />
+      {status}
+    </Badge>
+  )
 }
 
 export const Route = createFileRoute('/_app/_auth/_superuser/workflows' as never)({

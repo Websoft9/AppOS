@@ -67,7 +67,7 @@ vi.mock('react-i18next', () => ({
         case 'actions.uploadFiles':
           return 'Upload files'
         case 'actions.uploadFilesHelp':
-          return 'Supported for reading: text files, PDF, DOCX, XLSX, XLS, XLSM, CSV, ODS'
+          return 'Supported for reading: text files, PDF, DOCX, XLSX, XLSM, CSV'
         case 'actions.sendMessage':
           return 'Send message'
         case 'actions.copyMarkdown':
@@ -107,7 +107,7 @@ vi.mock('react-i18next', () => ({
         case 'messages.textPreviewUnavailable':
           return 'Text preview unavailable for this file.'
         case 'messages.unsupportedAttachmentType':
-          return 'Only text, PDF, DOCX, XLSX, XLS, XLSM, CSV, and ODS uploads can be read here.'
+          return 'Only text, PDF, DOCX, XLSX, XLSM, and CSV uploads can be read here.'
         case 'messages.readingAttachments':
           return `Reading ${options?.count ?? ''} attachment(s)...`
         case 'messages.attachmentsReady':
@@ -182,7 +182,7 @@ vi.mock('@/lib/document-extraction', () => ({
   isPdfFile: (file: File) => file.name.toLowerCase().endsWith('.pdf'),
   isDocxFile: (file: File) => file.name.toLowerCase().endsWith('.docx'),
   isSpreadsheetFile: (file: File) =>
-    ['.xlsx', '.xls', '.xlsm', '.csv', '.ods'].some(ext => file.name.toLowerCase().endsWith(ext)),
+    ['.xlsx', '.xlsm', '.csv'].some(ext => file.name.toLowerCase().endsWith(ext)),
 }))
 
 afterEach(() => {

@@ -12,9 +12,9 @@ This directory is the home for AppOS browser automation and runtime end-to-end c
 
 ## Entry Points
 
-- `make test` (strict mode includes `make test e2e fast` after backend + web tests)
-- `make test e2e` (full E2E entrypoint; currently runs the smoke suite until broader scenarios are added)
-- `make test e2e fast` (smoke E2E suite)
+- `make test e2e runtime`
+- `make test e2e smoke ENV=tests/e2e/remote.env.example`
+- `make test e2e ENV=tests/e2e/remote.env.example`
 - `cd tests && npm ci`
 - `cd tests && npx playwright install --with-deps`
 - `cd tests && npx playwright test -c playwright.config.ts`
@@ -47,9 +47,9 @@ These tests exercise Docker-aware logic, but they do not need the AppOS containe
 
 ## Layering
 
-- Playwright: authenticated browser automation and critical UI flows.
-- `make test e2e fast`: smoke coverage for container boot and critical public/health flows.
-- `make test e2e`: the full E2E entrypoint. It currently delegates to smoke and is intended to grow as broader runtime scenarios are added.
+- `runtime`: container boot and public/runtime smoke
+- `smoke`: runtime + Playwright `@smoke`
+- `acceptance`: `smoke` + Playwright `@acceptance`
 
 Recommended browser smoke focus:
 

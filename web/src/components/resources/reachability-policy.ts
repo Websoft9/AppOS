@@ -23,7 +23,7 @@ export function isReachabilityStale(
   if (Number.isNaN(checkedAtMs)) {
     return true
   }
-  return nowMs-checkedAtMs > staleAfterMs
+  return nowMs - checkedAtMs > staleAfterMs
 }
 
 export function shouldBackgroundProbeReachability(

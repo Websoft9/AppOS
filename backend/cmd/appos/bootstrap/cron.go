@@ -237,10 +237,14 @@ func dispatchWorkflowCronRuns(app core.App, asynqClient *asynq.Client, now time.
 			if !shouldRunWorkflowSchedule(now, schedule) {
 				continue
 			}
+			ownerID := strings.TrimSpace(definition.CreatedBy)
+			if ownerID == "" {
+				ownerID = secrets.CreatedSourceSystem
+			}
 			prepared, prepErr := svc.PrepareRun(context.Background(), workflow.PrepareRunInput{
 				WorkflowID:       definition.ID,
 				TriggerType:      workflow.TriggerCron,
-				ExecutionOwnerID: definition.CreatedBy,
+				ExecutionOwnerID: ownerID,
 				RequestedBy:      secrets.CreatedSourceSystem,
 				RequestedByEmail: secrets.CreatedSourceSystem,
 				Params:           map[string]any{},

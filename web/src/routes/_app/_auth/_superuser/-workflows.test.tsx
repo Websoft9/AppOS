@@ -24,7 +24,13 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
   DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DropdownMenuItem: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
+  DropdownMenuItem: ({
+    children,
+    onClick,
+  }: {
+    children: React.ReactNode
+    onClick?: () => void
+  }) => (
     <button type="button" role="menuitem" onClick={onClick}>
       {children}
     </button>
@@ -159,7 +165,11 @@ describe('WorkflowsPage', () => {
         return Promise.resolve({ id: 'node-1', status: 'succeeded' })
       }
       if (path === '/api/workflow-runs/run-1/cancel' && options?.method === 'POST') {
-        return Promise.resolve({ id: 'run-1', status: 'cancelled', ended_at: '2026-07-13T08:12:00Z' })
+        return Promise.resolve({
+          id: 'run-1',
+          status: 'cancelled',
+          ended_at: '2026-07-13T08:12:00Z',
+        })
       }
       return Promise.resolve({ ok: true })
     })
@@ -187,16 +197,24 @@ describe('WorkflowsPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Create Workflow' }))
     expect(screen.getByText(/target server only applies to/i)).toBeInTheDocument()
-    const definitionValue = String((screen.getByLabelText('Definition YAML') as HTMLTextAreaElement).value)
+    const definitionValue = String(
+      (screen.getByLabelText('Definition YAML') as HTMLTextAreaElement).value
+    )
     expect(definitionValue).toContain('type: shell')
     expect(definitionValue).toContain('command: hostname')
     fireEvent.change(screen.getByLabelText('Definition YAML'), {
-      target: { value: 'name: New Workflow\ndescription: Test workflow\ndefault_server_id: srv-1\nnodes:\n  - key: a\n    type: shell\n    config:\n      command: echo hi\n' },
+      target: {
+        value:
+          'name: New Workflow\ndescription: Test workflow\ndefault_server_id: srv-1\nnodes:\n  - key: a\n    type: shell\n    config:\n      command: echo hi\n',
+      },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith('/api/workflows', expect.objectContaining({ method: 'POST' }))
+      expect(sendMock).toHaveBeenCalledWith(
+        '/api/workflows',
+        expect.objectContaining({ method: 'POST' })
+      )
     })
   })
 
@@ -211,7 +229,9 @@ describe('WorkflowsPage', () => {
     const cronInput = await screen.findByLabelText('Cron Schedule')
     fireEvent.change(cronInput, { target: { value: '0 6 * * *' } })
 
-    const definitionValue = String((screen.getByLabelText('Definition YAML') as HTMLTextAreaElement).value)
+    const definitionValue = String(
+      (screen.getByLabelText('Definition YAML') as HTMLTextAreaElement).value
+    )
     expect(definitionValue).toContain('type: cron')
     expect(definitionValue).toContain('schedule: 0 6 * * *')
   })
@@ -227,23 +247,28 @@ describe('WorkflowsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open In AI Copilot' }))
 
     expect(saveDraftHandoffMock).toHaveBeenCalledTimes(1)
-    expect(String(saveDraftHandoffMock.mock.calls[0][0])).toContain('Create a daily disk usage workflow.')
+    expect(String(saveDraftHandoffMock.mock.calls[0][0])).toContain(
+      'Create a daily disk usage workflow.'
+    )
     expect(String(saveDraftHandoffMock.mock.calls[0][0])).toContain('Return YAML only')
     expect(windowOpenMock).toHaveBeenCalledWith('/ai-copilot', '_blank', 'noopener,noreferrer')
   })
 
   it('blocks save on invalid yaml with actionable feedback', async () => {
-	  render(<WorkflowsPage />)
-	  await screen.findAllByText('Workflows')
+    render(<WorkflowsPage />)
+    await screen.findAllByText('Workflows')
 
-	  fireEvent.click(screen.getByRole('button', { name: 'Create Workflow' }))
-	  fireEvent.change(screen.getByLabelText('Definition YAML'), {
-	    target: { value: 'name: Broken Workflow\nnodes: [' },
-	  })
-	  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create Workflow' }))
+    fireEvent.change(screen.getByLabelText('Definition YAML'), {
+      target: { value: 'name: Broken Workflow\nnodes: [' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-	  expect(await screen.findByText(/unexpected end of the stream/i)).toBeInTheDocument()
-	  expect(sendMock).not.toHaveBeenCalledWith('/api/workflows', expect.objectContaining({ method: 'POST' }))
+    expect(await screen.findByText(/unexpected end of the stream/i)).toBeInTheDocument()
+    expect(sendMock).not.toHaveBeenCalledWith(
+      '/api/workflows',
+      expect.objectContaining({ method: 'POST' })
+    )
   })
 
   it('opens run dialog and submits params', async () => {
@@ -280,21 +305,27 @@ describe('WorkflowsPage', () => {
   })
 
   it('refreshes and cancels run detail against persisted truth', async () => {
-	  render(<WorkflowsPage />)
-	  await screen.findByText('Daily Health Check')
+    render(<WorkflowsPage />)
+    await screen.findByText('Daily Health Check')
 
-   await openRowActions()
-   fireEvent.click(await screen.findByRole('menuitem', { name: 'Runs' }))
-	  expect(await screen.findByRole('button', { name: 'Refresh' })).toBeInTheDocument()
+    await openRowActions()
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Runs' }))
+    expect(await screen.findByRole('button', { name: 'Refresh' })).toBeInTheDocument()
 
-	  fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
-	  await waitFor(() => {
-	    expect(sendMock).toHaveBeenCalledWith('/api/workflow-runs/run-1', expect.objectContaining({ method: 'GET' }))
-	  })
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(
+        '/api/workflow-runs/run-1',
+        expect.objectContaining({ method: 'GET' })
+      )
+    })
 
-	  fireEvent.click(screen.getByRole('button', { name: 'Cancel Run' }))
-	  await waitFor(() => {
-	    expect(sendMock).toHaveBeenCalledWith('/api/workflow-runs/run-1/cancel', expect.objectContaining({ method: 'POST' }))
-	  })
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel Run' }))
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(
+        '/api/workflow-runs/run-1/cancel',
+        expect.objectContaining({ method: 'POST' })
+      )
+    })
   })
 })

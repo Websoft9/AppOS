@@ -17,10 +17,7 @@ function walkTestFiles(dir: string): string[] {
   return results
 }
 
-const DANGEROUS_PATTERNS = [
-  /\/web\/src\//,
-  /\/backend\//,
-] as const
+const DANGEROUS_PATTERNS = [/\/web\/src\//, /\/backend\//] as const
 
 const GUARD_FILE = import.meta.dirname ? resolve(import.meta.dirname, '-path-guard.test.ts') : ''
 
@@ -47,7 +44,7 @@ describe('path guard', () => {
         `Found hardcoded project source paths in test files.\n` +
           `These will fail on CI where the checkout directory differs.\n` +
           `Use relative paths with import.meta.url instead.\n\n` +
-          violations.join('\n'),
+          violations.join('\n')
       )
     }
   })

@@ -1,7 +1,7 @@
 FROM alpine:3.24
 
-ARG VICTORIAMETRICS_VERSION=v1.146.0
-ARG TRAEFIK_VERSION=v3.7.5
+ARG VICTORIAMETRICS_VERSION=v1.147.0
+ARG TRAEFIK_VERSION=v3.7.8
 ARG TARGETARCH
 
 LABEL maintainer="Websoft9<help@websoft9.com>" \
@@ -10,6 +10,8 @@ LABEL maintainer="Websoft9<help@websoft9.com>" \
       org.opencontainers.image.vendor="Websoft9" \
       org.opencontainers.image.url="https://www.websoft9.com" \
       org.opencontainers.image.source="https://github.com/websoft9/websoft9"
+
+RUN addgroup -S appos && adduser -S -D -H -h /appos -s /sbin/nologin -G appos appos
 
 # Install runtime dependencies.
 RUN apk add --no-cache \
@@ -30,14 +32,20 @@ RUN set -eux; \
                 amd64|arm64) ;; \
                 *) echo "unsupported TARGETARCH: $arch" >&2; exit 1 ;; \
         esac; \
-        curl -fsSL --retry 3 --retry-delay 5 --connect-timeout 30 --max-time 600 \
-            "https://github.com/VictoriaMetrics/VictoriaMetrics/releases/download/${VICTORIAMETRICS_VERSION}/victoria-metrics-linux-${arch}-${VICTORIAMETRICS_VERSION}.tar.gz" \
-            | tar xz -C /tmp; \
+        vm_archive="/tmp/victoria-metrics.tar.gz"; \
+        curl -fL --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30 --max-time 600 \
+            -o "$vm_archive" \
+            "https://github.com/VictoriaMetrics/VictoriaMetrics/releases/download/${VICTORIAMETRICS_VERSION}/victoria-metrics-linux-${arch}-${VICTORIAMETRICS_VERSION}.tar.gz"; \
+        tar xzf "$vm_archive" -C /tmp; \
         mv /tmp/victoria-metrics-prod /usr/local/bin/victoria-metrics-prod; \
-        curl -fsSL --retry 3 --retry-delay 5 --connect-timeout 30 --max-time 600 \
-            "https://github.com/traefik/traefik/releases/download/${TRAEFIK_VERSION}/traefik_${TRAEFIK_VERSION}_linux_${arch}.tar.gz" \
-            | tar xz -C /tmp; \
+        rm -f "$vm_archive"; \
+        traefik_archive="/tmp/traefik.tar.gz"; \
+        curl -fL --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30 --max-time 600 \
+            -o "$traefik_archive" \
+            "https://github.com/traefik/traefik/releases/download/${TRAEFIK_VERSION}/traefik_${TRAEFIK_VERSION}_linux_${arch}.tar.gz"; \
+        tar xzf "$traefik_archive" -C /tmp; \
         mv /tmp/traefik /usr/local/bin/traefik; \
+        rm -f "$traefik_archive"; \
         chmod 755 /usr/local/bin/victoria-metrics-prod /usr/local/bin/traefik
 
 # Copy build artifacts
@@ -64,7 +72,8 @@ RUN mkdir -p \
     && ln -s /etc/sv/opencode /etc/service/opencode \
     && ln -s /etc/sv/redis /etc/service/redis \
     && ln -s /etc/sv/victoriametrics /etc/service/victoriametrics \
-    && ln -s /etc/sv/traefik /etc/service/traefik
+    && ln -s /etc/sv/traefik /etc/service/traefik \
+    && chown -R appos:appos /appos /etc/traefik/dynamic
 
 # Verify critical files
 RUN set -eux; \
@@ -79,7 +88,8 @@ RUN set -eux; \
     traefik version >/dev/null 2>&1 || { echo "ERROR: traefik binary invalid"; exit 1; }
 
 ENV DISABLE_TELEMETRY=1 \
-    DO_NOT_TRACK=1
+    DO_NOT_TRACK=1 \
+    HOME=/appos
 
 # Expose ports for Proxy Gateway(Traefik http/https), AppOS Console and SSH Tunnel
 EXPOSE 8081 8443 9000 2222
@@ -88,6 +98,8 @@ VOLUME ["/appos/data"]
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:9000/api/health || exit 1
+
+USER appos
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["runsvdir", "-P", "/etc/service"]

@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures/appos'
 
-test('superuser can log in and reach overview', async ({ page, baseURL }) => {
+test('@smoke superuser can log in and reach overview', async ({ page, baseURL }) => {
   test.skip(!baseURL, 'APPOS_BASE_URL is required for browser smoke tests')
 
   await page.goto(`${baseURL}/login`, { waitUntil: 'networkidle' })

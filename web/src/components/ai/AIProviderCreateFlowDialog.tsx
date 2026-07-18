@@ -420,13 +420,7 @@ export function AIProviderCreateFlowDialog({
   )
 
   const renderCredentialField = useCallback<NonNullable<FieldDef['render']>>(
-    ({
-      field,
-      inputId,
-      formData: currentFormData,
-      editingItem,
-      updateField,
-    }) => {
+    ({ field, inputId, formData: currentFormData, editingItem, updateField }) => {
       const editMode = Boolean(editingItem)
 
       return (

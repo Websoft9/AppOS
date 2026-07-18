@@ -22,7 +22,6 @@ import (
 	connectorsdomain "github.com/websoft9/appos/backend/domain/resource/connectors"
 	"github.com/websoft9/appos/backend/domain/resource/servers"
 	"github.com/websoft9/appos/backend/domain/runtimepaths"
-	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/domain/terminal"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -484,18 +483,6 @@ func ensureWorkflowWorkspace(runID string) (string, error) {
 func mustParseDefinition(definitionYAML string) *Definition {
 	def, _ := ParseDefinition(definitionYAML)
 	return def
-}
-
-type workflowSecretResolver struct{ app core.App }
-
-func (r workflowSecretResolver) Resolve(_ context.Context, secretID, actorID string) (*secrets.ResolveResult, error) {
-	return secrets.Resolve(r.app, secretID, actorID)
-}
-
-type workflowProviderSelectionResolver struct{ app core.App }
-
-func (r workflowProviderSelectionResolver) ResolveDefaultProviderIDs(context.Context) ([]string, error) {
-	return nil, nil
 }
 
 type smtpSettingsConfig struct {

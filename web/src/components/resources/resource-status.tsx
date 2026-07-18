@@ -67,9 +67,7 @@ export function localizeReachabilityStatus(value: unknown, labels: ReachabilityL
   return labels[status]
 }
 
-export function reachabilityStatusVariant(
-  value: unknown
-): 'default' | 'secondary' | 'destructive' {
+export function reachabilityStatusVariant(value: unknown): 'default' | 'secondary' | 'destructive' {
   switch (canonicalReachabilityStatus(value)) {
     case 'reachable':
       return 'default'

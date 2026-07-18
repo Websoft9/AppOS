@@ -472,7 +472,10 @@ describe('ConnectorsPage', () => {
         })
       }
       if (path === '/api/settings/entries/monitor/scheduling') {
-        return Promise.resolve({ id: 'monitor/scheduling', value: { reachabilityIntervalMinutes: 10 } })
+        return Promise.resolve({
+          id: 'monitor/scheduling',
+          value: { reachabilityIntervalMinutes: 10 },
+        })
       }
       if (path === '/api/collections/groups/records?perPage=500&sort=name') {
         return Promise.resolve({ items: [] })
@@ -553,7 +556,10 @@ describe('ConnectorsPage', () => {
         })
       }
       if (path === '/api/settings/entries/monitor/scheduling') {
-        return Promise.resolve({ id: 'monitor/scheduling', value: { reachabilityIntervalMinutes: 1 } })
+        return Promise.resolve({
+          id: 'monitor/scheduling',
+          value: { reachabilityIntervalMinutes: 1 },
+        })
       }
       if (path === '/api/collections/groups/records?perPage=500&sort=name') {
         return Promise.resolve({ items: [] })
@@ -573,7 +579,9 @@ describe('ConnectorsPage', () => {
     expect(await screen.findByText('Reachable')).toBeInTheDocument()
     expect(screen.getByText('2026-04-11 10:05')).toBeInTheDocument()
     expect(
-      sendMock.mock.calls.some(([path]) => String(path).startsWith('/api/connectors/reachability?ids=connector-1'))
+      sendMock.mock.calls.some(([path]) =>
+        String(path).startsWith('/api/connectors/reachability?ids=connector-1')
+      )
     ).toBe(true)
   })
 

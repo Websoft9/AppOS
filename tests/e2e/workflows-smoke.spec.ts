@@ -4,7 +4,7 @@ function uniqueWorkflowName(prefix: string) {
   return `${prefix}-${Date.now()}`
 }
 
-test('workflow page is reachable for superuser', async ({ page, baseURL, loginAsSuperuser }) => {
+test('@smoke workflow page is reachable for superuser', async ({ page, baseURL, loginAsSuperuser }) => {
   test.skip(!baseURL, 'APPOS_BASE_URL is required for browser smoke tests')
 
   await loginAsSuperuser(page)
@@ -15,7 +15,7 @@ test('workflow page is reachable for superuser', async ({ page, baseURL, loginAs
   await expect(page).toHaveURL(/workflows/)
 })
 
-test('workflow create drawer opens', async ({ page, baseURL, loginAsSuperuser }) => {
+test('@smoke workflow create drawer opens', async ({ page, baseURL, loginAsSuperuser }) => {
   test.skip(!baseURL, 'APPOS_BASE_URL is required for browser smoke tests')
 
   await loginAsSuperuser(page)
@@ -27,7 +27,7 @@ test('workflow create drawer opens', async ({ page, baseURL, loginAsSuperuser })
   await expect(page.getByLabel('Definition YAML')).toBeVisible()
 })
 
-test('workflow can be created through UI and opened in run detail', async ({
+test('@acceptance workflow can be created through UI and opened in run detail', async ({
   page,
   baseURL,
   loginAsSuperuser,
@@ -57,7 +57,7 @@ test('workflow can be created through UI and opened in run detail', async ({
   await apposApi.deleteWorkflowByName(name)
 })
 
-test('workflow run detail shows node execution records', async ({
+test('@acceptance workflow run detail shows node execution records', async ({
   page,
   baseURL,
   loginAsSuperuser,
@@ -82,7 +82,7 @@ test('workflow run detail shows node execution records', async ({
   await expect(page.locator('body')).toContainText(/gate|manual|node|status/i)
 })
 
-test('manual gate can be approved from run detail', async ({
+test('@acceptance manual gate can be approved from run detail', async ({
   page,
   baseURL,
   loginAsSuperuser,
@@ -114,7 +114,7 @@ test('manual gate can be approved from run detail', async ({
   }
 })
 
-test('manual gate can be rejected from run detail when action is available', async ({
+test('@acceptance manual gate can be rejected from run detail when action is available', async ({
   page,
   baseURL,
   loginAsSuperuser,
