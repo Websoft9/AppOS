@@ -9,6 +9,7 @@ web/node_modules/
 # Environment
 build/.env
 .env
+.environments/*.env
 
 # Logs
 *.log

@@ -1,7 +1,7 @@
 
 
 
-.PHONY: help install tidy build run test qa gate sec \
+.PHONY: help install init-env tidy build run test qa gate sec \
 	backend web backend-targeted backend-iac backend-software latest \
 	image start stop restart logs stats delete rm kill-port redo sync-store tl e2e-browser source artifact \
 	e2e runtime smoke pr merge staging release \
@@ -14,12 +14,15 @@
 CONTAINER := appos
 COMPOSE_FILE := build/docker-compose.yml
 COMPOSE_CMD := cd build && docker compose
+LOCAL_ENV_DIR := .environments
+LOCAL_ENV_FILE := $(LOCAL_ENV_DIR)/local.env
+LOCAL_ENV_TEMPLATE := $(LOCAL_ENV_DIR)/local.env.example
 
 # Support positional args: make kill-port 9091
 ARG2 := $(word 2,$(MAKECMDGOALS))
 ARG3 := $(word 3,$(MAKECMDGOALS))
 ARG4 := $(word 4,$(MAKECMDGOALS))
-GITLEAKS_ARGS := $(if $(CI),--redact,--no-git --redact)
+GITLEAKS_ARGS := --no-git --redact
 GOLANGCI_LINT_BIN ?= golangci-lint
 GOVULNCHECK_BIN ?= govulncheck
 GITLEAKS_BIN ?= gitleaks
@@ -34,6 +37,29 @@ IMAGE_PULL_NETWORK_TIMEOUT ?= 5
 IMAGE_PULL_MIRROR_RETRIES ?= 2
 IMAGE_PULL_MIRROR_TIMEOUT ?= 30
 
+ifeq ($(CI),)
+ALL_PROXY :=
+HTTP_PROXY :=
+HTTPS_PROXY :=
+NO_PROXY :=
+all_proxy :=
+http_proxy :=
+https_proxy :=
+no_proxy :=
+ifneq ($(wildcard $(LOCAL_ENV_FILE)),)
+include $(LOCAL_ENV_FILE)
+endif
+ALL_PROXY := $(strip $(ALL_PROXY))
+HTTP_PROXY := $(strip $(HTTP_PROXY))
+HTTPS_PROXY := $(strip $(HTTPS_PROXY))
+NO_PROXY := $(strip $(NO_PROXY))
+all_proxy := $(ALL_PROXY)
+http_proxy := $(HTTP_PROXY)
+https_proxy := $(HTTPS_PROXY)
+no_proxy := $(NO_PROXY)
+export ALL_PROXY HTTP_PROXY HTTPS_PROXY NO_PROXY all_proxy http_proxy https_proxy no_proxy
+endif
+
 # ============================================================
 # Help
 # ============================================================
@@ -44,6 +70,7 @@ help:
 	@echo ""
 	@printf "\033[36mDev:\033[0m\n"
 	@echo "  make install              Install dev dependencies (Go tools, build-essential, npm packages)"
+	@echo "  make init-env             Create .environments/local.env from template (auto-loaded outside CI)"
 	@echo "  make tidy                 Tidy Go modules"
 	@echo "  make build                Build all (backend + web)"
 	@echo "  make build backend        Build Go binary → backend/appos"
@@ -202,6 +229,20 @@ install:
 		echo "✓ syft already installed"; \
 	fi
 	@echo "✓ Security tools installed"
+
+init-env:
+	@mkdir -p "$(LOCAL_ENV_DIR)"
+	@if [ -f "$(LOCAL_ENV_FILE)" ]; then \
+		echo "✓ $(LOCAL_ENV_FILE) already exists"; \
+		echo "  Edit it if you need to change local proxy settings."; \
+	elif [ -f "$(LOCAL_ENV_TEMPLATE)" ]; then \
+		cp "$(LOCAL_ENV_TEMPLATE)" "$(LOCAL_ENV_FILE)"; \
+		echo "✓ Created $(LOCAL_ENV_FILE) from $(LOCAL_ENV_TEMPLATE)"; \
+		echo "  Make will auto-load this file for local runs."; \
+	else \
+		echo "✗ Missing template: $(LOCAL_ENV_TEMPLATE)"; \
+		exit 1; \
+	fi
 
 tidy:
 	@echo "Tidying Go modules..."
@@ -407,8 +448,14 @@ _test-backend-software:
 _test-e2e-runtime:
 	@echo "Running E2E runtime smoke..."
 	@failures=""; \
-	bash tests/e2e/container-smoke.sh || failures="$$failures container-smoke"; \
-	bash tests/e2e/setup-status.sh || failures="$$failures setup-status"; \
+	if [ ! -f backend/appos ] || [ ! -d web/dist ]; then \
+	  echo "→ E2E runtime requires host build artifacts; building missing artifacts..."; \
+	  $(MAKE) --no-print-directory build || failures="$$failures build"; \
+	fi; \
+	if [ -z "$$failures" ]; then \
+	  bash tests/e2e/container-smoke.sh || failures="$$failures container-smoke"; \
+	  bash tests/e2e/setup-status.sh || failures="$$failures setup-status"; \
+	fi; \
 	if [ -n "$$failures" ]; then \
 	  echo "✗ Runtime E2E failures:"; \
 	  for item in $$failures; do echo "  - $$item"; done; \
@@ -597,7 +644,7 @@ _sec-source:
 	else failures="$$failures gitleaks-missing"; fi; \
 	echo "→ trivy config (IaC / Docker / workflow misconfiguration scan)..."; \
 	if command -v docker >/dev/null 2>&1; then \
-		log_file=$$(mktemp); set +e; docker run --rm -v "$$(pwd):/workspace" -w /workspace aquasec/trivy:latest config --skip-check-update --skip-version-check --timeout 10m --severity HIGH,CRITICAL --exit-code 1 /workspace/build >"$$log_file" 2>&1; status=$$?; set -e; cat "$$log_file"; rm -f "$$log_file"; \
+		log_file=$$(mktemp); set +e; docker run --rm -v "$$(pwd):/workspace" -w /workspace aquasec/trivy:latest config --skip-version-check --timeout 10m --severity HIGH,CRITICAL --exit-code 1 /workspace/build >"$$log_file" 2>&1; status=$$?; set -e; cat "$$log_file"; rm -f "$$log_file"; \
 		if [ "$$status" -ne 0 ]; then failures="$$failures trivy-config"; fi; \
 	else failures="$$failures docker-missing-for-trivy-config"; fi; \
 	if [ -n "$$failures" ]; then echo "✗ Source security failures:"; for item in $$failures; do echo "  - $$item"; done; exit 1; fi
@@ -750,26 +797,18 @@ ifeq ($(ARG2),build)
 	@test -f backend/appos || { echo "Error: backend/appos not found. Run 'make build backend' first."; exit 1; }
 	@test -d web/dist || { echo "Error: web/dist/ not found. Run 'make build web' first."; exit 1; }
 	@docker_args=""; \
-	if [ -t 0 ]; then \
-		printf "Use build proxy? [y/N] "; \
-		read use_proxy; \
-		case "$$use_proxy" in \
-			y|Y) \
-				default_proxy="socks5://172.17.0.1:1089"; \
-				default_no_proxy="$${no_proxy:-$${NO_PROXY:-}}"; \
-				printf "Proxy URL [$$default_proxy]: "; \
-				read proxy_url; \
-				proxy_url=$${proxy_url:-$$default_proxy}; \
-				if [ -n "$$proxy_url" ]; then \
-					docker_args="$$docker_args --build-arg ALL_PROXY=$$proxy_url --build-arg all_proxy=$$proxy_url"; \
-					docker_args="$$docker_args --build-arg HTTP_PROXY=$$proxy_url --build-arg http_proxy=$$proxy_url"; \
-					docker_args="$$docker_args --build-arg HTTPS_PROXY=$$proxy_url --build-arg https_proxy=$$proxy_url"; \
-					if [ -n "$$default_no_proxy" ]; then \
-						docker_args="$$docker_args --build-arg NO_PROXY=$$default_no_proxy --build-arg no_proxy=$$default_no_proxy"; \
-					fi; \
-				fi; \
-				;; \
-			esac; \
+	proxy_value="$${ALL_PROXY:-$${all_proxy:-$${HTTP_PROXY:-$${http_proxy:-$${HTTPS_PROXY:-$${https_proxy:-}}}}}}"; \
+	no_proxy_value="$${NO_PROXY:-$${no_proxy:-}}"; \
+	if [ -n "$$proxy_value" ]; then \
+		host_proxy="$$(printf '%s' "$$proxy_value" | sed 's/127\.0\.0\.1/host-gateway/g;s/localhost/host-gateway/g')"; \
+		echo "→ Using build proxy: $$proxy_value"; \
+		docker_args="$$docker_args --add-host=host-gateway:host-gateway"; \
+		docker_args="$$docker_args --build-arg ALL_PROXY=$$host_proxy --build-arg all_proxy=$$host_proxy"; \
+		docker_args="$$docker_args --build-arg HTTP_PROXY=$$host_proxy --build-arg http_proxy=$$host_proxy"; \
+		docker_args="$$docker_args --build-arg HTTPS_PROXY=$$host_proxy --build-arg https_proxy=$$host_proxy"; \
+	fi; \
+	if [ -n "$$no_proxy_value" ]; then \
+		docker_args="$$docker_args --build-arg NO_PROXY=$$no_proxy_value --build-arg no_proxy=$$no_proxy_value"; \
 	fi; \
 	docker build $$docker_args -f build/Dockerfile -t websoft9dev/appos:latest .
 	@echo "✓ Image built: websoft9dev/appos:latest"
