@@ -276,8 +276,8 @@ ifeq ($(word 1,$(MAKECMDGOALS)),image)
 	@:
 else ifeq ($(ARG2),backend)
 	@echo "Building backend binaries (static, no dependencies)..."
-	@$(MAKE) sync-store
-	@$(MAKE) openapi-sync
+	@if [ "$(ALLOW_TRACKED_MUTATION)" != "0" ]; then $(MAKE) sync-store; else echo "→ Skipping sync-store (tracked-file mutation disabled)"; fi
+	@if [ "$(ALLOW_TRACKED_MUTATION)" != "0" ]; then $(MAKE) openapi-sync; else echo "→ Skipping openapi-sync (tracked-file mutation disabled)"; fi
 	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
 	@echo "✓ Backend built → backend/appos (statically linked)"
 else ifeq ($(ARG2),web)
@@ -288,8 +288,8 @@ else ifeq ($(ARG2),library)
 	@echo "'make build library' is no longer needed - library is downloaded during Docker build (cached)"
 else
 	@echo "Building all..."
-	@$(MAKE) sync-store
-	@$(MAKE) openapi-sync
+	@if [ "$(ALLOW_TRACKED_MUTATION)" != "0" ]; then $(MAKE) sync-store; else echo "→ Skipping sync-store (tracked-file mutation disabled)"; fi
+	@if [ "$(ALLOW_TRACKED_MUTATION)" != "0" ]; then $(MAKE) openapi-sync; else echo "→ Skipping openapi-sync (tracked-file mutation disabled)"; fi
 	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
 	@echo "✓ Backend built → backend/appos"
 	@cd web && npm run build
@@ -437,12 +437,17 @@ _test-e2e-runtime:
 	@echo "Running E2E runtime smoke..."
 	@failures=""; \
 	if [ ! -f backend/appos ] || [ ! -d web/dist ]; then \
-	  echo "→ E2E runtime requires host build artifacts; building missing artifacts..."; \
-	  $(MAKE) --no-print-directory build || failures="$$failures build"; \
+	  echo "→ E2E runtime requires host build artifacts; building missing artifacts without tracked-file mutations..."; \
+	  if [ ! -f backend/appos ]; then \
+	    $(MAKE) --no-print-directory build backend ALLOW_TRACKED_MUTATION=0 || failures="$$failures backend-build"; \
+	  fi; \
+	  if [ ! -d web/dist ]; then \
+	    $(MAKE) --no-print-directory build web ALLOW_TRACKED_MUTATION=0 || failures="$$failures web-build"; \
+	  fi; \
 	fi; \
 	if [ -z "$$failures" ]; then \
 	  bash tests/e2e/container-smoke.sh || failures="$$failures container-smoke"; \
-	  bash tests/e2e/setup-status.sh || failures="$$failures setup-status"; \
+	  APPOS_E2E_SKIP_BUILD=1 bash tests/e2e/setup-status.sh || failures="$$failures setup-status"; \
 	fi; \
 	if [ -n "$$failures" ]; then \
 	  echo "✗ Runtime E2E failures:"; \
@@ -575,7 +580,9 @@ gate:
 	if [ -z "$$failures" ]; then \
 	  current_status="$$(git status --porcelain --untracked-files=no)"; \
 	  if [ "$$current_status" != "$$baseline_status" ]; then \
-	    echo "✗ Gate introduced uncommitted tracked changes. Commit the normalized/generated updates and retry."; \
+	    echo "✗ Gate changed tracked files in the worktree. This gate expects tracked file state to stay unchanged."; \
+	    echo "  Review and commit the generated/normalized changes, or make the gate path non-mutating, then retry."; \
+	    echo "  Tracked file changes:"; \
 	    git status --short; \
 	    failures="$$failures repo-drift"; \
 	  else \
