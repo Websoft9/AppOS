@@ -73,7 +73,7 @@ RUN mkdir -p \
     && ln -s /etc/sv/redis /etc/service/redis \
     && ln -s /etc/sv/victoriametrics /etc/service/victoriametrics \
     && ln -s /etc/sv/traefik /etc/service/traefik \
-    && chown -R appos:appos /appos /etc/traefik/dynamic
+    && chown -R appos:appos /appos /etc/sv /etc/traefik/dynamic
 
 # Verify critical files
 RUN set -eux; \
@@ -85,7 +85,12 @@ RUN set -eux; \
 	command -v redis-server >/dev/null 2>&1 || { echo "ERROR: redis-server binary not found"; exit 1; }; \
     command -v opencode >/dev/null 2>&1 || { echo "ERROR: opencode binary not found"; exit 1; }; \
     test -x /entrypoint.sh || { echo "ERROR: entrypoint.sh not executable"; exit 1; }; \
-    traefik version >/dev/null 2>&1 || { echo "ERROR: traefik binary invalid"; exit 1; }
+    traefik version >/dev/null 2>&1 || { echo "ERROR: traefik binary invalid"; exit 1; }; \
+    test -w /etc/sv/appos || { echo "ERROR: /etc/sv/appos must be writable for runsv supervise state"; exit 1; }; \
+    test -w /etc/sv/opencode || { echo "ERROR: /etc/sv/opencode must be writable for runsv supervise state"; exit 1; }; \
+    test -w /etc/sv/redis || { echo "ERROR: /etc/sv/redis must be writable for runsv supervise state"; exit 1; }; \
+    test -w /etc/sv/victoriametrics || { echo "ERROR: /etc/sv/victoriametrics must be writable for runsv supervise state"; exit 1; }; \
+    test -w /etc/sv/traefik || { echo "ERROR: /etc/sv/traefik must be writable for runsv supervise state"; exit 1; }
 
 ENV DISABLE_TELEMETRY=1 \
     DO_NOT_TRACK=1 \
