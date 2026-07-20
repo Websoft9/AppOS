@@ -616,19 +616,22 @@ _sec-source:
 		govuln_bin="$(GOVULNCHECK_BIN)"; \
 		if ! [ -x "$$govuln_bin" ] && ! command -v "$$govuln_bin" >/dev/null 2>&1; then govuln_bin="$(DEFAULT_GOVULNCHECK_BIN)"; fi; \
 		log_file=$$(mktemp); set +e; (cd backend && "$$govuln_bin" ./...) >"$$log_file" 2>&1; status=$$?; set -e; cat "$$log_file"; rm -f "$$log_file"; \
-		if [ "$$status" -ne 0 ]; then failures="$$failures govulncheck"; fi; \
-	else failures="$$failures govulncheck-missing"; fi; \
+		if [ "$$status" -ne 0 ]; then echo "✗ Check failed: govulncheck"; failures="$$failures govulncheck"; else echo "✓ Check passed: govulncheck"; fi; \
+	else echo "✗ Check failed: govulncheck missing"; failures="$$failures govulncheck-missing"; fi; \
+	echo ""; \
 	echo "→ npm audit (JS CVE scan, high+critical only)..."; \
 	if [ -f "web/package.json" ]; then \
 		log_file=$$(mktemp); set +e; (cd web && npm audit --audit-level=high) >"$$log_file" 2>&1; status=$$?; set -e; cat "$$log_file"; rm -f "$$log_file"; \
-		if [ "$$status" -ne 0 ]; then failures="$$failures npm-audit"; fi; \
-	fi; \
+		if [ "$$status" -ne 0 ]; then echo "✗ Check failed: npm audit"; failures="$$failures npm-audit"; else echo "✓ Check passed: npm audit"; fi; \
+	else echo "✓ Check skipped: npm audit (no web/package.json)"; fi; \
+	echo ""; \
 	echo "→ gitleaks (secret / credential leak detection)..."; \
 	if [ -x "$(GITLEAKS_BIN)" ] || command -v "$(GITLEAKS_BIN)" >/dev/null 2>&1; then \
 		report_path="$(GITLEAKS_REPORT_PATH)"; mkdir -p "$$(dirname "$$report_path")"; \
 		set +e; "$(GITLEAKS_BIN)" detect --source . $(GITLEAKS_ARGS) --report-format json --report-path "$$report_path"; status=$$?; set -e; \
-		if [ "$$status" -eq 1 ]; then failures="$$failures gitleaks"; elif [ "$$status" -ne 0 ]; then failures="$$failures gitleaks-exec"; fi; \
-	else failures="$$failures gitleaks-missing"; fi; \
+		if [ "$$status" -eq 1 ]; then echo "✗ Check failed: gitleaks"; failures="$$failures gitleaks"; elif [ "$$status" -ne 0 ]; then echo "✗ Check failed: gitleaks execution"; failures="$$failures gitleaks-exec"; else echo "✓ Check passed: gitleaks"; fi; \
+	else echo "✗ Check failed: gitleaks missing"; failures="$$failures gitleaks-missing"; fi; \
+	echo ""; \
 	echo "→ trivy config (IaC / Docker / workflow misconfiguration scan)..."; \
 	if command -v docker >/dev/null 2>&1; then \
 		log_file=$$(mktemp); trivy_cache_dir="$(TRIVY_CACHE_DIR)"; mkdir -p "$$trivy_cache_dir"; \
@@ -647,9 +650,14 @@ _sec-source:
 			docker_proxy_args="$$docker_proxy_args -e NO_PROXY=$$no_proxy_value -e no_proxy=$$no_proxy_value"; \
 		fi; \
 		set +e; docker run --rm $$docker_proxy_args -v "$$(pwd):/workspace" -v "$$trivy_cache_dir:/root/.cache/trivy" -w /workspace aquasec/trivy:latest $$trivy_args /workspace/build >"$$log_file" 2>&1; status=$$?; set -e; cat "$$log_file"; rm -f "$$log_file"; \
-		if [ "$$status" -ne 0 ]; then failures="$$failures trivy-config"; fi; \
-	else failures="$$failures docker-missing-for-trivy-config"; fi; \
-	if [ -n "$$failures" ]; then echo "✗ Source security failures:"; for item in $$failures; do echo "  - $$item"; done; exit 1; fi
+		if [ "$$status" -ne 0 ]; then echo "✗ Check failed: trivy config"; failures="$$failures trivy-config"; else echo "✓ Check passed: trivy config"; fi; \
+	else echo "✗ Check failed: docker missing for trivy config"; failures="$$failures docker-missing-for-trivy-config"; fi; \
+	if [ -n "$$failures" ]; then \
+		echo ""; \
+		echo "✗ Source security failures:"; \
+		for item in $$failures; do echo "  - $$item"; done; \
+		exit 1; \
+	fi
 	@echo "✓ Source security checks completed"
 
 _sec-artifact:
