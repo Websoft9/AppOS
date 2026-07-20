@@ -4,13 +4,11 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"path"
-	"sort"
 	"strings"
 	"sync"
 
-	"github.com/websoft9/appos/backend/domain/resource/connectors"
+	resourceshared "github.com/websoft9/appos/backend/domain/resource/shared"
 )
 
 //go:embed all:templates
@@ -22,104 +20,99 @@ var (
 	templates     []Template
 )
 
-func Templates() []Template {
-	ensureTemplatesLoaded()
+func Templates() ([]Template, error) {
+	if err := ensureTemplatesLoaded(); err != nil {
+		return nil, err
+	}
 	result := make([]Template, len(templates))
 	copy(result, templates)
-	return result
+	return result, nil
 }
 
-func FindTemplate(id string) (Template, bool) {
-	ensureTemplatesLoaded()
+func FindTemplate(id string) (Template, bool, error) {
+	if err := ensureTemplatesLoaded(); err != nil {
+		return Template{}, false, err
+	}
 	for _, template := range templates {
 		if template.ID == id {
-			return template, true
+			return template, true, nil
 		}
 	}
-	return Template{}, false
+	return Template{}, false, nil
 }
 
-func ensureTemplatesLoaded() {
+func ensureTemplatesLoaded() error {
 	templatesOnce.Do(func() {
 		templatesErr = loadTemplates()
-		if templatesErr != nil {
-			panic(templatesErr)
-		}
 	})
+	return templatesErr
 }
 
 func loadTemplates() error {
-	templateMap := make(map[string]Template)
-
-	entries, err := fs.ReadDir(embeddedTemplateFiles, "templates")
+	loaded, err := resourceshared.LoadTemplates(
+		embeddedTemplateFiles,
+		func(filePath string) (templateFile, error) {
+			file, err := readTemplateFile(filePath)
+			if err != nil {
+				return templateFile{}, fmt.Errorf("read AI provider template %s: %w", filePath, err)
+			}
+			return file, nil
+		},
+		loadKindBaseTemplate,
+		func(base Template, overlay templateFile, filePath string) (Template, error) {
+			template, err := applyTemplateOverlay(base, overlay)
+			if err != nil {
+				return Template{}, fmt.Errorf("merge AI provider template %s: %w", filePath, err)
+			}
+			template = applyImplicitTemplateDefaults(template)
+			if err := validateTemplate(template); err != nil {
+				return Template{}, fmt.Errorf("invalid AI provider template %s: %w", filePath, err)
+			}
+			return template, nil
+		},
+		func(template Template) string { return template.ID },
+	)
 	if err != nil {
 		return fmt.Errorf("read AI provider templates: %w", err)
 	}
-
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		kind := entry.Name()
-		base, err := loadKindBaseTemplate(kind)
-		if err != nil {
-			return err
-		}
-
-		kindEntries, err := fs.ReadDir(embeddedTemplateFiles, path.Join("templates", kind))
-		if err != nil {
-			return fmt.Errorf("read AI provider kind templates %s: %w", kind, err)
-		}
-
-		for _, kindEntry := range kindEntries {
-			if kindEntry.IsDir() || !strings.HasSuffix(kindEntry.Name(), ".json") || kindEntry.Name() == "_template.json" {
-				continue
-			}
-
-			filePath := path.Join("templates", kind, kindEntry.Name())
-			overlay, err := readTemplateFile(filePath)
-			if err != nil {
-				return fmt.Errorf("read AI provider template %s: %w", filePath, err)
-			}
-
-			template, err := applyTemplateOverlay(base, overlay)
-			if err != nil {
-				return fmt.Errorf("merge AI provider template %s: %w", filePath, err)
-			}
-			if err := validateTemplate(template); err != nil {
-				return fmt.Errorf("invalid AI provider template %s: %w", filePath, err)
-			}
-			templateMap[template.ID] = template
-		}
-	}
-
-	keys := make([]string, 0, len(templateMap))
-	for key := range templateMap {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	templates = make([]Template, 0, len(keys))
-	for _, key := range keys {
-		templates = append(templates, templateMap[key])
-	}
+	templates = loaded
 	return nil
 }
 
 type templateFile struct {
-	ID              *string             `json:"id,omitempty"`
-	Kind            *string             `json:"kind,omitempty"`
-	Title           *string             `json:"title,omitempty"`
-	Vendor          *string             `json:"vendor,omitempty"`
-	Category        *string             `json:"category,omitempty"`
-	Description     *string             `json:"description,omitempty"`
-	ContextSize     *int                `json:"contextSize,omitempty"`
-	DefaultEndpoint *string             `json:"defaultEndpoint,omitempty"`
-	DefaultAuth     *string             `json:"defaultAuthScheme,omitempty"`
-	Capabilities    []string            `json:"capabilities,omitempty"`
-	Aliases         []string            `json:"aliases,omitempty"`
-	Fields          []templateFieldFile `json:"fields,omitempty"`
+	ID                        *string                `json:"id,omitempty"`
+	Kind                      *string                `json:"kind,omitempty"`
+	Title                     *string                `json:"title,omitempty"`
+	Vendor                    *string                `json:"vendor,omitempty"`
+	Category                  *string                `json:"category,omitempty"`
+	UIGroup                   *string                `json:"uiGroup,omitempty"`
+	HostingMode               *string                `json:"hostingMode,omitempty"`
+	ServiceMode               *string                `json:"serviceMode,omitempty"`
+	EndpointMode              *string                `json:"endpointMode,omitempty"`
+	ProviderMode              *string                `json:"providerMode,omitempty"`
+	Description               *string                `json:"description,omitempty"`
+	HelpURL                   *string                `json:"helpUrl,omitempty"`
+	ContextSize               *int                   `json:"contextSize,omitempty"`
+	ModelsEndpoint            *string                `json:"modelsEndpoint,omitempty"`
+	DefaultEndpoint           *string                `json:"defaultEndpoint,omitempty"`
+	DefaultAuth               *string                `json:"defaultAuthScheme,omitempty"`
+	DefaultEnabledModels      []string               `json:"defaultEnabledModels,omitempty"`
+	Capabilities              []string               `json:"capabilities,omitempty"`
+	Aliases                   []string               `json:"aliases,omitempty"`
+	SupportsClosedModels      *bool                  `json:"supportsClosedModels,omitempty"`
+	SupportsMultiVendorModels *bool                  `json:"supportsMultiVendorModels,omitempty"`
+	Protocols                 []templateProtocolFile `json:"protocols,omitempty"`
+	HideInChooser             *bool                  `json:"hideInChooser,omitempty"`
+	SkipTLSCertVerify         *bool                  `json:"skipTLSCertVerify,omitempty"`
+	Fields                    []templateFieldFile    `json:"fields,omitempty"`
+}
+
+type templateProtocolFile struct {
+	ID              string  `json:"id,omitempty"`
+	Label           *string `json:"label,omitempty"`
+	Default         *bool   `json:"default,omitempty"`
+	DefaultEndpoint *string `json:"defaultEndpoint,omitempty"`
+	ModelsEndpoint  *string `json:"modelsEndpoint,omitempty"`
 }
 
 type templateFieldFile struct {
@@ -127,9 +120,11 @@ type templateFieldFile struct {
 	Label          *string         `json:"label,omitempty"`
 	Type           *string         `json:"type,omitempty"`
 	Required       *bool           `json:"required,omitempty"`
+	Advanced       *bool           `json:"advanced,omitempty"`
 	Sensitive      *bool           `json:"sensitive,omitempty"`
 	SecretTemplate *string         `json:"secretTemplate,omitempty"`
 	Placeholder    *string         `json:"placeholder,omitempty"`
+	HelpURL        *string         `json:"helpUrl,omitempty"`
 	HelpText       *string         `json:"helpText,omitempty"`
 	Default        json.RawMessage `json:"default,omitempty"`
 }
@@ -167,7 +162,7 @@ func applyTemplateOverlay(base Template, file templateFile) (Template, error) {
 	result := base
 
 	if file.ID != nil {
-		result.ID = connectors.NormalizeTemplateID(*file.ID)
+		result.ID = resourceshared.NormalizeTemplateID(*file.ID)
 	}
 	if file.Kind != nil {
 		result.Kind = strings.TrimSpace(*file.Kind)
@@ -181,11 +176,32 @@ func applyTemplateOverlay(base Template, file templateFile) (Template, error) {
 	if file.Category != nil {
 		result.Category = strings.TrimSpace(*file.Category)
 	}
+	if file.UIGroup != nil {
+		result.UIGroup = strings.TrimSpace(*file.UIGroup)
+	}
+	if file.HostingMode != nil {
+		result.HostingMode = strings.TrimSpace(*file.HostingMode)
+	}
+	if file.ServiceMode != nil {
+		result.ServiceMode = strings.TrimSpace(*file.ServiceMode)
+	}
+	if file.EndpointMode != nil {
+		result.EndpointMode = strings.TrimSpace(*file.EndpointMode)
+	}
+	if file.ProviderMode != nil {
+		result.ProviderMode = strings.TrimSpace(*file.ProviderMode)
+	}
 	if file.Description != nil {
 		result.Description = strings.TrimSpace(*file.Description)
 	}
+	if file.HelpURL != nil {
+		result.HelpURL = strings.TrimSpace(*file.HelpURL)
+	}
 	if file.ContextSize != nil {
 		result.ContextSize = *file.ContextSize
+	}
+	if file.ModelsEndpoint != nil {
+		result.ModelsEndpoint = strings.TrimSpace(*file.ModelsEndpoint)
 	}
 	if file.DefaultEndpoint != nil {
 		result.DefaultEndpoint = strings.TrimSpace(*file.DefaultEndpoint)
@@ -193,11 +209,33 @@ func applyTemplateOverlay(base Template, file templateFile) (Template, error) {
 	if file.DefaultAuth != nil {
 		result.DefaultAuth = strings.TrimSpace(*file.DefaultAuth)
 	}
+	if file.DefaultEnabledModels != nil {
+		result.DefaultEnabledModels = append([]string(nil), file.DefaultEnabledModels...)
+	}
 	if file.Capabilities != nil {
 		result.Capabilities = append([]string(nil), file.Capabilities...)
 	}
 	if file.Aliases != nil {
 		result.Aliases = append([]string(nil), file.Aliases...)
+	}
+	if file.SupportsClosedModels != nil {
+		result.SupportsClosedModels = *file.SupportsClosedModels
+	}
+	if file.SupportsMultiVendorModels != nil {
+		result.SupportsMultiVendorModels = *file.SupportsMultiVendorModels
+	}
+	if file.Protocols != nil {
+		protocols, err := mergeTemplateProtocols(base.Protocols, file.Protocols)
+		if err != nil {
+			return Template{}, err
+		}
+		result.Protocols = protocols
+	}
+	if file.HideInChooser != nil {
+		result.HideInChooser = *file.HideInChooser
+	}
+	if file.SkipTLSCertVerify != nil {
+		result.SkipTLSCertVerify = *file.SkipTLSCertVerify
 	}
 	if file.Fields != nil {
 		fields, err := mergeTemplateFields(base.Fields, file.Fields)
@@ -208,6 +246,51 @@ func applyTemplateOverlay(base Template, file templateFile) (Template, error) {
 	}
 
 	return result, nil
+}
+
+func mergeTemplateProtocols(base []TemplateProtocol, overrides []templateProtocolFile) ([]TemplateProtocol, error) {
+	result := append([]TemplateProtocol(nil), base...)
+	indexByID := make(map[string]int, len(result))
+	for index, protocol := range result {
+		indexByID[protocol.ID] = index
+	}
+
+	for _, override := range overrides {
+		if strings.TrimSpace(override.ID) == "" {
+			return nil, fmt.Errorf("template protocol id is required")
+		}
+		if index, ok := indexByID[override.ID]; ok {
+			merged := applyProtocolOverlay(result[index], override)
+			result[index] = merged
+			continue
+		}
+		merged := applyProtocolOverlay(TemplateProtocol{ID: override.ID}, override)
+		result = append(result, merged)
+		indexByID[override.ID] = len(result) - 1
+	}
+
+	return result, nil
+}
+
+func applyProtocolOverlay(base TemplateProtocol, override templateProtocolFile) TemplateProtocol {
+	result := base
+	result.ID = strings.TrimSpace(override.ID)
+	if override.Label != nil {
+		result.Label = strings.TrimSpace(*override.Label)
+	}
+	if override.Default != nil {
+		result.Default = *override.Default
+	}
+	if override.DefaultEndpoint != nil {
+		result.DefaultEndpoint = strings.TrimSpace(*override.DefaultEndpoint)
+	}
+	if override.ModelsEndpoint != nil {
+		result.ModelsEndpoint = strings.TrimSpace(*override.ModelsEndpoint)
+	}
+	if strings.TrimSpace(result.Label) == "" {
+		result.Label = result.ID
+	}
+	return result
 }
 
 func mergeTemplateFields(base []TemplateField, overrides []templateFieldFile) ([]TemplateField, error) {
@@ -252,6 +335,9 @@ func applyFieldOverlay(base TemplateField, override templateFieldFile) (Template
 	if override.Required != nil {
 		result.Required = *override.Required
 	}
+	if override.Advanced != nil {
+		result.Advanced = *override.Advanced
+	}
 	if override.Sensitive != nil {
 		result.Sensitive = *override.Sensitive
 	}
@@ -260,6 +346,9 @@ func applyFieldOverlay(base TemplateField, override templateFieldFile) (Template
 	}
 	if override.Placeholder != nil {
 		result.Placeholder = strings.TrimSpace(*override.Placeholder)
+	}
+	if override.HelpURL != nil {
+		result.HelpURL = strings.TrimSpace(*override.HelpURL)
 	}
 	if override.HelpText != nil {
 		result.HelpText = strings.TrimSpace(*override.HelpText)
@@ -280,6 +369,40 @@ func applyFieldOverlay(base TemplateField, override templateFieldFile) (Template
 	return result, nil
 }
 
+func applyImplicitTemplateDefaults(template Template) Template {
+	defaultEndpoint := strings.TrimSpace(template.DefaultEndpoint)
+	if defaultEndpoint == "" {
+		return template
+	}
+
+	if len(template.Protocols) > 0 {
+		protocols := append([]TemplateProtocol(nil), template.Protocols...)
+		for index, protocol := range protocols {
+			if strings.TrimSpace(protocol.DefaultEndpoint) != "" {
+				continue
+			}
+			protocol.DefaultEndpoint = defaultEndpoint
+			protocols[index] = protocol
+		}
+		template.Protocols = protocols
+	}
+
+	if len(template.Fields) == 0 {
+		return template
+	}
+
+	fields := append([]TemplateField(nil), template.Fields...)
+	for index, field := range fields {
+		if strings.TrimSpace(field.ID) != "endpoint" || field.Default != nil {
+			continue
+		}
+		field.Default = defaultEndpoint
+		fields[index] = field
+	}
+	template.Fields = fields
+	return template
+}
+
 func validateTemplate(template Template) error {
 	if strings.TrimSpace(template.ID) == "" {
 		return fmt.Errorf("template id is required")
@@ -289,6 +412,47 @@ func validateTemplate(template Template) error {
 	}
 	if strings.TrimSpace(template.Title) == "" {
 		return fmt.Errorf("template title is required")
+	}
+	if strings.TrimSpace(template.UIGroup) == "" {
+		return fmt.Errorf("template uiGroup is required")
+	}
+	if !isAllowedTemplateValue(template.UIGroup, "single_provider", "cloud_gateway", "self_hosted") {
+		return fmt.Errorf("template uiGroup must be single_provider, cloud_gateway, or self_hosted")
+	}
+	if strings.TrimSpace(template.HostingMode) == "" {
+		return fmt.Errorf("template hostingMode is required")
+	}
+	if !isAllowedTemplateValue(template.HostingMode, "cloud", "self_hosted", "hybrid") {
+		return fmt.Errorf("template hostingMode must be cloud, self_hosted, or hybrid")
+	}
+	if strings.TrimSpace(template.ServiceMode) == "" {
+		return fmt.Errorf("template serviceMode is required")
+	}
+	if !isAllowedTemplateValue(template.ServiceMode, "official_provider", "maas_platform", "gateway", "inference_runtime", "compat_proxy") {
+		return fmt.Errorf("template serviceMode must be official_provider, maas_platform, gateway, inference_runtime, or compat_proxy")
+	}
+	if strings.TrimSpace(template.EndpointMode) == "" {
+		return fmt.Errorf("template endpointMode is required")
+	}
+	if !isAllowedTemplateValue(template.EndpointMode, "fixed", "customizable", "user_supplied") {
+		return fmt.Errorf("template endpointMode must be fixed, customizable, or user_supplied")
+	}
+	if mode := strings.TrimSpace(template.ProviderMode); mode == "" {
+		return fmt.Errorf("template providerMode is required")
+	} else if mode != "vendor" && mode != "gateway" {
+		return fmt.Errorf("template providerMode must be vendor or gateway")
+	}
+	defaultProtocols := 0
+	for _, protocol := range template.Protocols {
+		if strings.TrimSpace(protocol.ID) == "" {
+			return fmt.Errorf("template protocol id is required")
+		}
+		if protocol.Default {
+			defaultProtocols++
+		}
+	}
+	if defaultProtocols > 1 {
+		return fmt.Errorf("template protocols can define only one default")
 	}
 	seen := make(map[string]struct{}, len(template.Fields))
 	for _, field := range template.Fields {
@@ -301,6 +465,16 @@ func validateTemplate(template Template) error {
 		seen[field.ID] = struct{}{}
 	}
 	return nil
+}
+
+func isAllowedTemplateValue(value string, allowed ...string) bool {
+	normalized := strings.TrimSpace(value)
+	for _, item := range allowed {
+		if normalized == item {
+			return true
+		}
+	}
+	return false
 }
 
 func defaultFieldType(fieldID string) string {

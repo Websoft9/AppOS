@@ -3,8 +3,8 @@ package metrics
 import "time"
 
 const (
-	MetricsBatchLimit     = 200
-	EnvVictoriaMetricsURL = "TSDB_ADDR"
+	MetricsBatchLimit = 200
+	EnvTSDBURL        = "TSDB_URL"
 )
 
 type MetricPoint struct {
@@ -45,11 +45,28 @@ type MetricSeriesResponse struct {
 	SelectedNetworkInterface   string         `json:"selectedNetworkInterface,omitempty"`
 }
 
+type MetricLatestResponse struct {
+	TargetType                 string         `json:"targetType"`
+	TargetID                   string         `json:"targetId"`
+	CadenceSeconds             int            `json:"cadenceSeconds,omitempty"`
+	Series                     []MetricSeries `json:"series"`
+	AvailableNetworkInterfaces []string       `json:"availableNetworkInterfaces,omitempty"`
+	SelectedNetworkInterface   string         `json:"selectedNetworkInterface,omitempty"`
+}
+
+type ContainerTelemetryTarget struct {
+	ID   string
+	Name string
+}
+
 type ContainerTelemetryLatest struct {
-	CPUPercent              *float64 `json:"cpuPercent,omitempty"`
-	MemoryBytes             *float64 `json:"memoryBytes,omitempty"`
-	NetworkRxBytesPerSecond *float64 `json:"networkRxBytesPerSecond,omitempty"`
-	NetworkTxBytesPerSecond *float64 `json:"networkTxBytesPerSecond,omitempty"`
+	CPUPercent               *float64 `json:"cpuPercent,omitempty"`
+	MemoryUsageBytes         *float64 `json:"memoryUsageBytes,omitempty"`
+	MemoryLimitBytes         *float64 `json:"memoryLimitBytes,omitempty"`
+	NetworkRxBytesPerSecond  *float64 `json:"networkRxBytesPerSecond,omitempty"`
+	NetworkTxBytesPerSecond  *float64 `json:"networkTxBytesPerSecond,omitempty"`
+	BlockReadBytesPerSecond  *float64 `json:"blockReadBytesPerSecond,omitempty"`
+	BlockWriteBytesPerSecond *float64 `json:"blockWriteBytesPerSecond,omitempty"`
 }
 
 type ContainerTelemetryFreshness struct {

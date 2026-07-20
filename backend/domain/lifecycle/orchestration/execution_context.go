@@ -2,19 +2,24 @@ package orchestration
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/lifecycle/metadata"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
+	"github.com/websoft9/appos/backend/domain/lifecycle/rules"
 )
 
 type ExecutionContext struct {
-	AppRecord  *core.Record
-	Operation  *core.Record
-	Pipeline   *core.Record
-	Definition model.Definition
-	NodeRuns   map[string]*core.Record
+	AppRecord   *core.Record
+	Operation   *core.Record
+	Pipeline    *core.Record
+	Definition  model.Definition
+	NodeRuns    map[string]*core.Record
+	NodesByKey  map[string]model.NodeDefinition
+	RuleProfile rules.Profile
 }
 
 func LoadExecutionContext(app core.App, operationID string) (*ExecutionContext, error) {
@@ -32,8 +37,8 @@ func LoadExecutionContext(app core.App, operationID string) (*ExecutionContext, 
 	}
 	selector := model.DefinitionSelector{
 		OperationType: operation.GetString("operation_type"),
-		Source:        operation.GetString("trigger_source"),
-		Adapter:       operation.GetString("adapter"),
+		ExecutionMode: operation.GetString("execution_mode"),
+		RuleProfile:   operation.GetString("rule_profile"),
 	}
 	definition, err := metadata.DefinitionForSelector(selector)
 	if err != nil {
@@ -50,17 +55,85 @@ func LoadExecutionContext(app core.App, operationID string) (*ExecutionContext, 
 		return nil, err
 	}
 	nodeRuns := make(map[string]*core.Record, len(nodeRunsList))
+	nodesByKey := make(map[string]model.NodeDefinition, len(definition.Nodes))
 	for _, nodeRun := range nodeRunsList {
 		nodeRuns[nodeRun.GetString("node_key")] = nodeRun
 	}
+	for _, node := range definition.Nodes {
+		nodesByKey[node.Key] = node
+	}
+	ruleProfile, _ := rules.Lookup(operation.GetString("rule_profile"))
 
 	return &ExecutionContext{
-		AppRecord:  appRecord,
-		Operation:  operation,
-		Pipeline:   pipeline,
-		Definition: definition,
-		NodeRuns:   nodeRuns,
+		AppRecord:   appRecord,
+		Operation:   operation,
+		Pipeline:    pipeline,
+		Definition:  definition,
+		NodeRuns:    nodeRuns,
+		NodesByKey:  nodesByKey,
+		RuleProfile: ruleProfile,
 	}, nil
+}
+
+func ReadyNodes(execCtx *ExecutionContext) []model.NodeDefinition {
+	if execCtx == nil {
+		return nil
+	}
+	ready := make([]model.NodeDefinition, 0)
+	for _, node := range execCtx.Definition.Nodes {
+		if isCompensationOnlyNode(execCtx, node.Key) {
+			continue
+		}
+		nodeRun := execCtx.NodeRuns[node.Key]
+		if nodeRun == nil {
+			continue
+		}
+		status := nodeRun.GetString("status")
+		if status != "pending" {
+			continue
+		}
+		if !dependenciesSatisfied(execCtx, node) {
+			continue
+		}
+		ready = append(ready, node)
+	}
+	sort.SliceStable(ready, func(i, j int) bool {
+		left := ready[i]
+		right := ready[j]
+		if left.Phase == right.Phase {
+			return left.Key < right.Key
+		}
+		return left.Phase < right.Phase
+	})
+	return ready
+}
+
+func isCompensationOnlyNode(execCtx *ExecutionContext, nodeKey string) bool {
+	if execCtx == nil || strings.TrimSpace(nodeKey) == "" {
+		return false
+	}
+	for _, node := range execCtx.Definition.Nodes {
+		if node.CompensationNodeKey == nodeKey {
+			return true
+		}
+	}
+	return false
+}
+
+func dependenciesSatisfied(execCtx *ExecutionContext, node model.NodeDefinition) bool {
+	for _, dependency := range node.DependsOn {
+		dependencyRun := execCtx.NodeRuns[dependency]
+		if dependencyRun == nil {
+			return false
+		}
+		switch dependencyRun.GetString("status") {
+		case "succeeded", "compensated", "skipped":
+			continue
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func StartNode(app core.App, execCtx *ExecutionContext, nodeRun *core.Record, node model.NodeDefinition) error {

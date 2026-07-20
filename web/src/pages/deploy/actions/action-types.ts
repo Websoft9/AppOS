@@ -58,6 +58,7 @@ export type ActionRecord = {
   app_id?: string
   server_id: string
   server_label?: string
+  server_name?: string
   server_host?: string
   source: string
   status: string
@@ -81,6 +82,22 @@ export type ActionRecord = {
   spec?: Record<string, unknown>
   lifecycle?: ActionLifecycleStep[]
   steps?: ActionStep[]
+}
+
+export type ActionControlKind = 'cancel' | 'force-fail' | 'resume'
+
+export type PendingActionControl = {
+  kind: ActionControlKind
+  action: ActionRecord
+  continuation?: (() => Promise<void>) | null
+}
+
+export type ActionListResponse = {
+  items: ActionRecord[]
+  page: number
+  perPage: number
+  totalItems: number
+  totalPages: number
 }
 
 export type ActionLogsResponse = {
@@ -116,6 +133,7 @@ export type ManualEntryMode =
 export type CreateDeploymentEntryMode =
   | 'compose'
   | 'git-compose'
+  | 'template'
   | 'docker-command'
   | 'install-script'
 export type StoreShortcut = Pick<Product, 'key' | 'trademark' | 'logo'>

@@ -1,0 +1,8 @@
+{
+  "id": "hetzner-dns",
+  "title": "Hetzner DNS",
+  "vendor": "Hetzner",
+  "description": "Hetzner DNS API profile.",
+  "defaultEndpoint": "https://dns.hetzner.com/api/v1",
+  "aliases": ["hetzner", "hetzner-dns"]
+}

@@ -37,10 +37,13 @@ func TestResolveLLMTemplate(t *testing.T) {
 }
 
 func TestDeclaredConnectorKindsHaveTemplates(t *testing.T) {
-	declaredKinds := []string{KindRESTAPI, KindWebhook, KindMCP, KindSMTP, KindDNS, KindRegistry}
+	declaredKinds := []string{KindRESTAPI, KindWebhook, KindMCP, KindHTTPGateway, KindSMTP, KindDNS, KindRegistry, KindProxy}
 	for _, kind := range declaredKinds {
 		t.Run(kind, func(t *testing.T) {
-			templates := TemplatesByKind(kind)
+			templates, err := TemplatesByKind(kind)
+			if err != nil {
+				t.Fatalf("load templates for %q: %v", kind, err)
+			}
 			if len(templates) == 0 {
 				t.Fatalf("expected at least one template for kind %q", kind)
 			}
@@ -55,12 +58,18 @@ func TestFindTemplateLoadsGenericNonLLMTemplates(t *testing.T) {
 	}{
 		{id: "generic-smtp", kind: KindSMTP},
 		{id: "generic-dns", kind: KindDNS},
+		{id: "generic-http-gateway", kind: KindHTTPGateway},
 		{id: "generic-registry", kind: KindRegistry},
+		{id: "http-proxy", kind: KindProxy},
+		{id: "socks5-proxy", kind: KindProxy},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.id, func(t *testing.T) {
-			template, ok := FindTemplate(tc.id)
+			template, ok, err := FindTemplate(tc.id)
+			if err != nil {
+				t.Fatalf("find template %q: %v", tc.id, err)
+			}
 			if !ok {
 				t.Fatalf("expected template %q to be loaded", tc.id)
 			}

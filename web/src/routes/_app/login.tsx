@@ -3,26 +3,30 @@ import { useState, useEffect } from 'react'
 import type { FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
+import { getSessionExpiredMessage, SESSION_EXPIRED_REASON } from '@/lib/auth-session'
 import { pb } from '@/lib/pb'
 import { ModeToggle } from '@/components/mode-toggle'
+import { completeLoginRedirect } from './-login-redirect'
 
-function LoginPage() {
+export function LoginPage() {
   const navigate = useNavigate()
-  const { redirect } = useSearch({ strict: false }) as { redirect?: string }
+  const { redirect, reason } = useSearch({ strict: false }) as {
+    redirect?: string
+    reason?: string
+  }
   const { login, isAuthenticated } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const sessionExpiredMessage = reason === SESSION_EXPIRED_REASON ? getSessionExpiredMessage() : ''
 
   // If already authenticated, redirect away
   useEffect(() => {
     if (isAuthenticated) {
-      if (redirect) {
-        window.location.assign(redirect)
-        return
-      }
-      void navigate({ to: '/overview' })
+      void completeLoginRedirect(navigate, redirect, window.location.origin, url =>
+        window.location.assign(url)
+      )
     }
   }, [isAuthenticated, navigate, redirect])
 
@@ -44,11 +48,9 @@ function LoginPage() {
 
     try {
       await login(email, password)
-      if (redirect) {
-        window.location.assign(redirect)
-        return
-      }
-      await navigate({ to: '/overview' })
+      await completeLoginRedirect(navigate, redirect, window.location.origin, url =>
+        window.location.assign(url)
+      )
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Login failed'
       setError(message)
@@ -64,6 +66,12 @@ function LoginPage() {
       </div>
       <div className="w-full max-w-md p-8 bg-card rounded-lg shadow-md border border-border">
         <h2 className="text-2xl font-bold text-center mb-6 text-card-foreground">Login</h2>
+
+        {!error && sessionExpiredMessage && (
+          <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/40 text-amber-700 rounded dark:text-amber-300">
+            {sessionExpiredMessage}
+          </div>
+        )}
 
         {error && (
           <div className="mb-4 p-3 bg-destructive/10 border border-destructive/50 text-destructive rounded">

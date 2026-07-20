@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import { Loader2, RefreshCw } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { Badge } from '@/components/ui/badge'
@@ -54,12 +55,12 @@ function OverviewItemRow({ item }: { item: MonitorOverviewItem }) {
       <div className="flex shrink-0 flex-col items-start gap-2 text-xs text-muted-foreground sm:items-end">
         <span>Transitioned {formatTimestamp(item.lastTransitionAt)}</span>
         {item.detailHref ? (
-          <a
+          <Link
             className="text-xs font-medium text-foreground underline-offset-4 hover:underline"
-            href={item.detailHref}
+            to={item.detailHref as never}
           >
             Open detail
-          </a>
+          </Link>
         ) : null}
       </div>
     </div>

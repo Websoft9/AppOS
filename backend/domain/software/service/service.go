@@ -2,12 +2,17 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
+	"time"
 
 	"github.com/hibiken/asynq"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/monitor"
+	monitorstore "github.com/websoft9/appos/backend/domain/monitor/status/store"
 	"github.com/websoft9/appos/backend/domain/software"
 	swcatalog "github.com/websoft9/appos/backend/domain/software/catalog"
 	swexecutor "github.com/websoft9/appos/backend/domain/software/executor"
@@ -63,7 +68,11 @@ func (s *Service) ListServerComponents(ctx context.Context, serverID, userID str
 		return nil, err
 	}
 	latestOps := s.loadLatestOperations(serverID)
+	if items, ok := s.loadProjectedComponents(cat, reg, software.TargetTypeServer, serverID, latestOps); ok {
+		return items, nil
+	}
 	executor, executorErr := s.serverExecutorFactory(s.app, serverID, userID)
+	defer closeExecutor(executor)
 	items, err := s.buildComputedComponents(ctx, cat, reg, software.TargetTypeServer, serverID, executor, executorErr, latestOps)
 	if err != nil {
 		return nil, err
@@ -72,14 +81,43 @@ func (s *Service) ListServerComponents(ctx context.Context, serverID, userID str
 }
 
 func (s *Service) GetServerComponent(ctx context.Context, serverID, userID string, componentKey software.ComponentKey) (ComputedComponent, error) {
-	items, err := s.ListServerComponents(ctx, serverID, userID)
+	cat, reg, err := loadCatalogAndRegistry(true)
 	if err != nil {
 		return ComputedComponent{}, err
 	}
-	for _, item := range items {
-		if item.Entry.ComponentKey == componentKey {
+	latestOps := s.loadLatestOperations(serverID)
+	if item, ok := s.loadProjectedComponent(cat, reg, software.TargetTypeServer, serverID, componentKey, latestOps); ok {
+		if item.Detail.InstalledState == software.InstalledStateInstalled {
 			return item, nil
 		}
+	}
+	if items, ok := s.loadProjectedComponents(cat, reg, software.TargetTypeServer, serverID, latestOps); ok {
+		for _, item := range items {
+			if item.Entry.ComponentKey == componentKey {
+				if item.Detail.InstalledState == software.InstalledStateInstalled {
+					return item, nil
+				}
+				break
+			}
+		}
+	}
+	executor, executorErr := s.serverExecutorFactory(s.app, serverID, userID)
+	defer closeExecutor(executor)
+	for _, entry := range cat.Components {
+		if entry.ComponentKey != componentKey {
+			continue
+		}
+		entry = software.ApplyRuntimeBindings(s.app, entry)
+		tpl, ok := reg.Templates[entry.TemplateRef]
+		if !ok {
+			return ComputedComponent{}, fmt.Errorf("template ref not found: %s", entry.TemplateRef)
+		}
+		resolved := swcatalog.ResolveTemplate(entry, tpl)
+		computed := s.computeComponent(ctx, entry, resolved, serverID, executor, executorErr, latestOps[string(entry.ComponentKey)])
+		if err := swprojection.UpsertInventorySnapshot(s.app, software.TargetTypeServer, serverID, snapshotFromComputed(computed)); err != nil {
+			s.app.Logger().Error("failed to write software snapshot", "component", componentKey, "server", serverID, "error", err)
+		}
+		return computed, nil
 	}
 	return ComputedComponent{}, fmt.Errorf("component %q not found in server catalog", componentKey)
 }
@@ -89,17 +127,81 @@ func (s *Service) ListLocalComponents(ctx context.Context) ([]ComputedComponent,
 	if err != nil {
 		return nil, err
 	}
+	if items, ok := s.loadProjectedComponents(cat, reg, software.TargetTypeLocal, LocalTargetID, nil); ok {
+		return items, nil
+	}
 	executor, executorErr := s.localExecutorFactory(s.app)
 	return s.buildComputedComponents(ctx, cat, reg, software.TargetTypeLocal, LocalTargetID, executor, executorErr, nil)
 }
 
+func (s *Service) ListProjectedLocalComponentsPartial() (map[software.ComponentKey]ComputedComponent, bool, error) {
+	cat, reg, err := loadCatalogAndRegistry(false)
+	if err != nil {
+		return nil, false, err
+	}
+	return s.loadProjectedComponentMap(cat, reg, software.TargetTypeLocal, LocalTargetID, nil)
+}
+
+func (s *Service) ListSnapshotFirstLocalComponents() (map[software.ComponentKey]ComputedComponent, bool, error) {
+	cat, reg, err := loadCatalogAndRegistry(false)
+	if err != nil {
+		return nil, false, err
+	}
+	projected, complete, err := s.loadProjectedComponentMap(cat, reg, software.TargetTypeLocal, LocalTargetID, nil)
+	if err != nil {
+		return nil, false, err
+	}
+	items := make(map[software.ComponentKey]ComputedComponent, len(cat.Components))
+	for _, entry := range cat.Components {
+		if item, ok := projected[entry.ComponentKey]; ok {
+			items[entry.ComponentKey] = item
+			continue
+		}
+		placeholder, err := placeholderComponent(s.app, entry, reg, LocalTargetID, nil)
+		if err != nil {
+			return nil, false, err
+		}
+		items[entry.ComponentKey] = placeholder
+	}
+	return items, complete, nil
+}
+
+func (s *Service) GetLocalComponentSnapshotFirst(componentKey software.ComponentKey) (ComputedComponent, bool, error) {
+	cat, reg, err := loadCatalogAndRegistry(false)
+	if err != nil {
+		return ComputedComponent{}, false, err
+	}
+	if item, ok := s.loadProjectedComponent(cat, reg, software.TargetTypeLocal, LocalTargetID, componentKey, nil); ok {
+		return item, false, nil
+	}
+	for _, entry := range cat.Components {
+		if entry.ComponentKey != componentKey {
+			continue
+		}
+		placeholder, err := placeholderComponent(s.app, entry, reg, LocalTargetID, nil)
+		if err != nil {
+			return ComputedComponent{}, false, err
+		}
+		return placeholder, true, nil
+	}
+	return ComputedComponent{}, false, fmt.Errorf("component %q not found in local catalog", componentKey)
+}
+
 func (s *Service) GetLocalComponent(ctx context.Context, componentKey software.ComponentKey) (ComputedComponent, error) {
+	cat, reg, err := loadCatalogAndRegistry(false)
+	if err != nil {
+		return ComputedComponent{}, err
+	}
+	if item, ok := s.loadProjectedComponent(cat, reg, software.TargetTypeLocal, LocalTargetID, componentKey, nil); ok {
+		return item, nil
+	}
 	items, err := s.ListLocalComponents(ctx)
 	if err != nil {
 		return ComputedComponent{}, err
 	}
 	for _, item := range items {
 		if item.Entry.ComponentKey == componentKey {
+			_ = swprojection.UpsertInventorySnapshot(s.app, software.TargetTypeLocal, LocalTargetID, snapshotFromComputed(item))
 			return item, nil
 		}
 	}
@@ -248,94 +350,463 @@ func (s *Service) buildComputedComponents(
 			return nil, fmt.Errorf("template ref not found: %s", entry.TemplateRef)
 		}
 		resolved := swcatalog.ResolveTemplate(entry, tpl)
-		summary := software.SoftwareComponentSummary{
-			ComponentKey:      entry.ComponentKey,
-			Label:             entry.Label,
-			TemplateKind:      resolved.TemplateKind,
-			InstalledState:    software.InstalledStateUnknown,
-			VerificationState: software.VerificationStateUnknown,
-			AvailableActions:  []software.Action{},
-		}
-		detail := software.SoftwareComponentDetail{
-			SoftwareComponentSummary: summary,
-			ServiceName:              entry.ServiceName,
-			BinaryPath:               entry.Binary,
-		}
-		preflight := software.TargetReadinessResult{Issues: []string{}}
-		var lastOp *OperationSummary
-		if latestOps != nil {
-			lastOp = latestOps[string(entry.ComponentKey)]
-			if lastAction := lastActionFromOperation(lastOp); lastAction != nil {
-				summary.LastAction = lastAction
-				detail.LastAction = lastAction
-			}
-		}
-
-		if executorErr != nil {
-			preflight.OK = false
-			preflight.Issues = append(preflight.Issues, "executor_unavailable: "+executorErr.Error())
-			summary.AvailableActions = deriveAvailableActions(entry.SupportedActions, summary.InstalledState, preflight, lastOp)
-			detail.Preflight = &preflight
-			detail.SoftwareComponentSummary = summary
-			computed := ComputedComponent{Entry: entry, Resolved: resolved, Summary: summary, Detail: detail, Preflight: preflight, LastOperation: lastOp}
-			_ = swprojection.UpsertInventorySnapshot(s.app, targetType, targetID, snapshotFromComputed(computed))
-			items = append(items, computed)
-			continue
-		}
-
-		detection, detectErr := executor.Detect(ctx, targetID, resolved)
-		if detectErr == nil {
-			summary.InstalledState = detection.InstalledState
-			summary.DetectedVersion = detection.DetectedVersion
-			summary.InstallSource = detection.InstallSource
-			summary.SourceEvidence = detection.SourceEvidence
-			detail.InstalledState = detection.InstalledState
-			detail.DetectedVersion = detection.DetectedVersion
-			detail.InstallSource = detection.InstallSource
-			detail.SourceEvidence = detection.SourceEvidence
-		}
-
-		preflight, err := executor.RunPreflight(ctx, targetID, resolved)
-		if err != nil {
-			preflight = software.TargetReadinessResult{Issues: []string{"preflight_error: " + err.Error()}}
-		}
-		detail.Preflight = &preflight
-
-		verifiedDetail, verifyErr := executor.Verify(ctx, targetID, resolved)
-		verification := &software.SoftwareVerificationResult{
-			State: software.VerificationStateUnknown,
-		}
-		if verifyErr == nil {
-			if verifiedDetail.InstalledState != "" {
-				summary.InstalledState = verifiedDetail.InstalledState
-				detail.InstalledState = verifiedDetail.InstalledState
-			}
-			if verifiedDetail.DetectedVersion != "" {
-				summary.DetectedVersion = verifiedDetail.DetectedVersion
-				detail.DetectedVersion = verifiedDetail.DetectedVersion
-			}
-			summary.VerificationState = verifiedDetail.VerificationState
-			detail.VerificationState = verifiedDetail.VerificationState
-			detail.ServiceName = verifiedDetail.ServiceName
-			verification.State = verifiedDetail.VerificationState
-			if verifiedDetail.VerificationState == software.VerificationStateDegraded {
-				verification.Reason = "service verification returned degraded state"
-			}
-		} else {
-			verification.Reason = verifyErr.Error()
-			if detectErr == nil && detection.InstalledState == software.InstalledStateNotInstalled {
-				verification.Reason = "component is not installed"
-			}
-		}
-		detail.Verification = verification
-		summary.AvailableActions = deriveAvailableActions(entry.SupportedActions, detail.InstalledState, preflight, lastOp)
-		detail.SoftwareComponentSummary = summary
-
-		computed := ComputedComponent{Entry: entry, Resolved: resolved, Summary: summary, Detail: detail, Preflight: preflight, LastOperation: lastOp}
-		_ = swprojection.UpsertInventorySnapshot(s.app, targetType, targetID, snapshotFromComputed(computed))
+		computed := s.computeComponent(ctx, entry, resolved, targetID, executor, executorErr, latestOps[string(entry.ComponentKey)])
 		items = append(items, computed)
 	}
+	applyDependencyReadiness(items)
+	for _, computed := range items {
+		if err := swprojection.UpsertInventorySnapshot(s.app, targetType, targetID, snapshotFromComputed(computed)); err != nil {
+			s.app.Logger().Error("failed to write software snapshot", "component", computed.Entry.ComponentKey, "target", targetID, "error", err)
+		}
+	}
 	return items, nil
+}
+
+func applyDependencyReadiness(items []ComputedComponent) {
+	if len(items) == 0 {
+		return
+	}
+	byComponent := make(map[software.ComponentKey]ComputedComponent, len(items))
+	for _, item := range items {
+		byComponent[item.Entry.ComponentKey] = item
+	}
+	for index := range items {
+		deps := dependencyCapabilitiesFromRequirements(items[index].Entry.ReadinessRequirements)
+		if len(deps) == 0 {
+			continue
+		}
+		preflight := items[index].Preflight
+		preflight.DependencyReady = true
+		for _, dep := range deps {
+			componentKey, ok := software.CapabilityComponentMap[dep]
+			if !ok {
+				preflight.DependencyReady = false
+				preflight.Issues = append(preflight.Issues, fmt.Sprintf("dependency_missing: capability %q is not mapped to a managed component", dep))
+				continue
+			}
+			depItem, ok := byComponent[componentKey]
+			if !ok || depItem.Detail.InstalledState != software.InstalledStateInstalled || depItem.Detail.VerificationState != software.VerificationStateHealthy || !depItem.Preflight.OK {
+				preflight.DependencyReady = false
+				preflight.Issues = append(preflight.Issues, fmt.Sprintf("dependency_missing: capability %q is not ready", dep))
+			}
+		}
+		preflight.OK = preflight.OSSupported && preflight.PrivilegeOK && preflight.NetworkOK && preflight.DependencyReady && preflight.ServiceManagerOK && preflight.PackageManagerOK
+		items[index].Preflight = preflight
+		items[index].Detail.Preflight = &preflight
+		items[index].Summary.AvailableActions = deriveAvailableActions(items[index].Entry.SupportedActions, items[index].Detail.InstalledState, preflight, items[index].LastOperation)
+		items[index].Detail.AvailableActions = items[index].Summary.AvailableActions
+		items[index].Detail.SoftwareComponentSummary = items[index].Summary
+	}
+}
+
+func dependencyCapabilitiesFromRequirements(requirements []string) []software.Capability {
+	if len(requirements) == 0 {
+		return nil
+	}
+	seen := map[software.Capability]struct{}{}
+	out := make([]software.Capability, 0)
+	for _, requirement := range requirements {
+		capability := software.Capability(strings.TrimSpace(requirement))
+		if capability == "" {
+			continue
+		}
+		if _, ok := software.CapabilityComponentMap[capability]; !ok {
+			continue
+		}
+		if _, ok := seen[capability]; ok {
+			continue
+		}
+		seen[capability] = struct{}{}
+		out = append(out, capability)
+	}
+	return out
+}
+
+func placeholderComponent(
+	app core.App,
+	entry software.CatalogEntry,
+	reg software.TemplateRegistry,
+	targetID string,
+	lastOp *OperationSummary,
+) (ComputedComponent, error) {
+	entry = software.ApplyRuntimeBindings(app, entry)
+	tpl, ok := reg.Templates[entry.TemplateRef]
+	if !ok {
+		return ComputedComponent{}, fmt.Errorf("template ref not found: %s", entry.TemplateRef)
+	}
+	resolved := swcatalog.ResolveTemplate(entry, tpl)
+	preflight := software.TargetReadinessResult{Issues: []string{}}
+	summary := software.SoftwareComponentSummary{
+		ComponentKey:      entry.ComponentKey,
+		Label:             entry.Label,
+		TemplateKind:      resolved.TemplateKind,
+		ArtifactKind:      software.EffectiveArtifactKind(entry, resolved.TemplateKind),
+		InstalledState:    software.InstalledStateUnknown,
+		VerificationState: software.VerificationStateUnknown,
+	}
+	if lastAction := lastActionFromOperation(lastOp); lastAction != nil {
+		summary.LastAction = lastAction
+	}
+	summary.AvailableActions = deriveAvailableActions(entry.SupportedActions, summary.InstalledState, preflight, lastOp)
+	detail := software.SoftwareComponentDetail{
+		SoftwareComponentSummary: summary,
+		ServiceName:              entry.ServiceName,
+		BinaryPath:               entry.Binary,
+		Preflight:                &preflight,
+		Verification:             &software.SoftwareVerificationResult{State: software.VerificationStateUnknown},
+	}
+	detail.InstalledState = summary.InstalledState
+	detail.VerificationState = summary.VerificationState
+	detail.LastAction = summary.LastAction
+	service := Service{app: app}
+	service.applyHealthProjection(entry.TargetType, targetID, entry, lastOp, &summary, &detail)
+	detail.SoftwareComponentSummary = summary
+	return ComputedComponent{
+		Entry:         entry,
+		Resolved:      resolved,
+		Summary:       summary,
+		Detail:        detail,
+		Preflight:     preflight,
+		LastOperation: lastOp,
+	}, nil
+}
+
+func (s *Service) computeComponent(
+	ctx context.Context,
+	entry software.CatalogEntry,
+	resolved software.ResolvedTemplate,
+	targetID string,
+	executor software.ComponentExecutor,
+	executorErr error,
+	lastOp *OperationSummary,
+) ComputedComponent {
+	summary := software.SoftwareComponentSummary{
+		ComponentKey:      entry.ComponentKey,
+		Label:             entry.Label,
+		TemplateKind:      resolved.TemplateKind,
+		ArtifactKind:      software.EffectiveArtifactKind(entry, resolved.TemplateKind),
+		InstalledState:    software.InstalledStateUnknown,
+		VerificationState: software.VerificationStateUnknown,
+		AvailableActions:  []software.Action{},
+	}
+	detail := software.SoftwareComponentDetail{
+		SoftwareComponentSummary: summary,
+		ServiceName:              entry.ServiceName,
+		BinaryPath:               entry.Binary,
+	}
+	var preflight software.TargetReadinessResult
+	if lastAction := lastActionFromOperation(lastOp); lastAction != nil {
+		summary.LastAction = lastAction
+		detail.LastAction = lastAction
+	}
+
+	if executorErr != nil {
+		preflight.Issues = []string{}
+		preflight.OK = false
+		preflight.Issues = append(preflight.Issues, "executor_unavailable: "+executorErr.Error())
+		summary.AvailableActions = deriveAvailableActions(entry.SupportedActions, summary.InstalledState, preflight, lastOp)
+		detail.Preflight = &preflight
+		s.applyHealthProjection(entry.TargetType, targetID, entry, lastOp, &summary, &detail)
+		detail.SoftwareComponentSummary = summary
+		return ComputedComponent{Entry: entry, Resolved: resolved, Summary: summary, Detail: detail, Preflight: preflight, LastOperation: lastOp}
+	}
+
+	detection, detectErr := executor.Detect(ctx, targetID, resolved)
+	if detectErr == nil {
+		summary.InstalledState = detection.InstalledState
+		summary.DetectedVersion = detection.DetectedVersion
+		summary.InstallSource = detection.InstallSource
+		summary.SourceEvidence = detection.SourceEvidence
+		detail.InstalledState = detection.InstalledState
+		detail.DetectedVersion = detection.DetectedVersion
+		detail.InstallSource = detection.InstallSource
+		detail.SourceEvidence = detection.SourceEvidence
+	}
+
+	// Skip preflight for already-installed components.
+	// Preflight checks install eligibility (OS baseline, root, network reachability).
+	// The network probe (curl --max-time 5) adds up to 5s of latency per status read
+	// for no benefit: the install action is never available for installed components,
+	// and lifecycle ops (upgrade, restart) enforce their own preconditions at run time.
+	if detectErr != nil || detection.InstalledState != software.InstalledStateInstalled {
+		pf, pfErr := executor.RunPreflight(ctx, targetID, resolved)
+		if pfErr != nil {
+			preflight = software.TargetReadinessResult{Issues: []string{"preflight_error: " + pfErr.Error()}}
+		} else {
+			preflight = pf
+		}
+	} else {
+		preflight = software.TargetReadinessResult{
+			OK:               true,
+			OSSupported:      true,
+			PrivilegeOK:      true,
+			NetworkOK:        true,
+			DependencyReady:  true,
+			ServiceManagerOK: true,
+			PackageManagerOK: true,
+			Issues:           []string{},
+		}
+	}
+	detail.Preflight = &preflight
+
+	verifiedDetail, verifyErr := executor.Verify(ctx, targetID, resolved)
+	verification := verifiedDetail.Verification
+	if verification == nil {
+		verification = &software.SoftwareVerificationResult{State: software.VerificationStateUnknown}
+	}
+	if verifyErr == nil {
+		if verifiedDetail.InstalledState != "" {
+			summary.InstalledState = verifiedDetail.InstalledState
+			detail.InstalledState = verifiedDetail.InstalledState
+		}
+		if verifiedDetail.DetectedVersion != "" {
+			summary.DetectedVersion = verifiedDetail.DetectedVersion
+			detail.DetectedVersion = verifiedDetail.DetectedVersion
+		}
+		summary.VerificationState = verifiedDetail.VerificationState
+		detail.VerificationState = verifiedDetail.VerificationState
+		detail.ServiceName = verifiedDetail.ServiceName
+		verification.State = verifiedDetail.VerificationState
+		if verification.Reason == "" && verifiedDetail.VerificationState == software.VerificationStateDegraded {
+			verification.Reason = "service verification returned degraded state"
+		}
+	} else {
+		verification.Reason = verifyErr.Error()
+		if detectErr == nil && detection.InstalledState == software.InstalledStateNotInstalled {
+			verification.Reason = "component is not installed"
+		}
+	}
+	if verification.CheckedAt == "" {
+		verification.CheckedAt = time.Now().UTC().Format(time.RFC3339)
+	}
+	detail.Verification = verification
+	summary.AvailableActions = deriveAvailableActions(entry.SupportedActions, detail.InstalledState, preflight, lastOp)
+	s.applyHealthProjection(entry.TargetType, targetID, entry, lastOp, &summary, &detail)
+	detail.SoftwareComponentSummary = summary
+
+	return ComputedComponent{Entry: entry, Resolved: resolved, Summary: summary, Detail: detail, Preflight: preflight, LastOperation: lastOp}
+}
+
+func (s *Service) applyHealthProjection(
+	targetType software.TargetType,
+	targetID string,
+	entry software.CatalogEntry,
+	lastOp *OperationSummary,
+	summary *software.SoftwareComponentSummary,
+	detail *software.SoftwareComponentDetail,
+) {
+	reportingExpected := entry.ComponentKey == software.ComponentKeyTelegraf && targetType == software.TargetTypeServer
+	metricsFreshnessState, hasMonitorEvidence := s.monitorMetricsFreshness(targetType, targetID, reportingExpected)
+	terminal := software.TerminalStatus("")
+	if lastOp != nil {
+		terminal = lastOp.TerminalStatus
+	}
+	serviceStatus, apposConnection, reasons := software.ResolveComponentHealth(software.HealthResolutionEvidence{
+		ComponentKey:                 entry.ComponentKey,
+		InstalledState:               detail.InstalledState,
+		VerificationState:            detail.VerificationState,
+		Verification:                 detail.Verification,
+		LastOperationTerminalStatus:  terminal,
+		ReportingExpected:            reportingExpected,
+		MetricsFreshnessState:        metricsFreshnessState,
+		HasMonitorConnectionEvidence: hasMonitorEvidence,
+	})
+	summary.ServiceStatus = serviceStatus
+	summary.AppOSConnection = apposConnection
+	summary.HealthReasons = reasons
+	detail.ServiceStatus = serviceStatus
+	detail.AppOSConnection = apposConnection
+	detail.HealthReasons = reasons
+}
+
+func (s *Service) monitorMetricsFreshness(targetType software.TargetType, targetID string, reportingExpected bool) (string, bool) {
+	if !reportingExpected || targetType != software.TargetTypeServer || strings.TrimSpace(targetID) == "" {
+		return "", false
+	}
+	record, err := s.app.FindFirstRecordByFilter(
+		collections.MonitorLatestStatus,
+		"target_type = {:targetType} && target_id = {:targetID}",
+		map[string]any{"targetType": monitor.TargetTypeServer, "targetID": strings.TrimSpace(targetID)},
+	)
+	if err != nil || record == nil {
+		return "", false
+	}
+	summary, err := monitorstore.SummaryFromRecord(record)
+	if err != nil {
+		return "", true
+	}
+	return strings.TrimSpace(fmt.Sprint(summary["metrics_freshness_state"])), true
+}
+
+func (s *Service) loadProjectedComponents(
+	cat software.ComponentCatalog,
+	reg software.TemplateRegistry,
+	targetType software.TargetType,
+	targetID string,
+	latestOps map[string]*OperationSummary,
+) ([]ComputedComponent, bool) {
+	itemsByKey, complete, err := s.loadProjectedComponentMap(cat, reg, targetType, targetID, latestOps)
+	if err != nil || !complete {
+		return nil, false
+	}
+	items := make([]ComputedComponent, 0, len(cat.Components))
+	for _, entry := range cat.Components {
+		item, ok := itemsByKey[entry.ComponentKey]
+		if !ok {
+			return nil, false
+		}
+		items = append(items, item)
+	}
+	return items, true
+}
+
+func (s *Service) loadProjectedComponentMap(
+	cat software.ComponentCatalog,
+	reg software.TemplateRegistry,
+	targetType software.TargetType,
+	targetID string,
+	latestOps map[string]*OperationSummary,
+) (map[software.ComponentKey]ComputedComponent, bool, error) {
+	filter := "target_type = '" + escapeFilterValue(string(targetType)) + "' && target_id = '" + escapeFilterValue(strings.TrimSpace(targetID)) + "'"
+	records, err := s.app.FindRecordsByFilter(collections.SoftwareInventorySnapshots, filter, "", len(cat.Components)+10, 0)
+	if err != nil {
+		return nil, false, err
+	}
+	byKey := make(map[string]*core.Record, len(records))
+	for _, record := range records {
+		byKey[record.GetString("component_key")] = record
+	}
+
+	items := make(map[software.ComponentKey]ComputedComponent, len(records))
+	complete := len(records) >= len(cat.Components)
+	for _, entry := range cat.Components {
+		record := byKey[string(entry.ComponentKey)]
+		if record == nil {
+			complete = false
+			continue
+		}
+		item, ok := projectedComponentFromRecord(s.app, entry, reg, record, latestOps)
+		if !ok {
+			complete = false
+			continue
+		}
+		items[entry.ComponentKey] = item
+	}
+	return items, complete, nil
+}
+
+func (s *Service) loadProjectedComponent(
+	cat software.ComponentCatalog,
+	reg software.TemplateRegistry,
+	targetType software.TargetType,
+	targetID string,
+	componentKey software.ComponentKey,
+	latestOps map[string]*OperationSummary,
+) (ComputedComponent, bool) {
+	record, err := s.app.FindFirstRecordByFilter(
+		collections.SoftwareInventorySnapshots,
+		"target_type = {:targetType} && target_id = {:targetID} && component_key = {:componentKey}",
+		map[string]any{
+			"targetType":   string(targetType),
+			"targetID":     strings.TrimSpace(targetID),
+			"componentKey": string(componentKey),
+		},
+	)
+	if err != nil || record == nil {
+		return ComputedComponent{}, false
+	}
+	for _, entry := range cat.Components {
+		if entry.ComponentKey != componentKey {
+			continue
+		}
+		item, ok := projectedComponentFromRecord(s.app, entry, reg, record, latestOps)
+		if !ok {
+			return ComputedComponent{}, false
+		}
+		return item, true
+	}
+	return ComputedComponent{}, false
+}
+
+func projectedComponentFromRecord(
+	app core.App,
+	entry software.CatalogEntry,
+	reg software.TemplateRegistry,
+	record *core.Record,
+	latestOps map[string]*OperationSummary,
+) (ComputedComponent, bool) {
+	entry = software.ApplyRuntimeBindings(app, entry)
+	tpl, ok := reg.Templates[entry.TemplateRef]
+	if !ok {
+		return ComputedComponent{}, false
+	}
+	resolved := swcatalog.ResolveTemplate(entry, tpl)
+	preflight, ok := decodeSnapshotJSON[software.TargetReadinessResult](record.Get("preflight_json"))
+	if !ok {
+		preflight = &software.TargetReadinessResult{Issues: []string{}}
+	}
+	verification, _ := decodeSnapshotJSON[software.SoftwareVerificationResult](record.Get("verification_json"))
+	lastAction, _ := decodeSnapshotJSON[software.SoftwareDeliveryLastAction](record.Get("last_action_json"))
+	var lastOp *OperationSummary
+	if latestOps != nil {
+		lastOp = latestOps[string(entry.ComponentKey)]
+	}
+	summary := software.SoftwareComponentSummary{
+		ComponentKey:      entry.ComponentKey,
+		Label:             entry.Label,
+		TemplateKind:      resolved.TemplateKind,
+		InstalledState:    software.InstalledState(record.GetString("installed_state")),
+		DetectedVersion:   record.GetString("detected_version"),
+		PackagedVersion:   record.GetString("packaged_version"),
+		VerificationState: software.VerificationState(record.GetString("verification_state")),
+		LastAction:        lastAction,
+	}
+	detail := software.SoftwareComponentDetail{
+		SoftwareComponentSummary: summary,
+		ServiceName:              record.GetString("service_name"),
+		BinaryPath:               record.GetString("binary_path"),
+		Preflight:                preflight,
+		Verification:             verification,
+	}
+	detail.InstalledState = summary.InstalledState
+	detail.DetectedVersion = summary.DetectedVersion
+	detail.PackagedVersion = summary.PackagedVersion
+	detail.VerificationState = summary.VerificationState
+	detail.LastAction = lastAction
+	preflightValue := software.TargetReadinessResult{Issues: []string{}}
+	if preflight != nil {
+		preflightValue = *preflight
+		if preflightValue.Issues == nil {
+			preflightValue.Issues = []string{}
+		}
+	}
+	summary.AvailableActions = deriveAvailableActions(entry.SupportedActions, detail.InstalledState, preflightValue, lastOp)
+	service := Service{app: app}
+	service.applyHealthProjection(entry.TargetType, record.GetString("target_id"), entry, lastOp, &summary, &detail)
+	detail.SoftwareComponentSummary = summary
+	return ComputedComponent{
+		Entry:         entry,
+		Resolved:      resolved,
+		Summary:       summary,
+		Detail:        detail,
+		Preflight:     preflightValue,
+		LastOperation: lastOp,
+	}, true
+}
+
+func decodeSnapshotJSON[T any](value any) (*T, bool) {
+	if value == nil {
+		return nil, false
+	}
+	raw, err := json.Marshal(value)
+	if err != nil || string(raw) == "null" {
+		return nil, false
+	}
+	var decoded T
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return nil, false
+	}
+	return &decoded, true
 }
 
 func deriveAvailableActions(
@@ -344,10 +815,6 @@ func deriveAvailableActions(
 	preflight software.TargetReadinessResult,
 	lastOp *OperationSummary,
 ) []software.Action {
-	if lastOp != nil && lastOp.TerminalStatus == software.TerminalStatusNone {
-		return []software.Action{}
-	}
-
 	available := make([]software.Action, 0, len(supported))
 	for _, action := range supported {
 		if !isActionAvailable(action, installedState, preflight.OK) {
@@ -364,10 +831,11 @@ func isActionAvailable(action software.Action, installedState software.Installed
 		switch action {
 		case software.ActionInstall:
 			return false
+		case software.ActionStop,
+			software.ActionRestart:
+			return true
 		case software.ActionUpgrade,
 			software.ActionStart,
-			software.ActionStop,
-			software.ActionRestart,
 			software.ActionVerify,
 			software.ActionReinstall,
 			software.ActionUninstall:
@@ -376,9 +844,14 @@ func isActionAvailable(action software.Action, installedState software.Installed
 			return readinessOK
 		}
 	case software.InstalledStateNotInstalled:
-		return action == software.ActionInstall && readinessOK
+		switch action {
+		case software.ActionInstall, software.ActionVerify:
+			return true
+		default:
+			return false
+		}
 	default:
-		return action == software.ActionVerify && readinessOK
+		return action == software.ActionVerify
 	}
 }
 
@@ -438,6 +911,14 @@ func lastActionFromOperation(op *OperationSummary) *software.SoftwareDeliveryLas
 
 func escapeFilterValue(v string) string {
 	return strings.ReplaceAll(v, "'", "\\'")
+}
+
+// closeExecutor releases any resources held by the executor (e.g. an SSH connection).
+// It is a no-op if the executor does not implement io.Closer.
+func closeExecutor(executor software.ComponentExecutor) {
+	if c, ok := executor.(io.Closer); ok {
+		_ = c.Close()
+	}
 }
 
 var _ software.CapabilityQuerier = (*Service)(nil)

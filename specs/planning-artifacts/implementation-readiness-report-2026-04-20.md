@@ -16,20 +16,19 @@
 | PRD | `specs/planning-artifacts/prd.md` (27K) | Primary requirements source |
 | Architecture | `specs/planning-artifacts/architecture.md` (6.5K) | Technical design baseline |
 | Epics Index | `specs/planning-artifacts/epics.md` (2.9K) | Navigation index |
-| UX Design Spec | `specs/planning-artifacts/ux-design-specification.md` (58K) | UX baseline |
+| UX Design Spec | `specs/planning-artifacts/ux-designs/ux-appos-canonical/EXPERIENCE.md` + `DESIGN.md` | Canonical UX baseline (migrated from legacy UX docs) |
 | Coding Decisions | `specs/planning-artifacts/coding-decisions.md` | API and code conventions |
 
 ### Implementation Artifacts Assessed
 
 | Document | File |
 |---|---|
-| Epic | `specs/implementation-artifacts/epic29-software-delivery.md` |
-| Story 29.1 | `specs/implementation-artifacts/story29.1-software-contract-and-catalog.md` |
+| Epic | `specs/implementation-artifacts/epic29-software.md` |
+| Story 29.1 | `specs/implementation-artifacts/story29.1-software-contract-catalog.md` |
 | Story 29.2 | `specs/implementation-artifacts/story29.2-software-lifecycle-execution.md` |
-| Story 29.3 | `specs/implementation-artifacts/story29.3-server-software-operational-surface.md` |
-| Story 29.4 | `specs/implementation-artifacts/story29.4-supported-software-discovery-surface.md` |
-| Story 29.5 | `specs/implementation-artifacts/story29.5-local-software-inventory-surface.md` |
-| Legacy Implementation Record | `specs/implementation-artifacts/epic29-legacy-implementation-record.md` |
+| Story 29.3 | `specs/implementation-artifacts/story29.3-server-components-contract.md` |
+| Story 29.4 | `specs/implementation-artifacts/story29.4-supported-software-list.md` |
+| Story 29.5 | `specs/implementation-artifacts/story29.5-local-software-inventory.md` |
 
 **No duplicate documents found. No missing required planning documents.**
 
@@ -76,7 +75,7 @@ FR-2 coverage is **adequate** for MVP scope. No other epic in the epics index cl
 
 ## UX Alignment
 
-The UX design specification (`ux-design-specification.md`, 58K) does not contain mockups or navigation specs for the Software Delivery surface. This is understandable for a new capability, but creates the following gap:
+The canonical UX contract (`ux-designs/ux-appos-canonical/EXPERIENCE.md` and `DESIGN.md`) still does not contain a dedicated mockup or navigation contract for the Software Delivery surface. This is understandable for a new capability, but creates the following gap:
 
 - Story 29.6 defines its own minimal UI contract (panel, card per component, 3 actions)
 - No UX review has validated this contract against the broader product navigation model
@@ -200,7 +199,7 @@ All critical and medium issues identified in the initial assessment have been re
 | C1 | DTO naming ambiguity | `model.go` updated to use Software Delivery domain names consistently: `SoftwareComponentSummary`, `SoftwareComponentDetail`, `SoftwareActionResponse`, `SoftwareDeliveryLastAction`, `TargetReadinessResult`, `SoftwareVerificationResult` |
 | C2 | `dependency_ready` field missing | Added `DependencyReady bool` to `TargetReadinessResult` in `model.go` and to the DTO table in Story 29.1 |
 | C3 | appos-agent installer URL placeholder | `catalog.yaml` updated: `script_url` is now empty with a comment directing the executor to read `software.appos_agent_installer_url` system setting. Story 29.4 adds Task 4 to register the setting. |
-| M1 | No async worker story | Canonical Story 29.2 now carries the async worker contract; detailed prior implementation record is preserved in `epic29-legacy-implementation-record.md` |
+| M1 | No async worker story | Canonical Story 29.2 now carries the async worker contract |
 | M2 | Audit action rename not planned | `model.go` constants updated to `server.software.*`. Story 29.2 Task 4 added to cover the rename plan and migration note. `AuditActionReinstall` added. |
 | M3 | Epic 28 dependency direction unclear | Removed Epic 28 from Epic 29 `Depends on` — Monitor is a consumer of Software Delivery output, not a prerequisite |
 | M4 | Package naming decision undocumented | Epic 29 now has an explicit "Package Naming Decision" section: the domain package is `domain/software` and all types use the Software Delivery naming scheme |

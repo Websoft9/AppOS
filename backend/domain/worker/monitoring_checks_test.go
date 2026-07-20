@@ -2,16 +2,25 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/monitor"
+	"github.com/websoft9/appos/backend/domain/monitor/metrics"
+	monitorchecks "github.com/websoft9/appos/backend/domain/monitor/signals/checks"
 	"github.com/websoft9/appos/backend/domain/monitor/status/store"
+	"github.com/websoft9/appos/backend/domain/resource/aiproviders"
+	"github.com/websoft9/appos/backend/domain/resource/instances"
 	"github.com/websoft9/appos/backend/domain/secrets"
+	"github.com/websoft9/appos/backend/domain/terminal"
 	"github.com/websoft9/appos/backend/infra/collections"
 )
 
@@ -33,9 +42,12 @@ func TestHandleMonitorReachabilitySweepProjectsInstanceStatuses(t *testing.T) {
 
 	reachable := seedInstanceRecord(t, app, "reachable-redis", "redis", listener.Addr().String())
 	offline := seedInstanceRecord(t, app, "offline-redis", "redis", closedAddr)
-	skipped := seedInstanceRecord(t, app, "bucket-s3", "s3", "https://s3.example.com")
+	skipped := seedInstanceRecord(t, app, "bucket-s3", "s3", "http://"+closedAddr)
 
-	w := New(app)
+	w, err := New(app)
+	if err != nil {
+		t.Fatal(err)
+	}
 	task, err := NewMonitorReachabilitySweepTask()
 	if err != nil {
 		t.Fatal(err)
@@ -80,12 +92,16 @@ func TestHandleMonitorReachabilitySweepProjectsInstanceStatuses(t *testing.T) {
 		t.Fatalf("expected endpoint_unreachable reason_code, got %+v", offlineSummary)
 	}
 
-	if _, err := app.FindFirstRecordByFilter(
-		collections.MonitorLatestStatus,
-		"target_type = {:targetType} && target_id = {:targetID}",
-		map[string]any{"targetType": monitor.TargetTypeResource, "targetID": skipped.Id},
-	); err == nil {
-		t.Fatal("expected s3 instance to stay outside initial reachability registry")
+	skippedStatus := loadLatestStatus(t, app, skipped.Id)
+	if got := skippedStatus.GetString("status"); got != monitor.StatusUnreachable {
+		t.Fatalf("expected s3-compatible instance to persist unreachable status via default projection, got %q", got)
+	}
+	skippedSummary, err := store.SummaryFromRecord(skippedStatus)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if skippedSummary["check_kind"] != monitor.CheckKindReachability {
+		t.Fatalf("expected s3-compatible summary to keep reachability check_kind, got %+v", skippedSummary)
 	}
 }
 
@@ -95,59 +111,398 @@ func TestEnqueueMonitorReachabilitySweepRequiresClient(t *testing.T) {
 	}
 }
 
-func TestHandleMonitorHeartbeatFreshnessProjectsOfflineStatus(t *testing.T) {
+func TestHandleMonitorAIProviderReachabilitySweepProjectsStatuses(t *testing.T) {
 	app := newWorkerTestApp(t)
 
-	col, err := app.FindCollectionByNameOrId(collections.MonitorLatestStatus)
+	reachableServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`ok`))
+	}))
+	defer reachableServer.Close()
+
+	unreachableServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`ok`))
+	}))
+	unreachableEndpoint := unreachableServer.URL
+	unreachableServer.Close()
+
+	reachable := seedAIProviderRecord(t, app, "reachable-provider", reachableServer.URL)
+	offline := seedAIProviderRecord(t, app, "offline-provider", unreachableEndpoint)
+
+	w, err := New(app)
 	if err != nil {
 		t.Fatal(err)
 	}
-	record := core.NewRecord(col)
-	staleAt := time.Now().UTC().Add(-monitor.OfflineHeartbeatThreshold).Add(-time.Minute)
-	record.Set("target_type", monitor.TargetTypeServer)
-	record.Set("target_id", "srv-1")
-	record.Set("display_name", "prod-01")
-	record.Set("status", monitor.StatusHealthy)
-	record.Set("signal_source", monitor.SignalSourceAgent)
-	record.Set("last_transition_at", staleAt.Format(time.RFC3339))
-	record.Set("last_success_at", staleAt.Format(time.RFC3339))
-	record.Set("last_reported_at", staleAt.Format(time.RFC3339))
-	record.Set("consecutive_failures", 0)
-	record.Set("summary_json", map[string]any{"heartbeat_state": monitor.HeartbeatStateFresh})
-	if err := app.Save(record); err != nil {
+	task, err := NewMonitorAIProviderReachabilitySweepTask()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.handleMonitorAIProviderReachabilitySweep(context.Background(), task); err != nil {
 		t.Fatal(err)
 	}
 
-	w := New(app)
-	task, err := NewMonitorHeartbeatFreshnessTask()
+	reachableStatus := loadTargetLatestStatus(t, app, monitor.TargetTypeAIProvider, reachable.Id)
+	if got := reachableStatus.GetString("status"); got != monitor.StatusHealthy {
+		t.Fatalf("expected reachable AI provider status healthy, got %q", got)
+	}
+	reachableSummary, err := store.SummaryFromRecord(reachableStatus)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := w.handleMonitorHeartbeatFreshness(context.Background(), task); err != nil {
-		t.Fatal(err)
+	if reachableSummary["check_kind"] != monitor.CheckKindReachability {
+		t.Fatalf("expected AI provider check_kind reachability, got %+v", reachableSummary)
 	}
 
-	record, err = app.FindRecordById(collections.MonitorLatestStatus, record.Id)
+	offlineStatus := loadTargetLatestStatus(t, app, monitor.TargetTypeAIProvider, offline.Id)
+	if got := offlineStatus.GetString("status"); got != monitor.StatusUnreachable {
+		t.Fatalf("expected offline AI provider status unreachable, got %q", got)
+	}
+	offlineSummary, err := store.SummaryFromRecord(offlineStatus)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := record.GetString("status"); got != monitor.StatusOffline {
-		t.Fatalf("expected offline status, got %q", got)
+	if offlineSummary["check_kind"] != monitor.CheckKindReachability {
+		t.Fatalf("expected offline AI provider reachability summary, got %+v", offlineSummary)
 	}
-	summary, err := store.SummaryFromRecord(record)
-	if err != nil {
-		t.Fatal(err)
+	if strings.TrimSpace(offlineStatus.GetString("reason")) == "" {
+		t.Fatalf("expected monitor-backed unreachable reason, got %q", offlineStatus.GetString("reason"))
 	}
-	if summary["heartbeat_state"] != monitor.HeartbeatStateOffline {
-		t.Fatalf("expected offline heartbeat summary, got %+v", summary)
-	}
-	if summary["reason_code"] != "heartbeat_missing" {
-		t.Fatalf("expected heartbeat_missing reason_code, got %+v", summary)
+	if strings.TrimSpace(offlineStatus.GetDateTime("last_checked_at").String()) == "" {
+		t.Fatalf("expected monitor-backed checked_at timestamp on AI provider status")
 	}
 }
 
-func TestEnqueueMonitorHeartbeatFreshnessRequiresClient(t *testing.T) {
-	if err := EnqueueMonitorHeartbeatFreshness(nil); err == nil {
+func TestEnqueueMonitorAIProviderReachabilitySweepRequiresClient(t *testing.T) {
+	if err := EnqueueMonitorAIProviderReachabilitySweep(nil); err == nil {
+		t.Fatal("expected nil client error")
+	}
+}
+
+func TestHandleMonitorMetricsFreshnessProjectsCollectorFreshStatus(t *testing.T) {
+	app := newWorkerTestApp(t)
+	server := seedServerRecord(t, app, "metrics-prod-01")
+	now := time.Now().UTC()
+	restore := metrics.SetMetricQueryFuncForTest(func(_ context.Context, targetType, targetID, _ string, _ []string, _ metrics.MetricSeriesQueryOptions) (*metrics.MetricSeriesResponse, error) {
+		response := &metrics.MetricSeriesResponse{TargetType: targetType, TargetID: targetID, Series: []metrics.MetricSeries{}}
+		if targetID != server.Id {
+			return response, nil
+		}
+		response.Series = []metrics.MetricSeries{{
+			Name:   "cpu",
+			Unit:   "percent",
+			Points: [][]float64{{float64(now.Add(-20 * time.Second).Unix()), 42}},
+		}}
+		return response, nil
+	})
+	defer restore()
+
+	w, err := New(app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := NewMonitorMetricsFreshnessTask()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.handleMonitorMetricsFreshness(context.Background(), task); err != nil {
+		t.Fatal(err)
+	}
+
+	status := loadTargetLatestStatus(t, app, monitor.TargetTypeServer, server.Id)
+	if got := status.GetString("status"); got != monitor.StatusHealthy {
+		t.Fatalf("expected healthy metrics freshness status, got %q", got)
+	}
+	if got := status.GetString("signal_source"); got != monitor.SignalSourceCollector {
+		t.Fatalf("expected collector signal source, got %q", got)
+	}
+	summary, err := store.SummaryFromRecord(status)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary["metrics_freshness_state"] != monitor.MetricsFreshnessFresh {
+		t.Fatalf("expected fresh metrics summary, got %+v", summary)
+	}
+	if summary["metrics_observed_at"] == nil {
+		t.Fatalf("expected metrics_observed_at in summary, got %+v", summary)
+	}
+}
+
+func TestEnqueueMonitorMetricsFreshnessRequiresClient(t *testing.T) {
+	if err := EnqueueMonitorMetricsFreshness(nil); err == nil {
+		t.Fatal("expected nil client error")
+	}
+}
+
+func TestHandleMonitorControlReachabilityProjectsServerStatuses(t *testing.T) {
+	app := newWorkerTestApp(t)
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen control probe target: %v", err)
+	}
+	defer listener.Close()
+
+	closedListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve closed control probe target: %v", err)
+	}
+	closedAddr := closedListener.Addr().String()
+	_ = closedListener.Close()
+
+	reachable := seedServerRecord(t, app, "control-prod-01")
+	reachableHost, reachablePort, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	reachablePortNumber, err := strconv.Atoi(reachablePort)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reachable.Set("host", reachableHost)
+	reachable.Set("port", reachablePortNumber)
+	if err := app.Save(reachable); err != nil {
+		t.Fatal(err)
+	}
+
+	offline := seedServerRecord(t, app, "control-prod-02")
+	offlineHost, offlinePort, err := net.SplitHostPort(closedAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	offlinePortNumber, err := strconv.Atoi(offlinePort)
+	if err != nil {
+		t.Fatal(err)
+	}
+	offline.Set("host", offlineHost)
+	offline.Set("port", offlinePortNumber)
+	if err := app.Save(offline); err != nil {
+		t.Fatal(err)
+	}
+
+	w, err := New(app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := NewMonitorControlReachabilityTask()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.handleMonitorControlReachability(context.Background(), task); err != nil {
+		t.Fatal(err)
+	}
+
+	reachableStatus := loadTargetLatestStatus(t, app, monitor.TargetTypeServer, reachable.Id)
+	if got := reachableStatus.GetString("status"); got != monitor.StatusHealthy {
+		t.Fatalf("expected reachable control status healthy, got %q", got)
+	}
+	if got := reachableStatus.GetString("signal_source"); got != monitor.SignalSourceAppOS {
+		t.Fatalf("expected appos active check source, got %q", got)
+	}
+	reachableSummary, err := store.SummaryFromRecord(reachableStatus)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reachableSummary["check_kind"] != monitor.CheckKindControlReachability {
+		t.Fatalf("expected control reachability check kind, got %+v", reachableSummary)
+	}
+	if reachableSummary["control_reachability_state"] != "reachable" {
+		t.Fatalf("expected reachable control state, got %+v", reachableSummary)
+	}
+	if _, ok := reachableSummary["reason_code"]; ok {
+		t.Fatalf("expected healthy control summary to omit reason_code, got %+v", reachableSummary)
+	}
+	reachableRecord, err := app.FindRecordById("servers", reachable.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := reachableRecord.GetString("access_status"); got != "available" {
+		t.Fatalf("expected reachable server access cache available, got %q", got)
+	}
+	if got := reachableRecord.GetString("access_reason"); got != "" {
+		t.Fatalf("expected reachable server access reason empty, got %q", got)
+	}
+
+	offlineStatus := loadTargetLatestStatus(t, app, monitor.TargetTypeServer, offline.Id)
+	if got := offlineStatus.GetString("status"); got != monitor.StatusUnreachable {
+		t.Fatalf("expected offline control status unreachable, got %q", got)
+	}
+	if offlineStatus.GetInt("consecutive_failures") != 1 {
+		t.Fatalf("expected offline control consecutive_failures 1, got %d", offlineStatus.GetInt("consecutive_failures"))
+	}
+	offlineSummary, err := store.SummaryFromRecord(offlineStatus)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if offlineSummary["reason_code"] != "control_unreachable" {
+		t.Fatalf("expected control_unreachable reason_code, got %+v", offlineSummary)
+	}
+	if offlineSummary["probe_protocol"] != "ssh" {
+		t.Fatalf("expected ssh probe protocol, got %+v", offlineSummary)
+	}
+	offlineRecord, err := app.FindRecordById("servers", offline.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := offlineRecord.GetString("access_status"); got != "unavailable" {
+		t.Fatalf("expected offline server access cache unavailable, got %q", got)
+	}
+	if got := offlineRecord.GetString("access_reason"); got != "control_unreachable" {
+		t.Fatalf("expected offline server access reason control_unreachable, got %q", got)
+	}
+	if offlineRecord.GetDateTime("access_checked_at").IsZero() {
+		t.Fatal("expected offline server access_checked_at to be updated")
+	}
+
+	offlineRecord.Set("host", reachableHost)
+	offlineRecord.Set("port", reachablePortNumber)
+	if err := app.Save(offlineRecord); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.handleMonitorControlReachability(context.Background(), task); err != nil {
+		t.Fatal(err)
+	}
+	recoveredStatus := loadTargetLatestStatus(t, app, monitor.TargetTypeServer, offline.Id)
+	if got := recoveredStatus.GetString("status"); got != monitor.StatusHealthy {
+		t.Fatalf("expected control reachability to recover from unreachable to healthy, got %q", got)
+	}
+	recoveredRecord, err := app.FindRecordById("servers", offline.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := recoveredRecord.GetString("access_status"); got != "available" {
+		t.Fatalf("expected recovered server access cache available, got %q", got)
+	}
+}
+
+func TestEnqueueMonitorControlReachabilityRequiresClient(t *testing.T) {
+	if err := EnqueueMonitorControlReachability(nil); err == nil {
+		t.Fatal("expected nil client error")
+	}
+}
+
+func TestHandleMonitorFactsPullWritesServerFactsSnapshot(t *testing.T) {
+	app := newWorkerTestApp(t)
+	server := seedServerRecord(t, app, "facts-prod-01")
+
+	var capturedCfg terminal.ConnectorConfig
+	restore := monitorchecks.SetServerFactsCommandExecutorForTest(func(_ context.Context, cfg terminal.ConnectorConfig, command string, timeout time.Duration) (string, error) {
+		capturedCfg = cfg
+		if !strings.Contains(command, "os.family") {
+			t.Fatalf("expected facts command to print os.family, got %q", command)
+		}
+		if !strings.Contains(command, "cloud.provider") {
+			t.Fatalf("expected facts command to print cloud.provider when available, got %q", command)
+		}
+		if timeout <= 0 {
+			t.Fatal("expected positive facts pull timeout")
+		}
+		return "os.family=Linux\nos.distribution=Ubuntu\nos.version=24.04\nkernel.release=6.8.0-31-generic\narchitecture=x86_64\ncpu.cores=4\nmemory.total_bytes=8589934592\ncloud.provider=aws\ncloud.region=cn-northwest-1\ncloud.zone=cn-northwest-1a\ncloud.source=cloud-init\n", nil
+	})
+	defer restore()
+
+	w, err := New(app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := NewMonitorFactsPullTask()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.handleMonitorFactsPull(context.Background(), task); err != nil {
+		t.Fatal(err)
+	}
+	if capturedCfg.Host != "192.168.1.10" || capturedCfg.Port != 22 || capturedCfg.User != "root" {
+		t.Fatalf("expected server access config to be used, got %+v", capturedCfg)
+	}
+
+	stored, err := app.FindRecordById("servers", server.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	facts := mustWorkerJSONMap(t, stored.Get("facts_json"))
+	if facts["architecture"] != "x86_64" {
+		t.Fatalf("expected architecture from facts pull, got %+v", facts)
+	}
+	osFacts := mustWorkerJSONMap(t, facts["os"])
+	if osFacts["distribution"] != "Ubuntu" {
+		t.Fatalf("expected Ubuntu facts distribution, got %+v", facts)
+	}
+	cloudFacts := mustWorkerJSONMap(t, facts["cloud"])
+	if cloudFacts["provider"] != "aws" || cloudFacts["region"] != "cn-northwest-1" || cloudFacts["source"] != "cloud-init" {
+		t.Fatalf("expected cloud facts from facts pull, got %+v", facts)
+	}
+	if got := stored.GetDateTime("facts_observed_at").Time().UTC(); got.IsZero() {
+		t.Fatal("expected facts_observed_at to be set")
+	}
+}
+
+func TestEnqueueMonitorFactsPullRequiresClient(t *testing.T) {
+	if err := EnqueueMonitorFactsPull(nil); err == nil {
+		t.Fatal("expected nil client error")
+	}
+}
+
+func TestHandleMonitorRuntimeSnapshotPullProjectsServerRuntime(t *testing.T) {
+	app := newWorkerTestApp(t)
+	server := seedServerRecord(t, app, "runtime-prod-01")
+
+	var capturedCfg terminal.ConnectorConfig
+	restore := monitorchecks.SetServerRuntimeCommandExecutorForTest(func(_ context.Context, cfg terminal.ConnectorConfig, command string, timeout time.Duration) (string, error) {
+		capturedCfg = cfg
+		if !strings.Contains(command, "docker ps") {
+			t.Fatalf("expected runtime command to inspect docker state, got %q", command)
+		}
+		if timeout <= 0 {
+			t.Fatal("expected positive runtime pull timeout")
+		}
+		return "running\nrunning\nrestarting\nexited\n", nil
+	})
+	defer restore()
+
+	w, err := New(app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := NewMonitorRuntimeSnapshotPullTask()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.handleMonitorRuntimeSnapshotPull(context.Background(), task); err != nil {
+		t.Fatal(err)
+	}
+	if capturedCfg.Host != "192.168.1.10" || capturedCfg.Port != 22 || capturedCfg.User != "root" {
+		t.Fatalf("expected server access config to be used, got %+v", capturedCfg)
+	}
+
+	status := loadTargetLatestStatus(t, app, monitor.TargetTypeServer, server.Id)
+	if got := status.GetString("status"); got != monitor.StatusDegraded {
+		t.Fatalf("expected degraded runtime status, got %q", got)
+	}
+	if got := status.GetString("signal_source"); got != monitor.SignalSourceAppOS {
+		t.Fatalf("expected appos active check source, got %q", got)
+	}
+	summary, err := store.SummaryFromRecord(status)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary["check_kind"] != monitor.CheckKindRuntime {
+		t.Fatalf("expected runtime_summary check kind, got %+v", summary)
+	}
+	if summary["signal_source"] != monitor.SignalSourceAppOS {
+		t.Fatalf("expected appos signal source in summary, got %+v", summary)
+	}
+	if summary["runtime_state"] != monitor.StatusDegraded {
+		t.Fatalf("expected degraded runtime_state, got %+v", summary)
+	}
+	if asInt(summary["containers_running"]) != 2 || asInt(summary["containers_restarting"]) != 1 || asInt(summary["containers_exited"]) != 1 {
+		t.Fatalf("expected container counts from runtime pull, got %+v", summary)
+	}
+	if summary["reason_code"] != "runtime_degraded" {
+		t.Fatalf("expected runtime_degraded reason_code, got %+v", summary)
+	}
+}
+
+func TestEnqueueMonitorRuntimeSnapshotPullRequiresClient(t *testing.T) {
+	if err := EnqueueMonitorRuntimeSnapshotPull(nil); err == nil {
 		t.Fatal("expected nil client error")
 	}
 }
@@ -163,7 +518,10 @@ func TestHandleMonitorCredentialSweepProjectsCredentialInvalidWhenSecretMissing(
 		t.Fatal(err)
 	}
 
-	w := New(app)
+	w, err := New(app)
+	if err != nil {
+		t.Fatal(err)
+	}
 	task, err := NewMonitorCredentialSweepTask()
 	if err != nil {
 		t.Fatal(err)
@@ -201,7 +559,10 @@ func TestHandleMonitorAppHealthSweepProjectsAppStatuses(t *testing.T) {
 	degraded := seedAppInstanceRecord(t, app, "degraded-app", "running", "degraded")
 	offline := seedAppInstanceRecord(t, app, "offline-app", "stopped", "stopped")
 
-	w := New(app)
+	w, err := New(app)
+	if err != nil {
+		t.Fatal(err)
+	}
 	task, err := NewMonitorAppHealthSweepTask()
 	if err != nil {
 		t.Fatal(err)
@@ -271,11 +632,46 @@ func seedInstanceRecord(t *testing.T, app core.App, name string, kind string, en
 	if err != nil {
 		t.Fatal(err)
 	}
+	legacyTemplateIDs := map[string]string{
+		instances.KindRedisCompatible: "generic-redis",
+		instances.KindS3Compatible:    "generic-s3",
+	}
+	legacyKinds := map[string]string{
+		"redis": instances.KindRedisCompatible,
+		"s3":    instances.KindS3Compatible,
+	}
+	if normalized, ok := legacyKinds[kind]; ok {
+		kind = normalized
+	}
+	templateID := fmt.Sprintf("generic-%s", kind)
+	if normalized, ok := legacyTemplateIDs[kind]; ok {
+		templateID = normalized
+	}
 	rec := core.NewRecord(col)
 	rec.Set("name", name)
 	rec.Set("kind", kind)
-	rec.Set("template_id", fmt.Sprintf("generic-%s", kind))
+	rec.Set("template_id", templateID)
 	rec.Set("endpoint", endpoint)
+	rec.Set("config", map[string]any{})
+	if err := app.Save(rec); err != nil {
+		t.Fatal(err)
+	}
+	return rec
+}
+
+func seedAIProviderRecord(t *testing.T, app core.App, name string, endpoint string) *core.Record {
+	t.Helper()
+	col, err := app.FindCollectionByNameOrId("ai_providers")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := core.NewRecord(col)
+	rec.Set("name", name)
+	rec.Set("kind", aiproviders.KindLLM)
+	rec.Set("is_enabled", true)
+	rec.Set("template_id", "openai")
+	rec.Set("endpoint", endpoint)
+	rec.Set("auth_scheme", aiproviders.AuthSchemeNone)
 	rec.Set("config", map[string]any{})
 	if err := app.Save(rec); err != nil {
 		t.Fatal(err)
@@ -302,6 +698,23 @@ func seedAppInstanceRecord(t *testing.T, app core.App, name string, runtimeStatu
 		rec.Set("lifecycle_state", "stopped")
 		rec.Set("desired_state", "stopped")
 	}
+	if err := app.Save(rec); err != nil {
+		t.Fatal(err)
+	}
+	return rec
+}
+
+func seedServerRecord(t *testing.T, app core.App, name string) *core.Record {
+	t.Helper()
+	col, err := app.FindCollectionByNameOrId("servers")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := core.NewRecord(col)
+	rec.Set("name", name)
+	rec.Set("host", "192.168.1.10")
+	rec.Set("port", 22)
+	rec.Set("user", "root")
 	if err := app.Save(rec); err != nil {
 		t.Fatal(err)
 	}
@@ -359,5 +772,34 @@ func prepareWorkerSecretKey(t *testing.T) {
 	}
 	if err := secrets.LoadTemplatesFromDefaultPath(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func mustWorkerJSONMap(t *testing.T, value any) map[string]any {
+	t.Helper()
+	if direct, ok := value.(map[string]any); ok {
+		return direct
+	}
+	raw, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("marshal json field: %v", err)
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		t.Fatalf("unmarshal json field: %v", err)
+	}
+	return parsed
+}
+
+func asInt(value any) int {
+	switch typed := value.(type) {
+	case int:
+		return typed
+	case int64:
+		return int(typed)
+	case float64:
+		return int(typed)
+	default:
+		return 0
 	}
 }

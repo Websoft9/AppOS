@@ -1,0 +1,5 @@
+{
+  "id": "generic-http-gateway",
+  "title": "Generic HTTP Gateway",
+  "description": "Externally managed HTTP gateway reference for publication handoff."
+}

@@ -1,0 +1,60 @@
+{
+  "templateKey": "metabase",
+  "requiredFiles": [
+    "manifest.json",
+    "inputs.schema.json",
+    "render.json",
+    "source.json",
+    "compose/base.yml",
+    "env/defaults.env"
+  ],
+  "manifest": {
+    "contractVersion": "0.1",
+    "key": "metabase",
+    "category": "analytics",
+    "serviceRoles": {
+      "metabase": "primary",
+      "postgresql": "database"
+    }
+  },
+  "inputs": {
+    "fieldKeys": [
+      "app_id",
+      "version",
+      "http_port",
+      "site_url",
+      "db_password"
+    ],
+    "secretBacked": [
+      "db_password"
+    ],
+    "systemManaged": [
+      "app_id"
+    ]
+  },
+  "render": {
+    "exposures": [
+      {
+        "label": "Web",
+        "service": "metabase",
+        "port": 3000,
+        "protocol": "http",
+        "default": true
+      }
+    ],
+    "primaryService": "metabase",
+    "databaseService": "postgresql",
+    "secretRefs": [
+      "db_password"
+    ]
+  },
+  "source": {
+    "originKind": "official",
+    "templateRevision": "v0-initial",
+    "adapterVersion": "v0"
+  },
+  "adapter": {
+    "primaryService": "metabase",
+    "publishKind": "http"
+  }
+}

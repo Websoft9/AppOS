@@ -12,28 +12,56 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
+	"github.com/websoft9/appos/backend/domain/apptemplates"
 	"github.com/websoft9/appos/backend/domain/audit"
-	"github.com/websoft9/appos/backend/domain/deploy"
+	"github.com/websoft9/appos/backend/domain/config/sysconfig"
+	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
+	"github.com/websoft9/appos/backend/domain/lifecycle/projection"
 	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
 	"github.com/websoft9/appos/backend/domain/worker"
+	"github.com/websoft9/appos/backend/infra/egress"
+	"gopkg.in/yaml.v3"
 )
 
 const maxGitComposeBytes = 1 << 20
 
+func loadDeployGitDefaults(app core.App) (string, string) {
+	group, _ := sysconfig.GetGroup(app, "deploy", "git-defaults", settingsschema.DefaultGroup("deploy", "git-defaults"))
+	defaultRef := strings.TrimSpace(sysconfig.String(group, "defaultRef", "main"))
+	if defaultRef == "" {
+		defaultRef = "main"
+	}
+	defaultComposePath := strings.TrimSpace(sysconfig.String(group, "defaultComposePath", "docker-compose.yml"))
+	if defaultComposePath == "" {
+		defaultComposePath = "docker-compose.yml"
+	}
+	return defaultRef, defaultComposePath
+}
+
 func registerOperationRoutes(g *router.RouterGroup[*core.RequestEvent]) {
+	controls := g.Group("/actions")
+	controls.Bind(apis.RequireAuth())
+	// @swagger auth=auth summary="Cancel queued action"
+	controls.POST("/{id}/cancel", handleOperationCancel)
+	// @swagger auth=auth summary="Force fail running action"
+	controls.POST("/{id}/force-fail", handleOperationForceFail)
+	// @swagger auth=auth summary="Resume waiting or manual-gate action"
+	controls.POST("/{id}/resume", handleOperationResume)
+
 	o := g.Group("/actions")
 	o.Bind(apis.RequireSuperuserAuth())
 	o.GET("", handleOperationList)
 	o.GET("/{id}", handleOperationDetail)
 	o.DELETE("/{id}", handleOperationDelete)
-	o.POST("/{id}/cancel", handleOperationCancel)
 	o.GET("/{id}/logs", handleOperationLogs)
 	o.POST("/install/name-availability", handleOperationInstallNameAvailability)
 	o.POST("/install/git-compose", handleOperationInstallGitCompose)
 	o.POST("/install/manual-compose", handleOperationInstallManualCompose)
+	o.POST("/install/template", handleOperationInstallTemplate)
 	o.POST("/install/git-compose/check", handleOperationInstallGitComposeCheck)
 	o.POST("/install/manual-compose/check", handleOperationInstallManualComposeCheck)
+	o.POST("/install/template/check", handleOperationInstallTemplateCheck)
 
 	stream := g.Group("/actions")
 	stream.Bind(wsTokenAuth())
@@ -94,7 +122,54 @@ func handleOperationList(e *core.RequestEvent) error {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "app_operations collection not found"})
 	}
 
-	records, err := e.App.FindRecordsByFilter(col, "", "-created", 100, 0)
+	query := e.Request.URL.Query()
+	pageRaw := strings.TrimSpace(query.Get("page"))
+	perPageRaw := strings.TrimSpace(query.Get("perPage"))
+	if pageRaw != "" || perPageRaw != "" {
+		page := parsePositiveQueryInt(pageRaw, 1)
+		perPage := parsePositiveQueryInt(perPageRaw, 15)
+		if perPage > 500 {
+			perPage = 500
+		}
+
+		records, totalItems, err := listOperationRecords(e.App, col, operationListQueryOptions{
+			AppID:         strings.TrimSpace(query.Get("appId")),
+			Query:         strings.TrimSpace(query.Get("q")),
+			SortField:     strings.TrimSpace(query.Get("sortField")),
+			SortDir:       strings.TrimSpace(query.Get("sortDir")),
+			ExcludeStatus: splitOperationListCSV(query.Get("excludeStatus")),
+			ExcludeSource: splitOperationListCSV(query.Get("excludeSource")),
+			ExcludeServer: splitOperationListCSV(query.Get("excludeServer")),
+			Page:          page,
+			PerPage:       perPage,
+		})
+		if err != nil {
+			return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "failed to list operations"})
+		}
+
+		items := make([]map[string]any, 0, len(records))
+		for _, record := range records {
+			response, responseErr := operationRecordResponse(e.App, record)
+			if responseErr != nil {
+				return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "failed to build operation response"})
+			}
+			items = append(items, response)
+		}
+
+		totalPages := max(1, (totalItems+perPage-1)/perPage)
+		if page > totalPages {
+			page = totalPages
+		}
+		return e.JSON(http.StatusOK, map[string]any{
+			"items":      items,
+			"page":       page,
+			"perPage":    perPage,
+			"totalItems": totalItems,
+			"totalPages": totalPages,
+		})
+	}
+
+	records, err := e.App.FindRecordsByFilter(col, "", "-created", 0, 0)
 	if err != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "failed to list operations"})
 	}
@@ -192,6 +267,15 @@ func handleOperationDelete(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"id": id, "deleted": true})
 }
 
+// @Summary Cancel queued action
+// @Description Immediately terminalizes one queued lifecycle action as cancelled before execution starts. Authenticated users only.
+// @Tags Actions
+// @Security BearerAuth
+// @Param id path string true "action id"
+// @Success 200 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 409 {object} map[string]any
+// @Router /api/actions/{id}/cancel [post]
 func handleOperationCancel(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
 	if id == "" {
@@ -207,24 +291,20 @@ func handleOperationCancel(e *core.RequestEvent) error {
 		if strings.TrimSpace(record.GetString("terminal_status")) != "" {
 			return fmt.Errorf("terminal operations cannot be cancelled")
 		}
-		if record.GetDateTime("cancel_requested_at").IsZero() {
-			record.Set("cancel_requested_at", time.Now())
-			if err := txApp.Save(record); err != nil {
-				return err
-			}
+		if strings.TrimSpace(record.GetString("phase")) != string(model.OperationPhaseQueued) {
+			return fmt.Errorf("only queued operations can be cancelled")
+		}
+		if err := cancelQueuedOperation(txApp, record, "operation cancelled before execution started"); err != nil {
+			return err
 		}
 		response, err = operationRecordResponse(txApp, record)
 		return err
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "terminal operations cannot be cancelled") {
+		if strings.Contains(err.Error(), "terminal operations cannot be cancelled") || strings.Contains(err.Error(), "only queued operations can be cancelled") {
 			return e.JSON(http.StatusConflict, map[string]any{"code": 409, "message": err.Error()})
 		}
 		return e.JSON(http.StatusNotFound, map[string]any{"code": 404, "message": "operation not found"})
-	}
-
-	if asynqClient != nil {
-		_ = worker.EnqueueOperation(asynqClient, id)
 	}
 
 	userID, userEmail, ip, ua := clientInfo(e)
@@ -235,12 +315,330 @@ func handleOperationCancel(e *core.RequestEvent) error {
 		ResourceType: "app_operation",
 		ResourceID:   id,
 		ResourceName: fmt.Sprint(response["compose_project_name"]),
-		Status:       audit.StatusPending,
+		Status:       audit.StatusSuccess,
 		IP:           ip,
 		UserAgent:    ua,
+		Detail: map[string]any{
+			"status": response["status"],
+		},
 	})
 
-	return e.JSON(http.StatusAccepted, response)
+	return e.JSON(http.StatusOK, response)
+}
+
+// @Summary Force fail running action
+// @Description Immediately terminalizes one executing lifecycle action as failed and releases its active slot without guaranteeing rollback. Authenticated users only.
+// @Tags Actions
+// @Security BearerAuth
+// @Param id path string true "action id"
+// @Success 200 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 409 {object} map[string]any
+// @Router /api/actions/{id}/force-fail [post]
+func handleOperationForceFail(e *core.RequestEvent) error {
+	id := e.Request.PathValue("id")
+	if id == "" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "id is required"})
+	}
+
+	var response map[string]any
+	err := e.App.RunInTransaction(func(txApp core.App) error {
+		record, err := txApp.FindRecordById("app_operations", id)
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(record.GetString("terminal_status")) != "" {
+			return fmt.Errorf("terminal operations cannot be force-failed")
+		}
+		if strings.TrimSpace(record.GetString("phase")) != string(model.OperationPhaseExecuting) {
+			return fmt.Errorf("only executing operations can be force-failed")
+		}
+		if err := forceFailOperation(txApp, record, "operation force-failed by operator"); err != nil {
+			return err
+		}
+		response, err = operationRecordResponse(txApp, record)
+		return err
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "terminal operations cannot be force-failed") || strings.Contains(err.Error(), "only executing operations can be force-failed") {
+			return e.JSON(http.StatusConflict, map[string]any{"code": 409, "message": err.Error()})
+		}
+		return e.JSON(http.StatusNotFound, map[string]any{"code": 404, "message": "operation not found"})
+	}
+
+	userID, userEmail, ip, ua := clientInfo(e)
+	audit.Write(e.App, audit.Entry{
+		UserID:       userID,
+		UserEmail:    userEmail,
+		Action:       "operation.force_fail",
+		ResourceType: "app_operation",
+		ResourceID:   id,
+		ResourceName: fmt.Sprint(response["compose_project_name"]),
+		Status:       audit.StatusSuccess,
+		IP:           ip,
+		UserAgent:    ua,
+		Detail: map[string]any{
+			"status": response["status"],
+		},
+	})
+
+	return e.JSON(http.StatusOK, response)
+}
+
+// @Summary Resume waiting action
+// @Description Resumes one lifecycle action paused in waiting or manual-gate state. Authenticated users only.
+// @Tags Actions
+// @Security BearerAuth
+// @Param id path string true "action id"
+// @Success 200 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 409 {object} map[string]any
+// @Router /api/actions/{id}/resume [post]
+func handleOperationResume(e *core.RequestEvent) error {
+	id := e.Request.PathValue("id")
+	if id == "" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "id is required"})
+	}
+
+	var response map[string]any
+	err := e.App.RunInTransaction(func(txApp core.App) error {
+		record, err := txApp.FindRecordById("app_operations", id)
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(record.GetString("terminal_status")) != "" {
+			return fmt.Errorf("terminal operations cannot be resumed")
+		}
+		if !canResumeOperation(record) {
+			return fmt.Errorf("only waiting or manual-gate operations can be resumed")
+		}
+		if err := resumePausedOperation(txApp, record); err != nil {
+			return err
+		}
+		response, err = operationRecordResponse(txApp, record)
+		return err
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "terminal operations cannot be resumed") || strings.Contains(err.Error(), "only waiting or manual-gate operations can be resumed") {
+			return e.JSON(http.StatusConflict, map[string]any{"code": 409, "message": err.Error()})
+		}
+		return e.JSON(http.StatusNotFound, map[string]any{"code": 404, "message": "operation not found"})
+	}
+
+	userID, userEmail, ip, ua := clientInfo(e)
+	audit.Write(e.App, audit.Entry{
+		UserID:       userID,
+		UserEmail:    userEmail,
+		Action:       "operation.resume",
+		ResourceType: "app_operation",
+		ResourceID:   id,
+		ResourceName: fmt.Sprint(response["compose_project_name"]),
+		Status:       audit.StatusSuccess,
+		IP:           ip,
+		UserAgent:    ua,
+		Detail: map[string]any{
+			"status": response["status"],
+		},
+	})
+
+	return e.JSON(http.StatusOK, response)
+}
+
+func cancelQueuedOperation(app core.App, operation *core.Record, message string) error {
+	now := time.Now()
+	if strings.TrimSpace(message) == "" {
+		message = "operation cancelled before execution started"
+	}
+
+	appRecord, pipelineRecord, nodeRuns, err := loadOperationRelations(app, operation)
+	if err != nil {
+		return err
+	}
+
+	for _, nodeRun := range nodeRuns {
+		if status := strings.TrimSpace(nodeRun.GetString("status")); status != "pending" && status != "running" {
+			continue
+		}
+		nodeRun.Set("status", "cancelled")
+		nodeRun.Set("error_message", message)
+		nodeRun.Set("ended_at", now)
+		if err := app.Save(nodeRun); err != nil {
+			return err
+		}
+	}
+
+	if pipelineRecord != nil {
+		pipelineRecord.Set("status", "cancelled")
+		pipelineRecord.Set("ended_at", now)
+		if err := app.Save(pipelineRecord); err != nil {
+			return err
+		}
+	}
+
+	operation.Set("cancel_requested_at", now)
+	operation.Set("terminal_status", "cancelled")
+	operation.Set("app_outcome", operationFailureOutcome(appRecord))
+	operation.Set("error_message", message)
+	operation.Set("ended_at", now)
+	if err := app.Save(operation); err != nil {
+		return err
+	}
+
+	if appRecord != nil {
+		projection.ApplyOperationCancelled(appRecord, operation)
+		if err := app.Save(appRecord); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func forceFailOperation(app core.App, operation *core.Record, message string) error {
+	now := time.Now()
+	if strings.TrimSpace(message) == "" {
+		message = "operation force-failed by operator"
+	}
+
+	appRecord, pipelineRecord, nodeRuns, err := loadOperationRelations(app, operation)
+	if err != nil {
+		return err
+	}
+
+	failedNodeKey := ""
+	for _, nodeRun := range nodeRuns {
+		status := strings.TrimSpace(nodeRun.GetString("status"))
+		switch status {
+		case "running":
+			nodeRun.Set("status", "failed")
+			nodeRun.Set("error_message", message)
+			nodeRun.Set("ended_at", now)
+			if failedNodeKey == "" {
+				failedNodeKey = strings.TrimSpace(nodeRun.GetString("node_key"))
+			}
+		case "pending":
+			nodeRun.Set("status", "cancelled")
+			nodeRun.Set("error_message", message)
+			nodeRun.Set("ended_at", now)
+		}
+		if status == "running" || status == "pending" {
+			if err := app.Save(nodeRun); err != nil {
+				return err
+			}
+		}
+	}
+
+	if pipelineRecord != nil {
+		pipelineRecord.Set("status", "failed")
+		pipelineRecord.Set("failed_node_key", failedNodeKey)
+		pipelineRecord.Set("ended_at", now)
+		if err := app.Save(pipelineRecord); err != nil {
+			return err
+		}
+	}
+
+	operation.Set("terminal_status", "failed")
+	operation.Set("failure_reason", "execution_error")
+	operation.Set("app_outcome", operationFailureOutcome(appRecord))
+	operation.Set("error_message", message)
+	operation.Set("ended_at", now)
+	if err := app.Save(operation); err != nil {
+		return err
+	}
+
+	if appRecord != nil {
+		projection.ApplyOperationFailed(appRecord, operation)
+		if err := app.Save(appRecord); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func canResumeOperation(operation *core.Record) bool {
+	if operation == nil {
+		return false
+	}
+	phase := strings.TrimSpace(operation.GetString("phase"))
+	return phase == string(model.OperationPhaseVerifying) || phase == string(model.OperationPhaseCompensating)
+}
+
+func resumePausedOperation(app core.App, operation *core.Record) error {
+	if app == nil || operation == nil {
+		return nil
+	}
+	_, pipelineRecord, nodeRuns, err := loadOperationRelations(app, operation)
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	for _, nodeRun := range nodeRuns {
+		status := strings.TrimSpace(nodeRun.GetString("status"))
+		if status != "waiting" && status != "manual_gate" {
+			continue
+		}
+		nodeRun.Set("status", "pending")
+		nodeRun.Set("error_message", "")
+		nodeRun.Set("ended_at", nil)
+		if err := app.Save(nodeRun); err != nil {
+			return err
+		}
+	}
+	if pipelineRecord != nil {
+		pipelineRecord.Set("status", "active")
+		pipelineRecord.Set("ended_at", nil)
+		if err := app.Save(pipelineRecord); err != nil {
+			return err
+		}
+	}
+	operation.Set("ended_at", nil)
+	operation.Set("error_message", "")
+	operation.Set("updated", now)
+	return app.Save(operation)
+}
+
+func loadOperationRelations(app core.App, operation *core.Record) (*core.Record, *core.Record, []*core.Record, error) {
+	var appRecord *core.Record
+	appID := strings.TrimSpace(operation.GetString("app"))
+	if appID != "" {
+		record, err := app.FindRecordById("app_instances", appID)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		appRecord = record
+	}
+
+	var pipelineRecord *core.Record
+	pipelineID := strings.TrimSpace(operation.GetString("pipeline_run"))
+	if pipelineID != "" {
+		record, err := app.FindRecordById("pipeline_runs", pipelineID)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		pipelineRecord = record
+	}
+
+	nodeRuns := make([]*core.Record, 0)
+	if pipelineID != "" {
+		col, err := app.FindCollectionByNameOrId("pipeline_node_runs")
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		nodeRuns, err = app.FindRecordsByFilter(col, fmt.Sprintf("pipeline_run = '%s'", escapePBFilterValue(pipelineID)), "created", 100, 0)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
+	return appRecord, pipelineRecord, nodeRuns, nil
+}
+
+func operationFailureOutcome(appRecord *core.Record) string {
+	if appRecord == nil || strings.TrimSpace(appRecord.GetString("current_release")) == "" {
+		return "no_healthy_release"
+	}
+	return "previous_release_active"
 }
 
 func handleOperationLogs(e *core.RequestEvent) error {
@@ -282,26 +680,45 @@ func handleOperationLogStream(e *core.RequestEvent) error {
 
 	lastStatus := ""
 	lastUpdated := ""
+	lastContent := ""
+	lastTruncated := false
+	const logStreamPollInterval = 250 * time.Millisecond
 
-	sendState := func(current *core.Record) error {
+	sendState := func(current *core.Record, forceSnapshot bool) error {
+		currentStatus := operationDisplayStatus(current)
+		currentUpdated := current.GetDateTime("updated").String()
+		currentContent := current.GetString("execution_log")
+		currentTruncated := current.GetBool("execution_log_truncated")
+
+		messageType := "snapshot"
+		content := currentContent
+		if !forceSnapshot && !currentTruncated && !lastTruncated && strings.HasPrefix(currentContent, lastContent) {
+			if len(currentContent) > len(lastContent) {
+				messageType = "append"
+				content = currentContent[len(lastContent):]
+			}
+		}
+
 		payload := map[string]any{
 			"id":                      current.Id,
-			"status":                  operationDisplayStatus(current),
-			"updated":                 current.GetDateTime("updated").String(),
-			"execution_log_truncated": current.GetBool("execution_log_truncated"),
-			"type":                    "snapshot",
-			"content":                 current.GetString("execution_log"),
+			"status":                  currentStatus,
+			"updated":                 currentUpdated,
+			"execution_log_truncated": currentTruncated,
+			"type":                    messageType,
+			"content":                 content,
 		}
-		lastStatus = payload["status"].(string)
-		lastUpdated = payload["updated"].(string)
+		lastStatus = currentStatus
+		lastUpdated = currentUpdated
+		lastContent = currentContent
+		lastTruncated = currentTruncated
 		return conn.WriteJSON(payload)
 	}
 
-	if err := sendState(record); err != nil {
+	if err := sendState(record, true); err != nil {
 		return nil
 	}
 
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(logStreamPollInterval)
 	defer ticker.Stop()
 
 	for range ticker.C {
@@ -312,10 +729,12 @@ func handleOperationLogStream(e *core.RequestEvent) error {
 		}
 		currentStatus := operationDisplayStatus(current)
 		currentUpdated := current.GetDateTime("updated").String()
-		if currentStatus == lastStatus && currentUpdated == lastUpdated {
+		currentContent := current.GetString("execution_log")
+		currentTruncated := current.GetBool("execution_log_truncated")
+		if currentStatus == lastStatus && currentUpdated == lastUpdated && currentContent == lastContent && currentTruncated == lastTruncated {
 			continue
 		}
-		if err := sendState(current); err != nil {
+		if err := sendState(current, false); err != nil {
 			return nil
 		}
 	}
@@ -357,7 +776,7 @@ func handleOperationInstallGitCompose(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "invalid request body"})
 	}
 
-	req := deploy.GitComposeRequest{
+	req := lifecyclesvc.GitComposeRequest{
 		ServerID:        bodyString(body, "server_id"),
 		ProjectName:     bodyString(body, "project_name"),
 		RepositoryURL:   bodyString(body, "repository_url"),
@@ -367,14 +786,15 @@ func handleOperationInstallGitCompose(e *core.RequestEvent) error {
 		AuthHeaderName:  bodyString(body, "auth_header_name"),
 		AuthHeaderValue: bodyString(body, "auth_header_value"),
 	}
-	if req.ServerID == "" {
-		req.ServerID = "local"
+	if err := requireManagedServerID(req.ServerID); err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 	}
+	defaultRef, defaultComposePath := loadDeployGitDefaults(e.App)
 	if req.Ref == "" {
-		req.Ref = "main"
+		req.Ref = defaultRef
 	}
 	if req.ComposePath == "" {
-		req.ComposePath = "docker-compose.yml"
+		req.ComposePath = defaultComposePath
 	}
 
 	rawURL, err := resolveGitComposeRawURL(req)
@@ -382,7 +802,7 @@ func handleOperationInstallGitCompose(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 	}
 
-	compose, err := fetchRemoteCompose(rawURL, req.AuthHeaderName, req.AuthHeaderValue)
+	compose, err := fetchRemoteCompose(e.App, rawURL, req.AuthHeaderName, req.AuthHeaderValue)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 	}
@@ -393,8 +813,9 @@ func handleOperationInstallGitCompose(e *core.RequestEvent) error {
 		resolutionRequest.ServerID,
 		resolutionRequest.ProjectName,
 		resolutionRequest.Compose,
-		resolutionRequest.Source,
-		resolutionRequest.Adapter,
+		resolutionRequest.Channel,
+		resolutionRequest.Trigger,
+		resolutionRequest.ExecutionMode,
 		lifecyclesvc.GitComposeAuditDetail(req, rawURL),
 		operationCreateOptions{
 			OperationType:      resolutionRequest.OperationType,
@@ -409,7 +830,11 @@ func handleOperationInstallGitCompose(e *core.RequestEvent) error {
 	)
 	if err != nil {
 		if isOperationCreateConflict(err) {
-			return e.JSON(http.StatusConflict, map[string]any{"code": 409, "message": err.Error()})
+			payload := map[string]any{"code": 409, "message": err.Error()}
+			for key, value := range operationConflictPayload(err) {
+				payload[key] = value
+			}
+			return e.JSON(http.StatusConflict, payload)
 		}
 		if isOperationCreateBadRequest(err) {
 			return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
@@ -436,7 +861,7 @@ func handleOperationInstallGitComposeCheck(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "invalid request body"})
 	}
 
-	req := deploy.GitComposeRequest{
+	req := lifecyclesvc.GitComposeRequest{
 		ServerID:        bodyString(body, "server_id"),
 		ProjectName:     bodyString(body, "project_name"),
 		RepositoryURL:   bodyString(body, "repository_url"),
@@ -446,14 +871,15 @@ func handleOperationInstallGitComposeCheck(e *core.RequestEvent) error {
 		AuthHeaderName:  bodyString(body, "auth_header_name"),
 		AuthHeaderValue: bodyString(body, "auth_header_value"),
 	}
-	if req.ServerID == "" {
-		req.ServerID = "local"
+	if err := requireManagedServerID(req.ServerID); err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 	}
+	defaultRef, defaultComposePath := loadDeployGitDefaults(e.App)
 	if req.Ref == "" {
-		req.Ref = "main"
+		req.Ref = defaultRef
 	}
 	if req.ComposePath == "" {
-		req.ComposePath = "docker-compose.yml"
+		req.ComposePath = defaultComposePath
 	}
 
 	rawURL, err := resolveGitComposeRawURL(req)
@@ -461,7 +887,7 @@ func handleOperationInstallGitComposeCheck(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 	}
 
-	compose, err := fetchRemoteCompose(rawURL, req.AuthHeaderName, req.AuthHeaderValue)
+	compose, err := fetchRemoteCompose(e.App, rawURL, req.AuthHeaderName, req.AuthHeaderValue)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 	}
@@ -488,13 +914,13 @@ func handleOperationInstallManualCompose(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "invalid request body"})
 	}
 
-	req := deploy.ManualComposeRequest{
+	req := lifecyclesvc.ManualComposeRequest{
 		ServerID:    bodyString(body, "server_id"),
 		ProjectName: bodyString(body, "project_name"),
 		Compose:     bodyString(body, "compose"),
 	}
-	if req.ServerID == "" {
-		req.ServerID = "local"
+	if err := requireManagedServerID(req.ServerID); err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 	}
 	ingressOptions := buildInstallIngressOptionsFromBody(e.Auth, body, nil)
 	resolutionRequest := lifecyclesvc.BuildManualComposeInstallResolutionRequest(req, ingressOptions)
@@ -504,8 +930,9 @@ func handleOperationInstallManualCompose(e *core.RequestEvent) error {
 		resolutionRequest.ServerID,
 		resolutionRequest.ProjectName,
 		resolutionRequest.Compose,
-		resolutionRequest.Source,
-		resolutionRequest.Adapter,
+		resolutionRequest.Channel,
+		resolutionRequest.Trigger,
+		resolutionRequest.ExecutionMode,
 		nil,
 		operationCreateOptions{
 			OperationType:      resolutionRequest.OperationType,
@@ -520,7 +947,11 @@ func handleOperationInstallManualCompose(e *core.RequestEvent) error {
 	)
 	if err != nil {
 		if isOperationCreateConflict(err) {
-			return e.JSON(http.StatusConflict, map[string]any{"code": 409, "message": err.Error()})
+			payload := map[string]any{"code": 409, "message": err.Error()}
+			for key, value := range operationConflictPayload(err) {
+				payload[key] = value
+			}
+			return e.JSON(http.StatusConflict, payload)
 		}
 		if isOperationCreateBadRequest(err) {
 			return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
@@ -547,13 +978,13 @@ func handleOperationInstallManualComposeCheck(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "invalid request body"})
 	}
 
-	req := deploy.ManualComposeRequest{
+	req := lifecyclesvc.ManualComposeRequest{
 		ServerID:    bodyString(body, "server_id"),
 		ProjectName: bodyString(body, "project_name"),
 		Compose:     bodyString(body, "compose"),
 	}
-	if req.ServerID == "" {
-		req.ServerID = "local"
+	if err := requireManagedServerID(req.ServerID); err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 	}
 	ingressOptions := buildInstallIngressOptionsFromBody(e.Auth, body, nil)
 	resolutionRequest := lifecyclesvc.BuildManualComposeInstallResolutionRequest(req, ingressOptions)
@@ -571,6 +1002,222 @@ func handleOperationInstallManualComposeCheck(e *core.RequestEvent) error {
 	}
 
 	return e.JSON(http.StatusOK, result)
+}
+
+func handleOperationInstallTemplate(e *core.RequestEvent) error {
+	body, err := readBody(e)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "invalid request body"})
+	}
+	if err := requireManagedServerID(bodyString(body, "server_id")); err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
+	}
+	rendered, ingressOptions, err := renderTemplateInstall(e, body)
+	if err != nil {
+		if isOperationCreateBadRequest(err) || strings.Contains(strings.ToLower(err.Error()), "template ") {
+			return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
+		}
+		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": err.Error()})
+	}
+	result, err := createOperationFromCompose(
+		e,
+		bodyString(body, "server_id"),
+		rendered.ProjectName,
+		rendered.Compose,
+		string(model.ChannelStore),
+		string(model.TriggerManual),
+		string(model.ExecutionModeCompose),
+		map[string]any{
+			"template_key": rendered.TemplateKey,
+			"project_name": rendered.ProjectName,
+		},
+		operationCreateOptions{
+			OperationType:      ingressOptions.OperationType,
+			ProjectDir:         ingressOptions.ProjectDir,
+			ComposeProjectName: firstNonEmptyString(ingressOptions.ComposeProjectName, rendered.ProjectName),
+			ExposureIntent:     ingressOptions.ExposureIntent,
+			Metadata:           ingressOptions.Metadata,
+			RuntimeInputs:      ingressOptions.RuntimeInputs,
+			SourceBuild:        ingressOptions.SourceBuild,
+		},
+	)
+	if err != nil {
+		if isOperationCreateConflict(err) {
+			payload := map[string]any{"code": 409, "message": err.Error()}
+			for key, value := range operationConflictPayload(err) {
+				payload[key] = value
+			}
+			return e.JSON(http.StatusConflict, payload)
+		}
+		if isOperationCreateBadRequest(err) {
+			return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
+		}
+		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": err.Error()})
+	}
+	return e.JSON(http.StatusAccepted, result)
+}
+
+func handleOperationInstallTemplateCheck(e *core.RequestEvent) error {
+	body, err := readBody(e)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "invalid request body"})
+	}
+	if err := requireManagedServerID(bodyString(body, "server_id")); err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
+	}
+	rendered, ingressOptions, err := renderTemplateInstall(e, body)
+	if err != nil {
+		if isOperationCreateBadRequest(err) || strings.Contains(strings.ToLower(err.Error()), "template ") {
+			return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
+		}
+		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": err.Error()})
+	}
+	result, err := lifecyclesvc.CheckInstallFromCompose(
+		e.App,
+		lifecyclesvc.InstallPreflightRequest{InstallResolutionRequest: lifecyclesvc.BuildInstallResolutionRequest(
+			bodyString(body, "server_id"),
+			rendered.ProjectName,
+			rendered.Compose,
+			string(model.TriggerManual),
+			string(model.ChannelStore),
+			string(model.ExecutionModeCompose),
+			ingressOptions,
+		)},
+		newRouteInstallPreflightProbe(e),
+	)
+	if err != nil {
+		if isOperationCreateBadRequest(err) {
+			return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
+		}
+		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": err.Error()})
+	}
+	return e.JSON(http.StatusOK, result)
+}
+
+func renderTemplateInstall(e *core.RequestEvent, body map[string]any) (*apptemplates.RenderedTemplate, lifecyclesvc.InstallIngressOptions, error) {
+	serverID := bodyString(body, "server_id")
+	if err := requireManagedServerID(serverID); err != nil {
+		return nil, lifecyclesvc.InstallIngressOptions{}, err
+	}
+	templateKey := bodyString(body, "template_key")
+	requestedExposure := lifecyclesvc.ParseExposureIntentMap(bodyMap(body, "exposure"))
+	inputValues := copyAnyMap(bodyMap(body, "input_values"))
+	if inputValues == nil {
+		inputValues = map[string]any{}
+	}
+	if requestedExposure != nil && requestedExposure.ExposureType == "port" && requestedExposure.TargetPort > 0 {
+		inputValues["http_port"] = requestedExposure.TargetPort
+	}
+	service := apptemplates.NewService()
+	rendered, err := service.Render(e.App, apptemplates.RenderRequest{
+		TemplateKey: templateKey,
+		ProjectName: bodyString(body, "project_name"),
+		Values:      inputValues,
+		UserID:      authRecordID(e.Auth),
+	})
+	if err != nil {
+		return nil, lifecyclesvc.InstallIngressOptions{}, err
+	}
+	if requestedExposure != nil && requestedExposure.ExposureType == "internal_only" {
+		serviceName := firstNonEmptyString(
+			firstTemplateExposureService(rendered.RenderExposures),
+			firstPrimaryService(rendered.Manifest.ServiceRoles),
+		)
+		if serviceName != "" {
+			rendered.Compose, err = removeComposeServicePorts(rendered.Compose, serviceName)
+			if err != nil {
+				return nil, lifecyclesvc.InstallIngressOptions{}, err
+			}
+		}
+	}
+	metadata := copyAnyMap(rendered.Metadata)
+	ingressOptions := buildInstallIngressOptionsFromBody(e.Auth, body, metadata)
+	if requestedExposure != nil {
+		ingressOptions.ExposureIntent = requestedExposure
+	} else {
+		ingressOptions.ExposureIntent = lifecyclesvc.ParseExposureIntentMap(rendered.ExposureIntent)
+	}
+	if strings.TrimSpace(ingressOptions.ComposeProjectName) == "" {
+		ingressOptions.ComposeProjectName = rendered.ProjectName
+	}
+	return rendered, ingressOptions, nil
+}
+
+func requireManagedServerID(serverID string) error {
+	trimmed := strings.TrimSpace(serverID)
+	if trimmed == "" {
+		return fmt.Errorf("server_id is required")
+	}
+	if trimmed == "local" {
+		return fmt.Errorf("local server targets are unsupported")
+	}
+	return nil
+}
+
+func firstTemplateExposureService(exposures []apptemplates.TemplateExposure) string {
+	for _, exposure := range exposures {
+		if strings.TrimSpace(exposure.Service) != "" {
+			return strings.TrimSpace(exposure.Service)
+		}
+	}
+	return ""
+}
+
+func firstPrimaryService(serviceRoles map[string]string) string {
+	for name, role := range serviceRoles {
+		if strings.TrimSpace(role) == "primary" {
+			return strings.TrimSpace(name)
+		}
+	}
+	return ""
+}
+
+func removeComposeServicePorts(compose, serviceName string) (string, error) {
+	var doc map[string]any
+	if err := yaml.Unmarshal([]byte(compose), &doc); err != nil {
+		return "", err
+	}
+	services, ok := doc["services"].(map[string]any)
+	if !ok {
+		return compose, nil
+	}
+	service, ok := services[serviceName].(map[string]any)
+	if !ok {
+		return compose, nil
+	}
+	delete(service, "ports")
+	encoded, err := yaml.Marshal(doc)
+	if err != nil {
+		return "", err
+	}
+	return string(encoded), nil
+}
+
+func authRecordID(record *core.Record) string {
+	if record == nil {
+		return ""
+	}
+	return strings.TrimSpace(record.Id)
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func copyAnyMap(source map[string]any) map[string]any {
+	if len(source) == 0 {
+		return nil
+	}
+	result := make(map[string]any, len(source))
+	for key, value := range source {
+		result[key] = value
+	}
+	return result
 }
 
 func buildInstallIngressOptionsFromBody(auth *core.Record, body map[string]any, baseMetadata map[string]any) lifecyclesvc.InstallIngressOptions {
@@ -610,8 +1257,9 @@ func createOperationFromCompose(
 	serverID string,
 	projectName string,
 	compose string,
-	source string,
-	adapter string,
+	channel string,
+	trigger string,
+	executionMode string,
 	auditDetail map[string]any,
 	options operationCreateOptions,
 ) (map[string]any, error) {
@@ -622,8 +1270,9 @@ func createOperationFromCompose(
 			ServerID:       serverID,
 			ProjectName:    projectName,
 			Compose:        compose,
-			Source:         source,
-			Adapter:        adapter,
+			Trigger:        trigger,
+			Channel:        channel,
+			ExecutionMode:  executionMode,
 			ResolvedEnv:    options.ResolvedEnv,
 			ExposureIntent: options.ExposureIntent,
 			Metadata:       options.Metadata,
@@ -644,8 +1293,9 @@ func createOperationFromCompose(
 
 	userID, userEmail, ip, ua := clientInfo(e)
 	detail := map[string]any{
-		"source":  source,
-		"adapter": adapter,
+		"trigger":        trigger,
+		"channel":        channel,
+		"execution_mode": executionMode,
 	}
 	composeProjectName := operationRecord.GetString("compose_project_name")
 	for key, value := range auditDetail {
@@ -707,7 +1357,36 @@ func isOperationCreateConflict(err error) bool {
 		return false
 	}
 	message := strings.ToLower(strings.TrimSpace(err.Error()))
-	return strings.Contains(message, "already exists") || strings.Contains(message, "duplicate") || strings.Contains(message, "preflight blocked")
+	return strings.Contains(message, "already exists") || strings.Contains(message, "duplicate") || strings.Contains(message, "preflight blocked") || strings.Contains(message, "application already has an active action")
+}
+
+func operationConflictPayload(err error) map[string]any {
+	if err == nil {
+		return nil
+	}
+	message := strings.TrimSpace(err.Error())
+	if !strings.Contains(strings.ToLower(message), "application already has an active action") {
+		return nil
+	}
+	payload := map[string]any{"message": message}
+	parts := strings.Split(message, ":")
+	if len(parts) < 2 {
+		return payload
+	}
+	fields := strings.Fields(strings.Join(parts[1:], ":"))
+	active := map[string]any{}
+	for _, field := range fields {
+		pair := strings.SplitN(field, "=", 2)
+		if len(pair) != 2 {
+			continue
+		}
+		active[pair[0]] = pair[1]
+	}
+	if len(active) > 0 {
+		payload["active_operation"] = active
+		payload["allow_force_fail"] = true
+	}
+	return payload
 }
 
 func operationDisplayStatus(record *core.Record) string {
@@ -716,37 +1395,191 @@ func operationDisplayStatus(record *core.Record) string {
 	if terminalStatus != "" {
 		switch terminalStatus {
 		case "success":
-			return deploy.StatusSuccess
+			return "success"
 		case "failed":
 			if failureReason == "timeout" {
-				return deploy.StatusTimeout
+				return "timeout"
 			}
-			return deploy.StatusFailed
+			return "failed"
 		case "cancelled":
-			return deploy.StatusCancelled
+			return "cancelled"
 		case "compensated":
-			return deploy.StatusRolledBack
+			return "compensated"
 		case "manual_intervention_required":
-			return deploy.StatusManualInterventionRequired
+			return "manual_intervention_required"
 		}
 	}
 
 	switch strings.TrimSpace(record.GetString("phase")) {
 	case string(model.OperationPhaseQueued):
-		return deploy.StatusQueued
+		return "queued"
 	case string(model.OperationPhaseValidating):
-		return deploy.StatusValidating
+		return "validating"
 	case string(model.OperationPhasePreparing):
-		return deploy.StatusPreparing
+		return "preparing"
 	case string(model.OperationPhaseExecuting):
-		return deploy.StatusRunning
+		return "executing"
 	case string(model.OperationPhaseVerifying):
-		return deploy.StatusVerifying
+		return "verifying"
 	case string(model.OperationPhaseCompensating):
-		return deploy.StatusRollingBack
+		return "compensating"
 	default:
-		return deploy.StatusQueued
+		return "queued"
 	}
+}
+
+type operationListQueryOptions struct {
+	AppID         string
+	Query         string
+	SortField     string
+	SortDir       string
+	ExcludeStatus []string
+	ExcludeSource []string
+	ExcludeServer []string
+	Page          int
+	PerPage       int
+}
+
+func listOperationRecords(app core.App, col *core.Collection, options operationListQueryOptions) ([]*core.Record, int, error) {
+	records, err := app.FindRecordsByFilter(col, "", operationListSortExpr(options.SortField, options.SortDir), 0, 0)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	filtered := make([]*core.Record, 0, len(records))
+	query := strings.ToLower(strings.TrimSpace(options.Query))
+	excludedStatus := sliceToSet(options.ExcludeStatus)
+	excludedSource := sliceToSet(options.ExcludeSource)
+	excludedServer := sliceToSet(options.ExcludeServer)
+	for _, record := range records {
+		if options.AppID != "" && strings.TrimSpace(record.GetString("app")) != options.AppID {
+			continue
+		}
+
+		status := operationDisplayStatus(record)
+		if _, blocked := excludedStatus[status]; blocked {
+			continue
+		}
+		channel := operationChannelValue(record)
+		if _, blocked := excludedSource[channel]; blocked {
+			continue
+		}
+		serverID := normalizeOperationServerID(record.GetString("server_id"))
+		if _, blocked := excludedServer[serverID]; blocked {
+			continue
+		}
+		if query != "" && !operationRecordMatchesQuery(record, status, query) {
+			continue
+		}
+
+		filtered = append(filtered, record)
+	}
+
+	totalItems := len(filtered)
+	perPage := options.PerPage
+	if perPage <= 0 {
+		perPage = 15
+	}
+	page := options.Page
+	if page <= 0 {
+		page = 1
+	}
+	if totalItems == 0 {
+		return []*core.Record{}, 0, nil
+	}
+	totalPages := max(1, (totalItems+perPage-1)/perPage)
+	if page > totalPages {
+		page = totalPages
+	}
+	offset := (page - 1) * perPage
+	end := min(offset+perPage, totalItems)
+	return filtered[offset:end], totalItems, nil
+}
+
+func operationListSortExpr(field string, dir string) string {
+	prefix := "-"
+	if strings.EqualFold(strings.TrimSpace(dir), "asc") {
+		prefix = ""
+	}
+	switch strings.TrimSpace(field) {
+	case "compose_project_name", "created", "started_at", "finished_at":
+		return prefix + strings.TrimSpace(field)
+	default:
+		return "-created"
+	}
+}
+
+func operationRecordMatchesQuery(record *core.Record, status string, query string) bool {
+	values := []string{
+		record.Id,
+		record.GetString("compose_project_name"),
+		operationChannelValue(record),
+		normalizeOperationServerID(record.GetString("server_id")),
+		status,
+	}
+	for _, value := range values {
+		if strings.Contains(strings.ToLower(strings.TrimSpace(value)), query) {
+			return true
+		}
+	}
+	return false
+}
+
+func operationChannelValue(record *core.Record) string {
+	if record == nil {
+		return ""
+	}
+	if spec, ok := operationSpecMap(record.Get("spec_json")); ok {
+		if channel := model.NormalizeOperationChannel(fmt.Sprint(spec["channel"])); channel != "" {
+			return channel
+		}
+	}
+	return string(model.ChannelCustom)
+}
+
+func splitOperationListCSV(raw string) []string {
+	parts := strings.Split(raw, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
+		}
+		values = append(values, trimmed)
+	}
+	return values
+}
+
+func sliceToSet(values []string) map[string]struct{} {
+	result := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		result[trimmed] = struct{}{}
+	}
+	return result
+}
+
+func normalizeOperationServerID(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "local"
+	}
+	return trimmed
+}
+
+func lookupServerName(app core.App, serverID string) string {
+	id := strings.TrimSpace(serverID)
+	if id == "" || id == "local" {
+		return ""
+	}
+	server, err := app.FindRecordById("servers", id)
+	if err != nil || server == nil {
+		return ""
+	}
+	return strings.TrimSpace(server.GetString("name"))
 }
 
 func operationRecordResponse(app core.App, record *core.Record) (map[string]any, error) {
@@ -763,9 +1596,11 @@ func operationRecordResponse(app core.App, record *core.Record) (map[string]any,
 		"id":                       record.Id,
 		"app_id":                   record.GetString("app"),
 		"server_id":                record.GetString("server_id"),
-		"source":                   record.GetString("trigger_source"),
+		"server_name":              lookupServerName(app, record.GetString("server_id")),
+		"trigger":                  model.NormalizeOperationTrigger(record.GetString("trigger")),
+		"channel":                  operationChannelValue(record),
 		"status":                   operationDisplayStatus(record),
-		"adapter":                  record.GetString("adapter"),
+		"execution_mode":           record.GetString("execution_mode"),
 		"compose_project_name":     record.GetString("compose_project_name"),
 		"project_dir":              record.GetString("project_dir"),
 		"rendered_compose":         record.GetString("rendered_compose"),
@@ -853,10 +1688,11 @@ func buildPipelineResponse(app core.App, pipelineRunID string, record *core.Reco
 		"node_count":           nodeCount,
 		"completed_node_count": completedNodeCount,
 		"failed_node_key":      failedNodeKey,
+		"trigger":              model.NormalizeOperationTrigger(record.GetString("trigger")),
+		"channel":              operationChannelValue(record),
 		"selector": map[string]any{
 			"operation_type": record.GetString("operation_type"),
-			"source":         record.GetString("trigger_source"),
-			"adapter":        record.GetString("adapter"),
+			"execution_mode": record.GetString("execution_mode"),
 		},
 		"steps": buildOperationSteps(stepRuns),
 	}
@@ -897,18 +1733,18 @@ func externalPipelineFamilyKey(family string) string {
 func buildOperationLifecycle(record *core.Record) []map[string]any {
 	status := operationDisplayStatus(record)
 	lifecycle := []map[string]any{
-		{"key": deploy.StatusQueued, "label": "Queued", "status": "pending"},
-		{"key": deploy.StatusValidating, "label": "Validating", "status": "pending"},
-		{"key": deploy.StatusPreparing, "label": "Preparing", "status": "pending"},
-		{"key": deploy.StatusRunning, "label": "Running", "status": "pending"},
-		{"key": deploy.StatusVerifying, "label": "Verifying", "status": "pending"},
-		{"key": deploy.StatusSuccess, "label": "Success", "status": "pending"},
-		{"key": deploy.StatusFailed, "label": "Failed", "status": "pending"},
-		{"key": deploy.StatusRollingBack, "label": "Rolling Back", "status": "pending"},
-		{"key": deploy.StatusRolledBack, "label": "Rolled Back", "status": "pending"},
-		{"key": deploy.StatusCancelled, "label": "Cancelled", "status": "pending"},
-		{"key": deploy.StatusTimeout, "label": "Timeout", "status": "pending"},
-		{"key": deploy.StatusManualInterventionRequired, "label": "Manual Intervention", "status": "pending"},
+		{"key": "queued", "label": "Queued", "status": "pending"},
+		{"key": "validating", "label": "Validating", "status": "pending"},
+		{"key": "preparing", "label": "Preparing", "status": "pending"},
+		{"key": "executing", "label": "Executing", "status": "pending"},
+		{"key": "verifying", "label": "Verifying", "status": "pending"},
+		{"key": "success", "label": "Success", "status": "pending"},
+		{"key": "failed", "label": "Failed", "status": "pending"},
+		{"key": "compensating", "label": "Compensating", "status": "pending"},
+		{"key": "compensated", "label": "Compensated", "status": "pending"},
+		{"key": "cancelled", "label": "Cancelled", "status": "pending"},
+		{"key": "timeout", "label": "Timeout", "status": "pending"},
+		{"key": "manual_intervention_required", "label": "Manual Intervention", "status": "pending"},
 	}
 	byKey := map[string]map[string]any{}
 	for _, item := range lifecycle {
@@ -934,41 +1770,41 @@ func buildOperationLifecycle(record *core.Record) []map[string]any {
 	}
 
 	switch status {
-	case deploy.StatusQueued:
-		activate(deploy.StatusQueued)
-	case deploy.StatusValidating:
-		complete(deploy.StatusQueued)
-		activate(deploy.StatusValidating)
-	case deploy.StatusPreparing:
-		complete(deploy.StatusQueued, deploy.StatusValidating)
-		activate(deploy.StatusPreparing)
-	case deploy.StatusRunning:
-		complete(deploy.StatusQueued, deploy.StatusValidating, deploy.StatusPreparing)
-		activate(deploy.StatusRunning)
-	case deploy.StatusVerifying:
-		complete(deploy.StatusQueued, deploy.StatusValidating, deploy.StatusPreparing, deploy.StatusRunning)
-		activate(deploy.StatusVerifying)
-	case deploy.StatusSuccess:
-		complete(deploy.StatusQueued, deploy.StatusValidating, deploy.StatusPreparing, deploy.StatusRunning, deploy.StatusVerifying, deploy.StatusSuccess)
-	case deploy.StatusFailed:
-		terminal(deploy.StatusFailed)
-	case deploy.StatusRollingBack:
-		complete(deploy.StatusFailed)
-		activate(deploy.StatusRollingBack)
-	case deploy.StatusRolledBack:
-		complete(deploy.StatusFailed, deploy.StatusRollingBack, deploy.StatusRolledBack)
-	case deploy.StatusCancelled:
-		terminal(deploy.StatusCancelled)
-	case deploy.StatusTimeout:
-		terminal(deploy.StatusTimeout)
-	case deploy.StatusManualInterventionRequired:
-		terminal(deploy.StatusManualInterventionRequired)
+	case "queued":
+		activate("queued")
+	case "validating":
+		complete("queued")
+		activate("validating")
+	case "preparing":
+		complete("queued", "validating")
+		activate("preparing")
+	case "executing":
+		complete("queued", "validating", "preparing")
+		activate("executing")
+	case "verifying":
+		complete("queued", "validating", "preparing", "executing")
+		activate("verifying")
+	case "success":
+		complete("queued", "validating", "preparing", "executing", "verifying", "success")
+	case "failed":
+		terminal("failed")
+	case "compensating":
+		complete("failed")
+		activate("compensating")
+	case "compensated":
+		complete("failed", "compensating", "compensated")
+	case "cancelled":
+		terminal("cancelled")
+	case "timeout":
+		terminal("timeout")
+	case "manual_intervention_required":
+		terminal("manual_intervention_required")
 	default:
-		activate(deploy.StatusQueued)
+		activate("queued")
 	}
 
 	if summary := record.GetString("error_message"); summary != "" {
-		for _, key := range []string{deploy.StatusFailed, deploy.StatusTimeout, deploy.StatusCancelled, deploy.StatusManualInterventionRequired} {
+		for _, key := range []string{"failed", "timeout", "cancelled", "manual_intervention_required"} {
 			if item := byKey[key]; item != nil && item["status"] == "terminal" {
 				item["detail"] = summary
 			}
@@ -1043,7 +1879,7 @@ func escapePBFilterValue(value string) string {
 	return strings.ReplaceAll(value, "'", "\\'")
 }
 
-func resolveGitComposeRawURL(req deploy.GitComposeRequest) (string, error) {
+func resolveGitComposeRawURL(req lifecyclesvc.GitComposeRequest) (string, error) {
 	if strings.TrimSpace(req.RawURL) != "" {
 		parsed, err := url.Parse(req.RawURL)
 		if err != nil || parsed.Scheme == "" || parsed.Host == "" {
@@ -1081,7 +1917,11 @@ func resolveGitComposeRawURL(req deploy.GitComposeRequest) (string, error) {
 	return fmt.Sprintf("%s/%s/raw/branch/%s/%s", base, ownerRepo, ref, composePath), nil
 }
 
-func fetchRemoteCompose(rawURL string, authHeaderName string, authHeaderValue string) (string, error) {
+func fetchRemoteCompose(app core.App, rawURL string, authHeaderName string, authHeaderValue string) (string, error) {
+	client, err := egress.NewFetchHTTPClient(app, "http.general", 20*time.Second, false)
+	if err != nil {
+		return "", fmt.Errorf("failed to prepare compose download: %w", err)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
@@ -1091,7 +1931,7 @@ func fetchRemoteCompose(rawURL string, authHeaderName string, authHeaderValue st
 	if strings.TrimSpace(authHeaderName) != "" && strings.TrimSpace(authHeaderValue) != "" {
 		req.Header.Set(authHeaderName, authHeaderValue)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to download compose file")
 	}

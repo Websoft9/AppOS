@@ -1,23 +1,36 @@
 # E2E Tests
 
-This directory is reserved for tests that require a real AppOS container runtime.
+This directory is the home for AppOS browser automation and runtime end-to-end coverage.
 
 ## Scope
 
+- Playwright browser flows
 - Container startup validation
 - Image/install smoke tests
-- Full end-to-end flows that need Nginx + frontend + backend + worker running together
+- Full end-to-end flows that need the publication gateway + frontend + backend + worker running together
 - System tests that require a real containerized runtime
 
-## Current Entry Point
+## Entry Points
 
-- `make test` (strict mode includes `make test e2e fast` after backend + web tests)
-- `make test e2e` (full E2E entrypoint; currently runs the smoke suite until broader scenarios are added)
-- `make test e2e fast` (smoke E2E suite)
+- `make test e2e runtime`
+- `make test e2e smoke ENV=tests/e2e/remote.env.example`
+- `make test e2e ENV=tests/e2e/remote.env.example`
+- `cd tests && npm ci`
+- `cd tests && npx playwright install --with-deps`
+- `cd tests && npx playwright test -c playwright.config.ts`
+- `cd tests && npx playwright test -c playwright.config.ts --project=chromium`
 - `tests/e2e/container-smoke.sh`
 - `tests/e2e/setup-status.sh`
+- `tests/e2e/*.spec.ts`
 
-The smoke suite builds the local AppOS image, starts a real container, and waits for `/api/health` to become reachable.
+Playwright config and dependencies now live in:
+
+- `tests/playwright.config.ts`
+- `tests/package.json`
+- `tests/e2e/fixtures/appos.ts`
+- `tests/e2e/remote.env.example`
+
+The smoke suite builds the local AppOS image, starts a real container, and waits for the AppOS HTTP endpoint on port `9000` to serve `/api/health`.
 
 The setup-status scenario reuses the same real container startup path and verifies that `/api/ext/setup/status` is publicly reachable and returns the expected fresh-install contract (`needsSetup: true`, `initMode: auto`).
 
@@ -28,12 +41,19 @@ The following existing tests were reviewed and intentionally left in the regular
 - `backend/domain/worker/lifecycle_operations_test.go`
 - `backend/domain/lifecycle/runtime/node_executor_test.go`
 - `backend/domain/routes/server_test.go`
-- `backend/cmd/appos-agent/main_test.go`
 - `web/src/routes/_app/_auth/resources/-servers.test.tsx`
 
 These tests exercise Docker-aware logic, but they do not need the AppOS container itself and therefore do not belong in E2E.
 
-## Planned Layering
+## Layering
 
-- `make test e2e fast`: smoke coverage for container boot and critical public/health flows.
-- `make test e2e`: the full E2E entrypoint. It currently delegates to smoke and is intended to grow as broader runtime scenarios are added.
+- `runtime`: container boot and public/runtime smoke
+- `smoke`: runtime + Playwright `@smoke`
+- `acceptance`: `smoke` + Playwright `@acceptance`
+
+Recommended browser smoke focus:
+
+- login
+- key system pages
+- workflow create/run/detail
+- approval and rejection paths when the deployed environment exposes them

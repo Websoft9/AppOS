@@ -59,7 +59,8 @@ Collection rules and index:
 | `tunnel-port-range` | `tunnel` | `port_range` | `start`, `end` |
 | `proxy-network` | `proxy` | `network` | `httpProxy`, `httpsProxy`, `noProxy`, `username`, `password` |
 | `docker-mirror` | `docker` | `mirror` | `mirrors`, `insecureRegistries` |
-| `docker-registries` | `docker` | `registries` | `items` |
+| `image-pull-network-policy` | `docker` | `image_pull_network_policy` | `pullTimeoutSeconds`, `maxRetries`, `retryDelaySeconds` |
+| `docker-registries` | `docker` | `registries` | `items` (reference-only transitional entry) |
 | `llm-providers` | `llm` | `providers` | `items` |
 
 ## Default Row Seeding
@@ -98,6 +99,11 @@ Representative default values:
 - object-list groups use full replace semantics
 - wrappers such as `{"items": [...]}` are part of the stable contract
 
+### Consumer-owned Docker semantics
+
+- `docker-mirror`, `image-pull-network-policy`, and the transitional `docker-registries` reference entry use the shared Epic 13 transport only.
+- Their product meaning and boundary rules are owned by `story4.8-docker-settings.md`.
+
 ## Current Entry Families
 
 - `space-quota`
@@ -109,6 +115,7 @@ Representative default values:
 - `secrets-policy`
 - `proxy-network`
 - `docker-mirror`
+- `image-pull-network-policy`
 - `docker-registries`
 - `llm-providers`
 

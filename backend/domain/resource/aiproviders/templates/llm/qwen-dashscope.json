@@ -1,0 +1,35 @@
+{
+  "id": "qwen-dashscope",
+  "title": "Qwen (DashScope)",
+  "vendor": "Alibaba Cloud",
+  "uiGroup": "single_provider",
+  "hostingMode": "cloud",
+  "serviceMode": "official_provider",
+  "endpointMode": "customizable",
+  "hideInChooser": true,
+  "supportsClosedModels": true,
+  "supportsMultiVendorModels": false,
+  "description": "DashScope endpoint focused on Qwen model access.",
+  "helpUrl": "https://www.alibabacloud.com/help/en/model-studio/",
+  "defaultEndpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "defaultEnabledModels": [
+    "qwen-turbo",
+    "qwen-plus",
+    "qwen-max",
+    "qwen-long"
+  ],
+  "protocols": [
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "default": true
+    }
+  ],
+  "capabilities": ["chat", "tools", "streaming"],
+  "aliases": ["qwen", "dashscope", "qwen-dashscope"],
+  "fields": [
+    {
+      "id": "endpoint"
+    }
+  ]
+}

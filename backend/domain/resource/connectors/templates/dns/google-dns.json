@@ -1,0 +1,8 @@
+{
+  "id": "google-dns",
+  "title": "Google Cloud DNS",
+  "vendor": "Google Cloud",
+  "description": "Google Cloud DNS API profile.",
+  "defaultEndpoint": "https://dns.googleapis.com/dns/v1",
+  "aliases": ["google", "google-cloud-dns", "gcp-dns"]
+}

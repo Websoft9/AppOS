@@ -20,12 +20,12 @@ const (
 var allowedSeriesQueries = map[string]map[string]metricSeriesDefinition{
 	targetTypeServer: monitortsdb.ServerSeriesDefinitions(),
 	targetTypeApp: {
-		"cpu":    monitortsdb.SelectorDefinition("appos_container_cpu_usage", "percent"),
-		"memory": monitortsdb.SelectorDefinition("appos_container_memory_bytes", "bytes"),
+		"cpu":    monitortsdb.SelectorDefinition("appos_container_cpu_usage_percent", "percent"),
+		"memory": monitortsdb.SelectorDefinition("appos_container_memory_usage_bytes", "bytes"),
 	},
 	targetTypeContainer: {
-		"cpu":    monitortsdb.SelectorDefinition("appos_container_cpu_usage", "percent"),
-		"memory": monitortsdb.SelectorDefinition("appos_container_memory_bytes", "bytes"),
+		"cpu":    monitortsdb.SelectorDefinition("appos_container_cpu_usage_percent", "percent"),
+		"memory": monitortsdb.SelectorDefinition("appos_container_memory_usage_bytes", "bytes"),
 	},
 	targetTypePlatform: monitortsdb.PlatformSeriesDefinitions(platformTargetAppOSCore),
 }

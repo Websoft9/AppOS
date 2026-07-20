@@ -26,23 +26,32 @@ export type DisplaySectionProps = {
 
 export type OverviewTabProps = {
   app: AppInstance
-  currentRelease?: AppRelease
-  releases: AppRelease[]
-  openReleaseDetail: (release: AppRelease) => void
   serverDisplayName: string
-  canOpenServerDetail: boolean
-  openServerDetail: () => void
+  serverDetailHref?: string
   primaryExposure?: AppExposure
-  exposures: AppExposure[]
-  serverConnectionPresentation: ServerConnectionPresentationSpec | null
-  openOperationStatus: () => void
+  primaryAccessUrl: string
+  deploymentLabel: string
+  templateName?: string
+  templateDetailHref?: string
+  actionDetailHref?: string
   setTab: (value: string) => void
+  recentActivity: ActionRecord[]
+  recentActivityLoading: boolean
+}
+
+export type SettingsTabProps = {
+  app: AppInstance
   displaySection: DisplaySectionProps
 }
 
 export type AccessTabProps = {
   app: AppInstance
   primaryExposure?: AppExposure
+  resolvedTargetPort?: number
+  serverDisplayName: string
+  canOpenServerDetail: boolean
+  openServerDetail: () => void
+  serverConnectionPresentation: ServerConnectionPresentationSpec | null
   effectiveServerHost: string
   primaryDomainUrl: string
   publicAccessUrl: string
@@ -65,9 +74,16 @@ export type AccessTabProps = {
 
 export type ActionsTabProps = {
   app: AppInstance
+  releases: AppRelease[]
+  openReleaseDetail: (release: AppRelease) => void
   actionsLoading: boolean
   actionSearch: string
   setActionSearch: (value: string) => void
+  actionHistoryPage: number
+  actionHistoryTotalPages: number
+  actionHistoryTotalItems: number
+  goToPreviousActionHistoryPage: () => void
+  goToNextActionHistoryPage: () => void
   actionStatusFilter: string
   setActionStatusFilter: (value: string) => void
   actionTypeFilter: string
@@ -80,6 +96,9 @@ export type ActionsTabProps = {
   openAllActionsForApp: () => void
   openOperationStatus: () => void
   buildActionDetailHref: (actionId: string) => string
+  onRequestCancelAction: (action: ActionRecord) => void
+  onRequestForceFailAction: (action: ActionRecord) => void
+  onRequestResumeAction: (action: ActionRecord) => void
 }
 
 export type RuntimeTabProps = {

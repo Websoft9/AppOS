@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -35,10 +36,40 @@ func registerServerShellRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 // @Router /api/terminal/ssh/{serverId} [get]
 func handleSSHTerminal(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
-	cfg, err := resolveTerminalConfig(e.App, e.Auth, serverID)
-	if err != nil {
-		log.Printf("[server-shell] resolveServerConfig failed serverId=%s err=%v", serverID, err)
-		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
+	requestedSessionID := e.Request.URL.Query().Get("session_id")
+	userID, _, ip, _ := clientInfo(e)
+
+	var (
+		sess      terminal.Session
+		err       error
+		sessionID string
+		startedAt = time.Now().UTC()
+	)
+
+	if requestedSessionID != "" {
+		sessionID = requestedSessionID
+	} else {
+		sessionID = uuid.NewString()
+	}
+
+	if requestedSessionID == "" {
+		plan, resolveErr := resolveTerminalExecutionPlanForRequest(e, serverID)
+		if resolveErr != nil {
+			log.Printf("[server-shell] resolveServerConfig failed serverId=%s err=%v", serverID, resolveErr)
+			return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
+		}
+		connector := &terminal.SSHConnector{}
+		sess, err = connector.Connect(e.Request.Context(), plan.Config)
+		if err != nil {
+			cfg := plan.Config
+			log.Printf("[server-shell] ssh connect failed serverId=%s host=%s port=%d user=%s authType=%s transport=%s err=%v", serverID, cfg.Host, cfg.Port, cfg.User, cfg.AuthType, plan.Transport, err)
+			conn, upgradeErr := wsUpgrader.Upgrade(e.Response, e.Request, nil)
+			if upgradeErr == nil {
+				defer conn.Close()
+				closeWSWithError(conn, err)
+			}
+			return nil
+		}
 	}
 
 	conn, err := wsUpgrader.Upgrade(e.Response, e.Request, nil)
@@ -47,76 +78,88 @@ func handleSSHTerminal(e *core.RequestEvent) error {
 		return nil
 	}
 	defer conn.Close()
-
-	connector := &terminal.SSHConnector{}
-	sess, err := connector.Connect(e.Request.Context(), cfg)
-	if err != nil {
-		log.Printf("[server-shell] ssh connect failed serverId=%s host=%s port=%d user=%s authType=%s err=%v", serverID, cfg.Host, cfg.Port, cfg.User, cfg.AuthType, err)
-		closeWSWithError(conn, err)
-		return nil
-	}
-
-	sessionID := uuid.NewString()
-	userID, _, ip, _ := clientInfo(e)
-	startedAt := time.Now().UTC()
 	var bytesOut, bytesIn atomic.Int64
-
-	terminal.Register(sessionID, sess)
-	defer func() {
-		terminal.Unregister(sessionID)
-		_ = sess.Close()
+	if requestedSessionID == "" {
+		terminal.RegisterResumableDetailed(sessionID, sess, userID, "server", serverID, "ssh")
 		audit.Write(e.App, audit.Entry{
 			UserID:       userID,
-			Action:       "terminal.ssh.disconnect",
+			Action:       "terminal.ssh.connect",
 			ResourceType: "server",
 			ResourceID:   serverID,
 			Status:       audit.StatusSuccess,
 			IP:           ip,
-			Detail: map[string]any{
-				"session_id": sessionID,
-				"started_at": startedAt.Format(time.RFC3339),
-				"ended_at":   time.Now().UTC().Format(time.RFC3339),
-				"bytes_in":   bytesIn.Load(),
-				"bytes_out":  bytesOut.Load(),
-			},
+			Detail:       map[string]any{"session_id": sessionID},
 		})
-	}()
+	} else {
+		sess, err = terminal.FindResumableForAttach(sessionID, userID, "server", serverID, "ssh")
+		if err != nil {
+			_ = writeWSSessionFrame(conn, sessionID)
+			_ = writeWSControl(conn, "error", err.Error())
+			_ = conn.WriteControl(
+				websocket.CloseMessage,
+				websocket.FormatCloseMessage(websocket.ClosePolicyViolation, truncateCloseReason(err.Error())),
+				time.Now().Add(2*time.Second),
+			)
+			return nil
+		}
+	}
 
-	audit.Write(e.App, audit.Entry{
-		UserID:       userID,
-		Action:       "terminal.ssh.connect",
-		ResourceType: "server",
-		ResourceID:   serverID,
-		Status:       audit.StatusSuccess,
-		IP:           ip,
-		Detail:       map[string]any{"session_id": sessionID},
-	})
-
-	done := make(chan struct{})
-
-	go func() {
-		defer close(done)
-		buf := make([]byte, 4096)
-		for {
-			n, err := sess.Read(buf)
-			if err != nil {
-				log.Printf("[server-shell] session read closed serverId=%s sessionId=%s err=%v", serverID, sessionID, err)
-				break
-			}
-			bytesOut.Add(int64(n))
-			if err := conn.WriteMessage(websocket.BinaryMessage, buf[:n]); err != nil {
-				log.Printf("[server-shell] websocket write failed serverId=%s sessionId=%s err=%v", serverID, sessionID, err)
-				break
+	if err := writeWSSessionFrame(conn, sessionID); err != nil {
+		if requestedSessionID == "" {
+			terminal.Close(sessionID)
+		}
+		return nil
+	}
+	if requestedSessionID == "" {
+		if plan, planErr := resolveTerminalExecutionPlanForRequest(e, serverID); planErr == nil {
+			for _, warning := range plan.Warnings {
+				if strings.TrimSpace(warning) == "" {
+					continue
+				}
+				if err := writeWSControl(conn, "warning", warning); err != nil {
+					if requestedSessionID == "" {
+						terminal.Close(sessionID)
+					}
+					return nil
+				}
 			}
 		}
-	}()
+	}
+	if attachErr := terminal.AttachResumable(sessionID, userID, "server", serverID, "ssh", conn); attachErr != nil {
+		if requestedSessionID == "" {
+			terminal.Close(sessionID)
+		}
+		_ = writeWSControl(conn, "error", attachErr.Error())
+		return nil
+	}
 
+	done := make(chan struct{})
 	go func() {
-		defer func() { _ = sess.Close() }() // unblock Read goroutine on client disconnect
+		defer close(done)
 		for {
 			mt, msg, err := conn.ReadMessage()
 			if err != nil {
 				log.Printf("[server-shell] websocket read closed serverId=%s sessionId=%s err=%v", serverID, sessionID, err)
+				if closeErr, ok := err.(*websocket.CloseError); ok && closeErr.Code == websocket.CloseNormalClosure && closeErr.Text == "disconnect" {
+					terminal.Close(sessionID)
+					audit.Write(e.App, audit.Entry{
+						UserID:       userID,
+						Action:       "terminal.ssh.disconnect",
+						ResourceType: "server",
+						ResourceID:   serverID,
+						Status:       audit.StatusSuccess,
+						IP:           ip,
+						Detail: map[string]any{
+							"session_id": sessionID,
+							"started_at": startedAt.Format(time.RFC3339),
+							"ended_at":   time.Now().UTC().Format(time.RFC3339),
+							"bytes_in":   bytesIn.Load(),
+							"bytes_out":  bytesOut.Load(),
+						},
+					})
+				} else {
+					terminal.Detach(sessionID)
+				}
 				break
 			}
 			terminal.Touch(sessionID)
@@ -128,6 +171,7 @@ func handleSSHTerminal(e *core.RequestEvent) error {
 			bytesIn.Add(int64(len(msg)))
 			if _, err := sess.Write(msg); err != nil {
 				log.Printf("[server-shell] session write failed serverId=%s sessionId=%s err=%v", serverID, sessionID, err)
+				terminal.Close(sessionID)
 				break
 			}
 		}
@@ -135,6 +179,13 @@ func handleSSHTerminal(e *core.RequestEvent) error {
 
 	<-done
 	return nil
+}
+
+func writeWSSessionFrame(conn *websocket.Conn, sessionID string) error {
+	ctrl := map[string]string{"type": "session", "session_id": sessionID}
+	data, _ := json.Marshal(ctrl)
+	payload := append([]byte{0x00}, data...)
+	return conn.WriteMessage(websocket.BinaryMessage, payload)
 }
 
 func handleControlFrame(sess terminal.Session, raw []byte) {
@@ -196,114 +247,4 @@ func truncateCloseReason(s string) string {
 		return s
 	}
 	return s[:120] + "..."
-}
-
-// registerLocalTerminalRoutes registers the local-host PTY terminal route.
-// Mounted at /api/terminal by the caller; actual path becomes /api/terminal/local.
-func registerLocalTerminalRoutes(g *router.RouterGroup[*core.RequestEvent]) {
-	g.GET("/local", handleLocalTerminal)
-}
-
-// handleLocalTerminal upgrades the connection to a WebSocket PTY session on the local host.
-//
-// @Summary Local WebSocket terminal
-// @Description Upgrades to a WebSocket PTY session on the local server. Auth via ?token= or Authorization header. Superuser only.
-// @Tags Terminal Local
-// @Security BearerAuth
-// @Success 101 {string} string "WebSocket upgrade"
-// @Failure 401 {object} map[string]any
-// @Router /api/terminal/local [get]
-func handleLocalTerminal(e *core.RequestEvent) error {
-	conn, err := wsUpgrader.Upgrade(e.Response, e.Request, nil)
-	if err != nil {
-		log.Printf("[terminal-local] websocket upgrade failed err=%v", err)
-		return nil
-	}
-	defer conn.Close()
-
-	connector := &terminal.LocalConnector{}
-	sess, err := connector.Connect(e.Request.Context(), terminal.ConnectorConfig{})
-	if err != nil {
-		log.Printf("[terminal-local] local session start failed err=%v", err)
-		closeWSWithError(conn, err)
-		return nil
-	}
-
-	sessionID := uuid.NewString()
-	userID, _, ip, _ := clientInfo(e)
-	startedAt := time.Now().UTC()
-	var bytesOut, bytesIn atomic.Int64
-
-	terminal.Register(sessionID, sess)
-	defer func() {
-		terminal.Unregister(sessionID)
-		_ = sess.Close()
-		audit.Write(e.App, audit.Entry{
-			UserID:       userID,
-			Action:       "terminal.local.disconnect",
-			ResourceType: "system",
-			ResourceID:   "local",
-			Status:       audit.StatusSuccess,
-			IP:           ip,
-			Detail: map[string]any{
-				"session_id": sessionID,
-				"started_at": startedAt.Format(time.RFC3339),
-				"ended_at":   time.Now().UTC().Format(time.RFC3339),
-				"bytes_in":   bytesIn.Load(),
-				"bytes_out":  bytesOut.Load(),
-			},
-		})
-	}()
-
-	audit.Write(e.App, audit.Entry{
-		UserID:       userID,
-		Action:       "terminal.local.connect",
-		ResourceType: "system",
-		ResourceID:   "local",
-		Status:       audit.StatusSuccess,
-		IP:           ip,
-		Detail:       map[string]any{"session_id": sessionID},
-	})
-
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		buf := make([]byte, 4096)
-		for {
-			n, err := sess.Read(buf)
-			if err != nil {
-				log.Printf("[terminal-local] session read closed sessionId=%s err=%v", sessionID, err)
-				break
-			}
-			bytesOut.Add(int64(n))
-			if err := conn.WriteMessage(websocket.BinaryMessage, buf[:n]); err != nil {
-				log.Printf("[terminal-local] websocket write failed sessionId=%s err=%v", sessionID, err)
-				break
-			}
-		}
-	}()
-
-	go func() {
-		defer func() { _ = sess.Close() }()
-		for {
-			mt, msg, err := conn.ReadMessage()
-			if err != nil {
-				log.Printf("[terminal-local] websocket read closed sessionId=%s err=%v", sessionID, err)
-				break
-			}
-			terminal.Touch(sessionID)
-			if mt == websocket.TextMessage || (len(msg) > 0 && msg[0] == 0x00) {
-				handleControlFrame(sess, msg)
-				continue
-			}
-			bytesIn.Add(int64(len(msg)))
-			if _, err := sess.Write(msg); err != nil {
-				log.Printf("[terminal-local] session write failed sessionId=%s err=%v", sessionID, err)
-				break
-			}
-		}
-	}()
-
-	<-done
-	return nil
 }

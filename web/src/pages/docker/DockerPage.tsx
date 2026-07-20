@@ -9,6 +9,7 @@ import {
 import { Server, ChevronDown } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { DockerPanel } from '@/components/connect/DockerPanel'
+import { dockerTargetsPath } from '@/lib/docker-api'
 
 interface HostEntry {
   id: string
@@ -37,7 +38,7 @@ export function DockerPage({ serverFromUrl }: DockerPageProps) {
   }, [hosts, serverFromUrl])
 
   useEffect(() => {
-    pb.send('/api/ext/docker/servers', { method: 'GET' })
+    pb.send(dockerTargetsPath(), { method: 'GET' })
       .then(res => {
         if (Array.isArray(res)) setHosts(res)
       })
@@ -85,7 +86,7 @@ export function DockerPage({ serverFromUrl }: DockerPageProps) {
         </DropdownMenu>
       </div>
 
-      <DockerPanel serverId={serverId} />
+      <DockerPanel serverId={serverId} showWorkspaceHeader={false} />
     </div>
   )
 }

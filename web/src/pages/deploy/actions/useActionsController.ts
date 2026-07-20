@@ -1,16 +1,33 @@
 import { useEffect, useMemo, useState } from 'react'
+import { ClientResponseError } from 'pocketbase'
 import { useNavigate } from '@tanstack/react-router'
 import { getLocale } from '@/lib/i18n'
 import { iacLoadLibraryAppFiles, iacRead } from '@/lib/iac-api'
 import { pb } from '@/lib/pb'
-import { fetchStoreJson } from '@/lib/store-api'
-import { type PrimaryCategory, type Product, type ProductWithCategories } from '@/lib/store-types'
+import {
+  toLegacyPrimaryCategories,
+  toLegacyProducts,
+  type CatalogAppListResponse,
+  type CatalogCategoryTreeResponse,
+} from '@/lib/catalog-api'
+import { dockerTargetsPath } from '@/lib/docker-api'
+import { settingsEntryPath } from '@/lib/settings-api'
+import { type PrimaryCategory, type ProductWithCategories } from '@/lib/store-types'
 import { useUserApps } from '@/lib/store-user-api'
 import { type AppConfigResponse } from '@/pages/apps/types'
-import { buildActionDetailSearch, isActiveStatus } from '@/pages/deploy/actions/action-utils'
+import {
+  actionStatusLabel,
+  buildActionDetailSearch,
+  canCancelAction,
+  canForceFailAction,
+  canResumeAction,
+  isActiveStatus,
+} from '@/pages/deploy/actions/action-utils'
 import type {
   ActiveFilterChip,
+  ActionListResponse,
   ActionRecord,
+  PendingActionControl,
   ActionListSearch,
   CreateDeploymentEntryMode,
   ManualEntryMode,
@@ -20,8 +37,6 @@ import type {
   SortField,
   StoreShortcut,
 } from '@/pages/deploy/actions/action-types'
-
-const STORE_SHORTCUT_COUNT = 15
 
 type UseActionsControllerArgs = {
   prefillMode?: string
@@ -100,6 +115,21 @@ export type SourceBuildPayload = {
   }
 }
 
+export type ExposureIntentPayload = {
+  exposure_type: 'internal_only' | 'port' | 'domain'
+  is_primary?: boolean
+  target_port?: number
+  domain?: string
+  path?: string
+  certificate_id?: string
+  notes?: string
+}
+
+type DeployGitDefaultsValue = {
+  defaultRef?: unknown
+  defaultComposePath?: unknown
+}
+
 type ManualCandidateMetadata = {
   candidate_kind: 'manual-compose' | ManualEntryMode
   prefill_context?: {
@@ -112,7 +142,7 @@ type ManualCandidateMetadata = {
   }
 }
 
-const DEFAULT_SORT_FIELD: SortField = 'started_at'
+const DEFAULT_SORT_FIELD: SortField = 'created'
 const DEFAULT_SORT_DIR: SortDir = 'desc'
 const DEFAULT_PAGE = 1
 const DEFAULT_PAGE_SIZE: 15 | 30 | 60 | 90 = 15
@@ -254,9 +284,7 @@ export function useActionsController({
   const navigate = useNavigate()
   const locale = getLocale()
   const { data: userApps = [] } = useUserApps()
-  const [servers, setServers] = useState<ServerEntry[]>([
-    { id: 'local', label: 'local', host: 'local', status: 'online' },
-  ])
+  const [servers, setServers] = useState<ServerEntry[]>([])
   const [storeShortcuts, setStoreShortcuts] = useState<StoreShortcut[]>([])
   const [storeProducts, setStoreProducts] = useState<ProductWithCategories[]>([])
   const [storePrimaryCategories, setStorePrimaryCategories] = useState<PrimaryCategory[]>([])
@@ -265,6 +293,8 @@ export function useActionsController({
   )
   const [storeDetailOpen, setStoreDetailOpen] = useState(false)
   const [operations, setOperations] = useState<ActionRecord[]>([])
+  const [serverTotalItems, setServerTotalItems] = useState(0)
+  const [serverTotalPages, setServerTotalPages] = useState(1)
   const [createEntryMode, setCreateEntryMode] = useState<CreateDeploymentEntryMode>(
     entryMode || 'compose'
   )
@@ -311,6 +341,10 @@ export function useActionsController({
   const [prefillLoading, setPrefillLoading] = useState(false)
   const [prefillReady, setPrefillReady] = useState('')
   const [pendingDelete, setPendingDelete] = useState<ActionRecord[]>([])
+  const [pendingActionControl, setPendingActionControl] = useState<PendingActionControl | null>(
+    null
+  )
+  const [actionControlSubmitting, setActionControlSubmitting] = useState(false)
   const appFilterId = listSearch?.appId?.trim() || undefined
 
   const manualCandidateMetadata = useMemo(
@@ -340,10 +374,44 @@ export function useActionsController({
   useEffect(() => {
     if (!entryMode) return
     setCreateEntryMode(entryMode)
-    if (entryMode !== 'git-compose') {
+    if (entryMode !== 'git-compose' && entryMode !== 'template') {
       setManualEntryMode(entryMode)
     }
   }, [entryMode])
+
+  useEffect(() => {
+    let cancelled = false
+
+    void pb
+      .send<{ value?: DeployGitDefaultsValue }>(settingsEntryPath('deploy-git-defaults'), {
+        method: 'GET',
+      })
+      .then(response => {
+        if (cancelled) {
+          return
+        }
+        const nextRef =
+          typeof response?.value?.defaultRef === 'string' &&
+          response.value.defaultRef.trim().length > 0
+            ? response.value.defaultRef.trim()
+            : 'main'
+        const nextComposePath =
+          typeof response?.value?.defaultComposePath === 'string' &&
+          response.value.defaultComposePath.trim().length > 0
+            ? response.value.defaultComposePath.trim()
+            : 'docker-compose.yml'
+
+        setGitRef(current => (current.trim() === '' || current === 'main' ? nextRef : current))
+        setGitComposePath(current =>
+          current.trim() === '' || current === 'docker-compose.yml' ? nextComposePath : current
+        )
+      })
+      .catch(() => undefined)
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (view === 'create') return
@@ -380,8 +448,22 @@ export function useActionsController({
 
   useEffect(() => {
     void fetchServers()
-    void fetchOperations()
   }, [])
+
+  useEffect(() => {
+    void fetchOperations()
+  }, [
+    appFilterId,
+    excludeServer,
+    excludeSource,
+    excludeStatus,
+    page,
+    pageSize,
+    search,
+    sortDir,
+    sortField,
+    view,
+  ])
 
   useEffect(() => {
     void fetchStoreShortcuts()
@@ -391,6 +473,11 @@ export function useActionsController({
     let cancelled = false
     async function loadPrefill() {
       if (prefillMode !== 'target' && prefillMode !== 'installed') return
+      if (entryMode === 'template') {
+        setPrefillReady(prefillAppName || prefillAppKey || '')
+        setPrefillLoading(false)
+        return
+      }
       setPrefillLoading(true)
       try {
         let loadedCompose: string | null = null
@@ -483,12 +570,12 @@ export function useActionsController({
 
   const summary = useMemo(
     () => ({
-      total: operations.length,
+      total: view === 'list' ? serverTotalItems : operations.length,
       active: operations.filter(item => isActiveStatus(item.status)).length,
       completed: operations.filter(item => item.status === 'success').length,
       failed: operations.filter(item => item.status === 'failed').length,
     }),
-    [operations]
+    [operations, serverTotalItems, view]
   )
 
   const latestOperations = useMemo(
@@ -550,7 +637,7 @@ export function useActionsController({
     () => ({
       status: Array.from(new Set(operations.map(item => item.status)))
         .sort()
-        .map(value => ({ value, label: value })),
+        .map(value => ({ value, label: actionStatusLabel(value) })),
       source: Array.from(new Set(operations.map(item => item.source)))
         .sort()
         .map(value => ({ value, label: value })),
@@ -565,6 +652,7 @@ export function useActionsController({
   )
 
   const filteredItems = useMemo(() => {
+    if (view === 'list') return operations
     const query = search.trim().toLowerCase()
     return operations.filter(item => {
       if (appFilterId && item.app_id !== appFilterId && item.pipeline?.app_id !== appFilterId)
@@ -586,21 +674,26 @@ export function useActionsController({
         .filter(Boolean)
         .some(value => String(value).toLowerCase().includes(query))
     })
-  }, [appFilterId, operations, excludeServer, excludeSource, excludeStatus, search])
+  }, [appFilterId, operations, excludeServer, excludeSource, excludeStatus, search, view])
 
   const sortedItems = useMemo(() => {
+    if (view === 'list') return filteredItems
     if (!sortField) return filteredItems
     const factor = sortDir === 'asc' ? 1 : -1
     return [...filteredItems].sort(
       (left, right) =>
         String(left[sortField] || '').localeCompare(String(right[sortField] || '')) * factor
     )
-  }, [filteredItems, sortDir, sortField])
+  }, [filteredItems, sortDir, sortField, view])
 
-  const totalPages = Math.max(1, Math.ceil(sortedItems.length / pageSize))
+  const totalPages =
+    view === 'list'
+      ? Math.max(1, serverTotalPages)
+      : Math.max(1, Math.ceil(sortedItems.length / pageSize))
   const pagedItems = useMemo(
-    () => sortedItems.slice((page - 1) * pageSize, page * pageSize),
-    [page, pageSize, sortedItems]
+    () =>
+      view === 'list' ? sortedItems : sortedItems.slice((page - 1) * pageSize, page * pageSize),
+    [page, pageSize, sortedItems, view]
   )
 
   useEffect(() => {
@@ -635,7 +728,7 @@ export function useActionsController({
 
     if (areListSearchEqual(nextSearch, currentSearch)) return
 
-    void navigate({ to: '/actions' as never, search: nextSearch as never, replace: true })
+    void navigate({ to: '/activity' as never, search: nextSearch as never, replace: true })
   }, [
     appFilterId,
     excludeServer,
@@ -659,7 +752,19 @@ export function useActionsController({
       summary.active > 0 ? 3000 : 6000
     )
     return () => window.clearInterval(timer)
-  }, [summary.active])
+  }, [
+    summary.active,
+    appFilterId,
+    excludeServer,
+    excludeSource,
+    excludeStatus,
+    page,
+    pageSize,
+    search,
+    sortDir,
+    sortField,
+    view,
+  ])
 
   useEffect(() => {
     setSelectedIds(current => {
@@ -671,24 +776,39 @@ export function useActionsController({
 
   async function fetchServers() {
     try {
-      const response = await pb.send<ServerEntry[]>('/api/ext/docker/servers', { method: 'GET' })
-      if (Array.isArray(response) && response.length > 0) {
-        setServers(response)
-        setServerId(current =>
-          current && response.some(item => item.id === current) ? current : ''
-        )
-      }
+      const response = await pb.send<ServerEntry[]>(dockerTargetsPath(), { method: 'GET' })
+      const nextServers = Array.isArray(response) ? response : []
+      setServers(nextServers)
+      setServerId(current =>
+        current && nextServers.some(item => item.id === current)
+          ? current
+          : nextServers.length === 1
+            ? nextServers[0].id
+            : ''
+      )
     } catch {
-      // Keep local fallback.
+      setServers([])
+      setServerId('')
     }
   }
 
   async function fetchStoreShortcuts() {
     try {
-      const [products, categories] = await Promise.all([
-        fetchStoreJson<Product[]>(locale, 'product'),
-        fetchStoreJson<PrimaryCategory[]>(locale, 'catalog'),
+      const [appsResponse, categoriesResponse] = await Promise.all([
+        pb.send(
+          '/api/catalog/apps?locale=' +
+            encodeURIComponent(locale) +
+            '&source=official&limit=1000&offset=0',
+          {
+            method: 'GET',
+          }
+        ) as Promise<CatalogAppListResponse>,
+        pb.send('/api/catalog/categories?locale=' + encodeURIComponent(locale), {
+          method: 'GET',
+        }) as Promise<CatalogCategoryTreeResponse>,
       ])
+      const products = toLegacyProducts(appsResponse)
+      const categories = toLegacyPrimaryCategories(categoriesResponse)
       const uniqueProducts = Array.from(new Map(products.map(item => [item.key, item])).values())
       const favoriteOrder = new Map(
         userApps
@@ -715,7 +835,7 @@ export function useActionsController({
       setStoreProducts(detailedProducts)
       setStorePrimaryCategories(categories)
       setStoreShortcuts(
-        detailedProducts.slice(0, STORE_SHORTCUT_COUNT).map(item => ({
+        detailedProducts.map(item => ({
           key: item.key,
           trademark: item.trademark,
           logo: item.logo,
@@ -730,8 +850,41 @@ export function useActionsController({
 
   async function fetchOperations() {
     try {
-      const response = await pb.send<ActionRecord[]>('/api/actions', { method: 'GET' })
-      setOperations(Array.isArray(response) ? response : [])
+      if (view === 'list') {
+        const params = new URLSearchParams()
+        params.set('page', String(page))
+        params.set('perPage', String(pageSize))
+        if (appFilterId) params.set('appId', appFilterId)
+        if (search.trim()) params.set('q', search.trim())
+        if (sortField) params.set('sortField', sortField)
+        if (sortDir) params.set('sortDir', sortDir)
+        if (excludeStatus.size > 0) {
+          params.set('excludeStatus', Array.from(excludeStatus).sort().join(','))
+        }
+        if (excludeSource.size > 0) {
+          params.set('excludeSource', Array.from(excludeSource).sort().join(','))
+        }
+        if (excludeServer.size > 0) {
+          params.set('excludeServer', Array.from(excludeServer).sort().join(','))
+        }
+
+        const response = await pb.send<ActionListResponse>(`/api/actions?${params.toString()}`, {
+          method: 'GET',
+        })
+        setOperations(Array.isArray(response?.items) ? response.items : [])
+        if (Number.isFinite(response?.page) && response.page > 0 && response.page !== page) {
+          setPage(response.page)
+        }
+        setServerTotalItems(Number.isFinite(response?.totalItems) ? response.totalItems : 0)
+        setServerTotalPages(
+          Number.isFinite(response?.totalPages) && response.totalPages > 0 ? response.totalPages : 1
+        )
+      } else {
+        const response = await pb.send<ActionRecord[]>('/api/actions', { method: 'GET' })
+        setOperations(Array.isArray(response) ? response : [])
+        setServerTotalItems(Array.isArray(response) ? response.length : 0)
+        setServerTotalPages(1)
+      }
     } catch (err) {
       showNotice('destructive', err instanceof Error ? err.message : 'Failed to load actions')
     } finally {
@@ -773,7 +926,7 @@ export function useActionsController({
     void navigate({
       to: '/deploy/create',
       search: {
-        entry: 'compose',
+        entry: 'template',
         prefillMode: 'target',
         prefillSource: 'library',
         prefillAppId: undefined,
@@ -786,7 +939,7 @@ export function useActionsController({
 
   function selectCreateEntryMode(mode: CreateDeploymentEntryMode) {
     setCreateEntryMode(mode)
-    if (mode === 'git-compose') return
+    if (mode === 'git-compose' || mode === 'template') return
     setManualEntryMode(mode)
   }
 
@@ -825,7 +978,7 @@ export function useActionsController({
       nextListSearch && Object.keys(nextListSearch).length > 0 ? nextListSearch : undefined
     const detailSearch = buildActionDetailSearch(currentListSearch, true)
     void navigate({
-      to: '/actions/$actionId' as never,
+      to: '/activity/$actionId' as never,
       params: { actionId: id } as never,
       search: detailSearch as never,
     })
@@ -833,13 +986,14 @@ export function useActionsController({
 
   function openLatestOperationDetail(id: string) {
     void navigate({
-      to: '/actions/$actionId' as never,
+      to: '/activity/$actionId' as never,
       params: { actionId: id } as never,
       search: { returnTo: 'list' } as never,
     })
   }
 
   function getServerLabel(item: ActionRecord): string {
+    if (item.server_name) return item.server_name
     if (item.server_label) return item.server_label
     if (item.server_id && serverMap.has(item.server_id))
       return serverMap.get(item.server_id)?.label || item.server_id
@@ -857,9 +1011,46 @@ export function useActionsController({
     return item.user_email || item.user_id || '-'
   }
 
+  function maybeOpenConflictForceFail(err: unknown, continuation: () => Promise<void>): boolean {
+    if (!(err instanceof ClientResponseError)) return false
+    const payload = err.response as
+      | {
+          active_operation?: {
+            id?: string
+            status?: string
+            action?: string
+            phase?: string
+            project?: string
+          }
+        }
+      | undefined
+    const active = payload?.active_operation
+    if (!active?.id) return false
+
+    setPendingActionControl({
+      kind: 'force-fail',
+      action: {
+        id: active.id,
+        server_id: '',
+        source: '',
+        status: active.status || 'executing',
+        adapter: '',
+        compose_project_name: active.project || active.id,
+        project_dir: '',
+        rendered_compose: '',
+        error_summary: '',
+        created: '',
+        updated: '',
+      },
+      continuation,
+    })
+    return true
+  }
+
   async function submitManualOperation(
     runtimeInputs?: RuntimeInputsPayload,
-    sourceBuild?: SourceBuildPayload
+    sourceBuild?: SourceBuildPayload,
+    exposureIntent?: ExposureIntentPayload
   ) {
     setSubmitting(true)
     setNotice(null)
@@ -873,6 +1064,7 @@ export function useActionsController({
           env: Object.fromEntries(
             envVars.filter(e => e.key.trim()).map(e => [e.key.trim(), e.value])
           ),
+          exposure: exposureIntent,
           metadata: manualCandidateMetadata,
           runtime_inputs: runtimeInputs,
           source_build: sourceBuild,
@@ -883,6 +1075,13 @@ export function useActionsController({
       await fetchOperations()
       openOperationDetail(created.id)
     } catch (err) {
+      if (
+        maybeOpenConflictForceFail(err, () =>
+          submitManualOperation(runtimeInputs, sourceBuild, exposureIntent)
+        )
+      ) {
+        return
+      }
       showNotice('destructive', err instanceof Error ? err.message : 'Failed to create action')
     } finally {
       setSubmitting(false)
@@ -893,6 +1092,7 @@ export function useActionsController({
     silentNotice?: boolean
     runtimeInputs?: RuntimeInputsPayload
     sourceBuild?: SourceBuildPayload
+    exposureIntent?: ExposureIntentPayload
   }): Promise<InstallPreflightResult | null> {
     setChecking(true)
     setNotice(null)
@@ -908,6 +1108,7 @@ export function useActionsController({
             env: Object.fromEntries(
               envVars.filter(e => e.key.trim()).map(e => [e.key.trim(), e.value])
             ),
+            exposure: options?.exposureIntent,
             metadata: manualCandidateMetadata,
             runtime_inputs: options?.runtimeInputs,
             source_build: options?.sourceBuild,
@@ -930,7 +1131,7 @@ export function useActionsController({
     }
   }
 
-  async function submitGitOperation() {
+  async function submitGitOperation(exposureIntent?: ExposureIntentPayload) {
     setGitSubmitting(true)
     setNotice(null)
     try {
@@ -944,6 +1145,7 @@ export function useActionsController({
           compose_path: gitComposePath,
           auth_header_name: gitAuthHeaderValue.trim() ? gitAuthHeaderName : '',
           auth_header_value: gitAuthHeaderValue,
+          exposure: exposureIntent,
           app_required_disk_gib: appRequiredDiskGiB,
         },
       })
@@ -954,14 +1156,94 @@ export function useActionsController({
       await fetchOperations()
       openOperationDetail(created.id)
     } catch (err) {
+      if (maybeOpenConflictForceFail(err, () => submitGitOperation(exposureIntent))) {
+        return
+      }
       showNotice('destructive', err instanceof Error ? err.message : 'Failed to create git action')
     } finally {
       setGitSubmitting(false)
     }
   }
 
+  async function submitTemplateOperation(
+    templateKey: string,
+    inputValues: Record<string, unknown>,
+    exposureIntent?: ExposureIntentPayload
+  ) {
+    setSubmitting(true)
+    setNotice(null)
+    try {
+      const created = await pb.send<ActionRecord>('/api/actions/install/template', {
+        method: 'POST',
+        body: {
+          server_id: serverId,
+          project_name: projectName,
+          template_key: templateKey,
+          input_values: inputValues,
+          exposure: exposureIntent,
+          app_required_disk_gib: appRequiredDiskGiB,
+        },
+      })
+      showNotice(
+        'default',
+        `Action ${created.compose_project_name || created.id} created from template`
+      )
+      await fetchOperations()
+      openOperationDetail(created.id)
+    } catch (err) {
+      if (
+        maybeOpenConflictForceFail(err, () =>
+          submitTemplateOperation(templateKey, inputValues, exposureIntent)
+        )
+      ) {
+        return
+      }
+      showNotice(
+        'destructive',
+        err instanceof Error ? err.message : 'Failed to create template action'
+      )
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function checkTemplateOperation(
+    templateKey: string,
+    inputValues: Record<string, unknown>,
+    options?: { silentNotice?: boolean; exposureIntent?: ExposureIntentPayload }
+  ): Promise<InstallPreflightResult | null> {
+    setChecking(true)
+    setNotice(null)
+    try {
+      const result = await pb.send<InstallPreflightResult>('/api/actions/install/template/check', {
+        method: 'POST',
+        body: {
+          server_id: serverId,
+          project_name: projectName,
+          template_key: templateKey,
+          input_values: inputValues,
+          exposure: options?.exposureIntent,
+          app_required_disk_gib: appRequiredDiskGiB,
+        },
+      })
+      setCheckResult(result)
+      if (!options?.silentNotice) {
+        showNotice(result.ok ? 'default' : 'destructive', result.message)
+      }
+      return result
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to run template preflight check'
+      setCheckResult(null)
+      showNotice('destructive', message)
+      return null
+    } finally {
+      setChecking(false)
+    }
+  }
+
   async function checkGitOperation(options?: {
     silentNotice?: boolean
+    exposureIntent?: ExposureIntentPayload
   }): Promise<InstallPreflightResult | null> {
     setGitChecking(true)
     setNotice(null)
@@ -978,6 +1260,7 @@ export function useActionsController({
             compose_path: gitComposePath,
             auth_header_name: gitAuthHeaderValue.trim() ? gitAuthHeaderName : '',
             auth_header_value: gitAuthHeaderValue,
+            exposure: options?.exposureIntent,
             app_required_disk_gib: appRequiredDiskGiB,
           },
         }
@@ -1017,6 +1300,45 @@ export function useActionsController({
       setPendingDelete([])
     } catch (err) {
       showNotice('destructive', err instanceof Error ? err.message : 'Failed to delete actions')
+    }
+  }
+
+  function openActionControl(action: ActionRecord, kind: PendingActionControl['kind']) {
+    setPendingActionControl({ action, kind })
+  }
+
+  async function submitActionControl(pending: PendingActionControl) {
+    const endpoint =
+      pending.kind === 'cancel' ? 'cancel' : pending.kind === 'resume' ? 'resume' : 'force-fail'
+    const successLabel =
+      pending.kind === 'cancel'
+        ? 'cancelled'
+        : pending.kind === 'resume'
+          ? 'resumed'
+          : 'force-failed'
+    setActionControlSubmitting(true)
+    setNotice(null)
+    try {
+      await pb.send(`/api/actions/${pending.action.id}/${endpoint}`, { method: 'POST' })
+      await fetchOperations()
+      if (pending.kind === 'force-fail' && pending.continuation) {
+        await pending.continuation()
+        return
+      }
+      showNotice(
+        'default',
+        `Action ${pending.action.compose_project_name || pending.action.id} ${successLabel}`
+      )
+      setPendingActionControl(null)
+    } catch (err) {
+      showNotice(
+        'destructive',
+        err instanceof Error
+          ? err.message
+          : `Failed to ${pending.kind === 'cancel' ? 'cancel' : pending.kind === 'resume' ? 'resume' : 'force-fail'} action`
+      )
+    } finally {
+      setActionControlSubmitting(false)
     }
   }
 
@@ -1079,7 +1401,7 @@ export function useActionsController({
   function removeFilterChip(chipKey: string) {
     if (chipKey === 'app') {
       void navigate({
-        to: '/actions' as never,
+        to: '/activity' as never,
         search: buildListSearchState({
           search,
           sortField,
@@ -1132,7 +1454,7 @@ export function useActionsController({
 
   function clearAllFilters() {
     if (appFilterId && view === 'list') {
-      void navigate({ to: '/actions' as never, search: {} as never, replace: true })
+      void navigate({ to: '/activity' as never, search: {} as never, replace: true })
     }
     setSearch('')
     setExcludeStatus(new Set())
@@ -1221,6 +1543,9 @@ export function useActionsController({
     gitSubmitting,
     pendingDelete,
     setPendingDelete,
+    pendingActionControl,
+    setPendingActionControl,
+    actionControlSubmitting,
     handleSort,
     toggleOperationSelection,
     togglePageSelection: (checked: boolean) =>
@@ -1243,9 +1568,16 @@ export function useActionsController({
     getServerHost,
     checkManualOperation,
     checkGitOperation,
+    checkTemplateOperation,
     submitManualOperation,
     submitGitOperation,
+    submitTemplateOperation,
     deleteOperations,
+    openActionControl,
+    submitActionControl,
+    canCancelAction,
+    canForceFailAction,
+    canResumeAction,
     fetchOperations,
   }
 }

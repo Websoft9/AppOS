@@ -2,10 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import {
   Server,
-  Cloud,
-  Database,
-  Globe,
-  LayoutDashboard,
   ArrowRight,
   Loader2,
   AlertCircle,
@@ -13,15 +9,22 @@ import {
   CheckCircle2,
   Clock,
   Plus,
-  PanelLeft,
-  PanelLeftClose,
+  LogOut,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { listServers, checkServerStatus, type Server as ServerType } from '@/lib/connect-api'
-import { loadConnectSession } from '@/lib/connect-session'
+import { loadConnectWorkspaceSnapshot, type RestoreWorkspaceSession } from '@/lib/connect-session'
+import {
+  listServers,
+  listTerminalSessions,
+  deleteTerminalSession,
+  checkServerStatus,
+  getConnectTerminalSettings,
+  type ConnectTerminalSettings,
+  type Server as ServerType,
+  type TerminalSessionSummary,
+} from '@/lib/connect-api'
 import {
   Dialog,
   DialogContent,
@@ -31,49 +34,39 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 
-// ─── Tab definitions ──────────────────────────────────────────────────────────
-
-type TabId = 'overview' | 'servers' | 'cloud' | 'databases' | 'apis'
-
-interface Tab {
-  id: TabId
-  label: string
-  icon: React.ReactNode
-  available: boolean
+const DEFAULT_CONNECT_SETTINGS: ConnectTerminalSettings = {
+  idleTimeoutSeconds: 1800,
+  maxConnections: 0,
 }
 
-const TABS: Tab[] = [
-  {
-    id: 'overview',
-    label: 'Overview',
-    icon: <LayoutDashboard className="h-4 w-4" />,
-    available: true,
-  },
-  {
-    id: 'servers',
-    label: 'Servers',
-    icon: <Server className="h-4 w-4" />,
-    available: true,
-  },
-  {
-    id: 'cloud',
-    label: 'Cloud',
-    icon: <Cloud className="h-4 w-4" />,
-    available: false,
-  },
-  {
-    id: 'databases',
-    label: 'Databases',
-    icon: <Database className="h-4 w-4" />,
-    available: false,
-  },
-  {
-    id: 'apis',
-    label: 'APIs',
-    icon: <Globe className="h-4 w-4" />,
-    available: false,
-  },
-]
+type RestoreWorkspaceItem = RestoreWorkspaceSession & {
+  lastActiveAt: number
+}
+
+function getSessionCountLabel(count: number) {
+  return count === 1 ? '1 session' : `${count} sessions`
+}
+
+function isSessionIdle(updatedAt: number | null, idleTimeoutSeconds: number) {
+  if (updatedAt == null) return false
+  const timeoutMs = Math.max(60, idleTimeoutSeconds) * 1000
+  return Date.now() - updatedAt >= timeoutMs
+}
+
+function getSessionUpdatedAt(session: TerminalSessionSummary): number | null {
+  const ts = Date.parse(session.last_active_at)
+  return Number.isFinite(ts) ? ts : null
+}
+
+function isServerOnline(server: ServerType) {
+  const connectType = String(server.connect_type ?? 'direct')
+    .trim()
+    .toLowerCase()
+  if (connectType === 'tunnel') {
+    return String(server.tunnel_status ?? '') === 'online'
+  }
+  return String(server.access_status ?? '') === 'available'
+}
 
 // ─── Connecting dialog ────────────────────────────────────────────────────────
 
@@ -130,11 +123,20 @@ function ConnectingDialog({ open, onOpenChange, target, phase, detail }: Connect
 interface ServerCardProps {
   server: ServerType
   isConnected?: boolean
+  isIdle?: boolean
   lastSessionMin?: number
+  sessionCount?: number
   onConnect: (server: ServerType) => void
 }
 
-function ServerCard({ server, isConnected, lastSessionMin, onConnect }: ServerCardProps) {
+function ServerCard({
+  server,
+  isConnected,
+  isIdle,
+  lastSessionMin,
+  sessionCount,
+  onConnect,
+}: ServerCardProps) {
   return (
     <div className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/30 transition-colors group">
       <div className="flex items-center gap-3 min-w-0">
@@ -145,20 +147,36 @@ function ServerCard({ server, isConnected, lastSessionMin, onConnect }: ServerCa
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium truncate">{server.name || server.host}</span>
             {isConnected && (
-              <Badge variant="secondary" className="text-xs h-4 px-1.5 shrink-0">
-                <CheckCircle2 className="h-2.5 w-2.5 mr-1 text-green-500" />
-                Connected
-              </Badge>
+              <>
+                <Badge
+                  variant={isIdle ? 'outline' : 'secondary'}
+                  className={cn(
+                    'text-xs h-4 px-1.5 shrink-0',
+                    isIdle ? 'border-amber-200 text-amber-700 bg-amber-50' : undefined
+                  )}
+                >
+                  <CheckCircle2 className="h-2.5 w-2.5 mr-1 text-green-500" />
+                  {isIdle ? 'Idle' : 'Connected'}
+                </Badge>
+                {sessionCount != null && sessionCount > 1 && (
+                  <Badge variant="outline" className="text-xs h-4 px-1.5 shrink-0">
+                    {getSessionCountLabel(sessionCount)}
+                  </Badge>
+                )}
+              </>
             )}
           </div>
           <div className="flex items-center gap-2 mt-0.5">
             {server.name && (
               <span className="text-xs text-muted-foreground truncate">{server.host}</span>
             )}
+            {isConnected && sessionCount != null && sessionCount === 1 && (
+              <span className="text-xs text-muted-foreground truncate">1 active session</span>
+            )}
             {lastSessionMin != null && (
               <span className="text-xs text-muted-foreground flex items-center gap-1">
                 <Clock className="h-2.5 w-2.5" />
-                {lastSessionMin} min ago
+                Last active {lastSessionMin} min ago
               </span>
             )}
           </div>
@@ -166,163 +184,100 @@ function ServerCard({ server, isConnected, lastSessionMin, onConnect }: ServerCa
       </div>
       <Button
         size="sm"
-        variant={isConnected ? 'default' : 'outline'}
+        variant="outline"
         className="shrink-0 ml-2 opacity-0 group-hover:opacity-100 transition-opacity"
         onClick={() => onConnect(server)}
       >
-        {isConnected ? 'Resume' : 'Connect'}
+        Open Terminal
         <ArrowRight className="h-3.5 w-3.5 ml-1" />
       </Button>
     </div>
   )
 }
 
-// ─── Coming soon panel ────────────────────────────────────────────────────────
-
-function ComingSoonPanel({ label, icon }: { label: string; icon: React.ReactNode }) {
-  return (
-    <div className="h-full flex flex-col items-center justify-center gap-4 text-center p-8">
-      <div className="h-14 w-14 rounded-2xl bg-muted flex items-center justify-center text-muted-foreground">
-        {icon}
-      </div>
-      <div className="space-y-1">
-        <h3 className="text-base font-semibold">{label} Support</h3>
-        <p className="text-sm text-muted-foreground max-w-xs">
-          Connect to {label.toLowerCase()} resources directly from the Terminal.
-          <br />
-          This feature is coming soon.
-        </p>
-      </div>
-      <Badge variant="outline" className="text-xs">
-        Coming Soon
-      </Badge>
-    </div>
-  )
-}
-
-// ─── Overview panel ───────────────────────────────────────────────────────────
-
-interface OverviewPanelProps {
-  servers: ServerType[]
-  loading: boolean
-  sessionServerIds: Set<string>
-  sessionUpdatedAt: number | null
+interface ActiveSessionCardProps {
+  session: TerminalSessionSummary
+  server: ServerType
+  idleTimeoutSeconds: number
   nowTs: number
-  onConnect: (server: ServerType) => void
-  onTabChange: (tab: TabId) => void
+  isClosing: boolean
+  sessionCount: number
+  onResume: (session: TerminalSessionSummary, server: ServerType) => void
+  onExit: (session: TerminalSessionSummary) => void
 }
 
-function OverviewPanel({
-  servers,
-  loading,
-  sessionServerIds,
-  sessionUpdatedAt,
+function ActiveSessionCard({
+  session,
+  server,
+  idleTimeoutSeconds,
   nowTs,
-  onConnect,
-  onTabChange,
-}: OverviewPanelProps) {
-  const connectedServers = servers.filter(s => sessionServerIds.has(s.id))
-
+  isClosing,
+  sessionCount,
+  onResume,
+  onExit,
+}: ActiveSessionCardProps) {
+  const updatedAt = getSessionUpdatedAt(session)
+  const idle = isSessionIdle(updatedAt, idleTimeoutSeconds)
   const sessionMinAgo =
-    sessionUpdatedAt != null ? Math.max(1, Math.floor((nowTs - sessionUpdatedAt) / 60000)) : null
+    updatedAt != null ? Math.max(1, Math.floor((nowTs - updatedAt) / 60000)) : null
 
   return (
-    <div className="h-full overflow-y-auto p-6 space-y-6">
-      {/* Capability cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          {
-            id: 'servers' as TabId,
-            icon: <Server className="h-5 w-5" />,
-            label: 'Servers',
-            desc: 'SSH terminal · SFTP · Docker',
-            available: true,
-          },
-          {
-            id: 'cloud' as TabId,
-            icon: <Cloud className="h-5 w-5" />,
-            label: 'Cloud',
-            desc: 'AWS · GCP · Azure shells',
-            available: false,
-          },
-          {
-            id: 'databases' as TabId,
-            icon: <Database className="h-5 w-5" />,
-            label: 'Databases',
-            desc: 'SQL & NoSQL clients',
-            available: false,
-          },
-          {
-            id: 'apis' as TabId,
-            icon: <Globe className="h-5 w-5" />,
-            label: 'APIs',
-            desc: 'REST & GraphQL explorer',
-            available: false,
-          },
-        ].map(cap => (
-          <button
-            key={cap.id}
-            onClick={() => cap.available && onTabChange(cap.id)}
-            className={cn(
-              'flex flex-col items-start gap-2 p-3 rounded-lg border text-left transition-colors',
-              cap.available ? 'hover:bg-accent/50 cursor-pointer' : 'opacity-60 cursor-default'
-            )}
-          >
-            <div className="h-8 w-8 rounded-md bg-muted flex items-center justify-center text-muted-foreground">
-              {cap.icon}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">{cap.label}</span>
-                {!cap.available && (
-                  <Badge variant="outline" className="text-[10px] h-3.5 px-1">
-                    Soon
-                  </Badge>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground mt-0.5">{cap.desc}</p>
-            </div>
-          </button>
-        ))}
-      </div>
-
-      {/* Connected Resources */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold">Connected Resources</h3>
-          {sessionMinAgo != null && (
-            <span className="text-xs text-muted-foreground flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              Last active {sessionMinAgo} min ago
-            </span>
-          )}
+    <div className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/30 transition-colors group">
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+          <Server className="h-4 w-4 text-primary" />
         </div>
-
-        {loading ? (
-          <div className="flex justify-center py-6">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-medium truncate">{server.name || server.host}</span>
+            <Badge
+              variant={idle ? 'outline' : 'secondary'}
+              className={cn(
+                'text-xs h-4 px-1.5 shrink-0',
+                idle ? 'border-amber-200 text-amber-700 bg-amber-50' : undefined
+              )}
+            >
+              <CheckCircle2 className="h-2.5 w-2.5 mr-1 text-green-500" />
+              {idle ? 'Idle' : 'Connected'}
+            </Badge>
+            <Badge variant="outline" className="text-xs h-4 px-1.5 shrink-0">
+              {session.state === 'attached' ? 'Live' : 'Detached'}
+            </Badge>
+            {sessionCount > 1 && (
+              <Badge variant="outline" className="text-xs h-4 px-1.5 shrink-0">
+                {getSessionCountLabel(sessionCount)}
+              </Badge>
+            )}
           </div>
-        ) : connectedServers.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-6 text-center space-y-2">
-            <p className="text-sm text-muted-foreground">No active connections</p>
-            <Button size="sm" variant="outline" onClick={() => onTabChange('servers')}>
-              <Plus className="h-3.5 w-3.5 mr-1.5" />
-              Connect to a server
-            </Button>
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            {server.name && (
+              <span className="text-xs text-muted-foreground truncate">{server.host}</span>
+            )}
+            <span className="text-xs font-mono text-muted-foreground">
+              {session.id.slice(0, 8)}
+            </span>
+            {sessionMinAgo != null && (
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <Clock className="h-2.5 w-2.5" />
+                Last active {sessionMinAgo} min ago
+              </span>
+            )}
           </div>
-        ) : (
-          <div className="space-y-2">
-            {connectedServers.map(server => (
-              <ServerCard
-                key={server.id}
-                server={server}
-                isConnected
-                lastSessionMin={sessionMinAgo ?? undefined}
-                onConnect={onConnect}
-              />
-            ))}
-          </div>
-        )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <Button size="sm" variant="outline" onClick={() => onExit(session)} disabled={isClosing}>
+          {isClosing ? (
+            <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+          ) : (
+            <LogOut className="h-3.5 w-3.5 mr-1" />
+          )}
+          Exit
+        </Button>
+        <Button size="sm" variant="default" onClick={() => onResume(session, server)}>
+          Resume
+          <ArrowRight className="h-3.5 w-3.5 ml-1" />
+        </Button>
       </div>
     </div>
   )
@@ -335,10 +290,16 @@ interface ServersPanelProps {
   loading: boolean
   error: string | null
   onRetry: () => void
-  sessionServerIds: Set<string>
+  sessionItems: TerminalSessionSummary[]
+  sessionCounts: Map<string, number>
   sessionUpdatedAt: number | null
+  idleTimeoutSeconds: number
   nowTs: number
   onConnect: (server: ServerType) => void
+  onRestoreWorkspace: () => void
+  onResumeSession: (session: TerminalSessionSummary, server: ServerType) => void
+  onExitSession: (session: TerminalSessionSummary) => void
+  closingSessionId: string | null
 }
 
 function ServersPanel({
@@ -346,13 +307,32 @@ function ServersPanel({
   loading,
   error,
   onRetry,
-  sessionServerIds,
+  sessionItems,
+  sessionCounts,
   sessionUpdatedAt,
+  idleTimeoutSeconds,
   nowTs,
   onConnect,
+  onRestoreWorkspace,
+  onResumeSession,
+  onExitSession,
+  closingSessionId,
 }: ServersPanelProps) {
-  const connectedServers = servers.filter(s => sessionServerIds.has(s.id))
-  const availableServers = servers.filter(s => !sessionServerIds.has(s.id))
+  const onlineServers = servers.filter(s => s.is_enabled !== false).filter(isServerOnline)
+  const serverById = new Map(servers.map(server => [server.id, server]))
+  const latestSessionByServer = sessionItems.reduce((sessions, session) => {
+    if (!sessions.has(session.resource_id)) {
+      sessions.set(session.resource_id, session)
+    }
+    return sessions
+  }, new Map<string, TerminalSessionSummary>())
+  const activeSessions = sessionItems
+    .map(session => ({ session, server: serverById.get(session.resource_id) }))
+    .filter(
+      (entry): entry is { session: TerminalSessionSummary; server: ServerType } =>
+        entry.server != null
+    )
+  const idle = isSessionIdle(sessionUpdatedAt, idleTimeoutSeconds)
 
   const sessionMinAgo =
     sessionUpdatedAt != null ? Math.max(1, Math.floor((nowTs - sessionUpdatedAt) / 60000)) : null
@@ -381,78 +361,121 @@ function ServersPanel({
   }
 
   return (
-    <div className="h-full overflow-y-auto p-6 space-y-6">
-      {/* Active sessions */}
-      {connectedServers.length > 0 && (
-        <div className="space-y-2">
+    <div className="h-full overflow-y-auto pt-6 xl:overflow-hidden">
+      <div className="grid gap-6 xl:h-full xl:min-h-0 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <section className="space-y-2 min-w-0 xl:flex xl:min-h-0 xl:flex-col">
           <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold">
+              Available Servers
+              {onlineServers.length > 0 && (
+                <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                  ({onlineServers.length})
+                </span>
+              )}
+            </h3>
+          </div>
+
+          <div className="xl:flex-1 xl:min-h-0 xl:overflow-y-auto xl:pr-1">
+            {servers.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-8 text-center space-y-2">
+                <Server className="h-8 w-8 mx-auto text-muted-foreground" />
+                <p className="text-sm font-medium">No servers configured</p>
+                <p className="text-xs text-muted-foreground">
+                  Add a server in Resources to get started
+                </p>
+              </div>
+            ) : onlineServers.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-8 text-center space-y-2">
+                <Server className="h-8 w-8 mx-auto text-muted-foreground" />
+                <p className="text-sm font-medium">No online servers</p>
+                <p className="text-xs text-muted-foreground">
+                  Only servers that are currently online are shown here.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {onlineServers.map(server => {
+                  const latestSession = latestSessionByServer.get(server.id)
+                  const lastSessionUpdatedAt = latestSession
+                    ? getSessionUpdatedAt(latestSession)
+                    : null
+                  const lastSessionMin =
+                    lastSessionUpdatedAt != null
+                      ? Math.max(1, Math.floor((nowTs - lastSessionUpdatedAt) / 60000))
+                      : undefined
+
+                  return (
+                    <ServerCard
+                      key={server.id}
+                      server={server}
+                      isConnected={sessionCounts.has(server.id)}
+                      isIdle={
+                        latestSession
+                          ? isSessionIdle(lastSessionUpdatedAt, idleTimeoutSeconds)
+                          : false
+                      }
+                      lastSessionMin={lastSessionMin}
+                      sessionCount={sessionCounts.get(server.id)}
+                      onConnect={onConnect}
+                    />
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="space-y-2 min-w-0 xl:flex xl:min-h-0 xl:flex-col">
+          <div className="flex items-center justify-between gap-3">
             <h3 className="text-sm font-semibold">Active Sessions</h3>
-            {sessionMinAgo != null && (
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                {sessionMinAgo} min ago
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {activeSessions.length > 0 && (
+                <Button size="sm" variant="outline" onClick={onRestoreWorkspace}>
+                  Restore Workspace
+                </Button>
+              )}
+              {idle && (
+                <Badge variant="outline" className="text-[10px] border-amber-200 text-amber-700">
+                  Idle session
+                </Badge>
+              )}
+              {sessionMinAgo != null && (
+                <span className="text-xs text-muted-foreground flex items-center gap-1 whitespace-nowrap">
+                  <Clock className="h-3 w-3" />
+                  Last active {sessionMinAgo} min ago
+                </span>
+              )}
+            </div>
           </div>
-          <div className="space-y-2">
-            {connectedServers.map(s => (
-              <ServerCard
-                key={s.id}
-                server={s}
-                isConnected
-                lastSessionMin={sessionMinAgo ?? undefined}
-                onConnect={onConnect}
-              />
-            ))}
-          </div>
-        </div>
-      )}
 
-      {/* Available servers */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold">
-            Available Servers
-            {servers.length > 0 && (
-              <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                ({servers.length})
-              </span>
-            )}
-          </h3>
-          <Button size="sm" variant="outline" asChild>
-            <a href="/resources/servers?create=1">
-              <Plus className="h-3.5 w-3.5 mr-1" />
-              Add Server
-            </a>
-          </Button>
-        </div>
-
-        {servers.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-8 text-center space-y-2">
-            <Server className="h-8 w-8 mx-auto text-muted-foreground" />
-            <p className="text-sm font-medium">No servers configured</p>
-            <p className="text-xs text-muted-foreground">
-              Add a server in Resources to get started
-            </p>
-            <Button size="sm" variant="outline" asChild className="mt-2">
-              <a href="/resources/servers?create=1">
-                <Plus className="h-3.5 w-3.5 mr-1" />
-                Add Server
-              </a>
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {availableServers.map(s => (
-              <ServerCard key={s.id} server={s} onConnect={onConnect} />
-            ))}
-            {availableServers.length === 0 && connectedServers.length > 0 && (
-              <p className="text-xs text-muted-foreground text-center py-3">
-                All configured servers have active sessions
-              </p>
+          <div className="xl:flex-1 xl:min-h-0 xl:overflow-y-auto xl:pr-1">
+            {activeSessions.length > 0 ? (
+              <div className="space-y-2">
+                {activeSessions.map(({ session, server }) => (
+                  <ActiveSessionCard
+                    key={session.id}
+                    session={session}
+                    server={server}
+                    idleTimeoutSeconds={idleTimeoutSeconds}
+                    nowTs={nowTs}
+                    isClosing={closingSessionId === session.id}
+                    sessionCount={sessionCounts.get(server.id) ?? 1}
+                    onResume={onResumeSession}
+                    onExit={onExitSession}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed p-8 text-center space-y-2">
+                <Clock className="h-8 w-8 mx-auto text-muted-foreground" />
+                <p className="text-sm font-medium">No active sessions</p>
+                <p className="text-xs text-muted-foreground">
+                  Open a server terminal to keep a resumable session here.
+                </p>
+              </div>
             )}
           </div>
-        )}
+        </section>
       </div>
     </div>
   )
@@ -463,19 +486,15 @@ function ServersPanel({
 const CONNECT_MIN_FEEDBACK_MS = 2000
 
 export function TerminalIndexPage() {
-  const [activeTab, setActiveTab] = useState<TabId>('overview')
   const [servers, setServers] = useState<ServerType[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [sessionServerIds, setSessionServerIds] = useState<Set<string>>(new Set())
+  const [sessionItems, setSessionItems] = useState<TerminalSessionSummary[]>([])
   const [sessionUpdatedAt, setSessionUpdatedAt] = useState<number | null>(null)
+  const [connectSettings, setConnectSettings] =
+    useState<ConnectTerminalSettings>(DEFAULT_CONNECT_SETTINGS)
   const [nowTs, setNowTs] = useState(() => Date.now())
-  const [navOpen, setNavOpen] = useState(false)
-
-  // Auto-collapse nav when on overview
-  useEffect(() => {
-    if (activeTab === 'overview') setNavOpen(false)
-  }, [activeTab])
+  const [closingSessionId, setClosingSessionId] = useState<string | null>(null)
 
   // Connecting dialog state
   const [connectingOpen, setConnectingOpen] = useState(false)
@@ -484,6 +503,30 @@ export function TerminalIndexPage() {
   const [connectingDetail, setConnectingDetail] = useState('')
 
   const navigate = useNavigate()
+
+  const syncSessionSnapshot = useCallback(async () => {
+    try {
+      const sessions = await listTerminalSessions()
+      const serverSessions = sessions.filter(
+        session => session.resource_type === 'server' && session.session_type === 'ssh'
+      )
+      setSessionItems(serverSessions)
+      const updatedAt = serverSessions.reduce<number | null>((latest, session) => {
+        const ts = Date.parse(session.last_active_at)
+        if (!Number.isFinite(ts)) return latest
+        return latest == null || ts > latest ? ts : latest
+      }, null)
+      setSessionUpdatedAt(updatedAt)
+    } catch {
+      setSessionItems([])
+      setSessionUpdatedAt(null)
+    }
+  }, [])
+
+  const sessionCounts = sessionItems.reduce((counts, session) => {
+    counts.set(session.resource_id, (counts.get(session.resource_id) ?? 0) + 1)
+    return counts
+  }, new Map<string, number>())
 
   const fetchServers = useCallback(async () => {
     setLoading(true)
@@ -500,18 +543,33 @@ export function TerminalIndexPage() {
 
   useEffect(() => {
     fetchServers()
+    getConnectTerminalSettings()
+      .then(setConnectSettings)
+      .catch(() => {})
   }, [fetchServers])
 
   useEffect(() => {
-    const session = loadConnectSession()
-    if (!session || session.tabs.length === 0) {
-      setSessionServerIds(new Set())
-      setSessionUpdatedAt(null)
-      return
+    syncSessionSnapshot()
+  }, [syncSessionSnapshot])
+
+  useEffect(() => {
+    const syncFromWindow = () => {
+      void syncSessionSnapshot()
     }
-    setSessionServerIds(new Set(session.tabs.map(t => t.serverId)))
-    setSessionUpdatedAt(session.updatedAt)
-  }, [])
+    const syncFromVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void syncSessionSnapshot()
+      }
+    }
+
+    window.addEventListener('focus', syncFromWindow)
+    document.addEventListener('visibilitychange', syncFromVisibility)
+
+    return () => {
+      window.removeEventListener('focus', syncFromWindow)
+      document.removeEventListener('visibilitychange', syncFromVisibility)
+    }
+  }, [syncSessionSnapshot])
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -519,6 +577,119 @@ export function TerminalIndexPage() {
     }, 60_000)
     return () => window.clearInterval(timer)
   }, [])
+
+  const handleResumeSession = useCallback(
+    (session: TerminalSessionSummary, server: ServerType) => {
+      const workspace = session.workspace ?? {}
+      navigate({
+        to: '/terminal/server/$serverId',
+        params: { serverId: server.id },
+        search: {
+          sessionId: session.id,
+          panel: workspace.side_panel === 'files' ? 'files' : undefined,
+          path: workspace.file_path || undefined,
+          lockedRoot: workspace.locked_root || undefined,
+          split:
+            typeof workspace.split_ratio === 'number' && Number.isFinite(workspace.split_ratio)
+              ? workspace.split_ratio
+              : undefined,
+        },
+      })
+    },
+    [navigate]
+  )
+
+  const handleRestoreWorkspace = useCallback(() => {
+    const serverById = new Map(servers.map(server => [server.id, server]))
+    const liveRestoreSessions: RestoreWorkspaceItem[] = sessionItems
+      .map((session): RestoreWorkspaceItem | null => {
+        const server = serverById.get(session.resource_id)
+        if (!server) return null
+        const workspace = session.workspace ?? {}
+        return {
+          sessionId: session.id,
+          serverId: server.id,
+          title: server.name || server.host || server.id,
+          panel: workspace.side_panel === 'files' ? 'files' : undefined,
+          path: workspace.file_path || undefined,
+          lockedRoot: workspace.locked_root || undefined,
+          split:
+            typeof workspace.split_ratio === 'number' && Number.isFinite(workspace.split_ratio)
+              ? workspace.split_ratio
+              : undefined,
+          lastActiveAt: Date.parse(session.last_active_at),
+        }
+      })
+      .filter((item): item is NonNullable<typeof item> => item != null)
+    const workspaceSnapshot = loadConnectWorkspaceSnapshot()
+
+    let restoreSessions = liveRestoreSessions.slice().sort((left, right) => {
+      const leftTs = Number.isFinite(left.lastActiveAt) ? left.lastActiveAt : 0
+      const rightTs = Number.isFinite(right.lastActiveAt) ? right.lastActiveAt : 0
+      return rightTs - leftTs
+    })
+
+    let activeSessionId: string | undefined = restoreSessions[0]?.sessionId
+
+    if (workspaceSnapshot) {
+      const liveBySessionId = new Map(liveRestoreSessions.map(item => [item.sessionId, item]))
+      const orderedFromSnapshot = workspaceSnapshot.tabs
+        .map(tab => {
+          const live = liveBySessionId.get(tab.sessionId)
+          if (!live) return null
+          const savedWorkspace = workspaceSnapshot.workspaceBySessionId[tab.sessionId]
+          return {
+            ...live,
+            title: tab.title || live.title,
+            panel: savedWorkspace?.panel ?? live.panel,
+            path: savedWorkspace?.path ?? live.path,
+            lockedRoot: savedWorkspace?.lockedRoot ?? live.lockedRoot,
+            split: savedWorkspace?.split ?? live.split,
+          }
+        })
+        .filter((item): item is NonNullable<typeof item> => item != null)
+
+      const orderedIds = new Set(orderedFromSnapshot.map(item => item.sessionId))
+      const remaining = restoreSessions.filter(item => !orderedIds.has(item.sessionId))
+      if (orderedFromSnapshot.length > 0) {
+        restoreSessions = [...orderedFromSnapshot, ...remaining]
+      }
+
+      if (
+        workspaceSnapshot.activeSessionId &&
+        restoreSessions.some(item => item.sessionId === workspaceSnapshot.activeSessionId)
+      ) {
+        activeSessionId = workspaceSnapshot.activeSessionId
+      }
+    }
+
+    const primary = restoreSessions[0]
+    if (!primary) return
+
+    const activeTarget = restoreSessions.find(item => item.sessionId === activeSessionId) ?? primary
+
+    navigate({
+      to: '/terminal/server/$serverId',
+      params: { serverId: activeTarget.serverId },
+      search: {
+        activeSessionId,
+        restoreSessions: restoreSessions.map(({ lastActiveAt: _lastActiveAt, ...item }) => item),
+      },
+    })
+  }, [navigate, servers, sessionItems])
+
+  const handleExitSession = useCallback(
+    async (session: TerminalSessionSummary) => {
+      setClosingSessionId(session.id)
+      try {
+        await deleteTerminalSession(session.id)
+        await syncSessionSnapshot()
+      } finally {
+        setClosingSessionId(current => (current === session.id ? null : current))
+      }
+    },
+    [syncSessionSnapshot]
+  )
 
   const handleConnect = useCallback(
     async (server: ServerType) => {
@@ -547,134 +718,60 @@ export function TerminalIndexPage() {
     [navigate]
   )
 
+  const handleAddServer = useCallback(() => {
+    void navigate({ to: '/resources/servers', search: { create: '1' } as never })
+  }, [navigate])
+
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([fetchServers(), syncSessionSnapshot()])
+  }, [fetchServers, syncSessionSnapshot])
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* ── Top: page header ── */}
-      <div className="shrink-0 px-6 py-4 border-b">
-        <h1 className="text-2xl font-bold tracking-tight">Terminal</h1>
-        <p className="text-muted-foreground mt-1">Connecting your remote resources at one place</p>
-      </div>
-
-      {/* ── Bottom: left tabs + right content ── */}
-      <div className="flex-1 flex min-h-0">
-        {/* Left vertical tab bar — collapsible */}
-        <nav
-          className={cn(
-            'shrink-0 border-r bg-muted/30 flex flex-col transition-[width] duration-200 overflow-hidden',
-            navOpen ? 'w-44' : 'w-12 cursor-pointer'
-          )}
-          onClick={!navOpen ? () => setNavOpen(true) : undefined}
-        >
-          {/* Toggle button */}
-          <div
-            className={cn('flex py-2 shrink-0', navOpen ? 'justify-end px-2' : 'justify-center')}
-          >
+      <div className="shrink-0 pb-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Server Terminal</h1>
+            <p className="text-muted-foreground mt-1">
+              Open, resume, and manage server terminals with shell and files.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
             <Button
-              variant="ghost"
               size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-foreground"
-              onClick={e => {
-                e.stopPropagation()
-                setNavOpen(v => !v)
-              }}
+              variant="outline"
+              onClick={() => void handleRefresh()}
+              aria-label="Refresh"
             >
-              {navOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
+              <RefreshCw className={cn('h-4 w-4', loading ? 'animate-spin' : undefined)} />
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleAddServer}>
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Add Server
             </Button>
           </div>
-
-          {/* Tab buttons */}
-          <div className={cn('flex flex-col gap-0.5 pb-3', navOpen ? 'px-2' : 'px-1.5')}>
-            {TABS.map(tab => {
-              const btn = (
-                <button
-                  key={tab.id}
-                  disabled={!tab.available}
-                  onClick={e => {
-                    e.stopPropagation()
-                    if (!navOpen) {
-                      setNavOpen(true)
-                      return
-                    }
-                    if (tab.available) setActiveTab(tab.id)
-                  }}
-                  className={cn(
-                    'flex items-center rounded-md text-sm font-medium transition-colors',
-                    navOpen ? 'gap-2.5 px-3 py-2 w-full text-left' : 'justify-center p-2 w-full',
-                    tab.available ? 'cursor-pointer' : 'cursor-default opacity-50',
-                    activeTab === tab.id
-                      ? 'bg-background text-foreground shadow-sm'
-                      : tab.available
-                        ? 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
-                        : 'text-muted-foreground'
-                  )}
-                >
-                  {tab.icon}
-                  {navOpen && <span className="truncate">{tab.label}</span>}
-                  {navOpen && tab.id === 'servers' && servers.length > 0 && (
-                    <span className="ml-auto text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-normal">
-                      {servers.length}
-                    </span>
-                  )}
-                  {navOpen && !tab.available && (
-                    <span className="ml-auto text-[9px] text-muted-foreground/60 font-normal">
-                      soon
-                    </span>
-                  )}
-                </button>
-              )
-
-              if (!navOpen) {
-                return (
-                  <Tooltip key={tab.id} delayDuration={300}>
-                    <TooltipTrigger asChild>{btn}</TooltipTrigger>
-                    <TooltipContent side="right" sideOffset={8}>
-                      {tab.label}
-                      {!tab.available && ' (Coming Soon)'}
-                    </TooltipContent>
-                  </Tooltip>
-                )
-              }
-              return btn
-            })}
-          </div>
-        </nav>
-
-        {/* Right content panel */}
-        <main className="flex-1 min-w-0 overflow-hidden">
-          {activeTab === 'overview' && (
-            <OverviewPanel
-              servers={servers}
-              loading={loading}
-              sessionServerIds={sessionServerIds}
-              sessionUpdatedAt={sessionUpdatedAt}
-              nowTs={nowTs}
-              onConnect={handleConnect}
-              onTabChange={setActiveTab}
-            />
-          )}
-          {activeTab === 'servers' && (
-            <ServersPanel
-              servers={servers}
-              loading={loading}
-              error={error}
-              onRetry={fetchServers}
-              sessionServerIds={sessionServerIds}
-              sessionUpdatedAt={sessionUpdatedAt}
-              nowTs={nowTs}
-              onConnect={handleConnect}
-            />
-          )}
-          {activeTab === 'cloud' && (
-            <ComingSoonPanel label="Cloud" icon={<Cloud className="h-6 w-6" />} />
-          )}
-          {activeTab === 'databases' && (
-            <ComingSoonPanel label="Database" icon={<Database className="h-6 w-6" />} />
-          )}
-          {activeTab === 'apis' && (
-            <ComingSoonPanel label="API" icon={<Globe className="h-6 w-6" />} />
-          )}
-        </main>
+        </div>
       </div>
+
+      <main className="flex-1 min-w-0 overflow-hidden">
+        <ServersPanel
+          servers={servers}
+          loading={loading}
+          error={error}
+          onRetry={fetchServers}
+          sessionItems={sessionItems}
+          sessionCounts={sessionCounts}
+          sessionUpdatedAt={sessionUpdatedAt}
+          idleTimeoutSeconds={connectSettings.idleTimeoutSeconds}
+          nowTs={nowTs}
+          onConnect={handleConnect}
+          onRestoreWorkspace={handleRestoreWorkspace}
+          onResumeSession={handleResumeSession}
+          onExitSession={handleExitSession}
+          closingSessionId={closingSessionId}
+        />
+      </main>
 
       {/* Connecting dialog */}
       <ConnectingDialog

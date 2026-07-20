@@ -1,70 +1,105 @@
 #!/bin/sh
 set -e
 
+DATA_DIR=${DATA_DIR:-/appos/data}
+APPOS_CONFIG_DIR=$DATA_DIR/config
+APPOS_CONFIG_FILE=$APPOS_CONFIG_DIR/appos.yaml
+APPOS_WEB_DIR=${APPOS_WEB_DIR:-/appos/web}
+OPENCODE_PROMPTS_DIR=$DATA_DIR/opencode/prompts
+OPENCODE_AGENTS_FILE=$DATA_DIR/opencode/AGENTS.md
+
+export DATA_DIR
+
+yaml_quote() {
+  printf "%s" "$1" | sed "s/'/''/g"
+}
+
 echo "==> Initializing AppOS..."
 
 # Create data directories if they don't exist
 mkdir -p \
-    /appos/data/pb/pb_data \
-    /appos/data/pb/pb_migrations \
-    /appos/data/redis \
-    /appos/data/apps \
-    /appos/data/pi \
-    /appos/data/netdata/etc \
-    /appos/data/netdata/lib \
-    /appos/data/netdata/cache \
-    /appos/data/victoriametrics \
-    /appos/data/workflows \
-    /appos/data/templates/apps \
-    /appos/data/templates/workflows \
-    /appos/data/templates/custom
+    "$DATA_DIR/pb/pb_data" \
+    "$DATA_DIR/pb/pb_migrations" \
+    "$DATA_DIR/config" \
+    "$DATA_DIR/redis" \
+    "$DATA_DIR/apps" \
+  "$DATA_DIR/traefik" \
+    "$DATA_DIR/victoriametrics" \
+    "$DATA_DIR/opencode" \
+    "$DATA_DIR/opencode/prompts" \
+    "$DATA_DIR/workflows" \
+    "$DATA_DIR/templates/apps" \
+    "$DATA_DIR/templates/workflows" \
+    "$DATA_DIR/templates/custom" \
+    "$DATA_DIR/templates/custom/apps" \
+    "$DATA_DIR/templates/official/apps"
 
 # Ensure proper permissions
-chmod -R 755 /appos/data
+chmod -R 755 "$DATA_DIR"
 
-# Create log directories
-mkdir -p /var/log/supervisor
-mkdir -p /var/log/netdata
-mkdir -p /var/log/nginx
-mkdir -p /run/nginx
+# Create directories
+mkdir -p /etc/traefik/dynamic
+mkdir -p "$APPOS_WEB_DIR"
 
-if [ ! -f /appos/data/netdata/etc/netdata.conf ]; then
-  cp -a /usr/local/share/appos/netdata-defaults/. /appos/data/netdata/etc/
+cat > "$OPENCODE_AGENTS_FILE" <<'EOF'
+# AGENTS.md — AppOS AI Agent Context
+
+You are running inside AppOS.
+
+## Working Context
+
+- AppOS is the control plane.
+- Use the local filesystem for project context and shared skills.
+- Use AppOS-managed servers through explicit SSH commands when you need remote inspection or changes.
+
+## Shared Assets
+
+- Shared skills live under `.agents/skills/`.
+- OpenCode command shortcuts live under `.opencode/commands/`.
+- Exported AppOS prompts live under `/appos/data/opencode/prompts/`.
+
+## Guardrails
+
+- Treat AppOS as a multi-server control plane.
+- Prefer read-first investigation before making changes.
+- Explain risky production changes before executing them.
+- Keep edits minimal and verifiable.
+
+## Validation
+
+- For AppOS code changes, prefer `make build` and `make test`.
+- For runtime validation, use the AppOS UI or authenticated HTTP requests when helpful.
+EOF
+
+if [ -d /appos/data/prompts ]; then
+	find /appos/data/prompts -type f -name '*.md' -exec cp {} "$OPENCODE_PROMPTS_DIR" \; 2>/dev/null || true
 fi
-
-# Refresh the AppOS-managed remote write config on every startup so stale volumes
-# do not keep exporting with missing hostname or chart filters.
-cp /usr/local/share/appos/netdata-defaults/exporting.conf /appos/data/netdata/etc/exporting.conf
-
-rm -rf /etc/netdata /var/lib/netdata /var/cache/netdata
-ln -s /appos/data/netdata/etc /etc/netdata
-ln -s /appos/data/netdata/lib /var/lib/netdata
-ln -s /appos/data/netdata/cache /var/cache/netdata
 
 echo "==> Data directories ready"
-echo "==> Embedded Netdata configured: /appos/data/netdata/{etc,lib,cache}"
 
-# Initialize superuser based on INIT_MODE
-# - auto (default): create superuser from env vars
-# - setup: skip, user creates via Setup page on first visit
+REDIS_URL=${REDIS_URL:-redis://127.0.0.1:6379}
+TSDB_URL=${TSDB_URL:-http://127.0.0.1:8428}
+TUNNEL_SSH_PORT=${TUNNEL_SSH_PORT:-2222}
 INIT_MODE=${INIT_MODE:-auto}
-echo "==> Init mode: $INIT_MODE"
+SUPERUSER_EMAIL=${SUPERUSER_EMAIL:-}
+SUPERUSER_PASSWORD=${SUPERUSER_PASSWORD:-}
 
-if [ "$INIT_MODE" = "auto" ]; then
-  if [ -n "$SUPERUSER_EMAIL" ] && [ -n "$SUPERUSER_PASSWORD" ]; then
-    echo "==> Initializing superuser..."
-    /usr/local/bin/appos superuser upsert "$SUPERUSER_EMAIL" "$SUPERUSER_PASSWORD" \
-      --dir /appos/data/pb/pb_data 2>&1 && \
-      echo "==> Superuser ready: $SUPERUSER_EMAIL" || \
-      echo "==> [WARN] Failed to initialize superuser"
-  else
-    echo "==> [WARN] SUPERUSER_EMAIL or SUPERUSER_PASSWORD not set, skipping"
-  fi
-else
-  echo "==> Setup mode: superuser will be created via web UI"
-fi
+cat > "$APPOS_CONFIG_FILE" <<EOF
+data_dir: '$(yaml_quote "$DATA_DIR")'
+http: '0.0.0.0:9000'
+web_dir: '$(yaml_quote "$APPOS_WEB_DIR")'
+redis_url: '$(yaml_quote "$REDIS_URL")'
+tsdb_url: '$(yaml_quote "$TSDB_URL")'
+tunnel_ssh_port: '$(yaml_quote "$TUNNEL_SSH_PORT")'
+init_mode: '$(yaml_quote "$INIT_MODE")'
+superuser_email: '$(yaml_quote "$SUPERUSER_EMAIL")'
+superuser_password: '$(yaml_quote "$SUPERUSER_PASSWORD")'
+EOF
 
-echo "==> Starting services via supervisord..."
+chmod 600 "$APPOS_CONFIG_FILE"
+echo "==> Runtime config written to $APPOS_CONFIG_FILE"
 
-# Execute CMD (supervisord)
+echo "==> Starting services via runit..."
+
+# Execute CMD (runsvdir)
 exec "$@"

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { ArrowUp, MoreVertical, Play, RotateCcw, Square, Trash2 } from 'lucide-react'
 import { pb } from '@/lib/pb'
+import { dockerApiPath, dockerApiUrl } from '@/lib/docker-api'
 import { getApiErrorMessage } from '@/lib/api-error'
 import { copyToClipboard } from '@/lib/clipboard'
 import { iacRead, iacSaveFile } from '@/lib/iac-api'
@@ -24,6 +25,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { useOptionalLayout } from '@/contexts/LayoutContext'
 import {
   getServerConnectionPresentation,
   type ServerConnectionFacts,
@@ -39,7 +41,9 @@ import {
 import { Tabs } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import type { ActionRecord } from '@/pages/deploy/actions/action-types'
-import { AppDetailHeader } from '@/pages/apps/AppDetailHeader'
+import type { ActionListResponse, PendingActionControl } from '@/pages/deploy/actions/action-types'
+import { ActionControlDialog } from '@/pages/deploy/actions/ActionControlDialog'
+import { AppDetailBreadcrumb, AppDetailHeader } from '@/pages/apps/AppDetailHeader'
 import { AppDetailTabRail } from '@/pages/apps/AppDetailTabRail'
 import {
   AppDetailAccessTab,
@@ -55,7 +59,6 @@ import {
 import {
   type BackupProjection,
   type DockerVolume,
-  getActionLabel,
   hasAccessHints,
   isPocketBaseAutoCancelled,
   normalizeMatchValue,
@@ -81,6 +84,8 @@ import {
   type AppOperationResponse,
   type AppRelease,
   buildUnifiedDiff,
+  getServerConnectionReason,
+  hasBlockingServerConnectionIssue,
 } from '@/pages/apps/types'
 
 type ValidationState = {
@@ -142,6 +147,8 @@ function loadDisplayMetadata(appId: string): AppDisplayMetadata {
 
 export function AppDetailPage({ appId }: { appId: string }) {
   const navigate = useNavigate()
+  const layout = useOptionalLayout()
+  const setHeaderRightStartContent = layout?.setHeaderRightStartContent
   const [app, setApp] = useState<AppInstance | null>(null)
   const [releases, setReleases] = useState<AppRelease[]>([])
   const [exposures, setExposures] = useState<AppExposure[]>([])
@@ -162,6 +169,12 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const [deploying, setDeploying] = useState<'redeploy' | 'upgrade' | ''>('')
   const [actionLoading, setActionLoading] = useState('')
   const [pendingUninstall, setPendingUninstall] = useState(false)
+
+  useEffect(() => {
+    if (!setHeaderRightStartContent) return undefined
+    setHeaderRightStartContent(<AppDetailBreadcrumb appName={app?.name || 'App Detail'} />)
+    return () => setHeaderRightStartContent(null)
+  }, [app?.name, setHeaderRightStartContent])
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [envFileError, setEnvFileError] = useState('')
@@ -182,6 +195,15 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const [actionsLoading, setActionsLoading] = useState(false)
   const [actionsLoaded, setActionsLoaded] = useState(false)
   const [actionSearch, setActionSearch] = useState('')
+  const [actionHistoryPage, setActionHistoryPage] = useState(1)
+  const [actionHistoryTotalPages, setActionHistoryTotalPages] = useState(1)
+  const [actionHistoryTotalItems, setActionHistoryTotalItems] = useState(0)
+  const [pendingActionControl, setPendingActionControl] = useState<PendingActionControl | null>(
+    null
+  )
+  const [recentActivity, setRecentActivity] = useState<ActionRecord[]>([])
+  const [recentActivityLoading, setRecentActivityLoading] = useState(false)
+  const [actionControlSubmitting, setActionControlSubmitting] = useState(false)
   const [actionStatusFilter, setActionStatusFilter] = useState('all')
   const [actionTypeFilter, setActionTypeFilter] = useState('all')
   const [displayIconDraft, setDisplayIconDraft] = useState('')
@@ -266,6 +288,19 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const fetchLogs = useCallback(
     async (showSpinner = false) => {
       if (showSpinner) setLogsLoading(true)
+      const serverConnectionReason = getServerConnectionReason(app)
+      if (hasBlockingServerConnectionIssue(app)) {
+        setLogs({
+          id: appId,
+          name: app?.name || appId,
+          server_id: app?.server_id || 'local',
+          project_dir: app?.project_dir || '-',
+          runtime_status: 'error',
+          output: serverConnectionReason || 'Server runtime status is unavailable.',
+        })
+        if (showSpinner) setLogsLoading(false)
+        return
+      }
       try {
         const response = await pb.send<AppLogsResponse>(`/api/apps/${appId}/logs`, {
           method: 'GET',
@@ -290,6 +325,11 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const fetchConfig = useCallback(
     async (force = false) => {
       if (!force && originalConfig) return
+      const serverConnectionReason = getServerConnectionReason(app)
+      if (hasBlockingServerConnectionIssue(app)) {
+        setError(serverConnectionReason || 'Server runtime status is unavailable.')
+        return
+      }
       setConfigLoading(true)
       try {
         const response = await pb.send<AppConfigResponse>(`/api/apps/${appId}/config`, {
@@ -314,33 +354,71 @@ export function AppDetailPage({ appId }: { appId: string }) {
         setConfigLoading(false)
       }
     },
-    [appId, originalConfig]
+    [app, appId, originalConfig]
   )
 
   const fetchActionHistory = useCallback(async () => {
     setActionsLoading(true)
     try {
-      const response = await pb.send<ActionRecord[]>('/api/actions', { method: 'GET' })
-      setActionHistory(Array.isArray(response) ? response : [])
+      const params = new URLSearchParams()
+      params.set('appId', appId)
+      params.set('page', String(actionHistoryPage))
+      params.set('perPage', '15')
+      if (actionSearch.trim()) params.set('q', actionSearch.trim())
+      const response = await pb.send<ActionListResponse>(`/api/actions?${params.toString()}`, {
+        method: 'GET',
+      })
+      setActionHistory(Array.isArray(response?.items) ? response.items : [])
+      setActionHistoryTotalItems(Number.isFinite(response?.totalItems) ? response.totalItems : 0)
+      setActionHistoryTotalPages(
+        Number.isFinite(response?.totalPages) && response.totalPages > 0 ? response.totalPages : 1
+      )
       setActionsLoaded(true)
       setError('')
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load action history'))
+      setError(getApiErrorMessage(err, 'Failed to load activity'))
     } finally {
       setActionsLoading(false)
     }
-  }, [])
+  }, [actionHistoryPage, actionSearch, appId])
+
+  const fetchRecentActivity = useCallback(async () => {
+    setRecentActivityLoading(true)
+    try {
+      const params = new URLSearchParams()
+      params.set('appId', appId)
+      params.set('page', '1')
+      params.set('perPage', '3')
+      const response = await pb.send<ActionListResponse>(`/api/actions?${params.toString()}`, {
+        method: 'GET',
+      })
+      setRecentActivity(Array.isArray(response?.items) ? response.items.slice(0, 3) : [])
+    } catch {
+      setRecentActivity([])
+    } finally {
+      setRecentActivityLoading(false)
+    }
+  }, [appId])
 
   const fetchRuntimeInventory = useCallback(async () => {
-    const query =
-      app?.server_id && app.server_id !== 'local'
-        ? `?server_id=${encodeURIComponent(app.server_id)}`
-        : ''
+    const serverConnectionReason = getServerConnectionReason(app)
+    if (hasBlockingServerConnectionIssue(app)) {
+      setRuntimeContainers([])
+      setRuntimeStats({})
+      setRuntimeInspectMap({})
+      setRuntimeLoaded(true)
+      setError(serverConnectionReason || 'Server runtime status is unavailable.')
+      return
+    }
     setRuntimeLoading(true)
     try {
       const [containersResponse, statsResponse] = await Promise.all([
-        pb.send<{ output?: string }>(`/api/ext/docker/containers${query}`, { method: 'GET' }),
-        pb.send<{ output?: string }>(`/api/ext/docker/containers/stats${query}`, { method: 'GET' }),
+        pb.send<{ output?: string }>(dockerApiPath(app?.server_id, '/containers'), {
+          method: 'GET',
+        }),
+        pb.send<{ output?: string }>(dockerApiPath(app?.server_id, '/containers/stats'), {
+          method: 'GET',
+        }),
       ])
       const nextContainers = parseDockerJsonLines<RuntimeContainer>(containersResponse.output || '')
       const nextStats = parseDockerJsonLines<RuntimeContainerStats>(statsResponse.output || '')
@@ -354,20 +432,16 @@ export function AppDetailPage({ appId }: { appId: string }) {
     } finally {
       setRuntimeLoading(false)
     }
-  }, [app?.server_id])
+  }, [app])
 
   const fetchRuntimeInspect = useCallback(
     async (containerIds: string[]) => {
       if (containerIds.length === 0) return
-      const query =
-        app?.server_id && app.server_id !== 'local'
-          ? `?server_id=${encodeURIComponent(app.server_id)}`
-          : ''
       const results = await Promise.all(
         containerIds.map(async containerId => {
           try {
             const response = await pb.send<{ output?: string }>(
-              `/api/ext/docker/containers/${containerId}${query}`,
+              dockerApiPath(app?.server_id, `/containers/${containerId}`),
               { method: 'GET' }
             )
             return [containerId, parseDockerInspect(response.output)] as const
@@ -388,16 +462,19 @@ export function AppDetailPage({ appId }: { appId: string }) {
   )
 
   const fetchDataResources = useCallback(async () => {
-    const volumeQuery =
-      app?.server_id && app.server_id !== 'local'
-        ? `?server_id=${encodeURIComponent(app.server_id)}`
-        : ''
     setDataLoading(true)
     setDataError('')
 
+    const serverConnectionReason = getServerConnectionReason(app)
+    const blockServerRuntime = hasBlockingServerConnectionIssue(app)
+
     const [instanceResult, volumeResult, backupResult] = await Promise.allSettled([
       pb.send<unknown>('/api/instances', { method: 'GET' }),
-      pb.send<{ output?: string }>(`/api/ext/docker/volumes${volumeQuery}`, { method: 'GET' }),
+      blockServerRuntime
+        ? Promise.resolve({ output: '' })
+        : pb.send<{ output?: string }>(dockerApiPath(app?.server_id, '/volumes'), {
+            method: 'GET',
+          }),
       pb.send<unknown>('/api/ext/backup/list', { method: 'GET' }),
     ])
 
@@ -432,7 +509,9 @@ export function AppDetailPage({ appId }: { appId: string }) {
       setInstanceResources([])
     }
 
-    if (volumeResult.status === 'fulfilled') {
+    if (blockServerRuntime) {
+      setDataVolumes([])
+    } else if (volumeResult.status === 'fulfilled') {
       setDataVolumes(parseDockerJsonLines<DockerVolume>(volumeResult.value.output || ''))
     } else {
       setDataVolumes([])
@@ -448,13 +527,15 @@ export function AppDetailPage({ appId }: { appId: string }) {
       })
     }
 
-    if (instanceResult.status === 'rejected' && volumeResult.status === 'rejected') {
+    if (blockServerRuntime) {
+      setDataError(serverConnectionReason || 'Server runtime status is unavailable.')
+    } else if (instanceResult.status === 'rejected' && volumeResult.status === 'rejected') {
       setDataError('Failed to load app-scoped data resources')
     }
 
     setDataLoaded(true)
     setDataLoading(false)
-  }, [app?.server_id])
+  }, [app])
 
   const fetchEnvFile = useCallback(async (path: string) => {
     if (!path) return
@@ -504,6 +585,7 @@ export function AppDetailPage({ appId }: { appId: string }) {
       await Promise.all([
         fetchDetail(),
         fetchLifecycleResources(),
+        fetchRecentActivity(),
         ...(tab === 'actions' || actionsLoaded ? [fetchActionHistory()] : []),
         ...(tab === 'runtime' || runtimeLoaded ? [fetchRuntimeInventory()] : []),
         ...(tab === 'data' || dataLoaded ? [fetchDataResources()] : []),
@@ -526,7 +608,8 @@ export function AppDetailPage({ appId }: { appId: string }) {
   useEffect(() => {
     void fetchDetail()
     void fetchLifecycleResources()
-  }, [fetchDetail, fetchLifecycleResources])
+    void fetchRecentActivity()
+  }, [fetchDetail, fetchLifecycleResources, fetchRecentActivity])
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -568,10 +651,17 @@ export function AppDetailPage({ appId }: { appId: string }) {
   }, [app?.server_id])
 
   useEffect(() => {
-    if (tab === 'actions' && !actionsLoaded) {
-      void fetchActionHistory()
-    }
-  }, [actionsLoaded, fetchActionHistory, tab])
+    if (tab !== 'actions') return
+    void fetchActionHistory()
+  }, [fetchActionHistory, tab])
+
+  useEffect(() => {
+    setActionHistoryPage(1)
+  }, [appId])
+
+  useEffect(() => {
+    setActionHistoryPage(1)
+  }, [actionSearch])
 
   useEffect(() => {
     if (tab === 'runtime' && !runtimeLoaded) {
@@ -745,7 +835,7 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const navigateToActionDetail = useCallback(
     (actionId: string) => {
       void navigate({
-        to: '/actions/$actionId' as never,
+        to: '/activity/$actionId' as never,
         params: { actionId } as never,
         search: { returnTo: 'list' } as never,
       })
@@ -755,6 +845,11 @@ export function AppDetailPage({ appId }: { appId: string }) {
 
   const runAction = useCallback(
     async (action: AppAction) => {
+      const serverConnectionReason = getServerConnectionReason(app)
+      if (hasBlockingServerConnectionIssue(app)) {
+        setError(serverConnectionReason || 'Server runtime status is unavailable.')
+        return
+      }
       setActionLoading(action)
       setError('')
       setSuccess('')
@@ -777,12 +872,17 @@ export function AppDetailPage({ appId }: { appId: string }) {
         setActionLoading('')
       }
     },
-    [app?.name, appId, fetchDetail, navigateToActionDetail]
+    [app, app?.name, appId, fetchDetail, navigateToActionDetail]
   )
 
   const triggerOperation = useCallback(
     async (action: 'redeploy' | 'upgrade') => {
       if (!app) return
+      const serverConnectionReason = getServerConnectionReason(app)
+      if (hasBlockingServerConnectionIssue(app)) {
+        setError(serverConnectionReason || 'Server runtime status is unavailable.')
+        return
+      }
       setDeploying(action)
       setError('')
       setSuccess('')
@@ -858,20 +958,49 @@ export function AppDetailPage({ appId }: { appId: string }) {
     )
   )
   const hasBusyAction = Boolean(actionLoading || deploying || pendingUninstall || hasActivePipeline)
+  const normalizedInstanceState = (app?.instance_state || '').toLowerCase()
   const normalizedRuntimeStatus = (app?.runtime_status || '').toLowerCase()
-  const canStartAction = Boolean(app) && !['running', 'starting'].includes(normalizedRuntimeStatus)
-  const canStopAction = Boolean(app) && ['running', 'starting'].includes(normalizedRuntimeStatus)
-  const canRestartAction = Boolean(app) && normalizedRuntimeStatus === 'running'
+  const hasServerConnectionBlock = hasBlockingServerConnectionIssue(app)
+  const canStartAction =
+    Boolean(app) &&
+    !hasServerConnectionBlock &&
+    (normalizedInstanceState
+      ? ['stopped', 'attention_required'].includes(normalizedInstanceState)
+      : !['running', 'starting'].includes(normalizedRuntimeStatus))
+  const canStopAction =
+    Boolean(app) &&
+    !hasServerConnectionBlock &&
+    (normalizedInstanceState
+      ? ['running', 'degraded', 'attention_required'].includes(normalizedInstanceState)
+      : ['running', 'starting'].includes(normalizedRuntimeStatus))
+  const canRestartAction =
+    Boolean(app) &&
+    !hasServerConnectionBlock &&
+    (normalizedInstanceState
+      ? ['running', 'degraded'].includes(normalizedInstanceState)
+      : normalizedRuntimeStatus === 'running')
+  const canRedeployAction = Boolean(app) && !hasServerConnectionBlock
+  const canUpgradeAction = Boolean(app) && !hasServerConnectionBlock
+  const canUninstallAction = Boolean(app) && !hasServerConnectionBlock
   const primaryExposure = exposures.find(item => item.is_primary)
-  const currentRelease = releases.find(item => item.is_active)
+  const accessExposure =
+    primaryExposure || exposures.find(item => item.target_port || item.path || item.domain)
+  const accessEndpoints = Array.isArray(app?.access_endpoints) ? app.access_endpoints : []
+  const primaryAccessEndpoint =
+    accessEndpoints.find(item => item.default) || accessEndpoints[0] || null
   const serverConnectionPresentation = useMemo<ServerConnectionPresentationSpec | null>(() => {
     if (!serverConnectionRecord) return null
     return getServerConnectionPresentation(serverConnectionRecord)
   }, [serverConnectionRecord])
-  const domainExposure = primaryExposure?.domain
-    ? primaryExposure
-    : exposures.find(item => item.domain)
-  const exposurePath = primaryExposure?.path || ''
+  const domainExposure =
+    (primaryExposure?.domain && primaryExposure.publication_state === 'published'
+      ? primaryExposure
+      : undefined) || exposures.find(item => item.domain && item.publication_state === 'published')
+  const resolvedTargetPort =
+    primaryAccessEndpoint?.serverPort ||
+    primaryExposure?.target_port ||
+    exposures.find(item => item.target_port && item.target_port > 0)?.target_port
+  const exposurePath = primaryExposure?.path || accessExposure?.path || ''
   const effectiveServerHost = useMemo(() => {
     const host =
       typeof serverConnectionRecord?.host === 'string' ? serverConnectionRecord.host.trim() : ''
@@ -882,26 +1011,65 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const primaryDomainUrl = useMemo(() => {
     if (!domainExposure?.domain) return ''
     const scheme = domainExposure.certificate_id ? 'https' : 'http'
+    const port =
+      domainExposure.target_port && domainExposure.target_port > 0
+        ? `:${domainExposure.target_port}`
+        : ''
     const normalizedPath = domainExposure.path
       ? domainExposure.path.startsWith('/')
         ? domainExposure.path
         : `/${domainExposure.path}`
       : ''
-    return `${scheme}://${domainExposure.domain}${normalizedPath}`
+    return `${scheme}://${domainExposure.domain}${port}${normalizedPath}`
   }, [domainExposure])
   const publicAccessUrl = useMemo(() => {
     if (!effectiveServerHost) return ''
-    const port =
-      primaryExposure?.target_port && primaryExposure.target_port > 0
-        ? `:${primaryExposure.target_port}`
-        : ''
+    const endpointProtocol = String(primaryAccessEndpoint?.protocol || '').toLowerCase()
+    if (endpointProtocol && endpointProtocol !== 'http' && endpointProtocol !== 'https') return ''
+    const scheme = endpointProtocol === 'https' ? 'https' : 'http'
+    const port = resolvedTargetPort && resolvedTargetPort > 0 ? `:${resolvedTargetPort}` : ''
     const normalizedPath = exposurePath
       ? exposurePath.startsWith('/')
         ? exposurePath
         : `/${exposurePath}`
       : ''
-    return `http://${effectiveServerHost}${port}${normalizedPath}`
-  }, [effectiveServerHost, exposurePath, primaryExposure?.target_port])
+    return `${scheme}://${effectiveServerHost}${port}${normalizedPath}`
+  }, [effectiveServerHost, exposurePath, primaryAccessEndpoint?.protocol, resolvedTargetPort])
+  const templateKey = useMemo(() => {
+    const raw = app?.catalog_app_key?.trim()
+    if (!raw) return null
+    const lowered = raw.toLowerCase()
+    if (lowered === 'nil' || lowered === '<nil>' || lowered === 'null' || lowered === 'none') {
+      return null
+    }
+    return raw
+  }, [app?.catalog_app_key])
+  const deploymentLabel = useMemo(() => {
+    if (templateKey) return 'Template'
+    switch (app?.source) {
+      case 'manualops':
+        return 'Docker Compose'
+      case 'gitops':
+        return 'Git'
+      case 'package':
+        return 'Package'
+      case 'docker':
+        return 'Docker Run'
+      default:
+        return app?.source
+          ? app.source
+              .split(/[^a-zA-Z0-9]+/)
+              .filter(Boolean)
+              .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+              .join(' ')
+          : '-'
+    }
+  }, [app?.source, templateKey])
+  const templateDetailHref = useMemo(() => {
+    if (!templateKey) return undefined
+    const encoded = encodeURIComponent(templateKey)
+    return `/store?q=${encoded}&app=${encoded}`
+  }, [templateKey])
   const hasAccessDraftChanges = useMemo(() => {
     return (
       accessUsernameDraft !== (app?.access_username || '') ||
@@ -920,10 +1088,10 @@ export function AppDetailPage({ appId }: { appId: string }) {
     app?.access_username,
   ])
   const scopedActions = useMemo(() => {
-    return actionHistory
-      .filter(action => action.app_id === appId || action.pipeline?.app_id === appId)
-      .sort((left, right) => new Date(right.created).getTime() - new Date(left.created).getTime())
-  }, [actionHistory, appId])
+    return [...actionHistory].sort(
+      (left, right) => new Date(right.created).getTime() - new Date(left.created).getTime()
+    )
+  }, [actionHistory])
   const accessHintsPresent = hasAccessHints(app)
   const projectNameCandidates = useMemo(() => {
     const rawValues = [
@@ -957,7 +1125,6 @@ export function AppDetailPage({ appId }: { appId: string }) {
     [scopedActions]
   )
   const filteredScopedActions = useMemo(() => {
-    const query = actionSearch.trim().toLowerCase()
     return scopedActions.filter(action => {
       const actionType = (
         action.pipeline?.selector?.operation_type ||
@@ -966,20 +1133,9 @@ export function AppDetailPage({ appId }: { appId: string }) {
       ).toLowerCase()
       if (actionStatusFilter !== 'all' && action.status !== actionStatusFilter) return false
       if (actionTypeFilter !== 'all' && actionType !== actionTypeFilter) return false
-      if (!query) return true
-      return [
-        action.id,
-        getActionLabel(action),
-        action.status,
-        action.source,
-        action.compose_project_name,
-        action.server_label,
-        action.server_id,
-      ]
-        .filter(Boolean)
-        .some(value => String(value).toLowerCase().includes(query))
+      return true
     })
-  }, [actionSearch, actionStatusFilter, actionTypeFilter, scopedActions])
+  }, [actionStatusFilter, actionTypeFilter, scopedActions])
   const relatedRuntimeContainers = useMemo(() => {
     if (projectNameCandidates.length === 0) return []
     return runtimeContainers.filter(container => {
@@ -1027,6 +1183,7 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const latestScopedAction = scopedActions[0]
   const serverDisplayName =
     (typeof serverConnectionRecord?.name === 'string' && serverConnectionRecord.name.trim()) ||
+    app?.server_name?.trim() ||
     app?.server_id ||
     'local'
   const canOpenServerDetail = Boolean(app?.server_id && app.server_id !== 'local')
@@ -1071,17 +1228,76 @@ export function AppDetailPage({ appId }: { appId: string }) {
 
   const openAllActionsForApp = useCallback(() => {
     void navigate({
-      to: '/actions' as never,
+      to: '/activity' as never,
       search: {
         appId,
-        q: scopedActions[0]?.compose_project_name || app?.name || undefined,
       } as never,
     })
-  }, [app?.name, appId, navigate, scopedActions])
+  }, [appId, navigate])
+
+  const goToPreviousActionHistoryPage = useCallback(() => {
+    setActionHistoryPage(current => Math.max(1, current - 1))
+  }, [])
+
+  const goToNextActionHistoryPage = useCallback(() => {
+    setActionHistoryPage(current => Math.min(actionHistoryTotalPages, current + 1))
+  }, [actionHistoryTotalPages])
+
+  const requestCancelAction = useCallback((action: ActionRecord) => {
+    setPendingActionControl({ kind: 'cancel', action })
+  }, [])
+
+  const requestForceFailAction = useCallback((action: ActionRecord) => {
+    setPendingActionControl({ kind: 'force-fail', action })
+  }, [])
+
+  const requestResumeAction = useCallback((action: ActionRecord) => {
+    setPendingActionControl({ kind: 'resume', action })
+  }, [])
+
+  const submitActionControl = useCallback(
+    async (pending: PendingActionControl) => {
+      const endpoint =
+        pending.kind === 'cancel' ? 'cancel' : pending.kind === 'resume' ? 'resume' : 'force-fail'
+      const successMessage =
+        pending.kind === 'cancel'
+          ? `Action ${pending.action.compose_project_name || pending.action.id} cancelled`
+          : pending.kind === 'resume'
+            ? `Action ${pending.action.compose_project_name || pending.action.id} resumed`
+            : `Action ${pending.action.compose_project_name || pending.action.id} force-failed`
+      setActionControlSubmitting(true)
+      try {
+        await pb.send(`/api/actions/${pending.action.id}/${endpoint}`, { method: 'POST' })
+        setSuccess(successMessage)
+        setError('')
+        setPendingActionControl(null)
+        await Promise.all([fetchActionHistory(), fetchDetail()])
+      } catch (err) {
+        setError(
+          getApiErrorMessage(
+            err,
+            pending.kind === 'cancel'
+              ? 'Failed to cancel action'
+              : pending.kind === 'resume'
+                ? 'Failed to resume action'
+                : 'Failed to force-fail action'
+          )
+        )
+      } finally {
+        setActionControlSubmitting(false)
+      }
+    },
+    [fetchActionHistory, fetchDetail]
+  )
 
   const buildActionDetailHref = useCallback((actionId: string) => {
-    return `/actions/${actionId}?returnTo=list`
+    return `/activity/${actionId}?returnTo=list`
   }, [])
+
+  const serverDetailHref = useMemo(() => {
+    if (!app?.server_id || app.server_id === 'local') return undefined
+    return `/resources/servers?server=${encodeURIComponent(app.server_id)}&tab=overview`
+  }, [app?.server_id])
 
   const openServerWorkspace = useCallback(
     (options?: { panel?: 'none' | 'files' | 'docker'; path?: string; lockedRoot?: string }) => {
@@ -1122,15 +1338,11 @@ export function AppDetailPage({ appId }: { appId: string }) {
 
   const openRuntimeContainerLogs = useCallback(
     async (container: RuntimeContainer) => {
-      const query =
-        app?.server_id && app.server_id !== 'local'
-          ? `?server_id=${encodeURIComponent(app.server_id)}&tail=200`
-          : '?tail=200'
       setRuntimeLogsTarget(container)
       setRuntimeLogsLoading(true)
       try {
         const response = await pb.send<{ output?: string }>(
-          `/api/ext/docker/containers/${container.ID}/logs${query}`,
+          dockerApiUrl(app?.server_id, `/containers/${container.ID}/logs`, { tail: 200 }),
           { method: 'GET' }
         )
         setRuntimeLogsContent(typeof response.output === 'string' ? response.output : '')
@@ -1260,14 +1472,14 @@ export function AppDetailPage({ appId }: { appId: string }) {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={() => void triggerOperation('redeploy')}
-            disabled={hasBusyAction || !app}
+            disabled={hasBusyAction || !canRedeployAction}
           >
             <RotateCcw className="h-4 w-4" />
             {deploying === 'redeploy' ? 'Redeploying...' : 'Redeploy'}
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => void triggerOperation('upgrade')}
-            disabled={hasBusyAction || !app}
+            disabled={hasBusyAction || !canUpgradeAction}
           >
             <ArrowUp className="h-4 w-4" />
             {deploying === 'upgrade' ? 'Upgrading...' : 'Upgrade'}
@@ -1275,7 +1487,7 @@ export function AppDetailPage({ appId }: { appId: string }) {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={() => setPendingUninstall(true)}
-            disabled={hasBusyAction || loading}
+            disabled={hasBusyAction || loading || !canUninstallAction}
             variant="destructive"
           >
             <Trash2 className="h-4 w-4" />
@@ -1294,6 +1506,11 @@ export function AppDetailPage({ appId }: { appId: string }) {
         refreshDisabled={hasBusyAction}
         onRefresh={() => void refreshDetailView()}
         actionMenu={renderActionMenu()}
+        breadcrumb={
+          !setHeaderRightStartContent ? (
+            <AppDetailBreadcrumb appName={app?.name || 'App Detail'} />
+          ) : null
+        }
       />
 
       {error ? (
@@ -1321,34 +1538,28 @@ export function AppDetailPage({ appId }: { appId: string }) {
           <AppDetailTabRail />
           <AppDetailOverviewTab
             app={app}
-            currentRelease={currentRelease}
-            releases={releases}
-            openReleaseDetail={openReleaseDetail}
             serverDisplayName={serverDisplayName}
-            canOpenServerDetail={canOpenServerDetail}
-            openServerDetail={openServerDetail}
+            serverDetailHref={serverDetailHref}
             primaryExposure={primaryExposure}
-            exposures={exposures}
-            serverConnectionPresentation={serverConnectionPresentation}
-            openOperationStatus={openOperationStatus}
+            primaryAccessUrl={publicAccessUrl || primaryDomainUrl || ''}
+            deploymentLabel={deploymentLabel}
+            templateName={templateKey || undefined}
+            templateDetailHref={templateDetailHref}
+            actionDetailHref={
+              app.last_operation ? buildActionDetailHref(app.last_operation) : undefined
+            }
             setTab={setTab}
-            displaySection={{
-              iconValue: displayIconDraft,
-              labelValue: displayLabelDraft,
-              tagsValue: displayTagsDraft,
-              tags: displayTags,
-              saving: displaySaving,
-              hasChanges: hasDisplayChanges,
-              onIconChange: setDisplayIconDraft,
-              onLabelChange: setDisplayLabelDraft,
-              onTagsChange: setDisplayTagsDraft,
-              onSave: () => void saveDisplayMetadata(),
-              onReset: resetDisplayMetadata,
-            }}
+            recentActivity={recentActivity}
+            recentActivityLoading={recentActivityLoading}
           />
           <AppDetailAccessTab
             app={app}
             primaryExposure={primaryExposure}
+            resolvedTargetPort={resolvedTargetPort}
+            serverDisplayName={serverDisplayName}
+            canOpenServerDetail={canOpenServerDetail}
+            openServerDetail={openServerDetail}
+            serverConnectionPresentation={serverConnectionPresentation}
             effectiveServerHost={effectiveServerHost}
             primaryDomainUrl={primaryDomainUrl}
             publicAccessUrl={publicAccessUrl}
@@ -1370,9 +1581,16 @@ export function AppDetailPage({ appId }: { appId: string }) {
           />
           <AppDetailActionsTab
             app={app}
+            releases={releases}
+            openReleaseDetail={openReleaseDetail}
             actionsLoading={actionsLoading}
             actionSearch={actionSearch}
             setActionSearch={setActionSearch}
+            actionHistoryPage={actionHistoryPage}
+            actionHistoryTotalPages={actionHistoryTotalPages}
+            actionHistoryTotalItems={actionHistoryTotalItems}
+            goToPreviousActionHistoryPage={goToPreviousActionHistoryPage}
+            goToNextActionHistoryPage={goToNextActionHistoryPage}
             actionStatusFilter={actionStatusFilter}
             setActionStatusFilter={setActionStatusFilter}
             actionTypeFilter={actionTypeFilter}
@@ -1385,6 +1603,9 @@ export function AppDetailPage({ appId }: { appId: string }) {
             openAllActionsForApp={openAllActionsForApp}
             openOperationStatus={openOperationStatus}
             buildActionDetailHref={buildActionDetailHref}
+            onRequestCancelAction={requestCancelAction}
+            onRequestForceFailAction={requestForceFailAction}
+            onRequestResumeAction={requestResumeAction}
           />
           <AppDetailRuntimeTab
             app={app}
@@ -1453,9 +1674,34 @@ export function AppDetailPage({ appId }: { appId: string }) {
             openServerWorkspace={openServerWorkspace}
           />
           <AppDetailAutomationTab />
-          <AppDetailSettingsTab app={app} />
+          <AppDetailSettingsTab
+            app={app}
+            displaySection={{
+              iconValue: displayIconDraft,
+              labelValue: displayLabelDraft,
+              tagsValue: displayTagsDraft,
+              tags: displayTags,
+              saving: displaySaving,
+              hasChanges: hasDisplayChanges,
+              onIconChange: setDisplayIconDraft,
+              onLabelChange: setDisplayLabelDraft,
+              onTagsChange: setDisplayTagsDraft,
+              onSave: () => void saveDisplayMetadata(),
+              onReset: resetDisplayMetadata,
+            }}
+          />
         </Tabs>
       ) : null}
+      <ActionControlDialog
+        pending={pendingActionControl}
+        busy={actionControlSubmitting}
+        onOpenChange={open => {
+          if (!open) setPendingActionControl(null)
+        }}
+        onConfirm={pending => {
+          void submitActionControl(pending)
+        }}
+      />
 
       <AlertDialog open={pendingUninstall} onOpenChange={setPendingUninstall}>
         <AlertDialogContent>
@@ -1469,7 +1715,11 @@ export function AppDetailPage({ appId }: { appId: string }) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => void runAction('uninstall')}>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => void runAction('uninstall')}
+              disabled={!canUninstallAction}
+            >
               Confirm Uninstall
             </AlertDialogAction>
           </AlertDialogFooter>

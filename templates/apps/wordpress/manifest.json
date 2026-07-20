@@ -1,0 +1,44 @@
+{
+  "contractVersion": "0.1",
+  "key": "wordpress",
+  "name": "wordpress",
+  "trademark": "WordPress",
+  "category": "cms",
+  "docs": {
+    "website": "https://wordpress.org/",
+    "installRequirements": "https://www.wordpress.org/docs/user_guide/en/install-requirements.html",
+    "upstream": "https://hub.docker.com/_/wordpress"
+  },
+  "capabilities": {
+    "web": true,
+    "requiresDomain": false,
+    "hasBuiltinDatabase": true,
+    "supportsPublish": true
+  },
+  "requirements": {
+    "cpu": 1,
+    "memoryGb": 1,
+    "diskGb": 1
+  },
+  "versions": {
+    "default": {
+      "edition": "community",
+      "version": "6.9"
+    },
+    "supported": [
+      {
+        "edition": "community",
+        "version": "6.9"
+      },
+      {
+        "edition": "community",
+        "version": "latest"
+      }
+    ]
+  },
+  "serviceRoles": {
+    "wordpress": "primary",
+    "mysql": "database",
+    "init": "init"
+  }
+}

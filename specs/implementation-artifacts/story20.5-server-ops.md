@@ -9,6 +9,7 @@ This story adds minimal server operations in the Server runtime domain:
 - power actions: restart / shutdown
 - systemd service discovery
 - single service status and logs
+- server cron route-family ownership for managed cron CRUD
 - terminal workspace operation entry points and server-ops integration
 
 Resources CRUD stays in Epic 8 (`/api/collections/servers/records*`).
@@ -17,6 +18,7 @@ Resources CRUD stays in Epic 8 (`/api/collections/servers/records*`).
 
 - Canonical server list/detail UI placement now lives in [story20.6-server-ui.md](story20.6-server-ui.md).
 - This story only retains server-ops actions exposed through that surface, such as `Restart`, `Shutdown`, and connectivity-check integration.
+- Product-facing `Cron` tab UX does not live here. That UI contract is defined in [story20.13-detail-cron.md](story20.13-detail-cron.md), while this story remains the backend route-family owner under `/api/servers/{serverId}/ops/*`.
 - Terminal operations are grouped under a top `Action` menu (right of `Docker`): `Run Script`, `Inspect Ports`, `Manage Services`.
 - `Port Inspector` dialog shows occupied/reserved ports, PID as dedicated column, compact table without horizontal scrolling, sorting, and per-row `Release` action.
 - `Release` uses confirmation dialog with optional force checkbox and danger warning; execution shows progress state.
@@ -49,6 +51,12 @@ All routes are under `/api/servers/{serverId}/ops`.
 | PUT | `/systemd/{service}/unit` | Write unit file (64 KB limit) |
 | POST | `/systemd/{service}/unit/verify` | Verify unit file syntax |
 | POST | `/systemd/{service}/unit/apply` | Daemon-reload + restart |
+| GET | `/cron/jobs` | List AppOS-managed cron entries |
+| POST | `/cron/jobs` | Create managed cron entry |
+| PUT | `/cron/jobs/{entryId}` | Update managed cron entry |
+| POST | `/cron/jobs/{entryId}/enable` | Enable managed cron entry |
+| POST | `/cron/jobs/{entryId}/disable` | Disable managed cron entry |
+| DELETE | `/cron/jobs/{entryId}` | Delete managed cron entry |
 
 ## Frontend Integration
 
@@ -89,12 +97,14 @@ All routes are under `/api/servers/{serverId}/ops`.
 - Keep route shape consistent with `/api/servers/{serverId}/ops/*` design.
 - Keep terminal ops UX in existing pages and one modal only (no additional view hierarchy).
 - Follow Story 20.6 for server list/detail placement, naming, and primary-action hierarchy.
+- Follow Story 20.13 for managed cron payload shape, reduced field set, and `Cron` tab interaction scope.
 
 ## Out of Scope
 
 - Generic remote command execution API.
 - Multi-host batch operations.
 - Historical log analytics and export.
+- Product-facing `Cron` tab information architecture and editor UX (owned by Story 20.13).
 
 ## Tasks / Subtasks
 

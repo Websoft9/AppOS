@@ -1,5 +1,7 @@
 # Epic 16: SSH Tunnel – Local Server Management
 
+> Historical note (2026-06-23): Mentions of Nginx as the fixed publication endpoint in this artifact reflect the pre-Traefik runtime. Current bundled publication ingress uses Traefik for the AppOS host runtime.
+
 **Module**: Infrastructure | **Status**: In Progress | **Priority**: P1 | **Depends on**: Epic 15
 
 ## Overview

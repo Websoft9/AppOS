@@ -12,6 +12,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/software"
 	swreadiness "github.com/websoft9/appos/backend/domain/software/readiness"
+	"github.com/websoft9/appos/backend/infra/process"
 )
 
 const (
@@ -57,7 +58,7 @@ func (e *LocalExecutor) RunPreflight(_ context.Context, _ string, tpl software.R
 		OS:             strings.ToLower(runtime.GOOS),
 		HasRoot:        os.Geteuid() == 0,
 		NetworkOK:      true,
-		ServiceManager: "supervisor",
+		ServiceManager: "process",
 	}
 	return swreadiness.EvaluateReadiness(tpl.Preflight, target, true), nil
 }
@@ -98,17 +99,14 @@ func (e *LocalExecutor) Verify(ctx context.Context, _ string, tpl software.Resol
 	detail.ServiceName = tpl.Verify.ServiceName
 
 	switch tpl.Verify.Strategy {
-	case "supervisor":
-		out, err := executeLocalCommand(ctx,
-			fmt.Sprintf("supervisorctl status %s 2>/dev/null || true", shellQuoteLocal(tpl.Verify.ServiceName)),
-			localVerifyTimeout,
-		)
-		if err != nil {
+	case "process-running":
+		items, err := process.ListMatchedProcesses([]process.MatchTarget{{Name: tpl.Verify.ServiceName, Program: tpl.Verify.ServiceName}})
+		if err != nil || len(items) == 0 {
 			detail.VerificationState = software.VerificationStateDegraded
 			return detail, nil
 		}
-		fields := strings.Fields(strings.TrimSpace(out))
-		if len(fields) >= 2 && strings.EqualFold(fields[1], "RUNNING") {
+		state := items[0].StateName
+		if state == "running" || state == "sleeping" || state == "idle" {
 			detail.VerificationState = software.VerificationStateHealthy
 		} else {
 			detail.VerificationState = software.VerificationStateDegraded
@@ -128,14 +126,6 @@ func (e *LocalExecutor) Verify(ctx context.Context, _ string, tpl software.Resol
 
 func (e *LocalExecutor) Reinstall(ctx context.Context, _ string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
 	switch tpl.Reinstall.Strategy {
-	case "supervisor-restart":
-		if _, err := executeLocalCommand(ctx,
-			fmt.Sprintf("supervisorctl restart %s", shellQuoteLocal(tpl.Verify.ServiceName)),
-			localReinstallTimeout,
-		); err != nil {
-			return software.SoftwareComponentDetail{}, fmt.Errorf("restart local service %s: %w", tpl.Verify.ServiceName, err)
-		}
-		return e.Verify(ctx, "", tpl)
 	case "":
 		return software.SoftwareComponentDetail{}, fmt.Errorf("component %s does not support reinstall on local target", tpl.ComponentKey)
 	default:
@@ -160,8 +150,4 @@ func executeLocalCommand(ctx context.Context, command string, timeout time.Durat
 		return string(out), err
 	}
 	return string(out), nil
-}
-
-func shellQuoteLocal(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
 }

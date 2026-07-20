@@ -2,7 +2,6 @@ package routes
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -12,6 +11,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/websoft9/appos/backend/domain/audit"
+	serversvc "github.com/websoft9/appos/backend/domain/resource/servers/service"
 	"github.com/websoft9/appos/backend/domain/terminal"
 )
 
@@ -25,38 +25,36 @@ func handleSystemdServices(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": "serverId required"})
 	}
 
-	cfg, err := resolveTerminalConfig(e.App, e.Auth, serverID)
+	cfg, proxyEnv, err := resolveTerminalConfigWithProxyForRequest(e, serverID)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
+	release, gateErr := acquireServerRealtimeSSHRead(e.Request.Context(), serverID)
+	if gateErr != nil {
+		return e.JSON(http.StatusServiceUnavailable, map[string]any{"message": gateErr.Error()})
+	}
+	defer release()
+	run, cleanup, runnerErr := reusableRouteSSHCommandRunner(e.Request.Context(), cfg, proxyEnv)
+	if runnerErr != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runnerErr.Error()})
+	}
+	defer cleanup()
+	runtime := newSystemdRuntimeService(run)
 
-	raw, runErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, "systemctl list-units --type=service --all --no-legend --no-pager", 20*time.Second)
+	keyword := strings.ToLower(strings.TrimSpace(e.Request.URL.Query().Get("keyword")))
+	serviceItems, runErr := runtime.ListServices(e.Request.Context(), keyword)
 	if runErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error()})
 	}
 
-	keyword := strings.ToLower(strings.TrimSpace(e.Request.URL.Query().Get("keyword")))
-	services := make([]map[string]string, 0)
-	for _, line := range strings.Split(raw, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		parts := strings.Fields(line)
-		if len(parts) < 5 {
-			continue
-		}
-		name := parts[0]
-		desc := strings.Join(parts[4:], " ")
-		if keyword != "" && !strings.Contains(strings.ToLower(name), keyword) && !strings.Contains(strings.ToLower(desc), keyword) {
-			continue
-		}
+	services := make([]map[string]string, 0, len(serviceItems))
+	for _, item := range serviceItems {
 		services = append(services, map[string]string{
-			"name":         name,
-			"load_state":   parts[1],
-			"active_state": parts[2],
-			"sub_state":    parts[3],
-			"description":  desc,
+			"name":         item.Name,
+			"load_state":   item.LoadState,
+			"active_state": item.ActiveState,
+			"sub_state":    item.SubState,
+			"description":  item.Description,
 		})
 	}
 
@@ -76,36 +74,30 @@ func handleSystemdServices(e *core.RequestEvent) error {
 
 func handleSystemdServiceStatus(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
-	service, err := normalizeServiceName(e.Request.PathValue("service"))
+	service, err := serversvc.NormalizeServiceName(e.Request.PathValue("service"))
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
+	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxyForRequest(e, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
+	release, gateErr := acquireServerRealtimeSSHRead(e.Request.Context(), serverID)
+	if gateErr != nil {
+		return e.JSON(http.StatusServiceUnavailable, map[string]any{"message": gateErr.Error()})
+	}
+	defer release()
+	run, cleanup, runnerErr := reusableRouteSSHCommandRunner(e.Request.Context(), cfg, proxyEnv)
+	if runnerErr != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runnerErr.Error()})
+	}
+	defer cleanup()
+	runtime := newSystemdRuntimeService(run)
 
-	showCmd := fmt.Sprintf("systemctl show %s --no-pager --property=Id,Description,LoadState,ActiveState,SubState,UnitFileState,MainPID,ExecMainStatus,ExecMainCode,StateChangeTimestamp", service)
-	showRaw, runErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, showCmd, 20*time.Second)
+	statusResult, runErr := runtime.Status(e.Request.Context(), service)
 	if runErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error()})
-	}
-
-	statusCmd := fmt.Sprintf("systemctl status %s --no-pager --full --lines=40", service)
-	statusRaw, _ := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, statusCmd, 20*time.Second)
-
-	details := make(map[string]string)
-	for _, line := range strings.Split(showRaw, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-		details[parts[0]] = parts[1]
 	}
 
 	userID, _, ip, _ := clientInfo(e)
@@ -122,14 +114,14 @@ func handleSystemdServiceStatus(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{
 		"server_id":   serverID,
 		"service":     service,
-		"status":      details,
-		"status_text": statusRaw,
+		"status":      statusResult.Properties,
+		"status_text": statusResult.StatusText,
 	})
 }
 
 func handleSystemdServiceLogs(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
-	service, err := normalizeServiceName(e.Request.PathValue("service"))
+	service, err := serversvc.NormalizeServiceName(e.Request.PathValue("service"))
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
@@ -147,24 +139,25 @@ func handleSystemdServiceLogs(e *core.RequestEvent) error {
 		}
 	}
 
-	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
+	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxyForRequest(e, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
+	release, gateErr := acquireServerRealtimeSSHRead(e.Request.Context(), serverID)
+	if gateErr != nil {
+		return e.JSON(http.StatusServiceUnavailable, map[string]any{"message": gateErr.Error()})
+	}
+	defer release()
+	run, cleanup, runnerErr := reusableRouteSSHCommandRunner(e.Request.Context(), cfg, proxyEnv)
+	if runnerErr != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runnerErr.Error()})
+	}
+	defer cleanup()
+	runtime := newSystemdRuntimeService(run)
 
-	cmd := fmt.Sprintf("journalctl -u %s -n %d --no-pager --output=short-iso", service, lines)
-	raw, runErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, cmd, 25*time.Second)
+	logsResult, runErr := runtime.Logs(e.Request.Context(), service, lines)
 	if runErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error()})
-	}
-
-	entries := make([]string, 0)
-	for _, line := range strings.Split(raw, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
-		}
-		entries = append(entries, line)
 	}
 
 	userID, _, ip, _ := clientInfo(e)
@@ -181,26 +174,36 @@ func handleSystemdServiceLogs(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{
 		"server_id": serverID,
 		"service":   service,
-		"lines":     lines,
-		"entries":   entries,
-		"raw":       raw,
+		"lines":     logsResult.Lines,
+		"entries":   logsResult.Entries,
+		"raw":       logsResult.Raw,
 	})
 }
 
 func handleSystemdServiceContent(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
-	service, err := normalizeServiceName(e.Request.PathValue("service"))
+	service, err := serversvc.NormalizeServiceName(e.Request.PathValue("service"))
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
+	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxyForRequest(e, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
+	release, gateErr := acquireServerRealtimeSSHRead(e.Request.Context(), serverID)
+	if gateErr != nil {
+		return e.JSON(http.StatusServiceUnavailable, map[string]any{"message": gateErr.Error()})
+	}
+	defer release()
+	run, cleanup, runnerErr := reusableRouteSSHCommandRunner(e.Request.Context(), cfg, proxyEnv)
+	if runnerErr != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runnerErr.Error()})
+	}
+	defer cleanup()
+	runtime := newSystemdRuntimeService(run)
 
-	cmd := fmt.Sprintf("systemctl cat %s --no-pager", service)
-	raw, runErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, cmd, 20*time.Second)
+	raw, runErr := runtime.Content(e.Request.Context(), service)
 	if runErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error()})
 	}
@@ -225,7 +228,7 @@ func handleSystemdServiceContent(e *core.RequestEvent) error {
 
 func handleSystemdServiceAction(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
-	service, err := normalizeServiceName(e.Request.PathValue("service"))
+	service, err := serversvc.NormalizeServiceName(e.Request.PathValue("service"))
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
@@ -237,25 +240,17 @@ func handleSystemdServiceAction(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": "invalid request body"})
 	}
 
-	action := strings.ToLower(strings.TrimSpace(body.Action))
-	allowed := map[string]bool{
-		"start":   true,
-		"stop":    true,
-		"restart": true,
-		"enable":  true,
-		"disable": true,
-	}
-	if !allowed[action] {
-		return e.JSON(http.StatusBadRequest, map[string]any{"message": "action must be start, stop, restart, enable, or disable"})
+	action, err := serversvc.ValidateSystemdAction(body.Action)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
+	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxyForRequest(e, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
 
-	cmd := fmt.Sprintf("(sudo -n systemctl %s %s || systemctl %s %s)", action, service, action, service)
-	output, runErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, cmd, 25*time.Second)
+	result, runErr := newDirectSystemdRuntimeService(cfg, proxyEnv).Action(e.Request.Context(), service, action)
 
 	userID, _, ip, _ := clientInfo(e)
 	status := audit.StatusSuccess
@@ -269,40 +264,50 @@ func handleSystemdServiceAction(e *core.RequestEvent) error {
 		ResourceID:   serverID,
 		Status:       status,
 		IP:           ip,
-		Detail:       map[string]any{"service": service, "action": action, "output": output},
+		Detail:       map[string]any{"service": service, "action": action, "output": result.Output},
 	})
 
 	if runErr != nil {
-		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error(), "output": output})
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error(), "output": result.Output})
 	}
 
 	return e.JSON(http.StatusOK, map[string]any{
 		"server_id": serverID,
 		"service":   service,
-		"action":    action,
-		"status":    "accepted",
-		"output":    output,
+		"action":    result.Action,
+		"status":    result.Status,
+		"output":    result.Output,
 	})
 }
 
 func handleSystemdServiceUnitRead(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
-	service, err := normalizeServiceName(e.Request.PathValue("service"))
+	service, err := serversvc.NormalizeServiceName(e.Request.PathValue("service"))
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
+	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxyForRequest(e, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
+	release, gateErr := acquireServerRealtimeSSHRead(e.Request.Context(), serverID)
+	if gateErr != nil {
+		return e.JSON(http.StatusServiceUnavailable, map[string]any{"message": gateErr.Error()})
+	}
+	defer release()
+	run, cleanup, runnerErr := reusableRouteSSHCommandRunner(e.Request.Context(), cfg, proxyEnv)
+	if runnerErr != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runnerErr.Error()})
+	}
+	defer cleanup()
 
-	unitPath, pathErr := resolveSystemdUnitPath(e.Request.Context(), cfg, service)
+	unitPath, pathErr := resolveSystemdUnitPathWithRunner(e.Request.Context(), run, service)
 	if pathErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": pathErr.Error()})
 	}
 
-	raw, runErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, fmt.Sprintf("cat %s", terminal.ShellQuote(unitPath)), 20*time.Second)
+	raw, runErr := run(e.Request.Context(), fmt.Sprintf("cat %s", terminal.ShellQuote(unitPath)), 20*time.Second)
 	if runErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error()})
 	}
@@ -317,7 +322,7 @@ func handleSystemdServiceUnitRead(e *core.RequestEvent) error {
 
 func handleSystemdServiceUnitWrite(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
-	service, err := normalizeServiceName(e.Request.PathValue("service"))
+	service, err := serversvc.NormalizeServiceName(e.Request.PathValue("service"))
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
@@ -328,29 +333,18 @@ func handleSystemdServiceUnitWrite(e *core.RequestEvent) error {
 	if err := e.BindBody(&body); err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": "invalid request body"})
 	}
-	if strings.TrimSpace(body.Content) == "" {
-		return e.JSON(http.StatusBadRequest, map[string]any{"message": "content required"})
-	}
-	const maxUnitContentBytes = 64 * 1024
-	if len(body.Content) > maxUnitContentBytes {
-		return e.JSON(http.StatusBadRequest, map[string]any{"message": "content too large (max 64KB)"})
+	if err := serversvc.ValidateSystemdUnitContent(body.Content); err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
+	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxyForRequest(e, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
 
-	unitPath, pathErr := resolveSystemdUnitPath(e.Request.Context(), cfg, service)
-	if pathErr != nil {
-		return e.JSON(http.StatusBadRequest, map[string]any{"message": pathErr.Error()})
-	}
-
-	encoded := base64.StdEncoding.EncodeToString([]byte(body.Content))
-	writeCmd := fmt.Sprintf("printf '%%s' '%s' | base64 -d | (sudo -n tee %s >/dev/null || tee %s >/dev/null)", encoded, terminal.ShellQuote(unitPath), terminal.ShellQuote(unitPath))
-	writeOutput, writeErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, writeCmd, 25*time.Second)
+	result, writeErr := newDirectSystemdRuntimeService(cfg, proxyEnv).WriteUnit(e.Request.Context(), service, body.Content)
 	if writeErr != nil {
-		return e.JSON(http.StatusInternalServerError, map[string]any{"message": writeErr.Error(), "output": writeOutput})
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": writeErr.Error(), "output": result.Output})
 	}
 
 	userID, _, ip, _ := clientInfo(e)
@@ -363,39 +357,33 @@ func handleSystemdServiceUnitWrite(e *core.RequestEvent) error {
 		IP:           ip,
 		Detail: map[string]any{
 			"service": service,
-			"path":    unitPath,
-			"output":  writeOutput,
+			"path":    result.Path,
+			"output":  result.Output,
 		},
 	})
 
 	return e.JSON(http.StatusOK, map[string]any{
 		"server_id": serverID,
 		"service":   service,
-		"path":      unitPath,
-		"status":    "saved",
-		"output":    writeOutput,
+		"path":      result.Path,
+		"status":    result.Status,
+		"output":    result.Output,
 	})
 }
 
 func handleSystemdServiceUnitVerify(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
-	service, err := normalizeServiceName(e.Request.PathValue("service"))
+	service, err := serversvc.NormalizeServiceName(e.Request.PathValue("service"))
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
+	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxyForRequest(e, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
 
-	unitPath, pathErr := resolveSystemdUnitPath(e.Request.Context(), cfg, service)
-	if pathErr != nil {
-		return e.JSON(http.StatusBadRequest, map[string]any{"message": pathErr.Error()})
-	}
-
-	verifyCmd := fmt.Sprintf("(sudo -n systemd-analyze verify %s || systemd-analyze verify %s)", terminal.ShellQuote(unitPath), terminal.ShellQuote(unitPath))
-	verifyOutput, verifyErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, verifyCmd, 25*time.Second)
+	result, verifyErr := newDirectSystemdRuntimeService(cfg, proxyEnv).VerifyUnit(e.Request.Context(), service)
 
 	userID, _, ip, _ := clientInfo(e)
 	status := audit.StatusSuccess
@@ -411,44 +399,37 @@ func handleSystemdServiceUnitVerify(e *core.RequestEvent) error {
 		IP:           ip,
 		Detail: map[string]any{
 			"service":       service,
-			"path":          unitPath,
-			"verify_output": verifyOutput,
+			"path":          result.Path,
+			"verify_output": result.VerifyOutput,
 		},
 	})
 
 	if verifyErr != nil {
-		return e.JSON(http.StatusBadRequest, map[string]any{"message": verifyErr.Error(), "verify_output": verifyOutput})
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": verifyErr.Error(), "verify_output": result.VerifyOutput})
 	}
 
 	return e.JSON(http.StatusOK, map[string]any{
 		"server_id":     serverID,
 		"service":       service,
-		"path":          unitPath,
-		"status":        "valid",
-		"verify_output": verifyOutput,
+		"path":          result.Path,
+		"status":        result.Status,
+		"verify_output": result.VerifyOutput,
 	})
 }
 
 func handleSystemdServiceUnitApply(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
-	service, err := normalizeServiceName(e.Request.PathValue("service"))
+	service, err := serversvc.NormalizeServiceName(e.Request.PathValue("service"))
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
+	cfg, proxyEnv, resolveErr := resolveTerminalConfigWithProxyForRequest(e, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
 
-	reloadCmd := "(sudo -n systemctl daemon-reload || systemctl daemon-reload)"
-	reloadOutput, reloadErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, reloadCmd, 20*time.Second)
-	if reloadErr != nil {
-		return e.JSON(http.StatusInternalServerError, map[string]any{"message": reloadErr.Error(), "reload_output": reloadOutput})
-	}
-
-	applyCmd := fmt.Sprintf("(sudo -n systemctl try-restart %s || systemctl try-restart %s)", service, service)
-	applyOutput, applyErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, applyCmd, 25*time.Second)
+	result, applyErr := newDirectSystemdRuntimeService(cfg, proxyEnv).ApplyUnit(e.Request.Context(), service)
 
 	userID, _, ip, _ := clientInfo(e)
 	status := audit.StatusSuccess
@@ -464,33 +445,36 @@ func handleSystemdServiceUnitApply(e *core.RequestEvent) error {
 		IP:           ip,
 		Detail: map[string]any{
 			"service":       service,
-			"reload_output": reloadOutput,
-			"apply_output":  applyOutput,
+			"reload_output": result.ReloadOutput,
+			"apply_output":  result.ApplyOutput,
 		},
 	})
 
 	if applyErr != nil {
-		return e.JSON(http.StatusInternalServerError, map[string]any{"message": applyErr.Error(), "apply_output": applyOutput, "reload_output": reloadOutput})
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": applyErr.Error(), "apply_output": result.ApplyOutput, "reload_output": result.ReloadOutput})
 	}
 
 	return e.JSON(http.StatusOK, map[string]any{
 		"server_id":     serverID,
 		"service":       service,
-		"status":        "applied",
-		"reload_output": reloadOutput,
-		"apply_output":  applyOutput,
+		"status":        result.Status,
+		"reload_output": result.ReloadOutput,
+		"apply_output":  result.ApplyOutput,
 	})
 }
 
-func resolveSystemdUnitPath(ctx context.Context, cfg terminal.ConnectorConfig, service string) (string, error) {
-	cmd := fmt.Sprintf("systemctl show %s --property=FragmentPath --value --no-pager", service)
-	raw, err := terminal.ExecuteSSHCommand(ctx, cfg, cmd, 20*time.Second)
-	if err != nil {
-		return "", err
+func resolveSystemdUnitPathWithRunner(ctx context.Context, run routeSSHCommandRunner, service string) (string, error) {
+	return newSystemdRuntimeService(run).ResolveUnitPath(ctx, service)
+}
+
+func newSystemdRuntimeService(run routeSSHCommandRunner) serversvc.SystemdRuntimeService {
+	return serversvc.SystemdRuntimeService{
+		Run: routeSSHCommandAdapter(run),
 	}
-	unitPath := strings.TrimSpace(raw)
-	if unitPath == "" || unitPath == "/dev/null" {
-		return "", fmt.Errorf("systemd unit file not found")
+}
+
+func newDirectSystemdRuntimeService(cfg terminal.ConnectorConfig, env map[string]string) serversvc.SystemdRuntimeService {
+	return serversvc.SystemdRuntimeService{
+		Run: directSSHCommandAdapter(cfg, env),
 	}
-	return unitPath, nil
 }

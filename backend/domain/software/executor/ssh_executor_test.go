@@ -83,6 +83,42 @@ func scriptTemplate(url, svc string) software.ResolvedTemplate {
 	}
 }
 
+func traefikDockerTemplate() software.ResolvedTemplate {
+	return software.ResolvedTemplate{
+		ComponentKey: software.ComponentKeyReverseProxy,
+		TemplateKind: software.TemplateKindScript,
+		Detect: software.DetectSpec{
+			VersionCommand: `awk -F'image: ' '/image:/{print $2}' /opt/websoft9/traefik/docker-compose.yml 2>/dev/null | sed -E 's#^.*:v?##' | head -n 1`,
+			InstalledHint:  []string{"systemctl cat traefik.service >/dev/null 2>&1 && echo installed"},
+		},
+		Preflight: software.PreflightSpec{
+			RequireRoot:    true,
+			RequireNetwork: true,
+			VerifiedOS:     []string{"ubuntu", "debian", "rocky"},
+			ServiceManager: "systemd",
+		},
+		Install: software.InstallSpec{
+			Strategy:   "script",
+			ScriptPath: "traefik-install.sh",
+		},
+		Upgrade: software.UpgradeSpec{
+			Strategy:   "script",
+			ScriptPath: "traefik-install.sh",
+			Args:       []string{"--upgrade"},
+		},
+		Uninstall: software.UninstallSpec{
+			Strategy:   "script",
+			ScriptPath: "traefik-install.sh",
+			Args:       []string{"--uninstall"},
+		},
+		Verify: software.VerifySpec{
+			Strategy:    "systemd",
+			ServiceName: "traefik.service",
+		},
+		Reinstall: software.ReinstallSpec{Strategy: "reinstall"},
+	}
+}
+
 // ─── buildScriptCommand ───────────────────────────────────────────────────────
 
 func TestBuildScriptCommand_NoArgs(t *testing.T) {
@@ -101,6 +137,9 @@ func TestBuildScriptCommand_NoArgs(t *testing.T) {
 	// Must clean up temp file
 	if !containsSubstring(cmd, "trap") {
 		t.Errorf("expected trap cleanup in command, got: %s", cmd)
+	}
+	if !containsSubstring(cmd, "case \"$(head -n 1 \"$_tmp\"") {
+		t.Errorf("expected downloaded scripts to use shebang-aware runner, got: %s", cmd)
 	}
 }
 
@@ -123,8 +162,8 @@ func TestBuildScriptCommand_ShellQuotesURL(t *testing.T) {
 }
 
 func TestBuildScriptCommand_WithMultilineEnv(t *testing.T) {
-	cmd := buildScriptCommand("https://example.com/install.sh", nil, map[string]string{"APPOS_AGENT_CONFIG_YAML": "line1\nline2\n"})
-	if !containsSubstring(cmd, "APPOS_AGENT_CONFIG_YAML=$(cat <<'APPOS_ENV_0'") {
+	cmd := buildScriptCommand("https://example.com/install.sh", nil, map[string]string{"APPOS_CONFIG_YAML": "line1\nline2\n"})
+	if !containsSubstring(cmd, "APPOS_CONFIG_YAML=$(cat <<'APPOS_ENV_0'") {
 		t.Fatalf("expected multiline env heredoc, got: %s", cmd)
 	}
 	if !containsSubstring(cmd, "line1\nline2") {
@@ -143,14 +182,17 @@ func TestBuildManagedScriptCommand_EmbeddedScript(t *testing.T) {
 	if !containsSubstring(cmd, "docker-install") {
 		t.Fatalf("expected embedded docker-install.sh contents, got: %s", cmd)
 	}
+	if !containsSubstring(cmd, "bash \"$_tmp\"") {
+		t.Fatalf("expected bash shebang embedded script to run with bash, got: %s", cmd)
+	}
 }
 
 func TestBuildManagedScriptCommand_EmbeddedScriptWithEnv(t *testing.T) {
-	cmd, err := buildManagedScriptCommand("docker-install.sh", "", nil, map[string]string{"APPOS_AGENT_SYSTEMD_UNIT": "unit-content"})
+	cmd, err := buildManagedScriptCommand("docker-install.sh", "", nil, map[string]string{"APPOS_SYSTEMD_UNIT": "unit-content"})
 	if err != nil {
 		t.Fatalf("buildManagedScriptCommand error: %v", err)
 	}
-	if !containsSubstring(cmd, "APPOS_AGENT_SYSTEMD_UNIT=$(cat <<'APPOS_ENV_0'") {
+	if !containsSubstring(cmd, "APPOS_SYSTEMD_UNIT=$(cat <<'APPOS_ENV_0'") {
 		t.Fatalf("expected env injection in embedded command, got: %s", cmd)
 	}
 	if !containsSubstring(cmd, "unit-content") {
@@ -400,6 +442,30 @@ func TestInstall_ScriptWithEmbeddedPath(t *testing.T) {
 	}
 }
 
+func TestInstall_TraefikDockerScript(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	var capturedCmd string
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		capturedCmd = cmd
+		return "", nil
+	}
+
+	ex := &SSHExecutor{}
+	tpl := traefikDockerTemplate()
+	detail, err := ex.Install(context.Background(), "srv-1", tpl)
+	if err != nil {
+		t.Fatalf("Traefik install error: %v", err)
+	}
+	if !containsSubstring(capturedCmd, "APPOS_EMBEDDED_SCRIPT") {
+		t.Fatalf("expected Traefik install to use embedded script, got: %s", capturedCmd)
+	}
+	if detail.ServiceName != "traefik.service" {
+		t.Fatalf("expected service name traefik.service, got %q", detail.ServiceName)
+	}
+}
+
 func TestReinstall_DoesNotVerifyDuringExecution(t *testing.T) {
 	orig := executeSSHCommand
 	defer func() { executeSSHCommand = orig }()
@@ -441,6 +507,33 @@ func TestUpgrade_EmptyStrategy_ReturnsError(t *testing.T) {
 	}
 }
 
+func TestUpgrade_TraefikDockerScript(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	var capturedCmd string
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		capturedCmd = cmd
+		return "", nil
+	}
+
+	ex := &SSHExecutor{}
+	tpl := traefikDockerTemplate()
+	detail, err := ex.Upgrade(context.Background(), "srv-1", tpl)
+	if err != nil {
+		t.Fatalf("Traefik upgrade error: %v", err)
+	}
+	if !containsSubstring(capturedCmd, "--upgrade") {
+		t.Fatalf("expected Traefik upgrade to pass --upgrade flag, got: %s", capturedCmd)
+	}
+	if !containsSubstring(capturedCmd, "APPOS_EMBEDDED_SCRIPT") {
+		t.Fatalf("expected Traefik upgrade to use embedded script, got: %s", capturedCmd)
+	}
+	if detail.ServiceName != "traefik.service" {
+		t.Fatalf("expected service name traefik.service, got %q", detail.ServiceName)
+	}
+}
+
 func TestUninstall_EmptyStrategy_ReturnsError(t *testing.T) {
 	ex := &SSHExecutor{}
 	tpl := packageTemplate("docker.io", "docker.service")
@@ -457,6 +550,75 @@ func TestUninstall_ScriptWithEmptyURL_ReturnsError(t *testing.T) {
 	_, err := ex.Uninstall(context.Background(), "srv-1", tpl)
 	if err == nil {
 		t.Fatal("expected error when script_url is empty for uninstall")
+	}
+}
+
+func TestUninstall_TraefikDockerScript(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	var capturedCmds []string
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		capturedCmds = append(capturedCmds, cmd)
+		if containsSubstring(cmd, "systemctl stop") {
+			return "", nil
+		}
+		return "", nil
+	}
+
+	ex := &SSHExecutor{}
+	tpl := traefikDockerTemplate()
+	detail, err := ex.Uninstall(context.Background(), "srv-1", tpl)
+	if err != nil {
+		t.Fatalf("Traefik uninstall error: %v", err)
+	}
+
+	var uninstallCmd string
+	for _, cmd := range capturedCmds {
+		if containsSubstring(cmd, "APPOS_EMBEDDED_SCRIPT") {
+			uninstallCmd = cmd
+			break
+		}
+	}
+	if uninstallCmd == "" {
+		t.Fatalf("expected Traefik uninstall to use embedded script, got commands: %v", capturedCmds)
+	}
+	if !containsSubstring(uninstallCmd, "--uninstall") {
+		t.Fatalf("expected Traefik uninstall to pass --uninstall flag, got: %s", uninstallCmd)
+	}
+	if detail.ServiceName != "traefik.service" {
+		t.Fatalf("expected service name traefik.service, got %q", detail.ServiceName)
+	}
+}
+
+func TestRestart_SystemdUsesNoBlock(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	commands := []string{}
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		commands = append(commands, cmd)
+		if containsSubstring(cmd, "systemctl restart --no-block") && containsSubstring(cmd, "telegraf.service") {
+			return "", nil
+		}
+		return "", nil
+	}
+
+	ex := &SSHExecutor{}
+	tpl := packageTemplate("telegraf", "telegraf.service")
+	tpl.ComponentKey = software.ComponentKeyTelegraf
+	_, err := ex.Restart(context.Background(), "srv-1", tpl)
+	if err != nil {
+		t.Fatalf("Restart error: %v", err)
+	}
+	if len(commands) == 0 {
+		t.Fatal("expected restart command to run")
+	}
+	if !containsSubstring(commands[0], "systemctl restart --no-block") {
+		t.Fatalf("expected --no-block restart command, got %q", commands[0])
+	}
+	if !containsSubstring(commands[0], "telegraf.service") {
+		t.Fatalf("expected telegraf service in restart command, got %q", commands[0])
 	}
 }
 
@@ -542,7 +704,7 @@ func TestVerifySystemd_ActiveService_ReturnsHealthy(t *testing.T) {
 
 	tpl := packageTemplate("docker.io", "docker.service")
 	ex := &SSHExecutor{}
-	detail, err := ex.verifySystemd(context.Background(), tpl)
+	detail, err := ex.verifySystemd(context.Background(), "srv-1", tpl)
 	if err != nil {
 		t.Fatalf("verifySystemd error: %v", err)
 	}
@@ -564,7 +726,7 @@ func TestVerifySystemd_InactiveService_ReturnsDegraded(t *testing.T) {
 
 	tpl := packageTemplate("docker.io", "docker.service")
 	ex := &SSHExecutor{}
-	detail, err := ex.verifySystemd(context.Background(), tpl)
+	detail, err := ex.verifySystemd(context.Background(), "srv-1", tpl)
 	if err != nil {
 		t.Fatalf("verifySystemd error: %v", err)
 	}
@@ -607,6 +769,82 @@ func TestRunPreflight_AllDimensionsOK(t *testing.T) {
 	}
 	if !result.OK {
 		t.Errorf("expected OK preflight, issues: %v", result.Issues)
+	}
+}
+
+func TestRunPreflight_NetworkRequired_FallbackProbeOK(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		if containsSubstring(cmd, "/etc/os-release") {
+			return "ubuntu", nil
+		}
+		if containsSubstring(cmd, "systemctl") {
+			return "", nil
+		}
+		if containsSubstring(cmd, "apt-get") {
+			return "", nil
+		}
+		if containsSubstring(cmd, "id -u") {
+			return "0", nil
+		}
+		if containsSubstring(cmd, "get.docker.com") && containsSubstring(cmd, "google.com/generate_204") {
+			return "", nil
+		}
+		return "", nil
+	}
+
+	tpl := packageTemplate("docker.io", "docker.service")
+	tpl.Preflight.RequireNetwork = true
+	ex := &SSHExecutor{}
+	result, err := ex.RunPreflight(context.Background(), "", tpl)
+	if err != nil {
+		t.Fatalf("RunPreflight error: %v", err)
+	}
+	if !result.OK {
+		t.Errorf("expected OK preflight via fallback probe, issues: %v", result.Issues)
+	}
+}
+
+func TestRunPreflight_NetworkRequired_ProbeFailureIsAdvisory(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		if containsSubstring(cmd, "/etc/os-release") {
+			return "ubuntu", nil
+		}
+		if containsSubstring(cmd, "systemctl") {
+			return "", nil
+		}
+		if containsSubstring(cmd, "apt-get") {
+			return "", nil
+		}
+		if containsSubstring(cmd, "id -u") {
+			return "0", nil
+		}
+		if containsSubstring(cmd, "get.docker.com") && containsSubstring(cmd, "google.com/generate_204") {
+			return "", ErrCommandFailed
+		}
+		return "", nil
+	}
+
+	tpl := packageTemplate("docker.io", "docker.service")
+	tpl.Preflight.RequireNetwork = true
+	ex := &SSHExecutor{}
+	result, err := ex.RunPreflight(context.Background(), "", tpl)
+	if err != nil {
+		t.Fatalf("RunPreflight error: %v", err)
+	}
+	if !result.OK {
+		t.Fatalf("expected advisory network probe failure to keep preflight OK, issues: %v", result.Issues)
+	}
+	if result.NetworkOK {
+		t.Fatal("expected NetworkOK=false when all outbound network probes fail")
+	}
+	if len(result.Issues) == 0 {
+		t.Fatal("expected advisory network issue when probes fail")
 	}
 }
 

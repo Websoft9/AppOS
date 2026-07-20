@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Loader2, Lock } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { getApiErrorMessage } from '@/lib/api-error'
+import { TOPIC_GUEST_AUTHOR_PREFIX } from '../_app/_auth/-topics-shared'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -44,7 +45,9 @@ function formatDate(iso: string) {
 }
 
 function formatAuthor(createdBy: string) {
-  if (createdBy.startsWith('guest:')) return createdBy.slice(6)
+  if (createdBy.startsWith(TOPIC_GUEST_AUTHOR_PREFIX)) {
+    return createdBy.slice(TOPIC_GUEST_AUTHOR_PREFIX.length)
+  }
   return createdBy.slice(0, 8) + '…'
 }
 

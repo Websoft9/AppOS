@@ -60,13 +60,15 @@ This table is the baseline mapping of domain boundaries, product modules, and ca
 | Resource | Server Service Operations | Components, Services, Service Logs, Systemd Diagnostics | Current | `ServiceTarget` | `ServiceStatus`, `ServiceLogView`, `ServiceAction` |
 | Resource | Software Delivery | Software Components, Runtime Prerequisites, Agent Install / Upgrade | Planned | `SoftwareComponent` | `SoftwareComponent`, `ComponentVersion`, `InstallPolicy`, `UpgradePlan` |
 | Resource | Server Container Operations | Docker, Containers, Compose, Exec | Current | `RuntimeContainer` | `ContainerRef`, `ComposeProject`, `ContainerAction` |
-| Resource | Database Resources | Databases, Database Bindings | Current + Planned | `DatabaseResource` | `DatabaseResource`, `DatabaseCredentialRef`, `DatabaseEndpoint` |
+| Resource | Instance Resources | Service Instances, Dependency Bindings | Current + Planned | `InstanceResource` | `InstanceResource`, `DependencyContract`, `InstanceCredentialRef`, `InstanceEndpoint` |
 | Resource | AI Provider Resources | AI Providers, Hosted AI Providers, Local AI Providers | Planned | `AIProvider` | `AIProvider`, `ProviderModelProfile`, `ProviderCredentialRef` |
 | Resource | Connector Resources | Connectors, Webhooks, MCP, SMTP, Registry, DNS | Current | `Connector` | `Connector`, `ConnectorCapability`, `ConnectorCredentialRef` |
 | Resource | Registry Resources | Registries, Artifact Sources, Registry Settings | Current + Planned | `Registry` | `Registry`, `ArtifactSource`, `RegistryCredentialRef` |
 | Observability | Telemetry | Metrics, Logs, Events, Container Stats | Current | `TelemetryStream` | `MetricSeries`, `LogEntry`, `PlatformEvent` |
 | Observability | Health & Diagnostics | Health, Diagnostic Views, App Health, Connectivity Checks | Current + Planned | `HealthCheckSet` | `HealthSummary`, `DiagnosticSignal`, `CheckResult` |
 | Observability | Platform Self-Observation | AppOS Status, Active Services, System Crons | Current + Planned | `PlatformStatusSnapshot` | `ComponentStatus`, `ServiceStatus`, `CronStatus` |
+
+Boundary note: in restricted local runtime mode without host PID access and Docker socket access, `Platform Self-Observation` is limited to AppOS control-plane roles and AppOS-container-self runtime telemetry. It does not imply host or peer-container observability. `platform/appos-core` may still expose container-self `cpu`, `memory` (used plus available-from-limit), `disk_usage`, `disk`, and `network` telemetry sourced from container-internal proc/cgroup surfaces.
 | Operations Management | Groups & Inventory Views | Groups, Resource Inventory, Resource Graph | Current + Planned | `Group` | `Group`, `GroupItem`, `ResourceReference`, `ResourceEdge`, `OwnershipBinding` |
 | Operations Management | External Signals | Feeds | Planned | `Feed` | `FeedSource`, `FeedItem`, `FeedJudgment`, `FeedBinding` |
 | Operations Management | Operational Knowledge | Topics | Current | `Topic` | `Topic`, `TopicPost`, `TopicReference` |
@@ -118,12 +120,35 @@ Rules:
 
 Resource modeling note:
 
-- `Resource` is the namespace for operator-managed external resources. The current first-class resource types are `Server`, `Database`, `Connector`, and `Registry`.
-- `Server` is already a full business domain. `Database`, `Connector`, and `Registry` currently start thinner but should evolve independently rather than being collapsed into one generic resource blob.
+- `Resource` is the namespace for operator-managed external resources. The current first-class resource types are `Server`, `Instance`, `Connector`, and `Registry`.
+- `Server` is already a full business domain. `Instance`, `Connector`, and `Registry` currently start thinner but should evolve independently rather than being collapsed into one generic resource blob.
+- `Instance` is a lightweight resource access layer for deployment-consumable dependencies, not a general CMDB. An instance exists so AppOS can select, validate, and bind an external dependency during deployment or runtime operations.
+- `Instance.kind` is the deploy-time compatibility contract. `Instance.template_id` is an optional profile preset only. Template count must stay intentionally small: one `generic-*` profile per supported kind plus a few high-value presets only when they reduce setup steps, reduce errors, or map to a strong product mental model.
 - `Groups` is not a resource subtype. It is a standalone supporting domain for cross-resource visual grouping and membership.
 - `Feeds` is not an integration transport subtype. Connector or fetch mechanics may supply external data, but feed judgment and binding belong to `Operations Management`.
 - `Secrets Management` remains outside `Resource`; resources may reference secrets, but a secret is a security capability, not an external connection target.
 - Future heavy third-party workflows should become standalone `Integrations` domains that reference `Resource.Connector` instead of overloading the connector resource itself.
+
+Instance catalog baseline:
+
+| Category | Kind | First-wave templates |
+| --- | --- | --- |
+| `database` | `mysql-compatible` | `generic-mysql` |
+| `database` | `postgres-compatible` | `generic-postgres` |
+| `database` | `mongodb-compatible` | `generic-mongodb`, `mongodb-atlas` |
+| `database` | `clickhouse-compatible` | `generic-clickhouse`, `clickhouse-cloud` |
+| `database` | `neo4j-compatible` | `generic-neo4j`, `neo4j-aura` |
+| `database` | `influxdb-compatible` | `generic-influxdb`, `influxdb-cloud` |
+| `cache` | `redis-compatible` | `generic-redis` |
+| `search` | `elasticsearch-compatible` | `generic-elasticsearch`, `elastic-cloud`, `opensearch` |
+| `message-queue` | `kafka-compatible` | `generic-kafka` |
+| `message-queue` | `amqp-compatible` | `generic-rabbitmq`, `cloudamqp` |
+| `message-queue` | `nats-compatible` | `generic-nats` |
+| `message-queue` | `mqtt-compatible` | `generic-mqtt`, `emqx-cloud` |
+| `storage` | `s3-compatible` | `generic-s3` |
+| `application-service` | `onlyoffice-compatible` | `generic-onlyoffice` |
+
+`http-gateway` no longer belongs to the instance catalog. It is modeled as an External Service connector kind instead.
 
 ## Product Surface and Navigation Mapping
 
@@ -141,10 +166,10 @@ This table maps user-facing surfaces to the domains they project.
 | Installed Apps | Single-Domain Entry | `Application Lifecycle` | `/apps`, `/apps/$appId` | Current installed app list and app detail entry |
 | App Detail | Cross-Domain Container | `Application Lifecycle`, `Observability`, `Resource`, `Gateway Management` | `/apps/$appId` | App-centric work surface that can aggregate status, actions, exposures, diagnostics, and control surfaces |
 | Terminal | Single-Domain Entry with cross-links | `Resource` | `/terminal`, `/terminal/server/$serverId` | Real control surface; can be launched from app or server context without becoming a lifecycle domain |
-| Collaboration | Navigation Bundle | `Operations Management` | `/groups`, `/feeds`, `/topics` | Current grouping for collaboration and operational knowledge workflows |
+| Collaboration | Navigation Bundle | `Operations Management` | `/groups`, `/topics`, `/feeds` | Current grouping for collaboration and operational knowledge workflows; `Feeds` appears below `Topics` in the sidebar |
 | Feeds | Single-Domain Entry | `Operations Management` | `/feeds` | Dedicated external signal workbench for source monitoring, filtering, judgment, and binding |
 | Space | Single-Domain Entry | `Operations Management` | `/space` | User workspace / document surface for operational knowledge artifacts |
-| Resources | Cross-Domain Container | `Resource`, `Operations Management` | `/resources`, `/resources/servers`, `/resources/ai-providers`, `/resources/tunnels`, `/resources/scripts`, `/resources/connectors`, `/resources/groups`, `/resources/databases`, `/resources/cloud-accounts` | Inventory-style container for external resources plus cross-resource grouping views; AI providers and connectors are separate external-integration surfaces |
+| Resources | Cross-Domain Container | `Resource`, `Operations Management` | `/resources`, `/resources/servers`, `/resources/service-instances`, `/resources/ai-providers`, `/resources/tunnels`, `/resources/scripts`, `/resources/connectors`, `/resources/groups`, `/resources/cloud-accounts` | Inventory-style container for external resources plus cross-resource grouping views; service instances are deployment-consumable dependencies rather than a general asset CMDB |
 | System | Cross-Domain Container | `Observability`, `Runtime Infrastructure`, `Audit and Policy` | `/status`, `/tunnels`, `/logs`, `/audit`, `/iac` | Admin container for platform health, tunnel state, logs, audit, and IaC assets |
 | Users | Single-Domain Entry | `Identity and Access` | `/users`, `/profile` | Account and access administration surface |
 | Credentials | Navigation Bundle | `Secrets Management`, `Gateway Management`, `Runtime Infrastructure` | `/secrets`, `/certificates`, `/shared-envs` | Current admin grouping for secret-like assets with different domain ownership |

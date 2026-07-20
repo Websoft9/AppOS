@@ -1,5 +1,7 @@
 package model
 
+import "strings"
+
 type AppLifecycleState string
 
 type HealthSummary string
@@ -20,9 +22,13 @@ type DomainObject string
 
 type ProjectionTarget string
 
-type OperationTriggerSource string
+type OperationTrigger string
 
-type OperationAdapter string
+type OperationChannel string
+
+type OperationExecutionMode string
+
+type RuleProfileKey string
 
 const (
 	ProvisionPipeline   = "ProvisionPipeline"
@@ -124,17 +130,30 @@ const (
 )
 
 const (
-	TriggerSourceManualOps OperationTriggerSource = "manualops"
-	TriggerSourceFileOps   OperationTriggerSource = "fileops"
-	TriggerSourceGitOps    OperationTriggerSource = "gitops"
-	TriggerSourceStore     OperationTriggerSource = "store"
-	TriggerSourceSystem    OperationTriggerSource = "system"
+	TriggerManual    OperationTrigger = "manual"
+	TriggerAutomatic OperationTrigger = "automatic"
 )
 
 const (
-	AdapterManualCompose OperationAdapter = "manual-compose"
-	AdapterGitCompose    OperationAdapter = "git-compose"
-	AdapterSourceBuild   OperationAdapter = "source-build"
+	ChannelStore  OperationChannel = "store"
+	ChannelGit    OperationChannel = "git"
+	ChannelCustom OperationChannel = "custom"
+)
+
+const (
+	ExecutionModeCompose OperationExecutionMode = "compose"
+	ExecutionModeBuild   OperationExecutionMode = "build"
+)
+
+const (
+	RuleProfileComposeStandard     RuleProfileKey = "compose_standard"
+	RuleProfileSourceBuild         RuleProfileKey = "source_build"
+	RuleProfileRuntimeControl      RuleProfileKey = "runtime_control"
+	RuleProfileChangeStandard      RuleProfileKey = "change_standard"
+	RuleProfileExposureSensitive   RuleProfileKey = "exposure_sensitive"
+	RuleProfileRecoveryStrict      RuleProfileKey = "recovery_strict"
+	RuleProfileMaintenanceStandard RuleProfileKey = "maintenance_standard"
+	RuleProfileRetireStandard      RuleProfileKey = "retire_standard"
 )
 
 var PipelineFamilies = []string{
@@ -179,18 +198,66 @@ var DesiredAppStates = []string{
 	string(DesiredStateRetired),
 }
 
-var OperationTriggerSources = []string{
-	string(TriggerSourceManualOps),
-	string(TriggerSourceFileOps),
-	string(TriggerSourceGitOps),
-	string(TriggerSourceStore),
-	string(TriggerSourceSystem),
+var OperationTriggers = []string{
+	string(TriggerManual),
+	string(TriggerAutomatic),
 }
 
-var OperationAdapters = []string{
-	string(AdapterManualCompose),
-	string(AdapterGitCompose),
-	string(AdapterSourceBuild),
+var OperationChannels = []string{
+	string(ChannelStore),
+	string(ChannelGit),
+	string(ChannelCustom),
+}
+
+var OperationExecutionModes = []string{
+	string(ExecutionModeCompose),
+	string(ExecutionModeBuild),
+}
+
+var RuleProfileKeys = []string{
+	string(RuleProfileComposeStandard),
+	string(RuleProfileSourceBuild),
+	string(RuleProfileRuntimeControl),
+	string(RuleProfileChangeStandard),
+	string(RuleProfileExposureSensitive),
+	string(RuleProfileRecoveryStrict),
+	string(RuleProfileMaintenanceStandard),
+	string(RuleProfileRetireStandard),
+}
+
+func NormalizeOperationTrigger(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case string(TriggerManual):
+		return string(TriggerManual)
+	case string(TriggerAutomatic):
+		return string(TriggerAutomatic)
+	default:
+		return strings.ToLower(strings.TrimSpace(value))
+	}
+}
+
+func NormalizeOperationChannel(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case string(ChannelStore):
+		return string(ChannelStore)
+	case string(ChannelGit):
+		return string(ChannelGit)
+	case string(ChannelCustom):
+		return string(ChannelCustom)
+	default:
+		return strings.ToLower(strings.TrimSpace(value))
+	}
+}
+
+func NormalizeOperationExecutionMode(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case string(ExecutionModeCompose):
+		return string(ExecutionModeCompose)
+	case string(ExecutionModeBuild):
+		return string(ExecutionModeBuild)
+	default:
+		return strings.ToLower(strings.TrimSpace(value))
+	}
 }
 
 var OperationTypes = []string{

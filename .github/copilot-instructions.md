@@ -40,6 +40,8 @@
 
 ## Quick Reference
 
+Minimal build rule: after each code-change batch, run `make build` and fix any new build errors before considering the task complete.
+
 **Key Documents** (detailed standards and guidelines are there):
 - PRD: `specs/planning-artifacts/prd.md`
 - Architecture: `specs/planning-artifacts/architecture.md`

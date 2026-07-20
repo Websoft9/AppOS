@@ -7,13 +7,17 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/config/sysconfig"
+	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 	"github.com/websoft9/appos/backend/domain/lifecycle/metadata"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	"github.com/websoft9/appos/backend/domain/lifecycle/orchestration"
 	"github.com/websoft9/appos/backend/domain/lifecycle/projection"
+	"github.com/websoft9/appos/backend/domain/lifecycle/rules"
 )
 
 var ErrDuplicateAppName = errors.New("application name already exists")
+var ErrAppOperationConflict = errors.New("application already has an active action")
 
 type ComposeOperationOptions struct {
 	ExistingAppID      string
@@ -26,8 +30,9 @@ type ComposeOperationRequest struct {
 	ServerID       string
 	ProjectName    string
 	Compose        string
-	Source         string
-	Adapter        string
+	Trigger        string
+	Channel        string
+	ExecutionMode  string
 	ResolvedEnv    map[string]any
 	ExposureIntent *ExposureIntent
 	Metadata       map[string]any
@@ -41,8 +46,9 @@ func PreflightAndCreateOperationFromCompose(app core.App, auth *core.Record, req
 			request.ServerID,
 			request.ProjectName,
 			request.Compose,
-			request.Source,
-			request.Adapter,
+			request.Trigger,
+			request.Channel,
+			request.ExecutionMode,
 			InstallIngressOptions{
 				OperationType:      options.OperationType,
 				ProjectDir:         options.ProjectDir,
@@ -72,8 +78,9 @@ func CreateOperationFromCompose(app core.App, auth *core.Record, request Compose
 		request.ServerID,
 		request.ProjectName,
 		request.Compose,
-		request.Source,
-		request.Adapter,
+		request.Trigger,
+		request.Channel,
+		request.ExecutionMode,
 		InstallIngressOptions{
 			OperationType:      options.OperationType,
 			ProjectDir:         options.ProjectDir,
@@ -93,10 +100,15 @@ func CreateOperationFromCompose(app core.App, auth *core.Record, request Compose
 }
 
 func CreateOperationFromNormalizedInstallSpec(app core.App, auth *core.Record, normalizedSpec NormalizedInstallSpec, options ComposeOperationOptions) (*core.Record, error) {
+	ruleProfile, err := rules.Resolve(normalizedSpec.OperationType, normalizedSpec.ExecutionMode, normalizedRuleProfile(app, normalizedSpec.Metadata, normalizedSpec.ExecutionMode, normalizedSpec.OperationType))
+	if err != nil {
+		return nil, err
+	}
+
 	pipelineDefinition, err := metadata.DefinitionForSelector(model.DefinitionSelector{
 		OperationType: normalizedSpec.OperationType,
-		Source:        normalizedSpec.Source,
-		Adapter:       normalizedSpec.Adapter,
+		ExecutionMode: normalizedSpec.ExecutionMode,
+		RuleProfile:   ruleProfile.Key,
 	})
 	if err != nil {
 		return nil, err
@@ -121,6 +133,11 @@ func CreateOperationFromNormalizedInstallSpec(app core.App, auth *core.Record, n
 			if err != nil {
 				return err
 			}
+			if activeOperation, activeErr := findActiveOperationForApp(txApp, existingAppID); activeErr != nil {
+				return activeErr
+			} else if activeOperation != nil {
+				return buildAppOperationConflictError(activeOperation)
+			}
 		} else {
 			existing, err := txApp.FindRecordsByFilter(
 				appInstancesCol,
@@ -140,6 +157,9 @@ func CreateOperationFromNormalizedInstallSpec(app core.App, auth *core.Record, n
 			appRecord.Set("key", fmt.Sprintf("%s-%d", normalizedSpec.ProjectName, time.Now().UnixNano()))
 			appRecord.Set("name", normalizedSpec.ComposeProjectName)
 			appRecord.Set("server_id", normalizedSpec.ServerID)
+			if templateKey := normalizedCatalogAppKey(normalizedSpec.Metadata); templateKey != "" {
+				appRecord.Set("template_key", templateKey)
+			}
 			appRecord.Set("lifecycle_state", string(model.AppStateInstalling))
 			appRecord.Set("desired_state", string(model.DesiredStateRunning))
 			appRecord.Set("health_summary", string(model.HealthUnknown))
@@ -149,13 +169,23 @@ func CreateOperationFromNormalizedInstallSpec(app core.App, auth *core.Record, n
 				return err
 			}
 		}
+		if templateKey := normalizedCatalogAppKey(normalizedSpec.Metadata); templateKey != "" && strings.TrimSpace(appRecord.GetString("template_key")) == "" {
+			appRecord.Set("template_key", templateKey)
+		}
+		if normalizedSpec.OperationType == string(model.OperationTypeInstall) || strings.TrimSpace(appRecord.GetString("channel")) == "" {
+			appRecord.Set("channel", normalizedSpec.Channel)
+		}
+		if accessEndpoints := resolveAccessEndpoints(normalizedSpec); accessEndpoints != nil {
+			appRecord.Set("access_endpoints", accessEndpoints)
+		}
 
 		operationRecord = core.NewRecord(operationsCol)
 		operationRecord.Set("app", appRecord.Id)
 		operationRecord.Set("server_id", normalizedSpec.ServerID)
 		operationRecord.Set("operation_type", normalizedSpec.OperationType)
-		operationRecord.Set("trigger_source", normalizedSpec.Source)
-		operationRecord.Set("adapter", normalizedSpec.Adapter)
+		operationRecord.Set("rule_profile", ruleProfile.Key)
+		operationRecord.Set("trigger", normalizedSpec.Trigger)
+		operationRecord.Set("execution_mode", normalizedSpec.ExecutionMode)
 		if auth != nil && auth.Collection() != nil && auth.Collection().Name == "users" {
 			operationRecord.Set("requested_by", auth.Id)
 		}
@@ -194,6 +224,92 @@ func CreateOperationFromNormalizedInstallSpec(app core.App, auth *core.Record, n
 	return operationRecord, nil
 }
 
+func normalizedRuleProfile(app core.App, metadata map[string]any, executionMode string, operationType string) string {
+	if len(metadata) == 0 {
+		return defaultRuleProfile(app, executionMode, operationType)
+	}
+	value := strings.TrimSpace(fmt.Sprint(metadata["rule_profile"]))
+	if value != "" {
+		return value
+	}
+	return defaultRuleProfile(app, executionMode, operationType)
+}
+
+func defaultRuleProfile(app core.App, executionMode string, operationType string) string {
+	if strings.TrimSpace(operationType) != string(model.OperationTypeInstall) {
+		return ""
+	}
+	group := settingsschema.DefaultGroup("deploy", "runtime")
+	if app != nil {
+		group, _ = sysconfig.GetGroup(app, "deploy", "runtime", group)
+	}
+	composeProfile := strings.TrimSpace(sysconfig.String(group, "defaultRuleProfileCompose", "compose_standard"))
+	buildProfile := strings.TrimSpace(sysconfig.String(group, "defaultRuleProfileBuild", "source_build"))
+	if strings.TrimSpace(executionMode) == string(model.ExecutionModeBuild) {
+		return buildProfile
+	}
+	return composeProfile
+}
+
+func findActiveOperationForApp(app core.App, appID string) (*core.Record, error) {
+	if app == nil || strings.TrimSpace(appID) == "" {
+		return nil, nil
+	}
+	records, err := app.FindRecordsByFilter(
+		"app_operations",
+		"app = {:appID} && terminal_status = ''",
+		"-updated",
+		1,
+		0,
+		map[string]any{"appID": appID},
+	)
+	if err != nil || len(records) == 0 {
+		return nil, err
+	}
+	return records[0], nil
+}
+
+func buildAppOperationConflictError(operation *core.Record) error {
+	if operation == nil {
+		return ErrAppOperationConflict
+	}
+	return fmt.Errorf(
+		"%w: id=%s status=%s action=%s phase=%s project=%s",
+		ErrAppOperationConflict,
+		strings.TrimSpace(operation.Id),
+		strings.TrimSpace(operationDisplayStatusCompat(operation)),
+		strings.TrimSpace(operation.GetString("operation_type")),
+		strings.TrimSpace(operation.GetString("phase")),
+		strings.TrimSpace(operation.GetString("compose_project_name")),
+	)
+}
+
+func operationDisplayStatusCompat(record *core.Record) string {
+	if record == nil {
+		return ""
+	}
+	terminalStatus := strings.TrimSpace(record.GetString("terminal_status"))
+	failureReason := strings.TrimSpace(record.GetString("failure_reason"))
+	if terminalStatus != "" {
+		switch terminalStatus {
+		case "success":
+			return "success"
+		case "failed":
+			if failureReason == "timeout" {
+				return "timeout"
+			}
+			return "failed"
+		case "cancelled":
+			return "cancelled"
+		case "compensated":
+			return "compensated"
+		case "manual_intervention_required":
+			return "manual_intervention_required"
+		}
+	}
+	return strings.TrimSpace(record.GetString("phase"))
+}
+
 func operationUserID(auth *core.Record) string {
 	if auth == nil {
 		return ""
@@ -203,4 +319,15 @@ func operationUserID(auth *core.Record) string {
 
 func escapeServiceFilterValue(value string) string {
 	return strings.ReplaceAll(value, "'", "\\'")
+}
+
+func normalizedCatalogAppKey(metadata map[string]any) string {
+	if len(metadata) == 0 {
+		return ""
+	}
+	prefillContext, ok := metadata["prefill_context"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprint(prefillContext["app_key"]))
 }

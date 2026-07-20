@@ -8,7 +8,6 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/monitor"
 	"github.com/websoft9/appos/backend/domain/monitor/status/store"
-	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/infra/collections"
 )
 
@@ -57,6 +56,7 @@ func buildOverviewFromRecords(records []*core.Record) (*OverviewResponse, error)
 			resp.UnhealthyItems = append(resp.UnhealthyItems, item)
 		}
 	}
+	ensurePlatformOverviewItems(resp)
 	return resp, nil
 }
 
@@ -75,6 +75,8 @@ func GetTargetStatus(app core.App, targetType, targetID string) (*TargetStatusRe
 				return synthesizeServerTargetStatus(app, targetID)
 			case monitor.TargetTypeApp:
 				return synthesizeAppTargetStatus(app, targetID, monitor.ResolveAppBaselineTarget())
+			case monitor.TargetTypePlatform:
+				return synthesizePlatformTargetStatus(targetID)
 			}
 		}
 		return nil, err
@@ -116,22 +118,9 @@ func synthesizeServerTargetStatus(app core.App, targetID string) (*TargetStatusR
 		}
 	}
 
-	hasAgentToken := false
-	_, secretErr := secrets.FindSystemSecretByNameAndType(app, monitor.AgentTokenSecretPrefix+strings.TrimSpace(targetID), monitor.AgentTokenSecretType)
-	if secretErr == nil {
-		hasAgentToken = true
-	} else if !errors.Is(secretErr, sql.ErrNoRows) {
-		return nil, secretErr
-	}
-
 	transitionAt := server.GetDateTime("updated").String()
 	if strings.TrimSpace(transitionAt) == "" {
 		transitionAt = server.GetDateTime("created").String()
-	}
-
-	reason := "monitor agent has not reported yet"
-	if hasAgentToken {
-		reason = "monitor agent token is ready, waiting for first heartbeat"
 	}
 
 	return &TargetStatusResponse{
@@ -140,7 +129,7 @@ func synthesizeServerTargetStatus(app core.App, targetID string) (*TargetStatusR
 		TargetID:            targetID,
 		DisplayName:         server.GetString("name"),
 		Status:              monitor.StatusUnknown,
-		Reason:              reason,
+		Reason:              "server monitoring has not collected evidence yet",
 		SignalSource:        monitor.SignalSourceInventory,
 		LastTransitionAt:    transitionAt,
 		LastSuccessAt:       nil,
@@ -149,13 +138,12 @@ func synthesizeServerTargetStatus(app core.App, targetID string) (*TargetStatusR
 		LastReportedAt:      nil,
 		ConsecutiveFailures: 0,
 		Summary: map[string]any{
-			"monitoring_state":       map[bool]string{true: "awaiting_first_heartbeat", false: "agent_not_configured"}[hasAgentToken],
-			"agent_token_configured": hasAgentToken,
-			"connection_type":        strings.TrimSpace(server.GetString("connect_type")),
-			"connectivity_status":    connectivityStatus,
-			"host":                   strings.TrimSpace(server.GetString("host")),
-			"port":                   server.GetInt("port"),
-			"user":                   strings.TrimSpace(server.GetString("user")),
+			"monitoring_state":    "awaiting_control_plane_pull",
+			"connection_type":     strings.TrimSpace(server.GetString("connect_type")),
+			"connectivity_status": connectivityStatus,
+			"host":                strings.TrimSpace(server.GetString("host")),
+			"port":                server.GetInt("port"),
+			"user":                strings.TrimSpace(server.GetString("user")),
 		},
 	}, nil
 }
@@ -212,6 +200,96 @@ func synthesizeAppTargetStatusFromRecord(appRecord *core.Record, appEntry monito
 			"publication_summary": strings.TrimSpace(appRecord.GetString("publication_summary")),
 			"server_id":           strings.TrimSpace(appRecord.GetString("server_id")),
 		},
+	}
+}
+
+type platformTargetDefinition struct {
+	ID          string
+	DisplayName string
+}
+
+var platformTargetDefinitions = []platformTargetDefinition{
+	{ID: "appos-core", DisplayName: "AppOS Core"},
+	{ID: "worker", DisplayName: "Worker"},
+	{ID: "scheduler", DisplayName: "Scheduler"},
+}
+
+func ensurePlatformOverviewItems(resp *OverviewResponse) {
+	if resp == nil {
+		return
+	}
+	existing := make(map[string]OverviewItem, len(resp.PlatformItems))
+	for _, item := range resp.PlatformItems {
+		existing[item.TargetID] = item
+	}
+	ordered := make([]OverviewItem, 0, len(platformTargetDefinitions)+len(existing))
+	for _, definition := range platformTargetDefinitions {
+		item, ok := existing[definition.ID]
+		if ok {
+			ordered = append(ordered, item)
+			delete(existing, definition.ID)
+			continue
+		}
+		ordered = append(ordered, synthesizePlatformOverviewItem(definition.ID, definition.DisplayName))
+		resp.Counts[monitor.StatusUnknown]++
+	}
+	for _, item := range resp.PlatformItems {
+		if _, ok := existing[item.TargetID]; ok {
+			ordered = append(ordered, item)
+			delete(existing, item.TargetID)
+		}
+	}
+	resp.PlatformItems = ordered
+}
+
+func synthesizePlatformOverviewItem(targetID, displayName string) OverviewItem {
+	return OverviewItem{
+		TargetType:  monitor.TargetTypePlatform,
+		TargetID:    targetID,
+		DisplayName: displayName,
+		Status:      monitor.StatusUnknown,
+		Reason:      "platform self-observation has not reported yet",
+		DetailHref:  detailHref(monitor.TargetTypePlatform, targetID),
+		Summary:     platformAwaitingSummary(targetID),
+	}
+}
+
+func synthesizePlatformTargetStatus(targetID string) (*TargetStatusResponse, error) {
+	displayName, ok := platformTargetDisplayName(targetID)
+	if !ok {
+		return nil, sql.ErrNoRows
+	}
+	return &TargetStatusResponse{
+		HasData:             false,
+		TargetType:          monitor.TargetTypePlatform,
+		TargetID:            targetID,
+		DisplayName:         displayName,
+		Status:              monitor.StatusUnknown,
+		Reason:              "platform self-observation has not reported yet",
+		SignalSource:        monitor.SignalSourceSelf,
+		LastTransitionAt:    "",
+		LastSuccessAt:       nil,
+		LastFailureAt:       nil,
+		LastCheckedAt:       nil,
+		LastReportedAt:      nil,
+		ConsecutiveFailures: 0,
+		Summary:             platformAwaitingSummary(targetID),
+	}, nil
+}
+
+func platformTargetDisplayName(targetID string) (string, bool) {
+	for _, definition := range platformTargetDefinitions {
+		if definition.ID == targetID {
+			return definition.DisplayName, true
+		}
+	}
+	return "", false
+}
+
+func platformAwaitingSummary(targetID string) map[string]any {
+	return map[string]any{
+		"monitoring_state": "awaiting_self_observation",
+		"platform_target":  targetID,
 	}
 }
 

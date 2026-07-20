@@ -30,6 +30,7 @@ Epic 13 is responsible for:
 - masking and preserve-on-patch semantics for sensitive fields
 - fallback/default behavior for missing settings rows
 - schema-driven Settings navigation and load/save orchestration
+- shared Settings shell layout: menu, content, and optional help panel
 
 ## API Surface
 
@@ -162,6 +163,7 @@ Current custom row mapping:
 | `tunnel-port-range` | `tunnel` | `port_range` |
 | `proxy-network` | `proxy` | `network` |
 | `docker-mirror` | `docker` | `mirror` |
+| `image-pull-network-policy` | `docker` | `image_pull_network_policy` |
 | `docker-registries` | `docker` | `registries` |
 | `llm-providers` | `llm` | `providers` |
 
@@ -199,6 +201,8 @@ Epic 13 is not responsible for:
 - consumer runtime behavior after settings are read
 - compatibility aliases for legacy settings routes
 
+Settings may still act as a reference layer for other domains. For AI Providers, that means storing default-provider references for one shared endpoint group, but never reclaiming canonical ownership of provider records or provider model payloads.
+
 ## Ownership Model
 
 | Settings surface | Canonical owner |
@@ -211,7 +215,11 @@ Epic 13 is not responsible for:
 | `secrets-policy` | Story 19.4 |
 | `deploy-preflight` | Story 17.10 |
 | `iac-files` | Epic 14 |
-| `proxy-network`, `docker-mirror`, `docker-registries`, `llm-providers` | Remain documented in Epic 13 until a dedicated consumer document exists |
+| `proxy-network` | Remains documented in Epic 13 until a dedicated consumer document exists |
+| `docker-mirror`, `image-pull-network-policy`, `docker-registries` | Story 4.8 / Docker Settings |
+| `llm-providers` | Remains documented in Epic 13 until a dedicated consumer document exists |
+
+Future AI reference entries may store same-endpoint default-provider selection only; they must reference `ai_provider` resource ids rather than duplicating provider payloads.
 
 ## Story Split
 
@@ -228,6 +236,7 @@ Epic 13 is not responsible for:
 - Core module design lives across Stories 13.1 to 13.4.
 - Consumer-specific settings should be documented in the consumer epic or story, not in a separate Epic 13 sub-story.
 - New settings work should update the consumer doc first, then register the entry in the Epic 13 canonical module spec.
+- Docker settings semantics now live in `story4.8-docker-settings.md`; Epic 13 only keeps the transport and catalog registration contract.
 - Transitional legacy docs from the previous decomposition are intentionally removed.
 
 ## Out of Scope

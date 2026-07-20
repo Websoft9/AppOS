@@ -132,6 +132,54 @@ const cases: DecisionCase[] = [
     },
   },
   {
+    name: 'direct auth failed',
+    facts: {
+      ...baseDirectFacts,
+      connection: {
+        state_code: 'needs_attention',
+        reason_code: 'credential_auth_failed',
+        config_ready: true,
+      },
+      access: {
+        status: 'unavailable',
+        reason: 'credential_auth_failed',
+        checked_at: '2026-04-22T10:00:00Z',
+        source: 'cached',
+      },
+    },
+    expected: {
+      state: 'needs_attention',
+      reason: 'SSH reachable, authentication failed.',
+      primaryAction: 'Fix Configuration',
+      stateActions: ['View Connection', 'View Details'],
+      toolActions: ['Restart', 'Shutdown'],
+    },
+  },
+  {
+    name: 'direct unreachable from monitor control projection',
+    facts: {
+      ...baseDirectFacts,
+      connection: {
+        state_code: 'needs_attention',
+        reason_code: 'control_unreachable',
+        config_ready: true,
+      },
+      access: {
+        status: 'unavailable',
+        reason: 'control_unreachable',
+        checked_at: '2026-04-22T10:00:00Z',
+        source: 'monitor_control_reachability',
+      },
+    },
+    expected: {
+      state: 'needs_attention',
+      reason: 'AppOS cannot reach this server.',
+      primaryAction: 'Fix Configuration',
+      stateActions: ['View Connection', 'View Details'],
+      toolActions: ['Restart', 'Shutdown'],
+    },
+  },
+  {
     name: 'tunnel setup required',
     facts: {
       ...baseTunnelFacts,
@@ -208,7 +256,7 @@ const cases: DecisionCase[] = [
     expected: {
       state: 'paused',
       reason: 'Reconnect is intentionally paused.',
-      primaryAction: 'Resume Access',
+      primaryAction: 'Reconnect',
       stateActions: ['View Connection', 'View Checklist'],
       toolActions: ['Restart', 'Shutdown'],
     },
@@ -266,7 +314,7 @@ const cases: DecisionCase[] = [
     expected: {
       state: 'needs_attention',
       reason: 'Tunnel session is offline.',
-      primaryAction: 'View Issue',
+      primaryAction: 'Reconnect',
       stateActions: ['View Connection', 'View Checklist'],
       toolActions: ['Restart', 'Shutdown'],
     },

@@ -1,0 +1,8 @@
+{
+  "id": "gandi-dns",
+  "title": "Gandi Live DNS",
+  "vendor": "Gandi",
+  "description": "Gandi Live DNS API profile.",
+  "defaultEndpoint": "https://api.gandi.net/v5",
+  "aliases": ["gandi", "gandi-dns"]
+}

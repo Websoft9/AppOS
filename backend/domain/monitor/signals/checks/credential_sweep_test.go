@@ -21,7 +21,7 @@ func TestRunInstanceCredentialSweepProjectsCredentialInvalidWhenSecretMissing(t 
 	defer app.Cleanup()
 
 	secret := seedMonitorSecretRecord(t, app, "secretredis0001", secrets.StatusRevoked)
-	instance := seedMonitorInstanceRecord(t, app, instances.KindRedis, "generic-redis", "127.0.0.1:6379")
+	instance := seedMonitorInstanceRecord(t, app, instances.KindRedisCompatible, "generic-redis", "127.0.0.1:6379")
 	instance.Set("credential", secret.Id)
 	if err := app.Save(instance); err != nil {
 		t.Fatal(err)
@@ -53,7 +53,7 @@ func TestRunInstanceCredentialSweepSkipsRedisWithoutCredential(t *testing.T) {
 	defer app.Cleanup()
 
 	seedMonitorSecretRecord(t, app, "secretredis0002", secrets.StatusActive)
-	instance := seedMonitorInstanceRecord(t, app, instances.KindRedis, "generic-redis", "127.0.0.1:6379")
+	instance := seedMonitorInstanceRecord(t, app, instances.KindRedisCompatible, "generic-redis", "127.0.0.1:6379")
 	if err := app.Save(instance); err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestCheckInstanceCredentialReturnsCredentialInvalidForMissingSecret(t *test
 	item := instances.RestoreInstance(instances.Snapshot{
 		ID:           "inst-1",
 		Name:         "redis-primary",
-		Kind:         instances.KindRedis,
+		Kind:         instances.KindRedisCompatible,
 		TemplateID:   "generic-redis",
 		Endpoint:     "127.0.0.1:6379",
 		CredentialID: "missing-secret",
@@ -94,6 +94,38 @@ func TestCheckInstanceCredentialReturnsCredentialInvalidForMissingSecret(t *test
 	result := checks.CheckInstanceCredential(app, target)
 	if result.Status != monitor.StatusCredentialInvalid {
 		t.Fatalf("expected credential_invalid result, got %+v", result)
+	}
+}
+
+func TestCheckInstanceCredentialReturnsUnknownForUnsupportedCapability(t *testing.T) {
+	prepareMonitorSecretKey(t)
+	app := newChecksTestApp(t)
+	defer app.Cleanup()
+
+	secret := seedMonitorSecretRecord(t, app, "secretgate00001", secrets.StatusActive)
+	item := instances.RestoreInstance(instances.Snapshot{
+		ID:           "inst-kafka-1",
+		Name:         "stream-primary",
+		Kind:         instances.KindKafkaCompatible,
+		TemplateID:   "generic-kafka",
+		Endpoint:     "kafka://broker.example.com:9092",
+		CredentialID: secret.Id,
+	})
+	target := monitor.ResolvedInstanceTarget{
+		Entry: monitor.TargetRegistryEntry{
+			ID:            "test-kafka-credential",
+			TargetType:    monitor.TargetTypeResource,
+			EnabledChecks: []string{monitor.CheckKindCredential},
+		},
+		Item: item,
+	}
+
+	result := checks.CheckInstanceCredential(app, target)
+	if result.Status != monitor.StatusUnknown {
+		t.Fatalf("expected unknown result, got %+v", result)
+	}
+	if result.Reason != "credential check is not implemented for this resource capability" {
+		t.Fatalf("unexpected unsupported capability reason %q", result.Reason)
 	}
 }
 

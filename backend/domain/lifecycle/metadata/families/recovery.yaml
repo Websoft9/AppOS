@@ -19,6 +19,8 @@ definitions:
     family: RecoveryPipeline
     operation_types:
       - recover
+    rule_profiles:
+      - recovery_strict
     initial_phase: validating
     nodes:
       - key: validate_recovery_request
@@ -37,6 +39,13 @@ definitions:
           - ReleaseSnapshot
         depends_on:
           - validate_recovery_request
+      - key: prepare_recovery_audit
+        node_type: audit
+        display_name: Prepare Recovery Audit
+        phase: preparing
+        retryable: true
+        depends_on:
+          - validate_recovery_request
       - key: restore_previous_release
         node_type: recovery
         display_name: Restore Previous Release
@@ -45,8 +54,10 @@ definitions:
         writes_projection:
           - ReleaseSnapshot
           - AppInstance
+        compensation_node_key: verify_runtime_health
         depends_on:
           - resolve_recovery_target
+          - prepare_recovery_audit
       - key: verify_runtime_health
         node_type: health_check
         display_name: Verify Runtime Health
@@ -63,6 +74,8 @@ definitions:
     operation_types:
       - rollback
       - restore
+    rule_profiles:
+      - recovery_strict
     initial_phase: validating
     nodes:
       - key: validate_rollback_request
@@ -82,6 +95,13 @@ definitions:
           - AppInstance
         depends_on:
           - validate_rollback_request
+      - key: prepare_recovery_audit
+        node_type: audit
+        display_name: Prepare Recovery Audit
+        phase: preparing
+        retryable: true
+        depends_on:
+          - validate_rollback_request
       - key: verify_runtime_health
         node_type: health_check
         display_name: Verify Runtime Health
@@ -91,3 +111,4 @@ definitions:
           - AppInstance
         depends_on:
           - restore_previous_release
+          - prepare_recovery_audit

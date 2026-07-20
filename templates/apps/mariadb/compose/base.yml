@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  mariadb:
+    image: ${W9_REPO}:${W9_VERSION}
+    container_name: ${W9_ID}
+    hostname: ${W9_ID}
+    restart: unless-stopped
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    ports:
+      - ${W9_DB_PORT_SET}:3306
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: healthcheck.sh --connect --innodb_initialized || exit 1
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mariadb_data:
+
+networks:
+  default:
+    name: ${W9_NETWORK}
+    external: true

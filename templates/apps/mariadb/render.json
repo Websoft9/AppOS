@@ -1,0 +1,26 @@
+{
+  "contractVersion": "0.1",
+  "env": {
+    "W9_ID": "${app_id}",
+    "W9_REPO": "mariadb",
+    "W9_DIST": "community",
+    "W9_VERSION": "${version}",
+    "W9_DB_PORT": "3306",
+    "W9_DB_PORT_SET": "${db_port}",
+    "W9_NETWORK": "${platform.network}",
+    "MARIADB_ROOT_PASSWORD": "${secret:db_password}"
+  },
+  "compose_values": {
+    "primaryService": "mariadb"
+  },
+  "files": [],
+  "exposures": [
+    {
+      "label": "MariaDB",
+      "service": "mariadb",
+      "port": 3306,
+      "protocol": "tcp",
+      "default": true
+    }
+  ]
+}

@@ -1,8 +1,10 @@
 package accounts
 
 import (
-	"encoding/json"
 	"strings"
+
+	"github.com/websoft9/appos/backend/domain/resource/connectors"
+	resourceshared "github.com/websoft9/appos/backend/domain/resource/shared"
 )
 
 const (
@@ -38,12 +40,17 @@ func IsAllowedKind(kind string) bool {
 	return false
 }
 
+func IsConnectorKindIgnoredForReference(kind string) bool {
+	return connectors.IsLLMKind(kind)
+}
+
 type ProviderAccount struct {
 	id           string
 	created      string
 	updated      string
 	name         string
 	kind         string
+	isEnabled    bool
 	templateID   string
 	identifier   string
 	credentialID string
@@ -57,6 +64,7 @@ type Snapshot struct {
 	Updated      string
 	Name         string
 	Kind         string
+	IsEnabled    bool
 	TemplateID   string
 	Identifier   string
 	CredentialID string
@@ -65,7 +73,7 @@ type Snapshot struct {
 }
 
 func NewProviderAccount() *ProviderAccount {
-	return &ProviderAccount{config: map[string]any{}}
+	return &ProviderAccount{isEnabled: true, config: map[string]any{}}
 }
 
 func RestoreProviderAccount(snapshot Snapshot) *ProviderAccount {
@@ -75,10 +83,11 @@ func RestoreProviderAccount(snapshot Snapshot) *ProviderAccount {
 		updated:      snapshot.Updated,
 		name:         snapshot.Name,
 		kind:         snapshot.Kind,
+		isEnabled:    snapshot.IsEnabled,
 		templateID:   snapshot.TemplateID,
 		identifier:   snapshot.Identifier,
 		credentialID: snapshot.CredentialID,
-		config:       cloneMap(snapshot.Config),
+		config:       resourceshared.CloneMap(snapshot.Config),
 		description:  snapshot.Description,
 	}
 }
@@ -88,22 +97,32 @@ func (p *ProviderAccount) Created() string      { return p.created }
 func (p *ProviderAccount) Updated() string      { return p.updated }
 func (p *ProviderAccount) Name() string         { return p.name }
 func (p *ProviderAccount) Kind() string         { return p.kind }
+func (p *ProviderAccount) IsEnabled() bool      { return p.isEnabled }
 func (p *ProviderAccount) TemplateID() string   { return p.templateID }
 func (p *ProviderAccount) Identifier() string   { return p.identifier }
 func (p *ProviderAccount) CredentialID() string { return p.credentialID }
 func (p *ProviderAccount) Description() string  { return p.description }
 
+func (p *ProviderAccount) Meta() resourceshared.RecordMeta {
+	return resourceshared.RecordMeta{ID: p.id, Created: p.created, Updated: p.updated}
+}
+
+func (p *ProviderAccount) EnabledState() resourceshared.EnabledState {
+	return resourceshared.EnabledState{IsEnabled: p.isEnabled}
+}
+
 func (p *ProviderAccount) Config() map[string]any {
-	return cloneMap(p.config)
+	return resourceshared.CloneMap(p.config)
 }
 
 func (p *ProviderAccount) ApplySaveInput(input SaveInput) {
 	p.name = strings.TrimSpace(input.Name)
 	p.kind = strings.TrimSpace(input.Kind)
+	p.isEnabled = input.IsEnabled
 	p.templateID = strings.TrimSpace(input.TemplateID)
 	p.identifier = strings.TrimSpace(input.Identifier)
 	p.credentialID = strings.TrimSpace(input.CredentialID)
-	p.config = cloneMap(input.Config)
+	p.config = resourceshared.CloneMap(input.Config)
 	p.description = strings.TrimSpace(input.Description)
 }
 
@@ -124,6 +143,7 @@ func (p *ProviderAccount) Snapshot() Snapshot {
 		Updated:      p.Updated(),
 		Name:         p.Name(),
 		Kind:         p.Kind(),
+		IsEnabled:    p.IsEnabled(),
 		TemplateID:   p.TemplateID(),
 		Identifier:   p.Identifier(),
 		CredentialID: p.CredentialID(),
@@ -154,64 +174,6 @@ type Template struct {
 	Fields      []TemplateField `json:"fields,omitempty"`
 }
 
-func NormalizeTemplateID(raw string) string {
-	trimmed := strings.TrimSpace(strings.ToLower(raw))
-	trimmed = strings.ReplaceAll(trimmed, "_", "-")
-	trimmed = strings.ReplaceAll(trimmed, " ", "-")
-	return trimmed
-}
+func NormalizeTemplateID(raw string) string { return resourceshared.NormalizeTemplateID(raw) }
 
-func cloneMap(input map[string]any) map[string]any {
-	if input == nil {
-		return map[string]any{}
-	}
-	output := make(map[string]any, len(input))
-	for key, value := range input {
-		output[key] = cloneValue(value)
-	}
-	return output
-}
-
-func cloneValue(v any) any {
-	switch val := v.(type) {
-	case map[string]any:
-		return cloneMap(val)
-	case []any:
-		clone := make([]any, len(val))
-		for i, item := range val {
-			clone[i] = cloneValue(item)
-		}
-		return clone
-	default:
-		return v
-	}
-}
-
-func DecodeConfig(raw any) map[string]any {
-	if config, ok := raw.(map[string]any); ok {
-		return cloneMap(config)
-	}
-	if raw == nil {
-		return map[string]any{}
-	}
-
-	var bytes []byte
-	switch typed := raw.(type) {
-	case []byte:
-		bytes = typed
-	case string:
-		bytes = []byte(typed)
-	default:
-		marshaled, err := json.Marshal(typed)
-		if err != nil {
-			return map[string]any{}
-		}
-		bytes = marshaled
-	}
-
-	var decoded map[string]any
-	if err := json.Unmarshal(bytes, &decoded); err != nil {
-		return map[string]any{}
-	}
-	return cloneMap(decoded)
-}
+func DecodeConfig(raw any) map[string]any { return resourceshared.DecodeConfig(raw) }

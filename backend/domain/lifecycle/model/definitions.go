@@ -15,16 +15,16 @@ type Definition struct {
 	Version        string           `yaml:"version"`
 	Family         string           `yaml:"family"`
 	OperationTypes []string         `yaml:"operation_types"`
-	Sources        []string         `yaml:"sources"`
-	Adapters       []string         `yaml:"adapters"`
+	ExecutionModes []string         `yaml:"execution_modes"`
+	RuleProfiles   []string         `yaml:"rule_profiles"`
 	InitialPhase   string           `yaml:"initial_phase"`
 	Nodes          []NodeDefinition `yaml:"nodes"`
 }
 
 type DefinitionSelector struct {
 	OperationType string
-	Source        string
-	Adapter       string
+	ExecutionMode string
+	RuleProfile   string
 }
 
 type NodeDefinition struct {

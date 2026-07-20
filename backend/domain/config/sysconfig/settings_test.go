@@ -59,6 +59,36 @@ func TestString_WrongType(t *testing.T) {
 	}
 }
 
+// ─── Bool() tests ─────────────────────────────────────────────────────────
+
+func TestBool_Present(t *testing.T) {
+	g := map[string]any{"enabled": true}
+	if got := sysconfig.Bool(g, "enabled", false); !got {
+		t.Errorf("expected true, got false")
+	}
+}
+
+func TestBool_StringTrue(t *testing.T) {
+	g := map[string]any{"enabled": "yes"}
+	if got := sysconfig.Bool(g, "enabled", false); !got {
+		t.Errorf("expected true from string \"yes\", got false")
+	}
+}
+
+func TestBool_StringFalse(t *testing.T) {
+	g := map[string]any{"enabled": "off"}
+	if got := sysconfig.Bool(g, "enabled", true); got {
+		t.Errorf("expected false from string \"off\", got true")
+	}
+}
+
+func TestBool_Missing(t *testing.T) {
+	g := map[string]any{}
+	if got := sysconfig.Bool(g, "enabled", true); !got {
+		t.Errorf("expected fallback true, got false")
+	}
+}
+
 // ─── Int() string numeric tests ───────────────────────────────────────────
 
 func TestInt_StringNumeric(t *testing.T) {
@@ -86,3 +116,4 @@ func TestInt_StringInvalid(t *testing.T) {
 // Ensure Int and String signatures are stable (compile-time check).
 var _ = sysconfig.Int
 var _ = sysconfig.String
+var _ = sysconfig.Bool

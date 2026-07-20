@@ -1,22 +1,29 @@
 {
   "id": "xai",
-  "title": "xAI",
+  "title": "xAI Grok",
   "vendor": "xAI",
+  "uiGroup": "single_provider",
+  "hostingMode": "cloud",
+  "serviceMode": "official_provider",
+  "endpointMode": "customizable",
+  "supportsClosedModels": true,
+  "supportsMultiVendorModels": false,
   "description": "xAI-hosted Grok models exposed through an OpenAI-compatible API.",
+  "helpUrl": "https://docs.x.ai/docs/overview",
   "contextSize": 131072,
   "defaultEndpoint": "https://api.x.ai/v1",
+  "protocols": [
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "default": true
+    }
+  ],
   "capabilities": ["chat", "tools", "streaming", "openai-compatible"],
   "aliases": ["xai", "x.ai", "grok"],
   "fields": [
     {
-      "id": "endpoint",
-      "default": "https://api.x.ai/v1"
-    },
-    {
-      "id": "defaultModel",
-      "label": "Default Model",
-      "type": "string",
-      "placeholder": "grok-4"
+      "id": "endpoint"
     }
   ]
 }

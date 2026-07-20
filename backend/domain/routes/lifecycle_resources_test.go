@@ -45,6 +45,10 @@ func seedReleaseAndExposure(t *testing.T, te *testEnv, appRecord *core.Record) (
 	t.Helper()
 
 	operation := seedAppOperation(t, te, appRecord)
+	operation.Set("rule_profile", "compose_standard")
+	if err := te.app.Save(operation); err != nil {
+		t.Fatal(err)
+	}
 
 	releasesCol, err := te.app.FindCollectionByNameOrId("app_releases")
 	if err != nil {
@@ -55,7 +59,7 @@ func seedReleaseAndExposure(t *testing.T, te *testEnv, appRecord *core.Record) (
 	release.Set("created_by_operation", operation.Id)
 	release.Set("release_role", "active")
 	release.Set("version_label", "v1.0.0")
-	release.Set("source_type", "manual")
+	release.Set("channel", "custom")
 	release.Set("source_ref", "seed://manual")
 	release.Set("rendered_compose", operation.GetString("rendered_compose"))
 	release.Set("is_active", true)
@@ -188,7 +192,7 @@ func TestReleaseRoutesExposeSourceBuildCandidateAndPromotedArtifactInfo(t *testi
 	candidateRelease.Set("created_by_operation", operation.Id)
 	candidateRelease.Set("release_role", "candidate")
 	candidateRelease.Set("version_label", "source-build-demo-20260401-candidate")
-	candidateRelease.Set("source_type", "file")
+	candidateRelease.Set("channel", "custom")
 	candidateRelease.Set("source_ref", "apps/source-build-demo/src")
 	candidateRelease.Set("rendered_compose", operation.GetString("rendered_compose"))
 	candidateRelease.Set("artifact_digest", "apps/source-build-demo:candidate")
@@ -204,7 +208,7 @@ func TestReleaseRoutesExposeSourceBuildCandidateAndPromotedArtifactInfo(t *testi
 	activeRelease.Set("created_by_operation", operation.Id)
 	activeRelease.Set("release_role", "active")
 	activeRelease.Set("version_label", "source-build-demo-20260401")
-	activeRelease.Set("source_type", "file")
+	activeRelease.Set("channel", "custom")
 	activeRelease.Set("source_ref", "apps/source-build-demo/src")
 	activeRelease.Set("rendered_compose", operation.GetString("rendered_compose"))
 	activeRelease.Set("artifact_digest", "apps/source-build-demo@sha256:abc123")

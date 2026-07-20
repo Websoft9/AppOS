@@ -1,0 +1,36 @@
+{
+  "id": "nvidia-nim-local",
+  "title": "NVIDIA NIM Local",
+  "vendor": "NVIDIA",
+  "uiGroup": "self_hosted",
+  "hostingMode": "self_hosted",
+  "serviceMode": "inference_runtime",
+  "endpointMode": "user_supplied",
+  "supportsClosedModels": false,
+  "supportsMultiVendorModels": true,
+  "description": "Self-hosted NVIDIA NIM runtime served from your own infrastructure.",
+  "helpUrl": "https://docs.nvidia.com/nim/",
+  "defaultEndpoint": "",
+  "defaultAuthScheme": "bearer",
+  "protocols": [
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "default": true
+    }
+  ],
+  "capabilities": ["chat", "embeddings", "local", "openai-compatible"],
+  "aliases": ["nvidia nim local", "nvidia-nim-local", "nvidia local nim"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "placeholder": "http://your-nvidia-nim-host:8000/v1"
+    },
+    {
+      "id": "credential",
+      "label": "API Key",
+      "required": true,
+      "sensitive": false
+    }
+  ]
+}

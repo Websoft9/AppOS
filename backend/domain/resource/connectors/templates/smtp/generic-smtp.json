@@ -3,12 +3,17 @@
   "title": "Generic SMTP",
   "vendor": "Generic",
   "description": "Reusable SMTP connector for outbound email delivery.",
+  "helpUrl": "https://en.wikipedia.org/wiki/Simple_Mail_Transfer_Protocol",
   "defaultEndpoint": "smtp://localhost:587",
+  "defaultEndpointTls": "smtps://localhost:465",
   "aliases": ["smtp", "mail", "generic-smtp"],
   "fields": [
     {
       "id": "endpoint",
-      "label": "SMTP Endpoint"
+      "helpUrl": "https://en.wikipedia.org/wiki/Simple_Mail_Transfer_Protocol"
+    },
+    {
+      "id": "port"
     },
     {
       "id": "fromAddress",
@@ -18,9 +23,7 @@
     },
     {
       "id": "tls",
-      "label": "Use TLS",
-      "type": "boolean",
-      "default": true
+      "default": false
     }
   ]
 }

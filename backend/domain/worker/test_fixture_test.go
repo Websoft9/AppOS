@@ -49,6 +49,10 @@ func newWorkerTestApp(t *testing.T) *tests.TestApp {
 	t.Helper()
 
 	workerTestSharedOnce.Do(func() {
+		// worker.New() reads runtimecfg.RedisURL() which defaults to
+		// redis://127.0.0.1:6379. Tests that don't call Start() or
+		// Enqueue() never contact Redis.
+
 		baselineDir, err := workerTestBaselineDataDir()
 		if err != nil {
 			workerTestSharedErr = err
@@ -81,8 +85,9 @@ func resetWorkerTestState(t *testing.T, app *tests.TestApp) {
 		"app_releases",
 		"pipeline_runs",
 		"software_operations",
-		"deployments",
 		"instances",
+		"ai_providers",
+		"servers",
 		"secrets",
 		"app_instances",
 	} {

@@ -4,11 +4,11 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"path"
-	"sort"
 	"strings"
 	"sync"
+
+	resourceshared "github.com/websoft9/appos/backend/domain/resource/shared"
 )
 
 //go:embed all:templates
@@ -49,87 +49,75 @@ func ensureTemplatesLoaded() error {
 }
 
 func loadTemplates() error {
-	templateMap := make(map[string]Template)
-
-	entries, err := fs.ReadDir(embeddedTemplateFiles, "templates")
+	loaded, err := resourceshared.LoadTemplates(
+		embeddedTemplateFiles,
+		func(filePath string) (templateFile, error) {
+			file, err := readTemplateFile(filePath)
+			if err != nil {
+				return templateFile{}, fmt.Errorf("read instance template %s: %w", filePath, err)
+			}
+			return file, nil
+		},
+		loadKindBaseTemplate,
+		func(base Template, overlay templateFile, filePath string) (Template, error) {
+			template, err := applyTemplateOverlay(base, overlay)
+			if err != nil {
+				return Template{}, fmt.Errorf("merge instance template %s: %w", filePath, err)
+			}
+			template, err = applyKindContractTemplate(template)
+			if err != nil {
+				return Template{}, fmt.Errorf("apply instance kind contract %s: %w", filePath, err)
+			}
+			if err := validateTemplate(template); err != nil {
+				return Template{}, fmt.Errorf("invalid instance template %s: %w", filePath, err)
+			}
+			return template, nil
+		},
+		func(template Template) string { return template.ID },
+	)
 	if err != nil {
 		return fmt.Errorf("read instance templates: %w", err)
 	}
-
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		kind := entry.Name()
-		base, err := loadKindBaseTemplate(kind)
-		if err != nil {
-			return err
-		}
-
-		kindEntries, err := fs.ReadDir(embeddedTemplateFiles, path.Join("templates", kind))
-		if err != nil {
-			return fmt.Errorf("read instance kind templates %s: %w", kind, err)
-		}
-
-		for _, kindEntry := range kindEntries {
-			if kindEntry.IsDir() || !strings.HasSuffix(kindEntry.Name(), ".json") || kindEntry.Name() == "_template.json" {
-				continue
-			}
-
-			filePath := path.Join("templates", kind, kindEntry.Name())
-			overlay, err := readTemplateFile(filePath)
-			if err != nil {
-				return fmt.Errorf("read instance template %s: %w", filePath, err)
-			}
-
-			template, err := applyTemplateOverlay(base, overlay)
-			if err != nil {
-				return fmt.Errorf("merge instance template %s: %w", filePath, err)
-			}
-			if err := validateTemplate(template); err != nil {
-				return fmt.Errorf("invalid instance template %s: %w", filePath, err)
-			}
-			templateMap[template.ID] = template
-		}
-	}
-
-	keys := make([]string, 0, len(templateMap))
-	for key := range templateMap {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	templates = make([]Template, 0, len(keys))
-	for _, key := range keys {
-		templates = append(templates, templateMap[key])
-	}
+	templates = loaded
 	return nil
 }
 
 type templateFile struct {
-	ID                  *string             `json:"id,omitempty"`
-	Category            *string             `json:"category,omitempty"`
-	Kind                *string             `json:"kind,omitempty"`
-	Title               *string             `json:"title,omitempty"`
-	Vendor              *string             `json:"vendor,omitempty"`
-	Description         *string             `json:"description,omitempty"`
-	DefaultEndpoint     *string             `json:"defaultEndpoint,omitempty"`
-	OmitCommonFields    []string            `json:"omitCommonFields,omitempty"`
-	CommonFieldDefaults map[string]any      `json:"commonFieldDefaults,omitempty"`
-	Fields              []templateFieldFile `json:"fields,omitempty"`
+	ID                     *string             `json:"id,omitempty"`
+	Category               *string             `json:"category,omitempty"`
+	Kind                   *string             `json:"kind,omitempty"`
+	Traits                 []string            `json:"traits,omitempty"`
+	Title                  *string             `json:"title,omitempty"`
+	Vendor                 *string             `json:"vendor,omitempty"`
+	Description            *string             `json:"description,omitempty"`
+	DefaultEndpoint        *string             `json:"defaultEndpoint,omitempty"`
+	DefaultPort            *int                `json:"defaultPort,omitempty"`
+	DefaultProtocolHint    *string             `json:"defaultProtocolHint,omitempty"`
+	LayoutPreset           *string             `json:"layoutPreset,omitempty"`
+	EndpointShape          *string             `json:"endpointShape,omitempty"`
+	CredentialPresentation *string             `json:"credentialPresentation,omitempty"`
+	CredentialLabel        *string             `json:"credentialLabel,omitempty"`
+	Fields                 []templateFieldFile `json:"fields,omitempty"`
 }
 
 type templateFieldFile struct {
-	ID             string          `json:"id,omitempty"`
-	Label          *string         `json:"label,omitempty"`
-	Type           *string         `json:"type,omitempty"`
-	Required       *bool           `json:"required,omitempty"`
-	Sensitive      *bool           `json:"sensitive,omitempty"`
-	SecretTemplate *string         `json:"secretTemplate,omitempty"`
-	Placeholder    *string         `json:"placeholder,omitempty"`
-	HelpText       *string         `json:"helpText,omitempty"`
-	Default        json.RawMessage `json:"default,omitempty"`
+	ID             string                     `json:"id,omitempty"`
+	Label          *string                    `json:"label,omitempty"`
+	Type           *string                    `json:"type,omitempty"`
+	Required       *bool                      `json:"required,omitempty"`
+	Advanced       *bool                      `json:"advanced,omitempty"`
+	Hidden         *bool                      `json:"hidden,omitempty"`
+	Sensitive      *bool                      `json:"sensitive,omitempty"`
+	SecretTemplate *string                    `json:"secretTemplate,omitempty"`
+	Placeholder    *string                    `json:"placeholder,omitempty"`
+	HelpText       *string                    `json:"helpText,omitempty"`
+	ShowWhen       *templateFieldShowWhenFile `json:"showWhen,omitempty"`
+	Default        json.RawMessage            `json:"default,omitempty"`
+}
+
+type templateFieldShowWhenFile struct {
+	Field  string   `json:"field,omitempty"`
+	Values []string `json:"values,omitempty"`
 }
 
 func loadKindBaseTemplate(kind string) (Template, error) {
@@ -142,6 +130,10 @@ func loadKindBaseTemplate(kind string) (Template, error) {
 	base, err = applyTemplateOverlay(base, file)
 	if err != nil {
 		return Template{}, fmt.Errorf("merge instance base template %s: %w", filePath, err)
+	}
+	base, err = applyKindContractTemplate(base)
+	if err != nil {
+		return Template{}, fmt.Errorf("apply instance kind contract %s: %w", filePath, err)
 	}
 	if strings.TrimSpace(base.Kind) != kind {
 		return Template{}, fmt.Errorf("base template kind %q does not match directory %q", base.Kind, kind)
@@ -173,6 +165,9 @@ func applyTemplateOverlay(base Template, file templateFile) (Template, error) {
 	if file.Kind != nil {
 		result.Kind = strings.TrimSpace(*file.Kind)
 	}
+	if file.Traits != nil {
+		result.Traits = resourceshared.NormalizeStringList(file.Traits)
+	}
 	if file.Title != nil {
 		result.Title = strings.TrimSpace(*file.Title)
 	}
@@ -185,11 +180,23 @@ func applyTemplateOverlay(base Template, file templateFile) (Template, error) {
 	if file.DefaultEndpoint != nil {
 		result.DefaultEndpoint = strings.TrimSpace(*file.DefaultEndpoint)
 	}
-	if file.OmitCommonFields != nil {
-		result.OmitCommonFields = append([]string(nil), file.OmitCommonFields...)
+	if file.DefaultPort != nil {
+		result.DefaultPort = *file.DefaultPort
 	}
-	if file.CommonFieldDefaults != nil {
-		result.CommonFieldDefaults = cloneMap(file.CommonFieldDefaults)
+	if file.DefaultProtocolHint != nil {
+		result.DefaultProtocolHint = strings.TrimSpace(*file.DefaultProtocolHint)
+	}
+	if file.LayoutPreset != nil {
+		result.LayoutPreset = strings.TrimSpace(*file.LayoutPreset)
+	}
+	if file.EndpointShape != nil {
+		result.EndpointShape = strings.TrimSpace(*file.EndpointShape)
+	}
+	if file.CredentialPresentation != nil {
+		result.CredentialPresentation = strings.TrimSpace(*file.CredentialPresentation)
+	}
+	if file.CredentialLabel != nil {
+		result.CredentialLabel = strings.TrimSpace(*file.CredentialLabel)
 	}
 	if file.Fields != nil {
 		fields, err := mergeTemplateFields(base.Fields, file.Fields)
@@ -244,6 +251,12 @@ func applyFieldOverlay(base TemplateField, override templateFieldFile) (Template
 	if override.Required != nil {
 		result.Required = *override.Required
 	}
+	if override.Advanced != nil {
+		result.Advanced = *override.Advanced
+	}
+	if override.Hidden != nil {
+		result.Hidden = *override.Hidden
+	}
 	if override.Sensitive != nil {
 		result.Sensitive = *override.Sensitive
 	}
@@ -255,6 +268,12 @@ func applyFieldOverlay(base TemplateField, override templateFieldFile) (Template
 	}
 	if override.HelpText != nil {
 		result.HelpText = strings.TrimSpace(*override.HelpText)
+	}
+	if override.ShowWhen != nil {
+		result.ShowWhen = &TemplateFieldShowWhen{
+			Field:  strings.TrimSpace(override.ShowWhen.Field),
+			Values: resourceshared.NormalizeStringList(override.ShowWhen.Values),
+		}
 	}
 	if override.Default != nil {
 		var value any
@@ -273,6 +292,13 @@ func validateTemplate(template Template) error {
 	if strings.TrimSpace(template.Kind) == "" {
 		return fmt.Errorf("template kind is required")
 	}
+	contract, ok := FindKindContract(template.Kind)
+	if !ok {
+		return fmt.Errorf("template kind %q is not supported", template.Kind)
+	}
+	if strings.TrimSpace(template.Category) != contract.Category {
+		return fmt.Errorf("template category %q does not match kind contract category %q", template.Category, contract.Category)
+	}
 	if strings.TrimSpace(template.Title) == "" {
 		return fmt.Errorf("template title is required")
 	}
@@ -288,4 +314,16 @@ func validateTemplate(template Template) error {
 		}
 	}
 	return nil
+}
+
+func applyKindContractTemplate(template Template) (Template, error) {
+	contract, ok := FindKindContract(template.Kind)
+	if !ok {
+		return Template{}, fmt.Errorf("template kind %q is not supported", template.Kind)
+	}
+	if strings.TrimSpace(template.Category) == "" {
+		template.Category = contract.Category
+	}
+	template.Traits = resourceshared.NormalizeStringList(append(contract.Traits, template.Traits...))
+	return template, nil
 }

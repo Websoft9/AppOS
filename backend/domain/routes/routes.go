@@ -1,13 +1,11 @@
 // Package routes registers all custom API routes for AppOS.
 //
 // Route groups:
-//   - /api/ext/docker     — Docker operations (compose, images, containers, networks, volumes)
 //   - /api/ext/proxy      — reverse proxy domain/SSL management
-//   - /api/ext/system     — system metrics, file browser
+//   - /api/system         — system metrics, runtime facts, file browser
 //   - /api/ext/backup     — backup/restore operations
 //   - /api/ext/resources  — Resource Store CRUD (Epic 8)
 //   - /api/space         — User private space (Epic 9)
-//   - /api/components     — component inventory and runtime service diagnostics (Epic 6)
 //   - /api/catalog        — app catalog normalized read APIs
 //   - /api/apps           — installed app inventory and lifecycle operations
 //   - /api/actions        — lifecycle actions and execution logs
@@ -17,7 +15,7 @@
 //   - /api/topics         — Topic share management (authenticated + public share token)
 //   - /api/ext/iac        — IaC file management (Epic 14, superuser-only)
 //   - /api/tunnel         — tunnel setup and operations APIs (Epic 16)
-//   - /api/servers        — Server catalog: ops, ports, systemd (Epic 20)
+//   - /api/servers        — Server catalog plus server-scoped Docker/ops/software routes (Epic 4, Epic 20)
 //   - /api/software       — AppOS-local software inventory APIs
 //   - /api/terminal       — Interactive terminal sessions: SSH, Docker, SFTP, local (Epic 20)
 package routes
@@ -39,6 +37,8 @@ func SetAsynqClient(c *asynq.Client) {
 
 // Register mounts all custom route groups on the PocketBase router.
 func Register(se *core.ServeEvent) {
+	registerSelfProxyIngress(se)
+
 	// OpenAPI docs — public, no auth required
 	registerOpenAPIRoutes(se)
 
@@ -54,8 +54,14 @@ func Register(se *core.ServeEvent) {
 	// Public topic share routes (unauthenticated — view shared topic and post comments)
 	registerTopicPublicRoutes(se)
 
+	// Public branding metadata for title, logo, and favicon
+	registerBrandingRoutes(se)
+	registerMediaRoutes(se)
+
 	// Topic routes (authenticated share management + public share token)
 	registerTopicRoutes(se)
+	registerAssetsRoutes(se)
+	registerWorkflowRoutes(se)
 
 	// Space routes (authenticated quota/fetch/share + public share/preview)
 	registerSpaceRoutes(se)
@@ -67,8 +73,8 @@ func Register(se *core.ServeEvent) {
 	g := se.Router.Group("/api/ext")
 	g.Bind(apis.RequireAuth())
 
-	components := se.Router.Group("/api/components")
-	components.Bind(apis.RequireAuth())
+	systemGroup := se.Router.Group("/api/system")
+	systemGroup.Bind(apis.RequireAuth())
 
 	deployments := se.Router.Group("/api")
 	deployments.Bind(apis.RequireAuth())
@@ -81,22 +87,22 @@ func Register(se *core.ServeEvent) {
 	softwareGroup := se.Router.Group("/api/software")
 	softwareGroup.Bind(apis.RequireAuth())
 
-	// Terminal session routes (SSH PTY, Docker exec, SFTP, local)
+	// Terminal session routes (SSH PTY, Docker exec, SFTP)
 	terminalGroup := se.Router.Group("/api/terminal")
 	terminalGroup.Bind(wsTokenAuth())
 	terminalGroup.Bind(apis.RequireSuperuserAuth())
 
-	registerDockerRoutes(g)
 	registerProxyRoutes(g)
-	registerSystemRoutes(g)
+	registerSystemRoutes(systemGroup)
+	registerPublicTraefikRoutes(se)
 	registerBackupRoutes(g)
-	registerResourceRoutes(g)
 	registerAIProviderRoutes(se)
+	registerAICopilotRoutes(se)
+	registerAIAgentRoutes(se)
 	registerConnectorRoutes(se)
 	registerInstanceRoutes(se)
 	registerProviderAccountRoutes(se)
 	registerUserRoutes(g)
-	registerComponentsRoutes(components)
 	registerCatalogRoutes(deployments)
 	registerAppsRoutes(deployments)
 	registerOperationRoutes(deployments)
@@ -104,12 +110,15 @@ func Register(se *core.ServeEvent) {
 	registerExposureRoutes(deployments)
 	registerIaCRoutes(g)
 	registerServerRoutes(servers)
+	registerDockerRoutes(servers)
 	registerSoftwareRoutes(servers)
 	registerLocalSoftwareRoutes(softwareGroup)
 	registerTerminalRoutes(terminalGroup)
 	registerTunnelRoutes(se)
 	registerMonitorRoutes(se)
+	registerFeedsRoutes(se)
 	registerSecretsRoutes(se)
 	registerCertificatesRoutes(se)
 	registerCronLogsRoute(se)
+	registerConsoleRoutes(se)
 }

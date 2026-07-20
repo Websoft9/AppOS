@@ -1,0 +1,19 @@
+{
+  "name": "appos-tests",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@types/node": "^26.1.1"
+  },
+  "scripts": {
+    "test:e2e": "playwright test -c playwright.config.ts",
+    "test:e2e:list": "playwright test -c playwright.config.ts --list",
+    "test:e2e:install": "playwright install --with-deps",
+    "test:e2e:smoke": "playwright test -c playwright.config.ts --project=chromium --grep @smoke",
+    "test:e2e:acceptance": "playwright test -c playwright.config.ts --project=chromium --grep @acceptance",
+    "test:e2e:headed": "playwright test -c playwright.config.ts --project=chromium --headed",
+    "test:e2e:remote": "playwright test -c playwright.config.ts --project=chromium",
+    "test:e2e:system": "playwright test -c playwright.config.ts --project=chromium tests/e2e/system-pages-smoke.spec.ts"
+  }
+}

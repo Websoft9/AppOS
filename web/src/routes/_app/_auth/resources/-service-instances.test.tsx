@@ -3,10 +3,11 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ServiceInstancesPage } from './service-instances'
 
+const SERVICE_INSTANCE_SECRET_PATH =
+  "/api/collections/secrets/records?filter=(created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value')%26%26(visible_to:length=0||visible_to:each%3F='service_instance')&sort=name"
+
 const sendMock = vi.fn()
 const createSecretMock = vi.fn()
-const getSecretMock = vi.fn()
-const updateSecretMock = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute:
@@ -20,6 +21,167 @@ vi.mock('@tanstack/react-router', () => ({
   ),
 }))
 
+vi.mock('react-i18next', () => ({
+  initReactI18next: {
+    type: '3rdParty',
+    init: () => {},
+  },
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => {
+      const labels: Record<string, string> = {
+        'hub.title': 'Resources',
+        'resources.serviceInstances.title': 'Service Instances',
+        'serviceInstances.page.title': 'Service Instances',
+        'serviceInstances.page.description':
+          'Runtime dependency contracts required for application startup, including database, cache, messaging, and storage instances.',
+        'serviceInstances.page.favoritesOnly': 'Favorites only',
+        'serviceInstances.page.addInstance': 'Add Instance',
+        'serviceInstances.page.searchPlaceholder': 'Search any instances',
+        'serviceInstances.page.cancel': 'Cancel',
+        'serviceInstances.selection.title': 'Choose a Runtime Kind',
+        'serviceInstances.selection.description':
+          'Choose the runtime kind directly. Profile remains a property of that kind inside the form.',
+        'serviceInstances.selection.searchPlaceholder': 'Search MySQL, Redis, Kafka, or MinIO...',
+        'serviceInstances.selection.emptyMessage': 'No matching runtime kinds found.',
+        'serviceInstances.selection.profileCount': `${String(options?.count ?? '')} profiles`,
+        'serviceInstances.fields.category': 'Category',
+        'serviceInstances.fields.kind': 'Kind',
+        'serviceInstances.fields.template': 'Profile',
+        'serviceInstances.fields.selectedProduct': 'Selected Product',
+        'serviceInstances.fields.selectedProductMeta': 'Selected Product Meta',
+        'serviceInstances.fields.selectedProductDescription': 'Selected Product Description',
+        'serviceInstances.fields.name': 'Name',
+        'serviceInstances.fields.enableIt': 'Enable it',
+        'serviceInstances.fields.username': 'Username',
+        'serviceInstances.fields.connectionTimeout': 'Connection Timeout',
+        'serviceInstances.fields.titleNameEditing': 'Title Name Editing',
+        'serviceInstances.fields.endpoint': 'Endpoint',
+        'serviceInstances.fields.host': 'Host',
+        'serviceInstances.fields.port': 'Port',
+        'serviceInstances.fields.platformAccount': 'Platform Account',
+        'serviceInstances.fields.password': 'Password',
+        'serviceInstances.fields.credential': 'Credential',
+        'serviceInstances.fields.credentialUsesSecret': 'Credential Uses Secret',
+        'serviceInstances.fields.passwordValue': 'Password Value',
+        'serviceInstances.fields.useSsl': 'Use SSL',
+        'serviceInstances.fields.sslCertificate': 'SSL Certificate',
+        'serviceInstances.fields.description': 'Description',
+        'serviceInstances.fields.groups': 'Groups',
+        'serviceInstances.placeholders.name': 'db-prod',
+        'serviceInstances.placeholders.username': 'appuser',
+        'serviceInstances.placeholders.endpoint':
+          'db.example.com:3306 or https://service.example.com',
+        'serviceInstances.placeholders.host': 'db.example.com',
+        'serviceInstances.help.connectionTimeout':
+          'How many seconds to wait before the first connection attempt times out.',
+        'serviceInstances.help.sslCertificatePostgres':
+          'Choose a certificate only when your PostgreSQL connection requires mutual SSL.',
+        'serviceInstances.help.sslCertificateMysql':
+          'Choose a certificate only when your MySQL connection requires mutual SSL.',
+        'serviceInstances.categories.database': 'Database',
+        'serviceInstances.categories.cache': 'Cache',
+        'serviceInstances.categories.message-queue': 'MQ',
+        'serviceInstances.categories.storage': 'Storage',
+        'serviceInstances.categories.search': 'Search',
+        'serviceInstances.categories.application-service': 'Application Service',
+        'serviceInstances.categories.artifact': 'Registries',
+        'serviceInstances.categories.ai': 'AI Services',
+        'serviceInstances.categories.other': 'Other',
+        'serviceInstances.kinds.mysql-compatible': 'MySQL-Compatible',
+        'serviceInstances.kinds.postgres-compatible': 'PostgreSQL-Compatible',
+        'serviceInstances.kinds.redis-compatible': 'Redis-Compatible',
+        'serviceInstances.kinds.kafka-compatible': 'Kafka-Compatible',
+        'serviceInstances.kinds.amqp-compatible': 'AMQP-Compatible',
+        'serviceInstances.kinds.nats-compatible': 'NATS-Compatible',
+        'serviceInstances.kinds.mqtt-compatible': 'MQTT-Compatible',
+        'serviceInstances.kinds.s3-compatible': 'S3-Compatible',
+        'serviceInstances.kinds.mongodb-compatible': 'MongoDB-Compatible',
+        'serviceInstances.kinds.clickhouse-compatible': 'ClickHouse-Compatible',
+        'serviceInstances.kinds.neo4j-compatible': 'Neo4j-Compatible',
+        'serviceInstances.kinds.influxdb-compatible': 'InfluxDB-Compatible',
+        'serviceInstances.kinds.elasticsearch-compatible': 'Elasticsearch-Compatible',
+        'serviceInstances.kinds.onlyoffice-compatible': 'ONLYOFFICE-Compatible',
+        'serviceInstances.kinds.unknown': 'Unknown',
+        'serviceInstances.product.standardTemplate': 'Standard template',
+        'serviceInstances.product.profileDescription': '{{vendorPrefix}}{{category}} profile.',
+        'serviceInstances.templateFields.accessKeyId': 'Access Key ID',
+        'serviceInstances.templateFields.bucket': 'Bucket',
+        'serviceInstances.templateFields.callbackPath': 'Callback Path',
+        'serviceInstances.templateFields.clientId': 'Client ID',
+        'serviceInstances.templateFields.cluster': 'Cluster',
+        'serviceInstances.templateFields.database': 'Database',
+        'serviceInstances.templateFields.documentPath': 'Document Path',
+        'serviceInstances.templateFields.forcePathStyle': 'Force Path-Style Addressing',
+        'serviceInstances.templateFields.indexPrefix': 'Index Prefix',
+        'serviceInstances.templateFields.jwtHeader': 'JWT Header',
+        'serviceInstances.templateFields.organization': 'Organization',
+        'serviceInstances.templateFields.region': 'Region',
+        'serviceInstances.templateFields.saslMechanism': 'SASL Mechanism',
+        'serviceInstances.templateFields.securityProtocol': 'Security Protocol',
+        'serviceInstances.templateFields.clusterIdentifier': 'Cluster Identifier',
+        'serviceInstances.templateFields.clusterId': 'Cluster ID',
+        'serviceInstances.templateFields.resourceGroup': 'Resource Group',
+        'serviceInstances.templateFields.vhost': 'Virtual Host',
+        'serviceInstances.columns.name': 'Name',
+        'serviceInstances.columns.kind': 'Kind',
+        'serviceInstances.columns.profile': 'Profile',
+        'serviceInstances.columns.host': 'Host',
+        'serviceInstances.columns.port': 'Port',
+        'serviceInstances.columns.reachability': 'Reachability',
+        'serviceInstances.columns.monitor': 'Monitor',
+        'serviceInstances.columns.lastChecked': 'Last Checked',
+        'serviceInstances.columns.created': 'Created',
+        'serviceInstances.columns.updated': 'Updated',
+        'serviceInstances.status.unknown': 'Unknown',
+        'serviceInstances.status.reachable': 'Reachable',
+        'serviceInstances.monitor.status.offline': 'Offline',
+        'serviceInstances.status.unreachable': 'Unreachable',
+        'serviceInstances.monitor.status.credential_invalid': 'Credential Invalid',
+        'serviceInstances.monitor.status.degraded': 'Degraded',
+        'serviceInstances.ssl.oneWay': 'One-way SSL',
+        'serviceInstances.ssl.mutual': 'Mutual SSL',
+        'serviceInstances.credential.enterPassword': 'Enter password',
+        'serviceInstances.credential.showPassword': 'Show password',
+        'serviceInstances.credential.hidePassword': 'Hide password',
+        'serviceInstances.dialog.instanceTitle': 'Instance title',
+        'serviceInstances.dialog.applyTitle': 'Apply title',
+        'serviceInstances.dialog.newInstance': 'New Service Instance',
+        'serviceInstances.dialog.editTitle': 'Edit title',
+        'serviceInstances.dialog.createKind': `Create ${String(options?.kind ?? '')} instance`,
+        'serviceInstances.dialog.updateKind': `Update ${String(options?.kind ?? '')} instance`,
+        'serviceInstances.dialog.create': 'Create',
+        'serviceInstances.dialog.update': 'Update',
+        'serviceInstances.dialog.suffix': 'Service Instance',
+        'serviceInstances.secret.singleValueTemplate': 'Password / Single Value',
+        'serviceInstances.secret.newTitle': 'New Secret',
+        'serviceInstances.secret.newDescription':
+          'Create a reusable password secret and attach it to this service instance.',
+        'serviceInstances.secret.editTitle': 'Edit Secret',
+        'serviceInstances.secret.editDescription':
+          'Update the selected Secret without leaving service instance editing.',
+        'serviceInstances.secret.loading': 'Loading secret...',
+        'serviceInstances.secret.save': 'Save Secret',
+        'serviceInstances.secret.generatedDescription': 'Password for {{name}}',
+        'serviceInstances.secret.errors.load': 'Failed to load secret',
+        'serviceInstances.secret.errors.nameRequired': 'Name is required',
+        'serviceInstances.secret.errors.update': 'Failed to update secret',
+        'serviceInstances.errors.instanceProfileRequired': 'Instance profile is required',
+        'serviceInstances.errors.passwordRequired': 'Password is required',
+        'serviceInstances.errors.passwordSecretRequired': 'Password Secret is required',
+        'serviceInstances.errors.sslCertificateRequired':
+          'SSL certificate is required for mutual SSL',
+      }
+      if (key === 'serviceInstances.product.profileDescription') {
+        return `${String(options?.vendorPrefix ?? '')}${String(options?.category ?? '')} profile.`
+      }
+      if (key === 'serviceInstances.secret.generatedDescription') {
+        return `Password for ${String(options?.name ?? '')}`
+      }
+      return labels[key] ?? key
+    },
+  }),
+}))
+
 vi.mock('@/lib/pb', () => ({
   pb: {
     send: (...args: unknown[]) => sendMock(...args),
@@ -29,8 +191,6 @@ vi.mock('@/lib/pb', () => ({
       }
       return {
         create: (...args: unknown[]) => createSecretMock(...args),
-        getOne: (...args: unknown[]) => getSecretMock(...args),
-        update: (...args: unknown[]) => updateSecretMock(...args),
       }
     },
   },
@@ -83,86 +243,501 @@ vi.mock('@/components/secrets/SecretForm', () => ({
   },
 }))
 
+function buildMySQLTemplate() {
+  return {
+    id: 'generic-mysql',
+    category: 'database',
+    kind: 'mysql-compatible',
+    title: 'Generic MySQL',
+    defaultEndpoint: 'mysql.yourhost.com:3306',
+    layoutPreset: 'database_connection',
+    endpointShape: 'host_port',
+    defaultPort: 3306,
+    credentialPresentation: 'secret_or_inline',
+    credentialLabel: 'password',
+    fields: [
+      {
+        id: 'username',
+        label: 'Backend Username Label',
+        type: 'text',
+        required: true,
+        default: 'root',
+      },
+      {
+        id: 'database',
+        label: 'Backend Database Label',
+        type: 'text',
+        required: true,
+        default: 'MySQL',
+      },
+      {
+        id: 'connect_timeout',
+        label: 'Backend Connection Timeout Label',
+        type: 'number',
+        advanced: true,
+        default: 10,
+      },
+      {
+        id: 'ssl_enabled',
+        label: 'Backend SSL Enabled Label',
+        type: 'boolean',
+        advanced: true,
+        hidden: true,
+        default: false,
+      },
+      {
+        id: 'ssl_ca_certificate',
+        label: 'SSL Root CA Certificate',
+        type: 'certificate_ref',
+        advanced: true,
+        showWhen: { field: 'ssl_mode', values: ['mutual'] },
+      },
+    ],
+  }
+}
+
+function buildPostgresTemplate() {
+  return {
+    id: 'generic-postgres',
+    category: 'database',
+    kind: 'postgres-compatible',
+    title: 'Generic PostgreSQL',
+    defaultEndpoint: 'postgres.yourhost.com:5432',
+    layoutPreset: 'database_connection',
+    endpointShape: 'host_port',
+    defaultPort: 5432,
+    credentialPresentation: 'secret_or_inline',
+    credentialLabel: 'password',
+    fields: [
+      {
+        id: 'username',
+        label: 'Backend Username Label',
+        type: 'text',
+        required: true,
+        default: 'postgres',
+      },
+      {
+        id: 'database',
+        label: 'Backend Postgres Database Label',
+        type: 'text',
+        required: true,
+        default: 'postgres',
+      },
+      {
+        id: 'connect_timeout',
+        label: 'Backend Connection Timeout Label',
+        type: 'number',
+        advanced: true,
+        default: 10,
+      },
+      {
+        id: 'ssl_enabled',
+        label: 'Backend SSL Enabled Label',
+        type: 'boolean',
+        advanced: true,
+        hidden: true,
+        default: false,
+      },
+      {
+        id: 'ssl_ca_certificate',
+        label: 'SSL Root CA Certificate',
+        type: 'certificate_ref',
+        advanced: true,
+        showWhen: { field: 'ssl_mode', values: ['mutual'] },
+      },
+    ],
+  }
+}
+
+function buildDefaultInstanceTemplatesFixture() {
+  return [
+    buildMySQLTemplate(),
+    buildPostgresTemplate(),
+    {
+      id: 'generic-mongodb',
+      category: 'database',
+      kind: 'mongodb-compatible',
+      title: 'Generic MongoDB',
+      defaultEndpoint: 'mongodb://mongo.yourhost.com:27017',
+      layoutPreset: 'database_connection',
+      endpointShape: 'host_port',
+      defaultPort: 27017,
+      credentialPresentation: 'secret_or_inline',
+      credentialLabel: 'password',
+      fields: [
+        {
+          id: 'username',
+          label: 'Backend Username Label',
+          type: 'text',
+          required: true,
+          default: 'root',
+        },
+        {
+          id: 'database',
+          label: 'Backend Database Label',
+          type: 'text',
+          default: 'appdb',
+        },
+        {
+          id: 'connect_timeout',
+          label: 'Backend Connection Timeout Label',
+          type: 'number',
+          advanced: true,
+          default: 10,
+        },
+        {
+          id: 'ssl_enabled',
+          label: 'Backend SSL Enabled Label',
+          type: 'boolean',
+          advanced: true,
+          hidden: true,
+          default: false,
+        },
+        {
+          id: 'authSource',
+          label: 'Backend Auth Source Label',
+          type: 'text',
+          default: 'admin',
+          advanced: true,
+        },
+        {
+          id: 'ssl_ca_certificate',
+          label: 'SSL Root CA Certificate',
+          type: 'certificate_ref',
+          advanced: true,
+          showWhen: { field: 'ssl_mode', values: ['mutual'] },
+        },
+      ],
+    },
+    {
+      id: 'generic-clickhouse',
+      category: 'database',
+      kind: 'clickhouse-compatible',
+      title: 'Generic ClickHouse',
+      defaultEndpoint: 'https://clickhouse.yourhost.com:8123',
+      layoutPreset: 'database_connection',
+      endpointShape: 'host_port',
+      defaultPort: 8123,
+      credentialPresentation: 'secret_or_inline',
+      credentialLabel: 'password',
+      fields: [
+        {
+          id: 'username',
+          label: 'Backend Username Label',
+          type: 'text',
+          required: true,
+          default: 'default',
+        },
+        { id: 'database', label: 'Backend Database Label', type: 'text', default: 'default' },
+        {
+          id: 'connect_timeout',
+          label: 'Backend Connection Timeout Label',
+          type: 'number',
+          advanced: true,
+          default: 10,
+        },
+        {
+          id: 'ssl_enabled',
+          label: 'Backend SSL Enabled Label',
+          type: 'boolean',
+          advanced: true,
+          hidden: true,
+          default: false,
+        },
+        {
+          id: 'ssl_ca_certificate',
+          label: 'SSL Root CA Certificate',
+          type: 'certificate_ref',
+          advanced: true,
+          showWhen: { field: 'ssl_mode', values: ['mutual'] },
+        },
+      ],
+    },
+    {
+      id: 'generic-neo4j',
+      category: 'database',
+      kind: 'neo4j-compatible',
+      title: 'Generic Neo4j',
+      defaultEndpoint: 'neo4j://neo4j.yourhost.com:7687',
+      layoutPreset: 'database_connection',
+      endpointShape: 'host_port',
+      defaultPort: 7687,
+      credentialPresentation: 'secret_or_inline',
+      credentialLabel: 'password',
+      fields: [
+        {
+          id: 'username',
+          label: 'Backend Username Label',
+          type: 'text',
+          required: true,
+          default: 'neo4j',
+        },
+        { id: 'database', label: 'Backend Database Label', type: 'text', default: 'neo4j' },
+        {
+          id: 'connect_timeout',
+          label: 'Backend Connection Timeout Label',
+          type: 'number',
+          advanced: true,
+          default: 10,
+        },
+        {
+          id: 'ssl_enabled',
+          label: 'Backend SSL Enabled Label',
+          type: 'boolean',
+          advanced: true,
+          hidden: true,
+          default: false,
+        },
+        {
+          id: 'ssl_ca_certificate',
+          label: 'SSL Root CA Certificate',
+          type: 'certificate_ref',
+          advanced: true,
+          showWhen: { field: 'ssl_mode', values: ['mutual'] },
+        },
+      ],
+    },
+    {
+      id: 'generic-influxdb',
+      category: 'database',
+      kind: 'influxdb-compatible',
+      title: 'Generic InfluxDB',
+      defaultEndpoint: 'https://influxdb.yourhost.com:8086',
+      layoutPreset: 'database_connection',
+      endpointShape: 'host_port',
+      defaultPort: 8086,
+      credentialPresentation: 'secret_or_inline',
+      credentialLabel: 'credential',
+      fields: [
+        {
+          id: 'organization',
+          label: 'Backend Organization Label',
+          type: 'text',
+          required: true,
+        },
+        { id: 'bucket', label: 'Backend Bucket Label', type: 'text', required: true },
+        {
+          id: 'connect_timeout',
+          label: 'Backend Connection Timeout Label',
+          type: 'number',
+          advanced: true,
+          default: 10,
+        },
+        {
+          id: 'ssl_enabled',
+          label: 'Backend SSL Enabled Label',
+          type: 'boolean',
+          advanced: true,
+          hidden: true,
+          default: false,
+        },
+        { id: 'precision', label: 'Backend Precision Label', type: 'text', advanced: true },
+        {
+          id: 'ssl_ca_certificate',
+          label: 'SSL Root CA Certificate',
+          type: 'certificate_ref',
+          advanced: true,
+          showWhen: { field: 'ssl_mode', values: ['mutual'] },
+        },
+      ],
+    },
+    {
+      id: 'generic-redis',
+      category: 'cache',
+      kind: 'redis-compatible',
+      title: 'Generic Redis',
+      defaultEndpoint: 'redis.yourhost.com:6379',
+      endpointShape: 'url',
+      defaultPort: 6379,
+      defaultProtocolHint: 'redis',
+      credentialPresentation: 'secret_or_inline',
+      credentialLabel: 'password',
+      fields: [
+        {
+          id: 'database',
+          label: 'Backend Database Index Label',
+          type: 'number',
+          default: 0,
+        },
+      ],
+    },
+    {
+      id: 'generic-elasticsearch',
+      category: 'search',
+      kind: 'elasticsearch-compatible',
+      title: 'Generic Elasticsearch',
+      vendor: 'OpenSearch',
+      defaultEndpoint: 'https://elasticsearch.yourhost.com:9200',
+      endpointShape: 'url',
+      defaultPort: 9200,
+      defaultProtocolHint: 'https',
+      credentialPresentation: 'secret_or_inline',
+      credentialLabel: 'password',
+      fields: [
+        { id: 'indexPrefix', label: 'Backend Index Prefix Label', type: 'text' },
+        { id: 'username', label: 'Backend Username Label', type: 'text', required: true },
+      ],
+    },
+    {
+      id: 'generic-kafka',
+      category: 'message-queue',
+      kind: 'kafka-compatible',
+      title: 'Generic Kafka',
+      vendor: 'Redpanda',
+      defaultEndpoint: 'kafka.yourhost.com:9092',
+      endpointShape: 'url',
+      defaultPort: 9092,
+      defaultProtocolHint: 'kafka',
+      credentialPresentation: 'secret_or_inline',
+      credentialLabel: 'password',
+      fields: [
+        { id: 'username', label: 'Backend Username Label', type: 'text', required: true },
+        { id: 'clusterId', label: 'Backend Cluster ID Label', type: 'text', advanced: true },
+        {
+          id: 'securityProtocol',
+          label: 'Backend Security Protocol Label',
+          type: 'text',
+          advanced: true,
+          hidden: true,
+          default: 'SASL_SSL',
+        },
+        {
+          id: 'saslMechanism',
+          label: 'Backend SASL Mechanism Label',
+          type: 'text',
+          advanced: true,
+          hidden: true,
+          default: 'PLAIN',
+        },
+      ],
+    },
+    {
+      id: 'generic-rabbitmq',
+      category: 'message-queue',
+      kind: 'amqp-compatible',
+      title: 'Generic RabbitMQ',
+      defaultEndpoint: 'amqp://rabbitmq.yourhost.com:5672',
+      endpointShape: 'url',
+      defaultPort: 5672,
+      defaultProtocolHint: 'amqp',
+      credentialPresentation: 'secret_or_inline',
+      credentialLabel: 'password',
+      fields: [
+        {
+          id: 'username',
+          label: 'Backend Username Label',
+          type: 'text',
+          required: true,
+          default: 'guest',
+        },
+        { id: 'vhost', label: 'Backend Virtual Host Label', type: 'text', default: '/' },
+      ],
+    },
+    {
+      id: 'generic-nats',
+      category: 'message-queue',
+      kind: 'nats-compatible',
+      title: 'Generic NATS',
+      defaultEndpoint: 'nats://nats.yourhost.com:4222',
+      endpointShape: 'url',
+      defaultPort: 4222,
+      defaultProtocolHint: 'nats',
+      credentialPresentation: 'secret_or_inline',
+      credentialLabel: 'credential',
+      fields: [{ id: 'cluster', label: 'Backend Cluster Label', type: 'text' }],
+    },
+    {
+      id: 'generic-mqtt',
+      category: 'message-queue',
+      kind: 'mqtt-compatible',
+      title: 'Generic MQTT',
+      defaultEndpoint: 'mqtt://broker.yourhost.com:1883',
+      endpointShape: 'url',
+      defaultPort: 1883,
+      defaultProtocolHint: 'mqtt',
+      credentialPresentation: 'secret_or_inline',
+      credentialLabel: 'password',
+      fields: [
+        { id: 'username', label: 'Backend Username Label', type: 'text', required: true },
+        { id: 'clientId', label: 'Backend Client ID Label', type: 'text' },
+      ],
+    },
+    {
+      id: 'generic-s3',
+      category: 'storage',
+      kind: 's3-compatible',
+      title: 'Generic S3',
+      defaultEndpoint: 'https://s3.yourhost.com',
+      endpointShape: 'url',
+      defaultPort: 443,
+      defaultProtocolHint: 'https',
+      credentialPresentation: 'secret_or_inline',
+      credentialLabel: 'credential',
+      fields: [
+        { id: 'accessKeyId', label: 'Backend Access Key ID Label', type: 'text', required: true },
+        { id: 'bucket', label: 'Backend Bucket Label', type: 'text', required: true },
+        {
+          id: 'region',
+          label: 'Backend Region Label',
+          type: 'text',
+          required: true,
+          default: 'us-east-1',
+        },
+        {
+          id: 'forcePathStyle',
+          label: 'Backend Force Path-Style Label',
+          type: 'boolean',
+          advanced: true,
+          default: false,
+        },
+      ],
+    },
+    {
+      id: 'generic-onlyoffice',
+      category: 'application-service',
+      kind: 'onlyoffice-compatible',
+      title: 'Generic ONLYOFFICE',
+      defaultEndpoint: 'https://onlyoffice.yourhost.com',
+      endpointShape: 'url',
+      defaultPort: 443,
+      defaultProtocolHint: 'https',
+      credentialPresentation: 'secret_or_inline',
+      credentialLabel: 'credential',
+      fields: [
+        { id: 'callbackPath', label: 'Backend Callback Path Label', type: 'text', default: '/' },
+        { id: 'documentPath', label: 'Backend Document Path Label', type: 'text', default: '/' },
+        {
+          id: 'jwtHeader',
+          label: 'Backend JWT Header Label',
+          type: 'text',
+          advanced: true,
+          default: 'Authorization',
+        },
+      ],
+    },
+  ]
+}
+
 describe('ServiceInstancesPage', () => {
+  function clickChooserOption(title: string) {
+    const label = screen.getByText(title)
+    const button = label.closest('button')
+    if (button) {
+      fireEvent.click(button)
+      return
+    }
+    fireEvent.click(label)
+  }
+
   beforeEach(() => {
     sendMock.mockReset()
     createSecretMock.mockReset()
-    getSecretMock.mockReset()
-    updateSecretMock.mockReset()
     createSecretMock.mockResolvedValue({ id: 'secret-created' })
-    getSecretMock.mockResolvedValue({
-      id: 'secret-1',
-      name: 'db-password',
-      description: 'existing description',
-      template_id: 'single_value',
-    })
-    updateSecretMock.mockResolvedValue({ id: 'secret-1' })
 
     sendMock.mockImplementation(
       (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
         if (path === '/api/instances/templates') {
-          return Promise.resolve([
-            {
-              id: 'generic-mysql',
-              category: 'database',
-              kind: 'mysql',
-              title: 'Generic MySQL',
-              commonFieldDefaults: { username: 'root' },
-              fields: [
-                {
-                  id: 'database',
-                  label: 'Database',
-                  type: 'text',
-                  required: true,
-                  default: 'MySQL',
-                },
-                { id: 'ssl_ca_certificate', label: 'SSL Root CA Certificate', type: 'text' },
-              ],
-            },
-            {
-              id: 'aurora-mysql',
-              category: 'database',
-              kind: 'mysql',
-              title: 'Amazon Aurora MySQL',
-              fields: [
-                { id: 'region', label: 'Region', type: 'text' },
-                { id: 'clusterIdentifier', label: 'Cluster Identifier', type: 'text' },
-              ],
-            },
-            {
-              id: 'generic-postgres',
-              category: 'database',
-              kind: 'postgres',
-              title: 'Generic PostgreSQL',
-              commonFieldDefaults: { username: 'postgres' },
-              fields: [
-                {
-                  id: 'database',
-                  label: 'Database',
-                  type: 'text',
-                  required: true,
-                  default: 'postgres',
-                },
-                { id: 'ssl_ca_certificate', label: 'SSL Root CA Certificate', type: 'text' },
-              ],
-            },
-            {
-              id: 'generic-redis',
-              category: 'cache',
-              kind: 'redis',
-              title: 'Generic Redis',
-              defaultEndpoint: 'redis.internal:6379',
-              fields: [{ id: 'database', label: 'Database Index', type: 'number', default: 0 }],
-            },
-            {
-              id: 'generic-kafka',
-              category: 'message-queue',
-              kind: 'kafka',
-              title: 'Generic Kafka',
-              defaultEndpoint: 'kafka.internal:9092',
-              fields: [{ id: 'clusterId', label: 'Cluster ID', type: 'text' }],
-            },
-          ])
+          return Promise.resolve(buildDefaultInstanceTemplatesFixture())
         }
         if (path === '/api/secrets/templates') {
           return Promise.resolve([
@@ -176,6 +751,9 @@ describe('ServiceInstancesPage', () => {
         if (path === '/api/instances' && (!options?.method || options.method === 'GET')) {
           return Promise.resolve([])
         }
+        if (path === '/api/instances/reachability' && options?.method === 'POST') {
+          return Promise.resolve([])
+        }
         if (path.startsWith('/api/collections/monitor_latest_status/records?')) {
           return Promise.resolve({ items: [] })
         }
@@ -183,7 +761,7 @@ describe('ServiceInstancesPage', () => {
           return Promise.resolve({
             id: 'instance-created',
             name: options.body?.name ?? 'created-instance',
-            kind: 'mysql',
+            kind: 'mysql-compatible',
             template_id: 'generic-mysql',
             endpoint: options.body?.endpoint ?? 'db.example.com:3306',
             provider_account: options.body?.provider_account ?? '',
@@ -195,13 +773,10 @@ describe('ServiceInstancesPage', () => {
         if (path === '/api/provider-accounts') {
           return Promise.resolve([])
         }
-        if (path.startsWith('/api/collections/secrets/records?filter=')) {
+        if (path === SERVICE_INSTANCE_SECRET_PATH) {
           return Promise.resolve({ items: [{ id: 'secret-1', name: 'db-password' }] })
         }
         if (path === '/api/collections/groups/records?perPage=500&sort=name') {
-          return Promise.resolve({ items: [] })
-        }
-        if (path === '/api/collections/secrets/records?perPage=500&sort=name') {
           return Promise.resolve({ items: [] })
         }
         if (path === "/api/collections/certificates/records?filter=(status='active')&sort=name") {
@@ -216,7 +791,7 @@ describe('ServiceInstancesPage', () => {
     cleanup()
   })
 
-  it('opens a product picker before showing the selected service instance form', async () => {
+  it('opens a kind picker before showing the selected service instance form', async () => {
     render(<ServiceInstancesPage />)
 
     await waitFor(() => {
@@ -228,34 +803,45 @@ describe('ServiceInstancesPage', () => {
 
     await screen.findByRole('dialog')
 
-    expect(screen.getByText('Choose a Product')).toBeInTheDocument()
+    expect(screen.getByText('Choose a Runtime Kind')).toBeInTheDocument()
     expect(
-      screen.getByPlaceholderText('Search products like MySQL, Redis, Aurora, PostgreSQL...')
+      screen.getByPlaceholderText('Search MySQL, Redis, Kafka, or MinIO...')
     ).toBeInTheDocument()
-    expect(screen.getByText('MySQL')).toBeInTheDocument()
-    expect(screen.getByText('Amazon Aurora MySQL')).toBeInTheDocument()
+    expect(screen.getAllByText(/MySQL-Compatible/i).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText(/^AMQP-Compatible$/).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('S3-Compatible').length).toBeGreaterThanOrEqual(1)
+    expect(screen.queryByRole('button', { name: /^HTTP Gateway/i })).not.toBeInTheDocument()
+    expect(screen.queryByText('Registry')).toBeNull()
+    expect(screen.queryByText('Ollama')).toBeNull()
 
-    fireEvent.change(
-      screen.getByPlaceholderText('Search products like MySQL, Redis, Aurora, PostgreSQL...'),
-      {
-        target: { value: 'aurora' },
-      }
-    )
-
-    expect(screen.getByText('Amazon Aurora MySQL')).toBeInTheDocument()
-    expect(screen.queryByText('MySQL')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: /Amazon Aurora MySQL/i }))
-
-    await waitFor(() => {
-      expect(screen.getByText('Region')).toBeInTheDocument()
-      expect(screen.getByText('Cluster Identifier')).toBeInTheDocument()
+    fireEvent.change(screen.getByPlaceholderText('Search MySQL, Redis, Kafka, or MinIO...'), {
+      target: { value: 'rabbitmq' },
     })
 
+    expect(screen.getAllByText(/^AMQP-Compatible$/).length).toBeGreaterThanOrEqual(1)
+    expect(screen.queryByText('MySQL-Compatible')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText('Search MySQL, Redis, Kafka, or MinIO...'), {
+      target: { value: 'mysql' },
+    })
+
+    expect(screen.getAllByText(/MySQL-Compatible/i).length).toBeGreaterThanOrEqual(1)
+
+    fireEvent.change(screen.getByPlaceholderText('Search MySQL, Redis, Kafka, or MinIO...'), {
+      target: { value: 'opensearch' },
+    })
+
+    expect(screen.queryByText('AMQP-Compatible')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText('Search MySQL, Redis, Kafka, or MinIO...'), {
+      target: { value: '' },
+    })
+
+    clickChooserOption('MySQL-Compatible')
+    fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
+
     expect(screen.queryByText('Selected Product')).not.toBeInTheDocument()
-    expect(
-      screen.getByText('Create Amazon Aurora MySQL Databases Service Instance')
-    ).toBeInTheDocument()
+    expect(screen.getByText('Create MySQL-Compatible instance')).toBeInTheDocument()
     expect(screen.queryByText('Editable')).not.toBeInTheDocument()
 
     const formDialog = await screen.findByRole('dialog')
@@ -270,10 +856,10 @@ describe('ServiceInstancesPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^MySQL/i }))
+    await screen.findByText('MySQL-Compatible')
+    clickChooserOption('MySQL-Compatible')
 
     expect(screen.queryByLabelText(/^Name/)).not.toBeInTheDocument()
-    expect(screen.getByTitle('Edit title')).toBeInTheDocument()
     expect(screen.getByLabelText(/^Database/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Username/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Database/)).toHaveValue('MySQL')
@@ -281,12 +867,11 @@ describe('ServiceInstancesPage', () => {
     expect(screen.getByLabelText(/^Password/)).toBeInTheDocument()
     expect(screen.getByTitle('Show password')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Search secrets...')).not.toBeInTheDocument()
+    expect(screen.queryByTitle('Use a saved secret')).not.toBeInTheDocument()
     expect(screen.getByLabelText(/^Host/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Port/)).toBeInTheDocument()
     expect(screen.queryByText('Selected Product')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('Select a Secret'))
-    expect(screen.getByPlaceholderText('Search secrets...')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument()
 
     expect(screen.queryByLabelText('Platform Account')).not.toBeInTheDocument()
@@ -315,7 +900,8 @@ describe('ServiceInstancesPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^PostgreSQL/i }))
+    await screen.findByText('PostgreSQL-Compatible')
+    clickChooserOption('PostgreSQL-Compatible')
 
     expect(await screen.findByLabelText(/^Database/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Database/)).toHaveValue('postgres')
@@ -329,29 +915,178 @@ describe('ServiceInstancesPage', () => {
     expect(screen.getByText('Use SSL')).toBeInTheDocument()
   })
 
+  it('searches by product alias before selecting the kafka-compatible kind', async () => {
+    render(<ServiceInstancesPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add Instance' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
+
+    fireEvent.change(
+      await screen.findByPlaceholderText('Search MySQL, Redis, Kafka, or MinIO...'),
+      { target: { value: 'redpanda' } }
+    )
+
+    expect(await screen.findByText(/Kafka-Compatible/i)).toBeInTheDocument()
+    clickChooserOption('Kafka-Compatible')
+
+    expect(await screen.findByText('Create Kafka-Compatible instance')).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Endpoint/)).toBeInTheDocument()
+  })
+
+  it('reuses the same database-family layout for mongodb-compatible kinds', async () => {
+    render(<ServiceInstancesPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add Instance' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
+    await screen.findByText('MongoDB-Compatible')
+    clickChooserOption('MongoDB-Compatible')
+
+    expect(await screen.findByLabelText(/^Username/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Password/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Host/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Port/)).toHaveValue(27017)
+    expect(screen.queryByLabelText(/^Endpoint/)).not.toBeInTheDocument()
+  })
+
+  it('uses token-style fields for influxdb-compatible kinds', async () => {
+    render(<ServiceInstancesPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add Instance' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
+    await screen.findByText('InfluxDB-Compatible')
+    clickChooserOption('InfluxDB-Compatible')
+
+    expect(await screen.findByLabelText(/^Organization/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Bucket/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/credential/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/^Username/)).not.toBeInTheDocument()
+  })
+
+  it('renders S3-Compatible fields from backend metadata and submits path-style settings', async () => {
+    render(<ServiceInstancesPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add Instance' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
+    await screen.findByText('S3-Compatible')
+    clickChooserOption('S3-Compatible')
+
+    expect(await screen.findByLabelText(/^Access Key ID/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Bucket/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Region/)).toHaveValue('us-east-1')
+
+    fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
+    expect(screen.getByText('Force Path-Style Addressing')).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Credential/)).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText(/^Endpoint/), {
+      target: { value: 'https://s3.yourhost.com' },
+    })
+    fireEvent.change(screen.getByLabelText(/^Access Key ID/), {
+      target: { value: 'APPOSACCESSKEY' },
+    })
+    fireEvent.change(screen.getByLabelText(/^Bucket/), { target: { value: 'assets' } })
+    fireEvent.change(screen.getByLabelText(/^Region/), { target: { value: 'us-east-1' } })
+    fireEvent.change(screen.getByLabelText(/^Credential/), {
+      target: { value: 'secret-key' },
+    })
+    fireEvent.click(screen.getByText('Force Path-Style Addressing'))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Create' }).at(-1) as HTMLElement)
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(
+        '/api/instances',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.objectContaining({
+            kind: 's3-compatible',
+            template_id: 'generic-s3',
+            credential: 'secret-created',
+            config: expect.objectContaining({
+              accessKeyId: 'APPOSACCESSKEY',
+              bucket: 'assets',
+              region: 'us-east-1',
+              forcePathStyle: true,
+            }),
+          }),
+        })
+      )
+    })
+  })
+
+  it('submits ONLYOFFICE profile fields directly from template metadata', async () => {
+    render(<ServiceInstancesPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add Instance' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
+    await screen.findByText('ONLYOFFICE-Compatible')
+    clickChooserOption('ONLYOFFICE-Compatible')
+
+    expect(await screen.findByLabelText(/^Endpoint/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
+    expect(screen.getByLabelText(/^JWT Header/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Credential/)).toBeInTheDocument()
+    const callbackPathInput = (await screen.findByLabelText(
+      /Callback Path|Backend Callback Path Label/
+    )) as HTMLInputElement
+    const documentPathInput = (await screen.findByLabelText(
+      /Document Path|Backend Document Path Label/
+    )) as HTMLInputElement
+
+    fireEvent.change(screen.getByLabelText(/^Endpoint/), {
+      target: { value: 'https://onlyoffice.yourhost.com' },
+    })
+    fireEvent.change(callbackPathInput, { target: { value: '/track' } })
+    fireEvent.change(documentPathInput, { target: { value: '/healthcheck' } })
+    fireEvent.change(screen.getByLabelText(/^Credential/), {
+      target: { value: 'jwt-secret' },
+    })
+    fireEvent.change(screen.getByLabelText(/^JWT Header/), {
+      target: { value: 'Authorization' },
+    })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Create' }).at(-1) as HTMLElement)
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(
+        '/api/instances',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.objectContaining({
+            kind: 'onlyoffice-compatible',
+            template_id: 'generic-onlyoffice',
+            endpoint: 'https://onlyoffice.yourhost.com',
+            credential: 'secret-created',
+            config: expect.objectContaining({
+              callbackPath: '/track',
+              documentPath: '/healthcheck',
+              jwtHeader: 'Authorization',
+            }),
+          }),
+        })
+      )
+    })
+  })
+
   it('keeps secret-only password editing and remembers ssl mode for existing instances', async () => {
     sendMock.mockImplementation(
       (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
         if (path === '/api/instances/templates') {
-          return Promise.resolve([
-            {
-              id: 'generic-mysql',
-              category: 'database',
-              kind: 'mysql',
-              title: 'Generic MySQL',
-              commonFieldDefaults: { username: 'root' },
-              fields: [
-                {
-                  id: 'database',
-                  label: 'Database',
-                  type: 'text',
-                  required: true,
-                  default: 'MySQL',
-                },
-                { id: 'ssl_ca_certificate', label: 'SSL Root CA Certificate', type: 'text' },
-              ],
-            },
-          ])
+          return Promise.resolve([buildMySQLTemplate()])
         }
         if (path === '/api/instances' && (!options?.method || options.method === 'GET')) {
           return Promise.resolve([
@@ -360,7 +1095,7 @@ describe('ServiceInstancesPage', () => {
               created: '2026-04-11T08:30:00Z',
               updated: '2026-04-11T09:45:00Z',
               name: 'mysql-prod',
-              kind: 'mysql',
+              kind: 'mysql-compatible',
               template_id: 'generic-mysql',
               endpoint: 'db.example.com:3306',
               credential: 'secret-1',
@@ -372,6 +1107,9 @@ describe('ServiceInstancesPage', () => {
             },
           ])
         }
+        if (path === '/api/instances/reachability' && options?.method === 'POST') {
+          return Promise.resolve([])
+        }
         if (path.startsWith('/api/collections/monitor_latest_status/records?')) {
           return Promise.resolve({
             items: [
@@ -379,7 +1117,7 @@ describe('ServiceInstancesPage', () => {
                 target_id: 'instance-1',
                 status: 'unreachable',
                 reason: 'dial tcp 127.0.0.1:6379: connect: connection refused',
-                last_checked_at: '2026-04-11T10:00:00Z',
+                last_checked_at: '2099-04-11T10:00:00Z',
               },
             ],
           })
@@ -407,28 +1145,110 @@ describe('ServiceInstancesPage', () => {
     })
 
     expect(screen.getByText('Unreachable')).toBeInTheDocument()
-    expect(screen.getByText('Apr 11, 2026, 10:00 AM')).toBeInTheDocument()
+    expect(screen.getByText('2099-04-11 10:00')).toBeInTheDocument()
+    expect(screen.queryByText('Created')).not.toBeInTheDocument()
+    expect(screen.queryByText('Updated')).not.toBeInTheDocument()
+    expect(
+      sendMock.mock.calls.some(
+        ([path, options]) => path === '/api/instances/reachability' && options?.method === 'POST'
+      )
+    ).toBe(false)
 
-    expect(sendMock).not.toHaveBeenCalledWith('/api/instances/reachability', expect.anything())
+    fireEvent.click(screen.getByTitle('Refresh'))
 
-    expect(screen.getAllByText(/2026/).length).toBeGreaterThanOrEqual(1)
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/instances/reachability', {
+        method: 'POST',
+        body: { ids: ['instance-1'] },
+      })
+    })
 
     fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }))
     fireEvent.click(await screen.findByText('Edit'))
 
-    await waitFor(() => {
-      expect(screen.getByText('db-password')).toBeInTheDocument()
-    })
-
     expect(screen.queryByPlaceholderText('Search secrets...')).not.toBeInTheDocument()
-    expect(screen.queryByTitle('Show password')).not.toBeInTheDocument()
+    expect(
+      screen.getByPlaceholderText('Leave blank to keep the current secret value')
+    ).toBeInTheDocument()
+    expect(screen.getByTitle('Show password')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Edit Secret' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit secret' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
     expect(screen.getByLabelText('One-way SSL')).toBeChecked()
     expect(screen.getByLabelText('Mutual SSL')).not.toBeChecked()
   }, 15000)
+
+  it('persists edited host values for database-family instances', async () => {
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+        if (path === '/api/instances/templates') {
+          return Promise.resolve([buildMySQLTemplate()])
+        }
+        if (path === '/api/instances' && (!options?.method || options.method === 'GET')) {
+          return Promise.resolve([
+            {
+              id: 'instance-1',
+              name: 'mysql-prod',
+              kind: 'mysql-compatible',
+              template_id: 'generic-mysql',
+              endpoint: 'db.example.com:3306',
+              credential: 'secret-1',
+              config: {
+                database: 'appdb',
+                username: 'root',
+              },
+            },
+          ])
+        }
+        if (path === '/api/instances/reachability' && options?.method === 'POST') {
+          return Promise.resolve([])
+        }
+        if (path.startsWith('/api/collections/monitor_latest_status/records?')) {
+          return Promise.resolve({ items: [] })
+        }
+        if (path.startsWith('/api/collections/secrets/records?filter=')) {
+          return Promise.resolve({ items: [{ id: 'secret-1', name: 'db-password' }] })
+        }
+        if (path === '/api/provider-accounts') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === "/api/collections/certificates/records?filter=(status='active')&sort=name") {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === '/api/instances/instance-1' && options?.method === 'PUT') {
+          return Promise.resolve({ ok: true })
+        }
+        return Promise.resolve([])
+      }
+    )
+
+    render(<ServiceInstancesPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText('mysql-prod')).toBeInTheDocument()
+    })
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }))
+    fireEvent.click(await screen.findByText('Edit'))
+
+    const hostInput = (await screen.findByLabelText(/^Host/)) as HTMLInputElement
+    fireEvent.change(hostInput, { target: { value: 'db-new.example.com' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/instances/instance-1', {
+        method: 'PUT',
+        body: expect.objectContaining({
+          endpoint: 'db-new.example.com:3306',
+          template_id: 'generic-mysql',
+        }),
+      })
+    })
+  })
 
   it('creates a password secret inline for mysql', async () => {
     render(<ServiceInstancesPage />)
@@ -438,64 +1258,215 @@ describe('ServiceInstancesPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^MySQL/i }))
+    await screen.findByText('MySQL-Compatible')
+    clickChooserOption('MySQL-Compatible')
 
-    fireEvent.click(screen.getByText('Select a Secret'))
-    fireEvent.click(screen.getByRole('button', { name: 'New Secret' }))
-
-    expect(
-      await screen.findByText(
-        'Create a reusable password secret and attach it to this service instance.'
-      )
-    ).toBeInTheDocument()
-
-    fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'mysql-prod-password' } })
-    fireEvent.change(screen.getByLabelText('Value *'), { target: { value: 's3cr3t' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Create Credential' }))
+    expect(screen.queryByTitle('Use a saved secret')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 's3cr3t' } })
+    fireEvent.change(screen.getByLabelText(/^Host/), { target: { value: 'db.internal' } })
+    fireEvent.change(screen.getByLabelText(/^Port/), { target: { value: '3306' } })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Create' }).at(-1) as HTMLElement)
 
     await waitFor(() => {
-      expect(createSecretMock).toHaveBeenCalledWith({
-        name: 'mysql-prod-password',
-        description: '',
-        template_id: 'single_value',
-        scope: 'global',
-        payload: { value: 's3cr3t' },
-      })
+      expect(createSecretMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          template_id: 'single_value',
+          scope: 'global',
+          visible_to: ['service_instance'],
+          payload: { value: 's3cr3t' },
+        })
+      )
     })
+  })
+
+  it('overlays live reachability results on top of cached monitor status', async () => {
+    let cachedStatuses = [
+      {
+        target_id: 'instance-live',
+        status: 'unreachable',
+        reason: 'cached failure',
+        last_checked_at: '2099-04-11T10:00:00Z',
+      },
+    ]
+
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+        if (path === '/api/instances/templates') {
+          return Promise.resolve([
+            {
+              id: 'generic-redis',
+              category: 'cache',
+              kind: 'redis-compatible',
+              title: 'Generic Redis',
+              endpointShape: 'url',
+              credentialPresentation: 'secret_or_inline',
+              credentialLabel: 'password',
+              fields: [],
+            },
+          ])
+        }
+        if (path === '/api/instances' && (!options?.method || options.method === 'GET')) {
+          return Promise.resolve([
+            {
+              id: 'instance-live',
+              name: 'redis-live',
+              kind: 'redis-compatible',
+              template_id: 'generic-redis',
+              endpoint: 'redis.yourhost.com:6379',
+              config: {},
+            },
+          ])
+        }
+        if (path.startsWith('/api/collections/monitor_latest_status/records?')) {
+          return Promise.resolve({
+            items: cachedStatuses,
+          })
+        }
+        if (path === '/api/settings/entries/monitor/scheduling') {
+          return Promise.resolve({
+            id: 'monitor/scheduling',
+            value: { reachabilityIntervalMinutes: 10 },
+          })
+        }
+        if (path === '/api/instances/reachability' && options?.method === 'POST') {
+          cachedStatuses = [
+            {
+              target_id: 'instance-live',
+              status: 'healthy',
+              reason: '',
+              last_checked_at: '2099-04-11T10:05:00Z',
+            },
+          ]
+          return Promise.resolve([
+            {
+              id: 'instance-live',
+              status: 'online',
+              checked_at: '2099-04-11T10:05:00Z',
+            },
+          ])
+        }
+        if (path === '/api/provider-accounts') {
+          return Promise.resolve([])
+        }
+        if (path === SERVICE_INSTANCE_SECRET_PATH) {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === "/api/collections/certificates/records?filter=(status='active')&sort=name") {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === '/api/secrets/templates') {
+          return Promise.resolve([])
+        }
+        return Promise.resolve([])
+      }
+    )
+
+    render(<ServiceInstancesPage />)
+
+    expect(await screen.findByText('redis-live')).toBeInTheDocument()
+    expect(screen.getByText('Unreachable')).toBeInTheDocument()
+    expect(screen.getByText('2099-04-11 10:00')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTitle('Refresh'))
+
+    expect(await screen.findByText('Reachable')).toBeInTheDocument()
+    expect(screen.getByText('2099-04-11 10:05')).toBeInTheDocument()
+
+    cleanup()
+    render(<ServiceInstancesPage />)
+
+    expect(await screen.findByText('redis-live')).toBeInTheDocument()
+    expect(screen.getByText('Reachable')).toBeInTheDocument()
+    expect(screen.getByText('2099-04-11 10:05')).toBeInTheDocument()
+  })
+
+  it('silently probes unknown instances on first load and converges from unknown', async () => {
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+        if (path === '/api/instances/templates') {
+          return Promise.resolve([
+            {
+              id: 'generic-redis',
+              category: 'cache',
+              kind: 'redis-compatible',
+              title: 'Generic Redis',
+              endpointShape: 'url',
+              credentialPresentation: 'secret_or_inline',
+              credentialLabel: 'password',
+              fields: [],
+            },
+          ])
+        }
+        if (path === '/api/instances' && (!options?.method || options.method === 'GET')) {
+          return Promise.resolve([
+            {
+              id: 'instance-live',
+              name: 'redis-live',
+              kind: 'redis-compatible',
+              template_id: 'generic-redis',
+              endpoint: 'redis.yourhost.com:6379',
+              config: {},
+            },
+          ])
+        }
+        if (path.startsWith('/api/collections/monitor_latest_status/records?')) {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === '/api/settings/entries/monitor/scheduling') {
+          return Promise.resolve({
+            id: 'monitor/scheduling',
+            value: { reachabilityIntervalMinutes: 1 },
+          })
+        }
+        if (path === '/api/instances/reachability' && options?.method === 'POST') {
+          return Promise.resolve([
+            {
+              id: 'instance-live',
+              status: 'online',
+              checked_at: '2026-04-11T10:05:00Z',
+            },
+          ])
+        }
+        if (path === '/api/provider-accounts') {
+          return Promise.resolve([])
+        }
+        if (path === SERVICE_INSTANCE_SECRET_PATH) {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === "/api/collections/certificates/records?filter=(status='active')&sort=name") {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === '/api/secrets/templates') {
+          return Promise.resolve([])
+        }
+        return Promise.resolve([])
+      }
+    )
+
+    render(<ServiceInstancesPage />)
+
+    expect(await screen.findByText('redis-live')).toBeInTheDocument()
+    expect(await screen.findByText('Reachable')).toBeInTheDocument()
+    expect(screen.getByText('2026-04-11 10:05')).toBeInTheDocument()
+    expect(
+      sendMock.mock.calls.some(
+        ([path, options]) =>
+          String(path) === '/api/instances/reachability' && options?.method === 'POST'
+      )
+    ).toBe(true)
   })
 
   it('edits an existing secret inline without navigating away', async () => {
     sendMock.mockImplementation(
       (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
         if (path === '/api/instances/templates') {
-          return Promise.resolve([
-            {
-              id: 'generic-mysql',
-              category: 'database',
-              kind: 'mysql',
-              title: 'Generic MySQL',
-              commonFieldDefaults: { username: 'root' },
-              fields: [
-                {
-                  id: 'database',
-                  label: 'Database',
-                  type: 'text',
-                  required: true,
-                  default: 'MySQL',
-                },
-                { id: 'ssl_ca_certificate', label: 'SSL Root CA Certificate', type: 'text' },
-              ],
-            },
-          ])
-        }
-        if (path === '/api/secrets/templates') {
-          return Promise.resolve([
-            {
-              id: 'single_value',
-              label: 'Single Value',
-              fields: [{ key: 'value', label: 'Value', type: 'password', required: true }],
-            },
-          ])
+          return Promise.resolve([buildMySQLTemplate()])
         }
         if (path === '/api/instances' && (!options?.method || options.method === 'GET')) {
           return Promise.resolve([
@@ -504,7 +1475,7 @@ describe('ServiceInstancesPage', () => {
               created: '2026-04-11T08:30:00Z',
               updated: '2026-04-11T09:45:00Z',
               name: 'mysql-prod',
-              kind: 'mysql',
+              kind: 'mysql-compatible',
               template_id: 'generic-mysql',
               endpoint: 'db.example.com:3306',
               credential: 'secret-1',
@@ -531,6 +1502,9 @@ describe('ServiceInstancesPage', () => {
         if (path === "/api/collections/certificates/records?filter=(status='active')&sort=name") {
           return Promise.resolve({ items: [] })
         }
+        if (path === '/api/instances/instance-1' && options?.method === 'PUT') {
+          return Promise.resolve({ ok: true })
+        }
         if (path === '/api/secrets/secret-1/payload') {
           return Promise.resolve({ ok: true })
         }
@@ -547,32 +1521,13 @@ describe('ServiceInstancesPage', () => {
     fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }))
     fireEvent.click(await screen.findByText('Edit'))
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Edit Secret' })).toBeInTheDocument()
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Secret' }))
-
-    expect(
-      await screen.findByText(
-        'Update the selected Secret without leaving service instance editing.'
-      )
-    ).toBeInTheDocument()
-    expect(getSecretMock).toHaveBeenCalledWith('secret-1')
-
-    fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'db-password-updated' } })
-    fireEvent.change(screen.getByLabelText('Description'), {
-      target: { value: 'updated description' },
-    })
-    fireEvent.change(screen.getByLabelText('Value *'), { target: { value: 'new-secret-value' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save Secret' }))
-
-    await waitFor(() => {
-      expect(updateSecretMock).toHaveBeenCalledWith('secret-1', {
-        name: 'db-password-updated',
-        description: 'updated description',
-      })
-    })
+    fireEvent.change(
+      await screen.findByPlaceholderText('Leave blank to keep the current secret value'),
+      {
+        target: { value: 'new-secret-value' },
+      }
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/secrets/secret-1/payload', {
@@ -582,13 +1537,20 @@ describe('ServiceInstancesPage', () => {
     })
 
     await waitFor(() => {
-      expect(
-        screen.queryByText('Update the selected Secret without leaving service instance editing.')
-      ).not.toBeInTheDocument()
+      expect(sendMock).toHaveBeenCalledWith(
+        '/api/instances/instance-1',
+        expect.objectContaining({
+          method: 'PUT',
+          body: expect.objectContaining({
+            credential: 'secret-1',
+            template_id: 'generic-mysql',
+          }),
+        })
+      )
     })
   }, 15000)
 
-  it('stores a generated password in secrets automatically when creating mysql', async () => {
+  it('stores a typed password in secrets automatically when creating mysql', async () => {
     render(<ServiceInstancesPage />)
 
     await waitFor(() => {
@@ -596,14 +1558,14 @@ describe('ServiceInstancesPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^MySQL/i }))
+    await screen.findByText('MySQL-Compatible')
+    clickChooserOption('MySQL-Compatible')
 
     fireEvent.change(screen.getByLabelText(/^Database/), { target: { value: 'appdb' } })
     fireEvent.change(screen.getByLabelText(/^Username/), { target: { value: 'appuser' } })
+    fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 's3cr3t-pass' } })
     fireEvent.change(screen.getByLabelText(/^Host/), { target: { value: 'db.internal' } })
     fireEvent.change(screen.getByLabelText(/^Port/), { target: { value: '3306' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Fill Password' }))
     fireEvent.click(screen.getAllByRole('button', { name: 'Create' }).at(-1) as HTMLElement)
 
     await waitFor(() => {
@@ -629,7 +1591,7 @@ describe('ServiceInstancesPage', () => {
     })
   })
 
-  it('reuses the password-or-secret credential flow for redis and kafka kinds', async () => {
+  it('uses direct password fields for redis and kafka kinds', async () => {
     render(<ServiceInstancesPage />)
 
     await waitFor(() => {
@@ -637,20 +1599,22 @@ describe('ServiceInstancesPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^Redis/i }))
+    await screen.findByText('Redis-Compatible')
+    clickChooserOption('Redis-Compatible')
+    fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
 
-    expect(await screen.findByLabelText(/^Credential|^Password/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Generate' })).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Select a Secret'))
-    expect(screen.getByPlaceholderText('Search secrets...')).toBeInTheDocument()
+    expect(await screen.findByLabelText(/^Password/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument()
+    expect(screen.queryByTitle('Use a saved secret')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^Kafka/i }))
+    await screen.findByText('Kafka-Compatible')
+    clickChooserOption('Kafka-Compatible')
+    fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
 
-    expect(await screen.findByLabelText(/^Credential/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Generate' })).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Select a Secret'))
-    expect(screen.getByPlaceholderText('Search secrets...')).toBeInTheDocument()
+    expect(await screen.findByLabelText(/^Password/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument()
+    expect(screen.queryByTitle('Use a saved secret')).not.toBeInTheDocument()
   }, 15000)
 })

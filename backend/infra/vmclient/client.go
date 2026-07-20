@@ -5,11 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/websoft9/appos/backend/infra/egress"
 )
 
 type Client struct {
@@ -28,7 +31,8 @@ type QueryRangeMatrixSeries struct {
 
 func New(httpClient *http.Client) *Client {
 	if httpClient == nil {
-		httpClient = http.DefaultClient
+		direct := egress.NewDirectHTTPClient(30*time.Second, false)
+		httpClient = &direct
 	}
 	return &Client{httpClient: httpClient}
 }
@@ -182,16 +186,25 @@ func (c *Client) QueryRangeMatrix(ctx context.Context, endpoint, query string, s
 func coerceMetricFloat(value any) (float64, bool) {
 	switch typed := value.(type) {
 	case float64:
+		if math.IsNaN(typed) || math.IsInf(typed, 0) {
+			return 0, false
+		}
 		return typed, true
 	case string:
 		result, err := strconv.ParseFloat(typed, 64)
 		if err != nil {
 			return 0, false
 		}
+		if math.IsNaN(result) || math.IsInf(result, 0) {
+			return 0, false
+		}
 		return result, true
 	case json.Number:
 		result, err := typed.Float64()
 		if err != nil {
+			return 0, false
+		}
+		if math.IsNaN(result) || math.IsInf(result, 0) {
 			return 0, false
 		}
 		return result, true

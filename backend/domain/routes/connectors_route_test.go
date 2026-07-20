@@ -3,13 +3,17 @@ package routes
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"sync/atomic"
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/audit"
 	"github.com/websoft9/appos/backend/domain/secrets"
 )
+
+var routeSecretCounter uint64
 
 func ensureConnectorSecretRuntime(t *testing.T) {
 	t.Helper()
@@ -27,7 +31,7 @@ func createRouteSecret(t *testing.T, te *testEnv, scope, createdBy string) *core
 		t.Fatal(err)
 	}
 	rec := core.NewRecord(col)
-	rec.Set("name", "connector-secret")
+	rec.Set("name", fmt.Sprintf("connector-secret-%d", atomic.AddUint64(&routeSecretCounter, 1)))
 	rec.Set("template_id", "single_value")
 	rec.Set("scope", scope)
 	rec.Set("access_mode", "use_only")
@@ -59,7 +63,28 @@ func TestConnectorCreateReturnsCreatedAndAudits(t *testing.T) {
 	defer te.cleanup()
 
 	rec := te.do(t, http.MethodPost, "/api/connectors",
-		`{"name":"deploy-webhook","kind":"webhook","is_default":true,"template_id":"generic-webhook","endpoint":"https://hooks.example.com/deploy"}`,
+		`{"name":"deploy-webhook","kind":"webhook","template_id":"generic-webhook","endpoint":"https://hooks.example.com/deploy"}`,
+		true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	entries := auditEntriesByAction(t, te, "connector.create")
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 create audit entry, got %d", len(entries))
+	}
+	if entries[0].GetString("status") != audit.StatusSuccess {
+		t.Fatalf("expected successful create audit, got %q", entries[0].GetString("status"))
+	}
+}
+
+func TestConnectorCreateProxyReturnsCreatedAndAudits(t *testing.T) {
+	ensureConnectorSecretRuntime(t)
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.do(t, http.MethodPost, "/api/connectors",
+		`{"name":"office-proxy","kind":"proxy","template_id":"http-proxy","endpoint":"http://proxy.example.com:3128","config":{"protocol":"http"}}`,
 		true)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
@@ -134,7 +159,7 @@ func TestConnectorUpdateMissingReturnsNotFound(t *testing.T) {
 	}
 }
 
-func TestLoadConnectorBackedSettingsReturnsErrorForBrokenSMTPConnector(t *testing.T) {
+func TestLoadConnectorBackedSettingsReturnsDisplayedSMTPSnapshot(t *testing.T) {
 	ensureConnectorSecretRuntime(t)
 	te := newTestEnv(t)
 	defer te.cleanup()
@@ -146,7 +171,6 @@ func TestLoadConnectorBackedSettingsReturnsErrorForBrokenSMTPConnector(t *testin
 	rec := core.NewRecord(connectorsCol)
 	rec.Set("name", "broken-smtp")
 	rec.Set("kind", "smtp")
-	rec.Set("is_default", true)
 	rec.Set("template_id", "generic-smtp")
 	rec.Set("endpoint", "http://smtp.example.com")
 	rec.Set("credential", "")
@@ -155,14 +179,20 @@ func TestLoadConnectorBackedSettingsReturnsErrorForBrokenSMTPConnector(t *testin
 	}
 
 	value, handled, err := loadConnectorBackedSettingsEntryValue(te.app, "smtp")
-	if err == nil {
-		t.Fatal("expected broken smtp connector to return error")
+	if err != nil {
+		t.Fatalf("expected displayed smtp snapshot, got error: %v", err)
 	}
 	if !handled {
 		t.Fatal("expected smtp connector entry to be marked handled")
 	}
-	if value != nil {
-		t.Fatalf("expected nil value on error, got %#v", value)
+	if value == nil {
+		t.Fatal("expected displayed smtp value")
+	}
+	if value["host"] != "smtp.example.com" {
+		t.Fatalf("expected parsed display host, got %#v", value["host"])
+	}
+	if value["port"] != 587 {
+		t.Fatalf("expected default display port 587, got %#v", value["port"])
 	}
 }
 
@@ -186,7 +216,7 @@ func TestConnectorUpdateSuccessAuditsBeforeAfter(t *testing.T) {
 
 	// Create a connector first
 	create := te.do(t, http.MethodPost, "/api/connectors",
-		`{"name":"orig-webhook","kind":"webhook","is_default":true,"template_id":"generic-webhook","endpoint":"https://hooks.example.com/original"}`,
+		`{"name":"orig-webhook","kind":"webhook","template_id":"generic-webhook","endpoint":"https://hooks.example.com/original"}`,
 		true)
 	if create.Code != http.StatusCreated {
 		t.Fatalf("setup create failed: %d %s", create.Code, create.Body.String())
@@ -199,7 +229,7 @@ func TestConnectorUpdateSuccessAuditsBeforeAfter(t *testing.T) {
 
 	// Update it
 	rec := te.do(t, http.MethodPut, "/api/connectors/"+id,
-		`{"name":"renamed-webhook","kind":"webhook","is_default":true,"template_id":"generic-webhook","endpoint":"https://hooks.example.com/renamed"}`,
+		`{"name":"renamed-webhook","kind":"webhook","template_id":"generic-webhook","endpoint":"https://hooks.example.com/renamed"}`,
 		true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
@@ -233,7 +263,7 @@ func TestConnectorDeleteSuccessReturns204AndAudits(t *testing.T) {
 	defer te.cleanup()
 
 	create := te.do(t, http.MethodPost, "/api/connectors",
-		`{"name":"to-delete","kind":"webhook","is_default":false,"template_id":"generic-webhook","endpoint":"https://hooks.example.com/delete"}`,
+		`{"name":"to-delete","kind":"webhook","template_id":"generic-webhook","endpoint":"https://hooks.example.com/delete"}`,
 		true)
 	if create.Code != http.StatusCreated {
 		t.Fatalf("setup create failed: %d %s", create.Code, create.Body.String())
@@ -259,46 +289,6 @@ func TestConnectorDeleteSuccessReturns204AndAudits(t *testing.T) {
 	detail := decodeAuditDetail(t, entries[0])
 	if detail["before"] == nil {
 		t.Fatal("expected before snapshot in delete audit detail")
-	}
-}
-
-func TestConnectorCreateDefaultClearsPreviousDefault(t *testing.T) {
-	ensureConnectorSecretRuntime(t)
-	te := newTestEnv(t)
-	defer te.cleanup()
-
-	// Create first default webhook connector
-	first := te.do(t, http.MethodPost, "/api/connectors",
-		`{"name":"first-webhook","kind":"webhook","is_default":true,"template_id":"generic-webhook","endpoint":"https://hooks.example.com/first"}`,
-		true)
-	if first.Code != http.StatusCreated {
-		t.Fatalf("first create failed: %d %s", first.Code, first.Body.String())
-	}
-	var firstBody map[string]any
-	if err := json.Unmarshal(first.Body.Bytes(), &firstBody); err != nil {
-		t.Fatal(err)
-	}
-	firstID := firstBody["id"].(string)
-
-	// Create second default webhook connector
-	second := te.do(t, http.MethodPost, "/api/connectors",
-		`{"name":"second-webhook","kind":"webhook","is_default":true,"template_id":"generic-webhook","endpoint":"https://hooks.example.com/second"}`,
-		true)
-	if second.Code != http.StatusCreated {
-		t.Fatalf("second create failed: %d %s", second.Code, second.Body.String())
-	}
-
-	// Verify first is no longer default
-	get := te.do(t, http.MethodGet, "/api/connectors/"+firstID, "", true)
-	if get.Code != http.StatusOK {
-		t.Fatalf("get failed: %d %s", get.Code, get.Body.String())
-	}
-	var firstReloaded map[string]any
-	if err := json.Unmarshal(get.Body.Bytes(), &firstReloaded); err != nil {
-		t.Fatal(err)
-	}
-	if firstReloaded["is_default"] == true {
-		t.Fatal("expected first connector's is_default to be cleared after second default was created")
 	}
 }
 
@@ -331,5 +321,36 @@ func TestConnectorRejectsUnsupportedKind(t *testing.T) {
 		true)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for unsupported kind, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestConnectorReachabilityReturnsStatus(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.do(t, http.MethodPost, "/api/connectors",
+		`{"name":"ops-webhook","kind":"webhook","template_id":"generic-webhook","endpoint":"https://127.0.0.1:1/hook"}`,
+		true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create webhook connector: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	created := parseJSON(t, rec)
+	id := created["id"].(string)
+
+	rec = te.do(t, http.MethodGet, "/api/connectors/reachability?ids="+id, "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("probe reachability: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := parseJSON(t, rec)
+	items, ok := body["items"].([]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected 1 reachability row, got %#v", body["items"])
+	}
+	row := items[0].(map[string]any)
+	if row["id"] != id {
+		t.Fatalf("expected reachability id %q, got %v", id, row["id"])
+	}
+	if row["status"] == "" {
+		t.Fatalf("expected non-empty reachability status, got %#v", row)
 	}
 }

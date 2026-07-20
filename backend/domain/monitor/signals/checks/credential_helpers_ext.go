@@ -77,5 +77,8 @@ func isCredentialAuthError(err error) bool {
 	return strings.Contains(message, "wrongpass") ||
 		strings.Contains(message, "noauth") ||
 		strings.Contains(message, "authentication failed") ||
-		strings.Contains(message, "invalid password")
+		strings.Contains(message, "invalid password") ||
+		strings.Contains(message, "denied") ||
+		strings.Contains(message, "invalid username-password pair") ||
+		strings.Contains(message, "client sent auth")
 }

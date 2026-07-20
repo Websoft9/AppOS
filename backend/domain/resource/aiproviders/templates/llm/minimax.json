@@ -1,0 +1,35 @@
+{
+  "id": "minimax",
+  "title": "MiniMax",
+  "vendor": "MiniMax",
+  "uiGroup": "single_provider",
+  "hostingMode": "cloud",
+  "serviceMode": "official_provider",
+  "endpointMode": "customizable",
+  "supportsClosedModels": true,
+  "supportsMultiVendorModels": false,
+  "description": "MiniMax hosted multimodal and language model API.",
+  "helpUrl": "https://www.minimaxi.com/document",
+  "defaultEndpoint": "https://api.minimax.chat/v1",
+  "protocols": [
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "default": true
+    }
+  ],
+  "capabilities": ["chat", "multimodal", "tools", "streaming"],
+  "aliases": ["minimax"],
+  "fields": [
+    {
+      "id": "endpoint"
+    },
+    {
+      "id": "credential",
+      "label": "API Key",
+      "type": "secret_ref",
+      "required": true,
+      "secretTemplate": "single_value"
+    }
+  ]
+}

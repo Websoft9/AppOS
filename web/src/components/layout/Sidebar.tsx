@@ -1,9 +1,12 @@
 import { useState, useMemo } from 'react'
-import { useRouterState } from '@tanstack/react-router'
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import {
   LayoutDashboard,
   Layers,
+  Network,
   Settings,
+  FileCode2,
   PanelLeftClose,
   PanelLeft,
   ChevronDown,
@@ -13,7 +16,10 @@ import {
   Cog,
   TerminalSquare,
   KeyRound,
-  MessageSquare,
+  Rss,
+  Shapes,
+  Puzzle,
+  BotMessageSquare,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -49,128 +55,289 @@ export interface NavGroup {
   items: NavItem[]
 }
 
+type NavLabels = {
+  groups: {
+    workspace: string
+    platform: string
+  }
+  items: {
+    overview: string
+    applications: string
+    myApps: string
+    appStore: string
+    deploy: string
+    publish: string
+    actions: string
+    groups: string
+    feed: string
+    terminal: string
+    aiCopilot: string
+    aiChat: string
+    aiAgent: string
+    topics: string
+    feeds: string
+    assets: string
+    space: string
+    resources: string
+    network: string
+    gateway: string
+    traffic: string
+    extensions: string
+    system: string
+    status: string
+    platformRuntime: string
+    tunnels: string
+    audit: string
+    logs: string
+    platformCrons: string
+    workflows: string
+    sharedEnvs: string
+    orchestrationFiles: string
+    platformComponents: string
+    users: string
+    settings: string
+    credentials: string
+    secrets: string
+    certificates: string
+  }
+  mobileDescription: string
+}
+
+const DEFAULT_NAV_LABELS: NavLabels = {
+  groups: {
+    workspace: 'Workspace',
+    platform: 'Platform',
+  },
+  items: {
+    overview: 'Overview',
+    applications: 'Applications',
+    myApps: 'My Apps',
+    appStore: 'App Store',
+    deploy: 'Deploy',
+    publish: 'Publish',
+    actions: 'Activity',
+    groups: 'Groups',
+    feed: 'Feed',
+    terminal: 'Terminal',
+    aiCopilot: 'AI Copilot',
+    aiChat: 'AI Chat',
+    aiAgent: 'AI Agent',
+    topics: 'Topics',
+    feeds: 'Feeds',
+    assets: 'Assets',
+    space: 'Space',
+    resources: 'Resources',
+    network: 'Network',
+    gateway: 'Gateway',
+    traffic: 'Traffic',
+    extensions: 'Extensions',
+    system: 'System',
+    status: 'Status',
+    platformRuntime: 'Platform Runtime',
+    tunnels: 'Tunnels',
+    audit: 'Audit',
+    logs: 'Logs',
+    platformCrons: 'Platform Crons',
+    workflows: 'Workflows',
+    sharedEnvs: 'Shared Envs',
+    orchestrationFiles: 'Orchestration Files',
+    platformComponents: 'Platform Components',
+    users: 'Users',
+    settings: 'Settings',
+    credentials: 'Credentials',
+    secrets: 'Secrets',
+    certificates: 'Certificates',
+  },
+  mobileDescription: 'Navigate between workspace, application, and admin sections.',
+}
+
 // ─── Default navigation groups ───────────────────────────
 
-const workspaceGroup: NavGroup = {
-  id: 'workspace',
-  label: 'Workspace',
-  items: [
-    {
-      id: 'overview',
-      label: 'Overview',
-      icon: <LayoutDashboard className="h-5 w-5" />,
-      href: '/overview',
-    },
-    {
-      id: 'applications',
-      label: 'Applications',
-      icon: <Layers className="h-5 w-5" />,
-      href: '/store',
-      children: [
-        { id: 'installed', label: 'My Apps', href: '/apps' },
-        { id: 'store', label: 'App Store', href: '/store' },
-        { id: 'deploy', label: 'Deploy', href: '/deploy' },
-        { id: 'actions', label: 'Actions', href: '/actions' },
-      ],
-    },
-    {
-      id: 'terminal',
-      label: 'Terminal',
-      icon: <TerminalSquare className="h-5 w-5" />,
-      href: '/terminal',
-    },
-    {
-      id: 'collaboration',
-      label: 'Collaboration',
-      icon: <MessageSquare className="h-5 w-5" />,
-      href: '/groups',
-      children: [
-        { id: 'groups', label: 'Groups', href: '/groups' },
-        { id: 'topics', label: 'Topics', href: '/topics' },
-      ],
-    },
-    { id: 'space', label: 'Space', icon: <FolderOpen className="h-5 w-5" />, href: '/space' },
-  ],
+function buildWorkspaceGroup(labels: NavLabels): NavGroup {
+  return {
+    id: 'workspace',
+    label: labels.groups.workspace,
+    items: [
+      {
+        id: 'overview',
+        label: labels.items.overview,
+        icon: <LayoutDashboard className="h-5 w-5" />,
+        href: '/overview',
+      },
+      {
+        id: 'applications',
+        label: labels.items.applications,
+        icon: <Layers className="h-5 w-5" />,
+        href: '/store',
+        children: [
+          { id: 'installed', label: labels.items.myApps, href: '/apps' },
+          { id: 'store', label: labels.items.appStore, href: '/store' },
+          { id: 'deploy', label: labels.items.deploy, href: '/deploy' },
+          { id: 'publish', label: labels.items.publish, href: '/publish' },
+          { id: 'actions', label: labels.items.actions, href: '/activity' },
+        ],
+      },
+      {
+        id: 'groups',
+        label: labels.items.groups,
+        icon: <Shapes className="h-5 w-5" />,
+        href: '/groups',
+      },
+      {
+        id: 'terminal',
+        label: labels.items.terminal,
+        icon: <TerminalSquare className="h-5 w-5" />,
+        href: '/terminal',
+      },
+      {
+        id: 'ai-copilot',
+        label: labels.items.aiCopilot,
+        icon: <BotMessageSquare className="h-5 w-5" />,
+        href: '/ai-copilot',
+        children: [
+          { id: 'ai-chat', label: labels.items.aiChat, href: '/ai-copilot' },
+          { id: 'ai-agent', label: labels.items.aiAgent, href: '/ai-agent' },
+          { id: 'workflow', label: labels.items.workflows, href: '/workflows' },
+        ],
+      },
+      {
+        id: 'feed',
+        label: labels.items.feed,
+        icon: <Rss className="h-5 w-5" />,
+        href: '/feeds',
+        children: [
+          { id: 'feeds', label: labels.items.feeds, href: '/feeds' },
+          { id: 'topics', label: labels.items.topics, href: '/topics' },
+        ],
+      },
+      {
+        id: 'assets',
+        label: labels.items.assets,
+        icon: <FileCode2 className="h-5 w-5" />,
+        href: '/ai-assets',
+      },
+      {
+        id: 'space',
+        label: labels.items.space,
+        icon: <FolderOpen className="h-5 w-5" />,
+        href: '/space',
+      },
+    ],
+  }
 }
 
-const resourcesNavItem: NavItem = {
-  id: 'resources',
-  label: 'Resources',
-  icon: <LayoutGrid className="h-5 w-5" />,
-  href: '/resources',
+function buildPlatformGroup(isSuperuser: boolean, labels: NavLabels): NavGroup {
+  const resourcesNavItem: NavItem = {
+    id: 'resources',
+    label: labels.items.resources,
+    icon: <LayoutGrid className="h-5 w-5" />,
+    href: '/resources',
+  }
+
+  const extensionsNavItem: NavItem = {
+    id: 'extensions',
+    label: labels.items.extensions,
+    icon: <Puzzle className="h-5 w-5" />,
+    href: '/extensions',
+  }
+
+  const networkNavItem: NavItem = {
+    id: 'network',
+    label: labels.items.network,
+    icon: <Network className="h-5 w-5" />,
+    href: '/network',
+    children: [
+      { id: 'gateway', label: labels.items.gateway, href: '/gateway' },
+      { id: 'tunnels', label: labels.items.tunnels, href: '/tunnels' },
+      { id: 'traffic', label: labels.items.traffic, href: '/traffic' },
+    ],
+  }
+
+  const systemNavItem: NavItem = {
+    id: 'system',
+    label: labels.items.system,
+    icon: <Settings className="h-5 w-5" />,
+    href: '/status',
+    children: [
+      { id: 'status', label: labels.items.status, href: '/status' },
+      { id: 'platform-runtime', label: labels.items.platformRuntime, href: '/platform-runtime' },
+      { id: 'audit', label: labels.items.audit, href: '/audit' },
+      { id: 'logs', label: labels.items.logs, href: '/logs' },
+      { id: 'system-tasks', label: labels.items.platformCrons, href: '/system-tasks' },
+      { id: 'workflows', label: labels.items.workflows, href: '/workflows' },
+      { id: 'shared-envs', label: labels.items.sharedEnvs, href: '/shared-envs' },
+      { id: 'iac', label: labels.items.orchestrationFiles, href: '/iac' },
+    ],
+  }
+
+  const systemNavItemBasic: NavItem = {
+    id: 'system',
+    label: labels.items.system,
+    icon: <Settings className="h-5 w-5" />,
+    href: '/platform-components',
+    children: [
+      {
+        id: 'platform-components',
+        label: labels.items.platformComponents,
+        href: '/platform-components',
+      },
+      { id: 'audit', label: labels.items.audit, href: '/audit' },
+    ],
+  }
+
+  const usersNavItem: NavItem = {
+    id: 'users',
+    label: labels.items.users,
+    icon: <Users className="h-5 w-5" />,
+    href: '/users',
+  }
+
+  const settingsNavItem: NavItem = {
+    id: 'settings',
+    label: labels.items.settings,
+    icon: <Cog className="h-5 w-5" />,
+    href: '/settings',
+  }
+
+  const credentialsNavItem: NavItem = {
+    id: 'credentials',
+    label: labels.items.credentials,
+    icon: <KeyRound className="h-5 w-5" />,
+    href: '/secrets',
+    children: [
+      {
+        id: 'credentials-secrets',
+        label: labels.items.secrets,
+        href: '/secrets',
+      },
+      {
+        id: 'credentials-certificates',
+        label: labels.items.certificates,
+        href: '/certificates',
+      },
+    ],
+  }
+
+  return {
+    id: 'admin',
+    label: labels.groups.platform,
+    items: isSuperuser
+      ? [
+          systemNavItem,
+          resourcesNavItem,
+          networkNavItem,
+          extensionsNavItem,
+          credentialsNavItem,
+          usersNavItem,
+          settingsNavItem,
+        ]
+      : [systemNavItemBasic, resourcesNavItem, networkNavItem, extensionsNavItem],
+  }
 }
 
-const systemNavItem: NavItem = {
-  id: 'system',
-  label: 'System',
-  icon: <Settings className="h-5 w-5" />,
-  href: '/status',
-  children: [
-    { id: 'status', label: 'Status', href: '/status' },
-    { id: 'tunnels', label: 'Tunnels', href: '/tunnels' },
-    { id: 'audit', label: 'Audit', href: '/audit' },
-    { id: 'logs', label: 'Logs', href: '/logs' },
-    { id: 'system-tasks', label: 'System Crons', href: '/system-tasks' },
-    { id: 'iac', label: 'Orchestration Files', href: '/iac' },
-  ],
-}
-
-const systemNavItemBasic: NavItem = {
-  id: 'system',
-  label: 'System',
-  icon: <Settings className="h-5 w-5" />,
-  href: '/components',
-  children: [
-    { id: 'components', label: 'Components', href: '/components' },
-    { id: 'tunnels', label: 'Tunnels', href: '/tunnels' },
-    { id: 'audit', label: 'Audit', href: '/audit' },
-  ],
-}
-
-const usersNavItem: NavItem = {
-  id: 'users',
-  label: 'Users',
-  icon: <Users className="h-5 w-5" />,
-  href: '/users',
-}
-
-const settingsNavItem: NavItem = {
-  id: 'settings',
-  label: 'Settings',
-  icon: <Cog className="h-5 w-5" />,
-  href: '/settings',
-}
-
-const credentialsNavItem: NavItem = {
-  id: 'credentials',
-  label: 'Credentials',
-  icon: <KeyRound className="h-5 w-5" />,
-  href: '/secrets',
-  children: [
-    {
-      id: 'credentials-secrets',
-      label: 'Secrets',
-      href: '/secrets',
-    },
-    {
-      id: 'credentials-certificates',
-      label: 'Certificates',
-      href: '/certificates',
-    },
-  ],
-}
-
-export function buildNavGroups(isSuperuser: boolean): NavGroup[] {
-  return [
-    workspaceGroup,
-    {
-      id: 'admin',
-      label: 'Platform',
-      items: isSuperuser
-        ? [systemNavItem, resourcesNavItem, credentialsNavItem, usersNavItem, settingsNavItem]
-        : [systemNavItemBasic, resourcesNavItem],
-    },
-  ]
+export function buildNavGroups(isSuperuser: boolean, labels?: NavLabels): NavGroup[] {
+  const resolvedLabels = labels ?? DEFAULT_NAV_LABELS
+  return [buildWorkspaceGroup(resolvedLabels), buildPlatformGroup(isSuperuser, resolvedLabels)]
 }
 
 interface SidebarProps {
@@ -184,11 +351,13 @@ function NavLink({
   collapsed,
   onNavigate,
   depth = 0,
+  navigate,
 }: {
   item: NavItem
   collapsed: boolean
   onNavigate?: () => void
   depth?: number
+  navigate: ReturnType<typeof useNavigate>
 }) {
   const router = useRouterState()
   const hasChildren = !!(item.children && item.children.length > 0)
@@ -213,7 +382,7 @@ function NavLink({
     }
     // A collapsed parent acts like a shortcut into its first child route.
     onNavigate?.()
-    navigateSidebarHref(firstChild.href)
+    navigateSidebarHref(navigate, firstChild.href)
   }
 
   if (hasChildren && !collapsed) {
@@ -242,6 +411,7 @@ function NavLink({
                 collapsed={false}
                 onNavigate={onNavigate}
                 depth={depth + 1}
+                navigate={navigate}
               />
             ))}
           </div>
@@ -251,8 +421,8 @@ function NavLink({
   }
 
   const link = (
-    <a
-      href={item.href}
+    <Link
+      to={item.href as never}
       onClick={onNavigate}
       className={cn(
         'flex items-center justify-start gap-3 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors',
@@ -270,7 +440,7 @@ function NavLink({
           {item.badge}
         </span>
       )}
-    </a>
+    </Link>
   )
 
   if (collapsed) {
@@ -298,12 +468,20 @@ function NavGroupSection({
   collapsed: boolean
   onNavigate?: () => void
 }) {
+  const navigate = useNavigate()
+
   // When sidebar is collapsed, show only icons (no group headers)
   if (sidebarCollapsed) {
     return (
       <div className="flex flex-col gap-1 px-2">
         {group.items.map(item => (
-          <NavLink key={item.id} item={item} collapsed onNavigate={onNavigate} />
+          <NavLink
+            key={item.id}
+            item={item}
+            collapsed
+            onNavigate={onNavigate}
+            navigate={navigate}
+          />
         ))}
       </div>
     )
@@ -314,7 +492,13 @@ function NavGroupSection({
       <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground">{group.label}</div>
       <nav className="flex flex-col gap-1 px-2 pb-1" aria-label={`${group.label} navigation`}>
         {group.items.map(item => (
-          <NavLink key={item.id} item={item} collapsed={false} onNavigate={onNavigate} />
+          <NavLink
+            key={item.id}
+            item={item}
+            collapsed={false}
+            onNavigate={onNavigate}
+            navigate={navigate}
+          />
         ))}
       </nav>
     </div>
@@ -351,8 +535,62 @@ function SidebarNav({
 export function Sidebar({ groups }: SidebarProps) {
   const { sidebarCollapsed, sidebarOpen, setSidebarOpen, toggleSidebar, isDesktop } = useLayout()
   const { user } = useAuth()
+  const { t } = useTranslation('navigation')
   const isSuperuser = user?.collectionName === '_superusers'
-  const resolvedGroups = useMemo(() => groups ?? buildNavGroups(isSuperuser), [groups, isSuperuser])
+  const labels = useMemo<NavLabels>(
+    () => ({
+      groups: {
+        workspace: t('groups.workspace'),
+        platform: t('groups.platform'),
+      },
+      items: {
+        overview: t('items.overview'),
+        applications: t('items.applications'),
+        myApps: t('items.myApps'),
+        appStore: t('items.appStore'),
+        deploy: t('items.deploy'),
+        publish: t('items.publish'),
+        actions: t('items.actions'),
+        groups: t('items.groups'),
+        feed: t('items.feed'),
+        terminal: t('items.terminal'),
+        aiCopilot: t('items.aiCopilot'),
+        aiChat: t('items.aiChat'),
+        aiAgent: t('items.aiAgent'),
+        topics: t('items.topics'),
+        feeds: t('items.feeds'),
+        assets: t('items.assets'),
+        space: t('items.space'),
+        resources: t('items.resources'),
+        network: t('items.network'),
+        gateway: t('items.gateway'),
+        traffic: t('items.traffic'),
+        extensions: t('items.extensions'),
+        system: t('items.system'),
+        status: t('items.status'),
+        platformRuntime: t('items.platformRuntime'),
+        tunnels: t('items.tunnels'),
+        audit: t('items.audit'),
+        logs: t('items.logs'),
+        platformCrons: t('items.platformCrons'),
+        workflows: t('items.workflows'),
+        sharedEnvs: t('items.sharedEnvs'),
+        orchestrationFiles: t('items.orchestrationFiles'),
+        platformComponents: t('items.platformComponents'),
+        users: t('items.users'),
+        settings: t('items.settings'),
+        credentials: t('items.credentials'),
+        secrets: t('items.secrets'),
+        certificates: t('items.certificates'),
+      },
+      mobileDescription: t('mobile.description'),
+    }),
+    [t]
+  )
+  const resolvedGroups = useMemo(
+    () => groups ?? buildNavGroups(isSuperuser, labels),
+    [groups, isSuperuser, labels]
+  )
 
   const handleBackgroundClick = () => {
     toggleSidebar()
@@ -367,9 +605,7 @@ export function Sidebar({ groups }: SidebarProps) {
             <SheetTitle>
               <Logo />
             </SheetTitle>
-            <SheetDescription>
-              Navigate between workspace, application, and admin sections.
-            </SheetDescription>
+            <SheetDescription>{labels.mobileDescription}</SheetDescription>
           </SheetHeader>
           <Separator />
           <div className="py-3">
@@ -409,22 +645,29 @@ export function Sidebar({ groups }: SidebarProps) {
       {/* Collapse toggle at bottom */}
       <Separator />
       <div className="p-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          className={cn('w-full', sidebarCollapsed ? 'justify-center' : 'justify-start')}
-          onClick={toggleSidebar}
-          aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {sidebarCollapsed ? (
-            <PanelLeft className="h-4 w-4" />
-          ) : (
-            <>
-              <PanelLeftClose className="h-4 w-4 mr-2" />
-              <span className="text-xs">Collapse</span>
-            </>
-          )}
-        </Button>
+        <Tooltip delayDuration={0}>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn(
+                'h-8 w-full px-3',
+                sidebarCollapsed ? 'justify-center px-2' : 'justify-start'
+              )}
+              onClick={toggleSidebar}
+              aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {sidebarCollapsed ? (
+                <PanelLeft className="h-4 w-4" />
+              ) : (
+                <PanelLeftClose className="h-4 w-4" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top" sideOffset={8}>
+            {sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          </TooltipContent>
+        </Tooltip>
       </div>
     </aside>
   )

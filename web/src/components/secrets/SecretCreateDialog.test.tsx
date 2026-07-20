@@ -67,6 +67,8 @@ describe('SecretCreateDialog', () => {
     fireEvent.click(screen.getByTitle('Show value'))
     expect(secretValueField).toHaveAttribute('type', 'text')
 
+    fireEvent.click(screen.getByRole('button', { name: 'Advanced' }))
+
     const secretValueLabel = screen.getByText('Secret Value *')
     const descriptionLabel = screen.getByText('Description')
     expect(
@@ -111,5 +113,37 @@ describe('SecretCreateDialog', () => {
     const privateKeyField = await screen.findByLabelText('Private Key *')
     expect(privateKeyField).toHaveStyle({ fieldSizing: 'fixed' })
     expect(privateKeyField).toHaveClass('min-h-32', 'max-h-80', 'resize-y', 'overflow-auto')
+  })
+
+  it('stores the invoking resource visibility under Advanced', async () => {
+    render(
+      <SecretCreateDialog
+        open
+        onOpenChange={() => {}}
+        title="Create Credential"
+        description="Create a reusable credential and attach it to this server."
+        allowedTemplateIds={['single_value']}
+        templateLabels={{ single_value: 'Password' }}
+        defaultTemplateId="single_value"
+        defaultVisibleTo={['server']}
+        onCreated={() => {}}
+      />
+    )
+
+    await screen.findByLabelText('Secret Value *')
+    fireEvent.click(screen.getByRole('button', { name: 'Advanced' }))
+    expect(screen.getByText('Visible In')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'server-secret' } })
+    fireEvent.change(screen.getByLabelText('Secret Value *'), { target: { value: 'top-secret' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create Credential' }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          visible_to: ['server'],
+        })
+      )
+    })
   })
 })

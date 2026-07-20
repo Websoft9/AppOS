@@ -12,9 +12,9 @@ import (
 
 func TestApplyReasonCodeNormalizesAndClears(t *testing.T) {
 	summary := map[string]any{"reason_code": "old_value"}
-	store.ApplyReasonCode(summary, "  HEARTBEAT_STALE  ")
-	if got := summary["reason_code"]; got != "heartbeat_stale" {
-		t.Fatalf("expected normalized reason_code heartbeat_stale, got %+v", got)
+	store.ApplyReasonCode(summary, "  CONTROL_UNREACHABLE  ")
+	if got := summary["reason_code"]; got != "control_unreachable" {
+		t.Fatalf("expected normalized reason_code control_unreachable, got %+v", got)
 	}
 	store.ApplyReasonCode(summary, "   ")
 	if _, ok := summary["reason_code"]; ok {
@@ -26,8 +26,8 @@ func TestLoadResourceCheckSummaryMergesExistingSummary(t *testing.T) {
 	summary := store.BuildResourceCheckSummary(
 		map[string]any{"existing": "value"},
 		monitor.CheckKindReachability,
-		"resource-redis-generic",
-		"redis",
+		"resource-redis-compatible-generic",
+		"redis-compatible",
 		"generic-redis",
 		"127.0.0.1:6379",
 	)
@@ -37,7 +37,7 @@ func TestLoadResourceCheckSummaryMergesExistingSummary(t *testing.T) {
 	if summary["check_kind"] != monitor.CheckKindReachability {
 		t.Fatalf("expected check_kind to be set, got %+v", summary)
 	}
-	if summary["registry_entry_id"] != "resource-redis-generic" {
+	if summary["registry_entry_id"] != "resource-redis-compatible-generic" {
 		t.Fatalf("expected registry_entry_id to be set, got %+v", summary)
 	}
 	if summary["endpoint"] != "127.0.0.1:6379" {
@@ -90,6 +90,68 @@ func TestUpsertLatestStatusPreservesStrongerFailureAndTransition(t *testing.T) {
 	}
 	if got := updated.GetDateTime("last_transition_at").Time(); !got.Equal(initialTransition) {
 		t.Fatalf("expected last_transition_at to remain %v, got %v", initialTransition, got)
+	}
+}
+
+func TestUpsertLatestStatusIncomingCheckKindIgnoresMissingExistingCheckKind(t *testing.T) {
+	app := newStoreTestApp(t)
+	defer app.Cleanup()
+
+	now := time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)
+	_, err := store.UpsertLatestStatus(app, store.LatestStatusUpsert{
+		TargetType:       monitor.TargetTypeServer,
+		TargetID:         "server-missing-check-kind",
+		DisplayName:      "server-missing-check-kind",
+		Status:           monitor.StatusUnreachable,
+		Reason:           "previous failure without check kind",
+		SignalSource:     monitor.SignalSourceAppOS,
+		LastTransitionAt: now,
+		Summary:          map[string]any{"legacy": true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = store.UpsertLatestStatus(app, store.LatestStatusUpsert{
+		TargetType:        monitor.TargetTypeServer,
+		TargetID:          "server-missing-check-kind",
+		DisplayName:       "server-missing-check-kind",
+		Status:            monitor.StatusHealthy,
+		SignalSource:      monitor.SignalSourceAppOS,
+		LastTransitionAt:  now.Add(time.Minute),
+		StatusPriorityMap: map[string]int{monitor.StatusUnreachable: 4, monitor.StatusHealthy: 0},
+		IncomingCheckKind: monitor.CheckKindControlReachability,
+		Summary:           map[string]any{"check_kind": monitor.CheckKindControlReachability},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	updated := loadStoreLatestStatusRecord(t, app, monitor.TargetTypeServer, "server-missing-check-kind")
+	if got := updated.GetString("status"); got != monitor.StatusHealthy {
+		t.Fatalf("expected missing existing check_kind not to preserve stale failure, got %q", got)
+	}
+}
+
+func TestCloneSummaryDeepCopiesNestedValues(t *testing.T) {
+	original := map[string]any{
+		"apps": []map[string]any{{"app_id": "app-1", "runtime_state": "healthy"}},
+		"meta": map[string]any{"reason": "ok"},
+	}
+	cloned := store.CloneSummary(original)
+
+	clonedApps := cloned["apps"].([]map[string]any)
+	clonedApps[0]["runtime_state"] = "degraded"
+	clonedMeta := cloned["meta"].(map[string]any)
+	clonedMeta["reason"] = "changed"
+
+	originalApps := original["apps"].([]map[string]any)
+	if originalApps[0]["runtime_state"] != "healthy" {
+		t.Fatalf("expected original nested app state unchanged, got %+v", originalApps)
+	}
+	originalMeta := original["meta"].(map[string]any)
+	if originalMeta["reason"] != "ok" {
+		t.Fatalf("expected original nested meta unchanged, got %+v", originalMeta)
 	}
 }
 

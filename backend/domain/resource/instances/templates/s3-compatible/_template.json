@@ -1,0 +1,40 @@
+{
+  "kind": "s3-compatible",
+  "category": "storage",
+  "endpointShape": "url",
+  "defaultPort": 443,
+  "defaultProtocolHint": "https",
+  "credentialPresentation": "secret_or_inline",
+  "credentialLabel": "credential",
+  "fields": [
+    {
+      "id": "accessKeyId",
+      "label": "Access Key ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "APPOSACCESSKEY"
+    },
+    {
+      "id": "bucket",
+      "label": "Default Bucket",
+      "type": "text",
+      "required": true,
+      "placeholder": "assets"
+    },
+    {
+      "id": "region",
+      "label": "Region",
+      "type": "text",
+      "required": true,
+      "default": "us-east-1",
+      "placeholder": "us-east-1"
+    },
+    {
+      "id": "forcePathStyle",
+      "label": "Force Path-Style Addressing",
+      "type": "boolean",
+      "advanced": true,
+      "default": false
+    }
+  ]
+}

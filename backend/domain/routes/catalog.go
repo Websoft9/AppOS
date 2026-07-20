@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -9,19 +10,35 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
+	"github.com/websoft9/appos/backend/domain/apptemplates"
 	appcatalog "github.com/websoft9/appos/backend/domain/catalog"
 )
+
+const maxCatalogAppsLimit = 200
 
 // registerCatalogRoutes registers canonical App Catalog read routes under /api/catalog.
 func registerCatalogRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	catalog := g.Group("/catalog")
 
 	catalog.GET("/categories", handleCatalogCategories)
+	admin := catalog.Group("/admin")
+	admin.Bind(apis.RequireSuperuserAuth())
+	admin.GET("/status", handleCatalogAdminStatus)
+	admin.POST("/reindex", handleCatalogAdminReindex)
+	admin.GET("/categories/raw", handleCatalogAdminCategoriesRaw)
+	admin.GET("/apps/{key}/raw", handleCatalogAdminAppRaw)
+
+	customApps := catalog.Group("/custom-apps")
+	customApps.GET("", handleCatalogCustomAppsList)
+	customApps.POST("", handleCatalogCustomAppsCreate)
+	customApps.PATCH("/{id}", handleCatalogCustomAppsUpdate)
+	customApps.DELETE("/{id}", handleCatalogCustomAppsDelete)
 
 	apps := catalog.Group("/apps")
 	apps.GET("", handleCatalogAppsList)
 	apps.GET("/{key}", handleCatalogAppDetail)
 	apps.GET("/{key}/deploy-source", handleCatalogAppDeploySource)
+	apps.GET("/{key}/template", handleCatalogAppTemplate)
 
 	me := catalog.Group("/me")
 	meApps := me.Group("/apps")
@@ -91,6 +108,229 @@ func handleCatalogAppDeploySource(e *core.RequestEvent) error {
 		return apis.NewApiError(http.StatusInternalServerError, "failed to load deploy source", err)
 	}
 	return e.JSON(http.StatusOK, response)
+}
+
+func handleCatalogAppTemplate(e *core.RequestEvent) error {
+	key := strings.TrimSpace(e.Request.PathValue("key"))
+	if key == "" {
+		return e.BadRequestError("missing app key", nil)
+	}
+	response, err := apptemplates.NewService().Describe(key)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return e.NotFoundError("catalog app template not found", nil)
+		}
+		return apis.NewApiError(http.StatusInternalServerError, "failed to load catalog app template", err)
+	}
+	return e.JSON(http.StatusOK, response)
+}
+
+// @Summary Get catalog source runtime status
+// @Description Returns backend-managed runtime catalog source status, seed file metadata, and current locale bundle counts. Superuser only.
+// @Tags Catalog
+// @Security BearerAuth
+// @Success 200 {object} catalog.AdminStatusResponse
+// @Failure 401 {object} map[string]any
+// @Failure 403 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/catalog/admin/status [get]
+func handleCatalogAdminStatus(e *core.RequestEvent) error {
+	response, err := appcatalog.NewService().AdminStatus()
+	if err != nil {
+		return apis.NewApiError(http.StatusInternalServerError, "failed to load catalog admin status", err)
+	}
+	return e.JSON(http.StatusOK, response)
+}
+
+// @Summary Reindex local catalog source bundles
+// @Description Reloads the backend-managed runtime catalog bundles and returns current locale counts. Remote artifact sync is intentionally unavailable. Superuser only.
+// @Tags Catalog
+// @Security BearerAuth
+// @Success 200 {object} catalog.AdminReindexResponse
+// @Failure 401 {object} map[string]any
+// @Failure 403 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/catalog/admin/reindex [post]
+func handleCatalogAdminReindex(e *core.RequestEvent) error {
+	response, err := appcatalog.NewService().AdminReindex()
+	if err != nil {
+		return apis.NewApiError(http.StatusInternalServerError, "failed to reindex catalog source", err)
+	}
+	return e.JSON(http.StatusOK, response)
+}
+
+// @Summary Get raw catalog categories bundle
+// @Description Returns the raw official category source bundle for one locale from the backend-managed runtime catalog directory. Superuser only.
+// @Tags Catalog
+// @Security BearerAuth
+// @Param locale query string false "bundle locale" Enums(en, zh)
+// @Success 200 {object} catalog.AdminRawCategoriesResponse
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 403 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/catalog/admin/categories/raw [get]
+func handleCatalogAdminCategoriesRaw(e *core.RequestEvent) error {
+	locale, err := catalogLocale(e)
+	if err != nil {
+		return e.BadRequestError(err.Error(), nil)
+	}
+	response, err := appcatalog.NewService().AdminRawCategories(locale)
+	if err != nil {
+		return apis.NewApiError(http.StatusInternalServerError, "failed to load raw category source", err)
+	}
+	return e.JSON(http.StatusOK, response)
+}
+
+// @Summary Get one raw catalog app bundle entry
+// @Description Returns the raw official app source payload for one app key from the backend-managed runtime catalog directory. Superuser only.
+// @Tags Catalog
+// @Security BearerAuth
+// @Param key path string true "catalog app key"
+// @Param locale query string false "bundle locale" Enums(en, zh)
+// @Success 200 {object} catalog.AdminRawAppResponse
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 403 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/catalog/admin/apps/{key}/raw [get]
+func handleCatalogAdminAppRaw(e *core.RequestEvent) error {
+	locale, err := catalogLocale(e)
+	if err != nil {
+		return e.BadRequestError(err.Error(), nil)
+	}
+	key := strings.TrimSpace(e.Request.PathValue("key"))
+	if key == "" {
+		return e.BadRequestError("missing app key", nil)
+	}
+	response, err := appcatalog.NewService().AdminRawApp(locale, key)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return e.NotFoundError("catalog source app not found", nil)
+		}
+		return apis.NewApiError(http.StatusInternalServerError, "failed to load raw app source", err)
+	}
+	return e.JSON(http.StatusOK, response)
+}
+
+// @Summary List visible custom apps
+// @Description Returns custom apps visible to the authenticated caller, including owned and shared entries.
+// @Tags Catalog
+// @Security BearerAuth
+// @Success 200 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/catalog/custom-apps [get]
+func handleCatalogCustomAppsList(e *core.RequestEvent) error {
+	response, err := appcatalog.NewService().ListCustomApps(e.App, e.Auth)
+	if err != nil {
+		return apis.NewApiError(http.StatusInternalServerError, "failed to load custom apps", err)
+	}
+	return e.JSON(http.StatusOK, map[string]any{"items": response})
+}
+
+// @Summary Create custom app
+// @Description Creates a caller-owned custom app record for the App Catalog.
+// @Tags Catalog
+// @Security BearerAuth
+// @Param body body object true "custom app payload"
+// @Success 201 {object} catalog.CustomAppRecord
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 409 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/catalog/custom-apps [post]
+func handleCatalogCustomAppsCreate(e *core.RequestEvent) error {
+	body, err := readBody(e)
+	if err != nil {
+		return e.BadRequestError("invalid request body", nil)
+	}
+	input, err := customAppUpsertFromBody(body)
+	if err != nil {
+		return e.BadRequestError(err.Error(), nil)
+	}
+	response, err := appcatalog.NewService().CreateCustomApp(e.App, e.Auth, input)
+	if err != nil {
+		if responseErr := catalogCustomAppWriteError(err); responseErr != nil {
+			return responseErr
+		}
+		return apis.NewApiError(http.StatusInternalServerError, "failed to create custom app", err)
+	}
+	return e.JSON(http.StatusCreated, response)
+}
+
+// @Summary Update custom app
+// @Description Updates one caller-owned custom app record.
+// @Tags Catalog
+// @Security BearerAuth
+// @Param id path string true "custom app id"
+// @Param body body object true "custom app payload"
+// @Success 200 {object} catalog.CustomAppRecord
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 403 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 409 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/catalog/custom-apps/{id} [patch]
+func handleCatalogCustomAppsUpdate(e *core.RequestEvent) error {
+	id := strings.TrimSpace(e.Request.PathValue("id"))
+	if id == "" {
+		return e.BadRequestError("missing custom app id", nil)
+	}
+	body, err := readBody(e)
+	if err != nil {
+		return e.BadRequestError("invalid request body", nil)
+	}
+	input, err := customAppUpsertFromBody(body)
+	if err != nil {
+		return e.BadRequestError(err.Error(), nil)
+	}
+	response, err := appcatalog.NewService().UpdateCustomApp(e.App, e.Auth, id, input)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return e.NotFoundError("custom app not found", nil)
+		}
+		if strings.Contains(err.Error(), "forbidden") {
+			return apis.NewForbiddenError("custom app update forbidden", err)
+		}
+		if responseErr := catalogCustomAppWriteError(err); responseErr != nil {
+			return responseErr
+		}
+		return apis.NewApiError(http.StatusInternalServerError, "failed to update custom app", err)
+	}
+	return e.JSON(http.StatusOK, response)
+}
+
+// @Summary Delete custom app
+// @Description Deletes one caller-owned custom app record.
+// @Tags Catalog
+// @Security BearerAuth
+// @Param id path string true "custom app id"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 403 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/catalog/custom-apps/{id} [delete]
+func handleCatalogCustomAppsDelete(e *core.RequestEvent) error {
+	id := strings.TrimSpace(e.Request.PathValue("id"))
+	if id == "" {
+		return e.BadRequestError("missing custom app id", nil)
+	}
+	err := appcatalog.NewService().DeleteCustomApp(e.App, e.Auth, id)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return e.NotFoundError("custom app not found", nil)
+		}
+		if strings.Contains(err.Error(), "forbidden") {
+			return apis.NewForbiddenError("custom app delete forbidden", err)
+		}
+		return apis.NewApiError(http.StatusInternalServerError, "failed to delete custom app", err)
+	}
+	return e.JSON(http.StatusOK, map[string]any{"ok": true})
 }
 
 // @Summary List caller catalog personalization
@@ -222,8 +462,8 @@ func catalogQuery(e *core.RequestEvent) (appcatalog.Query, error) {
 		if err != nil || parsed <= 0 {
 			return appcatalog.Query{}, fmt.Errorf("invalid limit; must be a positive integer")
 		}
-		if parsed > 200 {
-			parsed = 200
+		if parsed > maxCatalogAppsLimit {
+			parsed = maxCatalogAppsLimit
 		}
 		limit = parsed
 	}
@@ -278,4 +518,64 @@ func catalogQuery(e *core.RequestEvent) (appcatalog.Query, error) {
 		Limit:             limit,
 		Offset:            offset,
 	}, nil
+}
+
+func customAppUpsertFromBody(body map[string]any) (appcatalog.CustomAppUpsert, error) {
+	categoryKeys := bodyTrimmedStringSlice(body, "category_keys")
+	logoURL := optionalBodyString(body, "logo_url")
+	description := optionalBodyString(body, "description")
+	envText := optionalBodyString(body, "env_text")
+	return appcatalog.CustomAppUpsert{
+		Key:          bodyString(body, "key"),
+		Trademark:    bodyString(body, "trademark"),
+		LogoURL:      logoURL,
+		Overview:     bodyString(body, "overview"),
+		Description:  description,
+		CategoryKeys: categoryKeys,
+		ComposeYAML:  bodyString(body, "compose_yaml"),
+		EnvText:      envText,
+		Visibility:   bodyString(body, "visibility"),
+	}, nil
+}
+
+func bodyTrimmedStringSlice(body map[string]any, key string) []string {
+	items := bodyStringSlice(body, key)
+	result := make([]string, 0, len(items))
+	for _, item := range items {
+		trimmed := strings.TrimSpace(item)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
+func optionalBodyString(body map[string]any, key string) *string {
+	value, ok := body[key]
+	if !ok || value == nil {
+		return nil
+	}
+	text, ok := value.(string)
+	if !ok {
+		return nil
+	}
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
+func catalogCustomAppWriteError(err error) error {
+	var validationErr *appcatalog.ValidationError
+	if errors.As(err, &validationErr) {
+		return apis.NewBadRequestError(validationErr.Error(), err)
+	}
+
+	var conflictErr *appcatalog.ConflictError
+	if errors.As(err, &conflictErr) {
+		return apis.NewApiError(http.StatusConflict, conflictErr.Error(), err)
+	}
+
+	return nil
 }

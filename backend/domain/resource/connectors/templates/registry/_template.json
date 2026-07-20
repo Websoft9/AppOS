@@ -2,7 +2,9 @@
   "kind": "registry",
   "category": "Artifact",
   "description": "Reusable container or OCI registry connector profile.",
-  "defaultAuthScheme": "basic",
+  "authPresentation": "mixed",
+  "endpointShape": "url",
+  "defaultAuthScheme": "none",
   "capabilities": ["image-pull", "image-push", "oci"],
   "fields": [
     {
@@ -13,16 +15,30 @@
       "placeholder": "https://registry.example.com"
     },
     {
+      "id": "auth_mode",
+      "label": "Authentication",
+      "type": "select",
+      "default": "none",
+      "options": [
+        { "label": "No authentication", "value": "none" },
+        { "label": "Username + Password", "value": "username_password" },
+        { "label": "Single Token / Secret", "value": "single_secret" }
+      ]
+    },
+    {
       "id": "username",
       "label": "Username",
       "type": "string",
-      "required": true,
+      "required": false,
+      "showWhen": { "field": "auth_mode", "values": ["username_password"] },
       "placeholder": "registry-user"
     },
     {
       "id": "credential",
-      "label": "Password Secret",
+      "label": "Password / Token / Secret",
       "type": "secret_ref",
+      "required": false,
+      "showWhen": { "field": "auth_mode", "values": ["username_password", "single_secret"] },
       "secretTemplate": "single_value",
       "placeholder": "secretRef:..."
     }

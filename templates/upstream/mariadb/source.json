@@ -1,0 +1,21 @@
+{
+  "originKind": "official",
+  "sourceRepo": "MariaDB/mariadb-docker",
+  "sourcePath": "docker-compose.yml",
+  "sourceBranch": "master",
+  "observedFiles": [
+    "docker-compose.yml"
+  ],
+  "references": {
+    "docs": "https://hub.docker.com/_/mariadb",
+    "image": "https://hub.docker.com/_/mariadb",
+    "envVars": "https://hub.docker.com/_/mariadb",
+    "secondary": "https://github.com/Websoft9/docker-library/tree/main/apps/mariadb"
+  },
+  "notes": [
+    "This sample preserves upstream identity for Epic 32 adaptation work.",
+    "The compose shape is derived from the official MariaDB Docker image documentation; the Websoft9 docker-library entry is used as a secondary reference only.",
+    "MariaDB is a single-service application: the server serves the TCP wire protocol (3306) and stores data. No separate database service is modeled.",
+    "The first pass stores source metadata rather than a full upstream file mirror."
+  ]
+}

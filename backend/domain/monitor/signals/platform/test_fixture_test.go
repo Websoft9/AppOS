@@ -1,12 +1,14 @@
 package platform_test
 
 import (
+	"context"
 	"os"
 	"sync"
 	"testing"
 
 	"github.com/pocketbase/pocketbase/tests"
 
+	monitormetrics "github.com/websoft9/appos/backend/domain/monitor/metrics"
 	_ "github.com/websoft9/appos/backend/infra/migrations"
 )
 
@@ -26,6 +28,11 @@ func TestMain(m *testing.M) {
 
 func newPlatformTestApp(t *testing.T) *tests.TestApp {
 	t.Helper()
+
+	restore := monitormetrics.SetMetricWriteFuncForTest(func(context.Context, []monitormetrics.MetricPoint) error {
+		return nil
+	})
+	t.Cleanup(restore)
 
 	platformTestBaselineOnce.Do(func() {
 		app, err := tests.NewTestApp()

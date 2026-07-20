@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { dispatchBrandingUpdated } from '@/lib/branding'
 import { pb } from '@/lib/pb'
 import { settingsActionPath, settingsEntryPath } from '@/lib/settings-api'
 import { type ShowToast } from './-settings-controller-shared'
@@ -7,6 +8,14 @@ export function useSystemSettingsController(showToast: ShowToast) {
   const [appName, setAppName] = useState('')
   const [appURL, setAppURL] = useState('')
   const [appSaving, setAppSaving] = useState(false)
+  const [logoMediaId, setLogoMediaId] = useState('')
+  const [logoUrl, setLogoUrl] = useState('')
+  const [wordmark, setWordmark] = useState('appos')
+  const [description, setDescription] = useState('Application Platform')
+  const [useLogoAsFavicon, setUseLogoAsFavicon] = useState(false)
+  const [faviconMediaId, setFaviconMediaId] = useState('')
+  const [faviconUrl, setFaviconUrl] = useState('')
+  const [brandingSaving, setBrandingSaving] = useState(false)
 
   const [s3Enabled, setS3Enabled] = useState(false)
   const [s3Bucket, setS3Bucket] = useState('')
@@ -28,6 +37,24 @@ export function useSystemSettingsController(showToast: ShowToast) {
     const basic = (entryMap.get('basic') as Partial<{ appName: string; appURL: string }>) ?? {}
     setAppName(basic.appName ?? '')
     setAppURL(basic.appURL ?? '')
+
+    const branding =
+      (entryMap.get('branding') as Partial<{
+        logoMediaId: string
+        logoUrl: string
+        wordmark: string
+        description: string
+        useLogoAsFavicon: boolean
+        faviconMediaId: string
+        faviconUrl: string
+      }>) ?? {}
+    setLogoMediaId(branding.logoMediaId ?? '')
+    setLogoUrl(branding.logoUrl ?? '')
+    setWordmark(branding.wordmark ?? 'appos')
+    setDescription(branding.description ?? 'Application Platform')
+    setUseLogoAsFavicon(branding.useLogoAsFavicon ?? false)
+    setFaviconMediaId(branding.faviconMediaId ?? '')
+    setFaviconUrl(branding.faviconUrl ?? '')
 
     const s3 =
       (entryMap.get('s3') as Partial<{
@@ -67,11 +94,47 @@ export function useSystemSettingsController(showToast: ShowToast) {
         method: 'PATCH',
         body: { appName, appURL },
       })
+      dispatchBrandingUpdated({
+        appName,
+        appURL,
+      })
       showToast('Basic settings saved')
     } catch (err) {
       showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
     } finally {
       setAppSaving(false)
+    }
+  }
+
+  const saveBranding = async () => {
+    setBrandingSaving(true)
+    try {
+      await pb.send(settingsEntryPath('branding'), {
+        method: 'PATCH',
+        body: {
+          logoMediaId,
+          logoUrl,
+          wordmark,
+          description,
+          useLogoAsFavicon,
+          faviconMediaId,
+          faviconUrl,
+        },
+      })
+      dispatchBrandingUpdated({
+        logoMediaId,
+        logoUrl,
+        wordmark,
+        description,
+        useLogoAsFavicon,
+        faviconMediaId,
+        faviconUrl,
+      })
+      showToast('Branding settings saved')
+    } catch (err) {
+      showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
+    } finally {
+      setBrandingSaving(false)
     }
   }
 
@@ -129,14 +192,29 @@ export function useSystemSettingsController(showToast: ShowToast) {
       setLogsSaving(false)
     }
   }
-
   return {
     appName,
     appURL,
     appSaving,
+    logoMediaId,
+    logoUrl,
+    wordmark,
+    description,
+    useLogoAsFavicon,
+    faviconMediaId,
+    faviconUrl,
+    brandingSaving,
     setAppName,
     setAppURL,
+    setLogoMediaId,
+    setLogoUrl,
+    setWordmark,
+    setDescription,
+    setUseLogoAsFavicon,
+    setFaviconMediaId,
+    setFaviconUrl,
     saveApp,
+    saveBranding,
     s3Enabled,
     s3Bucket,
     s3Region,

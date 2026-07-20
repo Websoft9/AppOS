@@ -1,5 +1,0 @@
-{
-  "id": "generic-registry-instance",
-  "title": "Generic Registry Service",
-  "description": "Container registry service instance treated as a long-lived dependency."
-}

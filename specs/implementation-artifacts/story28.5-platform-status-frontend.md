@@ -9,6 +9,8 @@
 
 Converge the current `System > Status` frontend into one simple platform-first page that answers one question first: can the platform be used right now?
 
+This story also absorbs the runtime-diagnostics value that previously lived in Epic 6 `Active Services`.
+
 ## Scope
 
 - Keep `System > Status` as the single operator entry for platform runtime status
@@ -17,6 +19,7 @@ Converge the current `System > Status` frontend into one simple platform-first p
 - Show active bundled services as the main diagnostic table
 - Keep platform targets as a compact control-plane summary, not the main surface
 - Keep available non-active components behind a secondary entry, not a primary section
+- Preserve diagnostics-first active-service behavior: summary counts, manual refresh, configurable auto-refresh, and log access without default process controls
 
 ## Principles
 
@@ -30,6 +33,17 @@ Converge the current `System > Status` frontend into one simple platform-first p
 - Current route: `web/src/routes/_app/_auth/_superuser/status.tsx`
 - Current monitor overview: `web/src/pages/system/MonitorOverview.tsx`
 - Current components and services surface: `web/src/pages/components/ComponentsPage.tsx`
+
+## Migration Note
+
+This story is the canonical replacement for the old Epic 6 `Active Services` tab.
+
+Migration rules:
+
+- active bundled-service runtime state now belongs to the unified `System > Status` experience rather than a standalone `Components` workspace
+- transitional reuse of `/api/components/services` and `/api/components/services/{name}/logs` is acceptable while the monitor-owned active-service read model converges
+- built-in component/service definitions and log-access metadata remain owned by Software Delivery local inventory, even when the status page temporarily consumes legacy `components` transport routes
+- default UX remains observe-first: logs and state are visible, but dangerous controls such as `start`, `stop`, and `restart` are not primary product behavior here
 
 ## Implementation Targets
 
@@ -47,6 +61,7 @@ Converge the current `System > Status` frontend into one simple platform-first p
 - [x] Keep `Active Services` as the main operator table on the page
 - [x] Reduce `Platform Targets` to a compact control-plane summary
 - [x] Move non-active component inventory behind a secondary `Components` entry from the services section
+- [x] Preserve the old active-services diagnostic value through summary counts, refresh behavior, and logs-first service inspection
 
 ## Source of Truth
 
@@ -54,7 +69,7 @@ Converge the current `System > Status` frontend into one simple platform-first p
 - The first pass does not require a new backend availability endpoint
 - First pass availability conclusion should be computed from:
 	- platform target summary from monitor overview
-	- active bundled service states already exposed by the services surface
+	- active bundled service states from the Monitor-owned services surface
 	- infrastructure trend section only as supporting evidence, not as the sole unavailable trigger
 
 ## Page Draft
@@ -117,7 +132,7 @@ Converge the current `System > Status` frontend into one simple platform-first p
 | redis               Running      8d 2h         2026-04-21 14:20     Cache ready                      [Logs]       |
 | nginx               Running      8d 2h         2026-04-21 14:20     Proxy ready                      [Logs]       |
 | victoria-metrics    Running      8d 2h         2026-04-21 14:20     Metrics storage healthy          [Logs]       |
-| netdata             Running      8d 2h         2026-04-21 14:20     Collector active                 [Logs]       |
+| monitor-pipeline    Running      8d 2h         2026-04-21 14:20     Collector ingest healthy         [Logs]       |
 +------------------------------------------------------------------------------------------------------------------+
 
 +------------------------------------------------------------------------------------------------------------------+
@@ -169,6 +184,9 @@ Given the page is rendered
 When the operator scans the main evidence area
 Then active bundled services are directly visible as the main operational table
 And log access remains available from that table
+And service-state summary counts for total, running, stopped, and degraded/error services remain visible without leaving the page
+And the page supports manual refresh plus configurable auto-refresh for the active-services section
+And default behavior remains diagnostics-first, without surfacing dangerous service controls as primary actions
 
 ### AC5: Platform targets are secondary evidence
 
@@ -191,7 +209,11 @@ And non-active components are not rendered as a standalone primary section on th
 
 - `Platform Availability` is a product conclusion, not a raw monitor object
 - `Platform Targets` remain important, but only as control-plane evidence for the availability conclusion
+- In restricted local runtime mode, `Platform Targets` should stay limited to `AppOS Core`, `Worker`, and `Scheduler`, with any extra runtime charts clearly labeled as AppOS-container-self metrics rather than host metrics.
+- In restricted local runtime mode, `platform/appos-core` may show AppOS-container-self `CPU %`, `MEM USAGE / LIMIT` (used plus available-from-limit), `Disk Usage`, `BLOCK I/O`, and `NET I/O` trends when sourced from container-internal telemetry; `Worker` and `Scheduler` remain compact `cpu,memory` targets.
 - The first implementation pass should reuse existing read models and frontend building blocks where possible
+- if compatibility requires continued use of the old service routes, treat them as transitional transport rather than as the long-term domain naming
+- service-definition/catalog data for built-in components belongs to Software Delivery local inventory, not to Monitor
 
 ## Dev Agent Record
 
@@ -203,10 +225,10 @@ And non-active components are not rendered as a standalone primary section on th
 - Kept `Active Services` primary and moved installed components into a secondary drawer opened from that section.
 - Promoted `System Crons` to a direct child under the `System` navigation group.
 - Refined `Platform Targets` into a three-column detail layout with richer per-target summary fields.
-- Renamed the infrastructure section to `系统性能` and clarified it reads AppOS container metrics from `platform/appos-core`, not host metrics.
+- Renamed the infrastructure section to `系统性能` and clarified it reads AppOS container-self metrics from `platform/appos-core`, not host metrics.
 - Renamed the main services section to `Bundled services` and changed the secondary components entry to a text link that opens a right-side drawer.
 - Removed the small `Healthy x / y` target aggregate because the platform target set is intentionally small.
-- Finalized `Platform performance` as five trend cards sourced from `platform/appos-core` series (`CPU %`, `MEM USAGE / LIMIT`, `MEM %`, `NET I/O`, `BLOCK I/O`) in a three-column layout.
+- Finalized `Platform performance` as five trend cards sourced from `platform/appos-core` series (`CPU %`, `MEM USAGE / LIMIT`, `Disk Usage`, `NET I/O`, `BLOCK I/O`) in a three-column layout.
 - Changed the components entry to `Bundle >` and redesigned the drawer as a compact list surface with `Name`, `Version`, `Updated`, and `CLI` columns plus inline refresh/close actions.
 
 ### File List

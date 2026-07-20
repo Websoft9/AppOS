@@ -1,5 +1,9 @@
 {
   "title": "App Store",
+  "description": "One-click deploy popular open source apps. Run first, configure after.",
+  "refresh": {
+    "button": "Refresh list"
+  },
   "search": {
     "placeholder": "Search apps...",
     "recentSearches": "Recent searches",
@@ -9,6 +13,12 @@
   "categories": {
     "all": "All",
     "allApps": "All Apps"
+  },
+  "filters": {
+    "primaryCategory": "Primary category",
+    "secondaryCategory": "Secondary category",
+    "search": "Search",
+    "pageSize": "Items per page"
   },
   "favorites": {
     "showOnly": "Show favorites only",
@@ -44,10 +54,14 @@
     "unfavorite": "Remove Favorite",
     "unfavoriteConfirm": "Remove from favorites?",
     "unfavoriteYes": "Remove",
+    "installedCount": "Installed {{count}}",
+    "viewInstalled": "View in My Apps",
     "category": "Category",
     "categories": "Categories"
   },
   "pagination": {
+    "previous": "Previous page",
+    "next": "Next page",
     "perPage": "per page",
     "showing": "Showing {{from}}–{{to}} of {{total}} apps"
   },
@@ -55,7 +69,8 @@
     "button": "Sync Latest",
     "syncing": "Syncing...",
     "success": "Synced",
-    "error": "Sync failed"
+    "error": "Sync failed",
+    "unavailable": "Catalog sync API is not available yet"
   },
   "loading": "Loading app catalog...",
   "error": {

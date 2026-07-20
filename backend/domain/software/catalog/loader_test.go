@@ -31,7 +31,7 @@ func TestLoadTemplateRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadTemplateRegistry: %v", err)
 	}
-	for _, name := range []string{"package-systemd", "script-systemd", "binary-supervisor", "binary-detect"} {
+	for _, name := range []string{"package-systemd", "script-systemd", "binary-service", "binary-detect"} {
 		if _, ok := reg.Templates[name]; !ok {
 			t.Errorf("expected %q template in registry", name)
 		}
@@ -52,7 +52,7 @@ func TestReinstallStepPresent(t *testing.T) {
 }
 
 // TestPreflightVerifiedOSNonEmpty verifies server templates declare at least one verified OS baseline.
-// binary-supervisor and binary-detect are OS-agnostic by design (container-internal) and are skipped.
+// binary-service and binary-detect are OS-agnostic by design (container-internal) and are skipped.
 func TestPreflightVerifiedOSNonEmpty(t *testing.T) {
 	reg, err := catalog.LoadTemplateRegistry()
 	if err != nil {
@@ -71,20 +71,19 @@ func TestPreflightVerifiedOSNonEmpty(t *testing.T) {
 // ── Server catalog tests ──────────────────────────────────────────────────────
 
 // TestLoadServerCatalogComponentKeys verifies that the server catalog contains
-// all four expected component keys.
+// all expected component keys.
 func TestLoadServerCatalogComponentKeys(t *testing.T) {
 	cat, err := catalog.LoadServerCatalog()
 	if err != nil {
 		t.Fatalf("LoadServerCatalog: %v", err)
 	}
-	if len(cat.Components) != 4 {
-		t.Errorf("expected 4 server components, got %d", len(cat.Components))
+	if len(cat.Components) != 3 {
+		t.Errorf("expected 3 server components, got %d", len(cat.Components))
 	}
 	required := []software.ComponentKey{
 		software.ComponentKeyDocker,
 		software.ComponentKeyReverseProxy,
-		software.ComponentKeyMonitorAgent,
-		software.ComponentKeyAppOSAgent,
+		software.ComponentKeyTelegraf,
 	}
 	found := make(map[software.ComponentKey]bool)
 	for _, e := range cat.Components {
@@ -100,6 +99,23 @@ func TestLoadServerCatalogComponentKeys(t *testing.T) {
 			t.Errorf("server catalog uses reserved flat-route component key %q", key)
 		}
 	}
+}
+
+func TestLoadServerCatalogTelegrafLegacyServiceNames(t *testing.T) {
+	cat, err := catalog.LoadServerCatalog()
+	if err != nil {
+		t.Fatalf("LoadServerCatalog: %v", err)
+	}
+	for _, entry := range cat.Components {
+		if entry.ComponentKey != software.ComponentKeyTelegraf {
+			continue
+		}
+		if len(entry.LegacyServiceNames) != 1 || entry.LegacyServiceNames[0] != "telegraf.service" {
+			t.Fatalf("expected telegraf legacy_service_names to contain telegraf.service, got %#v", entry.LegacyServiceNames)
+		}
+		return
+	}
+	t.Fatal("telegraf entry not found in server catalog")
 }
 
 // TestServerCatalogEntriesHaveTargetTypeServer verifies that all server catalog entries
@@ -158,6 +174,41 @@ func TestServerCatalogSupportedActionsAreValid(t *testing.T) {
 				t.Errorf("server catalog entry %q has invalid action %q", entry.ComponentKey, a)
 			}
 		}
+	}
+}
+
+func TestResolveTemplateCopiesActionTimeouts(t *testing.T) {
+	tpl := software.ComponentTemplate{
+		TemplateKind: software.TemplateKindPackage,
+		ActionTimeouts: software.ActionTimeoutsSpec{
+			InstallSeconds: 300,
+			RestartSeconds: 45,
+		},
+		ActionTimeoutPolicy: software.ActionTimeoutPolicySpec{
+			Install: software.TimeoutPolicyFailed,
+			Restart: software.TimeoutPolicyAttentionRequired,
+		},
+		Install: software.InstallSpec{Strategy: "package", PackageName: "{{package_name}}"},
+		Verify:  software.VerifySpec{Strategy: "systemd", ServiceName: "{{service_name}}"},
+	}
+	entry := software.CatalogEntry{
+		ComponentKey:     software.ComponentKeyDocker,
+		TemplateRef:      "package-systemd",
+		PackageName:      "docker.io",
+		ServiceName:      "docker.service",
+		SupportedActions: []software.Action{software.ActionInstall, software.ActionRestart},
+	}
+
+	resolved := catalog.ResolveTemplate(entry, tpl)
+
+	if got := resolved.ActionTimeouts.DurationFor(software.ActionInstall); got.Seconds() != 300 {
+		t.Fatalf("install timeout = %s, want 5m0s", got)
+	}
+	if got := resolved.ActionTimeouts.DurationFor(software.ActionRestart); got.Seconds() != 45 {
+		t.Fatalf("restart timeout = %s, want 45s", got)
+	}
+	if got := resolved.ActionTimeoutPolicy.ResultFor(software.ActionInstall); got != software.TimeoutPolicyFailed {
+		t.Fatalf("install timeout policy = %q, want %q", got, software.TimeoutPolicyFailed)
 	}
 }
 
@@ -432,6 +483,53 @@ func TestResolveTemplatePlaceholders(t *testing.T) {
 	}
 }
 
+func TestResolveTemplatePlaceholders_ReverseProxyDockerScript(t *testing.T) {
+	reg, err := catalog.LoadTemplateRegistry()
+	if err != nil {
+		t.Fatalf("LoadTemplateRegistry: %v", err)
+	}
+	cat, err := catalog.LoadServerCatalog()
+	if err != nil {
+		t.Fatalf("LoadServerCatalog: %v", err)
+	}
+
+	var reverseProxyEntry software.CatalogEntry
+	for _, e := range cat.Components {
+		if e.ComponentKey == software.ComponentKeyReverseProxy {
+			reverseProxyEntry = e
+			break
+		}
+	}
+	if reverseProxyEntry.ComponentKey == "" {
+		t.Fatal("reverse-proxy entry not found in server catalog")
+	}
+
+	tpl, ok := reg.Templates[reverseProxyEntry.TemplateRef]
+	if !ok {
+		t.Fatalf("template_ref %q not found in registry", reverseProxyEntry.TemplateRef)
+	}
+	resolved := catalog.ResolveTemplate(reverseProxyEntry, tpl)
+
+	if resolved.TemplateKind != software.TemplateKindScript {
+		t.Fatalf("expected reverse-proxy template kind script, got %q", resolved.TemplateKind)
+	}
+	if resolved.Install.Strategy != "script" {
+		t.Fatalf("expected reverse-proxy install strategy script, got %q", resolved.Install.Strategy)
+	}
+	if resolved.Install.ScriptPath != "traefik-install.sh" {
+		t.Fatalf("expected reverse-proxy script_path traefik-install.sh, got %q", resolved.Install.ScriptPath)
+	}
+	if resolved.Verify.ServiceName != "traefik.service" {
+		t.Fatalf("expected reverse-proxy service_name traefik.service, got %q", resolved.Verify.ServiceName)
+	}
+	if strings.Contains(resolved.Detect.VersionCommand, "{{") {
+		t.Fatalf("reverse-proxy version command still has unresolved placeholder: %q", resolved.Detect.VersionCommand)
+	}
+	if resolved.Detect.InstalledHint[0] != "systemctl cat traefik.service >/dev/null 2>&1 && echo installed" {
+		t.Fatalf("unexpected reverse-proxy installed hint: %q", resolved.Detect.InstalledHint[0])
+	}
+}
+
 // TestResolveTemplateNoUserInput verifies that ResolveTemplate does not accept user-supplied
 // values: all placeholders must come from the catalog entry.
 func TestResolveTemplateNoUserInput(t *testing.T) {
@@ -475,5 +573,53 @@ func TestReinstallDefaultsToReinstall(t *testing.T) {
 	resolved := catalog.ResolveTemplate(entry, tpl)
 	if resolved.Reinstall.Strategy != "reinstall" {
 		t.Errorf("expected default reinstall strategy=reinstall, got %q", resolved.Reinstall.Strategy)
+	}
+}
+
+func TestResolveTemplateSubstitutesScriptEnv(t *testing.T) {
+	entry := software.CatalogEntry{
+		ComponentKey: software.ComponentKey("telegraf"),
+		Binary:       "telegraf",
+		ServiceName:  "appos-monitor.service",
+		ScriptPath:   "telegraf-install.sh",
+	}
+	tpl := software.ComponentTemplate{
+		TemplateKind: software.TemplateKindScript,
+		Install: software.InstallSpec{
+			Strategy:   "script",
+			ScriptPath: "{{script_path}}",
+			Env: map[string]string{
+				"APPOS_BINARY":  "{{binary}}",
+				"APPOS_SERVICE": "{{service_name}}",
+			},
+		},
+		Upgrade: software.UpgradeSpec{
+			Strategy:   "script",
+			ScriptPath: "{{script_path}}",
+			Env: map[string]string{
+				"APPOS_BINARY": "{{binary}}",
+			},
+		},
+		Uninstall: software.UninstallSpec{
+			Strategy:   "script",
+			ScriptPath: "{{script_path}}",
+			Env: map[string]string{
+				"APPOS_SERVICE": "{{service_name}}",
+			},
+		},
+	}
+
+	resolved := catalog.ResolveTemplate(entry, tpl)
+	if resolved.Install.Env["APPOS_BINARY"] != "telegraf" {
+		t.Fatalf("expected install env binary substitution, got %q", resolved.Install.Env["APPOS_BINARY"])
+	}
+	if resolved.Install.Env["APPOS_SERVICE"] != "appos-monitor.service" {
+		t.Fatalf("expected install env service substitution, got %q", resolved.Install.Env["APPOS_SERVICE"])
+	}
+	if resolved.Upgrade.Env["APPOS_BINARY"] != "telegraf" {
+		t.Fatalf("expected upgrade env binary substitution, got %q", resolved.Upgrade.Env["APPOS_BINARY"])
+	}
+	if resolved.Uninstall.Env["APPOS_SERVICE"] != "appos-monitor.service" {
+		t.Fatalf("expected uninstall env service substitution, got %q", resolved.Uninstall.Env["APPOS_SERVICE"])
 	}
 }

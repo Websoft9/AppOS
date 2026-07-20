@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Example Atom Feed</title>
+  <entry>
+    <id>tag:example.com,2026:release-2</id>
+    <title>Release 2</title>
+    <summary type="html">&lt;p&gt;Release 2 summary with &lt;em&gt;HTML&lt;/em&gt;.&lt;/p&gt;</summary>
+    <published>2026-05-27T09:00:00+01:00</published>
+    <link rel="alternate" href="https://example.com/releases/2" />
+  </entry>
+  <entry>
+    <id>tag:example.com,2026:release-2-1</id>
+    <title>Release 2.1</title>
+    <content type="html">&lt;div&gt;Patch release details.&lt;/div&gt;</content>
+    <updated>2026-05-28T07:30:00Z</updated>
+    <link href="https://example.com/releases/2-1" />
+  </entry>
+</feed>

@@ -150,7 +150,7 @@ Do not use `pb.collection()` for this endpoint. Use `pb.send()` consistent with 
 
 ### Implementation Notes
 - `SystemTasksPage` fetches `GET /api/crons` via `pb.send()` to list native PocketBase cron jobs
-- Page follows `coding-decisions-ui.md` spec: `text-2xl font-bold tracking-tight` header, Refresh right-aligned, chevron inline row expansion, 3-dot DropdownMenu for actions, empty state without table headers
+- Page follows the canonical UX contract in `../planning-artifacts/ux-designs/ux-appos-canonical/EXPERIENCE.md`: list/index page header hierarchy, Refresh-first header actions, row-level secondary action menus, and empty states that replace dead tables
 - `CronLogDrawer` (Sheet, right side, `sm:max-w-2xl`) fetches `GET /api/crons/{jobId}/logs` via `pb.send()`
 - Drawer shows summary bar (lastStatus badge, lastRun, lastDurationMs) and log table with levelBadge/phaseBadge helpers
 - Row expansion in drawer reveals `runId` and `error` for failed runs

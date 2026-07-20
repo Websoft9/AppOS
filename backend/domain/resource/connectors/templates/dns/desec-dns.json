@@ -1,0 +1,8 @@
+{
+  "id": "desec-dns",
+  "title": "deSEC",
+  "vendor": "deSEC",
+  "description": "deSEC DNS API profile.",
+  "defaultEndpoint": "https://desec.io/api/v1",
+  "aliases": ["desec", "desec-dns"]
+}

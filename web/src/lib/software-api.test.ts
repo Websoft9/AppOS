@@ -151,6 +151,7 @@ describe('supported server software catalog', () => {
       label: 'Docker',
       capability: 'container_runtime',
       template_kind: 'package',
+      artifact_kind: 'package',
       supported_actions: ['install', 'upgrade', 'verify'],
       description: 'Docker is supported by AppOS.',
       readiness_requirements: ['supported_os', 'root_privilege', 'network_access'],
@@ -164,11 +165,12 @@ describe('supported server software catalog', () => {
   it('fetches one supported server software entry by key', async () => {
     const component = {
       component_key: 'reverse-proxy',
-      label: 'Nginx',
+      label: 'Traefik',
       capability: 'reverse_proxy',
       template_kind: 'package',
+      artifact_kind: 'package',
       supported_actions: ['install', 'upgrade', 'verify'],
-      description: 'Nginx is supported by AppOS.',
+      description: 'Traefik is supported by AppOS.',
       readiness_requirements: ['supported_os', 'root_privilege', 'network_access'],
       visibility: ['server_operations', 'supported_software_discovery'],
     }
@@ -217,6 +219,41 @@ describe('listSoftwareCapabilities', () => {
   })
 })
 
+describe('invokeSoftwareAction', () => {
+  beforeEach(() => {
+    sendMock.mockReset()
+  })
+
+  it('disables PocketBase auto-cancellation for software actions', async () => {
+    sendMock.mockResolvedValue({ accepted: true, operation_id: 'op1' })
+
+    await expect(invokeSoftwareAction('srv1', 'telegraf', 'upgrade')).resolves.toEqual({
+      accepted: true,
+      operation_id: 'op1',
+    })
+
+    expect(sendMock).toHaveBeenCalledWith('/api/servers/srv1/software/telegraf/upgrade', {
+      method: 'POST',
+      body: undefined,
+      requestKey: null,
+    })
+  })
+
+  it('passes the callback address when provided', async () => {
+    sendMock.mockResolvedValue({ accepted: true })
+
+    await invokeSoftwareAction('srv1', 'telegraf', 'upgrade', {
+      apposBaseUrl: 'https://appos.example.com',
+    })
+
+    expect(sendMock).toHaveBeenCalledWith('/api/servers/srv1/software/telegraf/upgrade', {
+      method: 'POST',
+      body: { apposBaseUrl: 'https://appos.example.com' },
+      requestKey: null,
+    })
+  })
+})
+
 describe('getSoftwareOperation', () => {
   beforeEach(() => {
     sendMock.mockReset()
@@ -253,17 +290,7 @@ describe('invokeSoftwareAction', () => {
     expect(sendMock).toHaveBeenCalledWith('/api/servers/srv1/software/docker/install', {
       method: 'POST',
       body: undefined,
-    })
-  })
-
-  it('includes explicit appos base url when provided', async () => {
-    sendMock.mockResolvedValue({ accepted: true })
-    await invokeSoftwareAction('srv1', 'appos-agent', 'install', {
-      apposBaseUrl: 'https://console.example.com:8443',
-    })
-    expect(sendMock).toHaveBeenCalledWith('/api/servers/srv1/software/appos-agent/install', {
-      method: 'POST',
-      body: { apposBaseUrl: 'https://console.example.com:8443' },
+      requestKey: null,
     })
   })
 
@@ -273,6 +300,7 @@ describe('invokeSoftwareAction', () => {
     expect(sendMock).toHaveBeenCalledWith('/api/servers/srv1/software/reverse-proxy/verify', {
       method: 'POST',
       body: undefined,
+      requestKey: null,
     })
   })
 })

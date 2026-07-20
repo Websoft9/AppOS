@@ -1,0 +1,8 @@
+{
+  "id": "namecheap-dns",
+  "title": "Namecheap DNS",
+  "vendor": "Namecheap",
+  "description": "Namecheap DNS API profile.",
+  "defaultEndpoint": "https://api.namecheap.com/xml.response",
+  "aliases": ["namecheap", "namecheap-dns"]
+}

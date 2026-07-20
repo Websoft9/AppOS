@@ -1,70 +1,110 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
-import { Check, Pencil } from 'lucide-react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
+import { AIProviderCreateFlowDialog } from '@/components/ai/AIProviderCreateFlowDialog'
+import {
+  AIProviderModelSelector,
+  type AIProviderModelGroup as ProviderModelGroup,
+  type AIProviderModelOption as ProviderModelOption,
+} from '@/components/ai/AIProviderModelSelector'
+import { useOptionalLayout } from '@/contexts/LayoutContext'
+import {
+  Activity,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  ExternalLink,
+  Loader2,
+  Pencil,
+  Power,
+  PowerOff,
+  RefreshCw,
+  X,
+} from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import {
   ResourcePage,
   type Column,
   type FieldDef,
   type SelectOption,
 } from '@/components/resources/ResourcePage'
+import { ResourceListSettingsButton } from '@/components/resources/ResourceListSettingsButton'
+import { ResourceStatusTimestamp } from '@/components/resources/ResourceStatusTimestamp'
+import { formatResourceDateTime } from '@/components/resources/resource-formatters'
+import {
+  buildEnabledStatusColumn,
+  localizeReachabilityStatus,
+  reachabilityStatusVariant,
+  renderEnabledChoiceField,
+} from '@/components/resources/resource-status'
+import { ResourcesBreadcrumb } from '@/components/resources/ResourcesBreadcrumb'
 import { buildApiKeyValue, SecretCredentialField } from '@/components/secrets/SecretCredentialField'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
+import { buildUserVisibleSecretRelationApiPath } from '@/components/secrets/resource-secret-relations'
+import {
+  AI_PROVIDER_CREDENTIAL_TEMPLATE_ID,
+  aiProviderSecretFieldInlineValueKey,
+  aiProviderSecretFieldManualValueKey,
+  buildAIProviderPayload,
+  buildProtocolFieldDefaults,
+  defaultTemplateProtocol,
+  inferAWSRegionFromEndpoint,
+  type AIProviderRecord,
+  type AIProviderSelectionGroupKey,
+  type AIProviderTemplate,
+  type AIProviderTemplateField,
+  reconcileProviderModelSelection,
+  normalizeTemplateFieldDefault,
+  normalizeEnabledModels,
+  providerSelectionGroupKey,
+  protocolEndpointFieldKey,
+  productTitle,
+  regenerateTemplateEndpoint,
+  resolveCurrentProtocolEndpoint,
+  resolveTemplateEndpoint,
+  resolveAIProviderEnabled,
+  resolveProviderDefaultProtocol,
+  resolveProviderProtocolEndpoints,
+  shouldPromoteEndpointField,
+  sanitizeProviderModelGroups,
+  sanitizeProviderModelOptions,
+} from '@/lib/ai-providers'
 import { pb } from '@/lib/pb'
 
-type AIProviderRecord = {
-  id: string
-  name?: string
-  kind?: string
-  template_id?: string
-  endpoint?: string
-  auth_scheme?: string
-  credential?: string
-  config?: Record<string, unknown>
-  description?: string
-  created?: string
-  updated?: string
+type Translate = (key: string, options?: Record<string, unknown>) => string
+
+type ConnectionSummaryState = {
+  loading?: boolean
+  error?: string
+  models?: string[]
+  modelGroups?: { label: string; models: string[] }[]
+} | null
+
+type ProviderModelsResponse = {
+  models: ProviderModelOption[]
+  groups?: ProviderModelGroup[]
 }
 
-type AIProviderTemplateField = {
-  id: string
-  label: string
-  type: string
-  required?: boolean
-  secretTemplate?: string
-  placeholder?: string
-  helpText?: string
-  default?: unknown
+type AIProviderAvailabilityOverride = {
+  status: string
+  reason: string
+  checked_at: string
 }
 
-type AIProviderTemplate = {
-  id: string
-  kind: string
-  title: string
-  vendor?: string
-  description?: string
-  contextSize?: number
-  defaultEndpoint?: string
-  defaultAuthScheme?: string
-  capabilities?: string[]
-  fields?: AIProviderTemplateField[]
+type AIProviderReachabilityOverride = {
+  status: string
+  reason: string
+  checked_at: string
 }
 
-const SECRET_TEMPLATE_LABELS: Record<string, string> = {
-  single_value: 'Token / Single Value',
-}
-
-const SECRET_TEMPLATE_IDS = new Set(Object.keys(SECRET_TEMPLATE_LABELS))
-
-const AI_PROVIDER_CREDENTIAL_TEMPLATE_ID = 'single_value'
-
-function formatSecretLabel(raw: Record<string, unknown>): string {
-  const name = String(raw.name ?? raw.id)
-  const templateId = String(raw.template_id ?? '')
-  const suffix = SECRET_TEMPLATE_LABELS[templateId]
-  return suffix ? `${name} (${suffix})` : name
+type MonitorLatestStatusRecord = {
+  target_id?: string
+  status?: string
+  reason?: string | null
+  last_checked_at?: string | null
 }
 
 function humanizeTemplateId(templateId: string) {
@@ -75,126 +115,268 @@ function humanizeTemplateId(templateId: string) {
     .join(' ')
 }
 
-function slugifyNamePart(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+function providerSelectionGroupLabel(t: Translate, group: AIProviderSelectionGroupKey) {
+  return t(`aiProviders.selection.groups.${group}`)
 }
 
-function productTitle(template: AIProviderTemplate) {
-  return template.title.trim() || humanizeTemplateId(template.id)
+function resolveEndpointFieldTitle(t: Translate, template: AIProviderTemplate | null | undefined) {
+  return defaultTemplateProtocol(template) === 'anthropic'
+    ? t('aiProviders.fields.apiEndpoint')
+    : t('aiProviders.fields.openaiCompatibleUrl')
 }
 
-function chooserTitle(template: AIProviderTemplate) {
-  return String(template.vendor ?? '').trim() || productTitle(template)
+function renderEndpointFieldLabel(label: string) {
+  return <label className="text-sm font-medium text-foreground">{label}</label>
 }
 
-function buildDefaultProviderName(template: AIProviderTemplate) {
-  const base = slugifyNamePart(productTitle(template)) || 'ai-provider'
-  return `${base}-${Date.now().toString().slice(-4)}`
-}
-
-function resolveSecretTemplateId(secretTemplate?: string) {
-  const normalized = String(secretTemplate ?? '').trim()
-  if (!normalized) {
-    return ''
+function moveFieldBefore(fields: FieldDef[], fieldKey: string, beforeKey: string) {
+  const nextFields = [...fields]
+  const fieldIndex = nextFields.findIndex(field => field.key === fieldKey)
+  const beforeIndex = nextFields.findIndex(field => field.key === beforeKey)
+  if (fieldIndex === -1 || beforeIndex === -1 || fieldIndex < beforeIndex) {
+    return nextFields
   }
-  return SECRET_TEMPLATE_IDS.has(normalized) ? normalized : ''
+  const [field] = nextFields.splice(fieldIndex, 1)
+  nextFields.splice(beforeIndex, 0, field)
+  return nextFields
 }
 
-function buildSecretRelationApiPath(secretTemplate?: string) {
-  const explicit = resolveSecretTemplateId(secretTemplate)
-  const templateIds = explicit ? [explicit] : Array.from(SECRET_TEMPLATE_IDS)
-  const filter = templateIds.map(id => `template_id='${id}'`).join('||')
-  return `/api/collections/secrets/records?filter=(status='active'%26%26(${filter}))&sort=name`
-}
-
-function isAdvancedProviderField(field: AIProviderTemplateField) {
-  const normalizedId = field.id.trim().toLowerCase()
-  const normalizedLabel = String(field.label ?? '')
-    .trim()
-    .toLowerCase()
+function InlineSecretEditorField({
+  inputId,
+  inlineValue,
+  onInlineValueChange,
+}: {
+  inputId: string
+  inlineValue: string
+  onInlineValueChange: (value: string) => void
+}) {
   return (
-    normalizedId === 'apiversion' ||
-    normalizedId === 'api_version' ||
-    normalizedLabel === 'api version'
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2">
+        <Input
+          id={inputId}
+          type="password"
+          value={inlineValue}
+          onChange={event => onInlineValueChange(event.target.value)}
+          placeholder="Leave blank to keep the current API key"
+          autoFocus
+        />
+      </div>
+      <div className="text-xs text-muted-foreground">
+        Leave this field blank to keep the current API key. Saving this provider will update the
+        current secret value in place when a new value is provided.
+      </div>
+    </div>
   )
 }
 
-function resolveAuthScheme(template: AIProviderTemplate, secretTemplateId: string) {
-  const defaultAuthScheme = String(template.defaultAuthScheme ?? 'none').trim() || 'none'
-  if (secretTemplateId === AI_PROVIDER_CREDENTIAL_TEMPLATE_ID) {
-    return defaultAuthScheme !== 'none' ? defaultAuthScheme : 'bearer'
+function describeProviderModelsError(err: unknown) {
+  const message = err instanceof Error ? err.message : String(err ?? '')
+  const normalized = message.toLowerCase()
+  if (
+    normalized.includes('401') ||
+    normalized.includes('403') ||
+    normalized.includes('unauthorized') ||
+    normalized.includes('forbidden')
+  ) {
+    return 'Authentication failed while loading models. Check the API key or secret and try again.'
   }
-  return defaultAuthScheme
+  if (normalized.includes('404')) {
+    return 'The model list endpoint was not found. Check the API endpoint and make sure this provider exposes a compatible models API.'
+  }
+  if (normalized.includes('timeout') || normalized.includes('deadline exceeded')) {
+    return 'Loading models timed out. Check network connectivity and confirm the provider endpoint is reachable.'
+  }
+  if (
+    normalized.includes('x509') ||
+    normalized.includes('tls') ||
+    normalized.includes('certificate')
+  ) {
+    return 'TLS verification failed while loading models. Check the provider certificate or endpoint URL.'
+  }
+  if (
+    normalized.includes('no such host') ||
+    normalized.includes('dial tcp') ||
+    normalized.includes('connection refused')
+  ) {
+    return 'Could not reach the provider endpoint. Check the API endpoint, DNS, proxy, or firewall settings.'
+  }
+  if (message.trim()) {
+    return message
+  }
+  return 'Could not load models. Verify the API endpoint, secret, and network connectivity, then try again.'
 }
 
-function normalizeTemplateFieldDefault(field: AIProviderTemplateField) {
-  if (field.default === undefined) {
-    if (field.type === 'boolean') return false
-    return ''
+function inferModelGroupLabel(modelId: string): string {
+  const trimmed = modelId.trim()
+  if (!trimmed) return 'Other'
+
+  // / prefix is always the vendor (e.g. openai/gpt-4o → Openai, kimi/kimi-k2.6 → Kimi)
+  if (trimmed.includes('/')) {
+    const vendor = trimmed.split('/')[0]
+    return vendor.charAt(0).toUpperCase() + vendor.slice(1)
   }
-  if (field.type === 'json' && typeof field.default !== 'string') {
-    return JSON.stringify(field.default, null, 2)
+
+  // Split by -, extract first segment
+  const firstDash = trimmed.indexOf('-')
+  if (firstDash === -1) return trimmed.charAt(0).toUpperCase() + trimmed.slice(1)
+
+  const prefix = trimmed.substring(0, firstDash)
+  const rest = trimmed.substring(firstDash + 1)
+  const secondDash = rest.indexOf('-')
+  const secondSeg = secondDash === -1 ? rest : rest.substring(0, secondDash)
+
+  // Include second segment if it looks like a version: v4, r1, 3.5, 5.1, etc.
+  if (/^(v\d+|r\d+|\d+(\.\d+)?)$/i.test(secondSeg)) {
+    const combined = `${prefix}-${secondSeg}`
+    return combined.charAt(0).toUpperCase() + combined.slice(1)
   }
-  return field.default
+
+  return prefix.charAt(0).toUpperCase() + prefix.slice(1)
 }
 
-function formatDateTime(value: unknown) {
-  const raw = String(value ?? '').trim()
-  if (!raw) return '—'
-  const date = new Date(raw)
-  if (Number.isNaN(date.getTime())) return raw
-  return new Intl.DateTimeFormat('en', {
-    year: 'numeric',
-    month: 'short',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date)
-}
-
-function normalizeReachabilityStatus(value: unknown) {
+function normalizeAvailabilityStatus(value: unknown, t: Translate) {
   const normalized = String(value ?? '')
     .trim()
     .toLowerCase()
-  if (normalized === 'reachable') return 'Reachable'
-  if (normalized === 'unreachable') return 'Unreachable'
-  return 'Unknown'
+  if (normalized === 'available' || normalized === 'reachable') {
+    return t('aiProviders.status.available')
+  }
+  if (normalized === 'unavailable' || normalized === 'unreachable') {
+    return t('aiProviders.status.unavailable')
+  }
+  return t('aiProviders.status.unknown')
+}
+
+function resolveAvailability(item: AIProviderRecord) {
+  const config = item.config ?? {}
+  const availability = config.availability
+  if (availability && typeof availability === 'object') {
+    return String((availability as Record<string, unknown>).status ?? '').trim()
+  }
+  if (config.availability_status !== undefined) {
+    return String(config.availability_status ?? '').trim()
+  }
+  return 'unknown'
+}
+
+function resolveAvailabilityCheckedAt(item: AIProviderRecord) {
+  const config = item.config ?? {}
+  const availability = config.availability
+  if (availability && typeof availability === 'object') {
+    return String((availability as Record<string, unknown>).checked_at ?? '').trim()
+  }
+  return String(config.availability_checked_at ?? '').trim()
+}
+
+function resolveAvailabilityReason(item: AIProviderRecord) {
+  const config = item.config ?? {}
+  const availability = config.availability
+  if (availability && typeof availability === 'object') {
+    return String((availability as Record<string, unknown>).reason ?? '').trim()
+  }
+  return String(config.availability_reason ?? '').trim()
 }
 
 function resolveReachability(item: AIProviderRecord) {
   const config = item.config ?? {}
   const reachability = config.reachability
   if (reachability && typeof reachability === 'object') {
-    return normalizeReachabilityStatus((reachability as Record<string, unknown>).status)
+    return String((reachability as Record<string, unknown>).status ?? '').trim()
   }
-  return normalizeReachabilityStatus(config.reachability_status)
+  if (config.reachability_status !== undefined) {
+    return String(config.reachability_status ?? '').trim()
+  }
+  return 'unknown'
 }
 
-function mapTemplateFieldToResourceField(
+function resolveReachabilityCheckedAt(item: AIProviderRecord) {
+  const config = item.config ?? {}
+  const reachability = config.reachability
+  if (reachability && typeof reachability === 'object') {
+    return String((reachability as Record<string, unknown>).checked_at ?? '').trim()
+  }
+  return String(config.reachability_checked_at ?? '').trim()
+}
+
+function resolveReachabilityReason(item: AIProviderRecord) {
+  const config = item.config ?? {}
+  const reachability = config.reachability
+  if (reachability && typeof reachability === 'object') {
+    return String((reachability as Record<string, unknown>).reason ?? '').trim()
+  }
+  return String(config.reachability_reason ?? '').trim()
+}
+
+function normalizeEnabledStatus(value: unknown) {
+  return resolveAIProviderEnabled(value) ? 'Enabled' : 'Disabled'
+}
+
+function renderDirectSecretField(
   field: AIProviderTemplateField,
-  openSecretDialog: (callbacks: { addOption: (id: string, label: string) => void }) => void,
-  openSecretEditor: (secretId: string) => void
-): FieldDef {
+  inputId: string,
+  formData: Record<string, unknown>,
+  editingItem: Record<string, unknown> | null,
+  updateField: (key: string, value: unknown) => void,
+  t: Translate
+) {
+  if (editingItem) {
+    return (
+      <InlineSecretEditorField
+        inputId={inputId}
+        inlineValue={String(formData[aiProviderSecretFieldInlineValueKey(field.id)] ?? '')}
+        onInlineValueChange={value =>
+          updateField(aiProviderSecretFieldInlineValueKey(field.id), value)
+        }
+      />
+    )
+  }
+
+  return (
+    <SecretCredentialField
+      inputId={inputId}
+      manualValue={String(
+        formData[aiProviderSecretFieldInlineValueKey(field.id)] ??
+          formData[aiProviderSecretFieldManualValueKey(field.id)] ??
+          ''
+      )}
+      onManualValueChange={value => {
+        updateField(aiProviderSecretFieldInlineValueKey(field.id), value)
+        updateField(aiProviderSecretFieldManualValueKey(field.id), value)
+      }}
+      useReference={false}
+      onUseReferenceChange={() => {}}
+      referenceValue=""
+      onReferenceValueChange={() => {}}
+      options={[]}
+      manualPlaceholder={t('aiProviders.credential.enterField', {
+        field: String(field.label ?? t('aiProviders.fields.apiKey')),
+      })}
+      showLabel={t('aiProviders.credential.showField', {
+        field: String(field.label ?? t('aiProviders.fields.apiKey')),
+      })}
+      hideLabel={t('aiProviders.credential.hideField', {
+        field: String(field.label ?? t('aiProviders.fields.apiKey')),
+      })}
+      generateValue={buildApiKeyValue}
+      generatorTitle={t('aiProviders.credential.generateTitle')}
+      generatorDescription={t('aiProviders.credential.generateDescription')}
+      generatorLengthLabel={t('aiProviders.credential.generateLengthLabel')}
+      generatorConfirmLabel={t('aiProviders.credential.generateConfirmLabel')}
+      allowReference={false}
+    />
+  )
+}
+
+function mapTemplateFieldToResourceField(field: AIProviderTemplateField, t: Translate): FieldDef {
   if (field.type === 'secret_ref') {
     return {
       key: field.id,
       label: field.label,
-      type: 'relation',
+      type: 'text',
       required: field.required,
-      relationApiPath: buildSecretRelationApiPath(field.secretTemplate),
-      relationFormatLabel: formatSecretLabel,
-      relationCreateButton: {
-        label: 'New Secret',
-        onClick: openSecretDialog,
-      },
-      relationEditButton: {
-        label: 'Edit Secret',
-        onClick: openSecretEditor,
-      },
+      render: ({ inputId, formData, editingItem, updateField }) =>
+        renderDirectSecretField(field, inputId, formData, editingItem, updateField, t),
     }
   }
 
@@ -212,96 +394,22 @@ function mapTemplateFieldToResourceField(
     required: field.required,
     placeholder: field.placeholder,
     defaultValue: normalizeTemplateFieldDefault(field),
-    advanced: isAdvancedProviderField(field),
+    advanced: Boolean(field.advanced),
+    helpUrl: field.helpUrl,
+    helpText: field.helpText,
   }
 }
 
-export async function buildAIProviderPayload(
-  payload: Record<string, unknown>,
-  templatesById: Map<string, AIProviderTemplate>
-) {
-  const body = { ...payload }
-  const templateId = String(body.template_id ?? '')
-  const template = templatesById.get(templateId)
-  if (!template) {
-    throw new Error('AI Provider profile is required')
-  }
-
-  const credentialField = (template.fields ?? []).find(field => field.id === 'credential')
-  const useCredentialReference = Boolean(body.credential_use_secret)
-  const manualCredentialValue = String(body.api_key_value ?? '').trim()
-
-  if (!useCredentialReference && manualCredentialValue) {
-    const providerName = String(body.name ?? '').trim()
-    const createdSecret = await pb.collection('secrets').create({
-      name: `${slugifyNamePart(providerName || productTitle(template)) || 'ai-provider'}-api-key`,
-      description: `API key for ${providerName || productTitle(template)}`,
-      template_id: AI_PROVIDER_CREDENTIAL_TEMPLATE_ID,
-      scope: 'global',
-      payload: { value: manualCredentialValue },
-    })
-    body.credential = String(createdSecret.id ?? '')
-  }
-
-  const credentialId = String(body.credential ?? '').trim()
-  if (credentialField?.required && !credentialId) {
-    throw new Error(`${credentialField.label || 'API Key'} is required`)
-  }
-
-  let authScheme = template.defaultAuthScheme ?? 'none'
-  if (credentialId) {
-    const secret = await pb.collection('secrets').getOne(credentialId)
-    const secretTemplateId = String(secret.template_id ?? '')
-    authScheme = resolveAuthScheme(template, secretTemplateId)
-  }
-
-  const extra =
-    typeof body.advanced_config === 'string' ? body.advanced_config.trim() : body.advanced_config
-  let config: Record<string, unknown> = {}
-  if (!(extra === '' || extra == null)) {
-    config = typeof extra === 'string' ? JSON.parse(extra) : (extra as Record<string, unknown>)
-  }
-
-  for (const field of template.fields ?? []) {
-    if (field.id === 'endpoint' || field.id === 'credential') {
-      continue
-    }
-    const value = body[field.id]
-    if (value === undefined || value === '') {
-      continue
-    }
-    if (field.type === 'json' && typeof value === 'string') {
-      config[field.id] = JSON.parse(value)
-      continue
-    }
-    if (field.type === 'number') {
-      config[field.id] = Number(value)
-      continue
-    }
-    if (field.type === 'boolean') {
-      config[field.id] = Boolean(value)
-      continue
-    }
-    config[field.id] = value
-  }
-
-  return {
-    name: String(body.name ?? ''),
-    kind: template.kind,
-    template_id: template.id,
-    endpoint: String(body.endpoint ?? template.defaultEndpoint ?? ''),
-    auth_scheme: authScheme,
-    credential: credentialId,
-    config,
-    description: String(body.description ?? ''),
-  }
-}
+export { buildAIProviderPayload }
 
 function mapAIProviderRow(
   item: AIProviderRecord,
-  templatesById: Map<string, AIProviderTemplate>
+  templatesById: Map<string, AIProviderTemplate>,
+  secretNamesById: Map<string, string>,
+  monitorByTargetId: Map<string, MonitorLatestStatusRecord>
 ): Record<string, unknown> {
   const template = templatesById.get(String(item.template_id ?? ''))
+  const monitor = monitorByTargetId.get(String(item.id ?? '').trim())
   const flattenedConfig: Record<string, unknown> = {}
   const knownFieldIDs = new Set((template?.fields ?? []).map(field => field.id))
 
@@ -314,82 +422,569 @@ function mapAIProviderRow(
       continue
     }
     flattenedConfig[field.id] = field.type === 'json' ? JSON.stringify(value, null, 2) : value
+    if (field.type === 'secret_ref') {
+      flattenedConfig[aiProviderSecretFieldManualValueKey(field.id)] = ''
+      flattenedConfig[aiProviderSecretFieldInlineValueKey(field.id)] = ''
+    }
   }
 
   const advancedConfig = Object.fromEntries(
-    Object.entries(item.config ?? {}).filter(([key]) => !knownFieldIDs.has(key))
+    Object.entries(item.config ?? {}).filter(
+      ([key]) =>
+        !knownFieldIDs.has(key) &&
+        !['enabled_models', 'default_protocol', 'protocol_endpoints'].includes(key)
+    )
   )
+
+  const enabledModels = normalizeEnabledModels(item.enabled_models ?? item.config?.enabled_models)
+  const defaultProtocol = resolveProviderDefaultProtocol(item, template)
+  const protocolEndpoints = resolveProviderProtocolEndpoints(item, template)
+  const inferredRegion =
+    String(item.template_id ?? '') === 'aws-bedrock'
+      ? String(item.config?.region ?? '').trim() ||
+        inferAWSRegionFromEndpoint(String(item.endpoint ?? ''))
+      : ''
+  const cachedReachability = resolveReachability(item)
+  const monitorReachability = String(monitor?.status ?? '').trim()
 
   return {
     id: item.id,
     name: String(item.name ?? ''),
     template_id: String(item.template_id ?? ''),
-    profile: template?.title ?? humanizeTemplateId(String(item.template_id ?? '')),
-    reachability: resolveReachability(item),
+    provider: template?.title ?? humanizeTemplateId(String(item.template_id ?? '')),
+    is_enabled: resolveAIProviderEnabled(item.is_enabled),
+    enabled_status: normalizeEnabledStatus(item.is_enabled),
+    availability: resolveAvailability(item),
+    availability_reason: resolveAvailabilityReason(item),
+    availability_last_checked_at: resolveAvailabilityCheckedAt(item),
+    reachability: monitorReachability || cachedReachability,
+    reachability_reason: String(monitor?.reason ?? '').trim() || resolveReachabilityReason(item),
+    reachability_last_checked_at:
+      String(monitor?.last_checked_at ?? '').trim() || resolveReachabilityCheckedAt(item),
     endpoint: String(item.endpoint ?? ''),
+    default_protocol: defaultProtocol,
+    auth_scheme: String(item.auth_scheme ?? ''),
     credential: String(item.credential ?? ''),
+    credential_name:
+      secretNamesById.get(String(item.credential ?? '').trim()) ??
+      String(item.credential ?? '').trim(),
     credential_use_secret: Boolean(String(item.credential ?? '').trim()),
     api_key_value: '',
+    endpoint_editing: false,
+    enabled_models: enabledModels,
+    credential_secret_editing: false,
+    credential_secret_value: '',
+    region: inferredRegion || String(item.config?.region ?? ''),
     description: String(item.description ?? ''),
     created: String(item.created ?? ''),
     updated: String(item.updated ?? ''),
     advanced_config:
       Object.keys(advancedConfig).length > 0 ? JSON.stringify(advancedConfig, null, 2) : '',
+    ...Object.fromEntries(
+      Object.entries(protocolEndpoints).map(([protocol, endpointValue]) => [
+        protocolEndpointFieldKey(protocol),
+        endpointValue,
+      ])
+    ),
     ...flattenedConfig,
   }
 }
 
-const columns: Column[] = [
-  { key: 'name', label: 'Name', searchable: true, sortable: true },
-  { key: 'profile', label: 'Profile', searchable: true, sortable: true },
-  {
-    key: 'reachability',
-    label: 'Reachability',
-    sortable: true,
-    filterOptions: [
-      { label: 'Reachable', value: 'Reachable' },
-      { label: 'Unreachable', value: 'Unreachable' },
-      { label: 'Unknown', value: 'Unknown' },
-    ],
-    render: value => {
-      const status = normalizeReachabilityStatus(value)
-      const variant =
-        status === 'Reachable' ? 'default' : status === 'Unreachable' ? 'destructive' : 'secondary'
-      return <Badge variant={variant}>{status}</Badge>
+function buildColumns(
+  t: Translate,
+  providerOptions: SelectOption[],
+  onNameClick: (id: string, row: Record<string, unknown>) => void,
+  onToggleEnabled: (item: Record<string, unknown>) => void,
+  onShowModels: (id: string, row: Record<string, unknown>) => void,
+  onTestAvailability: (row: Record<string, unknown>) => void,
+  availabilityOverrides: Record<string, AIProviderAvailabilityOverride>,
+  availabilityLoading: Set<string>,
+  reachabilityOverrides: Record<string, AIProviderReachabilityOverride>,
+  reachabilityLoading: Set<string>,
+  enabledModelsCount: Record<string, number>
+): Column[] {
+  const reachabilityLabels = {
+    reachable: t('aiProviders.status.reachable'),
+    unreachable: t('aiProviders.status.unreachable'),
+    unknown: t('aiProviders.status.unknown'),
+  }
+
+  const resolveStatusMeta = (row: Record<string, unknown>) => {
+    const override = availabilityOverrides[String(row.id ?? '')]
+    return {
+      status: String(override?.status ?? row.availability ?? '').trim(),
+      reason: String(override?.reason ?? row.availability_reason ?? '').trim(),
+      checkedAt: String(override?.checked_at ?? row.availability_last_checked_at ?? '').trim(),
+      sourceLabel: override ? t('aiProviders.lastCheckedSources.liveAvailability') : '',
+    }
+  }
+
+  const resolveReachabilityMeta = (row: Record<string, unknown>) => {
+    const override = reachabilityOverrides[String(row.id ?? '')]
+    return {
+      status: String(override?.status ?? row.reachability ?? '').trim(),
+      reason: String(override?.reason ?? row.reachability_reason ?? '').trim(),
+      checkedAt: String(override?.checked_at ?? row.reachability_last_checked_at ?? '').trim(),
+      sourceLabel: override
+        ? t('aiProviders.lastCheckedSources.liveReachability')
+        : t('aiProviders.lastCheckedSources.scheduledMonitor'),
+    }
+  }
+
+  return [
+    {
+      key: 'name',
+      label: t('aiProviders.columns.name'),
+      searchable: true,
+      sortable: true,
+      render: (value, row) => {
+        const id = String(row.id ?? '')
+        return (
+          <button
+            type="button"
+            className="font-medium text-foreground transition-colors hover:text-primary"
+            onClick={() => onNameClick(id, row)}
+          >
+            {String(value ?? '—')}
+          </button>
+        )
+      },
     },
-  },
-  {
-    key: 'endpoint',
-    label: 'Endpoint',
-    searchable: true,
-    sortable: true,
-    render: value => (
-      <span className="block max-w-[220px] truncate" title={String(value || '')}>
-        {String(value || '—')}
-      </span>
-    ),
-  },
-  {
-    key: 'created',
-    label: 'Created',
-    sortable: true,
-    render: value => formatDateTime(value),
-  },
-  {
-    key: 'updated',
-    label: 'Updated',
-    sortable: true,
-    render: value => formatDateTime(value),
-  },
-]
+    {
+      key: 'provider',
+      label: t('aiProviders.columns.provider'),
+      searchable: true,
+      sortable: true,
+      filterOptions: providerOptions,
+      filterValue: row => String(row.provider ?? ''),
+    },
+    buildEnabledStatusColumn({
+      label: t('aiProviders.columns.enabled'),
+      enabledLabel: t('aiProviders.enabled.yes'),
+      disabledLabel: t('aiProviders.enabled.no'),
+      enableTitle: t('aiProviders.actions.enable'),
+      disableTitle: t('aiProviders.actions.disable'),
+      resolveEnabled: resolveAIProviderEnabled,
+      onToggle: onToggleEnabled,
+      stopPropagation: false,
+    }),
+    {
+      key: 'enabled_models_count',
+      label: t('aiProviders.columns.enabledModels'),
+      render: (_value, row) => {
+        const id = String(row.id ?? '')
+        const count = enabledModelsCount[id]
+        if (count === undefined) return <span className="text-muted-foreground">—</span>
+        if (count === 0)
+          return <span className="text-left tabular-nums text-muted-foreground">0 models</span>
+        return (
+          <button
+            type="button"
+            className="block w-full text-left tabular-nums font-medium text-primary transition-colors hover:text-primary/80"
+            onClick={() => onShowModels(id, row)}
+          >
+            {count} model{count === 1 ? '' : 's'}
+          </button>
+        )
+      },
+    },
+    {
+      key: 'endpoint',
+      label: t('aiProviders.columns.endpoint'),
+      searchable: true,
+      sortable: true,
+      render: value => (
+        <span className="block max-w-[220px] truncate" title={String(value || '')}>
+          {String(value || '—')}
+        </span>
+      ),
+    },
+    {
+      key: 'reachability',
+      label: t('aiProviders.columns.reachability'),
+      sortable: true,
+      filterOptions: [
+        { label: t('aiProviders.status.reachable'), value: t('aiProviders.status.reachable') },
+        { label: t('aiProviders.status.unreachable'), value: t('aiProviders.status.unreachable') },
+        { label: t('aiProviders.status.unknown'), value: t('aiProviders.status.unknown') },
+      ],
+      filterValue: row =>
+        localizeReachabilityStatus(resolveReachabilityMeta(row).status, reachabilityLabels),
+      render: (value, row) => {
+        const meta = resolveReachabilityMeta(row)
+        const rawStatus = meta.status || value
+        const status = localizeReachabilityStatus(rawStatus, reachabilityLabels)
+        return (
+          <Badge
+            variant={reachabilityStatusVariant(rawStatus)}
+            title={meta.reason || undefined}
+            className="gap-1"
+          >
+            {reachabilityLoading.has(String(row.id ?? '')) && (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            )}
+            {status}
+          </Badge>
+        )
+      },
+    },
+    {
+      key: 'availability',
+      label: t('aiProviders.columns.availability'),
+      sortable: true,
+      filterOptions: [
+        { label: t('aiProviders.status.available'), value: 'available' },
+        {
+          label: t('aiProviders.status.unavailable'),
+          value: 'unavailable',
+        },
+        { label: t('aiProviders.status.unknown'), value: 'unknown' },
+      ],
+      filterValue: row => resolveStatusMeta(row).status,
+      render: (value, row) => {
+        const meta = resolveStatusMeta(row)
+        const rawStatus = (meta.status || value || '').toString().trim().toLowerCase()
+        const status = normalizeAvailabilityStatus(rawStatus, t)
+        const variant =
+          rawStatus === 'available' || rawStatus === 'reachable'
+            ? 'default'
+            : rawStatus === 'unavailable' || rawStatus === 'unreachable'
+              ? 'destructive'
+              : 'secondary'
+        const rowName = String(row.name ?? row.id ?? 'provider').trim() || 'provider'
+        return (
+          <button
+            type="button"
+            className="inline-flex"
+            title={t('aiProviders.actions.testConnection')}
+            aria-label={`${t('aiProviders.actions.testConnection')} ${rowName}`}
+            onClick={() => onTestAvailability(row)}
+          >
+            <Badge variant={variant} className="gap-1">
+              {availabilityLoading.has(String(row.id ?? '')) && (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              )}
+              {!availabilityLoading.has(String(row.id ?? '')) && (
+                <RefreshCw data-testid="availability-refresh-icon" className="h-3 w-3 opacity-70" />
+              )}
+              {status}
+            </Badge>
+          </button>
+        )
+      },
+    },
+    {
+      key: 'availability_last_checked_at',
+      label: t('aiProviders.columns.lastChecked'),
+      sortable: true,
+      sortValue: row => resolveStatusMeta(row).checkedAt,
+      render: (_value, row) => {
+        const meta = resolveStatusMeta(row)
+        return (
+          <ResourceStatusTimestamp
+            checkedAt={meta.checkedAt}
+            sourceLabel={meta.sourceLabel}
+            detail={meta.reason}
+          />
+        )
+      },
+    },
+    {
+      key: 'created',
+      label: t('aiProviders.columns.created'),
+      sortable: true,
+      render: value => formatResourceDateTime(value),
+    },
+    {
+      key: 'updated',
+      label: t('aiProviders.columns.updated'),
+      sortable: true,
+      render: value => formatResourceDateTime(value),
+    },
+  ]
+}
 
 export function AIProvidersPage() {
+  const { t } = useTranslation('resources')
+  const layout = useOptionalLayout()
+  const setHeaderRightStartContent = layout?.setHeaderRightStartContent
+  const navigate = useNavigate()
   const autoCreate = new URLSearchParams(window.location.search).get('create') === '1'
+  const [createOpen, setCreateOpen] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [pageSize, setPageSize] = useState(10)
+  const [visibleOptionalColumns, setVisibleOptionalColumns] = useState<Set<string>>(
+    () =>
+      new Set([
+        'provider',
+        'enabled_models_count',
+        'reachability',
+        'availability',
+        'availability_last_checked_at',
+      ])
+  )
   const [secretDialogOpen, setSecretDialogOpen] = useState(false)
   const [providerTemplates, setProviderTemplates] = useState<AIProviderTemplate[]>([])
   const [secretAddOption, setSecretAddOption] = useState<
     ((id: string, label: string) => void) | null
   >(null)
+  const [editTestResult, setEditTestResult] = useState<ConnectionSummaryState>(null)
+  const [editModelOptions, setEditModelOptions] = useState<ProviderModelOption[]>([])
+  const [editModelGroups, setEditModelGroups] = useState<ProviderModelGroup[]>([])
+  const [editModelsValidated, setEditModelsValidated] = useState(false)
+  const [listTestState, setListTestState] = useState<{
+    providerId: string
+    summary: ConnectionSummaryState
+  } | null>(null)
+  const [availabilityOverrides, setAvailabilityOverrides] = useState<
+    Record<string, AIProviderAvailabilityOverride>
+  >({})
+  const [availabilityLoading, setAvailabilityLoading] = useState<Set<string>>(new Set())
+  const [reachabilityOverrides, setReachabilityOverrides] = useState<
+    Record<string, AIProviderReachabilityOverride>
+  >({})
+  const [reachabilityLoading, setReachabilityLoading] = useState<Set<string>>(new Set())
+  const [expandedDetailId, setExpandedDetailId] = useState<string | null>(null)
+  const [expandedModelsId, setExpandedModelsId] = useState<string | null>(null)
+  const [enabledModelsCount, setEnabledModelsCount] = useState<Record<string, number>>({})
+  const [editingDetailName, setEditingDetailName] = useState<string | null>(null)
+  const [detailNameDraft, setDetailNameDraft] = useState('')
+  const editingTemplateIdRef = useRef('')
+  const enabledModelsCountRef = useRef<Record<string, number>>({})
+  const reachabilityRequestVersionRef = useRef(0)
+
+  function groupModelsByPrefix(modelIds: string[]): { label: string; models: string[] }[] {
+    const groups: Record<string, string[]> = {}
+    const order: string[] = []
+    for (const id of modelIds) {
+      const label = inferModelGroupLabel(id)
+      if (!groups[label]) {
+        groups[label] = []
+        order.push(label)
+      }
+      groups[label].push(id)
+    }
+    if (order.length <= 1) return []
+    return order.map(label => ({ label, models: groups[label] }))
+  }
+
+  const handleEditTestConnection = useCallback(
+    async (
+      editingItem: Record<string, unknown> | null,
+      onPruneSelection?: (models: string[]) => void,
+      currentSelection?: unknown,
+      fetchInput?: {
+        endpoint: string
+        apiKey: string
+        authScheme: string
+        templateID: string
+        protocol: string
+      }
+    ) => {
+      setEditTestResult({ loading: true })
+      setEditModelsValidated(false)
+      try {
+        const providerId = String(editingItem?.id ?? '')
+        let result: ProviderModelsResponse
+        if (fetchInput) {
+          result = await pb.send<ProviderModelsResponse>('/api/ai-providers/fetch-models', {
+            method: 'POST',
+            body: {
+              endpoint: fetchInput.endpoint,
+              api_key: fetchInput.apiKey,
+              auth_scheme: fetchInput.authScheme,
+              template_id: fetchInput.templateID,
+              protocol: fetchInput.protocol,
+            },
+          })
+        } else {
+          if (!providerId) return
+          result = await pb.send<ProviderModelsResponse>(`/api/ai-providers/models/${providerId}`, {
+            method: 'GET',
+          })
+        }
+        const models = sanitizeProviderModelOptions(result?.models ?? [])
+        setEditModelOptions(models)
+        setEditModelGroups(sanitizeProviderModelGroups(result?.groups ?? []))
+        if (onPruneSelection) {
+          onPruneSelection(
+            reconcileProviderModelSelection(
+              currentSelection,
+              models.map(model => model.id)
+            )
+          )
+        }
+        setEditModelsValidated(true)
+        setEditTestResult({ models: models.map(model => model.id) })
+      } catch (err) {
+        setEditModelOptions([])
+        setEditModelGroups([])
+        setEditTestResult({ error: describeProviderModelsError(err) })
+      }
+    },
+    []
+  )
+
+  const handleListTestConnection = useCallback(
+    async (item: Record<string, unknown>) => {
+      const providerId = String(item.id ?? '')
+      if (!providerId) return
+      setExpandedDetailId(providerId)
+      setListTestState({ providerId, summary: { loading: true } })
+      setAvailabilityLoading(prev => {
+        const next = new Set(prev)
+        next.add(providerId)
+        return next
+      })
+      try {
+        const result = await pb.send<ProviderModelsResponse>(
+          `/api/ai-providers/models/${providerId}`,
+          { method: 'GET' }
+        )
+        const rawModels = sanitizeProviderModelOptions(result?.models ?? [])
+        const modelIds = rawModels.map(model => model.id)
+        const apiGroups = sanitizeProviderModelGroups(result?.groups ?? [])
+        const modelGroups =
+          apiGroups.length > 1
+            ? apiGroups.map(group => ({
+                label: group.label,
+                models: (group.models ?? []).map(m => m.id).filter(Boolean),
+              }))
+            : groupModelsByPrefix(modelIds)
+        setAvailabilityOverrides(prev => ({
+          ...prev,
+          [providerId]: {
+            status: t('aiProviders.status.available'),
+            reason: '',
+            checked_at: new Date().toISOString(),
+          },
+        }))
+        setListTestState({ providerId, summary: { models: modelIds, modelGroups } })
+      } catch (err) {
+        setAvailabilityOverrides(prev => ({
+          ...prev,
+          [providerId]: {
+            status: t('aiProviders.status.unavailable'),
+            reason: err instanceof Error ? err.message : 'Connection test failed',
+            checked_at: new Date().toISOString(),
+          },
+        }))
+        setListTestState({
+          providerId,
+          summary: { error: err instanceof Error ? err.message : 'Connection test failed' },
+        })
+      } finally {
+        setAvailabilityLoading(prev => {
+          const next = new Set(prev)
+          next.delete(providerId)
+          return next
+        })
+      }
+    },
+    [t]
+  )
+
+  const handleShowModels = useCallback(
+    (id: string, row: Record<string, unknown>) => {
+      if (expandedDetailId === id) {
+        setExpandedDetailId(null)
+        setExpandedModelsId(null)
+        return
+      }
+      setExpandedDetailId(id)
+      setExpandedModelsId(null)
+      if (listTestState?.providerId !== id) {
+        void handleListTestConnection(row)
+      }
+    },
+    [expandedDetailId, listTestState?.providerId, handleListTestConnection]
+  )
+
+  const fetchEnabledModelCounts = useCallback((items: Record<string, unknown>[]) => {
+    const counts: Record<string, number> = {}
+    for (const item of items) {
+      const id = String(item.id ?? '')
+      if (!id) continue
+      const models = normalizeEnabledModels(item.enabled_models)
+      counts[id] = models.length
+    }
+    enabledModelsCountRef.current = counts
+    setEnabledModelsCount({ ...counts })
+  }, [])
+
+  const fetchReachabilityStatuses = useCallback(
+    async (ids: string[]) => {
+      if (ids.length === 0) {
+        setReachabilityOverrides({})
+        return
+      }
+      setReachabilityLoading(prev => {
+        const next = new Set(prev)
+        for (const id of ids) next.add(id)
+        return next
+      })
+      const requestVersion = reachabilityRequestVersionRef.current + 1
+      reachabilityRequestVersionRef.current = requestVersion
+      try {
+        const params = new URLSearchParams({ ids: ids.join(',') })
+        const result = await pb.send<{
+          items?: Array<{ id: string; status: string; reason?: string; checked_at?: string }>
+        }>(`/api/ai-providers/reachability?${params.toString()}`, { method: 'GET' })
+        if (reachabilityRequestVersionRef.current !== requestVersion) {
+          return
+        }
+        setReachabilityOverrides(prev => {
+          const next = { ...prev }
+          for (const entry of result.items ?? []) {
+            const id = String(entry.id ?? '').trim()
+            if (!id) continue
+            next[id] = {
+              status: String(entry.status ?? '').trim(),
+              reason: String(entry.reason ?? ''),
+              checked_at: String(entry.checked_at ?? ''),
+            }
+          }
+          return next
+        })
+      } catch {
+        if (reachabilityRequestVersionRef.current !== requestVersion) {
+          return
+        }
+      } finally {
+        setReachabilityLoading(prev => {
+          const next = new Set(prev)
+          for (const id of ids) next.delete(id)
+          return next
+        })
+      }
+    },
+    [t]
+  )
+
+  const handleNameClick = useCallback(
+    (id: string, row: Record<string, unknown>) => {
+      if (expandedDetailId === id) {
+        setExpandedDetailId(null)
+        setExpandedModelsId(null)
+        setEditingDetailName(null)
+        return
+      }
+      setExpandedDetailId(id)
+      setExpandedModelsId(null)
+      if (listTestState?.providerId !== id) {
+        void handleListTestConnection(row)
+      }
+    },
+    [expandedDetailId, listTestState?.providerId, handleListTestConnection]
+  )
+
+  useEffect(() => {
+    if (!setHeaderRightStartContent) return undefined
+    setHeaderRightStartContent(
+      <ResourcesBreadcrumb parentLabel={t('hub.title')} currentPage={t('aiProviders.page.title')} />
+    )
+    return () => setHeaderRightStartContent(null)
+  }, [setHeaderRightStartContent, t])
 
   useEffect(() => {
     void (async () => {
@@ -409,35 +1004,38 @@ export function AIProvidersPage() {
     [providerTemplates]
   )
 
+  const handleToggleEnabled = useCallback(
+    async (item: Record<string, unknown>) => {
+      const providerId = String(item.id ?? '')
+      if (!providerId) return
+      const enabled = resolveAIProviderEnabled(item.is_enabled)
+      const body = await buildAIProviderPayload(
+        { ...item, is_enabled: !enabled },
+        providerTemplatesById,
+        t
+      )
+      await pb.send(`/api/ai-providers/${providerId}`, { method: 'PUT', body })
+      setRefreshKey(key => key + 1)
+    },
+    [providerTemplatesById, t]
+  )
+
   const providerProfileOptions = useMemo<SelectOption[]>(
     () =>
       providerTemplates.map(template => ({
         label: template.title,
         value: template.id,
+        group: providerSelectionGroupLabel(t, providerSelectionGroupKey(template)),
       })),
-    [providerTemplates]
+    [providerTemplates, t]
   )
 
-  const productOptions = useMemo(
+  const providerFilterOptions = useMemo<SelectOption[]>(
     () =>
-      [...providerTemplates]
-        .sort((left, right) => {
-          const leftIsOpenAICompatible = left.id === 'generic-llm'
-          const rightIsOpenAICompatible = right.id === 'generic-llm'
-          if (leftIsOpenAICompatible !== rightIsOpenAICompatible) {
-            return leftIsOpenAICompatible ? 1 : -1
-          }
-          const leftInitial = chooserTitle(left).trim().charAt(0).toLowerCase()
-          const rightInitial = chooserTitle(right).trim().charAt(0).toLowerCase()
-          return leftInitial.localeCompare(rightInitial, undefined, { sensitivity: 'base' })
-        })
-        .map(template => ({
-          id: template.id,
-          title: chooserTitle(template),
-          searchText: [template.title, template.vendor, template.description, template.id].join(
-            ' '
-          ),
-        })),
+      providerTemplates.map(template => ({
+        label: template.title,
+        value: template.title,
+      })),
     [providerTemplates]
   )
 
@@ -449,15 +1047,21 @@ export function AIProvidersPage() {
     []
   )
 
-  const openSecretEditor = useCallback((secretId: string) => {
-    const targetUrl = new URL('/secrets', window.location.origin)
-    targetUrl.searchParams.set('id', secretId)
-    targetUrl.searchParams.set('edit', secretId)
-    const opened = window.open(targetUrl.toString(), '_blank', 'noopener,noreferrer')
-    if (!opened) {
-      window.location.assign(targetUrl.toString())
-    }
-  }, [])
+  const openSecretEditor = useCallback(
+    (secretId: string) => {
+      const targetUrl = new URL('/secrets', window.location.origin)
+      targetUrl.searchParams.set('id', secretId)
+      targetUrl.searchParams.set('edit', secretId)
+      const opened = window.open(targetUrl.toString(), '_blank', 'noopener,noreferrer')
+      if (!opened) {
+        void navigate({
+          to: '/secrets' as never,
+          search: { id: secretId, edit: secretId } as never,
+        })
+      }
+    },
+    [navigate]
+  )
 
   const renderCredentialField = useCallback(
     ({
@@ -466,139 +1070,288 @@ export function AIProvidersPage() {
       formData,
       editingItem,
       updateField,
-      relationOptions,
-      addRelationOption,
     }: Parameters<NonNullable<FieldDef['render']>>[0]) => {
       const editMode = Boolean(editingItem)
-      const useSecret = editMode ? true : Boolean(formData.credential_use_secret)
+
+      if (editMode) {
+        return (
+          <InlineSecretEditorField
+            inputId={inputId}
+            inlineValue={String(formData.credential_secret_value ?? '')}
+            onInlineValueChange={value => updateField('credential_secret_value', value)}
+          />
+        )
+      }
 
       return (
         <SecretCredentialField
           inputId={inputId}
           manualValue={String(formData.api_key_value ?? '')}
           onManualValueChange={value => updateField('api_key_value', value)}
-          useReference={useSecret}
-          onUseReferenceChange={checked => {
-            updateField('credential_use_secret', checked)
-            if (!checked) {
-              updateField('credential', '')
-            }
-          }}
-          referenceValue={String(formData.credential ?? '')}
-          onReferenceValueChange={value => updateField('credential', value)}
-          options={relationOptions}
-          onCreateReference={() => {
-            openSecretDialog({
-              addOption: (id, label) => {
-                addRelationOption(id, label)
-                updateField('credential_use_secret', true)
-                updateField('credential', id)
-              },
-            })
-          }}
-          onEditReference={openSecretEditor}
+          useReference={false}
+          onUseReferenceChange={() => {}}
+          referenceValue=""
+          onReferenceValueChange={() => {}}
+          options={[]}
           editMode={editMode}
-          manualPlaceholder={`Enter ${String(field.label ?? 'API Key')}`}
-          showLabel={`Show ${String(field.label ?? 'API Key')}`}
-          hideLabel={`Hide ${String(field.label ?? 'API Key')}`}
+          manualPlaceholder={t('aiProviders.credential.enterField', {
+            field: String(field.label ?? t('aiProviders.fields.apiKey')),
+          })}
+          showLabel={t('aiProviders.credential.showField', {
+            field: String(field.label ?? t('aiProviders.fields.apiKey')),
+          })}
+          hideLabel={t('aiProviders.credential.hideField', {
+            field: String(field.label ?? t('aiProviders.fields.apiKey')),
+          })}
           generateValue={buildApiKeyValue}
-          generatorTitle="Generate API Key"
-          generatorDescription="Choose the API key length before filling the field."
-          generatorLengthLabel="API Key Length"
-          generatorConfirmLabel="Fill API Key"
+          generatorTitle={t('aiProviders.credential.generateTitle')}
+          generatorDescription={t('aiProviders.credential.generateDescription')}
+          generatorLengthLabel={t('aiProviders.credential.generateLengthLabel')}
+          generatorConfirmLabel={t('aiProviders.credential.generateConfirmLabel')}
+          allowReference={false}
         />
       )
     },
-    [openSecretDialog, openSecretEditor]
+    [t]
+  )
+
+  const renderEndpointField = useCallback<NonNullable<FieldDef['render']>>(
+    ({ inputId, formData, updateField }) => {
+      const selectedTemplate = providerTemplatesById.get(String(formData.template_id ?? ''))
+      const defaultProtocol = defaultTemplateProtocol(selectedTemplate, formData.default_protocol)
+      const endpointEditing = Boolean(formData.endpoint_editing)
+      const endpointLabel = resolveEndpointFieldTitle(t, selectedTemplate)
+      const endpointValue = String(
+        formData.endpoint ??
+          formData[protocolEndpointFieldKey(defaultProtocol)] ??
+          resolveTemplateEndpoint(selectedTemplate, formData)
+      )
+      const endpointPlaceholder = String(
+        selectedTemplate?.fields?.find(field => field.id === 'endpoint')?.placeholder ??
+          resolveTemplateEndpoint(selectedTemplate, formData)
+      )
+
+      return (
+        <div className="space-y-1.5">
+          {renderEndpointFieldLabel(endpointLabel)}
+          <div className="flex items-center gap-2">
+            <input
+              id={inputId}
+              type="text"
+              className={`border-input h-10 w-full rounded-md border px-3 text-sm ${endpointEditing ? 'bg-background' : 'bg-muted/40 text-muted-foreground'}`}
+              value={endpointValue}
+              placeholder={endpointPlaceholder}
+              readOnly={!endpointEditing}
+              onChange={event => {
+                updateField('default_protocol', defaultProtocol)
+                updateField(protocolEndpointFieldKey(defaultProtocol), event.target.value)
+                updateField('endpoint', event.target.value)
+              }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              title={
+                endpointEditing
+                  ? t('aiProviders.actions.finishEditingEndpoint')
+                  : t('aiProviders.actions.editEndpoint')
+              }
+              onClick={() => updateField('endpoint_editing', !endpointEditing)}
+            >
+              {endpointEditing ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+            </Button>
+          </div>
+        </div>
+      )
+    },
+    [providerTemplatesById, t]
+  )
+
+  const renderEnabledModelsField = useCallback<NonNullable<FieldDef['render']>>(
+    ({ formData, updateField, editingItem }) => {
+      const selectedTemplate = providerTemplatesById.get(String(formData.template_id ?? ''))
+      const selectedModels = normalizeEnabledModels(formData.enabled_models)
+      const inlineSecretValue = String(formData.credential_secret_value ?? '').trim()
+      const shouldUseInlineSecret = inlineSecretValue.length > 0
+      return (
+        <AIProviderModelSelector
+          selectedModels={selectedModels}
+          models={editModelOptions}
+          groups={editModelGroups}
+          loading={Boolean(editTestResult?.loading)}
+          error={editTestResult?.error}
+          loaded={editModelsValidated}
+          canLoad={true}
+          onListModels={() => {
+            void handleEditTestConnection(
+              editingItem,
+              models => updateField('enabled_models', models),
+              selectedModels,
+              shouldUseInlineSecret
+                ? {
+                    endpoint: resolveCurrentProtocolEndpoint(selectedTemplate, formData),
+                    apiKey: inlineSecretValue,
+                    authScheme: String(selectedTemplate?.defaultAuthScheme ?? '').trim(),
+                    templateID: String(formData.template_id ?? '').trim(),
+                    protocol: defaultTemplateProtocol(selectedTemplate, formData.default_protocol),
+                  }
+                : undefined
+            )
+          }}
+          onToggleModel={modelId => {
+            updateField(
+              'enabled_models',
+              selectedModels.includes(modelId)
+                ? selectedModels.filter(item => item !== modelId)
+                : [...selectedModels, modelId]
+            )
+          }}
+        />
+      )
+    },
+    [
+      editModelGroups,
+      editModelOptions,
+      editModelsValidated,
+      editTestResult,
+      handleEditTestConnection,
+      providerTemplatesById,
+    ]
   )
 
   const baseProviderFields = useMemo<FieldDef[]>(
     () => [
       {
         key: 'name',
-        label: 'Name',
+        label: t('aiProviders.fields.name'),
         type: 'text',
         required: true,
-        placeholder: 'my-ai-provider',
+        placeholder: t('aiProviders.placeholders.name'),
       },
       {
         key: 'template_id',
-        label: 'Profile',
+        label: t('aiProviders.fields.provider'),
         type: 'select',
         required: true,
         options: providerProfileOptions,
         onValueChange: (value, update) => {
           const template = providerTemplatesById.get(String(value ?? ''))
-          if (template?.defaultEndpoint) {
-            update('endpoint', template.defaultEndpoint)
-          }
+          const nextDefaults: Record<string, unknown> = {}
           for (const field of template?.fields ?? []) {
             if (field.default !== undefined) {
-              update(field.id, normalizeTemplateFieldDefault(field))
+              const normalized = normalizeTemplateFieldDefault(field)
+              nextDefaults[field.id] = normalized
+              update(field.id, normalized)
             }
           }
+          Object.assign(nextDefaults, buildProtocolFieldDefaults(template, nextDefaults))
+          for (const [key, defaultValue] of Object.entries(
+            buildProtocolFieldDefaults(template, nextDefaults)
+          )) {
+            update(key, defaultValue)
+          }
+          update('endpoint', resolveTemplateEndpoint(template, nextDefaults))
+          if (!resolveTemplateEndpoint(template, nextDefaults)) {
+            update('endpoint_editing', true)
+          }
+          update('enabled_models', normalizeEnabledModels(template?.defaultEnabledModels ?? []))
         },
       },
-      { key: 'description', label: 'Description', type: 'textarea', advanced: true },
       {
-        key: 'selected_product',
-        label: 'Selected Product',
+        key: 'auth_scheme',
+        label: t('aiProviders.fields.authScheme'),
         type: 'text',
         hidden: true,
+        defaultValue: '',
       },
       {
-        key: 'selected_product_meta',
-        label: 'Selected Product Meta',
+        key: 'description',
+        label: t('aiProviders.fields.description'),
         type: 'text',
-        hidden: true,
-      },
-      {
-        key: 'selected_product_description',
-        label: 'Selected Product Description',
-        type: 'text',
-        hidden: true,
+        advanced: true,
       },
       {
         key: 'title_name_editing',
-        label: 'Title Name Editing',
-        type: 'boolean',
-        hidden: true,
-        defaultValue: false,
-      },
-      {
-        key: 'credential_use_secret',
-        label: 'Credential Use Secret',
+        label: t('aiProviders.fields.titleNameEditing'),
         type: 'boolean',
         hidden: true,
         defaultValue: false,
       },
       {
         key: 'api_key_value',
-        label: 'API Key Value',
+        label: t('aiProviders.fields.apiKeyValue'),
         type: 'password',
         hidden: true,
         defaultValue: '',
       },
       {
+        key: 'credential_secret_value',
+        label: 'Credential Secret Value',
+        type: 'password',
+        hidden: true,
+        defaultValue: '',
+      },
+      {
+        key: 'enabled_models',
+        label: 'Enabled Models',
+        type: 'text',
+        hidden: true,
+        defaultValue: [],
+      },
+      {
+        key: 'default_protocol',
+        label: 'Default Protocol',
+        type: 'text',
+        hidden: true,
+        defaultValue: 'openai',
+      },
+      {
+        key: 'endpoint_editing',
+        label: 'Endpoint Editing',
+        type: 'boolean',
+        hidden: true,
+        defaultValue: false,
+      },
+      {
         key: 'advanced_config',
-        label: 'Advanced Config (JSON)',
+        label: t('aiProviders.fields.advancedConfig'),
         type: 'textarea',
-        placeholder: '{"temperature": 0.2}',
+        rows: 5,
+        textareaClassName: 'max-h-[8.5rem] overflow-y-auto',
+        placeholder: t('aiProviders.placeholders.advancedConfig'),
         advanced: true,
       },
       {
         key: 'groups',
-        label: 'Groups',
+        label: t('aiProviders.fields.groups'),
         type: 'relation',
         advanced: true,
         multiSelect: true,
         relationAutoSelectDefault: true,
+        placeholder: t('aiProviders.placeholders.groups'),
         relationApiPath: '/api/collections/groups/records?perPage=500&sort=name',
         relationLabelKey: 'name',
         defaultValue: [],
       },
+      {
+        key: 'is_enabled',
+        label: t('aiProviders.fields.enableIt'),
+        type: 'boolean',
+        defaultValue: true,
+        advanced: true,
+        render: ({ field, inputId, value, setValue }) =>
+          renderEnabledChoiceField({
+            inputId,
+            label: field.label,
+            value: Boolean(value ?? true),
+            setValue: nextValue => setValue(nextValue),
+            enabledLabel: t('aiProviders.enabled.yes'),
+            disabledLabel: t('aiProviders.enabled.no'),
+          }),
+      },
     ],
-    [providerProfileOptions, providerTemplatesById]
+    [providerProfileOptions, providerTemplatesById, t]
   )
 
   const resolveProviderFields = useCallback(
@@ -610,41 +1363,118 @@ export function AIProvidersPage() {
       editingItem: Record<string, unknown> | null
     }) => {
       const selectedTemplate = providerTemplatesById.get(String(formData.template_id ?? ''))
-      const dynamicFields = (selectedTemplate?.fields ?? []).map(field => {
+      const dynamicFields = (selectedTemplate?.fields ?? []).flatMap(field => {
         if (field.id === 'credential') {
-          return {
+          const credentialField: FieldDef = {
             key: field.id,
             label: field.label,
-            type: 'relation',
+            type: 'text',
             required: field.required,
-            relationApiPath: buildSecretRelationApiPath(AI_PROVIDER_CREDENTIAL_TEMPLATE_ID),
-            relationFormatLabel: formatSecretLabel,
-            relationCreateButton: {
-              label: 'New Secret',
-              onClick: openSecretDialog,
-            },
             render: renderCredentialField,
-          } satisfies FieldDef
+          }
+
+          return [
+            credentialField,
+            {
+              key: 'select_models',
+              label: t('aiProviders.fields.enabledModels'),
+              type: 'text',
+              hideLabel: true,
+              render: renderEnabledModelsField,
+            } satisfies FieldDef,
+          ]
         }
 
-        return mapTemplateFieldToResourceField(field, openSecretDialog, openSecretEditor)
+        const mappedField = mapTemplateFieldToResourceField(field, t)
+        if (selectedTemplate?.id === 'aws-bedrock' && field.id === 'region') {
+          return [
+            {
+              ...mappedField,
+              onValueChange: (value: unknown, update: (key: string, value: unknown) => void) => {
+                const protocol = defaultTemplateProtocol(
+                  selectedTemplate,
+                  formData.default_protocol
+                )
+                const nextEndpoint = regenerateTemplateEndpoint(selectedTemplate, {
+                  ...formData,
+                  region: value,
+                })
+                update(protocolEndpointFieldKey(protocol), nextEndpoint)
+                update('endpoint', nextEndpoint)
+              },
+            },
+          ]
+        }
+        if (
+          selectedTemplate?.id === 'vertex-ai' &&
+          (field.id === 'location' || field.id === 'project_id')
+        ) {
+          return [
+            {
+              ...mappedField,
+              onValueChange: (value: unknown, update: (key: string, value: unknown) => void) => {
+                const protocol = defaultTemplateProtocol(
+                  selectedTemplate,
+                  formData.default_protocol
+                )
+                const nextEndpoint = regenerateTemplateEndpoint(selectedTemplate, {
+                  ...formData,
+                  [field.id]: value,
+                })
+                update(protocolEndpointFieldKey(protocol), nextEndpoint)
+                update('endpoint', nextEndpoint)
+              },
+            },
+          ]
+        }
+        return [mappedField]
       })
+
+      const promoteEndpoint = shouldPromoteEndpointField(selectedTemplate)
+      let normalizedDynamicFields = dynamicFields.map(field => {
+        if (field.key !== 'endpoint') return field
+        return {
+          ...field,
+          label: resolveEndpointFieldTitle(t, selectedTemplate),
+          hideLabel: true,
+          advanced: !promoteEndpoint,
+          render: renderEndpointField,
+        }
+      })
+
+      const authSchemeField = {
+        ...baseProviderFields[3],
+        hidden: true,
+        advanced: true,
+      }
+
+      if (selectedTemplate?.id === 'aws-bedrock') {
+        normalizedDynamicFields = moveFieldBefore(normalizedDynamicFields, 'region', 'endpoint')
+      }
+      if (selectedTemplate?.id === 'vertex-ai') {
+        normalizedDynamicFields = moveFieldBefore(normalizedDynamicFields, 'project_id', 'endpoint')
+        normalizedDynamicFields = moveFieldBefore(normalizedDynamicFields, 'location', 'endpoint')
+      }
 
       if (editingItem) {
         return [
-          baseProviderFields[0],
-          baseProviderFields[1],
-          ...dynamicFields,
+          { ...baseProviderFields[0], hidden: true },
+          { ...baseProviderFields[1], readOnly: true },
+          ...normalizedDynamicFields,
+          authSchemeField,
+          baseProviderFields[4],
+          ...baseProviderFields.slice(5),
           baseProviderFields[2],
-          ...baseProviderFields.slice(7),
         ]
       }
 
       return [
         baseProviderFields[0],
-        ...baseProviderFields.slice(2, 9),
-        ...dynamicFields,
-        ...baseProviderFields.slice(9),
+        ...normalizedDynamicFields,
+        authSchemeField,
+        baseProviderFields[4],
+        ...baseProviderFields.slice(5),
+        baseProviderFields[2],
       ]
     },
     [
@@ -653,58 +1483,482 @@ export function AIProvidersPage() {
       openSecretEditor,
       providerTemplatesById,
       renderCredentialField,
+      renderEndpointField,
+      renderEnabledModelsField,
+      t,
     ]
+  )
+
+  const allColumns = useMemo(
+    () =>
+      buildColumns(
+        t,
+        providerFilterOptions,
+        handleNameClick,
+        handleToggleEnabled,
+        handleShowModels,
+        handleListTestConnection,
+        availabilityOverrides,
+        availabilityLoading,
+        reachabilityOverrides,
+        reachabilityLoading,
+        enabledModelsCount
+      ),
+    [
+      handleNameClick,
+      handleToggleEnabled,
+      providerFilterOptions,
+      t,
+      handleShowModels,
+      handleListTestConnection,
+      availabilityOverrides,
+      availabilityLoading,
+      reachabilityOverrides,
+      reachabilityLoading,
+      enabledModelsCount,
+    ]
+  )
+
+  const columns = useMemo(
+    () =>
+      allColumns.filter(column => {
+        if (
+          column.key === 'provider' ||
+          column.key === 'enabled_models_count' ||
+          column.key === 'endpoint' ||
+          column.key === 'availability' ||
+          column.key === 'reachability' ||
+          column.key === 'availability_last_checked_at' ||
+          column.key === 'created' ||
+          column.key === 'updated'
+        ) {
+          return visibleOptionalColumns.has(column.key)
+        }
+        return true
+      }),
+    [allColumns, visibleOptionalColumns]
+  )
+
+  const renderListSettings = useCallback(
+    ({ pageSize, setPageSize }: { pageSize: number; setPageSize: (pageSize: number) => void }) => (
+      <ResourceListSettingsButton
+        title={t('servers.listSettings.title')}
+        rowsPerPageLabel={t('servers.listSettings.rowsPerPage')}
+        rowsPerPageOptionLabel={count => t('servers.listSettings.rowsPerPageOption', { count })}
+        columnsLabel={t('servers.listSettings.columns')}
+        pageSize={pageSize}
+        setPageSize={setPageSize}
+        pageSizeOptions={[10, 20, 50]}
+        columnOptions={[
+          {
+            key: 'provider',
+            label: t('aiProviders.columns.provider'),
+            checked: visibleOptionalColumns.has('provider'),
+          },
+          {
+            key: 'enabled_models_count',
+            label: t('aiProviders.columns.enabledModels'),
+            checked: visibleOptionalColumns.has('enabled_models_count'),
+          },
+          {
+            key: 'endpoint',
+            label: t('aiProviders.columns.endpoint'),
+            checked: visibleOptionalColumns.has('endpoint'),
+          },
+          {
+            key: 'reachability',
+            label: t('aiProviders.columns.reachability'),
+            checked: visibleOptionalColumns.has('reachability'),
+          },
+          {
+            key: 'availability',
+            label: t('aiProviders.columns.availability'),
+            checked: visibleOptionalColumns.has('availability'),
+          },
+          {
+            key: 'availability_last_checked_at',
+            label: t('aiProviders.columns.lastChecked'),
+            checked: visibleOptionalColumns.has('availability_last_checked_at'),
+          },
+          {
+            key: 'created',
+            label: t('aiProviders.columns.created'),
+            checked: visibleOptionalColumns.has('created'),
+          },
+          {
+            key: 'updated',
+            label: t('aiProviders.columns.updated'),
+            checked: visibleOptionalColumns.has('updated'),
+          },
+        ]}
+        onColumnToggle={(columnKey, checked) => {
+          setVisibleOptionalColumns(prev => {
+            const next = new Set(prev)
+            if (checked) {
+              next.add(columnKey)
+            } else {
+              next.delete(columnKey)
+            }
+            return next
+          })
+        }}
+      />
+    ),
+    [t, visibleOptionalColumns]
   )
 
   return (
     <>
       <ResourcePage
         config={{
-          title: 'AI Providers',
-          description:
-            'Hosted and local AI provider definitions such as OpenAI, Anthropic, OpenRouter, and Ollama endpoints.',
-          emptyStateLabel: 'No AI Providers found',
+          title: t('aiProviders.page.title'),
+          description: t('aiProviders.page.description'),
+          emptyStateLabel: t('aiProviders.page.emptyState'),
           apiPath: '/api/ai-providers',
           columns,
           fields: baseProviderFields,
-          searchPlaceholder: 'Search any AI providers',
+          searchPlaceholder: t('aiProviders.page.searchPlaceholder'),
           pageSize: 10,
+          pageSizeValue: pageSize,
+          onPageSizeChange: setPageSize,
           pageSizeOptions: [10, 20, 50],
           defaultSort: { key: 'name', dir: 'asc' },
           headerFilters: true,
           listControlsBorder: false,
           listControlsShowReset: false,
-          pageSizeSelectorPlacement: 'footer',
+          pageSizeSelectorPlacement: 'none',
+          paginationPlacement: 'header',
+          paginationVariant: 'minimal',
           paginationSummary: false,
-          createSelection: {
-            title: 'Choose a Product',
-            description: 'Choose a provider product, then enter connection details.',
-            searchPlaceholder: 'Search products like OpenAI, Ollama, Anthropic, OpenRouter...',
-            emptyMessage: 'No matching products found.',
-            options: productOptions,
-            onSelect: optionId => {
-              const selectedTemplate = providerTemplatesById.get(optionId)
-              if (!selectedTemplate) return {}
+          paginationTotalLabel: totalCount =>
+            t('aiProviders.page.totalItems', { count: totalCount }),
+          headerTrailingControls: renderListSettings,
+          expandedRowId: expandedDetailId,
+          renderRowDetail: item => {
+            const providerId = String(item.id ?? '')
+            if (providerId === '' || expandedDetailId !== providerId) {
+              return null
+            }
+            const template = providerTemplatesById.get(String(item.template_id ?? ''))
+            const endpointHelpUrl =
+              template?.fields?.find(field => field.id === 'endpoint')?.helpUrl?.trim() ?? ''
+            const enabled = resolveAIProviderEnabled(item.is_enabled)
+            const availability =
+              availabilityOverrides[providerId]?.status ?? String(item.availability ?? '')
+            const availabilityVariant =
+              availability === t('aiProviders.status.available')
+                ? 'default'
+                : availability === t('aiProviders.status.unavailable')
+                  ? 'destructive'
+                  : 'secondary'
+            const enabledModels = normalizeEnabledModels(item.enabled_models)
+            const modelsState =
+              listTestState?.providerId === providerId ? listTestState.summary : null
+            const modelsLoaded = modelsState?.models != null
+            const modelsFetching = modelsState?.loading === true
+            const modelsError = modelsState?.error
+            const modelsCount = modelsLoaded ? (modelsState.models?.length ?? 0) : 0
+            const modelsExpanded = expandedModelsId === providerId
 
-              const defaults: Record<string, unknown> = {
-                kind: selectedTemplate.kind,
-                template_id: selectedTemplate.id,
-                name: buildDefaultProviderName(selectedTemplate),
-                selected_product: chooserTitle(selectedTemplate),
-                selected_product_meta: '',
-                selected_product_description: '',
-                endpoint: selectedTemplate.defaultEndpoint ?? '',
-                credential_use_secret: false,
-                api_key_value: '',
-                title_name_editing: false,
+            const fields: { label: string; value: string | React.ReactNode }[] = [
+              { label: 'ID', value: providerId },
+              {
+                label: t('aiProviders.columns.name'),
+                value:
+                  editingDetailName === providerId ? (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        className="h-7 w-full max-w-[200px] rounded border border-input bg-background px-2 text-sm"
+                        value={detailNameDraft}
+                        onChange={e => setDetailNameDraft(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            const newName = detailNameDraft.trim()
+                            if (newName) {
+                              const updated = { ...item, name: newName }
+                              void buildAIProviderPayload(updated, providerTemplatesById, t)
+                                .then(body =>
+                                  pb.send(`/api/ai-providers/${providerId}`, {
+                                    method: 'PUT',
+                                    body,
+                                  })
+                                )
+                                .then(() => {
+                                  setEditingDetailName(null)
+                                  setRefreshKey(k => k + 1)
+                                })
+                                .catch(() => {})
+                            }
+                          }
+                          if (e.key === 'Escape') {
+                            setEditingDetailName(null)
+                          }
+                        }}
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                        onClick={() => setEditingDetailName(null)}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="text-left transition-colors hover:text-primary"
+                      onClick={() => {
+                        setDetailNameDraft(String(item.name ?? ''))
+                        setEditingDetailName(providerId)
+                      }}
+                    >
+                      {String(item.name ?? '—')}
+                    </button>
+                  ),
+              },
+              {
+                label: t('aiProviders.columns.provider'),
+                value: (
+                  <span className="inline-flex items-center gap-2">
+                    <span>{String(item.provider ?? '—')}</span>
+                    {String(template?.helpUrl ?? '').trim() ? (
+                      <a
+                        href={String(template?.helpUrl ?? '').trim()}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-muted-foreground transition-colors hover:text-foreground"
+                        aria-label="Open provider documentation"
+                        title="Open provider documentation"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    ) : null}
+                  </span>
+                ),
+              },
+              {
+                label: t('aiProviders.columns.enabled'),
+                value: (
+                  <span
+                    className={
+                      enabled ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'
+                    }
+                  >
+                    {enabled ? t('aiProviders.enabled.yes') : t('aiProviders.enabled.no')}
+                  </span>
+                ),
+              },
+              {
+                label: t('aiProviders.columns.availability'),
+                value: <Badge variant={availabilityVariant}>{availability}</Badge>,
+              },
+              {
+                label: t('aiProviders.fields.authScheme'),
+                value: String(item.auth_scheme ?? '').trim()
+                  ? t(`aiProviders.authSchemes.${String(item.auth_scheme ?? '').trim()}`)
+                  : '—',
+              },
+              {
+                label: 'Secret',
+                value: String(item.credential ?? '').trim() ? (
+                  <span className="inline-flex items-center gap-2">
+                    <a
+                      href={`/secrets?id=${encodeURIComponent(String(item.credential ?? ''))}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="transition-colors hover:text-primary"
+                    >
+                      {String(item.credential_name ?? item.credential ?? '—')}
+                    </a>
+                    <a
+                      href={`/secrets?id=${encodeURIComponent(String(item.credential ?? ''))}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-muted-foreground transition-colors hover:text-foreground"
+                      aria-label="Open secret"
+                      title="Open secret"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  </span>
+                ) : (
+                  '—'
+                ),
+              },
+              {
+                label: t('aiProviders.columns.endpoint'),
+                value: String(item.endpoint ?? '').trim() ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span>{String(item.endpoint ?? '—')}</span>
+                    {endpointHelpUrl ? (
+                      <a
+                        href={endpointHelpUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-muted-foreground transition-colors hover:text-foreground"
+                        aria-label="Open official API endpoint help"
+                        title="Open official API endpoint help"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    ) : null}
+                  </span>
+                ) : (
+                  '—'
+                ),
+              },
+            ]
+            if (String(item.description ?? '').trim()) {
+              fields.push({ label: 'Description', value: String(item.description ?? '') })
+            }
+            fields.push(
+              {
+                label: t('aiProviders.columns.created'),
+                value: formatResourceDateTime(item.created),
+              },
+              {
+                label: t('aiProviders.columns.updated'),
+                value: formatResourceDateTime(item.updated),
               }
+            )
 
-              for (const field of selectedTemplate.fields ?? []) {
-                defaults[field.id] = normalizeTemplateFieldDefault(field)
-              }
+            return (
+              <div className="space-y-4 rounded-lg border bg-muted/10 px-4 py-3">
+                <div className="flex items-center justify-between gap-3 border-b pb-3">
+                  <div>
+                    <div className="text-sm font-medium text-foreground">Provider details</div>
+                    <div className="text-xs text-muted-foreground">
+                      Use the provider name again or this action to collapse the inline panel.
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() => {
+                      setExpandedDetailId(null)
+                      setExpandedModelsId(null)
+                      setEditingDetailName(null)
+                    }}
+                  >
+                    <ChevronDown className="mr-1.5 h-4 w-4" />
+                    Collapse details
+                  </Button>
+                </div>
+                <div className="grid grid-cols-[100px_1fr] gap-x-4 gap-y-2 text-sm">
+                  {fields.map(field => (
+                    <Fragment key={field.label}>
+                      <span className="text-muted-foreground">{field.label}</span>
+                      <span className="min-w-0 break-all">{field.value}</span>
+                    </Fragment>
+                  ))}
+                </div>
 
-              return defaults
-            },
+                <div className="border-t pt-3">
+                  <span className="text-sm font-medium">Models</span>
+
+                  {enabledModels.length > 0 ? (
+                    <div className="mt-2">
+                      <div className="mb-1.5 text-xs text-muted-foreground">
+                        Enabled models ({enabledModels.length}):
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {enabledModels.map(model => (
+                          <span
+                            key={model}
+                            className="inline-flex items-center rounded-full border bg-muted/40 px-2.5 py-0.5 text-xs font-medium"
+                          >
+                            {model}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-xs text-muted-foreground">No enabled models.</div>
+                  )}
+
+                  {modelsFetching ? (
+                    <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Loading models...
+                    </div>
+                  ) : modelsError ? (
+                    <div className="mt-2 rounded-md border bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                      {modelsError}
+                    </div>
+                  ) : modelsLoaded ? (
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-1.5 rounded-md border bg-emerald-50/40 px-3 py-2 text-left text-sm transition-colors hover:bg-emerald-100/60 dark:bg-emerald-950/10 dark:hover:bg-emerald-950/30"
+                        onClick={() => setExpandedModelsId(modelsExpanded ? null : providerId)}
+                      >
+                        {modelsExpanded ? (
+                          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                        ) : (
+                          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                        )}
+                        <span className="font-medium text-emerald-700 dark:text-emerald-300">
+                          {modelsCount} model{modelsCount === 1 ? '' : 's'} available
+                        </span>
+                      </button>
+                      {modelsExpanded ? (
+                        <div className="mt-2 space-y-2">
+                          {modelsState.modelGroups && modelsState.modelGroups.length > 0 ? (
+                            modelsState.modelGroups.map(group => (
+                              <div
+                                key={group.label}
+                                className="space-y-1.5 rounded-md border bg-background p-2.5"
+                              >
+                                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                  {group.label}
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {group.models.map(model => (
+                                    <span
+                                      key={model}
+                                      className="inline-flex items-center rounded-full border bg-muted/40 px-2.5 py-0.5 text-xs font-medium"
+                                    >
+                                      {model}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="flex flex-wrap gap-1.5">
+                              {modelsState.models?.map(model => (
+                                <span
+                                  key={model}
+                                  className="inline-flex items-center rounded-full border bg-muted/40 px-2.5 py-0.5 text-xs font-medium"
+                                >
+                                  {model}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            )
+          },
+          cancelLabel: 'Test it',
+          selectedSummary: null,
+          onCancel: editingItem => {
+            void handleEditTestConnection(editingItem)
+          },
+          onEditOpen: editingItem => {
+            editingTemplateIdRef.current = String(editingItem?.template_id ?? '')
+            setEditTestResult(null)
+            setEditModelOptions([])
+            setEditModelGroups([])
+            setEditModelsValidated(false)
           },
           dialogHeader: ({ formData, editingItem, updateField, title, description }) => {
             const selectedTemplate = providerTemplatesById.get(String(formData.template_id ?? ''))
@@ -722,7 +1976,7 @@ export function AIProvidersPage() {
                     <div className="flex min-w-[280px] flex-1 items-center gap-2">
                       <Input
                         value={providerName}
-                        aria-label="AI provider title"
+                        aria-label={t('aiProviders.dialog.providerTitle')}
                         onChange={event => updateField('name', event.target.value)}
                         onBlur={() => updateField('title_name_editing', false)}
                         onKeyDown={event => {
@@ -738,7 +1992,7 @@ export function AIProvidersPage() {
                         type="button"
                         variant="outline"
                         size="icon"
-                        title="Apply title"
+                        title={t('aiProviders.dialog.applyTitle')}
                         onMouseDown={event => event.preventDefault()}
                         onClick={() => updateField('title_name_editing', false)}
                       >
@@ -748,13 +2002,13 @@ export function AIProvidersPage() {
                   ) : (
                     <>
                       <span className="max-w-full truncate text-xl font-semibold">
-                        {providerName || 'New AI Provider'}
+                        {providerName || t('aiProviders.dialog.newProvider')}
                       </span>
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
-                        title="Edit title"
+                        title={t('aiProviders.dialog.editTitle')}
                         onClick={() => updateField('title_name_editing', true)}
                       >
                         <Pencil className="h-4 w-4" />
@@ -763,42 +2017,176 @@ export function AIProvidersPage() {
                   )}
                 </div>
               ),
-              description: `${editingItem ? 'Update' : 'Add'} ${productTitle(selectedTemplate)} AI Provider`,
+              description: (
+                <span className="inline-flex items-center gap-2">
+                  <span>{`${editingItem ? t('aiProviders.dialog.update') : t('aiProviders.dialog.add')} ${productTitle(selectedTemplate)} ${t('aiProviders.dialog.suffix')}`}</span>
+                  {selectedTemplate.helpUrl ? (
+                    <a
+                      href={selectedTemplate.helpUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground"
+                      aria-label="Open official API endpoint help"
+                      title="Open official API endpoint help"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  ) : null}
+                </span>
+              ),
               hideSelectedProductSummary: true,
             }
           },
           resolveFields: resolveProviderFields,
           resourceType: 'ai_provider',
-          parentNav: { label: 'Resources', href: '/resources' },
           autoCreate,
+          onCreateClick: () => {
+            setEditTestResult(null)
+            setEditModelOptions([])
+            setEditModelGroups([])
+            setEditModelsValidated(false)
+            setListTestState(null)
+            setExpandedDetailId(null)
+            setExpandedModelsId(null)
+            setCreateOpen(true)
+          },
           enableGroupAssign: true,
-          createButtonLabel: 'Add AI Provider',
+          createButtonLabel: t('aiProviders.page.addProvider'),
           createButtonShowIcon: false,
           dialogContentClassName: 'sm:max-w-4xl',
           showRefreshButton: true,
-          refreshButtonLabel: 'Refresh',
+          refreshButtonLabel: t('aiProviders.page.refresh'),
           refreshButtonIconOnly: true,
           refreshButtonShowIcon: true,
           wrapTableInCard: false,
-          listItems: async () => {
-            const items = await pb.send<AIProviderRecord[]>('/api/ai-providers', {
-              method: 'GET',
-            })
-            return Array.isArray(items)
-              ? items.map(item => mapAIProviderRow(item, providerTemplatesById))
-              : []
+          refreshKey,
+          onRefresh: async ({ items, refreshList }) => {
+            await refreshList()
+            const ids = items.map(item => String(item.id ?? '')).filter(Boolean)
+            await fetchReachabilityStatuses(ids)
           },
-          createItem: async payload => {
-            const body = await buildAIProviderPayload(payload, providerTemplatesById)
-            const created = await pb.send<AIProviderRecord>('/api/ai-providers', {
-              method: 'POST',
-              body,
-            })
-            return mapAIProviderRow(created, providerTemplatesById)
+          listItems: async () => {
+            const [items, secretResponse, monitorResponse] = await Promise.all([
+              pb.send<AIProviderRecord[]>('/api/ai-providers', { method: 'GET' }),
+              pb
+                .send<{ items?: Array<Record<string, unknown>> }>(
+                  buildUserVisibleSecretRelationApiPath('ai_provider', {
+                    secretTemplate: AI_PROVIDER_CREDENTIAL_TEMPLATE_ID,
+                  }),
+                  { method: 'GET' }
+                )
+                .catch(() => ({ items: [] })),
+              pb
+                .send<{ items?: MonitorLatestStatusRecord[] }>(
+                  `/api/collections/monitor_latest_status/records?${new URLSearchParams({
+                    perPage: '500',
+                    sort: '-updated',
+                    filter: `(target_type='ai_provider')`,
+                  }).toString()}`,
+                  { method: 'GET' }
+                )
+                .catch(() => ({ items: [] })),
+            ])
+            const secretNamesById = new Map(
+              (secretResponse.items ?? []).map(secret => [
+                String(secret.id ?? '').trim(),
+                String(secret.name ?? secret.id ?? '').trim(),
+              ])
+            )
+            const monitorByTargetId = new Map(
+              Array.isArray(monitorResponse?.items)
+                ? monitorResponse.items
+                    .map(record => [String(record.target_id ?? '').trim(), record] as const)
+                    .filter(([targetId]) => Boolean(targetId))
+                : []
+            )
+            const rows = Array.isArray(items)
+              ? items.map(item =>
+                  mapAIProviderRow(item, providerTemplatesById, secretNamesById, monitorByTargetId)
+                )
+              : []
+            fetchEnabledModelCounts(rows)
+            return rows
           },
           updateItem: async (id, payload) => {
-            const body = await buildAIProviderPayload(payload, providerTemplatesById)
+            const nextPayload = { ...payload }
+            if (!nextPayload.template_id) {
+              nextPayload.template_id = editingTemplateIdRef.current
+            }
+            const template = providerTemplatesById.get(String(nextPayload.template_id ?? '').trim())
+            const credentialID = String(nextPayload.credential ?? '').trim()
+            const secretValue = String(nextPayload.credential_secret_value ?? '').trim()
+            if (secretValue) {
+              if (!credentialID) {
+                throw new Error('Missing API key secret for this provider.')
+              }
+              await pb.send(`/api/secrets/${credentialID}/payload`, {
+                method: 'PUT',
+                body: { payload: { value: secretValue } },
+              })
+              nextPayload.credential_secret_value = ''
+            }
+            for (const field of template?.fields ?? []) {
+              if (field.type !== 'secret_ref' || field.id === 'credential') {
+                continue
+              }
+              const fieldSecretId = String(nextPayload[field.id] ?? '').trim()
+              const inlineFieldValue = String(
+                nextPayload[aiProviderSecretFieldInlineValueKey(field.id)] ?? ''
+              ).trim()
+              if (!inlineFieldValue) {
+                continue
+              }
+              if (!fieldSecretId) {
+                throw new Error(`Missing secret for ${field.label || field.id}.`)
+              }
+              await pb.send(`/api/secrets/${fieldSecretId}/payload`, {
+                method: 'PUT',
+                body: { payload: { value: inlineFieldValue } },
+              })
+              nextPayload[aiProviderSecretFieldInlineValueKey(field.id)] = ''
+              nextPayload[aiProviderSecretFieldManualValueKey(field.id)] = ''
+            }
+            if (!editModelsValidated) {
+              delete nextPayload.enabled_models
+            }
+            const body = await buildAIProviderPayload(nextPayload, providerTemplatesById, t)
             await pb.send(`/api/ai-providers/${id}`, { method: 'PUT', body })
+          },
+          extraActions: (item, refreshList) => {
+            const providerId = String(item.id ?? '')
+            const enabled = resolveAIProviderEnabled(item.is_enabled)
+            return [
+              <DropdownMenuItem
+                key="test"
+                onClick={() => {
+                  void handleListTestConnection(item)
+                }}
+              >
+                <Activity className="h-4 w-4" />
+                Test it
+              </DropdownMenuItem>,
+              <DropdownMenuItem
+                key="toggle-enabled"
+                onClick={() => {
+                  void (async () => {
+                    const body = await buildAIProviderPayload(
+                      { ...item, is_enabled: !enabled },
+                      providerTemplatesById,
+                      t
+                    )
+                    await pb.send(`/api/ai-providers/${providerId}`, {
+                      method: 'PUT',
+                      body,
+                    })
+                    await refreshList()
+                  })()
+                }}
+              >
+                {enabled ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
+                {enabled ? 'Disable' : 'Enable'}
+              </DropdownMenuItem>,
+            ]
           },
           deleteItem: async id => {
             await pb.send(`/api/ai-providers/${id}`, { method: 'DELETE' })
@@ -806,17 +2194,38 @@ export function AIProvidersPage() {
         }}
       />
 
+      <AIProviderCreateFlowDialog
+        open={createOpen}
+        onOpenChange={open => {
+          if (open) {
+            setEditTestResult(null)
+            setEditModelOptions([])
+            setListTestState(null)
+            setExpandedDetailId(null)
+            setExpandedModelsId(null)
+            setEditModelGroups([])
+            setEditModelsValidated(false)
+          }
+          setCreateOpen(open)
+        }}
+        onCreated={() => {
+          setAvailabilityOverrides({})
+          setReachabilityOverrides({})
+          setRefreshKey(current => current + 1)
+        }}
+      />
+
       <SecretCreateDialog
         open={secretDialogOpen}
         onOpenChange={setSecretDialogOpen}
-        title="New Secret"
-        description="Create a reusable secret and attach it to this AI Provider."
+        title={t('aiProviders.secret.newTitle')}
+        description={t('aiProviders.secret.newDescription')}
         allowedTemplateIds={[AI_PROVIDER_CREDENTIAL_TEMPLATE_ID]}
-        templateLabels={SECRET_TEMPLATE_LABELS}
+        templateLabels={{ single_value: t('aiProviders.secret.singleValueTemplate') }}
         defaultTemplateId={AI_PROVIDER_CREDENTIAL_TEMPLATE_ID}
-        onCreated={({ id, name, templateId }) => {
-          const suffix = SECRET_TEMPLATE_LABELS[templateId]
-          secretAddOption?.(id, suffix ? `${name} (${suffix})` : name)
+        defaultVisibleTo={['ai_provider']}
+        onCreated={({ id, name }) => {
+          secretAddOption?.(id, name)
         }}
       />
     </>

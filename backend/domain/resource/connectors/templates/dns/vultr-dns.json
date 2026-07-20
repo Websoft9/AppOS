@@ -1,0 +1,8 @@
+{
+  "id": "vultr-dns",
+  "title": "Vultr DNS",
+  "vendor": "Vultr",
+  "description": "Vultr DNS API profile.",
+  "defaultEndpoint": "https://api.vultr.com/v2",
+  "aliases": ["vultr", "vultr-dns"]
+}

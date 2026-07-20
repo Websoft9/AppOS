@@ -14,7 +14,7 @@ import (
 
 	"github.com/websoft9/appos/backend/domain/audit"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
+	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 	"github.com/websoft9/appos/backend/domain/terminal"
 )
 
@@ -134,7 +134,7 @@ func handleSFTPSearch(e *core.RequestEvent) error {
 // @Failure 401 {object} map[string]any
 // @Router /api/terminal/sftp/{serverId}/constraints [get]
 func handleSFTPConstraints(e *core.RequestEvent) error {
-	cfg, _ := sysconfig.GetGroup(e.App, "connect", "sftp", settingscatalog.DefaultGroup("connect", "sftp"))
+	cfg, _ := sysconfig.GetGroup(e.App, "connect", "sftp", settingsschema.DefaultGroup("connect", "sftp"))
 	return e.JSON(http.StatusOK, map[string]any{
 		"max_upload_files": sysconfig.Int(cfg, "maxUploadFiles", 10),
 	})

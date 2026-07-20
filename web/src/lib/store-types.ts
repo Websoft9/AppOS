@@ -1,5 +1,5 @@
 // Store module type definitions
-// Matching data structures from public/store/catalog_{locale}.json and product_{locale}.json
+// Matching the legacy official catalog seed shape used by the backend catalog source loader.
 
 export type Locale = 'en' | 'zh'
 export type StoreJsonType = 'catalog' | 'product'

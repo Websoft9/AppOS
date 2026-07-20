@@ -1,43 +1,40 @@
 package instances
 
 import (
-	"encoding/json"
 	"strings"
+
+	resourceshared "github.com/websoft9/appos/backend/domain/resource/shared"
 )
 
 const (
-	KindMySQL    = "mysql"
-	KindPostgres = "postgres"
-	KindRedis    = "redis"
-	KindKafka    = "kafka"
-	KindS3       = "s3"
-	KindRegistry = "registry"
-	KindOllama   = "ollama"
+	KindMySQLCompatible         = "mysql-compatible"
+	KindPostgresCompatible      = "postgres-compatible"
+	KindMongoDBCompatible       = "mongodb-compatible"
+	KindClickHouseCompatible    = "clickhouse-compatible"
+	KindNeo4jCompatible         = "neo4j-compatible"
+	KindInfluxDBCompatible      = "influxdb-compatible"
+	KindRedisCompatible         = "redis-compatible"
+	KindElasticsearchCompatible = "elasticsearch-compatible"
+	KindKafkaCompatible         = "kafka-compatible"
+	KindAMQPCompatible          = "amqp-compatible"
+	KindNATSCompatible          = "nats-compatible"
+	KindMQTTCompatible          = "mqtt-compatible"
+	KindS3Compatible            = "s3-compatible"
+	KindOnlyOfficeCompatible    = "onlyoffice-compatible"
 )
 
-var declaredKinds = []string{
-	KindMySQL,
-	KindPostgres,
-	KindRedis,
-	KindKafka,
-	KindS3,
-	KindRegistry,
-	KindOllama,
-}
-
 func AllowedKinds() []string {
-	result := make([]string, len(declaredKinds))
-	copy(result, declaredKinds)
+	contracts := KindContracts()
+	result := make([]string, 0, len(contracts))
+	for _, contract := range contracts {
+		result = append(result, contract.Kind)
+	}
 	return result
 }
 
 func IsAllowedKind(kind string) bool {
-	for _, item := range declaredKinds {
-		if item == strings.TrimSpace(kind) {
-			return true
-		}
-	}
-	return false
+	_, ok := FindKindContract(kind)
+	return ok
 }
 
 // Instance is the canonical registration-only service dependency shape.
@@ -47,6 +44,7 @@ type Instance struct {
 	updated           string
 	name              string
 	kind              string
+	isEnabled         bool
 	templateID        string
 	endpoint          string
 	providerAccountID string
@@ -61,6 +59,7 @@ type Snapshot struct {
 	Updated           string
 	Name              string
 	Kind              string
+	IsEnabled         bool
 	TemplateID        string
 	Endpoint          string
 	ProviderAccountID string
@@ -70,7 +69,7 @@ type Snapshot struct {
 }
 
 func NewInstance() *Instance {
-	return &Instance{config: map[string]any{}}
+	return &Instance{isEnabled: true, config: map[string]any{}}
 }
 
 func RestoreInstance(snapshot Snapshot) *Instance {
@@ -80,11 +79,12 @@ func RestoreInstance(snapshot Snapshot) *Instance {
 		updated:           snapshot.Updated,
 		name:              snapshot.Name,
 		kind:              snapshot.Kind,
+		isEnabled:         snapshot.IsEnabled,
 		templateID:        snapshot.TemplateID,
 		endpoint:          snapshot.Endpoint,
 		providerAccountID: snapshot.ProviderAccountID,
 		credentialID:      snapshot.CredentialID,
-		config:            cloneMap(snapshot.Config),
+		config:            resourceshared.CloneMap(snapshot.Config),
 		description:       snapshot.Description,
 	}
 }
@@ -94,24 +94,34 @@ func (i *Instance) Created() string           { return i.created }
 func (i *Instance) Updated() string           { return i.updated }
 func (i *Instance) Name() string              { return i.name }
 func (i *Instance) Kind() string              { return i.kind }
+func (i *Instance) IsEnabled() bool           { return i.isEnabled }
 func (i *Instance) TemplateID() string        { return i.templateID }
 func (i *Instance) Endpoint() string          { return i.endpoint }
 func (i *Instance) ProviderAccountID() string { return i.providerAccountID }
 func (i *Instance) CredentialID() string      { return i.credentialID }
 func (i *Instance) Description() string       { return i.description }
 
+func (i *Instance) Meta() resourceshared.RecordMeta {
+	return resourceshared.RecordMeta{ID: i.id, Created: i.created, Updated: i.updated}
+}
+
+func (i *Instance) EnabledState() resourceshared.EnabledState {
+	return resourceshared.EnabledState{IsEnabled: i.isEnabled}
+}
+
 func (i *Instance) Config() map[string]any {
-	return cloneMap(i.config)
+	return resourceshared.CloneMap(i.config)
 }
 
 func (i *Instance) ApplySaveInput(input SaveInput) {
 	i.name = strings.TrimSpace(input.Name)
 	i.kind = strings.TrimSpace(input.Kind)
+	i.isEnabled = input.IsEnabled
 	i.templateID = strings.TrimSpace(input.TemplateID)
 	i.endpoint = strings.TrimSpace(input.Endpoint)
 	i.providerAccountID = strings.TrimSpace(input.ProviderAccountID)
 	i.credentialID = strings.TrimSpace(input.CredentialID)
-	i.config = cloneMap(input.Config)
+	i.config = resourceshared.CloneMap(input.Config)
 	i.description = strings.TrimSpace(input.Description)
 }
 
@@ -136,6 +146,7 @@ func (i *Instance) Snapshot() Snapshot {
 		Updated:           i.Updated(),
 		Name:              i.Name(),
 		Kind:              i.Kind(),
+		IsEnabled:         i.IsEnabled(),
 		TemplateID:        i.TemplateID(),
 		Endpoint:          i.Endpoint(),
 		ProviderAccountID: i.ProviderAccountID(),
@@ -146,90 +157,45 @@ func (i *Instance) Snapshot() Snapshot {
 }
 
 type TemplateField struct {
-	ID             string `json:"id"`
-	Label          string `json:"label"`
-	Type           string `json:"type"`
-	Required       bool   `json:"required,omitempty"`
-	Sensitive      bool   `json:"sensitive,omitempty"`
-	SecretTemplate string `json:"secretTemplate,omitempty"`
-	Placeholder    string `json:"placeholder,omitempty"`
-	HelpText       string `json:"helpText,omitempty"`
-	Default        any    `json:"default,omitempty"`
+	ID             string                 `json:"id"`
+	Label          string                 `json:"label"`
+	Type           string                 `json:"type"`
+	Required       bool                   `json:"required,omitempty"`
+	Advanced       bool                   `json:"advanced,omitempty"`
+	Hidden         bool                   `json:"hidden,omitempty"`
+	Sensitive      bool                   `json:"sensitive,omitempty"`
+	SecretTemplate string                 `json:"secretTemplate,omitempty"`
+	Placeholder    string                 `json:"placeholder,omitempty"`
+	HelpText       string                 `json:"helpText,omitempty"`
+	Default        any                    `json:"default,omitempty"`
+	ShowWhen       *TemplateFieldShowWhen `json:"showWhen,omitempty"`
+}
+
+type TemplateFieldShowWhen struct {
+	Field  string   `json:"field"`
+	Values []string `json:"values,omitempty"`
 }
 
 type Template struct {
 	ID string `json:"id"`
 	// Category is the product-facing directory group used for navigation and discovery.
 	// It is not the resource identity axis; kind remains the canonical instance identity.
-	Category            string          `json:"category,omitempty"`
-	Kind                string          `json:"kind"`
-	Title               string          `json:"title"`
-	Vendor              string          `json:"vendor,omitempty"`
-	Description         string          `json:"description,omitempty"`
-	DefaultEndpoint     string          `json:"defaultEndpoint,omitempty"`
-	OmitCommonFields    []string        `json:"omitCommonFields,omitempty"`
-	CommonFieldDefaults map[string]any  `json:"commonFieldDefaults,omitempty"`
-	Fields              []TemplateField `json:"fields,omitempty"`
+	Category               string          `json:"category,omitempty"`
+	Kind                   string          `json:"kind"`
+	Traits                 []string        `json:"traits,omitempty"`
+	Title                  string          `json:"title"`
+	Vendor                 string          `json:"vendor,omitempty"`
+	Description            string          `json:"description,omitempty"`
+	DefaultEndpoint        string          `json:"defaultEndpoint,omitempty"`
+	DefaultPort            int             `json:"defaultPort,omitempty"`
+	DefaultProtocolHint    string          `json:"defaultProtocolHint,omitempty"`
+	LayoutPreset           string          `json:"layoutPreset,omitempty"`
+	EndpointShape          string          `json:"endpointShape,omitempty"`
+	CredentialPresentation string          `json:"credentialPresentation,omitempty"`
+	CredentialLabel        string          `json:"credentialLabel,omitempty"`
+	Fields                 []TemplateField `json:"fields,omitempty"`
 }
 
-func NormalizeTemplateID(raw string) string {
-	trimmed := strings.TrimSpace(strings.ToLower(raw))
-	trimmed = strings.ReplaceAll(trimmed, "_", "-")
-	trimmed = strings.ReplaceAll(trimmed, " ", "-")
-	return trimmed
-}
+func NormalizeTemplateID(raw string) string { return resourceshared.NormalizeTemplateID(raw) }
 
-func cloneMap(input map[string]any) map[string]any {
-	if input == nil {
-		return map[string]any{}
-	}
-	output := make(map[string]any, len(input))
-	for key, value := range input {
-		output[key] = cloneValue(value)
-	}
-	return output
-}
-
-func cloneValue(v any) any {
-	switch val := v.(type) {
-	case map[string]any:
-		return cloneMap(val)
-	case []any:
-		clone := make([]any, len(val))
-		for i, item := range val {
-			clone[i] = cloneValue(item)
-		}
-		return clone
-	default:
-		return v
-	}
-}
-
-func DecodeConfig(raw any) map[string]any {
-	if config, ok := raw.(map[string]any); ok {
-		return cloneMap(config)
-	}
-	if raw == nil {
-		return map[string]any{}
-	}
-
-	var bytes []byte
-	switch typed := raw.(type) {
-	case []byte:
-		bytes = typed
-	case string:
-		bytes = []byte(typed)
-	default:
-		marshaled, err := json.Marshal(typed)
-		if err != nil {
-			return map[string]any{}
-		}
-		bytes = marshaled
-	}
-
-	var decoded map[string]any
-	if err := json.Unmarshal(bytes, &decoded); err != nil {
-		return map[string]any{}
-	}
-	return cloneMap(decoded)
-}
+func DecodeConfig(raw any) map[string]any { return resourceshared.DecodeConfig(raw) }

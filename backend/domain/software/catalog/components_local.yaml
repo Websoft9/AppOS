@@ -1,0 +1,372 @@
+# AppOS local platform components registry
+#
+# This is the single source of truth for AppOS-local built-in components.
+# It serves two consumers:
+# - Platform Runtime / Monitor-facing runtime inventory and service observation
+# - Software Delivery local catalog projection for detect + verify surfaces
+#
+# Minimal runtime constraints:
+# - every enabled component needs id, name, version_probe, availability_probe
+# - every enabled service needs name, component_id, manager, lifecycle, visibility, and log_access
+# - service components should explicitly set runtime_kind: service
+# - components should declare role and owned_capability when the operator surface needs structured explanation
+# - update_probe is optional and should only be declared when it represents that component's own artifact timestamp
+# - dangerous operations default to false and must be explicitly enabled
+#
+# Software Delivery projection rules:
+# - only components with software_catalog are projected into /api/software/local
+# - service_name and template_ref are derived from runtime metadata, not duplicated here
+# - supported_actions defaults to [verify] and visibility defaults to [local_inventory]
+
+version: 1
+
+components:
+  - id: os
+    name: OS
+    enabled: true
+    criticality: core
+    runtime_kind: os
+    role: base operating system
+    owned_capability: container runtime environment
+    version_probe:
+      type: command
+      command: ["sh", "-c", ". /etc/os-release 2>/dev/null && printf '%s\n' \"${PRETTY_NAME:-${VERSION:-${VERSION_ID:-unknown}}}\""]
+    availability_probe:
+      type: file_exists
+      path: /etc/os-release
+    update_probe:
+      type: file_mtime
+      path: /etc/os-release
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Base container operating system reported by the AppOS runtime image.
+
+  - id: appos
+    name: AppOS
+    enabled: true
+    criticality: core
+    runtime_kind: service
+    role: control-plane api
+    owned_capability: appos control plane
+    software_catalog:
+      component_key: appos
+      readiness_requirements:
+        - bundled_with_appos
+        - local_process
+    version_probe:
+      type: static
+      value: unknown
+    availability_probe:
+      type: http
+      url: http://127.0.0.1/api/health
+      expect_status: 200
+    update_probe:
+      type: file_mtime
+      path: /usr/local/bin/appos
+    log_access:
+      type: stdout
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Primary backend and API service.
+
+  - id: traefik
+    name: Traefik
+    enabled: true
+    criticality: optional
+    runtime_kind: service
+    role: publication gateway runtime
+    owned_capability: http publication ingress
+    version_probe:
+      type: command
+      command: ["sh", "-c", "traefik version | sed -n 's/^Version: //p' | head -n 1"]
+    availability_probe:
+      type: command
+      command: ["traefik", "version"]
+    update_probe:
+      type: file_mtime
+      path: /usr/local/bin/traefik
+    log_access:
+      type: stdout
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Optional built-in publication gateway runtime bundled with AppOS and kept off by default until Publish enables it.
+
+  - id: runit
+    name: runit
+    enabled: true
+    criticality: core
+    runtime_kind: process_manager
+    role: process supervisor
+    owned_capability: service orchestration
+    software_catalog:
+      component_key: runit
+      readiness_requirements:
+        - bundled_with_appos
+        - binary_available
+    version_probe:
+      type: command
+      command: ["sh", "-c", "if command -v apk >/dev/null 2>&1; then apk info -v runit 2>/dev/null | head -n 1 | sed 's/^runit-//'; elif command -v dpkg-query >/dev/null 2>&1; then dpkg-query -W -f='${Version}' runit 2>/dev/null; else command -v runsvdir >/dev/null 2>&1 && echo installed; fi"]
+    availability_probe:
+      type: command
+      command: ["sh", "-c", "command -v runsvdir >/dev/null 2>&1"]
+    update_probe:
+      type: file_mtime
+      path: /usr/bin/runsvdir
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Process manager for internal services (runit service directory based).
+
+  - id: redis
+    name: Redis
+    enabled: true
+    criticality: important
+    runtime_kind: service
+    role: cache store
+    owned_capability: background state cache
+    software_catalog:
+      component_key: redis
+      readiness_requirements:
+        - bundled_with_appos
+        - local_process
+    version_probe:
+      type: command
+      command: ['sh', '-c', "redis-server --version | sed -n 's/.*v=\\([^ ]*\\).*/\\1/p'"]
+    availability_probe:
+      type: command
+      command: ["redis-cli", "ping"]
+      expect_output: PONG
+    update_probe:
+      type: file_mtime
+      path: /usr/bin/redis-server
+    log_access:
+      type: stdout
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Internal cache/runtime dependency.
+
+  - id: victoria-metrics
+    name: VictoriaMetrics
+    enabled: true
+    criticality: important
+    runtime_kind: service
+    role: metrics storage
+    owned_capability: time-series persistence
+    software_catalog:
+      component_key: victoria-metrics
+      readiness_requirements:
+        - bundled_with_appos
+        - local_process
+    version_probe:
+      type: command
+      command: ['sh', '-c', "victoria-metrics-prod --version 2>&1 | sed -n 's/.*v\\([0-9.]*\\).*/\\1/p' | head -n 1"]
+    availability_probe:
+      type: http
+      url: http://127.0.0.1:8428/health
+      expect_status: 200
+    update_probe:
+      type: file_mtime
+      path: /usr/local/bin/victoria-metrics-prod
+    log_access:
+      type: stdout
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Embedded time-series database for metrics storage.
+
+  - id: sqlite
+    name: SQLite
+    enabled: true
+    criticality: optional
+    runtime_kind: embedded_dependency
+    role: embedded database engine
+    owned_capability: local persistence engine
+    software_catalog:
+      component_key: sqlite
+      readiness_requirements:
+        - bundled_with_appos
+        - embedded_engine_available
+    version_probe:
+      type: sqlite_query
+      query: SELECT sqlite_version() AS version
+    availability_probe:
+      type: sqlite_query
+      query: SELECT sqlite_version() AS version
+    update_probe:
+      type: file_mtime
+      path: /usr/local/bin/appos
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Embedded SQLite engine used by the AppOS PocketBase runtime.
+
+  - id: git
+    name: Git
+    enabled: true
+    criticality: optional
+    runtime_kind: tool
+    role: version control cli
+    owned_capability: source retrieval
+    software_catalog:
+      component_key: git
+      readiness_requirements:
+        - bundled_with_appos
+        - binary_available
+    version_probe:
+      type: command
+      command: ["sh", "-c", "git --version | sed 's/git version //'"]
+    availability_probe:
+      type: command
+      command: ["git", "--version"]
+    update_probe:
+      type: file_mtime
+      path: /usr/bin/git
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Distributed version control system.
+
+  - id: golang
+    name: Go
+    enabled: true
+    criticality: optional
+    runtime_kind: build_toolchain
+    role: go toolchain metadata
+    owned_capability: go build provenance
+    software_catalog:
+      component_key: golang
+      readiness_requirements:
+        - bundled_with_appos
+        - build_metadata_available
+    version_probe:
+      type: command
+      command: ["sh", "-c", "grep -aoE 'go1\\.[0-9]+(\\.[0-9]+)?' /usr/local/bin/appos | head -n 1 | sed 's/^go//'"]
+    availability_probe:
+      type: command
+      command: ["sh", "-c", "grep -aqE 'go1\\.[0-9]+(\\.[0-9]+)?' /usr/local/bin/appos"]
+    update_probe:
+      type: file_mtime
+      path: /usr/local/bin/appos
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Go toolchain version embedded in the AppOS build metadata.
+
+  - id: opencode
+    name: OpenCode
+    enabled: true
+    criticality: optional
+    runtime_kind: service
+    role: embedded ai agent runtime
+    owned_capability: ai agent workspace
+    version_probe:
+      type: command
+      command: ["sh", "-c", "opencode --version 2>/dev/null || echo unavailable"]
+    availability_probe:
+      type: http
+      url: http://127.0.0.1:4096/global/health
+      expect_status: 200
+    update_probe:
+      type: file_mtime
+      path: /usr/local/bin/opencode
+    log_access:
+      type: stdout
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Embedded OpenCode agent server used by the AI Agent workspace.
+
+services:
+  - name: appos
+    component_id: appos
+    enabled: true
+    manager: process
+    program: appos
+    declared_in: runtime
+    role: AppOS API and control-plane service.
+    lifecycle: always_on
+    visibility: default
+    log_access:
+      type: stdout
+    operations:
+      start: false
+      stop: false
+      restart: false
+
+  - name: redis
+    component_id: redis
+    enabled: true
+    manager: process
+    program: redis-server
+    declared_in: runtime
+    role: Internal cache and runtime dependency.
+    lifecycle: always_on
+    visibility: diagnostic
+    log_access:
+      type: stdout
+    operations:
+      start: false
+      stop: false
+      restart: false
+
+  - name: traefik
+    component_id: traefik
+    enabled: true
+    manager: process
+    program: traefik
+    declared_in: runtime
+    role: Optional publication gateway runtime.
+    lifecycle: on_demand
+    visibility: diagnostic
+    log_access:
+      type: stdout
+    operations:
+      start: false
+      stop: false
+      restart: false
+
+  - name: victoriametrics
+    component_id: victoria-metrics
+    enabled: true
+    manager: process
+    program: victoria-metrics-prod
+    declared_in: runtime
+    role: Embedded time-series metrics storage service.
+    lifecycle: always_on
+    visibility: diagnostic
+    log_access:
+      type: stdout
+    operations:
+      start: false
+      stop: false
+      restart: false
+
+  - name: opencode
+    component_id: opencode
+    enabled: true
+    manager: process
+    program: opencode
+    declared_in: runtime
+    role: Embedded OpenCode agent server.
+    lifecycle: always_on
+    visibility: default
+    log_access:
+      type: stdout
+    operations:
+      start: false
+      stop: false
+      restart: false

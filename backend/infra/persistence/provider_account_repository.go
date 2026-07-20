@@ -24,6 +24,8 @@ func (r *pocketBaseProviderAccountRepository) List() ([]*domainaccounts.Provider
 		return nil, err
 	}
 
+	enrichTimestamps(r.app, collections.ProviderAccounts, records)
+
 	items := make([]*domainaccounts.ProviderAccount, 0, len(records))
 	for _, record := range records {
 		items = append(items, providerAccountFromRecord(record))
@@ -36,6 +38,7 @@ func (r *pocketBaseProviderAccountRepository) Get(id string) (*domainaccounts.Pr
 	if err != nil {
 		return nil, wrapProviderAccountLookupError(id, err)
 	}
+	enrichTimestamps(r.app, collections.ProviderAccounts, []*core.Record{record})
 	return providerAccountFromRecord(record), nil
 }
 
@@ -71,12 +74,14 @@ func (r *pocketBaseProviderAccountRepository) HasReferences(accountID string) (b
 			return true, nil
 		}
 	}
-	records, err := r.app.FindRecordsByFilter(collections.Connectors, "provider_account = {:accountId} && kind != {:kind}", "", 1, 0, map[string]any{"accountId": trimmedID, "kind": "llm"})
+	records, err := r.app.FindRecordsByFilter(collections.Connectors, "provider_account = {:accountId}", "", 10, 0, map[string]any{"accountId": trimmedID})
 	if err != nil {
 		return false, err
 	}
-	if len(records) > 0 {
-		return true, nil
+	for _, record := range records {
+		if !domainaccounts.IsConnectorKindIgnoredForReference(record.GetString("kind")) {
+			return true, nil
+		}
 	}
 	return false, nil
 }
@@ -89,6 +94,7 @@ func (r *pocketBaseProviderAccountRepository) Save(account *domainaccounts.Provi
 	if err := r.app.Save(record); err != nil {
 		return wrapProviderAccountSaveError(account, err)
 	}
+	enrichTimestamps(r.app, collections.ProviderAccounts, []*core.Record{record})
 	copyProviderAccountState(account, providerAccountFromRecord(record))
 	return nil
 }
@@ -129,10 +135,11 @@ func (r *pocketBaseProviderAccountRepository) recordForSave(account *domainaccou
 func providerAccountFromRecord(record *core.Record) *domainaccounts.ProviderAccount {
 	return domainaccounts.RestoreProviderAccount(domainaccounts.Snapshot{
 		ID:           record.Id,
-		Created:      record.GetString("created"),
-		Updated:      record.GetString("updated"),
+		Created:      recordDateTimeString(record, "created"),
+		Updated:      recordDateTimeString(record, "updated"),
 		Name:         record.GetString("name"),
 		Kind:         record.GetString("kind"),
+		IsEnabled:    recordEnabledValue(record),
 		TemplateID:   record.GetString("template_id"),
 		Identifier:   record.GetString("identifier"),
 		CredentialID: record.GetString("credential"),
@@ -145,6 +152,7 @@ func applyProviderAccountToRecord(record *core.Record, account *domainaccounts.P
 	snapshot := account.Snapshot()
 	record.Set("name", snapshot.Name)
 	record.Set("kind", snapshot.Kind)
+	record.Set("is_enabled", snapshot.IsEnabled)
 	record.Set("template_id", snapshot.TemplateID)
 	record.Set("identifier", snapshot.Identifier)
 	record.Set("credential", snapshot.CredentialID)

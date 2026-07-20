@@ -2,20 +2,44 @@
   "id": "openrouter",
   "title": "OpenRouter",
   "vendor": "OpenRouter",
+  "uiGroup": "cloud_gateway",
+  "hostingMode": "cloud",
+  "serviceMode": "gateway",
+  "endpointMode": "customizable",
+  "providerMode": "gateway",
+  "supportsClosedModels": true,
+  "supportsMultiVendorModels": true,
   "description": "Unified hosted LLM routing across multiple model providers.",
+  "helpUrl": "https://openrouter.ai/docs",
   "defaultEndpoint": "https://openrouter.ai/api/v1",
+  "defaultEnabledModels": [
+    "openai/gpt-4o-mini",
+    "openai/gpt-4.1-mini",
+    "anthropic/claude-3.5-sonnet",
+    "google/gemini-2.0-flash"
+  ],
+  "protocols": [
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "default": true
+    }
+  ],
   "capabilities": ["chat", "routing", "tools", "streaming"],
   "aliases": ["openrouter"],
   "fields": [
     {
-      "id": "endpoint",
-      "default": "https://openrouter.ai/api/v1"
+      "id": "endpoint"
     },
     {
       "id": "httpReferer",
       "label": "HTTP Referer",
       "type": "string",
       "placeholder": "https://your-app.example.com"
+    },
+    {
+      "id": "max_completion_tokens",
+      "default": 31100
     }
   ]
 }

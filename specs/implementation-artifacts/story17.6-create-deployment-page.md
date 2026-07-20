@@ -49,12 +49,15 @@ so that source-specific inputs, validation feedback, normalized resolution previ
 - [x] Added a dedicated non-submitting `Check` action that surfaces backend preflight results before action creation.
 - [x] Added realtime install-name availability checks via `POST /api/actions/install/name-availability` and surfaced result inline in the create page.
 - [x] Extended install preflight checks to always include app-name availability plus resource checks (ports, container names, docker availability, disk space).
+- [x] Added a minimal `Exposure Intent` section between source inputs and advanced options, with horizontal mode selection, default `Port access`, editable recommended server port, and deferred `Domain access`.
 
 ## Still Deferred
 
 - [ ] Inline resolution-preview API beyond the current operator-facing summary and submission feedback.
 - [ ] Backend-authored exposure editing and richer advanced-option editors beyond the current placeholders.
+- [ ] Domain access editing beyond a visible disabled placeholder in the create page.
 - [ ] True Docker Run parsing and Source Package preparation beyond the current guided placeholders.
+- [ ] Template deployments should model database configuration as a source choice (`template companion database` by default vs `service instance database`) instead of a raw `Database Password` field; service-instance database selection remains deferred while password override stays in Advanced Options.
 
 ## Proposed Design
 
@@ -72,8 +75,19 @@ Mobile collapses into one column with the summary block below the main form.
 1. Header and navigation actions
 2. `Info`: app name and target server
 3. `Orchestration` or `Repository`: source-specific deployment inputs
-4. `Advanced Options`: deferred exposure and secret-backed platform options
+4. `Exposure Intent`: a compact mode switch for `No access`, `Port access`, and deferred `Domain access`
+5. `Advanced Options`: deferred secret-backed and other platform options
 5. Sticky `Review` panel with identity, resolution, input inventory, pre-flight state, and actions
+
+### Exposure Intent
+
+- Use three horizontal options: `No access`, `Port access`, `Domain access`.
+- Default to `Port access` so novice operators land on a reachable deployment path by default.
+- Only the selected option reveals its settings body.
+- `No access` sends `exposure_type = internal_only`.
+- `Port access` sends `exposure_type = port` with one editable recommended server port.
+- `Domain access` stays visible but disabled with a short `Coming soon` note.
+- Keep the section minimal: one explanatory line plus one server-port input for the port mode.
 
 ### Source-Specific Behavior
 
@@ -142,6 +156,7 @@ GPT-5.4
 - Updated create-page submission flow so server-side preflight is always re-checked before action creation and blocked responses return early.
 - Added optional create/check input for estimated app disk (`app_required_disk_gib`) and surfaced it in the review panel.
 - Refined disk preflight semantics so only threshold/estimate capacity conflicts become hard blockers while probe-unavailable paths stay warnings.
+- Added a minimal `Exposure Intent` selector with default port-access behavior and frontend passthrough to the shared install endpoints.
 
 
 ### File List
@@ -154,7 +169,6 @@ GPT-5.4
 - `dashboard/src/pages/deploy/DeployPage.test.tsx`
 - `dashboard/src/pages/deploy/CreateDeploymentPage.test.tsx`
 - `dashboard/src/routeTree.gen.ts`
-- `build/nginx.conf`
 - `backend/domain/routes/deploy.go`
 - `backend/domain/routes/deploy_test.go`
 - `backend/domain/routes/settings.go`

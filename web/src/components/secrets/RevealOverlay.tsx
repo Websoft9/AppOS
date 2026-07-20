@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -27,7 +27,14 @@ export function RevealOverlay({
   const [copied, setCopied] = useState(false)
   const [copyError, setCopyError] = useState(false)
   const clearTimerRef = useRef<number | null>(null)
-  const content = payload ? JSON.stringify(payload, null, 2) : ''
+  const contentRef = useRef<HTMLElement | null>(null)
+  const content = useMemo(() => {
+    if (!payload) return ''
+    const entries = Object.entries(payload)
+    // Single-field secret → copy just the value, no key wrapping.
+    if (entries.length === 1) return String(entries[0][1] ?? '')
+    return entries.map(([k, v]) => `${k}: ${String(v ?? '')}`).join('\n')
+  }, [payload])
 
   useEffect(() => {
     return () => {
@@ -49,22 +56,50 @@ export function RevealOverlay({
 
   async function copyText() {
     setCopyError(false)
+    setCopied(false)
     try {
+      // 1. Modern API (secure context).
       await navigator.clipboard.writeText(content)
       setCopied(true)
-      if (clearTimerRef.current !== null) {
-        window.clearTimeout(clearTimerRef.current)
-      }
-      if (clearAfterSeconds > 0) {
-        clearTimerRef.current = window.setTimeout(() => {
-          void navigator.clipboard.writeText('')
-          clearTimerRef.current = null
-        }, clearAfterSeconds * 1000)
-      }
-      setTimeout(() => setCopied(false), 1200)
     } catch {
-      setCopyError(true)
+      // 2. Fallback: use a temporary textarea placed inside the dialog so the
+      //    Radix focus-trap does not interfere.  Copy plain JSON, not DOM labels.
+      const container = contentRef.current
+      if (container) {
+        try {
+          const textarea = document.createElement('textarea')
+          textarea.value = content
+          textarea.style.cssText = 'position:absolute;top:-9999px;left:0;opacity:0;'
+          container.insertAdjacentElement('beforebegin', textarea)
+          textarea.focus()
+          textarea.select()
+          const ok = document.execCommand('copy')
+          textarea.remove()
+          if (ok) {
+            setCopied(true)
+          } else {
+            setCopyError(true)
+            return
+          }
+        } catch {
+          setCopyError(true)
+          return
+        }
+      } else {
+        setCopyError(true)
+        return
+      }
     }
+    if (clearTimerRef.current !== null) {
+      window.clearTimeout(clearTimerRef.current)
+    }
+    if (clearAfterSeconds > 0) {
+      clearTimerRef.current = window.setTimeout(() => {
+        void navigator.clipboard.writeText('')
+        clearTimerRef.current = null
+      }, clearAfterSeconds * 1000)
+    }
+    setTimeout(() => setCopied(false), 2000)
   }
 
   return (
@@ -78,7 +113,12 @@ export function RevealOverlay({
         </DialogHeader>
 
         {fieldLabels && payload ? (
-          <div className="max-h-80 overflow-auto space-y-3 rounded-md border bg-muted p-3">
+          <div
+            ref={el => {
+              contentRef.current = el
+            }}
+            className="max-h-80 overflow-auto space-y-3 rounded-md border bg-muted p-3"
+          >
             {Object.entries(payload).map(([key, value]) => (
               <div key={key} className="space-y-0.5">
                 <span className="text-xs font-medium text-muted-foreground">
@@ -89,7 +129,12 @@ export function RevealOverlay({
             ))}
           </div>
         ) : (
-          <pre className="max-h-80 overflow-auto rounded-md border bg-muted p-3 text-xs">
+          <pre
+            ref={el => {
+              contentRef.current = el
+            }}
+            className="max-h-80 overflow-auto rounded-md border bg-muted p-3 text-xs"
+          >
             {content}
           </pre>
         )}

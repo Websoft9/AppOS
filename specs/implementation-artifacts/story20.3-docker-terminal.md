@@ -17,15 +17,16 @@ As a superuser, I can open a terminal inside any running container directly from
 
 ## Implementation
 
-### Backend (`backend/domain/servers/docker_exec.go`)
+### Backend (`backend/domain/routes/terminal_containers.go`)
 
-`DockerExecConnector` implements the `Session` interface via Docker socket (`/var/run/docker.sock`).
+Docker terminal requests resolve a managed server first, then run `docker exec -it` over the existing SSH terminal transport.
 
 ```
-WS  /api/servers/containers/:containerId/shell   ?shell=/bin/sh (default)
+WS  /api/terminal/docker/:containerId?server_id=:serverId&shell=/bin/sh
 ```
 
-- Calls Docker API `POST /containers/{id}/exec` → `POST /exec/{id}/start` with `AttachStdin`, `AttachStdout`, `Tty: true`
+- Requires a managed `server_id`; `local` is rejected
+- Reuses the SSH terminal session path and sets the shell command to `docker exec -it <containerId> <shell>`
 - Relay: same raw-bytes + control-frame protocol as SSH terminal
 - `containerId` accepts both container name and ID
 - Default shell: `/bin/sh` (bash not guaranteed in all images)
@@ -77,9 +78,7 @@ No file manager for containers (SFTP targets registered servers, not ephemeral c
 ### Files Created/Modified
 
 ```
-backend/domain/servers/docker_exec.go            # DockerExecConnector, Session impl via Docker socket
-backend/domain/servers/terminal_test.go          # +3 tests: default shell, socket, interface check
-backend/domain/routes/server.go                 # handleDockerExecTerminal + route registration
+backend/domain/routes/terminal_containers.go     # Docker exec WebSocket route via managed server SSH transport
 backend/domain/routes/server_test.go              # +1 test: TestDockerExecRequiresAuth
 dashboard/src/components/docker/ContainersTab.tsx   # Added onOpenTerminal prop + "Terminal" menu item
 dashboard/src/routes/_app/_auth/docker.tsx           # Added TerminalPanel Dialog for docker exec
@@ -87,13 +86,13 @@ dashboard/src/routes/_app/_auth/docker.tsx           # Added TerminalPanel Dialo
 
 ### Decisions
 
-- Used raw Docker Engine API over unix socket (`/var/run/docker.sock`) — not Docker CLI
+- Reused managed-server SSH transport instead of introducing a local Docker socket connector
 - exec/start with Connection: Upgrade → hijacked bidirectional I/O, same relay pattern as SSH
 - Terminal action only visible for running containers (`c.State === "running"`)
 - Default shell `/bin/sh` (not bash) since many containers don't have bash
 - Reused `<TerminalPanel containerId={id} />` from Story 15.1 — zero duplication
 - Docker exec WS 同样受益于 `wsTokenAuth` Priority=-1019 修复（共享同一 server runtime group），无需额外处理
-- nginx WS location regex 同时覆盖 `/api/servers/:serverId/shell` 和 `/api/servers/containers/:containerId/shell`
+- nginx WS location regex 同时覆盖 `/api/servers/:serverId/shell` 和 `/api/terminal/docker/:containerId`
 
 ### Code Review Fixes
 

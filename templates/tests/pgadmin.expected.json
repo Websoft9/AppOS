@@ -1,0 +1,59 @@
+{
+  "templateKey": "pgadmin",
+  "requiredFiles": [
+    "manifest.json",
+    "inputs.schema.json",
+    "render.json",
+    "source.json",
+    "compose/base.yml",
+    "env/defaults.env"
+  ],
+  "manifest": {
+    "contractVersion": "0.1",
+    "key": "pgadmin",
+    "category": "database",
+    "serviceRoles": {
+      "pgadmin": "primary"
+    }
+  },
+  "inputs": {
+    "fieldKeys": [
+      "app_id",
+      "version",
+      "http_port",
+      "site_url",
+      "admin_email",
+      "admin_password"
+    ],
+    "secretBacked": [
+      "admin_password"
+    ],
+    "systemManaged": [
+      "app_id"
+    ]
+  },
+  "render": {
+    "exposures": [
+      {
+        "label": "Web",
+        "service": "pgadmin",
+        "port": 80,
+        "protocol": "http",
+        "default": true
+      }
+    ],
+    "primaryService": "pgadmin",
+    "secretRefs": [
+      "admin_password"
+    ]
+  },
+  "source": {
+    "originKind": "official",
+    "templateRevision": "v0-initial",
+    "adapterVersion": "v0"
+  },
+  "adapter": {
+    "primaryService": "pgadmin",
+    "publishKind": "http"
+  }
+}

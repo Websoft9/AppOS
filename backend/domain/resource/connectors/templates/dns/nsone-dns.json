@@ -1,0 +1,8 @@
+{
+  "id": "nsone-dns",
+  "title": "NS1",
+  "vendor": "NS1",
+  "description": "NS1 DNS API profile.",
+  "defaultEndpoint": "https://api.nsone.net/v1",
+  "aliases": ["ns1", "nsone"]
+}

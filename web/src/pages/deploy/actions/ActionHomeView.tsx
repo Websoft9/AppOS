@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, CircleHelp, Ellipsis, Store, Wrench } from 'lucide-react'
-import { getIconUrl } from '@/lib/store-api'
+import { ArrowRight, CircleHelp, Ellipsis, Shuffle, Store, Wrench } from 'lucide-react'
+import { getIconUrl } from '@/lib/store-presenter'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -16,7 +16,8 @@ import {
 } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { buildActionListHref } from '@/pages/deploy/actions/action-utils'
+import { actionStatusLabel } from './action-utils'
+import type { CreateDeploymentEntryMode } from './action-types'
 
 type StoreShortcut = {
   key: string
@@ -34,15 +35,8 @@ type LatestOperationItem = {
   updated: string
 }
 
-type ManualEntryMode =
-  | 'compose'
-  | 'docker-command'
-  | 'install-script'
-  | 'store-prefill'
-  | 'installed-prefill'
-
 type CustomEntry = {
-  key: ManualEntryMode | 'git-compose'
+  key: CreateDeploymentEntryMode
   title: string
   description: string
   icon: React.ReactNode
@@ -73,6 +67,7 @@ type ActionHomeViewProps<TOperation extends LatestOperationItem> = {
 }
 
 const STORE_GRID_SLOTS = 16
+const STORE_SHORTCUTS_PER_BATCH = STORE_GRID_SLOTS - 1
 
 function TitleHelp({ text }: { text: string }) {
   return (
@@ -153,6 +148,7 @@ function MoreAppsTile() {
   return (
     <Link
       to="/store"
+      search={{ q: undefined, app: undefined }}
       className="group flex min-w-0 flex-col items-center gap-2 rounded-xl px-1 py-2 text-center transition-colors hover:bg-sky-100/60 dark:hover:bg-sky-500/10"
     >
       <span className="flex h-12 w-12 items-center justify-center text-slate-500 transition-colors group-hover:text-sky-700 dark:text-slate-400 dark:group-hover:text-sky-300">
@@ -186,6 +182,24 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
   onOpenOperation,
   renderActionMenu,
 }: ActionHomeViewProps<TOperation>) {
+  const [shortcutBatch, setShortcutBatch] = useState(0)
+  const shortcutBatchCount = Math.max(
+    1,
+    Math.ceil(storeShortcuts.length / STORE_SHORTCUTS_PER_BATCH)
+  )
+  const visibleStoreShortcuts = useMemo(
+    () =>
+      storeShortcuts.slice(
+        shortcutBatch * STORE_SHORTCUTS_PER_BATCH,
+        shortcutBatch * STORE_SHORTCUTS_PER_BATCH + STORE_SHORTCUTS_PER_BATCH
+      ),
+    [shortcutBatch, storeShortcuts]
+  )
+
+  useEffect(() => {
+    setShortcutBatch(current => Math.min(current, shortcutBatchCount - 1))
+  }, [shortcutBatchCount])
+
   return (
     <div className="space-y-6">
       {prefillLoading ? (
@@ -210,10 +224,33 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="border-sky-200 bg-linear-to-br from-sky-50 via-white to-cyan-50/70 dark:border-sky-900/60 dark:from-slate-950 dark:via-slate-900 dark:to-sky-950/40">
           <CardHeader className="space-y-3">
-            <div className="flex items-center gap-2 text-lg font-semibold text-slate-950 dark:text-slate-50">
-              <Store className="h-4 w-4 text-sky-600 dark:text-sky-300" />
-              <span>Install from Store</span>
-              <TitleHelp text="Use a Store application shortcut for a fast deploy handoff, or open App Store to browse more applications." />
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2 text-lg font-semibold text-slate-950 dark:text-slate-50">
+                <Store className="h-4 w-4 text-sky-600 dark:text-sky-300" />
+                <span>Install from Store</span>
+                <TitleHelp text="Use a Store application shortcut for a fast deploy handoff, or open App Store to browse more applications." />
+              </div>
+              {shortcutBatchCount > 1 ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0 rounded-full text-sky-700 hover:text-sky-800 dark:text-sky-300 dark:hover:text-sky-200"
+                      aria-label="Show another set"
+                      onClick={() =>
+                        setShortcutBatch(current => (current + 1) % shortcutBatchCount)
+                      }
+                    >
+                      <Shuffle className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" sideOffset={6}>
+                    Show another set
+                  </TooltipContent>
+                </Tooltip>
+              ) : null}
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -225,7 +262,7 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
                       className="h-[76px] rounded-xl bg-white/30 dark:bg-white/5"
                     />
                   ))
-                : storeShortcuts.map(app => (
+                : visibleStoreShortcuts.map(app => (
                     <AppLauncherIcon key={app.key} app={app} onOpen={onOpenStoreShortcut} />
                   ))}
               {storeShortcuts.length > 0 ? <MoreAppsTile /> : null}
@@ -233,15 +270,15 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
             <div className="flex flex-col gap-3 rounded-2xl border border-sky-100 bg-white/70 px-4 py-3 dark:border-sky-900/50 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                  Need more templates?
+                  Need more applications?
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Browse 300+ installable app templates, then hand off directly into deployment.
+                  Browse 300+ applications in the App Store, then deploy with one click.
                 </div>
               </div>
-              <Button asChild className="justify-between sm:min-w-[180px]">
-                <Link to="/store">
-                  Open App Store
+              <Button asChild className="gap-2">
+                <Link to="/store" search={{ q: undefined, app: undefined }}>
+                  Browse All
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
@@ -320,19 +357,27 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-base">Latest Actions</CardTitle>
+          <div className="space-y-1">
+            <CardTitle className="text-base">Latest Activity Summary</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Showing the 5 most recently updated activity records. Open the full Activity page for
+              complete history.
+            </p>
+          </div>
           <Button variant="outline" size="sm" asChild>
-            <a href={buildActionListHref()}>View action history</a>
+            <Link to="/activity" params={{} as never} search={{} as never}>
+              Open full activity
+            </Link>
           </Button>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="rounded-xl border border-dashed px-4 py-6 text-sm text-muted-foreground">
-              Loading actions...
+              Loading activity...
             </div>
           ) : latestOperations.length === 0 ? (
             <div className="rounded-xl border border-dashed px-4 py-6 text-sm text-muted-foreground">
-              No action records yet.
+              No activity records yet.
             </div>
           ) : (
             <div className="overflow-hidden rounded-xl border">
@@ -372,7 +417,9 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
                         <div className="text-xs text-muted-foreground">{getServerHost(item)}</div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={statusVariant(item.status)}>{item.status}</Badge>
+                        <Badge variant={statusVariant(item.status)}>
+                          {actionStatusLabel(item.status)}
+                        </Badge>
                       </TableCell>
                       <TableCell>{formatTime(item.updated)}</TableCell>
                       <TableCell className="text-right">{renderActionMenu(item)}</TableCell>

@@ -2,13 +2,38 @@
 // Backend: /api/servers/{serverId}/software
 
 import { pb } from '@/lib/pb'
+import { settingsEntryPath } from '@/lib/settings-api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type SoftwareActionType = 'install' | 'upgrade' | 'verify' | 'reinstall' | 'uninstall'
+export type SoftwareActionType =
+  | 'install'
+  | 'upgrade'
+  | 'verify'
+  | 'reinstall'
+  | 'uninstall'
+  | 'start'
+  | 'stop'
+  | 'restart'
 export type InstalledState = 'installed' | 'not_installed' | 'unknown'
 export type VerificationState = 'healthy' | 'degraded' | 'unknown'
-export type TemplateKind = 'package' | 'script' | 'binary'
+export type ServiceStatus =
+  | 'running'
+  | 'stopped'
+  | 'installed'
+  | 'not_installed'
+  | 'needs_attention'
+  | 'unknown'
+export type AppOSConnectionStatus =
+  | 'connected'
+  | 'stale'
+  | 'not_connected'
+  | 'auth_failed'
+  | 'misconfigured'
+  | 'unknown'
+  | 'not_applicable'
+export type TemplateKind = 'package' | 'script' | 'binary' | 'docker'
+export type ArtifactKind = 'package' | 'script' | 'binary' | 'docker'
 export type CatalogVisibility =
   | 'server_operations'
   | 'supported_software_discovery'
@@ -24,7 +49,7 @@ export type OperationPhase =
   | 'failed'
   | 'attention_required'
 
-export type TerminalStatusType = 'none' | 'success' | 'failed'
+export type TerminalStatusType = 'none' | 'success' | 'failed' | 'attention_required'
 
 export interface SoftwareLastAction {
   action: string
@@ -36,6 +61,7 @@ export interface SoftwareLastOperation {
   action: SoftwareActionType
   phase: OperationPhase
   terminal_status: TerminalStatusType
+  failure_code?: string
   failure_reason?: string
   updated_at: string
 }
@@ -63,7 +89,9 @@ export interface SoftwareOperation {
   action: SoftwareActionType
   phase: OperationPhase
   terminal_status: TerminalStatusType
+  failure_code?: string
   failure_reason: string
+  event_log?: string
   created: string
   updated: string
 }
@@ -71,18 +99,24 @@ export interface SoftwareOperation {
 export interface SoftwareComponentSummary {
   component_key: string
   label: string
+  description?: string
   target_type: 'server' | 'local'
   template_kind: TemplateKind
+  artifact_kind?: ArtifactKind
   installed_state: InstalledState
   detected_version?: string
   install_source?: InstallSource
   source_evidence?: string
   packaged_version?: string
   verification_state: VerificationState
+  service_status?: ServiceStatus
+  appos_connection?: AppOSConnectionStatus
+  health_reasons?: string[]
   available_actions: SoftwareActionType[]
   last_action?: SoftwareLastAction
   last_operation?: SoftwareLastOperation
   preflight?: TargetReadinessResult
+  verification?: SoftwareVerificationResult
 }
 
 export interface SoftwareComponentDetail extends SoftwareComponentSummary {
@@ -90,6 +124,9 @@ export interface SoftwareComponentDetail extends SoftwareComponentSummary {
   binary_path?: string
   config_path?: string
   verification?: SoftwareVerificationResult
+  available?: boolean
+  inventory_pending?: boolean
+  probe_pending?: boolean
 }
 
 export interface CapabilityStatus {
@@ -112,9 +149,15 @@ export interface SupportedServerSoftwareEntry {
   label: string
   capability?: string
   supported_actions: SoftwareActionType[]
+  action_timeouts?: Partial<Record<SoftwareActionType, number>>
+  timeout_policy?: Partial<Record<SoftwareActionType, 'attention_required' | 'failed'>>
   template_kind: TemplateKind
+  artifact_kind?: ArtifactKind
+  service_name?: string
   description: string
   readiness_requirements: string[]
+  requires_appos_base_url?: boolean
+  favorite_systemd_service?: boolean
   visibility: CatalogVisibility[]
 }
 
@@ -131,6 +174,8 @@ function localSoftwareBasePath(): string {
 function supportedServerCatalogBasePath(): string {
   return '/api/software/server-catalog'
 }
+
+const noAutoCancel = { requestKey: null }
 
 // ─── API Functions ────────────────────────────────────────────────────────────
 
@@ -216,6 +261,15 @@ export async function getSoftwareOperation(
   })
 }
 
+export async function deleteSoftwareOperation(
+  serverId: string,
+  operationId: string
+): Promise<void> {
+  await pb.send(`${softwareBasePath(serverId)}/operations/${operationId}`, {
+    method: 'DELETE',
+  })
+}
+
 export async function invokeSoftwareAction(
   serverId: string,
   componentKey: string,
@@ -227,6 +281,14 @@ export async function invokeSoftwareAction(
     {
       method: 'POST',
       body: options?.apposBaseUrl ? { apposBaseUrl: options.apposBaseUrl } : undefined,
+      ...noAutoCancel,
     }
   )
+}
+
+export async function getConfiguredAppURL(): Promise<string> {
+  const response = await pb.send<{ value?: { appURL?: string } }>(settingsEntryPath('basic'), {
+    method: 'GET',
+  })
+  return typeof response.value?.appURL === 'string' ? response.value.appURL : ''
 }

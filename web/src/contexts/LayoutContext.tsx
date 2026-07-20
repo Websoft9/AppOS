@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react'
 import { useMediaQuery } from '@/hooks/use-media-query'
 
 const SIDEBAR_STORAGE_KEY = 'sidebar-collapsed'
@@ -18,6 +26,9 @@ interface LayoutContextValue {
   isMobile: boolean
   isTablet: boolean
   isDesktop: boolean
+  // Header slots
+  headerRightStartContent: ReactNode | null
+  setHeaderRightStartContent: (content: ReactNode | null) => void
 }
 
 const LayoutContext = createContext<LayoutContextValue | null>(null)
@@ -33,6 +44,7 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
   })
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [bottomExpanded, setBottomExpanded] = useState(false)
+  const [headerRightStartContent, setHeaderRightStartContent] = useState<ReactNode | null>(null)
 
   // Persist sidebar collapsed state
   const setSidebarCollapsed = useCallback((v: boolean) => {
@@ -61,29 +73,45 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
     if (isDesktop) setSidebarOpen(false)
   }, [isDesktop])
 
-  return (
-    <LayoutContext.Provider
-      value={{
-        sidebarCollapsed,
-        sidebarOpen,
-        toggleSidebar,
-        setSidebarCollapsed,
-        setSidebarOpen,
-        bottomExpanded,
-        toggleBottom,
-        setBottomExpanded,
-        isMobile,
-        isTablet,
-        isDesktop,
-      }}
-    >
-      {children}
-    </LayoutContext.Provider>
+  const contextValue = useMemo(
+    () => ({
+      sidebarCollapsed,
+      sidebarOpen,
+      toggleSidebar,
+      setSidebarCollapsed,
+      setSidebarOpen,
+      bottomExpanded,
+      toggleBottom,
+      setBottomExpanded,
+      isMobile,
+      isTablet,
+      isDesktop,
+      headerRightStartContent,
+      setHeaderRightStartContent,
+    }),
+    [
+      sidebarCollapsed,
+      sidebarOpen,
+      toggleSidebar,
+      setSidebarCollapsed,
+      bottomExpanded,
+      toggleBottom,
+      isMobile,
+      isTablet,
+      isDesktop,
+      headerRightStartContent,
+    ]
   )
+
+  return <LayoutContext.Provider value={contextValue}>{children}</LayoutContext.Provider>
 }
 
 export function useLayout() {
   const ctx = useContext(LayoutContext)
   if (!ctx) throw new Error('useLayout must be used within LayoutProvider')
   return ctx
+}
+
+export function useOptionalLayout() {
+  return useContext(LayoutContext)
 }

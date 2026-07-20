@@ -5,14 +5,73 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sharedenv"
-	"github.com/websoft9/appos/backend/domain/deploy"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
+	"github.com/websoft9/appos/backend/domain/runtimepaths"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	"gopkg.in/yaml.v3"
 )
+
+const MaxExecutionLogBytes = 64 * 1024
+
+type ManualComposeRequest struct {
+	ServerID    string `json:"server_id"`
+	ProjectName string `json:"project_name"`
+	Compose     string `json:"compose"`
+}
+
+type GitComposeRequest struct {
+	ServerID        string `json:"server_id"`
+	ProjectName     string `json:"project_name"`
+	RepositoryURL   string `json:"repository_url"`
+	Ref             string `json:"ref"`
+	ComposePath     string `json:"compose_path"`
+	RawURL          string `json:"raw_url"`
+	AuthHeaderName  string `json:"auth_header_name"`
+	AuthHeaderValue string `json:"auth_header_value"`
+}
+
+func NormalizeProjectName(input string) string {
+	trimmed := strings.TrimSpace(strings.ToLower(input))
+	if trimmed == "" {
+		return ""
+	}
+	var b strings.Builder
+	lastDash := false
+	for _, r := range trimmed {
+		switch {
+		case unicode.IsLetter(r) || unicode.IsDigit(r):
+			b.WriteRune(r)
+			lastDash = false
+		case !lastDash:
+			b.WriteByte('-')
+			lastDash = true
+		}
+	}
+	return strings.Trim(b.String(), "-")
+}
+
+func ValidateManualCompose(raw string) error {
+	if strings.TrimSpace(raw) == "" {
+		return fmt.Errorf("compose is required")
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal([]byte(raw), &doc); err != nil {
+		return fmt.Errorf("invalid compose yaml: %w", err)
+	}
+	services, ok := doc["services"]
+	if !ok {
+		return fmt.Errorf("compose must contain services")
+	}
+	serviceMap, ok := services.(map[string]any)
+	if !ok || len(serviceMap) == 0 {
+		return fmt.Errorf("compose services must be a non-empty map")
+	}
+	return nil
+}
 
 type ExposureIntent struct {
 	ExposureType  string
@@ -57,8 +116,9 @@ type NormalizedInstallSpec struct {
 	ProjectDir         string
 	RenderedCompose    string
 	OperationType      string
-	Source             string
-	Adapter            string
+	Trigger            string
+	Channel            string
+	ExecutionMode      string
 	ResolvedEnv        map[string]any
 	ExposureIntent     *ExposureIntent
 	Metadata           map[string]any
@@ -275,8 +335,9 @@ const (
 
 type InstallCandidateInput struct {
 	Kind           InstallCandidateKind
-	Source         string
-	Adapter        string
+	Trigger        string
+	Channel        string
+	ExecutionMode  string
 	OriginContext  map[string]any
 	PrefillContext map[string]any
 	Payload        map[string]any
@@ -286,8 +347,9 @@ func (spec NormalizedInstallSpec) OperationSpec() map[string]any {
 	result := map[string]any{
 		"server_id":            spec.ServerID,
 		"project_name":         spec.ProjectName,
-		"source":               spec.Source,
-		"adapter":              spec.Adapter,
+		"trigger":              spec.Trigger,
+		"channel":              spec.Channel,
+		"execution_mode":       spec.ExecutionMode,
 		"compose_project_name": spec.ComposeProjectName,
 		"project_dir":          spec.ProjectDir,
 		"rendered_compose":     spec.RenderedCompose,
@@ -317,8 +379,9 @@ type InstallResolutionRequest struct {
 	ProjectName        string
 	Compose            string
 	OperationType      string
-	Source             string
-	Adapter            string
+	Trigger            string
+	Channel            string
+	ExecutionMode      string
 	ProjectDir         string
 	ComposeProjectName string
 	UserID             string
@@ -355,14 +418,15 @@ func BuildInstallIngressOptionsFromRaw(userID string, operationType string, proj
 	}
 }
 
-func BuildInstallResolutionRequest(serverID string, projectName string, compose string, source string, adapter string, options InstallIngressOptions) InstallResolutionRequest {
+func BuildInstallResolutionRequest(serverID string, projectName string, compose string, trigger string, channel string, executionMode string, options InstallIngressOptions) InstallResolutionRequest {
 	return InstallResolutionRequest{
 		ServerID:           serverID,
 		ProjectName:        projectName,
 		Compose:            compose,
 		OperationType:      options.OperationType,
-		Source:             source,
-		Adapter:            adapter,
+		Trigger:            model.NormalizeOperationTrigger(trigger),
+		Channel:            model.NormalizeOperationChannel(channel),
+		ExecutionMode:      model.NormalizeOperationExecutionMode(executionMode),
 		ProjectDir:         options.ProjectDir,
 		ComposeProjectName: options.ComposeProjectName,
 		UserID:             strings.TrimSpace(options.UserID),
@@ -374,28 +438,30 @@ func BuildInstallResolutionRequest(serverID string, projectName string, compose 
 	}
 }
 
-func BuildManualComposeInstallResolutionRequest(request deploy.ManualComposeRequest, options InstallIngressOptions) InstallResolutionRequest {
-	adapter := deploy.AdapterManualCompose
+func BuildManualComposeInstallResolutionRequest(request ManualComposeRequest, options InstallIngressOptions) InstallResolutionRequest {
+	executionMode := string(model.ExecutionModeCompose)
 	candidateKind := InstallCandidateKindManualCompose
+	channel := string(model.ChannelCustom)
 	if options.SourceBuild != nil {
-		adapter = deploy.AdapterSourceBuild
+		executionMode = string(model.ExecutionModeBuild)
 		candidateKind = InstallCandidateKindInstallScript
+		channel = sourceBuildOperationChannel(options.SourceBuild)
 	}
-	options.Metadata = applyInstallCandidateMetadata(options.Metadata, candidateKind, deploy.SourceManualOps, adapter, nil)
-	return BuildInstallResolutionRequest(request.ServerID, request.ProjectName, request.Compose, deploy.SourceManualOps, adapter, options)
+	options.Metadata = applyInstallCandidateMetadata(options.Metadata, candidateKind, string(model.TriggerManual), channel, executionMode, nil)
+	return BuildInstallResolutionRequest(request.ServerID, request.ProjectName, request.Compose, string(model.TriggerManual), channel, executionMode, options)
 }
 
-func BuildGitComposeInstallResolutionRequest(request deploy.GitComposeRequest, compose string, rawURL string, options InstallIngressOptions) InstallResolutionRequest {
+func BuildGitComposeInstallResolutionRequest(request GitComposeRequest, compose string, rawURL string, options InstallIngressOptions) InstallResolutionRequest {
 	projectName := strings.TrimSpace(request.ProjectName)
 	if projectName == "" {
 		projectName = deriveGitComposeProjectName(request.RepositoryURL, request.ComposePath, rawURL)
 	}
 	options.Metadata = MergeMetadata(gitComposeMetadata(request, rawURL), options.Metadata)
-	options.Metadata = applyInstallCandidateMetadata(options.Metadata, InstallCandidateKindGitCompose, deploy.SourceGitOps, deploy.AdapterGitCompose, gitComposeMetadata(request, rawURL))
-	return BuildInstallResolutionRequest(request.ServerID, projectName, compose, deploy.SourceGitOps, deploy.AdapterGitCompose, options)
+	options.Metadata = applyInstallCandidateMetadata(options.Metadata, InstallCandidateKindGitCompose, string(model.TriggerManual), string(model.ChannelGit), string(model.ExecutionModeCompose), gitComposeMetadata(request, rawURL))
+	return BuildInstallResolutionRequest(request.ServerID, projectName, compose, string(model.TriggerManual), string(model.ChannelGit), string(model.ExecutionModeCompose), options)
 }
 
-func GitComposeAuditDetail(request deploy.GitComposeRequest, rawURL string) map[string]any {
+func GitComposeAuditDetail(request GitComposeRequest, rawURL string) map[string]any {
 	return gitComposeMetadata(request, rawURL)
 }
 
@@ -504,11 +570,11 @@ func NormalizeInstallSourceBuild(raw map[string]any) *InstallSourceBuildInput {
 }
 
 func ResolveInstallFromCompose(app core.App, request InstallResolutionRequest) (NormalizedInstallSpec, error) {
-	if err := deploy.ValidateManualCompose(request.Compose); err != nil {
+	if err := ValidateManualCompose(request.Compose); err != nil {
 		return NormalizedInstallSpec{}, err
 	}
 
-	normalizedProjectName := deploy.NormalizeProjectName(request.ProjectName)
+	normalizedProjectName := NormalizeProjectName(request.ProjectName)
 	if normalizedProjectName == "" {
 		normalizedProjectName = "app"
 	}
@@ -516,7 +582,7 @@ func ResolveInstallFromCompose(app core.App, request InstallResolutionRequest) (
 	if value := strings.TrimSpace(request.ComposeProjectName); value != "" {
 		composeProjectName = value
 	}
-	projectDir := filepath.Join("/appos/data/apps/operations", normalizedProjectName)
+	projectDir := filepath.Join(runtimepaths.OperationsAppsDir(), normalizedProjectName)
 	if value := strings.TrimSpace(request.ProjectDir); value != "" {
 		projectDir = value
 	}
@@ -558,8 +624,9 @@ func ResolveInstallFromCompose(app core.App, request InstallResolutionRequest) (
 		ProjectDir:         projectDir,
 		RenderedCompose:    renderedCompose,
 		OperationType:      operationType,
-		Source:             request.Source,
-		Adapter:            request.Adapter,
+		Trigger:            model.NormalizeOperationTrigger(request.Trigger),
+		Channel:            resolveInstallChannel(request.Channel, request.ExecutionMode, metadata, normalizedSourceBuild),
+		ExecutionMode:      resolveInstallExecutionMode(request.ExecutionMode, normalizedSourceBuild),
 		ResolvedEnv:        resolvedEnv,
 		ExposureIntent:     exposureIntent,
 		Metadata:           metadata,
@@ -868,7 +935,7 @@ func mapBool(input map[string]any, key string) bool {
 	}
 }
 
-func gitComposeMetadata(request deploy.GitComposeRequest, rawURL string) map[string]any {
+func gitComposeMetadata(request GitComposeRequest, rawURL string) map[string]any {
 	return map[string]any{
 		"repository_url": request.RepositoryURL,
 		"ref":            request.Ref,
@@ -877,7 +944,7 @@ func gitComposeMetadata(request deploy.GitComposeRequest, rawURL string) map[str
 	}
 }
 
-func applyInstallCandidateMetadata(metadata map[string]any, defaultKind InstallCandidateKind, source string, adapter string, payload map[string]any) map[string]any {
+func applyInstallCandidateMetadata(metadata map[string]any, defaultKind InstallCandidateKind, trigger string, source string, adapter string, payload map[string]any) map[string]any {
 	result := cloneMap(metadata)
 	if result == nil {
 		result = map[string]any{}
@@ -890,8 +957,9 @@ func applyInstallCandidateMetadata(metadata map[string]any, defaultKind InstallC
 
 	originContext := MergeMetadata(
 		map[string]any{
-			"source":  strings.TrimSpace(source),
-			"adapter": strings.TrimSpace(adapter),
+			"trigger":        model.NormalizeOperationTrigger(trigger),
+			"channel":        model.NormalizeOperationChannel(source),
+			"execution_mode": model.NormalizeOperationExecutionMode(adapter),
 		},
 		mapMap(result, "origin_context"),
 	)
@@ -913,6 +981,52 @@ func applyInstallCandidateMetadata(metadata map[string]any, defaultKind InstallC
 		return nil
 	}
 	return result
+}
+
+func resolveInstallChannel(channel string, executionMode string, metadata map[string]any, sourceBuild *InstallSourceBuildInput) string {
+	normalized := model.NormalizeOperationChannel(channel)
+	if normalized != "" {
+		return normalized
+	}
+	if sourceBuild != nil {
+		return sourceBuildOperationChannel(sourceBuild)
+	}
+	if strings.TrimSpace(mapString(metadata, "template_key")) != "" {
+		return string(model.ChannelStore)
+	}
+	if strings.TrimSpace(mapString(metadata, "candidate_kind")) == string(InstallCandidateKindStorePrefill) {
+		return string(model.ChannelStore)
+	}
+	if strings.TrimSpace(executionMode) == string(model.ExecutionModeBuild) {
+		return string(model.ChannelCustom)
+	}
+	if strings.TrimSpace(mapString(metadata, "repository_url")) != "" {
+		return string(model.ChannelGit)
+	}
+	return string(model.ChannelCustom)
+}
+
+func resolveInstallExecutionMode(executionMode string, sourceBuild *InstallSourceBuildInput) string {
+	normalized := model.NormalizeOperationExecutionMode(executionMode)
+	if normalized != "" {
+		return normalized
+	}
+	if sourceBuild != nil {
+		return string(model.ExecutionModeBuild)
+	}
+	return string(model.ExecutionModeCompose)
+}
+
+func sourceBuildOperationChannel(sourceBuild *InstallSourceBuildInput) string {
+	if sourceBuild == nil {
+		return string(model.ChannelCustom)
+	}
+	switch strings.ToLower(strings.TrimSpace(sourceBuild.SourceKind)) {
+	case "git":
+		return string(model.ChannelGit)
+	default:
+		return string(model.ChannelCustom)
+	}
 }
 
 func resolveInstallCandidateKind(metadata map[string]any, fallback InstallCandidateKind) InstallCandidateKind {
@@ -1168,10 +1282,10 @@ func deriveGitComposeProjectName(repositoryURL string, composePath string, rawUR
 	trimmed := strings.Trim(strings.TrimSuffix(strings.TrimSpace(value), ".git"), "/")
 	segments := strings.Split(trimmed, "/")
 	if len(segments) >= 2 {
-		return deploy.NormalizeProjectName(segments[len(segments)-1])
+		return NormalizeProjectName(segments[len(segments)-1])
 	}
 	if base := strings.TrimSuffix(filepath.Base(composePath), filepath.Ext(composePath)); base != "" {
-		return deploy.NormalizeProjectName(base)
+		return NormalizeProjectName(base)
 	}
 	return "git-deploy"
 }

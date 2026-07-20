@@ -1,0 +1,36 @@
+{
+  "id": "vllm",
+  "title": "vLLM",
+  "vendor": "vLLM",
+  "uiGroup": "self_hosted",
+  "hostingMode": "self_hosted",
+  "serviceMode": "inference_runtime",
+  "endpointMode": "user_supplied",
+  "supportsClosedModels": false,
+  "supportsMultiVendorModels": false,
+  "description": "Self-hosted vLLM runtime exposing an OpenAI-compatible inference endpoint.",
+  "helpUrl": "https://docs.vllm.ai/",
+  "defaultEndpoint": "",
+  "defaultAuthScheme": "bearer",
+  "protocols": [
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "default": true
+    }
+  ],
+  "capabilities": ["chat", "embeddings", "local", "openai-compatible"],
+  "aliases": ["vllm"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "placeholder": "http://your-vllm-host:8000/v1"
+    },
+    {
+      "id": "credential",
+      "label": "API Key",
+      "required": true,
+      "sensitive": false
+    }
+  ]
+}

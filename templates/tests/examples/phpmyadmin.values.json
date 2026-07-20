@@ -1,0 +1,8 @@
+{
+  "app_id": "phpmyadmin-demo",
+  "version": "5.2.1",
+  "http_port": 9001,
+  "site_url": "phpmyadmin.example.com",
+  "db_host": "mysql-demo",
+  "db_port": 3306
+}

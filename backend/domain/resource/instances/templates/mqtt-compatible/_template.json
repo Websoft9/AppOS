@@ -1,0 +1,25 @@
+{
+  "kind": "mqtt-compatible",
+  "category": "message-queue",
+  "endpointShape": "url",
+  "defaultPort": 1883,
+  "defaultProtocolHint": "mqtt",
+  "credentialPresentation": "secret_or_inline",
+  "credentialLabel": "password",
+  "fields": [
+    {
+      "id": "username",
+      "label": "Username",
+      "type": "text",
+      "required": true,
+      "placeholder": "appos"
+    },
+    {
+      "id": "clientId",
+      "label": "Client ID",
+      "type": "text",
+      "default": "appos-client",
+      "placeholder": "appos-client"
+    }
+  ]
+}

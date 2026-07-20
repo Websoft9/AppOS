@@ -106,9 +106,9 @@ func handleServersView(e *core.RequestEvent) error {
 			credentialID := strings.TrimSpace(serverRecord.GetString("credential"))
 			createdBy := strings.TrimSpace(serverRecord.GetString("created_by"))
 			item := servers.BuildServerViewItem(serverRecord, credentialTypeByID[credentialID], creatorNameByID[createdBy], tunnelSessions)
-			if item.ConnectType == string(servers.ConnectionModeDirect) {
-				item.Access = directServerAccessProbe(item.Host, item.Port).Access
-			}
+			// Access state for direct-SSH servers is now read from the cached
+			// DB fields (written back by the connectivity-check endpoint).
+			// No live TCP probe here — list load is instant.
 			item.Connection = servers.BuildConnectionView(item)
 			items[index] = item
 		}(idx, record)

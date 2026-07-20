@@ -7,6 +7,16 @@ const navigateMock = vi.fn()
 const iacReadMock = vi.fn()
 const iacSaveFileMock = vi.fn()
 
+function paginatedActionsResponse(items: Array<Record<string, unknown>>) {
+  return {
+    items,
+    page: 1,
+    perPage: 15,
+    totalItems: items.length,
+    totalPages: 1,
+  }
+}
+
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
@@ -37,15 +47,30 @@ vi.mock('@/pages/apps/AppDetailActionHistoryTable', () => ({
   AppDetailActionHistoryTable: ({
     actions,
     buildActionDetailHref,
+    onRequestCancel,
+    onRequestForceFail,
   }: {
     actions: Array<{
       id: string
       compose_project_name?: string
+      status?: string
       pipeline_selector?: { operation_type?: string }
     }>
     buildActionDetailHref: (actionId: string) => string
+    onRequestCancel?: (action: {
+      id: string
+      compose_project_name?: string
+      status?: string
+      pipeline_selector?: { operation_type?: string }
+    }) => void
+    onRequestForceFail?: (action: {
+      id: string
+      compose_project_name?: string
+      status?: string
+      pipeline_selector?: { operation_type?: string }
+    }) => void
   }) => (
-    <section aria-label="Action History Table">
+    <section aria-label="Activity Table">
       {actions.map(action => (
         <div key={action.id}>
           <span>
@@ -56,6 +81,16 @@ vi.mock('@/pages/apps/AppDetailActionHistoryTable', () => ({
           </span>
           <a href={buildActionDetailHref(action.id)}>Open Detail</a>
           <span>{action.compose_project_name || '-'}</span>
+          {onRequestCancel && action.status === 'queued' ? (
+            <button type="button" onClick={() => onRequestCancel(action)}>
+              Cancel {action.compose_project_name || action.id}
+            </button>
+          ) : null}
+          {onRequestForceFail && action.status === 'running' ? (
+            <button type="button" onClick={() => onRequestForceFail(action)}>
+              Force Fail {action.compose_project_name || action.id}
+            </button>
+          ) : null}
         </div>
       ))}
     </section>
@@ -91,8 +126,10 @@ describe('AppDetailPage', () => {
       project_dir: '/tmp/demo-app',
       source: 'manualops',
       status: 'installed',
+      instance_state: 'running',
       runtime_status: 'running',
       lifecycle_state: 'running_healthy',
+      state_reason: 'application is healthy',
       publication_summary: 'unpublished',
       access_username: 'admin',
       access_secret_hint: 'initial password from welcome page',
@@ -180,54 +217,107 @@ describe('AppDetailPage', () => {
             ],
           })
         }
-        if (path === '/api/actions' && options?.method === 'GET') {
-          return Promise.resolve([
-            {
-              id: 'op-last',
-              app_id: 'app-1',
-              server_id: 'local',
-              source: 'manualops',
-              status: 'success',
-              adapter: 'docker',
-              compose_project_name: 'demo-app',
-              project_dir: '/tmp/demo-app',
-              rendered_compose: '',
-              error_summary: '',
-              created: '2026-03-30T10:09:00Z',
-              updated: '2026-03-30T10:10:00Z',
-              started_at: '2026-03-30T10:09:00Z',
-              finished_at: '2026-03-30T10:10:00Z',
-              pipeline: {
-                id: 'pipe-1',
-                operation_id: 'op-last',
+        if (path.startsWith('/api/actions?') && options?.method === 'GET') {
+          return Promise.resolve(
+            paginatedActionsResponse([
+              {
+                id: 'op-last',
                 app_id: 'app-1',
                 server_id: 'local',
-                family: 'change',
-                status: 'success',
-                current_phase: 'completed',
-                selector: { operation_type: 'restart', source: 'manualops', adapter: 'docker' },
-              },
-              pipeline_selector: {
-                operation_type: 'restart',
                 source: 'manualops',
+                status: 'success',
                 adapter: 'docker',
+                compose_project_name: 'demo-app',
+                project_dir: '/tmp/demo-app',
+                rendered_compose: '',
+                error_summary: '',
+                created: '2026-03-30T10:09:00Z',
+                updated: '2026-03-30T10:10:00Z',
+                started_at: '2026-03-30T10:09:00Z',
+                finished_at: '2026-03-30T10:10:00Z',
+                pipeline: {
+                  id: 'pipe-1',
+                  operation_id: 'op-last',
+                  app_id: 'app-1',
+                  server_id: 'local',
+                  family: 'change',
+                  status: 'success',
+                  current_phase: 'completed',
+                  selector: { operation_type: 'restart', source: 'manualops', adapter: 'docker' },
+                },
+                pipeline_selector: {
+                  operation_type: 'restart',
+                  source: 'manualops',
+                  adapter: 'docker',
+                },
               },
-            },
-            {
-              id: 'op-other',
-              app_id: 'app-2',
-              server_id: 'local',
-              source: 'manualops',
-              status: 'success',
-              adapter: 'docker',
-              compose_project_name: 'other-app',
-              project_dir: '/tmp/other-app',
-              rendered_compose: '',
-              error_summary: '',
-              created: '2026-03-30T11:09:00Z',
-              updated: '2026-03-30T11:10:00Z',
-            },
-          ])
+              {
+                id: 'op-queued',
+                app_id: 'app-1',
+                server_id: 'local',
+                source: 'manualops',
+                status: 'queued',
+                adapter: 'docker',
+                compose_project_name: 'demo-app-queued',
+                project_dir: '/tmp/demo-app',
+                rendered_compose: '',
+                error_summary: '',
+                created: '2026-03-30T10:11:00Z',
+                updated: '2026-03-30T10:11:00Z',
+                pipeline: {
+                  id: 'pipe-queued',
+                  operation_id: 'op-queued',
+                  app_id: 'app-1',
+                  server_id: 'local',
+                  family: 'provision',
+                  status: 'pending',
+                  current_phase: 'queued',
+                  selector: { operation_type: 'install', source: 'manualops', adapter: 'docker' },
+                },
+                pipeline_selector: {
+                  operation_type: 'install',
+                  source: 'manualops',
+                  adapter: 'docker',
+                },
+              },
+              {
+                id: 'op-running',
+                app_id: 'app-1',
+                server_id: 'local',
+                source: 'manualops',
+                status: 'running',
+                adapter: 'docker',
+                compose_project_name: 'demo-app-running',
+                project_dir: '/tmp/demo-app',
+                rendered_compose: '',
+                error_summary: '',
+                created: '2026-03-30T10:12:00Z',
+                updated: '2026-03-30T10:13:00Z',
+                started_at: '2026-03-30T10:12:00Z',
+                pipeline: {
+                  id: 'pipe-running',
+                  operation_id: 'op-running',
+                  app_id: 'app-1',
+                  server_id: 'local',
+                  family: 'change',
+                  status: 'active',
+                  current_phase: 'executing',
+                  selector: { operation_type: 'upgrade', source: 'manualops', adapter: 'docker' },
+                },
+                pipeline_selector: {
+                  operation_type: 'upgrade',
+                  source: 'manualops',
+                  adapter: 'docker',
+                },
+              },
+            ])
+          )
+        }
+        if (path === '/api/actions/op-queued/cancel' && options?.method === 'POST') {
+          return Promise.resolve({})
+        }
+        if (path === '/api/actions/op-running/force-fail' && options?.method === 'POST') {
+          return Promise.resolve({})
         }
         if (path === '/api/instances' && options?.method === 'GET') {
           return Promise.resolve([
@@ -251,7 +341,7 @@ describe('AppDetailPage', () => {
             },
           ])
         }
-        if (path === '/api/ext/docker/containers' && options?.method === 'GET') {
+        if (path === '/api/servers/local/docker/containers' && options?.method === 'GET') {
           return Promise.resolve({
             output: [
               JSON.stringify({
@@ -273,7 +363,7 @@ describe('AppDetailPage', () => {
             ].join('\n'),
           })
         }
-        if (path === '/api/ext/docker/volumes' && options?.method === 'GET') {
+        if (path === '/api/servers/local/docker/volumes' && options?.method === 'GET') {
           return Promise.resolve({
             output: [
               JSON.stringify({
@@ -289,7 +379,7 @@ describe('AppDetailPage', () => {
             ].join('\n'),
           })
         }
-        if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET') {
+        if (path === '/api/servers/local/docker/containers/stats' && options?.method === 'GET') {
           return Promise.resolve({
             output: [
               JSON.stringify({
@@ -308,14 +398,17 @@ describe('AppDetailPage', () => {
           })
         }
         if (
-          path === '/api/ext/docker/containers/container-1/logs?tail=200' &&
+          path === '/api/servers/local/docker/containers/container-1/logs?tail=200' &&
           options?.method === 'GET'
         ) {
           return Promise.resolve({
             output: 'demo log line 1\ndemo log line 2',
           })
         }
-        if (path === '/api/ext/docker/containers/container-1' && options?.method === 'GET') {
+        if (
+          path === '/api/servers/local/docker/containers/container-1' &&
+          options?.method === 'GET'
+        ) {
           return Promise.resolve({
             output: JSON.stringify([
               {
@@ -353,9 +446,506 @@ describe('AppDetailPage', () => {
     )
   })
 
+  it('renders breadcrumb navigation and icon-only refresh control in the header', async () => {
+    render(<AppDetailPage appId="app-1" />)
+
+    expect(await screen.findByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /My Apps/i })).toBeInTheDocument()
+    expect(screen.queryByText('Back to My Apps')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Refresh app detail' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument()
+  })
+
+  it('shows uptime with days once runtime exceeds 24 hours', async () => {
+    const dateNowMock = vi
+      .spyOn(Date, 'now')
+      .mockReturnValue(new Date('2026-04-03T12:15:00Z').getTime())
+    appDetailResponse = {
+      ...appDetailResponse,
+      created: '2026-04-01T10:00:00Z',
+    }
+
+    try {
+      render(<AppDetailPage appId="app-1" />)
+
+      expect(await screen.findByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
+      expect(screen.getByText('2d 2h')).toBeInTheDocument()
+    } finally {
+      dateNowMock.mockRestore()
+    }
+  })
+
+  it('keeps host and port access URL when domain exposure is not published', async () => {
+    appDetailResponse = {
+      ...appDetailResponse,
+      server_id: 'server-1',
+      server_name: 'Remote Demo Server',
+    }
+
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, string> }) => {
+        if (path === '/api/apps/app-1' && options?.method === 'GET') {
+          return Promise.resolve(appDetailResponse)
+        }
+        if (path === '/api/apps/app-1/releases' && options?.method === 'GET') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/apps/app-1/exposures' && options?.method === 'GET') {
+          return Promise.resolve([
+            {
+              id: 'exposure-1',
+              app_id: 'app-1',
+              domain: 'demo.example.com',
+              is_primary: true,
+              target_port: 8080,
+              publication_state: 'unpublished',
+              updated: '2026-04-01T10:00:00Z',
+            },
+          ])
+        }
+        if (path === '/api/servers/connection' && options?.method === 'GET') {
+          return Promise.resolve({
+            items: [
+              {
+                id: 'server-1',
+                name: 'Remote Demo Server',
+                connect_type: 'direct',
+                host: 'demo.example.com',
+                port: 22,
+                user: 'root',
+                credential: 'secret-1',
+                credential_type: 'Password',
+                created: '2026-04-01T09:00:00Z',
+                updated: '2026-04-01T10:00:00Z',
+                access: {
+                  status: 'available',
+                  reason: '',
+                  checked_at: '2026-04-01T10:00:00Z',
+                  source: 'probe',
+                },
+              },
+            ],
+          })
+        }
+        if (path.startsWith('/api/actions?') && options?.method === 'GET') {
+          return Promise.resolve(paginatedActionsResponse([]))
+        }
+        if (path === '/api/instances' && options?.method === 'GET') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/servers/server-1/docker/containers' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/servers/server-1/docker/volumes' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/servers/server-1/docker/containers/stats' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
+          return Promise.resolve({
+            id: 'app-1',
+            name: 'Demo App',
+            server_id: 'server-1',
+            project_dir: '/tmp/demo-app',
+            runtime_status: 'running',
+            output: '',
+          })
+        }
+        if (path === '/api/ext/backup/list' && options?.method === 'GET') {
+          return Promise.resolve({ message: 'not implemented' })
+        }
+        return Promise.resolve({})
+      }
+    )
+
+    render(<AppDetailPage appId="app-1" />)
+
+    expect(await screen.findByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
+
+    const accessLink = await screen.findByRole('link', {
+      name: /http:\/\/demo\.example\.com:8080/i,
+    })
+    expect(accessLink).toHaveAttribute('href', 'http://demo.example.com:8080')
+  })
+
+  it('prefers app access endpoint serverPort when building the access URL', async () => {
+    appDetailResponse = {
+      ...appDetailResponse,
+      server_id: 'server-1',
+      server_name: 'Remote Demo Server',
+      access_endpoints: [
+        {
+          label: 'Web',
+          service: 'wordpress',
+          port: 80,
+          protocol: 'http',
+          serverPort: 18080,
+          default: true,
+        },
+      ],
+    }
+
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, string> }) => {
+        if (path === '/api/apps/app-1' && options?.method === 'GET') {
+          return Promise.resolve(appDetailResponse)
+        }
+        if (path === '/api/apps/app-1/releases' && options?.method === 'GET') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/apps/app-1/exposures' && options?.method === 'GET') {
+          return Promise.resolve([
+            {
+              id: 'exposure-1',
+              app_id: 'app-1',
+              is_primary: true,
+              target_port: 8080,
+              publication_state: 'unpublished',
+              updated: '2026-04-01T10:00:00Z',
+            },
+          ])
+        }
+        if (path === '/api/servers/connection' && options?.method === 'GET') {
+          return Promise.resolve({
+            items: [
+              {
+                id: 'server-1',
+                name: 'Remote Demo Server',
+                connect_type: 'direct',
+                host: 'demo.example.com',
+                port: 22,
+                access: {
+                  status: 'available',
+                  reason: '',
+                  checked_at: '2026-04-01T10:00:00Z',
+                  source: 'probe',
+                },
+              },
+            ],
+          })
+        }
+        if (path.startsWith('/api/actions?') && options?.method === 'GET') {
+          return Promise.resolve(paginatedActionsResponse([]))
+        }
+        if (path === '/api/instances' && options?.method === 'GET') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/servers/server-1/docker/containers' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/servers/server-1/docker/volumes' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/servers/server-1/docker/containers/stats' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
+          return Promise.resolve({
+            id: 'app-1',
+            name: 'Demo App',
+            server_id: 'server-1',
+            project_dir: '/tmp/demo-app',
+            runtime_status: 'running',
+            output: '',
+          })
+        }
+        if (path === '/api/ext/backup/list' && options?.method === 'GET') {
+          return Promise.resolve({ message: 'not implemented' })
+        }
+        return Promise.resolve({})
+      }
+    )
+
+    render(<AppDetailPage appId="app-1" />)
+
+    expect(await screen.findByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Open Access tab' }))
+
+    const accessLink = screen.getByRole('link', { name: /http:\/\/demo\.example\.com:18080/i })
+    expect(accessLink).toHaveAttribute('href', 'http://demo.example.com:18080')
+    expect(screen.queryByRole('link', { name: /http:\/\/demo\.example\.com:8080/i })).toBeNull()
+  })
+
+  it('prefers the server host and port in overview even when a published domain exists', async () => {
+    appDetailResponse = {
+      ...appDetailResponse,
+      server_id: 'server-1',
+      server_name: 'Remote Demo Server',
+    }
+
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, string> }) => {
+        if (path === '/api/apps/app-1' && options?.method === 'GET') {
+          return Promise.resolve(appDetailResponse)
+        }
+        if (path === '/api/apps/app-1/releases' && options?.method === 'GET') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/apps/app-1/exposures' && options?.method === 'GET') {
+          return Promise.resolve([
+            {
+              id: 'exposure-1',
+              app_id: 'app-1',
+              domain: 'demo.example.com',
+              is_primary: true,
+              target_port: 8080,
+              certificate_id: 'cert-1',
+              publication_state: 'published',
+              updated: '2026-04-01T10:00:00Z',
+            },
+          ])
+        }
+        if (path === '/api/servers/connection' && options?.method === 'GET') {
+          return Promise.resolve({
+            items: [
+              {
+                id: 'server-1',
+                name: 'Remote Demo Server',
+                connect_type: 'direct',
+                host: '10.0.0.8',
+                port: 22,
+                user: 'root',
+                credential: 'secret-1',
+                credential_type: 'Password',
+                created: '2026-04-01T09:00:00Z',
+                updated: '2026-04-01T10:00:00Z',
+                access: {
+                  status: 'available',
+                  reason: '',
+                  checked_at: '2026-04-01T10:00:00Z',
+                  source: 'probe',
+                },
+              },
+            ],
+          })
+        }
+        if (path.startsWith('/api/actions?') && options?.method === 'GET') {
+          return Promise.resolve(paginatedActionsResponse([]))
+        }
+        if (path === '/api/instances' && options?.method === 'GET') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/servers/server-1/docker/containers' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/servers/server-1/docker/volumes' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/servers/server-1/docker/containers/stats' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
+          return Promise.resolve({
+            id: 'app-1',
+            name: 'Demo App',
+            server_id: 'server-1',
+            project_dir: '/tmp/demo-app',
+            runtime_status: 'running',
+            output: '',
+          })
+        }
+        if (path === '/api/ext/backup/list' && options?.method === 'GET') {
+          return Promise.resolve({ message: 'not implemented' })
+        }
+        return Promise.resolve({})
+      }
+    )
+
+    render(<AppDetailPage appId="app-1" />)
+
+    expect(await screen.findByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
+
+    const accessLink = await screen.findByRole('link', { name: /http:\/\/10\.0\.0\.8:8080/i })
+    expect(accessLink).toHaveAttribute('href', 'http://10.0.0.8:8080')
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('link', { name: /https:\/\/demo\.example\.com:8080/i })
+      ).not.toBeInTheDocument()
+    })
+  })
+
+  it('shows app name, deployment details, and a template detail link in overview', async () => {
+    appDetailResponse = {
+      ...appDetailResponse,
+      catalog_app_key: 'wordpress',
+      source: 'manualops',
+      server_id: 'server-1',
+      server_name: 'Remote Demo Server',
+    }
+
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, string> }) => {
+        if (path === '/api/apps/app-1' && options?.method === 'GET') {
+          return Promise.resolve(appDetailResponse)
+        }
+        if (path === '/api/apps/app-1/releases' && options?.method === 'GET') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/apps/app-1/exposures' && options?.method === 'GET') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/servers/connection' && options?.method === 'GET') {
+          return Promise.resolve({
+            items: [
+              {
+                id: 'server-1',
+                name: 'Remote Demo Server',
+                connect_type: 'direct',
+                host: '10.0.0.8',
+                port: 22,
+                access: {
+                  status: 'available',
+                  reason: '',
+                  checked_at: '2026-04-01T10:00:00Z',
+                  source: 'probe',
+                },
+              },
+            ],
+          })
+        }
+        if (path.startsWith('/api/actions?') && options?.method === 'GET') {
+          return Promise.resolve(paginatedActionsResponse([]))
+        }
+        if (path === '/api/instances' && options?.method === 'GET') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/servers/server-1/docker/containers' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/servers/server-1/docker/volumes' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/servers/server-1/docker/containers/stats' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
+          return Promise.resolve({
+            id: 'app-1',
+            name: 'Demo App',
+            server_id: 'server-1',
+            project_dir: '/tmp/demo-app',
+            runtime_status: 'running',
+            output: '',
+          })
+        }
+        if (path === '/api/ext/backup/list' && options?.method === 'GET') {
+          return Promise.resolve({ message: 'not implemented' })
+        }
+        return Promise.resolve({})
+      }
+    )
+
+    render(<AppDetailPage appId="app-1" />)
+
+    expect(await screen.findByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
+    expect(screen.getByText('App Name')).toBeInTheDocument()
+    expect(screen.getByText('Deployment')).toBeInTheDocument()
+    expect(screen.getByText('Template')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /wordpress/i })).toHaveAttribute(
+      'href',
+      '/store?q=wordpress&app=wordpress'
+    )
+  })
+
+  it('uses a fallback exposure port for public access when the primary exposure has no port', async () => {
+    appDetailResponse = {
+      ...appDetailResponse,
+      server_id: 'server-1',
+      server_name: 'Remote Demo Server',
+    }
+
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, string> }) => {
+        if (path === '/api/apps/app-1' && options?.method === 'GET') {
+          return Promise.resolve(appDetailResponse)
+        }
+        if (path === '/api/apps/app-1/releases' && options?.method === 'GET') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/apps/app-1/exposures' && options?.method === 'GET') {
+          return Promise.resolve([
+            {
+              id: 'exposure-1',
+              app_id: 'app-1',
+              is_primary: true,
+              domain: 'demo.example.com',
+              publication_state: 'unpublished',
+              updated: '2026-04-01T10:00:00Z',
+            },
+            {
+              id: 'exposure-2',
+              app_id: 'app-1',
+              is_primary: false,
+              target_port: 9000,
+              updated: '2026-04-01T10:00:00Z',
+            },
+          ])
+        }
+        if (path === '/api/servers/connection' && options?.method === 'GET') {
+          return Promise.resolve({
+            items: [
+              {
+                id: 'server-1',
+                name: 'Remote Demo Server',
+                connect_type: 'direct',
+                host: 'demo.example.com',
+                port: 22,
+                access: {
+                  status: 'available',
+                  reason: '',
+                  checked_at: '2026-04-01T10:00:00Z',
+                  source: 'probe',
+                },
+              },
+            ],
+          })
+        }
+        if (path.startsWith('/api/actions?') && options?.method === 'GET') {
+          return Promise.resolve(paginatedActionsResponse([]))
+        }
+        if (path === '/api/instances' && options?.method === 'GET') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/servers/server-1/docker/containers' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/servers/server-1/docker/volumes' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/servers/server-1/docker/containers/stats' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
+          return Promise.resolve({
+            id: 'app-1',
+            name: 'Demo App',
+            server_id: 'server-1',
+            project_dir: '/tmp/demo-app',
+            runtime_status: 'running',
+            output: '',
+          })
+        }
+        if (path === '/api/ext/backup/list' && options?.method === 'GET') {
+          return Promise.resolve({ message: 'not implemented' })
+        }
+        return Promise.resolve({})
+      }
+    )
+
+    render(<AppDetailPage appId="app-1" />)
+
+    expect(await screen.findByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Open Access tab' }))
+
+    const accessLink = screen.getByRole('link', { name: /http:\/\/demo\.example\.com:9000/i })
+    expect(accessLink).toHaveAttribute('href', 'http://demo.example.com:9000')
+  })
+
   it('navigates to action detail after start creates an operation', async () => {
     appDetailResponse = {
       ...appDetailResponse,
+      instance_state: 'stopped',
       runtime_status: 'stopped',
       lifecycle_state: 'stopped',
     }
@@ -372,14 +962,14 @@ describe('AppDetailPage', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/apps/app-1/start', { method: 'POST' })
       expect(navigateMock).toHaveBeenCalledWith({
-        to: '/actions/$actionId',
+        to: '/activity/$actionId',
         params: { actionId: 'op-start-1' },
         search: { returnTo: 'list' },
       })
     })
   })
 
-  it('shows current source-build release artifact and source details in overview', async () => {
+  it('shows current source-build release artifact and source details in actions release lineage', async () => {
     sendMock.mockImplementation(
       (path: string, options?: { method?: string; body?: Record<string, string> }) => {
         if (path === '/api/apps/app-1' && options?.method === 'GET') {
@@ -418,19 +1008,19 @@ describe('AppDetailPage', () => {
         if (path === '/api/apps/app-1/exposures' && options?.method === 'GET') {
           return Promise.resolve([])
         }
-        if (path === '/api/actions' && options?.method === 'GET') {
-          return Promise.resolve([])
+        if (path.startsWith('/api/actions?') && options?.method === 'GET') {
+          return Promise.resolve(paginatedActionsResponse([]))
         }
         if (path === '/api/instances' && options?.method === 'GET') {
           return Promise.resolve([])
         }
-        if (path === '/api/ext/docker/containers' && options?.method === 'GET') {
+        if (path === '/api/servers/local/docker/containers' && options?.method === 'GET') {
           return Promise.resolve({ output: '' })
         }
-        if (path === '/api/ext/docker/volumes' && options?.method === 'GET') {
+        if (path === '/api/servers/local/docker/volumes' && options?.method === 'GET') {
           return Promise.resolve({ output: '' })
         }
-        if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET') {
+        if (path === '/api/servers/local/docker/containers/stats' && options?.method === 'GET') {
           return Promise.resolve({ output: '' })
         }
         if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
@@ -456,20 +1046,28 @@ describe('AppDetailPage', () => {
       expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
     })
 
-    expect(screen.getAllByText('active · source-build-demo-20260401')).toHaveLength(2)
-    expect(screen.getAllByText('Artifact: apps/source-build-demo@sha256:abc123')).toHaveLength(2)
-    expect(screen.getAllByText('Local image: apps/source-build-demo:candidate')).toHaveLength(2)
-    expect(screen.getAllByText('Source: apps/source-build-demo/src')).toHaveLength(3)
-    expect(screen.getAllByText('Target service: web')).toHaveLength(2)
+    const actionsTab = screen.getByRole('tab', { name: 'Activity' })
+    fireEvent.mouseDown(actionsTab)
+    fireEvent.click(actionsTab)
+
+    await screen.findByText('Release Lineage')
+
+    expect(screen.getByText('Release Lineage')).toBeInTheDocument()
+    expect(screen.getByText('active · source-build-demo-20260401')).toBeInTheDocument()
+    expect(screen.getByText('Artifact: apps/source-build-demo@sha256:abc123')).toBeInTheDocument()
+    expect(screen.getByText('Local image: apps/source-build-demo:candidate')).toBeInTheDocument()
+    expect(screen.getAllByText('Source: apps/source-build-demo/src')).toHaveLength(2)
+    expect(screen.getByText('Target service: web')).toBeInTheDocument()
     expect(screen.getByText('Release Lineage')).toBeInTheDocument()
     expect(screen.getByText('candidate · source-build-demo-20260401-candidate')).toBeInTheDocument()
     expect(screen.getByText('Artifact: apps/source-build-demo:candidate')).toBeInTheDocument()
   })
 
-  it('reuses the shared server connection presentation in the app overview access snapshot', async () => {
+  it('reuses the shared server connection presentation in the access tab', async () => {
     appDetailResponse = {
       ...appDetailResponse,
       server_id: 'server-1',
+      server_name: 'API Server Name',
     }
 
     sendMock.mockImplementation(
@@ -519,19 +1117,19 @@ describe('AppDetailPage', () => {
             ],
           })
         }
-        if (path === '/api/actions' && options?.method === 'GET') {
-          return Promise.resolve([])
+        if (path.startsWith('/api/actions?') && options?.method === 'GET') {
+          return Promise.resolve(paginatedActionsResponse([]))
         }
         if (path === '/api/instances' && options?.method === 'GET') {
           return Promise.resolve([])
         }
-        if (path === '/api/ext/docker/containers' && options?.method === 'GET') {
+        if (path === '/api/servers/server-1/docker/containers' && options?.method === 'GET') {
           return Promise.resolve({ output: '' })
         }
-        if (path === '/api/ext/docker/volumes' && options?.method === 'GET') {
+        if (path === '/api/servers/server-1/docker/volumes' && options?.method === 'GET') {
           return Promise.resolve({ output: '' })
         }
-        if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET') {
+        if (path === '/api/servers/server-1/docker/containers/stats' && options?.method === 'GET') {
           return Promise.resolve({ output: '' })
         }
         if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
@@ -557,14 +1155,79 @@ describe('AppDetailPage', () => {
       expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
     })
 
-    expect(
-      screen.getByText((_, node) => node?.textContent === 'Server: Remote Demo Server')
-    ).toBeInTheDocument()
+    const accessTab = screen.getByRole('tab', { name: 'Access' })
+    fireEvent.mouseDown(accessTab)
+    fireEvent.click(accessTab)
+
+    await screen.findByText('Access URLs')
+
+    expect(screen.getByText('Remote Demo Server')).toBeInTheDocument()
     expect(screen.getByText('Connection summary: SSH access is reachable.')).toBeInTheDocument()
     expect(screen.getByText('Endpoint: 10.0.0.8')).toBeInTheDocument()
     expect(screen.getByText('Next server step: Open Terminal')).toBeInTheDocument()
     expect(screen.getByText('Certificate summary: bound')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open server detail' })).toBeInTheDocument()
+  })
+
+  it('prefers server_name from app detail before falling back to server id', async () => {
+    appDetailResponse = {
+      ...appDetailResponse,
+      server_id: 'server-1',
+      server_name: 'API Server Name',
+    }
+
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, string> }) => {
+        if (path === '/api/apps/app-1' && options?.method === 'GET') {
+          return Promise.resolve(appDetailResponse)
+        }
+        if (path === '/api/apps/app-1/releases' && options?.method === 'GET') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/apps/app-1/exposures' && options?.method === 'GET') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/servers/connection' && options?.method === 'GET') {
+          return Promise.resolve({ items: [] })
+        }
+        if (path.startsWith('/api/actions?') && options?.method === 'GET') {
+          return Promise.resolve(paginatedActionsResponse([]))
+        }
+        if (path === '/api/instances' && options?.method === 'GET') return Promise.resolve([])
+        if (path === '/api/servers/server-1/docker/containers' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/servers/server-1/docker/volumes' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/servers/server-1/docker/containers/stats' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
+          return Promise.resolve({
+            id: 'app-1',
+            name: 'Demo App',
+            server_id: 'server-1',
+            project_dir: '/tmp/demo-app',
+            runtime_status: 'running',
+            output: '',
+          })
+        }
+        if (path === '/api/ext/backup/list' && options?.method === 'GET') {
+          return Promise.resolve({ message: 'not implemented' })
+        }
+        return Promise.resolve({})
+      }
+    )
+
+    render(<AppDetailPage appId="app-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
+    })
+
+    expect(screen.getByText('API Server Name')).toBeInTheDocument()
+    expect(screen.queryByText(/^server-1$/i)).not.toBeInTheDocument()
   })
 
   it('opens a release detail dialog from the lineage section', async () => {
@@ -593,13 +1256,15 @@ describe('AppDetailPage', () => {
         }
         if (path === '/api/apps/app-1/exposures' && options?.method === 'GET')
           return Promise.resolve([])
-        if (path === '/api/actions' && options?.method === 'GET') return Promise.resolve([])
+        if (path.startsWith('/api/actions?') && options?.method === 'GET') {
+          return Promise.resolve(paginatedActionsResponse([]))
+        }
         if (path === '/api/instances' && options?.method === 'GET') return Promise.resolve([])
-        if (path === '/api/ext/docker/containers' && options?.method === 'GET')
+        if (path === '/api/servers/local/docker/containers' && options?.method === 'GET')
           return Promise.resolve({ output: '' })
-        if (path === '/api/ext/docker/volumes' && options?.method === 'GET')
+        if (path === '/api/servers/local/docker/volumes' && options?.method === 'GET')
           return Promise.resolve({ output: '' })
-        if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET')
+        if (path === '/api/servers/local/docker/containers/stats' && options?.method === 'GET')
           return Promise.resolve({ output: '' })
         if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
           return Promise.resolve({
@@ -622,6 +1287,12 @@ describe('AppDetailPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
     })
+
+    const actionsTab = screen.getByRole('tab', { name: 'Activity' })
+    fireEvent.mouseDown(actionsTab)
+    fireEvent.click(actionsTab)
+
+    await screen.findByText('Release Lineage')
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Open detail' })[0])
 
@@ -662,13 +1333,15 @@ describe('AppDetailPage', () => {
         }
         if (path === '/api/apps/app-1/exposures' && options?.method === 'GET')
           return Promise.resolve([])
-        if (path === '/api/actions' && options?.method === 'GET') return Promise.resolve([])
+        if (path.startsWith('/api/actions?') && options?.method === 'GET') {
+          return Promise.resolve(paginatedActionsResponse([]))
+        }
         if (path === '/api/instances' && options?.method === 'GET') return Promise.resolve([])
-        if (path === '/api/ext/docker/containers' && options?.method === 'GET')
+        if (path === '/api/servers/local/docker/containers' && options?.method === 'GET')
           return Promise.resolve({ output: '' })
-        if (path === '/api/ext/docker/volumes' && options?.method === 'GET')
+        if (path === '/api/servers/local/docker/volumes' && options?.method === 'GET')
           return Promise.resolve({ output: '' })
-        if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET')
+        if (path === '/api/servers/local/docker/containers/stats' && options?.method === 'GET')
           return Promise.resolve({ output: '' })
         if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
           return Promise.resolve({
@@ -692,6 +1365,12 @@ describe('AppDetailPage', () => {
       expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
     })
 
+    const actionsTab = screen.getByRole('tab', { name: 'Activity' })
+    fireEvent.mouseDown(actionsTab)
+    fireEvent.click(actionsTab)
+
+    await screen.findByText('Release Lineage')
+
     fireEvent.click(screen.getAllByRole('button', { name: 'Open detail' })[0])
 
     const dialog = await screen.findByRole('dialog', {
@@ -703,7 +1382,7 @@ describe('AppDetailPage', () => {
 
     await waitFor(() => {
       expect(navigateMock).toHaveBeenCalledWith({
-        to: '/actions/$actionId',
+        to: '/activity/$actionId',
         params: { actionId: 'op-source-build-1' },
         search: { returnTo: 'list' },
       })
@@ -737,13 +1416,15 @@ describe('AppDetailPage', () => {
         }
         if (path === '/api/apps/app-1/exposures' && options?.method === 'GET')
           return Promise.resolve([])
-        if (path === '/api/actions' && options?.method === 'GET') return Promise.resolve([])
+        if (path.startsWith('/api/actions?') && options?.method === 'GET') {
+          return Promise.resolve(paginatedActionsResponse([]))
+        }
         if (path === '/api/instances' && options?.method === 'GET') return Promise.resolve([])
-        if (path === '/api/ext/docker/containers' && options?.method === 'GET')
+        if (path === '/api/servers/local/docker/containers' && options?.method === 'GET')
           return Promise.resolve({ output: '' })
-        if (path === '/api/ext/docker/volumes' && options?.method === 'GET')
+        if (path === '/api/servers/local/docker/volumes' && options?.method === 'GET')
           return Promise.resolve({ output: '' })
-        if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET')
+        if (path === '/api/servers/local/docker/containers/stats' && options?.method === 'GET')
           return Promise.resolve({ output: '' })
         if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
           return Promise.resolve({
@@ -766,6 +1447,12 @@ describe('AppDetailPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
     })
+
+    const actionsTab = screen.getByRole('tab', { name: 'Activity' })
+    fireEvent.mouseDown(actionsTab)
+    fireEvent.click(actionsTab)
+
+    await screen.findByText('Release Lineage')
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Open detail' })[0])
 
@@ -800,32 +1487,98 @@ describe('AppDetailPage', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/apps/app-1', { method: 'DELETE' })
       expect(navigateMock).toHaveBeenCalledWith({
-        to: '/actions/$actionId',
+        to: '/activity/$actionId',
         params: { actionId: 'op-uninstall-1' },
         search: { returnTo: 'list' },
       })
     })
   })
 
-  it('shows app-scoped action history in the Actions tab', async () => {
+  it('shows app-scoped activity in the Activity tab', async () => {
     render(<AppDetailPage appId="app-1" />)
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
     })
 
-    const actionsTab = screen.getByRole('tab', { name: 'Actions' })
+    const actionsTab = screen.getByRole('tab', { name: 'Activity' })
     fireEvent.mouseDown(actionsTab)
     fireEvent.click(actionsTab)
 
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith('/api/actions', { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith('/api/actions?appId=app-1&page=1&perPage=15', {
+        method: 'GET',
+      })
       expect(screen.getByText('Restart')).toBeInTheDocument()
+      expect(screen.getByText('Install')).toBeInTheDocument()
+      expect(screen.getByText('Upgrade')).toBeInTheDocument()
       expect(screen.queryByText('other-app')).not.toBeInTheDocument()
     })
   })
 
-  it('disables lifecycle actions that conflict with the current runtime state', async () => {
+  it('cancels a queued action from the Actions tab and refreshes app detail', async () => {
+    render(<AppDetailPage appId="app-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
+    })
+
+    const actionsTab = screen.getByRole('tab', { name: 'Activity' })
+    fireEvent.mouseDown(actionsTab)
+    fireEvent.click(actionsTab)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Cancel demo-app-queued' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel demo-app-queued' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Cancel Action')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/actions/op-queued/cancel', { method: 'POST' })
+      expect(sendMock).toHaveBeenCalledWith('/api/apps/app-1', { method: 'GET' })
+    })
+  })
+
+  it('force-fails a running action from the Actions tab and refreshes app detail', async () => {
+    render(<AppDetailPage appId="app-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
+    })
+
+    const actionsTab = screen.getByRole('tab', { name: 'Activity' })
+    fireEvent.mouseDown(actionsTab)
+    fireEvent.click(actionsTab)
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Force Fail demo-app-running' })
+      ).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Force Fail demo-app-running' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Force Fail Action')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Force Fail' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/actions/op-running/force-fail', {
+        method: 'POST',
+      })
+      expect(sendMock).toHaveBeenCalledWith('/api/apps/app-1', { method: 'GET' })
+    })
+  })
+
+  it('disables lifecycle actions that conflict with the canonical instance state', async () => {
     render(<AppDetailPage appId="app-1" />)
 
     await waitFor(() => {
@@ -844,8 +1597,10 @@ describe('AppDetailPage', () => {
     cleanup()
     appDetailResponse = {
       ...appDetailResponse,
-      runtime_status: 'stopped',
+      instance_state: 'stopped',
+      runtime_status: 'running',
       lifecycle_state: 'stopped',
+      state_reason: 'desired state stopped',
     }
 
     render(<AppDetailPage appId="app-1" />)
@@ -862,6 +1617,61 @@ describe('AppDetailPage', () => {
     expect(startWhileStopped).not.toHaveAttribute('data-disabled')
     expect(stopWhileStopped).toHaveAttribute('data-disabled')
     expect(restartWhileStopped).toHaveAttribute('data-disabled')
+  })
+
+  it('surfaces managed server connectivity and disables live actions when the server is unreachable', async () => {
+    appDetailResponse = {
+      ...appDetailResponse,
+      server_id: 'srv-1',
+      instance_state: 'running',
+      runtime_status: 'running',
+      server_connection_status: 'unreachable',
+      server_connection_reason: 'Server is unreachable from the control plane.',
+      runtime_reason: 'Server is unreachable from the control plane.',
+    }
+
+    render(<AppDetailPage appId="app-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Server Unreachable')).toBeInTheDocument()
+    })
+
+    expect(screen.getAllByText('Unavailable').length).toBeGreaterThan(0)
+    expect(screen.getByText('Container runtime')).toBeInTheDocument()
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Actions' }))
+
+    expect(await screen.findByRole('menuitem', { name: 'Start' })).toHaveAttribute('data-disabled')
+    expect(screen.getByRole('menuitem', { name: 'Stop' })).toHaveAttribute('data-disabled')
+    expect(screen.getByRole('menuitem', { name: 'Restart' })).toHaveAttribute('data-disabled')
+    expect(screen.getByRole('menuitem', { name: 'Redeploy' })).toHaveAttribute('data-disabled')
+    expect(screen.getByRole('menuitem', { name: 'Upgrade' })).toHaveAttribute('data-disabled')
+    expect(screen.getByRole('menuitem', { name: 'Uninstall' })).toHaveAttribute('data-disabled')
+    expect(screen.getByText('Server is unreachable from the control plane.')).toBeInTheDocument()
+  })
+
+  it('shows instance_state and state_reason as the primary overview status narrative', async () => {
+    appDetailResponse = {
+      ...appDetailResponse,
+      instance_state: 'degraded',
+      runtime_status: 'running',
+      health_summary: 'healthy',
+      publication_summary: 'degraded',
+      state_reason: 'publication degraded',
+    }
+
+    render(<AppDetailPage appId="app-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
+    })
+
+    expect(screen.getByText('Health')).toBeInTheDocument()
+    expect(screen.getAllByText('Container runtime').length).toBeGreaterThan(0)
+    expect(screen.getByText('State reason')).toBeInTheDocument()
+    expect(screen.getAllByText('Degraded').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('running').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('publication degraded').length).toBeGreaterThan(0)
   })
 
   it('supports access hints display mode and edit mode', async () => {
@@ -907,18 +1717,17 @@ describe('AppDetailPage', () => {
       expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
     })
 
-    const actionsTab = screen.getByRole('tab', { name: 'Actions' })
+    const actionsTab = screen.getByRole('tab', { name: 'Activity' })
     fireEvent.mouseDown(actionsTab)
     fireEvent.click(actionsTab)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Open in Actions' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Open in Activity' }))
 
     await waitFor(() => {
       expect(navigateMock).toHaveBeenCalledWith({
-        to: '/actions',
+        to: '/activity',
         search: {
           appId: 'app-1',
-          q: 'demo-app',
         },
       })
     })
@@ -936,8 +1745,12 @@ describe('AppDetailPage', () => {
     fireEvent.click(runtimeTab)
 
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith('/api/ext/docker/containers', { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith('/api/ext/docker/containers/stats', { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith('/api/servers/local/docker/containers', {
+        method: 'GET',
+      })
+      expect(sendMock).toHaveBeenCalledWith('/api/servers/local/docker/containers/stats', {
+        method: 'GET',
+      })
       expect(screen.getByText('demo-app-web-1')).toBeInTheDocument()
       expect(screen.queryByText('other-app-web-1')).not.toBeInTheDocument()
       expect(screen.getByText('12.5%')).toBeInTheDocument()
@@ -961,7 +1774,7 @@ describe('AppDetailPage', () => {
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
-        '/api/ext/docker/containers/container-1/logs?tail=200',
+        '/api/servers/local/docker/containers/container-1/logs?tail=200',
         { method: 'GET' }
       )
     })
@@ -971,7 +1784,7 @@ describe('AppDetailPage', () => {
     expect(logsDialog).toHaveTextContent('demo log line 2')
   })
 
-  it('shows observability projections from logs, runtime, and action history', async () => {
+  it('shows observability projections from logs, runtime, and activity', async () => {
     render(<AppDetailPage appId="app-1" />)
 
     await waitFor(() => {
@@ -984,13 +1797,22 @@ describe('AppDetailPage', () => {
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/apps/app-1/logs', { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith('/api/actions', { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith('/api/ext/docker/containers', { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith('/api/ext/docker/containers/stats', { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/app/app-1', { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith('/api/actions?appId=app-1&page=1&perPage=15', {
+        method: 'GET',
+      })
+      expect(sendMock).toHaveBeenCalledWith('/api/servers/local/docker/containers', {
+        method: 'GET',
+      })
+      expect(sendMock).toHaveBeenCalledWith('/api/servers/local/docker/containers/stats', {
+        method: 'GET',
+      })
+      expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/app/app-1', {
+        method: 'GET',
+        requestKey: null,
+      })
       expect(sendMock).toHaveBeenCalledWith(
         '/api/monitor/targets/app/app-1/series?window=1h&series=cpu%2Cmemory',
-        { method: 'GET' }
+        { method: 'GET', requestKey: null }
       )
     })
 
@@ -998,7 +1820,7 @@ describe('AppDetailPage', () => {
     expect(observabilityPanel).toHaveTextContent('app log line 1')
     expect(observabilityPanel).toHaveTextContent('1 / 1')
     expect(observabilityPanel).toHaveTextContent('CPU 12.5%')
-    expect(observabilityPanel).toHaveTextContent('Restart')
+    expect(observabilityPanel).toHaveTextContent('Upgrade')
     expect(observabilityPanel).toHaveTextContent('Monitor Status')
     expect(observabilityPanel).toHaveTextContent('Trend History')
 
@@ -1022,7 +1844,7 @@ describe('AppDetailPage', () => {
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/instances', { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith('/api/ext/docker/volumes', { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith('/api/servers/local/docker/volumes', { method: 'GET' })
       expect(sendMock).toHaveBeenCalledWith('/api/ext/backup/list', { method: 'GET' })
     })
 
@@ -1034,7 +1856,7 @@ describe('AppDetailPage', () => {
       await screen.findByText('Platform backup inventory is not connected yet.')
     ).toBeInTheDocument()
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith('/api/ext/docker/containers/container-1', {
+      expect(sendMock).toHaveBeenCalledWith('/api/servers/local/docker/containers/container-1', {
         method: 'GET',
       })
     })

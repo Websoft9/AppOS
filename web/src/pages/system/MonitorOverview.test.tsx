@@ -4,10 +4,45 @@ import { MonitorOverviewContent } from './MonitorOverview'
 
 const sendMock = vi.fn()
 
+function expectAppOSCorePlatformSeriesRequests() {
+  const platformSeriesCalls = sendMock.mock.calls
+    .map(call => String(call[0]))
+    .filter(
+      path =>
+        path.includes('/api/monitor/targets/platform/appos-core/series?') &&
+        !path.includes('series=network_traffic')
+    )
+
+  for (const path of platformSeriesCalls) {
+    const decoded = decodeURIComponent(path)
+    expect(decoded).toContain('disk_usage')
+    expect(decoded).toContain(',network')
+    expect(decoded).not.toContain('&series=network_traffic')
+    expect(decoded).toContain(',disk')
+    expect(decoded).toContain(',network')
+  }
+}
+
 vi.mock('@/lib/pb', () => ({
   pb: {
     send: (...args: unknown[]) => sendMock(...args),
   },
+}))
+
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({
+    children,
+    to,
+    className,
+  }: {
+    children: React.ReactNode
+    to: string
+    className?: string
+  }) => (
+    <a href={to} className={className}>
+      {children}
+    </a>
+  ),
 }))
 
 describe('MonitorOverviewContent', () => {
@@ -98,6 +133,26 @@ describe('MonitorOverviewContent', () => {
               [1713096060, 10.1],
             ],
           },
+          {
+            name: 'disk',
+            unit: 'bytes/s',
+            segments: [
+              {
+                name: 'read',
+                points: [
+                  [1713096000, 4096],
+                  [1713096060, 8192],
+                ],
+              },
+              {
+                name: 'write',
+                points: [
+                  [1713096000, 2048],
+                  [1713096060, 4096],
+                ],
+              },
+            ],
+          },
         ],
       })
 
@@ -115,12 +170,14 @@ describe('MonitorOverviewContent', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/platform/appos-core', {
         method: 'GET',
+        requestKey: null,
       })
       expect(sendMock).toHaveBeenCalledWith(
-        '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
-        { method: 'GET' }
+        '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork',
+        { method: 'GET', requestKey: null }
       )
     })
+    expectAppOSCorePlatformSeriesRequests()
   })
 
   it('allows manual refresh after an error', async () => {
@@ -210,6 +267,26 @@ describe('MonitorOverviewContent', () => {
               [1713096060, 10.1],
             ],
           },
+          {
+            name: 'network',
+            unit: 'bytes/s',
+            segments: [
+              {
+                name: 'in',
+                points: [
+                  [1713096000, 1024],
+                  [1713096060, 1536],
+                ],
+              },
+              {
+                name: 'out',
+                points: [
+                  [1713096000, 768],
+                  [1713096060, 1280],
+                ],
+              },
+            ],
+          },
         ],
       })
 
@@ -219,11 +296,13 @@ describe('MonitorOverviewContent', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/platform/appos-core', {
         method: 'GET',
+        requestKey: null,
       })
       expect(sendMock).toHaveBeenCalledWith(
-        '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
-        { method: 'GET' }
+        '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork',
+        { method: 'GET', requestKey: null }
       )
     })
+    expectAppOSCorePlatformSeriesRequests()
   })
 })

@@ -4,11 +4,16 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
+  Eye,
   Filter,
   MoreVertical,
+  Pencil,
   RefreshCw,
   Search,
+  ShieldOff,
+  Trash2,
 } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { cn } from '@/lib/utils'
@@ -65,6 +70,12 @@ import {
   SECRET_ACCESS_MODE_OPTIONS,
   type SecretPolicy,
 } from '@/lib/secrets-policy'
+import {
+  RESOURCE_SECRET_VISIBLE_TO_VALUES,
+  SecretVisibilityField,
+  normalizeResourceSecretVisibleTo,
+  type ResourceSecretVisibleTo,
+} from '@/components/secrets/SecretVisibilityField'
 
 interface SecretRecord {
   id: string
@@ -72,6 +83,7 @@ interface SecretRecord {
   description?: string
   type?: string
   template_id: string
+  visible_to?: string[]
   created_source?: string
   scope: string
   access_mode: string
@@ -113,6 +125,7 @@ function formatDate(iso?: string): string {
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    hour12: false,
   })
 }
 
@@ -132,17 +145,18 @@ function OptionGroup({
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-4">
         {options.map(option => (
-          <Button
-            key={option.value}
-            type="button"
-            size="sm"
-            variant={value === option.value ? 'default' : 'outline'}
-            onClick={() => onChange(option.value)}
-          >
-            {option.label}
-          </Button>
+          <label key={option.value} className="inline-flex items-center gap-2 text-sm">
+            <input
+              type="radio"
+              name={`option-group-${label.toLowerCase().replace(/\s+/g, '-')}`}
+              className="h-4 w-4"
+              checked={value === option.value}
+              onChange={() => onChange(option.value)}
+            />
+            <span>{option.label}</span>
+          </label>
         ))}
       </div>
     </div>
@@ -296,6 +310,9 @@ export function SecretsPage() {
   const [createDescription, setCreateDescription] = useState('')
   const [createScope, setCreateScope] = useState('global')
   const [createAccessMode, setCreateAccessMode] = useState(DEFAULT_SECRET_ACCESS_MODE)
+  const [createVisibleTo, setCreateVisibleTo] = useState<ResourceSecretVisibleTo[]>([
+    ...RESOURCE_SECRET_VISIBLE_TO_VALUES,
+  ])
   const [createTemplateId, setCreateTemplateId] = useState('')
   const [createPayload, setCreatePayload] = useState<Record<string, string>>({})
   const [createSaving, setCreateSaving] = useState(false)
@@ -309,10 +326,14 @@ export function SecretsPage() {
   const [editDescription, setEditDescription] = useState('')
   const [editScope, setEditScope] = useState('global')
   const [editAccessMode, setEditAccessMode] = useState(DEFAULT_SECRET_ACCESS_MODE)
+  const [editVisibleTo, setEditVisibleTo] = useState<ResourceSecretVisibleTo[]>([
+    ...RESOURCE_SECRET_VISIBLE_TO_VALUES,
+  ])
   const [editTemplateId, setEditTemplateId] = useState('')
   const [editPayload, setEditPayload] = useState<Record<string, string>>({})
   const [editSavingMeta, setEditSavingMeta] = useState(false)
   const [editSavingPayload, setEditSavingPayload] = useState(false)
+  const [editSavingVisibility, setEditSavingVisibility] = useState(false)
   const [editError, setEditError] = useState('')
   const [editNotice, setEditNotice] = useState('')
 
@@ -521,6 +542,7 @@ export function SecretsPage() {
     setCreateDescription('')
     setCreateScope('global')
     setCreateAccessMode(secretPolicy.defaultAccessMode)
+    setCreateVisibleTo([...RESOURCE_SECRET_VISIBLE_TO_VALUES])
     setCreateTemplateId('')
     setCreatePayload({})
     setCreateError('')
@@ -548,6 +570,7 @@ export function SecretsPage() {
         template_id: createTemplateId,
         scope: createScope,
         access_mode: createAccessMode,
+        visible_to: createVisibleTo,
         payload: createPayload,
       })) as { id: string }
       setCreateOpen(false)
@@ -576,6 +599,7 @@ export function SecretsPage() {
     setEditDescription('')
     setEditScope('global')
     setEditAccessMode(DEFAULT_SECRET_ACCESS_MODE)
+    setEditVisibleTo([...RESOURCE_SECRET_VISIBLE_TO_VALUES])
     setEditTemplateId('')
     setEditPayload({})
     setEditError('')
@@ -598,6 +622,7 @@ export function SecretsPage() {
     setEditDescription(item.description || '')
     setEditScope(item.scope || 'global')
     setEditAccessMode(item.access_mode || DEFAULT_SECRET_ACCESS_MODE)
+    setEditVisibleTo(normalizeResourceSecretVisibleTo(item.visible_to))
     setEditTemplateId(item.template_id)
     setEditPayload({})
     setEditError('')
@@ -669,6 +694,25 @@ export function SecretsPage() {
     }
   }
 
+  async function handleEditVisibilitySubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editId) return
+    setEditSavingVisibility(true)
+    setEditError('')
+    setEditNotice('')
+    try {
+      await pb.collection('secrets').update(editId, {
+        visible_to: editVisibleTo,
+      })
+      setEditNotice('Visibility updated')
+      await loadData()
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Visibility update failed')
+    } finally {
+      setEditSavingVisibility(false)
+    }
+  }
+
   // ─── Actions ─────────────────────────────────────────
 
   async function handleConfirm() {
@@ -714,7 +758,7 @@ export function SecretsPage() {
   // ─── Render ──────────────────────────────────────────
 
   return (
-    <div className="space-y-4 p-4 cursor-default">
+    <div className="space-y-6 cursor-default">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -767,6 +811,34 @@ export function SecretsPage() {
             >
               ×
             </button>
+          </div>
+        )}
+        {filteredItems.length > 0 && (
+          <div className="ml-auto flex items-center gap-3 text-sm text-muted-foreground">
+            <span className="whitespace-nowrap">Total {filteredItems.length} items</span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                className="rounded p-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                disabled={page <= 1}
+                onClick={() => setPage(p => p - 1)}
+                aria-label="Previous page"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="min-w-12 text-center font-medium text-foreground">
+                {page}/{totalPages}
+              </span>
+              <button
+                type="button"
+                className="rounded p-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                disabled={page >= totalPages}
+                onClick={() => setPage(p => p + 1)}
+                aria-label="Next page"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -886,7 +958,7 @@ export function SecretsPage() {
                   onSort={handleSort}
                 />
               </TableHead>
-              <TableHead className="w-[48px]" />
+              <TableHead className="w-[48px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -962,6 +1034,7 @@ export function SecretsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => void openEdit(item)}>
+                          <Pencil className="h-4 w-4" />
                           Edit
                         </DropdownMenuItem>
                         {canRevealSecret(item.access_mode, secretPolicy) && (
@@ -969,6 +1042,7 @@ export function SecretsPage() {
                             disabled={revealingId === item.id}
                             onClick={() => void handleReveal(item)}
                           >
+                            <Eye className="h-4 w-4" />
                             {revealingId === item.id ? 'Revealing...' : 'Reveal'}
                           </DropdownMenuItem>
                         )}
@@ -980,6 +1054,7 @@ export function SecretsPage() {
                               setConfirmAction({ type: 'delete', id: item.id, name: item.name })
                             }
                           >
+                            <Trash2 className="h-4 w-4" />
                             Delete
                           </DropdownMenuItem>
                         ) : (
@@ -989,6 +1064,7 @@ export function SecretsPage() {
                               setConfirmAction({ type: 'revoke', id: item.id, name: item.name })
                             }
                           >
+                            <ShieldOff className="h-4 w-4" />
                             Revoke
                           </DropdownMenuItem>
                         )}
@@ -1057,33 +1133,6 @@ export function SecretsPage() {
         </Table>
       )}
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">
-            {filteredItems.length} total · Page {page} of {totalPages}
-          </span>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage(p => p - 1)}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => setPage(p => p + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
-      )}
-
       {/* ─── Edit Dialog ─── */}
       <Dialog
         open={editOpen}
@@ -1130,9 +1179,11 @@ export function SecretsPage() {
               options={ACCESS_MODE_OPTIONS}
               onChange={setEditAccessMode}
             />
-            <Button type="submit" disabled={editSavingMeta || !editId}>
-              {editSavingMeta ? 'Saving...' : 'Save Metadata'}
-            </Button>
+            <div className="flex justify-end">
+              <Button type="submit" disabled={editSavingMeta || !editId}>
+                {editSavingMeta ? 'Saving...' : 'Save Metadata'}
+              </Button>
+            </div>
           </form>
 
           <Separator />
@@ -1153,9 +1204,25 @@ export function SecretsPage() {
               onTemplateChange={() => {}}
               onPayloadChange={(key, value) => setEditPayload(prev => ({ ...prev, [key]: value }))}
             />
-            <Button type="submit" disabled={editSavingPayload || !editId || !editPayloadHasValues}>
-              {editSavingPayload ? 'Updating...' : 'Update Values'}
-            </Button>
+            <div className="flex justify-end">
+              <Button
+                type="submit"
+                disabled={editSavingPayload || !editId || !editPayloadHasValues}
+              >
+                {editSavingPayload ? 'Updating...' : 'Update Values'}
+              </Button>
+            </div>
+          </form>
+
+          <Separator />
+
+          <form className="space-y-4" onSubmit={e => void handleEditVisibilitySubmit(e)}>
+            <SecretVisibilityField value={editVisibleTo} onChange={setEditVisibleTo} />
+            <div className="flex justify-end">
+              <Button type="submit" disabled={editSavingVisibility || !editId}>
+                {editSavingVisibility ? 'Saving...' : 'Save Visibility'}
+              </Button>
+            </div>
           </form>
         </DialogContent>
       </Dialog>
@@ -1228,6 +1295,7 @@ export function SecretsPage() {
                   options={ACCESS_MODE_OPTIONS}
                   onChange={setCreateAccessMode}
                 />
+                <SecretVisibilityField value={createVisibleTo} onChange={setCreateVisibleTo} />
               </CollapsibleContent>
             </Collapsible>
 

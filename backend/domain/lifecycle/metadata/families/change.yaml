@@ -19,6 +19,8 @@ definitions:
     family: ChangePipeline
     operation_types:
       - upgrade
+    rule_profiles:
+      - change_standard
     initial_phase: validating
     nodes:
       - key: validate_change_request
@@ -51,13 +53,20 @@ definitions:
         retryable: true
         depends_on:
           - prepare_workspace
+      - key: pull_runtime_images
+        node_type: runtime_pull
+        display_name: Pull Runtime Images
+        phase: executing
+        retryable: true
+        depends_on:
+          - render_runtime_config
       - key: start_runtime
         node_type: runtime_start
         display_name: Start Runtime
         phase: executing
         retryable: true
         depends_on:
-          - render_runtime_config
+          - pull_runtime_images
       - key: verify_runtime_health
         node_type: health_check
         display_name: Verify Runtime Health
@@ -67,6 +76,13 @@ definitions:
           - AppInstance
         depends_on:
           - start_runtime
+      - key: wait_for_operator_promote
+        node_type: wait
+        display_name: Wait For Operator Promote
+        phase: verifying
+        manual_gate: true
+        depends_on:
+          - verify_runtime_health
       - key: activate_release
         node_type: release
         display_name: Activate Release
@@ -76,13 +92,15 @@ definitions:
           - ReleaseSnapshot
           - AppInstance
         depends_on:
-          - verify_runtime_health
+          - wait_for_operator_promote
 
   - key: change.redeploy
     version: v1
     family: ChangePipeline
     operation_types:
       - redeploy
+    rule_profiles:
+      - change_standard
     initial_phase: validating
     nodes:
       - key: validate_change_request
@@ -106,13 +124,20 @@ definitions:
         retryable: true
         depends_on:
           - prepare_workspace
+      - key: pull_runtime_images
+        node_type: runtime_pull
+        display_name: Pull Runtime Images
+        phase: executing
+        retryable: true
+        depends_on:
+          - render_runtime_config
       - key: start_runtime
         node_type: runtime_start
         display_name: Start Runtime
         phase: executing
         retryable: true
         depends_on:
-          - render_runtime_config
+          - pull_runtime_images
       - key: verify_runtime_health
         node_type: health_check
         display_name: Verify Runtime Health
@@ -128,6 +153,8 @@ definitions:
     family: ChangePipeline
     operation_types:
       - reconfigure
+    rule_profiles:
+      - change_standard
     initial_phase: validating
     nodes:
       - key: validate_config_change
@@ -151,13 +178,20 @@ definitions:
         retryable: true
         depends_on:
           - prepare_workspace
+      - key: pull_runtime_images
+        node_type: runtime_pull
+        display_name: Pull Runtime Images
+        phase: executing
+        retryable: true
+        depends_on:
+          - render_runtime_config
       - key: start_runtime
         node_type: runtime_start
         display_name: Start Runtime
         phase: executing
         retryable: true
         depends_on:
-          - render_runtime_config
+          - pull_runtime_images
       - key: verify_runtime_health
         node_type: health_check
         display_name: Verify Runtime Health

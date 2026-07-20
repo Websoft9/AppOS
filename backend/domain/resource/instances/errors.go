@@ -1,56 +1,24 @@
 package instances
 
-import "fmt"
+import (
+	"fmt"
 
-type ValidationError struct {
-	Message string
-	Cause   error
-}
+	resourceshared "github.com/websoft9/appos/backend/domain/resource/shared"
+)
 
-func (e *ValidationError) Error() string {
-	if e.Cause != nil {
-		return fmt.Sprintf("%s: %v", e.Message, e.Cause)
-	}
-	return e.Message
-}
-
-func (e *ValidationError) Unwrap() error { return e.Cause }
+type ValidationError = resourceshared.ValidationError
 
 func newValidationError(message string, cause error) error {
-	return &ValidationError{Message: message, Cause: cause}
+	return resourceshared.NewValidationError(message, cause)
 }
 
-type ConflictError struct {
-	Message string
-	Cause   error
-}
-
-func (e *ConflictError) Error() string {
-	if e.Cause != nil {
-		return fmt.Sprintf("%s: %v", e.Message, e.Cause)
-	}
-	return e.Message
-}
-
-func (e *ConflictError) Unwrap() error { return e.Cause }
+type ConflictError = resourceshared.ConflictError
 
 func newConflictError(message string, cause error) error {
-	return &ConflictError{Message: message, Cause: cause}
+	return resourceshared.NewConflictError(message, cause)
 }
 
-type AccessDeniedError struct {
-	Message string
-	Cause   error
-}
-
-func (e *AccessDeniedError) Error() string {
-	if e.Cause != nil {
-		return fmt.Sprintf("%s: %v", e.Message, e.Cause)
-	}
-	return e.Message
-}
-
-func (e *AccessDeniedError) Unwrap() error { return e.Cause }
+type AccessDeniedError = resourceshared.AccessDeniedError
 
 type NotFoundError struct {
 	ID    string

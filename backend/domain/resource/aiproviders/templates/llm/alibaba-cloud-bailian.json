@@ -1,0 +1,36 @@
+{
+  "id": "alibaba-cloud-bailian",
+  "title": "Alibaba Cloud Bailian(Qwen)",
+  "vendor": "Alibaba Cloud",
+  "uiGroup": "cloud_gateway",
+  "hostingMode": "cloud",
+  "serviceMode": "maas_platform",
+  "endpointMode": "customizable",
+  "providerMode": "gateway",
+  "supportsClosedModels": true,
+  "supportsMultiVendorModels": true,
+  "description": "Qwen and Alibaba Cloud Bailian model gateway and enterprise AI platform.",
+  "helpUrl": "https://www.alibabacloud.com/help/en/model-studio/",
+  "defaultEndpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "skipTLSCertVerify": true,
+  "defaultEnabledModels": [
+    "qwen-turbo",
+    "qwen-plus",
+    "qwen-max",
+    "qwen-long"
+  ],
+  "capabilities": ["chat", "routing", "streaming"],
+  "protocols": [
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "default": true
+    }
+  ],
+  "aliases": ["alibaba cloud bailian", "qwen", "bailian", "alibaba-cloud-bailian"],
+  "fields": [
+    {
+      "id": "endpoint"
+    }
+  ]
+}

@@ -80,30 +80,6 @@ func (r ResolvedInstanceTarget) StatusPriorityFor(status string) int {
 	return r.Entry.StatusPriorityFor(status)
 }
 
-func (e TargetRegistryEntry) HeartbeatStatusFor(outcome string) string {
-	policy := e.Checks.Heartbeat
-	if policy == nil {
-		return defaultStatusForHeartbeatOutcome(outcome)
-	}
-	return statusForOutcome(policy.StatusMap, outcome, defaultStatusForHeartbeatOutcome)
-}
-
-func (e TargetRegistryEntry) HeartbeatReasonFor(outcome string, fallback string) string {
-	policy := e.Checks.Heartbeat
-	if policy == nil {
-		return reasonForOutcome(nil, outcome, fallback, defaultReasonForHeartbeatOutcome)
-	}
-	return reasonForOutcome(policy.ReasonMap, outcome, fallback, defaultReasonForHeartbeatOutcome)
-}
-
-func (e TargetRegistryEntry) HeartbeatReasonCodeFor(outcome string, fallback string) string {
-	policy := e.Checks.Heartbeat
-	if policy == nil {
-		return reasonCodeForOutcome(nil, outcome, fallback, defaultReasonCodeForHeartbeatOutcome)
-	}
-	return reasonCodeForOutcome(policy.ReasonCodeMap, outcome, fallback, defaultReasonCodeForHeartbeatOutcome)
-}
-
 func (e TargetRegistryEntry) AppHealthStatusFor(outcome string) string {
 	policy := e.Checks.AppHealth
 	if policy == nil {

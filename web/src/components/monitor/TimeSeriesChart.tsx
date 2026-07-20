@@ -22,6 +22,11 @@ type TimeSeriesDatum = {
 }
 
 const WINDOW_STEP_MS: Record<string, number> = {
+  '1m': 5 * 1000,
+  '5m': 10 * 1000,
+  '0.1h': 10 * 1000,
+  '0.5h': 30 * 1000,
+  '15m': 30 * 1000,
   '1h': 60 * 1000,
   '5h': 5 * 60 * 1000,
   '12h': 10 * 60 * 1000,
@@ -31,6 +36,11 @@ const WINDOW_STEP_MS: Record<string, number> = {
 }
 
 const WINDOW_DURATION_MS: Record<string, number> = {
+  '1m': 60 * 1000,
+  '5m': 5 * 60 * 1000,
+  '0.1h': 6 * 60 * 1000,
+  '0.5h': 30 * 60 * 1000,
+  '15m': 15 * 60 * 1000,
   '1h': 60 * 60 * 1000,
   '5h': 5 * 60 * 60 * 1000,
   '12h': 12 * 60 * 60 * 1000,
@@ -46,12 +56,15 @@ const SERIES_PALETTE: Record<string, { stroke: string; fill: string }> = {
   disk: { stroke: '#d97706', fill: '#fbbf24' },
   network: { stroke: '#dc2626', fill: '#f87171' },
   network_traffic: { stroke: '#0f766e', fill: '#2dd4bf' },
+  block: { stroke: '#7e22ce', fill: '#c084fc' },
 }
 
 const SEGMENT_PALETTE: Record<string, Record<string, { stroke: string; fill: string }>> = {
   memory: {
     used: { stroke: '#2563eb', fill: '#60a5fa' },
     available: { stroke: '#0f766e', fill: '#34d399' },
+    usage: { stroke: '#2563eb', fill: '#60a5fa' },
+    limit: { stroke: '#d97706', fill: '#fbbf24' },
   },
   disk_usage: {
     used: { stroke: '#c2410c', fill: '#fb923c' },
@@ -68,6 +81,10 @@ const SEGMENT_PALETTE: Record<string, Record<string, { stroke: string; fill: str
   network_traffic: {
     in: { stroke: '#0f766e', fill: '#2dd4bf' },
     out: { stroke: '#1d4ed8', fill: '#60a5fa' },
+  },
+  block: {
+    read: { stroke: '#7e22ce', fill: '#c084fc' },
+    write: { stroke: '#ea580c', fill: '#fb923c' },
   },
 }
 
@@ -127,6 +144,28 @@ function defaultTickFormatter(value: number): string {
   if (absolute >= 100) return `${Math.round(value)}`
   if (absolute >= 10) return value.toFixed(1)
   return value.toFixed(2)
+}
+
+function tickFormatterForUnit(unit: string): (value: number) => string {
+  if (unit === 'percent') {
+    return value => {
+      if (!Number.isFinite(value)) return '0'
+      if (value > 0 && value < 0.1) return '<0.1'
+      return defaultTickFormatter(value)
+    }
+  }
+  return defaultTickFormatter
+}
+
+function yAxisDomain(unit: string): [number, (max: number) => number] {
+  return [
+    0,
+    max => {
+      if (!Number.isFinite(max) || max <= 0) return unit === 'percent' ? 1 : 1
+      if (unit === 'percent') return Math.min(100, Math.max(max * 1.15, 1))
+      return Math.max(max * 1.15, 1)
+    },
+  ]
 }
 
 function normalizeBucket(timestampMs: number, stepMs: number): number {
@@ -260,7 +299,7 @@ export function TimeSeriesChart({
   }, [])
 
   const data = mergeSeriesData(window, rangeStartAt, rangeEndAt, stepSeconds, points, segments)
-  const shouldStackSegments = name === 'memory' || name === 'disk_usage'
+  const shouldStackSegments = name === 'disk_usage'
 
   const tooltipFormatter = (
     value: unknown,
@@ -294,21 +333,15 @@ export function TimeSeriesChart({
           .length
       : data.filter(item => Number.isFinite(item.value ?? NaN)).length
 
-  if (actualPointCount < 2) {
-    return (
-      <div className="flex h-24 items-center justify-center rounded-md border border-dashed text-xs text-muted-foreground">
-        No trend yet
-      </div>
-    )
-  }
-
   const palette = SERIES_PALETTE[name] ?? { stroke: '#475569', fill: '#94a3b8' }
   const resolvedWidth = Math.max(chartWidth, 240)
+  const hasTrendData = actualPointCount >= 1
+  const showSparsePointDots = actualPointCount <= 8 && data.length > actualPointCount * 3
 
   return (
     <div
       ref={containerRef}
-      className="h-24 w-full"
+      className="relative h-24 w-full"
       role="img"
       aria-label={`${name} time series chart`}
     >
@@ -348,9 +381,10 @@ export function TimeSeriesChart({
           axisLine={false}
           orientation="left"
           tick={{ fontSize: 10, fill: '#94a3b8' }}
-          tickFormatter={defaultTickFormatter}
+          tickFormatter={tickFormatterForUnit(unit)}
           tickLine={false}
           width={40}
+          domain={yAxisDomain(unit)}
         />
         <Tooltip
           contentStyle={{
@@ -375,7 +409,11 @@ export function TimeSeriesChart({
                 stroke={hideStroke ? 'none' : segmentPalette.stroke}
                 strokeWidth={1.75}
                 fill={`url(#${gradientId})`}
-                dot={false}
+                dot={
+                  showSparsePointDots && !hideStroke
+                    ? { r: 2, strokeWidth: 0, fill: segmentPalette.stroke }
+                    : false
+                }
                 activeDot={
                   hideStroke ? false : { r: 3, strokeWidth: 0, fill: segmentPalette.stroke }
                 }
@@ -383,19 +421,24 @@ export function TimeSeriesChart({
               />
             )
           })
-        ) : (
+        ) : hasTrendData ? (
           <Area
             type="monotone"
             dataKey="value"
             stroke={palette.stroke}
             strokeWidth={2}
             fill={`url(#monitor-series-${name}-value)`}
-            dot={false}
+            dot={showSparsePointDots ? { r: 2, strokeWidth: 0, fill: palette.stroke } : false}
             activeDot={{ r: 3, strokeWidth: 0, fill: palette.stroke }}
             isAnimationActive={false}
           />
-        )}
+        ) : null}
       </AreaChart>
+      {!hasTrendData ? (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
+          No trend yet
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -61,7 +61,14 @@ Implement frontend infrastructure only (framework, not features):
   - Color palette and typography
   - Common component primitives (Button, Input, Card, etc.)
   
-- [ ] 7.4: i18n Infrastructure
+- [ ] 7.4: Embedded Iframe Page Framework
+  - Standard contract for AppOS-managed embedded external pages
+  - Same-origin proxied iframe rendering inside the AppOS content area
+  - Top-header breadcrumb pattern for iframe page > current page
+  - Fallback state and open-in-new-window behavior
+  - Minimal Traefik Dashboard consumer
+
+- [ ] 7.4a: i18n Infrastructure
   - Install react-i18next
   - Language detection and switching
   - Translation file structure (`locales/en.json`, `locales/zh.json`)
@@ -109,7 +116,8 @@ Implement frontend infrastructure only (framework, not features):
 - Downstream: 
   - **Epic 3 (Auth)** - builds on Epic 7 framework, adds auth UI and state
   - **Epic 5 (Store Module)** - uses Epic 7 layout, routing, and components
-  - **Epic 6 (Components)** - uses Epic 7 layout, routing, and components
+  - **Epic 28 (Monitoring)** - uses Epic 7 layout, routing, and components
+  - **Epic 29 (Software Delivery)** - uses Epic 7 layout, routing, and components
 
 ## Technical Notes
 
@@ -198,8 +206,8 @@ dashboard/
 - Create AuthContext in `contexts/AuthContext.tsx`
 - Add route guards using TanStack Router
 
-**For Epic 5 (Store) & Epic 6 (Components):**
-- Add routes under `routes/_app/_auth/store/` and `routes/_app/_auth/components/`
+**For Epic 5 (Store), Epic 28 (Monitoring), and Epic 29 (Software Delivery):**
+- Add routes under `routes/_app/_auth/store/`, `routes/_app/_auth/status/`, and `routes/_app/_auth/resources/`
 - Use layout components (`<AppShell>`, `<Header>`, `<Sidebar>`)
 - Use shadcn/ui components and design tokens
 - Use i18n for translations

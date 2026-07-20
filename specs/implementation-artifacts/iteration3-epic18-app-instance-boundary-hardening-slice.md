@@ -10,10 +10,9 @@ This slice hardens the `AppInstance` management boundary without reopening Epic 
 
 It focuses on four linked stories:
 
-1. `18.1b AppInstance Runtime Context Stabilization`
-2. `18.4b App-scoped Action History Query Contract`
+1. `18.1b App Runtime Projection`
+2. `18.4a App Action Handoff`
 3. `18.3a Config Apply and Rollback Lifecycle Convergence`
-4. `18.1c Desired State Projection Completion`
 
 ## Why This Slice Next
 
@@ -24,20 +23,19 @@ The current model is directionally correct, but the remaining debt now sits in r
 3. Config write and rollback still bypass the shared lifecycle operation model.
 4. `desired_state` exists in the domain model but is not fully expressed in the management API/UI contract.
 
-These four issues are tightly coupled. Solving them together produces a cleaner management surface and reduces the chance that future Epic 18 work will build on temporary bridges.
+These issues are tightly coupled. Solving them together produces a cleaner management surface and reduces the chance that future Epic 18 work will build on temporary bridges.
 
 ## Included Stories
 
 | Story | Purpose | Current Status |
 | --- | --- | --- |
-| `18.1b AppInstance Runtime Context Stabilization` | Make app-scoped runtime and source context readable without depending primarily on `last_operation` reconstruction | proposed |
-| `18.4b App-scoped Action History Query Contract` | Give Installed-side pages an explicit app-scoped execution query surface | proposed |
+| `18.1b App Runtime Projection` | Make app-scoped runtime, source, and desired-state context readable without depending primarily on `last_operation` reconstruction | proposed |
+| `18.4a App Action Handoff` | Give Installed-side pages a consistent handoff and app-scoped execution query surface | in-progress |
 | `18.3a Config Apply and Rollback Lifecycle Convergence` | Move config apply/rollback onto the shared lifecycle operation model | proposed |
-| `18.1c Desired State Projection Completion` | Complete `desired_state` in backend projection and frontend management contract | proposed |
 
 ## Execution Order
 
-### Step 1: 18.1b AppInstance Runtime Context Stabilization
+### Step 1: 18.1b App Runtime Projection
 
 Purpose:
 
@@ -48,7 +46,7 @@ Why first:
 
 - The other three stories depend on clearer app-scoped read semantics.
 
-### Step 2: 18.4b App-scoped Action History Query Contract
+### Step 2: 18.4a App Action Handoff
 
 Purpose:
 
@@ -68,31 +66,16 @@ Why third:
 
 - It depends on clearer app context and should reuse the execution/query contract shape instead of inventing a parallel management-only flow.
 
-### Step 4: 18.1c Desired State Projection Completion
-
-Purpose:
-
-- Finish the management projection so operators can reason about intended versus current state consistently.
-
-Why fourth:
-
-- It is the smallest and least risky slice once the stronger boundary issues above are already addressed.
-
 ## Dependency Graph
 
 ```text
-18.1b Runtime Context Stabilization
+18.1b App Runtime Projection
         |
         v
-18.4b App-scoped Action History Query Contract
+18.4a App Action Handoff
         |
         v
 18.3a Config Apply and Rollback Lifecycle Convergence
-
-18.1b Runtime Context Stabilization
-        |
-        v
-18.1c Desired State Projection Completion
 ```
 
 Additional dependency notes:
@@ -104,10 +87,9 @@ Additional dependency notes:
 
 | Stage | Story | Delivery Type | Recommended Output |
 | --- | --- | --- | --- |
-| Stage A | `18.1b` | backend read-model hardening | stable app-scoped runtime/source projection |
-| Stage B | `18.4b` | backend query + frontend consumption cleanup | explicit app-scoped action history contract |
+| Stage A | `18.1b` | backend read-model hardening | stable app-scoped runtime/source/desired-state projection |
+| Stage B | `18.4a` | backend query + frontend consumption cleanup | explicit app-scoped action history contract plus consistent handoff |
 | Stage C | `18.3a` | backend + API convergence | config apply/rollback as shared lifecycle operations |
-| Stage D | `18.1c` | projection and UI contract completion | visible `desired_state` in management surfaces |
 
 ## Definition of Done for This Slice
 
@@ -138,7 +120,7 @@ This iteration should be considered complete when all of the following are true:
 
 - [Source: specs/implementation-artifacts/epic17-18-app-instance-subdomain-assessment.md]
 - [Source: specs/implementation-artifacts/epic18-app-management.md]
-- [Source: specs/implementation-artifacts/story18.1a-app-detail-boundary-classification.md]
-- [Source: specs/implementation-artifacts/story18.2a-local-action-convergence.md]
-- [Source: specs/implementation-artifacts/story18.4a-app-detail-action-handoff.md]
+- [Source: specs/implementation-artifacts/story18.1a-app-detail-boundary.md]
+- [Source: specs/implementation-artifacts/story18.2a-lifecycle-action-convergence.md]
+- [Source: specs/implementation-artifacts/story18.4a-app-action-handoff.md]
 - [Source: specs/adr/app-lifecycle-domain-model.md]

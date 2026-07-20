@@ -50,6 +50,9 @@ func TestConnectorRepositorySaveGetDelete(t *testing.T) {
 	if item.ID() == "" {
 		t.Fatal("expected saved connector id")
 	}
+	if item.Created() == "" || item.Updated() == "" {
+		t.Fatalf("expected save to hydrate timestamps, got created=%q updated=%q", item.Created(), item.Updated())
+	}
 
 	loaded, err := repo.Get(item.ID())
 	if err != nil {
@@ -61,47 +64,15 @@ func TestConnectorRepositorySaveGetDelete(t *testing.T) {
 	if loaded.ProviderAccountID() != providerAccount.Id {
 		t.Fatalf("expected provider_account %q, got %q", providerAccount.Id, loaded.ProviderAccountID())
 	}
+	if loaded.Created() == "" || loaded.Updated() == "" {
+		t.Fatalf("expected get to return timestamps, got created=%q updated=%q", loaded.Created(), loaded.Updated())
+	}
 
 	if err := repo.Delete(item); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := repo.Get(item.ID()); err == nil {
 		t.Fatal("expected deleted connector lookup to fail")
-	}
-}
-
-func TestConnectorRepositoryClearDefaultsByKind(t *testing.T) {
-	app := newPersistenceTestApp(t)
-
-	repo := NewConnectorRepository(app)
-	first, _ := repo.New()
-	first.ApplySaveInput(domainconnectors.SaveInput{Name: "One", Kind: domainconnectors.KindLLM, IsDefault: true, TemplateID: "openai"})
-	if err := repo.Save(first); err != nil {
-		t.Fatal(err)
-	}
-	second, _ := repo.New()
-	second.ApplySaveInput(domainconnectors.SaveInput{Name: "Two", Kind: domainconnectors.KindLLM, IsDefault: true, TemplateID: "anthropic"})
-	if err := repo.Save(second); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := repo.ClearDefaultsByKind(domainconnectors.KindLLM, second.ID()); err != nil {
-		t.Fatal(err)
-	}
-
-	loadedFirst, err := repo.Get(first.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
-	loadedSecond, err := repo.Get(second.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if loadedFirst.IsDefault() {
-		t.Fatal("expected excluded default clear to unset first connector")
-	}
-	if !loadedSecond.IsDefault() {
-		t.Fatal("expected excluded connector to remain default")
 	}
 }
 

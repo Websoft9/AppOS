@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
 import { pb } from '@/lib/pb'
+import { installAuthRuntimeGuards, resetRuntimeSessionExpiryState } from '@/lib/auth-session'
 import type { RecordModel } from 'pocketbase'
 import { ClientResponseError } from 'pocketbase'
 
@@ -38,6 +39,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<RecordModel | null>(pb.authStore.record)
   const [isLoading, setIsLoading] = useState(true)
 
+  useEffect(() => {
+    installAuthRuntimeGuards()
+  }, [])
+
   // On mount: verify stored token with server
   useEffect(() => {
     const verify = async () => {
@@ -48,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       try {
         const result = await tryAuthRefresh()
+        resetRuntimeSessionExpiryState()
         setUser(result.record)
       } catch {
         pb.authStore.clear()
@@ -62,6 +68,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Reactive: sync on any authStore change
   useEffect(() => {
     return pb.authStore.onChange((_token, record) => {
+      if (record) {
+        resetRuntimeSessionExpiryState()
+      }
       setUser(record)
     })
   }, [])

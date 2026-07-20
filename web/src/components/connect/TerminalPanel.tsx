@@ -22,6 +22,8 @@ import { cn } from '@/lib/utils'
 export interface TerminalPanelProps {
   /** Server ID for SSH connection */
   serverId?: string
+  /** Existing resumable SSH session ID */
+  sessionId?: string
   /** Container ID for Docker exec connection (Story 15.3) */
   containerId?: string
   /** Override shell for Docker exec (default: /bin/sh) */
@@ -32,6 +34,10 @@ export interface TerminalPanelProps {
   className?: string
   /** Whether this terminal tab is currently active in UI */
   isActive?: boolean
+  /** Called when the backend confirms the active session id */
+  onSessionEstablished?: (sessionId: string) => void
+  /** Called when a previously stored session id is no longer resumable */
+  onSessionInvalidated?: (sessionId: string) => void
 }
 
 // ─── Control frame helpers ────────────────────────────────────────────────────
@@ -71,29 +77,68 @@ export interface TerminalPanelHandle {
   sendData: (data: string) => void
   /** Force terminal fit + resize sync (for parent layout transitions). */
   requestFit: () => void
+  /** Explicitly close the terminal session instead of detaching it. */
+  disconnect: () => void
 }
+
+const TERMINAL_FRAME_PADDING = {
+  paddingTop: 0,
+  paddingRight: 0,
+  paddingBottom: 0,
+  paddingLeft: 0,
+} as const
+
+const TERMINAL_SCREEN_PADDING = '1em 1ch 8px 10px'
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>(
   function TerminalPanel(
-    { serverId, containerId, shell, dockerServerId, className, isActive },
+    {
+      serverId,
+      sessionId,
+      containerId,
+      shell,
+      dockerServerId,
+      className,
+      isActive,
+      onSessionEstablished,
+      onSessionInvalidated,
+    },
     ref
   ) {
+    const frameRef = useRef<HTMLDivElement>(null)
     const termRef = useRef<HTMLDivElement>(null)
     const terminalRef = useRef<Terminal | null>(null)
     const wsRef = useRef<WebSocket | null>(null)
     const fitRef = useRef<FitAddon | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [errorCategory, setErrorCategory] = useState<ConnectErrorCategory | null>(null)
+    const [warning, setWarning] = useState<string | null>(null)
     const [connecting, setConnecting] = useState(false)
     const fitTimersRef = useRef<number[]>([])
     const isActiveRef = useRef(!!isActive)
     const structuredErrorRef = useRef(false)
+    const connectionAttemptRef = useRef(0)
+    const latestSessionIdRef = useRef<string | undefined>(sessionId)
+    const onSessionEstablishedRef = useRef(onSessionEstablished)
+    const onSessionInvalidatedRef = useRef(onSessionInvalidated)
 
     useEffect(() => {
       isActiveRef.current = !!isActive
     }, [isActive])
+
+    useEffect(() => {
+      latestSessionIdRef.current = sessionId
+    }, [sessionId])
+
+    useEffect(() => {
+      onSessionEstablishedRef.current = onSessionEstablished
+    }, [onSessionEstablished])
+
+    useEffect(() => {
+      onSessionInvalidatedRef.current = onSessionInvalidated
+    }, [onSessionInvalidated])
 
     const clearFitTimers = useCallback(() => {
       for (const timer of fitTimersRef.current) {
@@ -122,12 +167,60 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
 
     const applyViewportInset = useCallback(() => {
       if (!termRef.current) return
+      const xterm = termRef.current.querySelector('.xterm') as HTMLElement | null
       const screen = termRef.current.querySelector('.xterm-screen') as HTMLElement | null
+      const viewport = termRef.current.querySelector('.xterm-viewport') as HTMLElement | null
+      if (xterm) {
+        xterm.style.width = '100%'
+        xterm.style.height = '100%'
+        xterm.style.boxSizing = 'border-box'
+        xterm.style.padding = TERMINAL_SCREEN_PADDING
+      }
       if (!screen) return
       screen.style.boxSizing = 'border-box'
-      screen.style.padding = '8px 10px'
       screen.style.width = '100%'
+      screen.style.height = '100%'
+      screen.style.maxWidth = '100%'
+      screen.style.maxHeight = '100%'
+      if (viewport) {
+        viewport.style.width = '100%'
+        viewport.style.height = '100%'
+        viewport.style.maxWidth = '100%'
+        viewport.style.maxHeight = '100%'
+        viewport.style.boxSizing = 'border-box'
+        viewport.style.padding = TERMINAL_SCREEN_PADDING
+      }
     }, [])
+
+    const disposeTerminal = useCallback(() => {
+      terminalRef.current?.dispose()
+      terminalRef.current = null
+      fitRef.current = null
+      if (termRef.current) {
+        termRef.current.replaceChildren()
+      }
+    }, [])
+
+    const detachSocketHandlers = useCallback((ws: WebSocket | null) => {
+      if (!ws) return
+      ws.onopen = null
+      ws.onmessage = null
+      ws.onclose = null
+      ws.onerror = null
+    }, [])
+
+    const disposeSocket = useCallback(
+      (closeCode = 1000, reason = 'dispose') => {
+        const ws = wsRef.current
+        if (!ws) return
+        detachSocketHandlers(ws)
+        wsRef.current = null
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+          ws.close(closeCode, reason)
+        }
+      },
+      [detachSocketHandlers]
+    )
 
     const scrollToBottom = useCallback(() => {
       if (!isActiveRef.current) return
@@ -154,18 +247,26 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         requestFit: () => {
           scheduleFitAndSync()
         },
+        disconnect: () => {
+          disposeSocket(1000, 'disconnect')
+        },
       }),
-      [scheduleFitAndSync]
+      [disposeSocket, scheduleFitAndSync]
     )
 
     const connect = useCallback(() => {
       if (!termRef.current) return
+
+      const attemptId = connectionAttemptRef.current + 1
+      connectionAttemptRef.current = attemptId
       setError(null)
       setErrorCategory(null)
+      setWarning(null)
       setConnecting(true)
       structuredErrorRef.current = false
+      disposeSocket(1000, 'reconnect')
+      disposeTerminal()
 
-      // Determine WebSocket URL
       let wsUrl: string
       if (serverId) {
         wsUrl = sshWebSocketUrl(serverId)
@@ -177,7 +278,11 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         return
       }
 
+      const requestedSessionId = latestSessionIdRef.current
       const url = new URL(wsUrl)
+      if (requestedSessionId && (serverId || containerId)) {
+        url.searchParams.set('session_id', requestedSessionId)
+      }
       if (containerId) {
         url.searchParams.set('_', String(Date.now()))
         if (shell) {
@@ -188,21 +293,12 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         }
       }
 
-      // Append auth token as query param
       const token = pb.authStore.token
       if (token) {
         url.searchParams.set('token', token)
       }
 
-      // Load preferences
       const prefs = loadPreferences()
-
-      // Clean up previous terminal
-      if (terminalRef.current) {
-        terminalRef.current.dispose()
-      }
-
-      // Create terminal
       const terminal = new Terminal({
         fontSize: prefs.terminal_font_size,
         scrollback: prefs.terminal_scrollback,
@@ -216,41 +312,72 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       })
       terminalRef.current = terminal
 
-      // Fit addon
       const fitAddon = new FitAddon()
       fitRef.current = fitAddon
       terminal.loadAddon(fitAddon)
 
-      // Mount terminal
       terminal.open(termRef.current)
       applyViewportInset()
       window.setTimeout(() => scheduleFitAndSync(), 0)
 
-      // Open WebSocket
       const ws = new WebSocket(url.toString())
       ws.binaryType = 'arraybuffer'
       wsRef.current = ws
 
+      const isStaleAttempt = () => connectionAttemptRef.current !== attemptId
+
       ws.onopen = () => {
+        if (isStaleAttempt()) {
+          detachSocketHandlers(ws)
+          ws.close(1000, 'stale-open')
+          return
+        }
         setConnecting(false)
         terminal.focus()
-        // Send initial resize
-        const { cols, rows } = terminal
-        ws.send(makeResizeFrame(cols, rows))
+        ws.send(makeResizeFrame(terminal.cols, terminal.rows))
       }
 
       ws.onmessage = event => {
+        if (isStaleAttempt()) return
+
         if (event.data instanceof ArrayBuffer) {
           const bytes = new Uint8Array(event.data)
-          // Control frame: 0x00 prefix + JSON payload (error/close sent by backend)
           if (bytes.length > 0 && bytes[0] === 0x00) {
             try {
               const ctrl = JSON.parse(new TextDecoder().decode(bytes.slice(1))) as {
                 type: string
+                session_id?: string
                 category?: string
                 message?: string
               }
+              if (ctrl.type === 'session' && typeof ctrl.session_id === 'string') {
+                onSessionEstablishedRef.current?.(ctrl.session_id)
+                return
+              }
+              if (ctrl.type === 'warning') {
+                setWarning(ctrl.message ?? 'Terminal warning')
+                return
+              }
               if (ctrl.type === 'error' || ctrl.type === 'close') {
+                if (requestedSessionId && ctrl.message === 'terminal session not found') {
+                  latestSessionIdRef.current = undefined
+                  onSessionInvalidatedRef.current?.(requestedSessionId)
+                  structuredErrorRef.current = false
+                  setError(null)
+                  setErrorCategory(null)
+                  if (wsRef.current === ws) {
+                    wsRef.current = null
+                  }
+                  detachSocketHandlers(ws)
+                  ws.close(1000, 'stale-session')
+                  window.setTimeout(() => {
+                    if (!isStaleAttempt()) {
+                      connect()
+                    }
+                  }, 0)
+                  return
+                }
+
                 structuredErrorRef.current = true
                 setError(ctrl.message ?? `Connection ${ctrl.type}`)
                 if (ctrl.category && ctrl.category in categoryMeta) {
@@ -261,19 +388,25 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
                 ws.close(1000)
               }
             } catch {
-              // Not a valid control frame — ignore silently
+              // Ignore malformed control frames.
             }
             return
           }
+
           terminal.write(bytes)
           scrollToBottom()
-        } else {
-          terminal.write(event.data)
-          scrollToBottom()
+          return
         }
+
+        terminal.write(event.data)
+        scrollToBottom()
       }
 
       ws.onclose = event => {
+        if (isStaleAttempt()) return
+        if (wsRef.current === ws) {
+          wsRef.current = null
+        }
         setConnecting(false)
         if (structuredErrorRef.current) {
           return
@@ -286,19 +419,18 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       }
 
       ws.onerror = () => {
+        if (isStaleAttempt()) return
         setConnecting(false)
         setError('WebSocket connection failed')
         setErrorCategory(null)
       }
 
-      // Terminal → WebSocket
       terminal.onData(data => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(new TextEncoder().encode(data))
         }
       })
 
-      // Terminal resize → control frame
       terminal.onResize(({ cols, rows }) => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(makeResizeFrame(cols, rows))
@@ -330,10 +462,10 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       return () => {
         cancelAnimationFrame(frame)
         clearFitTimers()
-        wsRef.current?.close(1000, 'unmount')
-        terminalRef.current?.dispose()
+        disposeSocket(1000, 'detach')
+        disposeTerminal()
       }
-    }, [connect, clearFitTimers])
+    }, [connect, clearFitTimers, disposeSocket, disposeTerminal])
 
     // ResizeObserver for container resize → fit + sync
     useEffect(() => {
@@ -361,8 +493,36 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
 
     return (
       <div className={cn('relative flex flex-col h-full overflow-hidden', className)}>
+        {warning && !error && !connecting ? (
+          <div className="absolute inset-x-3 top-3 z-10 rounded-md border border-amber-500/40 bg-amber-500/12 px-3 py-2 text-xs text-amber-100 shadow-lg backdrop-blur-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+                <div>
+                  <p className="font-medium text-amber-200">Proxy warning</p>
+                  <p className="mt-0.5 leading-relaxed text-amber-100/90">{warning}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="shrink-0 rounded px-2 py-1 text-[11px] font-medium text-amber-200/90 hover:bg-amber-500/10 hover:text-amber-100"
+                onClick={() => setWarning(null)}
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         {/* Terminal container */}
-        <div ref={termRef} className="flex-1 min-h-0 overflow-hidden" />
+        <div
+          ref={frameRef}
+          data-terminal-frame
+          className="flex-1 min-h-0 overflow-hidden bg-[#1a1b26]"
+          style={TERMINAL_FRAME_PADDING}
+        >
+          <div ref={termRef} className="h-full min-h-0 w-full overflow-hidden" />
+        </div>
 
         {/* Error overlay */}
         {(error || connecting) && (

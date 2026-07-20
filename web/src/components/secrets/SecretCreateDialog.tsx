@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
   Dialog,
   DialogContent,
@@ -11,8 +13,14 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { pb } from '@/lib/pb'
+import { cn } from '@/lib/utils'
 import { PasswordGeneratorDialog } from './PasswordGeneratorDialog'
 import { SecretForm, type SecretTemplate } from './SecretForm'
+import {
+  RESOURCE_SECRET_VISIBLE_TO_VALUES,
+  SecretVisibilityField,
+  type ResourceSecretVisibleTo,
+} from './SecretVisibilityField'
 
 function resolveDefaultSecretName(defaultName?: string | (() => string)) {
   if (typeof defaultName === 'function') {
@@ -46,6 +54,7 @@ interface SecretCreateDialogProps {
   defaultTemplateId: string
   onCreated: (secret: { id: string; label: string; name: string; templateId: string }) => void
   defaultName?: string | (() => string)
+  defaultVisibleTo?: ResourceSecretVisibleTo[]
 }
 
 export function SecretCreateDialog({
@@ -58,16 +67,21 @@ export function SecretCreateDialog({
   defaultTemplateId,
   onCreated,
   defaultName,
+  defaultVisibleTo,
 }: SecretCreateDialogProps) {
   const [name, setName] = useState('')
   const [secretDescription, setSecretDescription] = useState('')
   const [templateId, setTemplateId] = useState(defaultTemplateId)
+  const [visibleTo, setVisibleTo] = useState<ResourceSecretVisibleTo[]>([
+    ...RESOURCE_SECRET_VISIBLE_TO_VALUES,
+  ])
   const [payload, setPayload] = useState<Record<string, string>>({})
   const [templates, setTemplates] = useState<SecretTemplate[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [generatorOpen, setGeneratorOpen] = useState(false)
   const [generatedLength, setGeneratedLength] = useState(24)
+  const [advancedOpen, setAdvancedOpen] = useState(false)
 
   useEffect(() => {
     if (!open) {
@@ -94,11 +108,15 @@ export function SecretCreateDialog({
       setName(resolveDefaultSecretName(defaultName))
       setSecretDescription('')
       setTemplateId(defaultTemplateId)
+      setVisibleTo(
+        defaultVisibleTo?.length ? [...defaultVisibleTo] : [...RESOURCE_SECRET_VISIBLE_TO_VALUES]
+      )
       setPayload({})
       setError('')
       setGeneratedLength(24)
+      setAdvancedOpen(false)
     }
-  }, [defaultName, defaultTemplateId, open])
+  }, [defaultName, defaultTemplateId, defaultVisibleTo, open])
 
   const handleCreate = async () => {
     if (!name.trim()) {
@@ -118,6 +136,7 @@ export function SecretCreateDialog({
         description: secretDescription.trim(),
         template_id: templateId,
         scope: 'global',
+        visible_to: visibleTo,
         payload,
       })
       onCreated({
@@ -179,15 +198,28 @@ export function SecretCreateDialog({
                 ) : null
               }
             />
-
-            <div className="space-y-2">
-              <Label htmlFor="shared-secret-description">Description</Label>
-              <Input
-                id="shared-secret-description"
-                value={secretDescription}
-                onChange={event => setSecretDescription(event.target.value)}
-              />
-            </div>
+            <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+              <CollapsibleTrigger
+                type="button"
+                className="flex w-full items-center justify-start gap-2 py-1 text-left text-sm text-muted-foreground hover:text-foreground"
+              >
+                <ChevronDown
+                  className={cn('h-4 w-4 transition-transform', advancedOpen && 'rotate-180')}
+                />
+                <span>Advanced</span>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-4 pt-2">
+                <div className="space-y-2">
+                  <Label htmlFor="shared-secret-description">Description</Label>
+                  <Input
+                    id="shared-secret-description"
+                    value={secretDescription}
+                    onChange={event => setSecretDescription(event.target.value)}
+                  />
+                </div>
+                <SecretVisibilityField value={visibleTo} onChange={setVisibleTo} />
+              </CollapsibleContent>
+            </Collapsible>
 
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>

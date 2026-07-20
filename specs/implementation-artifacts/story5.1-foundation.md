@@ -62,7 +62,7 @@ Filter logic: primary match → check `product.catalogCollection.items[*].catalo
 - `main.tsx`: wrapped app with `QueryClientProvider`; initialized i18n via `src/lib/i18n.ts`
 - i18n: bundled translations in `src/locales/{en,zh}/{store,common}.json`; locale auto-detected from browser, overridable via `localStorage`
 - `src/lib/store-types.ts`: full TypeScript types for catalog/product JSON structures + `StoreFilters`, `PAGE_SIZES`
-- `src/lib/store-api.ts`: `fetchStoreJson` with local-first + silent CDN background update; `useCatalog`/`useProducts` hooks; `enrichProducts`, `filterProducts`, `countByPrimaryCategory`, `countBySecondaryCategory` helpers
+- `src/lib/catalog-api.ts` and presenter helpers now own store reads; the original frontend-only store data slice has been retired in favor of backend `/api/catalog`.
 - `src/components/store/CategoryFilter.tsx`: primary dropdown with counts + secondary chips (hidden when All selected), ARIA-accessible
 - `src/components/store/AppCard.tsx`: icon, trademark, overview (2-line clamp), category badge, deploy button
 - `src/components/store/StorePagination.tsx`: smart page number generation, per-page selector (12/24/48/96), ARIA attributes
@@ -71,7 +71,7 @@ Filter logic: primary match → check `product.catalogCollection.items[*].catalo
 ### File List
 
 - `web/src/lib/store-types.ts` [NEW]
-- `web/src/lib/store-api.ts` [NEW]
+- `web/src/lib/catalog-api.ts` [CURRENT]
 - `web/src/lib/i18n.ts` [NEW]
 - `web/src/locales/en/store.json` [NEW]
 - `web/src/locales/zh/store.json` [NEW]

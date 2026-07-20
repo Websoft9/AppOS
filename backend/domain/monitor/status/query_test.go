@@ -36,3 +36,38 @@ func TestBuildOverviewReturnsMoreThanFiveHundredItems(t *testing.T) {
 		t.Fatalf("expected 501 unhealthy items, got %d", got)
 	}
 }
+
+func TestBuildOverviewSynthesizesPlatformTargetsWhenMissing(t *testing.T) {
+	overview, err := buildOverviewFromRecords(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := len(overview.PlatformItems); got != 3 {
+		t.Fatalf("expected 3 synthesized platform items, got %d", got)
+	}
+	if got := overview.Counts[monitor.StatusUnknown]; got != 3 {
+		t.Fatalf("expected unknown count 3, got %d", got)
+	}
+	if overview.PlatformItems[0].TargetID != "appos-core" {
+		t.Fatalf("expected appos-core first, got %+v", overview.PlatformItems)
+	}
+	if overview.PlatformItems[0].Summary["monitoring_state"] != "awaiting_self_observation" {
+		t.Fatalf("expected awaiting summary, got %+v", overview.PlatformItems[0].Summary)
+	}
+}
+
+func TestGetTargetStatusSynthesizesPlatformTargetStatus(t *testing.T) {
+	resp, err := synthesizePlatformTargetStatus("worker")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Status != monitor.StatusUnknown {
+		t.Fatalf("expected unknown platform status, got %q", resp.Status)
+	}
+	if resp.SignalSource != monitor.SignalSourceSelf {
+		t.Fatalf("expected self signal source, got %q", resp.SignalSource)
+	}
+	if resp.Summary["monitoring_state"] != "awaiting_self_observation" {
+		t.Fatalf("expected awaiting summary, got %+v", resp.Summary)
+	}
+}

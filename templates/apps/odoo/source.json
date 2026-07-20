@@ -1,0 +1,12 @@
+{
+  "contractVersion": "0.1",
+  "origin_kind": "official",
+  "origin_ref": "https://github.com/Websoft9/docker-library/tree/main/apps/odoo",
+  "upstream_version": "19.0",
+  "template_revision": "v0-initial",
+  "adapter_version": "v0",
+  "compatibility": {
+    "templateContract": "0.1",
+    "adapterStatus": "sample"
+  }
+}

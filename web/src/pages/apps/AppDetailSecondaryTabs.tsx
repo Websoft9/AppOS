@@ -35,13 +35,42 @@ import { cn } from '@/lib/utils'
 import { MonitorTargetPanel } from '@/components/monitor/MonitorTargetPanel'
 import { statusVariant } from '@/pages/deploy/actions/action-utils'
 import { formatBytesCompact, getActionLabel, summarizePorts } from '@/pages/apps/app-detail-utils'
-import { formatTime } from '@/pages/apps/types'
+import {
+  formatEffectiveHealthLabel,
+  formatEffectiveRuntimeLabel,
+  formatServerConnectionLabel,
+  formatTime,
+  getServerConnectionReason,
+  hasBlockingServerConnectionIssue,
+} from '@/pages/apps/types'
 import type {
   ComposeTabProps,
   DataTabProps,
   ObservabilityTabProps,
   RuntimeTabProps,
 } from '@/pages/apps/AppDetailTabPanelTypes'
+
+function ServerRuntimeUnavailableAlert({
+  app,
+}: {
+  app: {
+    server_id: string
+    server_connection_status?: string
+    server_connection_reason?: string
+    runtime_reason?: string
+  }
+}) {
+  if (!hasBlockingServerConnectionIssue(app)) return null
+  const reason = getServerConnectionReason(app)
+  return (
+    <Alert variant="destructive">
+      <AlertDescription>
+        {formatServerConnectionLabel(app.server_connection_status)}
+        {reason ? ` · ${reason}` : ''}
+      </AlertDescription>
+    </Alert>
+  )
+}
 
 export function AppDetailRuntimeTab({
   app,
@@ -56,35 +85,42 @@ export function AppDetailRuntimeTab({
   projectNameCandidates,
   setTab,
 }: RuntimeTabProps) {
+  const serverConnectionBlocked = hasBlockingServerConnectionIssue(app)
+  const serverConnectionReason = getServerConnectionReason(app)
   return (
     <TabsContent value="runtime" className="space-y-2.5">
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle>Containers</CardTitle>
-          <CardDescription>
-            App-related runtime projection from Docker inventory and container stats.
-          </CardDescription>
+          <CardTitle>Runtime Summary</CardTitle>
+          <CardDescription>Container state and quick runtime actions.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          <ServerRuntimeUnavailableAlert app={app} />
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-2xl bg-muted/20 p-3">
               <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
                 Matched Containers
               </div>
-              <div className="mt-1 text-xl font-semibold">{runtimeSummary.total}</div>
+              <div className="mt-1 text-xl font-semibold">
+                {serverConnectionBlocked ? '-' : runtimeSummary.total}
+              </div>
             </div>
             <div className="rounded-2xl bg-muted/20 p-3">
               <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
                 Running
               </div>
-              <div className="mt-1 text-xl font-semibold">{runtimeSummary.running}</div>
+              <div className="mt-1 text-xl font-semibold">
+                {serverConnectionBlocked ? '-' : runtimeSummary.running}
+              </div>
             </div>
             <div className="rounded-2xl bg-muted/20 p-3">
               <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
                 Total CPU
               </div>
               <div className="mt-1 text-xl font-semibold">
-                {runtimeSummary.cpu.toFixed(runtimeSummary.cpu >= 10 ? 0 : 1)}%
+                {serverConnectionBlocked
+                  ? '-'
+                  : `${runtimeSummary.cpu.toFixed(runtimeSummary.cpu >= 10 ? 0 : 1)}%`}
               </div>
             </div>
             <div className="rounded-2xl bg-muted/20 p-3">
@@ -92,12 +128,12 @@ export function AppDetailRuntimeTab({
                 Memory Used
               </div>
               <div className="mt-1 text-xl font-semibold">
-                {formatBytesCompact(runtimeSummary.memory)}
+                {serverConnectionBlocked ? '-' : formatBytesCompact(runtimeSummary.memory)}
               </div>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span>Server {app.server_id || 'local'}</span>
+            <span>Server {app.server_name?.trim() || app.server_id || 'local'}</span>
             <span>Project directory {app.project_dir}</span>
             {projectNameCandidates.length > 0 ? (
               <span>Matched by {projectNameCandidates.join(', ')}</span>
@@ -107,7 +143,7 @@ export function AppDetailRuntimeTab({
             <div className="rounded-2xl border p-4 text-sm text-muted-foreground">
               Loading runtime inventory...
             </div>
-          ) : relatedRuntimeContainers.length > 0 ? (
+          ) : !serverConnectionBlocked && relatedRuntimeContainers.length > 0 ? (
             <Table containerClassName="rounded-xl border">
               <TableHeader>
                 <TableRow>
@@ -181,7 +217,10 @@ export function AppDetailRuntimeTab({
             </Table>
           ) : (
             <div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
-              No matching containers were found for this app in the current Docker inventory.
+              {serverConnectionBlocked
+                ? serverConnectionReason ||
+                  'Current Docker runtime inventory is unavailable because the server is unreachable.'
+                : 'No matching containers were found for this app in the current Docker inventory.'}
             </div>
           )}
         </CardContent>
@@ -189,13 +228,10 @@ export function AppDetailRuntimeTab({
 
       <Card>
         <CardHeader className="pb-2.5">
-          <CardTitle>Runtime Operations</CardTitle>
+          <CardTitle>Next Step</CardTitle>
         </CardHeader>
         <CardContent className="space-y-1.5 text-sm text-muted-foreground">
-          <p>
-            This page exposes app-related container projection and resource summary. Deep runtime
-            control still belongs to the server workspace and Docker views.
-          </p>
+          <p>Use server or Docker workspaces only when the summary above is not enough.</p>
           <div className="flex flex-wrap gap-2 pt-1">
             <Button variant="outline" size="sm" onClick={() => setTab('observability')}>
               Open Observability
@@ -259,9 +295,10 @@ export function AppDetailComposeTab({
     <TabsContent value="compose" className="space-y-2.5">
       <Card>
         <CardHeader className="pb-2.5">
-          <CardTitle>Compose Asset</CardTitle>
+          <CardTitle>Compose</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          <ServerRuntimeUnavailableAlert app={app} />
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => fetchConfig(true)} disabled={configLoading}>
               {configLoading ? (
@@ -412,16 +449,18 @@ export function AppDetailComposeTab({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="pb-2.5">
-          <CardTitle>Validation and Diff</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <pre className="max-h-[320px] overflow-auto rounded-xl border bg-muted/20 p-4 font-mono text-xs leading-5">
-            {diffText}
-          </pre>
-        </CardContent>
-      </Card>
+      {diffText ? (
+        <Card>
+          <CardHeader className="pb-2.5">
+            <CardTitle>Draft Diff</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <pre className="max-h-[220px] overflow-auto rounded-xl border bg-muted/20 p-4 font-mono text-xs leading-5">
+              {diffText}
+            </pre>
+          </CardContent>
+        </Card>
+      ) : null}
     </TabsContent>
   )
 }
@@ -438,6 +477,10 @@ export function AppDetailObservabilityTab({
   logViewportRef,
   stickToBottomRef,
 }: ObservabilityTabProps) {
+  const serverConnectionBlocked = hasBlockingServerConnectionIssue(app)
+  const serverConnectionReason = getServerConnectionReason(app)
+  const runtimeValue = formatEffectiveRuntimeLabel(app)
+  const healthValue = formatEffectiveHealthLabel(app)
   return (
     <TabsContent value="observability" className="space-y-2.5">
       <div className="grid gap-2.5 xl:grid-cols-2">
@@ -454,13 +497,18 @@ export function AppDetailObservabilityTab({
             </Button>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
+            <ServerRuntimeUnavailableAlert app={app} />
             <div className="grid gap-2 md:grid-cols-2">
               <div className="rounded-xl border p-3">
                 <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
                   Runtime Containers
                 </div>
                 <div className="mt-1 text-xl font-semibold">
-                  {runtimeLoaded ? `${runtimeSummary.running} / ${runtimeSummary.total}` : '-'}
+                  {serverConnectionBlocked
+                    ? '-'
+                    : runtimeLoaded
+                      ? `${runtimeSummary.running} / ${runtimeSummary.total}`
+                      : '-'}
                 </div>
                 <div className="text-xs text-muted-foreground">
                   running / total matched containers
@@ -471,10 +519,20 @@ export function AppDetailObservabilityTab({
                   Combined Resource Use
                 </div>
                 <div className="mt-1 text-sm font-medium">
-                  CPU {runtimeLoaded ? `${runtimeSummary.cpu.toFixed(1)}%` : '-'}
+                  CPU{' '}
+                  {serverConnectionBlocked
+                    ? '-'
+                    : runtimeLoaded
+                      ? `${runtimeSummary.cpu.toFixed(1)}%`
+                      : '-'}
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  Memory {runtimeLoaded ? formatBytesCompact(runtimeSummary.memory) : '-'}
+                  Memory{' '}
+                  {serverConnectionBlocked
+                    ? '-'
+                    : runtimeLoaded
+                      ? formatBytesCompact(runtimeSummary.memory)
+                      : '-'}
                 </div>
               </div>
             </div>
@@ -502,20 +560,32 @@ export function AppDetailObservabilityTab({
         </Card>
         <Card>
           <CardHeader className="pb-2.5">
-            <CardTitle>Health and Heartbeat</CardTitle>
+            <CardTitle>Signals</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2.5 text-sm">
+            <ServerRuntimeUnavailableAlert app={app} />
             <div className="grid gap-2 md:grid-cols-2">
               <div>
-                <span className="text-muted-foreground">Runtime status:</span> {app.runtime_status}
+                <span className="text-muted-foreground">Container runtime:</span> {runtimeValue}
               </div>
               <div>
-                <span className="text-muted-foreground">Lifecycle state:</span>{' '}
-                {app.lifecycle_state || '-'}
+                <span className="text-muted-foreground">Health:</span> {healthValue}
+              </div>
+              <div>
+                <span className="text-muted-foreground">State reason:</span>{' '}
+                {app.state_reason || app.runtime_reason || '-'}
+              </div>
+              <div>
+                <span className="text-muted-foreground">Last projected runtime:</span>{' '}
+                {app.runtime_status || '-'}
+              </div>
+              <div>
+                <span className="text-muted-foreground">Last projected app state:</span>{' '}
+                {app.instance_state || '-'}
               </div>
               <div>
                 <span className="text-muted-foreground">Health summary:</span>{' '}
-                {app.health_summary || '-'}
+                {serverConnectionBlocked ? 'Unavailable' : app.health_summary || '-'}
               </div>
               <div>
                 <span className="text-muted-foreground">Publication:</span>{' '}
@@ -526,13 +596,19 @@ export function AppDetailObservabilityTab({
                 {primaryExposure?.health_state || '-'}
               </div>
               <div>
+                <span className="text-muted-foreground">Server connection:</span>{' '}
+                {serverConnectionBlocked
+                  ? `${formatServerConnectionLabel(app.server_connection_status)}${serverConnectionReason ? ` · ${serverConnectionReason}` : ''}`
+                  : 'Online'}
+              </div>
+              <div>
                 <span className="text-muted-foreground">Last exposure verification:</span>{' '}
                 {formatTime(primaryExposure?.last_verified_at)}
               </div>
             </div>
             <div className="rounded-xl border bg-muted/20 px-3 py-2 text-muted-foreground">
-              Heartbeat is projected from app runtime and exposure health signals. Dedicated
-              heartbeat telemetry is not connected yet.
+              Heartbeat is projected from app runtime and exposure health signals. The canonical
+              product-facing state is `instance_state`.
             </div>
             {app.runtime_reason ? (
               <div className="rounded-lg bg-amber-50 px-3 py-2 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
@@ -544,7 +620,7 @@ export function AppDetailObservabilityTab({
               <MonitorTargetPanel
                 targetType="app"
                 targetId={app.id}
-                emptyMessage={`No monitoring projection is available yet for ${app.name}. Current runtime status is ${app.runtime_status || 'unknown'}.`}
+                emptyMessage={`No monitoring projection is available yet for ${app.name}. Current runtime status is ${runtimeValue.toLowerCase() || 'unknown'}.`}
               />
             </div>
           </CardContent>
@@ -589,12 +665,14 @@ export function AppDetailDataTab({
   canOpenServerWorkspace,
   openServerWorkspace,
 }: DataTabProps) {
+  const serverConnectionBlocked = hasBlockingServerConnectionIssue(app)
+  const serverConnectionReason = getServerConnectionReason(app)
   return (
     <TabsContent value="data" className="space-y-2.5">
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle>Service Instances</CardTitle>
-          <CardDescription>Projected matches from shared resource inventory.</CardDescription>
+          <CardTitle>Connected Data</CardTitle>
+          <CardDescription>Matched services, volumes, backups, and mounts.</CardDescription>
           <CardAction>
             <Button variant="outline" size="sm" asChild>
               <Link to="/resources/service-instances" search={{ create: undefined }}>
@@ -604,6 +682,7 @@ export function AppDetailDataTab({
           </CardAction>
         </CardHeader>
         <CardContent className="space-y-3">
+          <ServerRuntimeUnavailableAlert app={app} />
           {dataError ? (
             <Alert variant="destructive">
               <AlertDescription>{dataError}</AlertDescription>
@@ -613,7 +692,7 @@ export function AppDetailDataTab({
             <div className="rounded-2xl border p-4 text-sm text-muted-foreground">
               Loading service instance projections...
             </div>
-          ) : matchedInstanceResources.length > 0 ? (
+          ) : !serverConnectionBlocked && matchedInstanceResources.length > 0 ? (
             <Table containerClassName="rounded-xl border">
               <TableHeader>
                 <TableRow>
@@ -638,7 +717,9 @@ export function AppDetailDataTab({
             </Table>
           ) : (
             <div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
-              No service instance matched this app by name, endpoint, summary, or description.
+              {serverConnectionBlocked
+                ? serverConnectionReason || 'Live server-backed data projections are unavailable.'
+                : 'No service instance matched this app by name, endpoint, summary, or description.'}
             </div>
           )}
         </CardContent>
@@ -647,7 +728,7 @@ export function AppDetailDataTab({
       <Card>
         <CardHeader className="pb-3">
           <CardTitle>Volumes and Restore Points</CardTitle>
-          <CardDescription>App-matched Docker volumes plus platform backup status.</CardDescription>
+          <CardDescription>Runtime storage and backup coverage.</CardDescription>
           <CardAction>
             <Button variant="outline" size="sm" asChild>
               <Link
@@ -666,7 +747,7 @@ export function AppDetailDataTab({
             <div className="rounded-2xl border p-4 text-sm text-muted-foreground">
               Loading volume projections...
             </div>
-          ) : matchedDataVolumes.length > 0 ? (
+          ) : !serverConnectionBlocked && matchedDataVolumes.length > 0 ? (
             <Table containerClassName="rounded-xl border">
               <TableHeader>
                 <TableRow>
@@ -689,7 +770,10 @@ export function AppDetailDataTab({
             </Table>
           ) : (
             <div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
-              No Docker volumes matched this app in the current runtime inventory.
+              {serverConnectionBlocked
+                ? serverConnectionReason ||
+                  'Current Docker volume inventory is unavailable because the server is unreachable.'
+                : 'No Docker volumes matched this app in the current runtime inventory.'}
             </div>
           )}
 
@@ -723,16 +807,14 @@ export function AppDetailDataTab({
       <Card>
         <CardHeader className="pb-3">
           <CardTitle>Container Mounts</CardTitle>
-          <CardDescription>
-            Bind mounts and named volume attachments projected from container inspect data.
-          </CardDescription>
+          <CardDescription>Files and paths that back the current runtime.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {mountProjectionLoading ? (
             <div className="rounded-2xl border p-4 text-sm text-muted-foreground">
               Loading container mount projection...
             </div>
-          ) : containerMountRows.length > 0 ? (
+          ) : !serverConnectionBlocked && containerMountRows.length > 0 ? (
             <Table containerClassName="rounded-xl border">
               <TableHeader>
                 <TableRow>
@@ -775,7 +857,10 @@ export function AppDetailDataTab({
             </Table>
           ) : (
             <div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
-              No container mount projection is available for the current app runtime.
+              {serverConnectionBlocked
+                ? serverConnectionReason ||
+                  'Container mount projection is unavailable because the server runtime cannot be reached.'
+                : 'No container mount projection is available for the current app runtime.'}
             </div>
           )}
         </CardContent>

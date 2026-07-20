@@ -2,7 +2,7 @@
 //
 // The catalog subdomain owns two static registries:
 //   - templates.yaml: named delivery templates (detect, preflight, install, upgrade, uninstall, verify, reinstall steps)
-//   - catalog_local.yaml: components managed on the local AppOS host (detect + verify only)
+//   - components_local.yaml: the single AppOS-local platform registry, projected into the local software catalog (detect + verify only)
 //   - catalog_server.yaml: components deployed to managed remote servers (full lifecycle)
 //
 // All YAML files are compiled into the binary via go:embed. No user input reaches
@@ -21,9 +21,6 @@ import (
 
 //go:embed templates.yaml
 var embeddedTemplates []byte
-
-//go:embed catalog_local.yaml
-var embeddedLocalCatalog []byte
 
 //go:embed catalog_server.yaml
 var embeddedServerCatalog []byte
@@ -50,6 +47,20 @@ func validateCatalogEntries(cat software.ComponentCatalog, catalogName string) e
 		}
 		if entry.Description == "" {
 			return fmt.Errorf("%s: component %q missing description", catalogName, entry.ComponentKey)
+		}
+		seenLegacyServices := map[string]struct{}{}
+		for _, legacyName := range entry.LegacyServiceNames {
+			trimmed := strings.TrimSpace(legacyName)
+			if trimmed == "" {
+				return fmt.Errorf("%s: component %q has empty legacy_service_names entry", catalogName, entry.ComponentKey)
+			}
+			if trimmed == entry.ServiceName {
+				return fmt.Errorf("%s: component %q legacy_service_names repeats current service_name %q", catalogName, entry.ComponentKey, entry.ServiceName)
+			}
+			if _, exists := seenLegacyServices[trimmed]; exists {
+				return fmt.Errorf("%s: component %q duplicate legacy_service_names entry %q", catalogName, entry.ComponentKey, trimmed)
+			}
+			seenLegacyServices[trimmed] = struct{}{}
 		}
 		if len(entry.ReadinessRequirements) == 0 {
 			return fmt.Errorf("%s: component %q missing readiness_requirements", catalogName, entry.ComponentKey)
@@ -87,19 +98,15 @@ func LoadTemplateRegistry() (software.TemplateRegistry, error) {
 	return reg, nil
 }
 
-// LoadLocalCatalog parses the embedded catalog_local.yaml and returns the local-target catalog.
-// Local catalog entries represent components installed on the AppOS host; they support
-// detect and verify actions only. Install, upgrade, and reinstall are not managed by Software Delivery
-// for local targets.
+// LoadLocalCatalog projects the embedded components_local.yaml runtime registry into the
+// local-target software catalog. Local catalog entries represent components installed
+// on the AppOS host; they support detect and verify actions only.
 func LoadLocalCatalog() (software.ComponentCatalog, error) {
-	var cat software.ComponentCatalog
-	if err := yaml.Unmarshal(embeddedLocalCatalog, &cat); err != nil {
-		return software.ComponentCatalog{}, fmt.Errorf("parse catalog_local.yaml: %w", err)
-	}
-	if err := validateCatalogEntries(cat, "catalog_local.yaml"); err != nil {
+	reg, err := LoadLocalRegistry()
+	if err != nil {
 		return software.ComponentCatalog{}, err
 	}
-	return cat, nil
+	return ProjectLocalCatalog(reg)
 }
 
 // LoadServerCatalog parses the embedded catalog_server.yaml and returns the server-target catalog.
@@ -145,6 +152,16 @@ func ResolveTemplate(entry software.CatalogEntry, tpl software.ComponentTemplate
 		}
 		return out
 	}
+	subMap := func(values map[string]string) map[string]string {
+		if len(values) == 0 {
+			return nil
+		}
+		out := make(map[string]string, len(values))
+		for key, value := range values {
+			out[key] = sub(value)
+		}
+		return out
+	}
 
 	reinstall := software.ReinstallSpec{Strategy: "reinstall"}
 	if tpl.Reinstall != nil {
@@ -156,10 +173,17 @@ func ResolveTemplate(entry software.CatalogEntry, tpl software.ComponentTemplate
 		TemplateRef:  entry.TemplateRef,
 		TemplateKind: tpl.TemplateKind,
 		Detect: software.DetectSpec{
-			VersionCommand: sub(tpl.Detect.VersionCommand),
-			InstalledHint:  subSlice(tpl.Detect.InstalledHint),
+			VersionCommand: func() string {
+				if entry.VersionCommand != "" {
+					return entry.VersionCommand
+				}
+				return sub(tpl.Detect.VersionCommand)
+			}(),
+			InstalledHint: subSlice(tpl.Detect.InstalledHint),
 		},
-		Preflight: tpl.Preflight,
+		Preflight:           tpl.Preflight,
+		ActionTimeouts:      tpl.ActionTimeouts,
+		ActionTimeoutPolicy: tpl.ActionTimeoutPolicy,
 		Install: software.InstallSpec{
 			Strategy:           tpl.Install.Strategy,
 			PackageName:        sub(tpl.Install.PackageName),
@@ -167,6 +191,7 @@ func ResolveTemplate(entry software.CatalogEntry, tpl software.ComponentTemplate
 			PackageRepoProfile: entry.PackageRepoProfile,
 			ScriptPath:         sub(tpl.Install.ScriptPath),
 			ScriptURL:          sub(tpl.Install.ScriptURL),
+			Env:                subMap(tpl.Install.Env),
 			Args:               subSlice(tpl.Install.Args),
 		},
 		Upgrade: software.UpgradeSpec{
@@ -176,6 +201,7 @@ func ResolveTemplate(entry software.CatalogEntry, tpl software.ComponentTemplate
 			PackageRepoProfile: entry.PackageRepoProfile,
 			ScriptPath:         sub(tpl.Upgrade.ScriptPath),
 			ScriptURL:          sub(tpl.Upgrade.ScriptURL),
+			Env:                subMap(tpl.Upgrade.Env),
 			Args:               subSlice(tpl.Upgrade.Args),
 		},
 		Uninstall: software.UninstallSpec{
@@ -185,6 +211,7 @@ func ResolveTemplate(entry software.CatalogEntry, tpl software.ComponentTemplate
 			PackageRepoProfile: entry.PackageRepoProfile,
 			ScriptPath:         sub(tpl.Uninstall.ScriptPath),
 			ScriptURL:          sub(tpl.Uninstall.ScriptURL),
+			Env:                subMap(tpl.Uninstall.Env),
 			Args:               subSlice(tpl.Uninstall.Args),
 		},
 		Verify: software.VerifySpec{

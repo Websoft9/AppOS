@@ -77,8 +77,11 @@ development_status:
   5-7-search-autocomplete: done
   epic5-retrospective: optional
 
-  # Epic 6: Services Module
-  epic6: backlog
+  # Epic 6: Infra Modules
+  # Historical note: the older Epic 6 components scope was retired before this infra-module epic reused the number.
+  epic6: in-progress
+  6.1-files-service: in-progress
+  6.7-schema-migration: in-progress
   epic6-retrospective: optional
 
   # Epic 7: Dashboard - Unified Frontend Framework
@@ -108,7 +111,7 @@ development_status:
   epic9: in-progress
   9.1-space-core-operations: done       # Includes legacy 9.1 + 9.2 + 9.10
   9.2-space-content-operations: done    # Includes legacy 9.3 (+ rename/duplicate actions)
-  9.3-space-sharing-and-access: done    # Includes legacy 9.4 + 9.7 + 9.9
+  9.3-space-sharing-access: done    # Includes legacy 9.4 + 9.7 + 9.9
   9.4-space-lifecycle-management: done  # Includes legacy 9.8; 9.5 resolved by Epic13
   9.5-settings-ui-resolved-by-epic13: done
   9.6-file-version-history: backlog
@@ -153,6 +156,7 @@ development_status:
   20.2-docker-terminal: done
   20.3-sftp-enhancements: review
   20.4-server-ops: review
+  20.13-detail-cron: review
   epic20-retrospective: optional
 
   # Epic 16: SSH Tunnel – Local Server Management
@@ -207,3 +211,8 @@ development_status:
   27.2-feed-item-ingestion-and-query: backlog
   27.3-judgment-and-binding: backlog
   epic27-retrospective: optional
+
+  # Epic 31: AI Runtime
+  epic31: in-progress
+  31.1-chat-mvp: review
+  epic31-retrospective: optional

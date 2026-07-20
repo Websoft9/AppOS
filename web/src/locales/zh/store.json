@@ -1,5 +1,9 @@
 {
   "title": "应用商店",
+  "description": "真正一键部署热门开源应用，先运行，再配置。",
+  "refresh": {
+    "button": "刷新列表"
+  },
   "search": {
     "placeholder": "搜索应用...",
     "recentSearches": "最近搜索",
@@ -9,6 +13,12 @@
   "categories": {
     "all": "全部",
     "allApps": "全部应用"
+  },
+  "filters": {
+    "primaryCategory": "一级分类",
+    "secondaryCategory": "二级分类",
+    "search": "搜索",
+    "pageSize": "每页数量"
   },
   "favorites": {
     "showOnly": "只显示收藏",
@@ -44,10 +54,14 @@
     "unfavorite": "取消收藏",
     "unfavoriteConfirm": "确定取消收藏？",
     "unfavoriteYes": "取消",
+    "installedCount": "已安装 {{count}} 个",
+    "viewInstalled": "在我的应用中查看",
     "category": "分类",
     "categories": "分类"
   },
   "pagination": {
+    "previous": "上一页",
+    "next": "下一页",
     "perPage": "每页",
     "showing": "显示第 {{from}}–{{to}} 条，共 {{total}} 个应用"
   },
@@ -55,7 +69,8 @@
     "button": "同步最新",
     "syncing": "同步中...",
     "success": "已同步",
-    "error": "同步失败"
+    "error": "同步失败",
+    "unavailable": "当前版本尚未提供目录同步接口"
   },
   "loading": "正在加载应用目录...",
   "error": {

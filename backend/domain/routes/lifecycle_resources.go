@@ -149,7 +149,7 @@ func releaseResponse(record *core.Record) map[string]any {
 		"created_by_operation": record.GetString("created_by_operation"),
 		"release_role":         record.GetString("release_role"),
 		"version_label":        record.GetString("version_label"),
-		"source_type":          record.GetString("source_type"),
+		"channel":              record.GetString("channel"),
 		"source_ref":           record.GetString("source_ref"),
 		"config_digest":        record.GetString("config_digest"),
 		"artifact_digest":      record.GetString("artifact_digest"),

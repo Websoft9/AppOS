@@ -1,4 +1,4 @@
-import { render, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createRef } from 'react'
 import { TerminalPanel, type TerminalPanelHandle } from './TerminalPanel'
@@ -11,13 +11,17 @@ const mocks = vi.hoisted(() => {
     rows = 40
     loadAddonCallCount = 0
     open(container: HTMLElement) {
+      const xterm = document.createElement('div')
+      xterm.className = 'xterm'
+      container.appendChild(xterm)
+
       const screen = document.createElement('div')
       screen.className = 'xterm-screen'
-      container.appendChild(screen)
+      xterm.appendChild(screen)
 
       const viewport = document.createElement('div')
       viewport.className = 'xterm-viewport'
-      container.appendChild(viewport)
+      xterm.appendChild(viewport)
     }
     loadAddon() {
       this.loadAddonCallCount += 1
@@ -25,7 +29,9 @@ const mocks = vi.hoisted(() => {
     focus() {}
     write() {}
     scrollToBottom() {}
-    dispose() {}
+    dispose(container?: HTMLElement) {
+      void container
+    }
     onData() {}
     onResize() {}
 
@@ -40,6 +46,7 @@ const mocks = vi.hoisted(() => {
 
   class MockWebSocket {
     static instances: MockWebSocket[] = []
+    static urls: string[] = []
     static OPEN = 1
 
     readyState = MockWebSocket.OPEN
@@ -52,7 +59,7 @@ const mocks = vi.hoisted(() => {
     close = vi.fn()
 
     constructor(url: string) {
-      void url
+      MockWebSocket.urls.push(url)
       MockWebSocket.instances.push(this)
       setTimeout(() => {
         this.onopen?.(new Event('open'))
@@ -96,6 +103,7 @@ describe('TerminalPanel regressions', () => {
     vi.clearAllMocks()
     mocks.MockTerminal.instances = []
     mocks.MockWebSocket.instances = []
+    mocks.MockWebSocket.urls = []
     vi.stubGlobal('WebSocket', mocks.MockWebSocket)
   })
 
@@ -108,11 +116,22 @@ describe('TerminalPanel regressions', () => {
       expect(container.querySelector('.xterm-screen')).toBeTruthy()
     })
 
+    const frame = container.querySelector('[data-terminal-frame]') as HTMLElement
+    const xterm = container.querySelector('.xterm') as HTMLElement
     const screen = container.querySelector('.xterm-screen') as HTMLElement
+    expect(frame.className).toContain('bg-[#1a1b26]')
+    expect(frame.style.paddingTop).toBe('0px')
+    expect(frame.style.paddingRight).toBe('0px')
+    expect(xterm.style.boxSizing).toBe('border-box')
+    expect(xterm.style.padding).toBe('1em 1ch 8px 10px')
     expect(screen.style.boxSizing).toBe('border-box')
-    expect(screen.style.padding).toBe('8px 10px')
     expect(screen.style.width).toBe('100%')
-    expect(screen.style.minWidth).toBe('')
+    expect(screen.style.height).toBe('100%')
+
+    const viewport = container.querySelector('.xterm-viewport') as HTMLElement
+    expect(viewport.style.width).toBe('100%')
+    expect(viewport.style.height).toBe('100%')
+    expect(viewport.style.padding).toBe('1em 1ch 8px 10px')
 
     ref.current?.requestFit()
     await waitFor(() => {
@@ -141,6 +160,204 @@ describe('TerminalPanel regressions', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(mutationObserverSpy).not.toHaveBeenCalled()
+  })
+
+  it('reconnects cleanly after a dropped connection even if the old socket closes late', async () => {
+    render(<TerminalPanel serverId="s1" isActive />)
+
+    let initialSocketCount = 0
+    await waitFor(() => {
+      expect(mocks.MockWebSocket.instances.length).toBeGreaterThan(0)
+    })
+    initialSocketCount = mocks.MockWebSocket.instances.length
+
+    const firstSocket = mocks.MockWebSocket.instances[initialSocketCount - 1]
+    firstSocket.onerror?.(new Event('error'))
+
+    const reconnectButton = await screen.findByRole('button', { name: /reconnect/i })
+    fireEvent.click(reconnectButton)
+
+    await waitFor(() => {
+      expect(mocks.MockWebSocket.instances.length).toBe(initialSocketCount + 1)
+    })
+
+    firstSocket.onclose?.(
+      new CloseEvent('close', {
+        code: 1006,
+        reason: 'late close from previous socket',
+      })
+    )
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /reconnect/i })).not.toBeInTheDocument()
+    })
+  })
+
+  it('reports the established backend session id from a control frame', async () => {
+    const onSessionEstablished = vi.fn()
+
+    render(<TerminalPanel serverId="s1" isActive onSessionEstablished={onSessionEstablished} />)
+
+    await waitFor(() => {
+      expect(mocks.MockWebSocket.instances.length).toBeGreaterThan(0)
+    })
+
+    const socket = mocks.MockWebSocket.instances[0]
+    const payload = new TextEncoder().encode(
+      JSON.stringify({ type: 'session', session_id: 'sess-123' })
+    )
+    const frame = new Uint8Array(1 + payload.length)
+    frame[0] = 0x00
+    frame.set(payload, 1)
+
+    socket.onmessage?.(
+      new MessageEvent('message', {
+        data: frame.buffer,
+      })
+    )
+
+    expect(onSessionEstablished).toHaveBeenCalledWith('sess-123')
+  })
+
+  it('does not reconnect after receiving the backend session control frame', async () => {
+    const onSessionEstablished = vi.fn()
+
+    render(<TerminalPanel serverId="s1" isActive onSessionEstablished={onSessionEstablished} />)
+
+    await waitFor(() => {
+      expect(mocks.MockWebSocket.instances.length).toBe(1)
+    })
+
+    const socket = mocks.MockWebSocket.instances[0]
+    const payload = new TextEncoder().encode(
+      JSON.stringify({ type: 'session', session_id: 'sess-stable' })
+    )
+    const frame = new Uint8Array(1 + payload.length)
+    frame[0] = 0x00
+    frame.set(payload, 1)
+
+    socket.onmessage?.(
+      new MessageEvent('message', {
+        data: frame.buffer,
+      })
+    )
+
+    await waitFor(() => {
+      expect(onSessionEstablished).toHaveBeenCalledWith('sess-stable')
+      expect(mocks.MockWebSocket.instances.length).toBe(1)
+    })
+  })
+
+  it('shows a non-blocking warning banner for warning control frames', async () => {
+    render(<TerminalPanel serverId="s1" isActive />)
+
+    await waitFor(() => {
+      expect(mocks.MockWebSocket.instances.length).toBe(1)
+    })
+
+    const socket = mocks.MockWebSocket.instances[0]
+    const payload = new TextEncoder().encode(
+      JSON.stringify({
+        type: 'warning',
+        message: 'Self Proxy is selected for remote shell, but no online SSH tunnel is available.',
+      })
+    )
+    const frame = new Uint8Array(1 + payload.length)
+    frame[0] = 0x00
+    frame.set(payload, 1)
+
+    socket.onmessage?.(
+      new MessageEvent('message', {
+        data: frame.buffer,
+      })
+    )
+
+    expect(await screen.findByText('Proxy warning')).toBeInTheDocument()
+    expect(screen.getByText(/no online SSH tunnel is available/i)).toBeInTheDocument()
+    expect(socket.close).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: /reconnect/i })).not.toBeInTheDocument()
+  })
+
+  it('passes session_id when reconnecting a container terminal', async () => {
+    render(
+      <TerminalPanel containerId="c1" sessionId="dock-sess-1" dockerServerId="srv-1" isActive />
+    )
+
+    await waitFor(() => {
+      expect(mocks.MockWebSocket.instances.length).toBeGreaterThan(0)
+    })
+
+    const url = new URL(mocks.MockWebSocket.urls[0])
+    expect(url.pathname).toBe('/api/terminal/docker/c1')
+    expect(url.searchParams.get('session_id')).toBe('dock-sess-1')
+    expect(url.searchParams.get('server_id')).toBe('srv-1')
+  })
+
+  it('drops a stale session id and reconnects fresh when the backend reports session not found', async () => {
+    const onSessionInvalidated = vi.fn()
+
+    render(
+      <TerminalPanel
+        serverId="s1"
+        sessionId="stale-sess-1"
+        isActive
+        onSessionInvalidated={onSessionInvalidated}
+      />
+    )
+
+    await waitFor(() => {
+      expect(mocks.MockWebSocket.instances.length).toBe(1)
+    })
+
+    const firstUrl = new URL(mocks.MockWebSocket.urls[0])
+    expect(firstUrl.searchParams.get('session_id')).toBe('stale-sess-1')
+
+    const socket = mocks.MockWebSocket.instances[0]
+    const payload = new TextEncoder().encode(
+      JSON.stringify({ type: 'error', message: 'terminal session not found' })
+    )
+    const frame = new Uint8Array(1 + payload.length)
+    frame[0] = 0x00
+    frame.set(payload, 1)
+
+    socket.onmessage?.(
+      new MessageEvent('message', {
+        data: frame.buffer,
+      })
+    )
+
+    await waitFor(() => {
+      expect(mocks.MockWebSocket.instances.length).toBe(2)
+    })
+
+    expect(onSessionInvalidated).toHaveBeenCalledWith('stale-sess-1')
+    const retryUrl = new URL(mocks.MockWebSocket.urls[1])
+    expect(retryUrl.searchParams.get('session_id')).toBeNull()
+    expect(screen.queryByRole('button', { name: /reconnect/i })).not.toBeInTheDocument()
+  })
+
+  it('uses detach on unmount and disconnect on explicit close', async () => {
+    const disconnectRef = createRef<TerminalPanelHandle>()
+    const disconnectView = render(<TerminalPanel ref={disconnectRef} serverId="s1" isActive />)
+
+    await waitFor(() => {
+      expect(mocks.MockWebSocket.instances.length).toBeGreaterThan(0)
+    })
+
+    const disconnectSocket = mocks.MockWebSocket.instances[0]
+    disconnectRef.current?.disconnect()
+    expect(disconnectSocket.close).toHaveBeenCalledWith(1000, 'disconnect')
+    disconnectView.unmount()
+
+    const detachView = render(<TerminalPanel serverId="s1" isActive />)
+
+    await waitFor(() => {
+      expect(mocks.MockWebSocket.instances.length).toBeGreaterThan(1)
+    })
+
+    const detachSocket = mocks.MockWebSocket.instances[1]
+    detachView.unmount()
+    expect(detachSocket.close).toHaveBeenCalledWith(1000, 'detach')
   })
 
   afterAll(() => {

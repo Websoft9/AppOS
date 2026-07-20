@@ -1,4 +1,6 @@
 import {
+  Children,
+  Fragment,
   useState,
   useEffect,
   useCallback,
@@ -7,7 +9,6 @@ import {
   type FormEvent,
   type ChangeEvent,
 } from 'react'
-import { Link } from '@tanstack/react-router'
 import {
   Plus,
   Pencil,
@@ -16,7 +17,6 @@ import {
   Upload,
   ArrowDown,
   ArrowUp,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Filter,
@@ -65,11 +65,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { type PBList, pbFilterValue } from '@/lib/groups'
 import { getDrawerTierStyle } from '@/lib/drawer-tiers'
 import { cn } from '@/lib/utils'
-import { ResourceFormField } from './ResourceFormField'
+import { RefreshButton } from '@/components/shared/RefreshButton'
+import { ResourceDialogForm } from './ResourceDialogForm'
 import type {
   FieldDef,
   RelationOption,
@@ -81,6 +82,7 @@ export type {
   Column,
   FieldDef,
   RelCreateField,
+  RelationOption,
   ResourcePageConfig,
   SelectOption,
 } from './resource-page-types'
@@ -183,7 +185,6 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   const [formData, setFormData] = useState<Record<string, unknown>>({})
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
-  const [advancedOpen, setAdvancedOpen] = useState(false)
 
   const [deleteTarget, setDeleteTarget] = useState<Record<string, unknown> | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -388,6 +389,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   const detailPresentation = config.detailPresentation ?? 'inline'
   const detailDrawerSide = config.detailDrawerSide ?? 'right'
   const detailDrawerTitle = config.detailDrawerTitle ?? `${config.title.replace(/s$/, '')} Detail`
+  const detailDrawerDescription = 'Review the selected item details and available actions.'
   const detailDrawerTier = config.detailDrawerTier ?? 'lg'
   const showInlinePageSizeSelector =
     paginationVariant === 'minimal' &&
@@ -397,6 +399,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   const showListControlsReset = config.listControlsShowReset ?? true
   const favoriteActionPlacement = config.favoriteActionPlacement ?? 'beforeExtraActions'
   const emptyStateLabel = config.emptyStateLabel ?? `No ${config.title.toLowerCase()} found`
+  const tableColumnCount = config.columns.length + 1 + (config.enableGroupAssign ? 1 : 0)
 
   const filteredCreateSelectionOptions = useMemo(() => {
     const selection = config.createSelection
@@ -442,6 +445,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   const defaultDialogDescription = editingItem
     ? 'Update the resource details below.'
     : 'Fill in the details to create a new resource.'
+  const compactHeaderActionsOnMobile = config.compactHeaderActionsOnMobile ?? false
   const dialogHeader = config.dialogHeader?.({
     formData,
     editingItem,
@@ -595,7 +599,8 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
       return
     }
     hasAutoOpenedCreateRef.current = true
-    openCreateDialog()
+    triggerCreate()
+    config.onAutoCreateHandled?.()
   }, [config.autoCreate, loading, createSelectionReady])
 
   useEffect(() => {
@@ -678,7 +683,6 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
 
   function openCreateForm(initialData: Record<string, unknown> = {}) {
     setEditingItem(null)
-    setAdvancedOpen(false)
     const defaults = buildDefaultFormData(initialData, null)
     setFormData({ ...defaults, ...initialData })
     setFormError('')
@@ -694,9 +698,17 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
     openCreateForm(config.initialCreateData?.() ?? {})
   }
 
+  function triggerCreate() {
+    if (config.onCreateClick) {
+      config.onCreateClick()
+      return
+    }
+    openCreateDialog()
+  }
+
   function openEditDialog(item: Record<string, unknown>) {
+    config.onEditOpen?.(item)
     setEditingItem(item)
-    setAdvancedOpen(false)
     const data: Record<string, unknown> = {}
     for (const f of getFields(item, item)) {
       const val = item[f.key]
@@ -735,7 +747,6 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
       openEditDialog(editingItem)
       return
     }
-    setAdvancedOpen(false)
     setFormData(buildDefaultFormData(formData, null))
   }
 
@@ -1066,7 +1077,9 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <span className="min-w-5 text-center font-medium text-foreground">{page}</span>
+            <span className="min-w-12 text-center font-medium text-foreground">
+              {page}/{totalPages}
+            </span>
             <button
               type="button"
               className="rounded p-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
@@ -1191,47 +1204,68 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          {config.parentNav && (
-            <Link
-              to={config.parentNav.href as never}
-              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-1 w-fit transition-colors"
-            >
-              <ChevronLeft className="h-3.5 w-3.5" />
-              {config.parentNav.label}
-            </Link>
-          )}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight">{config.title}</h1>
-          {config.description && <p className="text-muted-foreground mt-1">{config.description}</p>}
-        </div>
-        <div className="flex items-center gap-2">
-          {config.showRefreshButton && (
-            <Button
-              variant="outline"
-              size={config.refreshButtonIconOnly === false ? 'default' : 'icon'}
-              onClick={() => {
-                void handleRefresh()
-              }}
-              title={config.refreshButtonLabel ?? 'Refresh'}
-            >
-              {(config.refreshButtonShowIcon ?? true) && (
-                <RefreshCw
-                  className={`h-4 w-4 ${config.refreshButtonIconOnly === false ? 'mr-2' : ''}`}
-                />
-              )}
-              {config.refreshButtonIconOnly === false && (config.refreshButtonLabel ?? 'Refresh')}
-            </Button>
+          {config.description && (
+            <p className={cn('mt-1 text-muted-foreground', config.descriptionClassName)}>
+              {config.description}
+            </p>
           )}
+          {config.headerStatus ? <div className="mt-3">{config.headerStatus}</div> : null}
+        </div>
+        <div className="flex items-center justify-end gap-2 self-end sm:self-auto">
+          {config.showRefreshButton &&
+            (config.refreshButtonIconOnly === false ? (
+              <Button
+                variant="outline"
+                size={compactHeaderActionsOnMobile ? 'icon' : 'default'}
+                className={cn(
+                  compactHeaderActionsOnMobile &&
+                    config.refreshButtonIconOnly === false &&
+                    'sm:w-auto sm:px-4'
+                )}
+                onClick={() => {
+                  void handleRefresh()
+                }}
+                title={config.refreshButtonLabel ?? 'Refresh'}
+              >
+                {(config.refreshButtonShowIcon ?? true) && <RefreshCw className="mr-2 h-4 w-4" />}
+                <span className={cn(compactHeaderActionsOnMobile && 'hidden sm:inline')}>
+                  {config.refreshButtonLabel ?? 'Refresh'}
+                </span>
+              </Button>
+            ) : (
+              <RefreshButton
+                onClick={() => {
+                  void handleRefresh()
+                }}
+                title={config.refreshButtonLabel ?? 'Refresh'}
+                chrome="boxed"
+              />
+            ))}
           <Button
-            onClick={openCreateDialog}
-            size={config.createButtonIconOnly ? 'icon' : 'default'}
+            onClick={triggerCreate}
+            size={compactHeaderActionsOnMobile || config.createButtonIconOnly ? 'icon' : 'default'}
+            className={cn(
+              compactHeaderActionsOnMobile && !config.createButtonIconOnly && 'sm:w-auto sm:px-4'
+            )}
             title={config.createButtonLabel ?? 'Create'}
           >
             {(config.createButtonShowIcon ?? true) && (
-              <Plus className={`h-4 w-4 ${config.createButtonIconOnly ? '' : 'mr-2'}`} />
+              <Plus
+                className={cn(
+                  'h-4 w-4',
+                  !config.createButtonIconOnly && !compactHeaderActionsOnMobile && 'mr-2',
+                  compactHeaderActionsOnMobile && !config.createButtonIconOnly && 'sm:mr-2'
+                )}
+              />
             )}
-            {!config.createButtonIconOnly && (config.createButtonLabel ?? 'Create')}
+            {!config.createButtonIconOnly && (
+              <span className={cn(compactHeaderActionsOnMobile && 'hidden sm:inline')}>
+                {config.createButtonLabel ?? 'Create'}
+              </span>
+            )}
           </Button>
         </div>
       </div>
@@ -1249,11 +1283,11 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
       {showListControls && (
         <div
           className={cn(
-            'flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between',
+            'flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between',
             showListControlsBorder ? 'rounded-lg border bg-muted/20 p-3' : 'p-0'
           )}
         >
-          <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             {searchableColumns.length > 0 && (
               <div
                 className={cn('relative', config.searchContainerClassName ?? 'w-full sm:max-w-sm')}
@@ -1265,7 +1299,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                   placeholder={
                     config.searchPlaceholder ?? `Search ${config.title.toLowerCase()}...`
                   }
-                  className="pl-9"
+                  className={cn('pl-9', config.searchInputClassName)}
                 />
               </div>
             )}
@@ -1325,7 +1359,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
             showListControlsReset ||
             showHeaderPagination ||
             headerTrailingControls) && (
-            <div className="flex items-center gap-2 self-end sm:self-auto">
+            <div className="flex flex-wrap items-center justify-end gap-2 self-end sm:self-auto">
               {showHeaderPageSizeSelector && paginationVariant !== 'minimal'
                 ? renderPageSizeSelector('h-9')
                 : null}
@@ -1352,7 +1386,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                   Clear current filters
                 </Button>
               ) : (
-                <Button variant="link" onClick={openCreateDialog}>
+                <Button variant="link" onClick={triggerCreate}>
                   Create your first one
                 </Button>
               )}
@@ -1364,6 +1398,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                   {config.enableGroupAssign && (
                     <TableHead className="w-[40px]">
                       <input
+                        role="checkbox"
                         type="checkbox"
                         className="h-4 w-4 rounded border-input"
                         checked={
@@ -1381,118 +1416,126 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pagedItems.map(item => (
-                  <TableRow
-                    key={String(item.id)}
-                    data-selected={selectedItems.has(String(item.id))}
-                    className={
-                      config.selectedItemId === String(item.id) ? 'bg-muted/40' : undefined
-                    }
-                    onClick={
-                      config.onSelectItem
-                        ? event => {
-                            if (isInteractiveTarget(event.target)) return
-                            config.onSelectItem?.(item)
-                          }
-                        : undefined
-                    }
-                  >
-                    {config.enableGroupAssign && (
-                      <TableCell>
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 rounded border-input"
-                          checked={selectedItems.has(String(item.id))}
-                          onChange={() => toggleSelectItem(String(item.id))}
-                        />
-                      </TableCell>
-                    )}
-                    {config.columns.map(col => (
-                      <TableCell key={col.key}>
-                        {col.render ? col.render(item[col.key], item) : String(item[col.key] ?? '')}
-                      </TableCell>
-                    ))}
-                    <TableCell className={actionsCellClassName}>
-                      <div className={actionsContentClassName}>
-                        <div className={actionsPrimarySlotClassName}>
-                          {config.primaryAction?.(item, () => {
-                            void fetchItems()
-                          })}
-                        </div>
-                        <div className={actionsMenuSlotClassName}>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" title="More actions">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align={actionsMenuAlign}>
-                              {favoriteActionPlacement === 'beforeExtraActions' &&
-                                config.favoriteStorageKey && (
-                                  <>
-                                    <DropdownMenuItem
-                                      onClick={() => toggleFavorite(String(item.id ?? ''))}
-                                    >
-                                      <Star
-                                        className="h-4 w-4"
-                                        fill={
-                                          favoriteIds.has(String(item.id ?? ''))
-                                            ? 'currentColor'
-                                            : 'none'
-                                        }
-                                      />
-                                      {favoriteIds.has(String(item.id ?? ''))
-                                        ? 'Remove Favorite'
-                                        : 'Add Favorite'}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                  </>
-                                )}
-                              {config.extraActions?.(item, () => {
+                {pagedItems.map(item => {
+                  const itemID = String(item.id)
+                  const rowDetail =
+                    config.expandedRowId === itemID
+                      ? config.renderRowDetail?.(item, fetchItems)
+                      : null
+
+                  return (
+                    <Fragment key={itemID}>
+                      <TableRow
+                        key={itemID}
+                        data-selected={selectedItems.has(itemID)}
+                        className={config.selectedItemId === itemID ? 'bg-muted/40' : undefined}
+                        onClick={
+                          config.onSelectItem
+                            ? event => {
+                                if (isInteractiveTarget(event.target)) return
+                                config.onSelectItem?.(item)
+                              }
+                            : undefined
+                        }
+                      >
+                        {config.enableGroupAssign && (
+                          <TableCell>
+                            <input
+                              role="checkbox"
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-input"
+                              checked={selectedItems.has(itemID)}
+                              onChange={() => toggleSelectItem(itemID)}
+                            />
+                          </TableCell>
+                        )}
+                        {config.columns.map(col => (
+                          <TableCell key={col.key}>
+                            {col.render
+                              ? col.render(item[col.key], item)
+                              : String(item[col.key] ?? '')}
+                          </TableCell>
+                        ))}
+                        <TableCell className={actionsCellClassName}>
+                          <div className={actionsContentClassName}>
+                            <div className={actionsPrimarySlotClassName}>
+                              {config.primaryAction?.(item, () => {
                                 void fetchItems()
                               })}
-                              {favoriteActionPlacement === 'afterExtraActions' &&
-                                config.favoriteStorageKey && (
-                                  <>
-                                    {config.extraActions && <DropdownMenuSeparator />}
-                                    <DropdownMenuItem
-                                      onClick={() => toggleFavorite(String(item.id ?? ''))}
-                                    >
-                                      <Star
-                                        className="h-4 w-4"
-                                        fill={
-                                          favoriteIds.has(String(item.id ?? ''))
-                                            ? 'currentColor'
-                                            : 'none'
-                                        }
-                                      />
-                                      {favoriteIds.has(String(item.id ?? ''))
-                                        ? 'Remove Favorite'
-                                        : 'Add Favorite'}
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
-                              {(config.extraActions ||
-                                (favoriteActionPlacement === 'afterExtraActions' &&
-                                  config.favoriteStorageKey)) && <DropdownMenuSeparator />}
-                              <DropdownMenuItem onClick={() => openEditDialog(item)}>
-                                <Pencil className="h-4 w-4" />
-                                Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                variant="destructive"
-                                onClick={() => setDeleteTarget(item)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                            </div>
+                            <div className={actionsMenuSlotClassName}>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" title="More actions">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align={actionsMenuAlign}>
+                                  {favoriteActionPlacement === 'beforeExtraActions' &&
+                                    config.favoriteStorageKey && (
+                                      <>
+                                        <DropdownMenuItem onClick={() => toggleFavorite(itemID)}>
+                                          <Star
+                                            className="h-4 w-4"
+                                            fill={favoriteIds.has(itemID) ? 'currentColor' : 'none'}
+                                          />
+                                          {favoriteIds.has(itemID)
+                                            ? 'Remove Favorite'
+                                            : 'Add Favorite'}
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                      </>
+                                    )}
+                                  {Children.toArray(
+                                    config.extraActions?.(item, () => {
+                                      void fetchItems()
+                                    }) ?? null
+                                  )}
+                                  {favoriteActionPlacement === 'afterExtraActions' &&
+                                    config.favoriteStorageKey && (
+                                      <>
+                                        {config.extraActions && <DropdownMenuSeparator />}
+                                        <DropdownMenuItem onClick={() => toggleFavorite(itemID)}>
+                                          <Star
+                                            className="h-4 w-4"
+                                            fill={favoriteIds.has(itemID) ? 'currentColor' : 'none'}
+                                          />
+                                          {favoriteIds.has(itemID)
+                                            ? 'Remove Favorite'
+                                            : 'Add Favorite'}
+                                        </DropdownMenuItem>
+                                      </>
+                                    )}
+                                  {(config.extraActions ||
+                                    (favoriteActionPlacement === 'afterExtraActions' &&
+                                      config.favoriteStorageKey)) && <DropdownMenuSeparator />}
+                                  <DropdownMenuItem onClick={() => openEditDialog(item)}>
+                                    <Pencil className="h-4 w-4" />
+                                    Edit
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    variant="destructive"
+                                    onClick={() => setDeleteTarget(item)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {rowDetail ? (
+                        <TableRow key={`${itemID}-detail`}>
+                          <TableCell colSpan={tableColumnCount} className="bg-muted/15 py-3">
+                            {rowDetail}
+                          </TableCell>
+                        </TableRow>
+                      ) : null}
+                    </Fragment>
+                  )
+                })}
               </TableBody>
             </Table>
           )}
@@ -1503,7 +1546,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
             {items.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                 <p>{emptyStateLabel}</p>
-                <Button variant="link" onClick={openCreateDialog}>
+                <Button variant="link" onClick={triggerCreate}>
                   Create your first one
                 </Button>
               </div>
@@ -1514,6 +1557,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                     {config.enableGroupAssign && (
                       <TableHead className="w-[40px]">
                         <input
+                          role="checkbox"
                           type="checkbox"
                           className="h-4 w-4 rounded border-input"
                           checked={
@@ -1531,120 +1575,130 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pagedItems.map(item => (
-                    <TableRow
-                      key={String(item.id)}
-                      data-selected={selectedItems.has(String(item.id))}
-                      className={
-                        config.selectedItemId === String(item.id) ? 'bg-muted/40' : undefined
-                      }
-                      onClick={
-                        config.onSelectItem
-                          ? event => {
-                              if (isInteractiveTarget(event.target)) return
-                              config.onSelectItem?.(item)
-                            }
-                          : undefined
-                      }
-                    >
-                      {config.enableGroupAssign && (
-                        <TableCell>
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4 rounded border-input"
-                            checked={selectedItems.has(String(item.id))}
-                            onChange={() => toggleSelectItem(String(item.id))}
-                          />
-                        </TableCell>
-                      )}
-                      {config.columns.map(col => (
-                        <TableCell key={col.key}>
-                          {col.render
-                            ? col.render(item[col.key], item)
-                            : String(item[col.key] ?? '')}
-                        </TableCell>
-                      ))}
-                      <TableCell className={actionsCellClassName}>
-                        <div className={actionsContentClassName}>
-                          <div className={actionsPrimarySlotClassName}>
-                            {config.primaryAction?.(item, () => {
-                              void fetchItems()
-                            })}
-                          </div>
-                          <div className={actionsMenuSlotClassName}>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" title="More actions">
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align={actionsMenuAlign}>
-                                {favoriteActionPlacement === 'beforeExtraActions' &&
-                                  config.favoriteStorageKey && (
-                                    <>
-                                      <DropdownMenuItem
-                                        onClick={() => toggleFavorite(String(item.id ?? ''))}
-                                      >
-                                        <Star
-                                          className="h-4 w-4"
-                                          fill={
-                                            favoriteIds.has(String(item.id ?? ''))
-                                              ? 'currentColor'
-                                              : 'none'
-                                          }
-                                        />
-                                        {favoriteIds.has(String(item.id ?? ''))
-                                          ? 'Remove Favorite'
-                                          : 'Add Favorite'}
-                                      </DropdownMenuItem>
-                                      <DropdownMenuSeparator />
-                                    </>
-                                  )}
-                                {config.extraActions?.(item, () => {
+                  {pagedItems.map(item => {
+                    const itemID = String(item.id)
+                    const rowDetail =
+                      config.expandedRowId === itemID
+                        ? config.renderRowDetail?.(item, fetchItems)
+                        : null
+
+                    return (
+                      <Fragment key={itemID}>
+                        <TableRow
+                          key={itemID}
+                          data-selected={selectedItems.has(itemID)}
+                          className={config.selectedItemId === itemID ? 'bg-muted/40' : undefined}
+                          onClick={
+                            config.onSelectItem
+                              ? event => {
+                                  if (isInteractiveTarget(event.target)) return
+                                  config.onSelectItem?.(item)
+                                }
+                              : undefined
+                          }
+                        >
+                          {config.enableGroupAssign && (
+                            <TableCell>
+                              <input
+                                role="checkbox"
+                                type="checkbox"
+                                className="h-4 w-4 rounded border-input"
+                                checked={selectedItems.has(itemID)}
+                                onChange={() => toggleSelectItem(itemID)}
+                              />
+                            </TableCell>
+                          )}
+                          {config.columns.map(col => (
+                            <TableCell key={col.key}>
+                              {col.render
+                                ? col.render(item[col.key], item)
+                                : String(item[col.key] ?? '')}
+                            </TableCell>
+                          ))}
+                          <TableCell className={actionsCellClassName}>
+                            <div className={actionsContentClassName}>
+                              <div className={actionsPrimarySlotClassName}>
+                                {config.primaryAction?.(item, () => {
                                   void fetchItems()
                                 })}
-                                {favoriteActionPlacement === 'afterExtraActions' &&
-                                  config.favoriteStorageKey && (
-                                    <>
-                                      {config.extraActions && <DropdownMenuSeparator />}
-                                      <DropdownMenuItem
-                                        onClick={() => toggleFavorite(String(item.id ?? ''))}
-                                      >
-                                        <Star
-                                          className="h-4 w-4"
-                                          fill={
-                                            favoriteIds.has(String(item.id ?? ''))
-                                              ? 'currentColor'
-                                              : 'none'
-                                          }
-                                        />
-                                        {favoriteIds.has(String(item.id ?? ''))
-                                          ? 'Remove Favorite'
-                                          : 'Add Favorite'}
-                                      </DropdownMenuItem>
-                                    </>
-                                  )}
-                                {(config.extraActions ||
-                                  (favoriteActionPlacement === 'afterExtraActions' &&
-                                    config.favoriteStorageKey)) && <DropdownMenuSeparator />}
-                                <DropdownMenuItem onClick={() => openEditDialog(item)}>
-                                  <Pencil className="h-4 w-4" />
-                                  Edit
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  variant="destructive"
-                                  onClick={() => setDeleteTarget(item)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                              </div>
+                              <div className={actionsMenuSlotClassName}>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" title="More actions">
+                                      <MoreVertical className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align={actionsMenuAlign}>
+                                    {favoriteActionPlacement === 'beforeExtraActions' &&
+                                      config.favoriteStorageKey && (
+                                        <>
+                                          <DropdownMenuItem onClick={() => toggleFavorite(itemID)}>
+                                            <Star
+                                              className="h-4 w-4"
+                                              fill={
+                                                favoriteIds.has(itemID) ? 'currentColor' : 'none'
+                                              }
+                                            />
+                                            {favoriteIds.has(itemID)
+                                              ? 'Remove Favorite'
+                                              : 'Add Favorite'}
+                                          </DropdownMenuItem>
+                                          <DropdownMenuSeparator />
+                                        </>
+                                      )}
+                                    {Children.toArray(
+                                      config.extraActions?.(item, () => {
+                                        void fetchItems()
+                                      }) ?? null
+                                    )}
+                                    {favoriteActionPlacement === 'afterExtraActions' &&
+                                      config.favoriteStorageKey && (
+                                        <>
+                                          {config.extraActions && <DropdownMenuSeparator />}
+                                          <DropdownMenuItem onClick={() => toggleFavorite(itemID)}>
+                                            <Star
+                                              className="h-4 w-4"
+                                              fill={
+                                                favoriteIds.has(itemID) ? 'currentColor' : 'none'
+                                              }
+                                            />
+                                            {favoriteIds.has(itemID)
+                                              ? 'Remove Favorite'
+                                              : 'Add Favorite'}
+                                          </DropdownMenuItem>
+                                        </>
+                                      )}
+                                    {(config.extraActions ||
+                                      (favoriteActionPlacement === 'afterExtraActions' &&
+                                        config.favoriteStorageKey)) && <DropdownMenuSeparator />}
+                                    <DropdownMenuItem onClick={() => openEditDialog(item)}>
+                                      <Pencil className="h-4 w-4" />
+                                      Edit
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      variant="destructive"
+                                      onClick={() => setDeleteTarget(item)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        {rowDetail ? (
+                          <TableRow key={`${itemID}-detail`}>
+                            <TableCell colSpan={tableColumnCount} className="bg-muted/15 py-3">
+                              {rowDetail}
+                            </TableCell>
+                          </TableRow>
+                        ) : null}
+                      </Fragment>
+                    )
+                  })}
                 </TableBody>
               </Table>
             )}
@@ -1682,6 +1736,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
             style={getDrawerTierStyle(detailDrawerTier)}
           >
             <SheetTitle className="sr-only">{detailDrawerTitle}</SheetTitle>
+            <SheetDescription className="sr-only">{detailDrawerDescription}</SheetDescription>
             {selectedDetailItem ? config.renderDetailPanel(selectedDetailItem, fetchItems) : null}
           </SheetContent>
         </Sheet>
@@ -1844,165 +1899,75 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog
+      <ResourceDialogForm
         open={dialogOpen}
         onOpenChange={v => {
           setDialogOpen(v)
           if (!v) setCreateRelOpen(false)
-          if (!v) setAdvancedOpen(false)
         }}
-      >
-        <DialogContent
-          className={`${config.dialogContentClassName ?? 'sm:max-w-lg'} max-h-[85vh] overflow-y-auto`}
-        >
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <DialogHeader>
-              <DialogTitle>{dialogHeader?.title ?? defaultDialogTitle}</DialogTitle>
-              <DialogDescription>
-                {dialogHeader?.description ?? defaultDialogDescription}
-              </DialogDescription>
-
-              {headerFields.length > 0 && (
-                <div className="mt-4 grid gap-3">
-                  {headerFields.map(field => (
-                    <ResourceFormField
-                      key={field.key}
-                      field={field}
-                      formData={formData}
-                      editingItem={editingItem}
-                      relationOptions={relOpts[field.key] ?? []}
-                      updateField={updateField}
-                      handleChange={handleChange}
-                      addRelationOption={(id, label, raw) => {
-                        setRelOpts(prev => ({
-                          ...prev,
-                          [field.key]: [...(prev[field.key] ?? []), { id, label, raw }],
-                        }))
-                      }}
-                      openRelationCreate={openCreateRelDialog}
-                      handleFileUpload={handleFileUpload}
-                      fileInputRef={(key, element) => {
-                        fileRefs.current[key] = element
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
-            </DialogHeader>
-
+        className={config.dialogContentClassName}
+        title={dialogHeader?.title ?? defaultDialogTitle}
+        description={dialogHeader?.description ?? defaultDialogDescription}
+        formData={formData}
+        editingItem={editingItem}
+        headerFields={headerFields}
+        primaryFields={primaryFields}
+        advancedFields={advancedFields}
+        relationOptions={relOpts}
+        updateField={updateField}
+        handleChange={handleChange}
+        addRelationOption={(fieldKey, id, label, raw) => {
+          setRelOpts(prev => ({
+            ...prev,
+            [fieldKey]: [...(prev[fieldKey] ?? []), { id, label, raw }],
+          }))
+        }}
+        openRelationCreate={openCreateRelDialog}
+        handleFileUpload={handleFileUpload}
+        fileInputRef={(key, element) => {
+          fileRefs.current[key] = element
+        }}
+        selectedSummary={
+          <>
+            {config.selectedSummary ?? null}
             {!dialogHeader?.hideSelectedProductSummary &&
-              String(formData['selected_product'] ?? '').trim() && (
-                <div className="rounded-lg border bg-muted/40 px-4 py-3">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Selected Product
+            String(formData['selected_product'] ?? '').trim() ? (
+              <div className="rounded-lg border bg-muted/40 px-4 py-3">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Selected Product
+                  </span>
+                  <span className="font-semibold text-foreground">
+                    {String(formData['selected_product'] ?? '')}
+                  </span>
+                  {String(formData['selected_product_meta'] ?? '').trim() && (
+                    <span className="text-xs text-muted-foreground">
+                      {String(formData['selected_product_meta'] ?? '')}
                     </span>
-                    <span className="font-semibold text-foreground">
-                      {String(formData['selected_product'] ?? '')}
-                    </span>
-                    {String(formData['selected_product_meta'] ?? '').trim() && (
-                      <span className="text-xs text-muted-foreground">
-                        {String(formData['selected_product_meta'] ?? '')}
-                      </span>
-                    )}
-                    {String(formData['selected_product_description'] ?? '').trim() && (
-                      <span className="text-sm text-muted-foreground">
-                        {String(formData['selected_product_description'] ?? '')}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
-
-            {primaryFields.map(field => (
-              <ResourceFormField
-                key={field.key}
-                field={field}
-                formData={formData}
-                editingItem={editingItem}
-                relationOptions={relOpts[field.key] ?? []}
-                updateField={updateField}
-                handleChange={handleChange}
-                addRelationOption={(id, label, raw) => {
-                  setRelOpts(prev => ({
-                    ...prev,
-                    [field.key]: [...(prev[field.key] ?? []), { id, label, raw }],
-                  }))
-                }}
-                openRelationCreate={openCreateRelDialog}
-                handleFileUpload={handleFileUpload}
-                fileInputRef={(key, element) => {
-                  fileRefs.current[key] = element
-                }}
-              />
-            ))}
-
-            {advancedFields.length > 0 && (
-              <div className="overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-b from-muted/70 via-muted/30 to-background shadow-sm">
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between gap-4 border-b border-border/70 px-5 py-4 text-left"
-                  onClick={() => setAdvancedOpen(prev => !prev)}
-                >
-                  <div>
-                    <div className="text-sm font-medium text-foreground">Advanced</div>
-                  </div>
-                  {advancedOpen ? (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   )}
-                </button>
-
-                {advancedOpen && (
-                  <div className="space-y-4 bg-background/90 px-5 py-5">
-                    {advancedFields.map(field => (
-                      <ResourceFormField
-                        key={field.key}
-                        field={field}
-                        formData={formData}
-                        editingItem={editingItem}
-                        relationOptions={relOpts[field.key] ?? []}
-                        updateField={updateField}
-                        handleChange={handleChange}
-                        addRelationOption={(id, label, raw) => {
-                          setRelOpts(prev => ({
-                            ...prev,
-                            [field.key]: [...(prev[field.key] ?? []), { id, label, raw }],
-                          }))
-                        }}
-                        openRelationCreate={openCreateRelDialog}
-                        handleFileUpload={handleFileUpload}
-                        fileInputRef={(key, element) => {
-                          fileRefs.current[key] = element
-                        }}
-                      />
-                    ))}
-                  </div>
-                )}
+                  {String(formData['selected_product_description'] ?? '').trim() && (
+                    <span className="text-sm text-muted-foreground">
+                      {String(formData['selected_product_description'] ?? '')}
+                    </span>
+                  )}
+                </div>
               </div>
-            )}
-
-            {formError && <p className="text-destructive text-sm">{formError}</p>}
-
-            <DialogFooter>
-              {config.resetFormButtonLabel ? (
-                <Button type="button" variant="outline" onClick={resetFormDialog}>
-                  {config.resetFormButtonLabel}
-                </Button>
-              ) : (
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                  Cancel
-                </Button>
-              )}
-              <Button type="submit" disabled={saving}>
-                {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {editingItem ? 'Save' : 'Create'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+            ) : null}
+          </>
+        }
+        error={formError}
+        saving={saving}
+        submitLabel={editingItem ? 'Save' : 'Create'}
+        cancelLabel={config.cancelLabel}
+        onCancel={config.onCancel ? () => config.onCancel?.(editingItem) : undefined}
+        dialogExtra={config.dialogExtra}
+        resetAction={
+          config.resetFormButtonLabel
+            ? { label: config.resetFormButtonLabel, onClick: resetFormDialog }
+            : undefined
+        }
+        onSubmit={handleSubmit}
+      />
 
       {/* Inline "create relation" mini-dialog */}
       <Dialog open={createRelOpen} onOpenChange={setCreateRelOpen}>

@@ -53,8 +53,31 @@ export interface Server {
   id: string
   name: string
   host: string
+  is_enabled?: boolean
   connect_type?: 'direct' | 'tunnel' | string
+  access_status?: string
+  tunnel_status?: string
   [key: string]: unknown
+}
+
+export interface TerminalSessionSummary {
+  id: string
+  user_id: string
+  resource_type: string
+  resource_id: string
+  session_type: string
+  state: string
+  started_at: string
+  last_active_at: string
+  workspace: TerminalWorkspaceSnapshot
+}
+
+export interface TerminalWorkspaceSnapshot {
+  active_server_id?: string
+  side_panel?: string
+  file_path?: string
+  locked_root?: string
+  split_ratio?: number
 }
 
 export interface SystemdService {
@@ -121,9 +144,43 @@ export interface MonitorAgentDeployOptions {
   apposBaseUrl?: string
 }
 
+export interface ServerCronJob {
+  entryId: string
+  name: string
+  schedule: string
+  command: string
+  path: string
+  enabled: boolean
+  singleRunOnly: boolean
+  source: 'managed' | string
+}
+
+export interface ServerCronJobsResponse {
+  items: ServerCronJob[]
+}
+
+export interface ServerCronJobWritePayload {
+  name: string
+  schedule: string
+  command: string
+  enabled: boolean
+  singleRunOnly: boolean
+}
+
+export interface DeleteServerCronJobResponse {
+  entryId: string
+  deleted: boolean
+}
+
+export interface TestServerCronJobResponse {
+  entryId: string
+  output: string
+}
+
 export type SystemdControlAction = 'start' | 'stop' | 'restart' | 'enable' | 'disable'
 
 export type ServerPortProtocol = 'tcp' | 'udp'
+export type ServerPortProtocolFilter = ServerPortProtocol | 'all'
 export type ServerPortView = 'occupancy' | 'reservation' | 'all'
 
 export interface ServerPortProcess {
@@ -167,13 +224,24 @@ export interface ServerPortReservation {
 
 export interface ServerPortItem {
   port: number
+  protocol?: ServerPortProtocol
+  occupancy?: ServerPortOccupancy
+  reservation?: ServerPortReservation
+}
+
+export interface ServerPortInspectResponse {
+  server_id: string
+  port: number
+  protocol: ServerPortProtocol
+  view: ServerPortView
+  detected_at: string
   occupancy?: ServerPortOccupancy
   reservation?: ServerPortReservation
 }
 
 export interface ServerPortsResponse {
   server_id: string
-  protocol: ServerPortProtocol
+  protocol: ServerPortProtocolFilter
   view: ServerPortView
   detected_at: string
   ports: ServerPortItem[]
@@ -198,29 +266,19 @@ export interface ReleaseServerPortResponse {
   after?: ServerPortOccupancy
 }
 
-export interface LocalDockerBridgeResponse {
-  interface: string
-  address: string
-}
-
 // ─── SFTP operations ──────────────────────────────────────────────────────────
 
 function terminalSftpBasePath(serverId: string): string {
   return `/api/terminal/sftp/${serverId}`
 }
 
+const noAutoCancel = { requestKey: null }
+
 export async function sftpList(serverId: string, path: string): Promise<SFTPListResponse> {
   return pb.send<SFTPListResponse>(
     `${terminalSftpBasePath(serverId)}/list?path=${encodeURIComponent(path)}`,
-    {}
+    noAutoCancel
   )
-}
-
-export async function getLocalDockerBridgeAddress(): Promise<string> {
-  const response = await pb.send<LocalDockerBridgeResponse>('/api/servers/local/docker-bridge', {
-    method: 'GET',
-  })
-  return String(response.address ?? '')
 }
 
 export function sftpDownloadUrl(serverId: string, path: string): string {
@@ -235,6 +293,7 @@ export async function sftpUpload(serverId: string, remoteDir: string, file: File
   await pb.send(`${terminalSftpBasePath(serverId)}/upload?path=${encodeURIComponent(remoteDir)}`, {
     method: 'POST',
     body: formData,
+    requestKey: null,
   })
 }
 
@@ -243,6 +302,7 @@ export async function sftpMkdir(serverId: string, path: string): Promise<void> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path }),
+    requestKey: null,
   })
 }
 
@@ -256,12 +316,14 @@ export async function sftpRename(
     headers: { 'Content-Type': 'application/json' },
     // Backend expects { from, to } — matches routes/terminal.go handleSFTPRename
     body: JSON.stringify({ from: oldPath, to: newPath }),
+    requestKey: null,
   })
 }
 
 export async function sftpDelete(serverId: string, path: string): Promise<void> {
   await pb.send(`${terminalSftpBasePath(serverId)}/delete?path=${encodeURIComponent(path)}`, {
     method: 'DELETE',
+    requestKey: null,
   })
 }
 
@@ -271,7 +333,7 @@ export async function sftpReadFile(
 ): Promise<{ path: string; content: string }> {
   return pb.send<{ path: string; content: string }>(
     `${terminalSftpBasePath(serverId)}/read?path=${encodeURIComponent(path)}`,
-    {}
+    noAutoCancel
   )
 }
 
@@ -284,6 +346,7 @@ export async function sftpWriteFile(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path, content }),
+    requestKey: null,
   })
 }
 
@@ -294,18 +357,21 @@ export async function sftpSearch(
 ): Promise<SFTPSearchResponse> {
   return pb.send<SFTPSearchResponse>(
     `${terminalSftpBasePath(serverId)}/search?path=${encodeURIComponent(basePath)}&query=${encodeURIComponent(query)}`,
-    {}
+    noAutoCancel
   )
 }
 
 export async function sftpConstraints(serverId: string): Promise<{ max_upload_files: number }> {
-  return pb.send<{ max_upload_files: number }>(`${terminalSftpBasePath(serverId)}/constraints`, {})
+  return pb.send<{ max_upload_files: number }>(
+    `${terminalSftpBasePath(serverId)}/constraints`,
+    noAutoCancel
+  )
 }
 
 export async function sftpStat(serverId: string, path: string): Promise<{ attrs: FileAttrs }> {
   return pb.send<{ attrs: FileAttrs }>(
     `${terminalSftpBasePath(serverId)}/stat?path=${encodeURIComponent(path)}`,
-    {}
+    noAutoCancel
   )
 }
 
@@ -319,6 +385,7 @@ export async function sftpChmod(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path, mode, recursive }),
+    requestKey: null,
   })
 }
 
@@ -332,6 +399,7 @@ export async function sftpChown(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path, owner, group }),
+    requestKey: null,
   })
 }
 
@@ -344,6 +412,7 @@ export async function sftpSymlink(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ target, link_path: linkPath }),
+    requestKey: null,
   })
 }
 
@@ -352,6 +421,7 @@ export async function sftpCopy(serverId: string, from: string, to: string): Prom
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ from, to }),
+    requestKey: null,
   })
 }
 
@@ -360,6 +430,7 @@ export async function sftpMove(serverId: string, from: string, to: string): Prom
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ from, to }),
+    requestKey: null,
   })
 }
 
@@ -374,24 +445,65 @@ export async function listServers(): Promise<Server[]> {
   return result
 }
 
+export async function listTerminalSessions(): Promise<TerminalSessionSummary[]> {
+  const response = await pb.send<{ items?: TerminalSessionSummary[] }>('/api/terminal/sessions', {
+    method: 'GET',
+    requestKey: null,
+  })
+  return Array.isArray(response?.items) ? response.items : []
+}
+
+export async function deleteTerminalSession(sessionId: string): Promise<void> {
+  await pb.send(`/api/terminal/sessions/${encodeURIComponent(sessionId)}`, {
+    method: 'DELETE',
+  })
+}
+
+export async function updateTerminalSessionWorkspace(
+  sessionId: string,
+  workspace: TerminalWorkspaceSnapshot
+): Promise<void> {
+  await pb.send(`/api/terminal/sessions/${encodeURIComponent(sessionId)}/workspace`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(workspace),
+  })
+}
+
 // ─── Server ops (Story 15.5) ─────────────────────────────────────────────────
 
-export async function serverPower(serverId: string, action: 'restart' | 'shutdown'): Promise<void> {
+export async function serverPower(
+  serverId: string,
+  action: 'restart' | 'shutdown',
+  delayMinutes?: number
+): Promise<void> {
   await pb.send(`/api/servers/${serverId}/ops/power`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action }),
+    body: JSON.stringify({ action, delay_minutes: delayMinutes ?? 0 }),
   })
 }
 
 export async function listServerPorts(
   serverId: string,
   view: ServerPortView = 'all',
-  protocol: ServerPortProtocol = 'tcp'
+  protocol: ServerPortProtocolFilter = 'tcp'
 ): Promise<ServerPortsResponse> {
   return pb.send<ServerPortsResponse>(
     `/api/servers/${serverId}/ops/ports?view=${encodeURIComponent(view)}&protocol=${encodeURIComponent(protocol)}`,
-    {}
+    { requestKey: null }
+  )
+}
+
+export async function inspectServerPort(
+  serverId: string,
+  port: number,
+  view: ServerPortView = 'all',
+  protocol: ServerPortProtocol = 'tcp'
+): Promise<ServerPortInspectResponse> {
+  return pb.send<ServerPortInspectResponse>(
+    `/api/servers/${serverId}/ops/ports/${port}?view=${encodeURIComponent(view)}&protocol=${encodeURIComponent(protocol)}`,
+    { requestKey: null }
   )
 }
 
@@ -418,9 +530,81 @@ export async function listSystemdServices(
   const query = keyword.trim() ? `?keyword=${encodeURIComponent(keyword.trim())}` : ''
   const response = await pb.send<{ services?: SystemdService[] }>(
     `/api/servers/${serverId}/ops/systemd/services${query}`,
-    {}
+    { requestKey: null }
   )
   return Array.isArray(response?.services) ? response.services : []
+}
+
+export async function listServerCronJobs(serverId: string): Promise<ServerCronJobsResponse> {
+  return pb.send<ServerCronJobsResponse>(`/api/servers/${serverId}/ops/cron/jobs`, {
+    requestKey: null,
+  })
+}
+
+export async function createServerCronJob(
+  serverId: string,
+  payload: ServerCronJobWritePayload
+): Promise<ServerCronJob> {
+  return pb.send<ServerCronJob>(`/api/servers/${serverId}/ops/cron/jobs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateServerCronJob(
+  serverId: string,
+  entryId: string,
+  payload: ServerCronJobWritePayload
+): Promise<ServerCronJob> {
+  return pb.send<ServerCronJob>(
+    `/api/servers/${serverId}/ops/cron/jobs/${encodeURIComponent(entryId)}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }
+  )
+}
+
+export async function enableServerCronJob(
+  serverId: string,
+  entryId: string
+): Promise<ServerCronJob> {
+  return pb.send<ServerCronJob>(
+    `/api/servers/${serverId}/ops/cron/jobs/${encodeURIComponent(entryId)}/enable`,
+    { method: 'POST' }
+  )
+}
+
+export async function disableServerCronJob(
+  serverId: string,
+  entryId: string
+): Promise<ServerCronJob> {
+  return pb.send<ServerCronJob>(
+    `/api/servers/${serverId}/ops/cron/jobs/${encodeURIComponent(entryId)}/disable`,
+    { method: 'POST' }
+  )
+}
+
+export async function deleteServerCronJob(
+  serverId: string,
+  entryId: string
+): Promise<DeleteServerCronJobResponse> {
+  return pb.send<DeleteServerCronJobResponse>(
+    `/api/servers/${serverId}/ops/cron/jobs/${encodeURIComponent(entryId)}`,
+    { method: 'DELETE' }
+  )
+}
+
+export async function testServerCronJob(
+  serverId: string,
+  entryId: string
+): Promise<TestServerCronJobResponse> {
+  return pb.send<TestServerCronJobResponse>(
+    `/api/servers/${serverId}/ops/cron/jobs/${encodeURIComponent(entryId)}/test`,
+    { method: 'POST' }
+  )
 }
 
 export async function getSystemdStatus(
@@ -429,7 +613,7 @@ export async function getSystemdStatus(
 ): Promise<SystemdStatusResponse> {
   return pb.send<SystemdStatusResponse>(
     `/api/servers/${serverId}/ops/systemd/${encodeURIComponent(service)}/status`,
-    {}
+    { requestKey: null }
   )
 }
 
@@ -440,7 +624,7 @@ export async function getSystemdLogs(
 ): Promise<SystemdLogsResponse> {
   return pb.send<SystemdLogsResponse>(
     `/api/servers/${serverId}/ops/systemd/${encodeURIComponent(service)}/logs?lines=${Math.max(20, Math.min(1000, lines))}`,
-    {}
+    { requestKey: null }
   )
 }
 
@@ -450,7 +634,7 @@ export async function getSystemdContent(
 ): Promise<SystemdContentResponse> {
   return pb.send<SystemdContentResponse>(
     `/api/servers/${serverId}/ops/systemd/${encodeURIComponent(service)}/content`,
-    {}
+    { requestKey: null }
   )
 }
 
@@ -472,7 +656,7 @@ export async function getSystemdUnit(
 ): Promise<SystemdUnitResponse> {
   return pb.send<SystemdUnitResponse>(
     `/api/servers/${serverId}/ops/systemd/${encodeURIComponent(service)}/unit`,
-    {}
+    { requestKey: null }
   )
 }
 
@@ -561,7 +745,7 @@ export async function checkServerStatus(server: Server): Promise<ServerStatusRes
   const connectType = String(server.connect_type || 'direct').toLowerCase()
 
   try {
-    const mode = connectType === 'tunnel' ? 'tunnel' : 'tcp'
+    const mode = connectType === 'tunnel' ? 'tunnel' : 'ssh'
     const response = await withTimeout(
       pb.send(`/api/servers/${id}/ops/connectivity?mode=${encodeURIComponent(mode)}`, {
         method: 'GET',
@@ -586,22 +770,6 @@ export async function checkServerStatus(server: Server): Promise<ServerStatusRes
       reason: timeoutMessage || (error instanceof Error ? error.message : 'server unreachable'),
     }
   }
-}
-
-// ─── Scripts ──────────────────────────────────────────────────────────────────
-
-export interface Script {
-  id: string
-  name: string
-  language: string
-  code: string
-  description?: string
-  [key: string]: unknown
-}
-
-export async function listScripts(): Promise<Script[]> {
-  const result = await pb.collection('scripts').getFullList<Script>({ sort: 'name' })
-  return result
 }
 
 export interface ConnectTerminalSettings {

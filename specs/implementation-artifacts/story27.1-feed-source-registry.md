@@ -13,6 +13,7 @@ Create the minimal source registry for `Feeds` so operators can add, pause, arch
 
 - Create `feed_sources` as the source registry collection.
 - One source stores `name`, `url`, `format`, `status`, `poll_interval_minutes`, and `last_fetched_at`.
+- One source also stores `last_success_at` and `last_error` for operator-facing polling diagnostics.
 - `url` must be unique in business meaning.
 - `format` is limited to `rss` or `atom`.
 - `status` is limited to `active`, `paused`, or `archived`.
@@ -32,6 +33,8 @@ Create the minimal source registry for `Feeds` so operators can add, pause, arch
 | `status` | text | required; `active` \| `paused` \| `archived` |
 | `poll_interval_minutes` | number | required, positive integer |
 | `last_fetched_at` | datetime | optional |
+| `last_success_at` | datetime | optional |
+| `last_error` | text | optional, short diagnostic summary |
 | `created` | datetime | auto |
 | `updated` | datetime | auto |
 
@@ -53,6 +56,7 @@ Rule baseline:
 - Users with admin authority can create, pause, and archive sources.
 - Duplicate source URLs are rejected.
 - Archived sources remain queryable but are not polled.
+- Polling status fields support recording last success and short failure summaries.
 - No custom `/api/ext/*` CRUD routes are introduced in this story.
 
 ## Tasks / Subtasks
@@ -73,9 +77,10 @@ Rule baseline:
 ## Integration Notes
 
 - This story defines source identity only.
-- Actual ingestion is handled by `story27.2-feed-item-ingestion-and-query.md`.
-- Binding feed items to apps or topics is handled by `story27.3-judgment-and-binding.md`.
-- Backend implementation direction is shared with `story27.2` in `story27.1-27.2-feeds-backend-technical-direction.md`.
+- Actual ingestion is handled by `story27.2-feed-ingestion-query.md`.
+- AI-oriented source analysis remains a future follow-up and is intentionally not covered by this story.
+- Backend uses one shared `backend/domain/feeds` package for source helpers and polling logic.
+- Polling remains one platform-managed job that scans due active sources; do not create one cron job per source.
 
 ## File Targets
 

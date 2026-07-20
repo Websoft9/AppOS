@@ -1,0 +1,69 @@
+{
+  "contractVersion": "0.1",
+  "fields": [
+    {
+      "key": "app_id",
+      "type": "string",
+      "label": "App ID",
+      "required": true,
+      "default": "clickhouse",
+      "visibility": "system",
+      "storage_mode": "system_managed"
+    },
+    {
+      "key": "version",
+      "type": "select",
+      "label": "Version",
+      "required": true,
+      "default": "latest",
+      "visibility": "basic",
+      "storage_mode": "operator_editable",
+      "options": ["latest", "25.11"]
+    },
+    {
+      "key": "http_port",
+      "type": "port",
+      "label": "HTTP Port",
+      "required": true,
+      "default": 8123,
+      "visibility": "basic",
+      "storage_mode": "operator_editable"
+    },
+    {
+      "key": "site_url",
+      "type": "domain",
+      "label": "Site URL",
+      "required": false,
+      "default": "appname.example.com",
+      "visibility": "advanced",
+      "storage_mode": "operator_editable"
+    },
+    {
+      "key": "db_user",
+      "type": "string",
+      "label": "Database User",
+      "required": true,
+      "default": "admin",
+      "visibility": "basic",
+      "storage_mode": "operator_editable"
+    },
+    {
+      "key": "db_name",
+      "type": "string",
+      "label": "Database Name",
+      "required": true,
+      "default": "clickhouse",
+      "visibility": "advanced",
+      "storage_mode": "operator_editable"
+    },
+    {
+      "key": "db_password",
+      "type": "secret_ref",
+      "label": "Database Password",
+      "required": true,
+      "default": null,
+      "visibility": "basic",
+      "storage_mode": "secret_backed"
+    }
+  ]
+}

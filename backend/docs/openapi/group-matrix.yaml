@@ -68,10 +68,11 @@ groups:
         - https://pocketbase.io/docs/api-backups/
 
   - group: Docker
-    description: Docker operations including compose, image, container, network and volume management.
+    description: Docker operations including compose, image, container, network, volume, and image-pull activity management.
     apiType: Ext
     extSurface:
-      - /api/ext/docker/*
+      - /api/servers/{serverId}/docker/*
+      - GET /api/servers/docker-targets
     nativeSurface: []
     sources:
       extRouteFiles:
@@ -86,6 +87,8 @@ groups:
       - GET /api/actions/{id}
       - DELETE /api/actions/{id}
       - POST /api/actions/{id}/cancel
+      - POST /api/actions/{id}/force-fail
+      - POST /api/actions/{id}/resume
       - GET /api/actions/{id}/logs
       - GET /api/actions/{id}/stream
       - POST /api/actions/install/git-compose
@@ -93,6 +96,8 @@ groups:
       - POST /api/actions/install/name-availability
       - POST /api/actions/install/manual-compose
       - POST /api/actions/install/manual-compose/check
+      - POST /api/actions/install/template
+      - POST /api/actions/install/template/check
     nativeSurface: []
     sources:
       extRouteFiles:
@@ -141,6 +146,91 @@ groups:
         - apps.go
       nativeRefs: []
 
+  - group: Feeds
+    description: Feed item preference updates, bookmark creation, and manual polling endpoints.
+    apiType: Ext
+    extSurface:
+      - GET /api/feeds/favicon
+      - GET /api/feeds/bookmarks
+      - GET /api/feeds/items
+      - GET /api/feeds/sources
+      - GET /api/feeds/summary
+      - POST /api/feeds/bookmarks
+      - POST /api/feeds/bookmarks/analyze
+      - PATCH /api/feeds/bookmarks/{id}
+      - DELETE /api/feeds/bookmarks/{id}
+      - POST /api/feeds/items/{id}/bookmark
+      - PATCH /api/feeds/items/{id}/state
+      - POST /api/feeds/analyze
+      - POST /api/feeds/delete
+      - POST /api/feeds/poll
+      - POST /api/feeds/sources
+      - PATCH /api/feeds/sources/{id}
+      - DELETE /api/feeds/sources/{id}
+      - POST /api/feeds/sources/{id}/delete
+      - POST /api/feeds/sources/{id}/poll
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - feeds.go
+      nativeRefs: []
+
+  - group: Assets
+    description: Shared technical asset management APIs for phase-1 script and skill metadata plus content preview.
+    apiType: Ext
+    extSurface:
+      - GET /api/assets
+      - POST /api/assets
+      - POST /api/assets/script/pull
+      - POST /api/assets/skill/pull
+      - POST /api/assets/{id}/restore-default
+      - GET /api/assets/{id}
+      - PUT /api/assets/{id}
+      - DELETE /api/assets/{id}
+      - GET /api/assets/{id}/content
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - assets.go
+      nativeRefs: []
+
+  - group: Media
+    description: System media upload and delivery APIs for branding and future user-uploaded images.
+    apiType: Ext
+    extSurface:
+      - POST /api/media
+      - GET /api/media/{id}
+      - DELETE /api/media/{id}
+      - GET /api/media/{id}/content
+      - GET /api/media/{id}/public
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - media.go
+      nativeRefs: []
+
+  - group: Workflow
+    description: User-level workflow definition, run, and node-run APIs for AppOS orchestration.
+    apiType: Ext
+    extSurface:
+      - GET /api/workflows
+      - POST /api/workflows
+      - GET /api/workflows/{id}
+      - PUT /api/workflows/{id}
+      - DELETE /api/workflows/{id}
+      - POST /api/workflows/{id}/run
+      - GET /api/workflows/{id}/runs
+      - GET /api/workflow-runs/{runId}
+      - GET /api/workflow-runs/{runId}/nodes
+      - POST /api/workflow-runs/{runId}/cancel
+      - POST /api/workflow-runs/{runId}/approve/{nodeKey}
+      - POST /api/workflow-runs/{runId}/reject/{nodeKey}
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - workflows.go
+      nativeRefs: []
+
   - group: Apps
     description: Installed app inventory and lifecycle APIs backed by compose projects.
     apiType: Ext
@@ -170,9 +260,18 @@ groups:
     apiType: Ext
     extSurface:
       - GET /api/catalog/categories
+      - GET /api/catalog/admin/status
+      - POST /api/catalog/admin/reindex
+      - GET /api/catalog/admin/categories/raw
+      - GET /api/catalog/admin/apps/{key}/raw
+      - GET /api/catalog/custom-apps
+      - POST /api/catalog/custom-apps
+      - PATCH /api/catalog/custom-apps/{id}
+      - DELETE /api/catalog/custom-apps/{id}
       - GET /api/catalog/apps
       - GET /api/catalog/apps/{key}
       - GET /api/catalog/apps/{key}/deploy-source
+      - GET /api/catalog/apps/{key}/template
       - GET /api/catalog/me/apps
       - PUT /api/catalog/me/apps/{key}/favorite
       - PUT /api/catalog/me/apps/{key}/note
@@ -273,10 +372,17 @@ groups:
     description: AI provider template discovery and managed AI provider CRUD APIs.
     apiType: Ext
     extSurface:
+      - GET /api/ai-providers/chat-models
+      - GET /api/ai-providers/defaults
       - GET /api/ai-providers/templates
       - GET /api/ai-providers/templates/{id}
+      - POST /api/ai-providers/fetch-models
+      - GET /api/ai-providers/availability
+      - GET /api/ai-providers/reachability
       - GET /api/ai-providers
       - GET /api/ai-providers/{id}
+      - GET /api/ai-providers/models/{id}
+      - PUT /api/ai-providers/defaults
       - POST /api/ai-providers
       - PUT /api/ai-providers/{id}
       - DELETE /api/ai-providers/{id}
@@ -284,6 +390,22 @@ groups:
     sources:
       extRouteFiles:
         - ai_providers.go
+      nativeRefs: []
+
+  - group: AI Chat
+    description: AI Runtime chat session and message APIs backed by the default AI Provider.
+    apiType: Ext
+    extSurface:
+      - GET /api/ai/copilot/sessions
+      - POST /api/ai/copilot/sessions
+      - PATCH /api/ai/copilot/sessions/{sessionId}
+      - DELETE /api/ai/copilot/sessions/{sessionId}
+      - GET /api/ai/copilot/sessions/{sessionId}/messages
+      - POST /api/ai/copilot/sessions/{sessionId}/messages
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - ai_copilot.go
       nativeRefs: []
 
   - group: Service Instances
@@ -295,17 +417,6 @@ groups:
     sources:
       extRouteFiles:
         - instances.go
-      nativeRefs: []
-
-  - group: Resource
-    description: Generic resource-store collection APIs for scripts only.
-    apiType: Ext
-    extSurface:
-      - /api/ext/resources/scripts*
-    nativeSurface: []
-    sources:
-      extRouteFiles:
-        - resources.go
       nativeRefs: []
 
   - group: Groups
@@ -350,6 +461,8 @@ groups:
       - GET /api/servers/{serverId}/software/operations
       - GET /api/servers/{serverId}/software/operations/{operationId}
       - GET /api/software/local
+      - GET /api/software/local/services
+      - GET /api/software/local/services/{name}/logs
       - GET /api/software/local/{componentKey}
       - GET /api/software/server-catalog
       - GET /api/software/server-catalog/{componentKey}
@@ -360,19 +473,23 @@ groups:
       nativeRefs: []
 
   - group: Servers
-    description: Server registry CRUD and remote operations APIs for connectivity, power, ports, monitor-agent deployment, and systemd management.
+    description: Server registry CRUD and remote operations APIs for connectivity, power, cron, ports, and systemd management.
     apiType: Mixed
     extSurface:
-      - GET /api/ext/docker/servers
+      - GET /api/servers/docker-targets
       - GET /api/servers/connection
-      - GET /api/servers/local/docker-bridge
       - GET /api/servers/{serverId}/ops/connectivity
       - POST /api/servers/{serverId}/ops/power
       - GET /api/servers/{serverId}/ops/ports
       - GET /api/servers/{serverId}/ops/ports/{port}
+      - GET /api/servers/{serverId}/ops/cron/jobs
+      - POST /api/servers/{serverId}/ops/cron/jobs
+      - PUT /api/servers/{serverId}/ops/cron/jobs/{entryId}
+      - POST /api/servers/{serverId}/ops/cron/jobs/{entryId}/enable
+      - POST /api/servers/{serverId}/ops/cron/jobs/{entryId}/disable
+      - POST /api/servers/{serverId}/ops/cron/jobs/{entryId}/test
+      - DELETE /api/servers/{serverId}/ops/cron/jobs/{entryId}
       - POST /api/servers/{serverId}/ops/ports/{port}/release
-      - POST /api/servers/{serverId}/ops/monitor-agent/install
-      - POST /api/servers/{serverId}/ops/monitor-agent/update
       - GET /api/servers/{serverId}/ops/systemd/services
       - GET /api/servers/{serverId}/ops/systemd/{service}/status
       - GET /api/servers/{serverId}/ops/systemd/{service}/content
@@ -398,19 +515,25 @@ groups:
         - https://pocketbase.io/docs/api-records/#crud-actions
 
   - group: Monitoring
-    description: Monitoring overview, container telemetry, target status and series queries, server agent bootstrap, and agent ingest APIs.
+    description: Monitoring overview, container telemetry, target status and series queries.
     apiType: Ext
     extSurface:
       - GET /api/monitor/overview
       - GET /api/monitor/servers/{id}/container-telemetry
       - GET /api/monitor/targets/{targetType}/{targetId}
+      - GET /api/monitor/targets/{targetType}/{targetId}/latest
       - GET /api/monitor/targets/{targetType}/{targetId}/series
-      - POST /api/monitor/servers/{id}/agent-token
-      - GET /api/monitor/servers/{id}/agent-setup
-      - POST /api/monitor/ingest/facts
-      - POST /api/monitor/ingest/metrics
-      - POST /api/monitor/ingest/heartbeat
-      - POST /api/monitor/ingest/runtime-status
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - monitor.go
+      nativeRefs: []
+
+  - group: Monitoring Ingest
+    description: Metrics ingestion endpoints used by managed-server collectors.
+    apiType: Ext
+    extSurface:
+      - POST /api/monitor/write
     nativeSurface: []
     sources:
       extRouteFiles:
@@ -428,35 +551,15 @@ groups:
         - server.go
         - terminal_containers.go
         - terminal_files.go
+        - terminal_sessions.go
         - terminal_shell.go
-      nativeRefs: []
-
-  - group: Services
-    description: Service lifecycle operations exposed via supervisord integration.
-    apiType: Ext
-    extSurface:
-      - /api/components/services*
-    nativeSurface: []
-    sources:
-      extRouteFiles:
-        - components.go
-      nativeRefs: []
-
-  - group: Components
-    description: Installed component inventory and diagnostics registry APIs.
-    apiType: Ext
-    extSurface:
-      - /api/components
-    nativeSurface: []
-    sources:
-      extRouteFiles:
-        - components.go
       nativeRefs: []
 
   - group: Settings
     description: Configuration management spanning System and Workspace settings APIs.
     apiType: Mixed
     extSurface:
+      - /api/settings/public/branding
       - /api/settings/schema
       - /api/settings/entries
       - /api/settings/entries/*
@@ -469,6 +572,7 @@ groups:
       - POST /api/settings/apple/generate-client-secret
     sources:
       extRouteFiles:
+        - branding.go
         - settings_handlers.go
         - settings_rules.go
       nativeRefs:
@@ -489,11 +593,14 @@ groups:
         - https://pocketbase.io/docs/api-files/
 
   - group: System
-    description: Host metrics and file browser endpoints.
+    description: Host metrics, file browser, runtime facts, and embedded Traefik dashboard proxy endpoints.
     apiType: Ext
     extSurface:
-      - GET /api/ext/system/metrics
-      - GET /api/ext/system/files
+      - GET /api/system/metrics
+      - GET /api/system/files
+      - GET /api/system/runtime
+      - GET /api/settings/public/traefik
+      - GET /api/settings/public/traefik/*
     nativeSurface: []
     sources:
       extRouteFiles:
@@ -587,5 +694,3 @@ groups:
         - ../certs/generate_routes.go
       nativeRefs:
         - https://pocketbase.io/docs/api-records/#crud-actions
-
-

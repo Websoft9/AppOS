@@ -9,6 +9,11 @@ For product IA, navigation grouping, and module ownership, see [architecture.md]
 
 Design system foundation: shadcn/ui + Tailwind with light/dark theme support.
 
+Scope note:
+
+- This file owns frontend engineering conventions and implementation baselines.
+- Canonical UX behavior, page patterns, IA, state rules, and interaction contracts live in `ux-designs/ux-appos-canonical/DESIGN.md` and `ux-designs/ux-appos-canonical/EXPERIENCE.md`.
+
 ### Dialog Size Tiers{#dialog-sizes}
 
 Standardize dialog widths by content type. Override with `className` on `<DialogContent>` only when needed.
@@ -44,36 +49,6 @@ Standardize side-drawer widths by tier name. For drawers built with `<SheetConte
 - Standard drawer surface: `overflow-y-auto`, full-height side panel, standard content padding (`p-6` desktop, reduce only when density is required).
 - Use `lg` as the default for detail drawers when the content includes tabs, actions, or 3-column metadata.
 - Prefer `md` for simple read-only detail drawers and `xl` or `full` only when smaller tiers would force horizontal scrolling.
-
-### Page Header{#page-header}
-
-All list and index pages use the same header pattern:
-
-- Title: `text-2xl font-bold tracking-tight`
-- Description: `text-muted-foreground mt-1`
-
-### Empty State{#empty-state}
-
-When a list page has no records, do not render the table header. Show a dedicated empty state with a clear create action.
-
-### List Page Minimal Pattern{#list-page-minimal-pattern}
-
-For standard list/index pages, use this minimal interaction pattern by default:
-
-1. Include a search input.
-2. Header actions are right-aligned as two buttons: `Refresh` (left) + `Create` (right).
-3. Sortable table headers use a **single-arrow** indicator only (no dual-arrow icon).
-4. If there is no separate detail page, each `Name` cell must support inline row expansion:
-  - Show a rotatable `>` icon before name text.
-  - Click toggles expanded details under the same row.
-  - Expanded content should include full `ID` and key metadata.
-5. Row secondary actions are shown in a three-dot (`⋮`) dropdown menu, not as always-visible inline buttons.
-6. Exception: when a page has a dedicated detail surface and a lifecycle-driven next-step model, it may show exactly one inline primary action plus one three-dot (`⋮`) menu.
-  - In this exception pattern, `Name` or equivalent identity cell remains the detail entry.
-  - The inline primary action must be the best next step, not a duplicate detail link.
-  - Use this pattern only when the page would otherwise force users to choose between multiple equally prominent actions.
-
-Keep the page visually minimal: no extra chrome, no redundant columns, no duplicate actions.
 
 ## Tech Stack{#tech-stack}
 
@@ -115,7 +90,8 @@ Use `beforeLoad` for route guards.
 Use TanStack Query + PocketBase SDK. API logic lives in `src/lib/*-api.ts`.
 
 - `pb.ts`: singleton PocketBase client
-- `store-api.ts`: store catalog and products
+- `catalog-api.ts`: normalized backend catalog reads
+- `store-presenter.ts`: store presentation helpers and local search-history helpers
 - `iac-api.ts`: IaC file read and write
 - `store-user-api.ts`: user favorites and notes
 - `store-custom-api.ts`: custom app management
@@ -147,4 +123,3 @@ Two PocketBase collections: `users` (regular) and `_superusers` (admin).
 - Never modify files under `src/components/ui/`; they are shadcn-managed primitives.
 - Add new shadcn components via CLI: `npx shadcn@latest add <component>`.
 - Put custom variants in feature components, not in primitives.
-

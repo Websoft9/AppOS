@@ -1,0 +1,8 @@
+{
+  "id": "dnsimple-dns",
+  "title": "DNSimple",
+  "vendor": "DNSimple",
+  "description": "DNSimple API profile.",
+  "defaultEndpoint": "https://api.dnsimple.com/v2",
+  "aliases": ["dnsimple", "dnsimple-dns"]
+}

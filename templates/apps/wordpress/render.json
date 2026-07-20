@@ -1,0 +1,36 @@
+{
+  "contractVersion": "0.1",
+  "env": {
+    "W9_ID": "${app_id}",
+    "W9_REPO": "wordpress",
+    "W9_DIST": "community",
+    "W9_VERSION": "${version}",
+    "W9_HTTP_PORT_SET": "${http_port}",
+    "W9_HTTP_PORT": "80",
+    "W9_URL": "${site_url}",
+    "W9_URL_REPLACE": "true",
+    "W9_ADMIN_PATH": "${admin_path}",
+    "W9_DB_EXPOSE": "mysql",
+    "W9_DB_VERSION": "8.0",
+    "W9_NETWORK": "${platform.network}",
+    "WORDPRESS_DB_HOST": "${app_id}-mysql",
+    "WORDPRESS_DB_USER": "${app_id}",
+    "WORDPRESS_DB_PASSWORD": "${secret:db_password}",
+    "WORDPRESS_DB_NAME": "${app_id}",
+    "WORDPRESS_ROOT_URL": "http://${site_url}"
+  },
+  "compose_values": {
+    "primaryService": "wordpress",
+    "databaseService": "mysql"
+  },
+  "files": [],
+  "exposures": [
+    {
+      "label": "Web",
+      "service": "wordpress",
+      "port": 80,
+      "protocol": "http",
+      "default": true
+    }
+  ]
+}

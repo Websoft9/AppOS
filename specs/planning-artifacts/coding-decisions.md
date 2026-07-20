@@ -11,6 +11,14 @@ Decision: Story/Epic artifacts define what to build, not how to implement it.
 - Avoid: implementation code, language-specific type design, detailed signatures, and repeated descriptions.
 - Principle: a Story is a delivery contract, not an implementation guide.
 
+### Story File Naming{#story-file-naming}
+
+Decision: story files follow `story{N}.{n}-{2-3 words}.md`.
+
+- After the story number, use at most three hyphen-separated words that a human can understand.
+- Prefer direct product terms (`tab`, `page`, `foundation`, `contract`, `ui`) over jargon (`surface`, `technical-direction`, `backend-foundation`).
+- Delete transitional or technical-direction docs once their content is absorbed into a canonical story.
+
 ## Container Development{#container}
 
 - Use `build/` as the single image build directory.

@@ -1,10 +1,13 @@
 package terminal
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"net"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	cryptossh "golang.org/x/crypto/ssh"
@@ -16,6 +19,194 @@ func ShellQuote(value string) string {
 		return "''"
 	}
 	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
+}
+
+func WrapCommandWithEnv(command string, env map[string]string) string {
+	if strings.TrimSpace(command) == "" || len(env) == 0 {
+		return command
+	}
+	keys := make([]string, 0, len(env))
+	for key, value := range env {
+		if strings.TrimSpace(key) == "" || strings.TrimSpace(value) == "" {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	if len(keys) == 0 {
+		return command
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		parts = append(parts, key+"="+ShellQuote(env[key]))
+	}
+	return "env " + strings.Join(parts, " ") + " sh -lc " + ShellQuote(command)
+}
+
+// DialSSH establishes an SSH client connection for the given config.
+// The caller is responsible for calling client.Close() when done.
+// A 15-second connection timeout is applied.
+func DialSSH(ctx context.Context, cfg ConnectorConfig) (*cryptossh.Client, error) {
+	authMethod, err := AuthMethodFromConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+	hostKeyCallback, err := HostKeyCallback()
+	if err != nil {
+		return nil, err
+	}
+	clientCfg := &cryptossh.ClientConfig{
+		User:            cfg.User,
+		Auth:            []cryptossh.AuthMethod{authMethod},
+		HostKeyCallback: hostKeyCallback,
+		Timeout:         10 * time.Second,
+	}
+	addr := net.JoinHostPort(cfg.Host, fmt.Sprintf("%d", cfg.Port))
+	type dialResult struct {
+		client *cryptossh.Client
+		err    error
+	}
+	dialCh := make(chan dialResult, 1)
+	go func() {
+		client, dialErr := cryptossh.Dial("tcp", addr, clientCfg)
+		dialCh <- dialResult{client: client, err: dialErr}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case result := <-dialCh:
+		if result.err != nil {
+			return nil, fmt.Errorf("ssh dial failed: %w", result.err)
+		}
+		return result.client, nil
+	}
+}
+
+// RunSSHSession runs a single command on an already-established SSH client,
+// reusing the connection without a new dial. Each call opens + closes one
+// lightweight session (channel). If timeout <= 0, a 20-second default is used.
+func RunSSHSession(ctx context.Context, client *cryptossh.Client, command string, timeout time.Duration) (string, error) {
+	if timeout <= 0 {
+		timeout = 20 * time.Second
+	}
+	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	session, err := client.NewSession()
+	if err != nil {
+		return "", fmt.Errorf("ssh new session failed: %w", err)
+	}
+	defer session.Close()
+
+	type commandResult struct {
+		output []byte
+		err    error
+	}
+	cmdCh := make(chan commandResult, 1)
+	go func() {
+		out, cmdErr := session.CombinedOutput(command)
+		cmdCh <- commandResult{output: out, err: cmdErr}
+	}()
+
+	select {
+	case <-cmdCtx.Done():
+		_ = session.Close()
+		return "", cmdCtx.Err()
+	case result := <-cmdCh:
+		output := strings.TrimSpace(string(result.output))
+		if result.err != nil {
+			if output == "" {
+				return output, result.err
+			}
+			return output, fmt.Errorf("%w: %s", result.err, output)
+		}
+		return output, nil
+	}
+}
+
+// RunSSHSessionStreaming runs a command and streams stdout/stderr lines to onOutput
+// while also returning the combined output after the command exits.
+func RunSSHSessionStreaming(ctx context.Context, client *cryptossh.Client, command string, timeout time.Duration, onOutput func(string)) (string, error) {
+	if timeout <= 0 {
+		timeout = 20 * time.Second
+	}
+	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	session, err := client.NewSession()
+	if err != nil {
+		return "", fmt.Errorf("ssh new session failed: %w", err)
+	}
+	defer session.Close()
+
+	stdout, err := session.StdoutPipe()
+	if err != nil {
+		return "", fmt.Errorf("ssh stdout pipe failed: %w", err)
+	}
+	stderr, err := session.StderrPipe()
+	if err != nil {
+		return "", fmt.Errorf("ssh stderr pipe failed: %w", err)
+	}
+
+	if err := session.Start(command); err != nil {
+		return "", err
+	}
+
+	var mu sync.Mutex
+	var callbackMu sync.Mutex
+	var output []string
+	appendLine := func(line string) {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			return
+		}
+		mu.Lock()
+		output = append(output, line)
+		mu.Unlock()
+		if onOutput != nil {
+			callbackMu.Lock()
+			defer callbackMu.Unlock()
+			onOutput(line)
+		}
+	}
+
+	readerDone := make(chan struct{}, 2)
+	readPipe := func(scanner *bufio.Scanner) {
+		defer func() { readerDone <- struct{}{} }()
+		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+		for scanner.Scan() {
+			appendLine(scanner.Text())
+		}
+	}
+	go readPipe(bufio.NewScanner(stdout))
+	go readPipe(bufio.NewScanner(stderr))
+
+	waitCh := make(chan error, 1)
+	go func() {
+		waitCh <- session.Wait()
+	}()
+
+	var waitErr error
+	select {
+	case <-cmdCtx.Done():
+		_ = session.Close()
+		return "", cmdCtx.Err()
+	case waitErr = <-waitCh:
+	}
+
+	<-readerDone
+	<-readerDone
+
+	mu.Lock()
+	combined := strings.TrimSpace(strings.Join(output, "\n"))
+	mu.Unlock()
+	if waitErr != nil {
+		if combined == "" {
+			return combined, waitErr
+		}
+		return combined, fmt.Errorf("%w: %s", waitErr, combined)
+	}
+	return combined, nil
 }
 
 // ExecuteSSHCommand runs a one-shot command on a remote server via SSH and

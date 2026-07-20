@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 // ─── Markdown Viewer (lightweight, always loaded) ────────
 
@@ -12,7 +13,28 @@ export function MarkdownView({ children, className }: MarkdownViewProps) {
   if (!children) return null
   return (
     <div className={className ?? 'prose prose-sm dark:prose-invert max-w-none'}>
-      <ReactMarkdown>{children}</ReactMarkdown>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          table: props => (
+            <div className="my-4 overflow-x-auto rounded-xl border border-border/50 bg-background/80 shadow-sm">
+              <table className="w-full min-w-max border-collapse text-sm" {...props} />
+            </div>
+          ),
+          th: props => (
+            <th
+              className="border-b border-border/60 bg-muted/30 px-3 py-2.5 text-left text-[12px] font-semibold uppercase tracking-[0.08em] text-foreground/78"
+              {...props}
+            />
+          ),
+          tr: props => <tr className="odd:bg-background even:bg-muted/10" {...props} />,
+          td: props => (
+            <td className="border-b border-border/40 px-3 py-2.5 align-top leading-6" {...props} />
+          ),
+        }}
+      >
+        {children}
+      </ReactMarkdown>
     </div>
   )
 }

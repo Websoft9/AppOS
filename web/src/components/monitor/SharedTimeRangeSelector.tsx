@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 export type SharedTimeRangeOption<T extends string> = {
   value: T
@@ -11,15 +12,21 @@ export function SharedTimeRangeSelector<T extends string>({
   onChange,
   isOptionActive,
   ariaLabel,
+  className,
+  buttonClassName,
+  buttonSize = 'sm',
 }: {
   value: T
   options: Array<SharedTimeRangeOption<T>>
   onChange: (value: T) => void
   isOptionActive?: (value: T, selectedValue: T) => boolean
   ariaLabel?: string
+  className?: string
+  buttonClassName?: string
+  buttonSize?: 'xs' | 'sm'
 }) {
   return (
-    <div className="flex flex-wrap gap-2" aria-label={ariaLabel}>
+    <div className={cn('flex flex-wrap gap-2', className)} aria-label={ariaLabel}>
       {options.map(option => (
         <Button
           key={option.value}
@@ -28,7 +35,8 @@ export function SharedTimeRangeSelector<T extends string>({
               ? 'default'
               : 'outline'
           }
-          size="sm"
+          size={buttonSize}
+          className={buttonClassName}
           onClick={() => onChange(option.value)}
         >
           {option.label}

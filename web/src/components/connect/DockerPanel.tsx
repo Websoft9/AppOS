@@ -1,15 +1,24 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
+import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import {
+  AlertTriangle,
+  ArrowRight,
   Box,
   Boxes,
   ChevronLeft,
   ChevronRight,
+  CheckCircle2,
   Container,
+  Download,
+  Eraser,
   HardDrive,
   LayoutDashboard,
+  Loader2,
   Network,
-  RotateCw,
+  Plus,
+  RefreshCw,
+  Settings2,
   TerminalSquare,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -19,15 +28,34 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { pb } from '@/lib/pb'
 import { getApiErrorMessage } from '@/lib/api-error'
 import { ContainersTab } from '@/components/docker/ContainersTab'
-import { ImagesTab } from '@/components/docker/ImagesTab'
-import { NetworksTab } from '@/components/docker/NetworksTab'
-import { VolumesTab } from '@/components/docker/VolumesTab'
-import { ComposeTab } from '@/components/docker/ComposeTab'
-import { TerminalPanel } from '@/components/connect/TerminalPanel'
+import { ImagesTab, type ImagesTabRef } from '@/components/docker/ImagesTab'
+import { NetworksTab, type NetworksTabRef } from '@/components/docker/NetworksTab'
+import { VolumesTab, type VolumesTabRef } from '@/components/docker/VolumesTab'
+import { ComposeTab, type ComposeTabSummary } from '@/components/docker/ComposeTab'
+import {
+  DockerDependencyAlert,
+  getDockerDependencyIssue,
+} from '@/components/docker/DockerDependencyAlert'
+import { dockerApiPath, dockerTargetsPath } from '@/lib/docker-api'
 import { cn } from '@/lib/utils'
+
+const LazyTerminalPanel = lazy(() =>
+  import('@/components/connect/TerminalPanel').then(module => ({ default: module.TerminalPanel }))
+)
 
 interface HostEntry {
   id: string
@@ -39,21 +67,27 @@ interface HostEntry {
 interface DockerPanelProps {
   serverId: string
   className?: string
-  onOpenFilesAtPath?: (targetPath: string, lockedRootPath: string) => void
+  showWorkspaceHeader?: boolean
 }
 
 type ContainerPageSize = 25 | 50 | 100
 
 type ContainerVisibleColumns = {
   ports: boolean
+  volumes: boolean
   status: boolean
+  created: boolean
   cpu: boolean
   mem: boolean
   network: boolean
   compose: boolean
 }
 
+type ContainerStateFilter = 'all' | 'running' | 'exited' | 'paused' | 'created'
+type DockerTabId = 'overview' | 'containers' | 'images' | 'volumes' | 'networks' | 'compose'
+
 const DOCKER_PAGE_SIZE_KEY = 'docker.list.page_size'
+const MIN_DOCKER_REFRESH_SPIN_MS = 650
 
 function loadGlobalPageSize(): ContainerPageSize {
   try {
@@ -67,11 +101,13 @@ function loadGlobalPageSize(): ContainerPageSize {
 
 const DEFAULT_CONTAINER_VISIBLE_COLUMNS: ContainerVisibleColumns = {
   ports: true,
+  volumes: true,
   status: true,
+  created: false,
   cpu: false,
   mem: false,
   network: false,
-  compose: false,
+  compose: true,
 }
 
 interface OverviewContainer {
@@ -128,27 +164,37 @@ function parseComposeProjects(output: string): OverviewComposeProject[] {
   }
 }
 
-function composeStatusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-  const value = status.toLowerCase()
-  if (value.includes('running') || value.includes('healthy')) return 'default'
-  if (value.includes('exit') || value.includes('dead') || value.includes('error')) {
-    return 'destructive'
-  }
-  return 'secondary'
+function getContainerDisplayName(container: OverviewContainer) {
+  return (container.Names || container.ID || '-').replace(/^\/+/, '')
 }
 
-function statusTone(status: string): 'default' | 'secondary' | 'destructive' {
-  const value = status.toLowerCase()
-  if (value === 'running' || value.includes('healthy')) return 'default'
-  if (value === 'exited' || value.includes('unhealthy')) return 'destructive'
-  return 'secondary'
+function isComposeProjectRunning(project: OverviewComposeProject) {
+  return (project.Status || '').toLowerCase().includes('running')
 }
 
-function OverviewTab({ serverId, disabled }: { serverId: string; disabled: boolean }) {
+function OverviewTab({
+  serverId,
+  disabled,
+  embeddedInWorkspace = false,
+  onSelectTab,
+  onFilterContainersByNames,
+  onOpenPullImage,
+  onOpenPruneImages,
+  onOpenPruneVolumes,
+}: {
+  serverId: string
+  disabled: boolean
+  embeddedInWorkspace?: boolean
+  onSelectTab: (tabId: DockerTabId) => void
+  onFilterContainersByNames: (names: string[]) => void
+  onOpenPullImage: () => void
+  onOpenPruneImages: () => void
+  onOpenPruneVolumes: () => void
+}) {
   const containersQuery = useQuery<OverviewContainer[]>({
     queryKey: ['docker', 'containers', serverId],
     queryFn: async () => {
-      const res = await pb.send(`/api/ext/docker/containers?server_id=${serverId}`, {
+      const res = await pb.send(dockerApiPath(serverId, '/containers'), {
         method: 'GET',
       })
       return parseDockerJsonLines<OverviewContainer>(res.output)
@@ -162,7 +208,7 @@ function OverviewTab({ serverId, disabled }: { serverId: string; disabled: boole
   const imagesQuery = useQuery<OverviewImage[]>({
     queryKey: ['docker', 'images', serverId],
     queryFn: async () => {
-      const res = await pb.send(`/api/ext/docker/images?server_id=${serverId}`, {
+      const res = await pb.send(dockerApiPath(serverId, '/images'), {
         method: 'GET',
       })
       return parseDockerJsonLines<OverviewImage>(res.output)
@@ -176,7 +222,7 @@ function OverviewTab({ serverId, disabled }: { serverId: string; disabled: boole
   const volumesQuery = useQuery<OverviewVolume[]>({
     queryKey: ['docker', 'volumes', serverId],
     queryFn: async () => {
-      const res = await pb.send(`/api/ext/docker/volumes?server_id=${serverId}`, {
+      const res = await pb.send(dockerApiPath(serverId, '/volumes'), {
         method: 'GET',
       })
       return parseDockerJsonLines<OverviewVolume>(res.output)
@@ -190,7 +236,7 @@ function OverviewTab({ serverId, disabled }: { serverId: string; disabled: boole
   const networksQuery = useQuery<OverviewNetwork[]>({
     queryKey: ['docker', 'networks', serverId],
     queryFn: async () => {
-      const res = await pb.send(`/api/ext/docker/networks?server_id=${serverId}`, {
+      const res = await pb.send(dockerApiPath(serverId, '/networks'), {
         method: 'GET',
       })
       return parseDockerJsonLines<OverviewNetwork>(res.output)
@@ -204,7 +250,7 @@ function OverviewTab({ serverId, disabled }: { serverId: string; disabled: boole
   const composeQuery = useQuery<OverviewComposeProject[]>({
     queryKey: ['docker', 'compose', serverId],
     queryFn: async () => {
-      const res = await pb.send(`/api/ext/docker/compose/ls?server_id=${serverId}`, {
+      const res = await pb.send(dockerApiPath(serverId, '/compose/ls'), {
         method: 'GET',
       })
       return parseComposeProjects(res.output)
@@ -235,251 +281,376 @@ function OverviewTab({ serverId, disabled }: { serverId: string; disabled: boole
     networksQuery.isLoading ||
     composeQuery.isLoading
 
-  const runningCount = containers.filter(container => container.State === 'running').length
-  const healthyCount = containers.filter(container =>
-    (container.Status || '').toLowerCase().includes('healthy')
-  ).length
-  const unhealthyCount = containers.filter(container =>
-    (container.Status || '').toLowerCase().includes('unhealthy')
-  ).length
-  const exitedCount = containers.filter(container => container.State === 'exited').length
-  const pausedCount = containers.filter(container => container.State === 'paused').length
-  const createdCount = containers.filter(container => container.State === 'created').length
-  const projectsRunning = projects.filter(project =>
-    (project.Status || '').toLowerCase().includes('running')
-  ).length
+  const stoppedCount = containers.filter(container => container.State !== 'running').length
+  const nonRunningProjects = projects.filter(project => !isComposeProjectRunning(project)).length
   const taggedImages = images.filter(image => image.Tag && image.Tag !== '<none>').length
-  const attentionContainers = containers
-    .filter(container => {
-      const status = (container.Status || '').toLowerCase()
-      return (
-        container.State !== 'running' || status.includes('unhealthy') || status.includes('dead')
-      )
-    })
-    .slice(0, 6)
 
-  const summaryCards = [
+  const resourceCards = [
     {
-      label: 'Compose Projects',
-      value: projects.length,
-      detail: `${projectsRunning} running`,
-      icon: Boxes,
-    },
-    {
+      tab: 'containers' as const,
       label: 'Containers',
-      value: containers.length,
-      detail: `${runningCount} running`,
+      count: containers.length,
+      stateLine: stoppedCount > 0 ? `${stoppedCount} stopped` : 'all running',
+      warning: stoppedCount > 0,
       icon: Container,
     },
     {
+      tab: 'compose' as const,
+      label: 'Compose',
+      count: projects.length,
+      stateLine: nonRunningProjects > 0 ? `${nonRunningProjects} attention` : 'all running',
+      warning: nonRunningProjects > 0,
+      icon: Boxes,
+    },
+    {
+      tab: 'images' as const,
       label: 'Images',
-      value: images.length,
-      detail: `${taggedImages} tagged`,
+      count: images.length,
+      stateLine: `${taggedImages} tagged`,
+      warning: false,
       icon: Box,
     },
     {
-      label: 'Storage Objects',
-      value: volumes.length + networks.length,
-      detail: `${volumes.length} volumes · ${networks.length} networks`,
+      tab: 'volumes' as const,
+      label: 'Volumes',
+      count: volumes.length,
+      stateLine: 'clean',
+      warning: false,
       icon: HardDrive,
+    },
+    {
+      tab: 'networks' as const,
+      label: 'Networks',
+      count: networks.length,
+      stateLine: 'ok',
+      warning: false,
+      icon: Network,
     },
   ]
 
+  const attentionIssues = useMemo(() => {
+    const unhealthyContainers = containers
+      .filter(container => (container.Status || '').toLowerCase().includes('unhealthy'))
+      .map(container => ({
+        id: `unhealthy-${container.ID}`,
+        type: 'container' as const,
+        name: getContainerDisplayName(container),
+        reason: 'Unhealthy container',
+        severity: 'destructive' as const,
+      }))
+
+    const unhealthyIds = new Set(
+      containers
+        .filter(container => (container.Status || '').toLowerCase().includes('unhealthy'))
+        .map(container => container.ID)
+    )
+
+    const stoppedContainers = containers
+      .filter(container => container.State !== 'running' && !unhealthyIds.has(container.ID))
+      .map(container => ({
+        id: `stopped-${container.ID}`,
+        type: 'container' as const,
+        name: getContainerDisplayName(container),
+        reason: container.State ? `${container.State} container` : 'Stopped container',
+        severity: 'secondary' as const,
+      }))
+
+    const composeIssues = projects
+      .filter(project => !isComposeProjectRunning(project))
+      .map(project => ({
+        id: `compose-${project.Name}`,
+        type: 'compose' as const,
+        name: project.Name || 'Compose project',
+        reason: 'Compose project needs attention',
+        severity: 'secondary' as const,
+      }))
+
+    return [...unhealthyContainers, ...stoppedContainers, ...composeIssues]
+  }, [containers, projects])
+
+  const visibleAttentionIssues = attentionIssues.slice(0, 6)
+  const hiddenAttentionCount = Math.max(0, attentionIssues.length - visibleAttentionIssues.length)
+  const hasContainerIssues = attentionIssues.some(issue => issue.type === 'container')
+  const hasComposeIssues = attentionIssues.some(issue => issue.type === 'compose')
+  const loadErrorMessage = loadError
+    ? getApiErrorMessage(loadError, 'Failed to load Docker overview')
+    : null
+  const dependencyIssue = getDockerDependencyIssue(loadError ?? loadErrorMessage)
+  const dependencyFocusSource = containersQuery.error
+    ? 'containers'
+    : composeQuery.error
+      ? 'compose'
+      : imagesQuery.error
+        ? 'images'
+        : volumesQuery.error
+          ? 'volumes'
+          : networksQuery.error
+            ? 'networks'
+            : 'overview'
+
   if (loadError) {
-    return (
+    return dependencyIssue && loadErrorMessage ? (
+      <DockerDependencyAlert
+        serverId={serverId}
+        message={loadErrorMessage}
+        focusSource={dependencyFocusSource}
+      />
+    ) : (
       <Alert variant="destructive">
-        <AlertDescription>
-          {getApiErrorMessage(loadError, 'Failed to load Docker overview')}
-        </AlertDescription>
+        <AlertDescription>{loadErrorMessage}</AlertDescription>
       </Alert>
     )
   }
 
   return (
-    <div className="flex min-h-0 flex-col gap-4 pt-4">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {summaryCards.map(card => {
+    <div className={cn('flex min-h-0 flex-col gap-4', embeddedInWorkspace ? 'pt-0' : 'pt-4')}>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        {resourceCards.map(card => {
           const Icon = card.icon
           return (
-            <Card key={card.label} className="gap-3 py-4">
-              <CardHeader className="px-4 pb-0">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <CardDescription>{card.label}</CardDescription>
-                    <CardTitle className="mt-2 text-3xl">{loading ? '...' : card.value}</CardTitle>
+            <button
+              key={card.label}
+              type="button"
+              onClick={() => onSelectTab(card.tab)}
+              className="min-w-0 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <Card className={cn('h-full gap-3 py-4 transition-colors hover:bg-muted/30')}>
+                <CardHeader className="px-4 pb-0">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <CardDescription>{card.label}</CardDescription>
+                      <CardTitle className="mt-2 text-3xl">
+                        {loading ? '...' : card.count}
+                      </CardTitle>
+                    </div>
+                    <div
+                      className={cn(
+                        'rounded-lg border bg-muted/40 p-2 text-muted-foreground',
+                        card.warning &&
+                          'border-amber-300/70 bg-amber-100/70 text-amber-700 dark:border-amber-500/50 dark:bg-amber-500/10 dark:text-amber-300'
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </div>
                   </div>
-                  <div className="rounded-lg border bg-muted/40 p-2 text-muted-foreground">
-                    <Icon className="h-4 w-4" />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="px-4 pt-0 text-sm text-muted-foreground">
-                {loading ? 'Loading Docker inventory...' : card.detail}
-              </CardContent>
-            </Card>
+                </CardHeader>
+                <CardContent
+                  className={cn(
+                    'flex items-center gap-1 px-4 pt-0 text-sm text-muted-foreground',
+                    card.warning && 'font-medium text-amber-700 dark:text-amber-300'
+                  )}
+                >
+                  {loading ? 'Loading Docker inventory...' : card.stateLine}
+                  {!loading && card.warning && <AlertTriangle className="h-3.5 w-3.5" />}
+                </CardContent>
+              </Card>
+            </button>
           )
         })}
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-        <Card className="gap-4 py-4">
-          <CardHeader className="px-4 pb-0">
-            <CardTitle className="text-base">Container Health</CardTitle>
-            <CardDescription>Quick runtime breakdown for this Docker host.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3 px-4 sm:grid-cols-2 xl:grid-cols-3">
-            <div className="rounded-lg border bg-muted/20 p-3">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">Healthy</div>
-              <div className="mt-2 text-2xl font-semibold">{loading ? '...' : healthyCount}</div>
+      <Card className="gap-4 py-4">
+        <CardHeader className="px-4 pb-0">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle className="text-base">Needs Attention</CardTitle>
+              <CardDescription>
+                Actionable Docker issues found from current inventory data.
+              </CardDescription>
             </div>
-            <div className="rounded-lg border bg-muted/20 p-3">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">Unhealthy</div>
-              <div className="mt-2 text-2xl font-semibold">{loading ? '...' : unhealthyCount}</div>
+            {!loading && (
+              <Badge variant={attentionIssues.length > 0 ? 'secondary' : 'outline'}>
+                {attentionIssues.length} {attentionIssues.length === 1 ? 'issue' : 'issues'}
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3 px-4">
+          {loading ? (
+            <div className="rounded-lg border bg-muted/20 px-3 py-3 text-sm text-muted-foreground">
+              Loading Docker inventory states...
             </div>
-            <div className="rounded-lg border bg-muted/20 p-3">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">Exited</div>
-              <div className="mt-2 text-2xl font-semibold">{loading ? '...' : exitedCount}</div>
-            </div>
-            <div className="rounded-lg border bg-muted/20 p-3">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">Paused</div>
-              <div className="mt-2 text-2xl font-semibold">{loading ? '...' : pausedCount}</div>
-            </div>
-            <div className="rounded-lg border bg-muted/20 p-3">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">Created</div>
-              <div className="mt-2 text-2xl font-semibold">{loading ? '...' : createdCount}</div>
-            </div>
-            <div className="rounded-lg border bg-muted/20 p-3">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">Networks</div>
-              <div className="mt-2 text-2xl font-semibold">{loading ? '...' : networks.length}</div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="gap-4 py-4">
-          <CardHeader className="px-4 pb-0">
-            <CardTitle className="text-base">Needs Attention</CardTitle>
-            <CardDescription>
-              Containers not fully healthy or not currently running.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2 px-4">
-            {loading ? (
-              <div className="text-sm text-muted-foreground">Loading container states...</div>
-            ) : attentionContainers.length > 0 ? (
-              attentionContainers.map(container => (
-                <div
-                  key={container.ID}
-                  className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 px-3 py-2"
-                >
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">
-                      {container.Names || container.ID.slice(0, 12)}
+          ) : visibleAttentionIssues.length > 0 ? (
+            <>
+              <div className="space-y-2">
+                {visibleAttentionIssues.map(issue => (
+                  <button
+                    key={issue.id}
+                    type="button"
+                    className="flex w-full items-center justify-between gap-3 rounded-lg border bg-muted/20 px-3 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    onClick={() => {
+                      if (issue.type === 'container') {
+                        onFilterContainersByNames([issue.name])
+                      } else {
+                        onSelectTab('compose')
+                      }
+                    }}
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div
+                        className={cn(
+                          'rounded-full border p-1.5 text-muted-foreground',
+                          issue.severity === 'destructive' &&
+                            'border-destructive/30 bg-destructive/10 text-destructive'
+                        )}
+                      >
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium">{issue.name}</div>
+                        <div className="truncate text-xs text-muted-foreground">{issue.reason}</div>
+                      </div>
                     </div>
-                    <div className="truncate text-xs text-muted-foreground">
-                      {container.Image || '-'}
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Badge variant={issue.severity}>
+                        {issue.type === 'container' ? 'Container' : 'Compose'}
+                      </Badge>
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-primary">
+                        View <ArrowRight className="h-3 w-3" />
+                      </span>
                     </div>
-                  </div>
-                  <Badge variant={statusTone(container.Status || container.State)}>
-                    {container.State || 'unknown'}
-                  </Badge>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-sm text-muted-foreground">
-                All discovered containers are running without unhealthy status flags.
+                  </button>
+                ))}
               </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <Card className="gap-4 py-4">
-          <CardHeader className="px-4 pb-0">
-            <CardTitle className="text-base">Compose Stacks</CardTitle>
-            <CardDescription>Current compose projects on the selected server.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2 px-4">
-            {loading ? (
-              <div className="text-sm text-muted-foreground">Loading compose projects...</div>
-            ) : projects.length > 0 ? (
-              projects.slice(0, 8).map(project => (
-                <div
-                  key={project.Name}
-                  className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 px-3 py-2"
-                >
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">{project.Name || '-'}</div>
-                    <div className="text-xs text-muted-foreground">Compose service group</div>
+              {hiddenAttentionCount > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/10 px-3 py-2">
+                  <div className="text-xs text-muted-foreground">
+                    Showing first {visibleAttentionIssues.length} of {attentionIssues.length}{' '}
+                    issues.
                   </div>
-                  <Badge variant={composeStatusVariant(project.Status || '')}>
-                    {project.Status || 'unknown'}
-                  </Badge>
-                </div>
-              ))
-            ) : (
-              <div className="text-sm text-muted-foreground">No compose projects found.</div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="gap-4 py-4">
-          <CardHeader className="px-4 pb-0">
-            <CardTitle className="text-base">Inventory Split</CardTitle>
-            <CardDescription>Resource counts across the Docker host.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 px-4">
-            {[
-              { label: 'Running containers', value: runningCount, total: containers.length },
-              { label: 'Images', value: images.length, total: Math.max(images.length, 1) },
-              {
-                label: 'Volumes',
-                value: volumes.length,
-                total: Math.max(volumes.length + networks.length, 1),
-              },
-              {
-                label: 'Networks',
-                value: networks.length,
-                total: Math.max(volumes.length + networks.length, 1),
-              },
-            ].map(item => {
-              const width =
-                item.total > 0 ? Math.max(8, Math.round((item.value / item.total) * 100)) : 8
-              return (
-                <div key={item.label} className="space-y-1">
-                  <div className="flex items-center justify-between gap-3 text-sm">
-                    <span>{item.label}</span>
-                    <span className="font-medium">{loading ? '...' : item.value}</span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-primary transition-all"
-                      style={{ width: `${width}%` }}
-                    />
+                  <div className="flex flex-wrap gap-2">
+                    {hasContainerIssues && (
+                      <Button variant="outline" size="sm" onClick={() => onSelectTab('containers')}>
+                        View containers
+                      </Button>
+                    )}
+                    {hasComposeIssues && (
+                      <Button variant="outline" size="sm" onClick={() => onSelectTab('compose')}>
+                        View compose
+                      </Button>
+                    )}
                   </div>
                 </div>
-              )
-            })}
-          </CardContent>
-        </Card>
-      </div>
+              )}
+            </>
+          ) : (
+            <div className="flex items-start gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-3">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-foreground">No issues detected</div>
+                <div className="text-sm text-muted-foreground">
+                  All discovered Docker resources look operational from current inventory data.
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="gap-4 py-4">
+        <CardHeader className="px-4 pb-0">
+          <CardTitle className="text-base">Quick Actions</CardTitle>
+          <CardDescription>Common Docker actions for this server.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2 px-4">
+          <Link
+            to="/deploy/create"
+            search={{
+              entry: undefined,
+              prefillMode: undefined,
+              prefillSource: undefined,
+              prefillAppId: undefined,
+              prefillAppKey: undefined,
+              prefillAppName: undefined,
+              prefillServerId: undefined,
+            }}
+            className="inline-flex h-8 items-center rounded-md border border-input bg-background px-3 text-sm font-medium shadow-xs hover:bg-accent hover:text-accent-foreground"
+          >
+            <Plus className="mr-1.5 h-4 w-4" /> Create Compose
+          </Link>
+          <Button variant="outline" size="sm" onClick={onOpenPullImage} disabled={disabled}>
+            <Download className="mr-1.5 h-4 w-4" /> Pull Image
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" disabled={disabled}>
+                <Eraser className="mr-1.5 h-4 w-4" /> Prune Resources
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onSelect={onOpenPruneImages}>Prune images</DropdownMenuItem>
+              <DropdownMenuItem onSelect={onOpenPruneVolumes}>Prune volumes</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </CardContent>
+      </Card>
     </div>
   )
 }
 
-export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPanelProps) {
+export function DockerPanel({ serverId, className, showWorkspaceHeader = true }: DockerPanelProps) {
   const queryClient = useQueryClient()
   const rootRef = useRef<HTMLDivElement | null>(null)
+  const refreshFeedbackTimerRef = useRef<number | null>(null)
+  const imagesTabRef = useRef<ImagesTabRef>(null)
+  const volumesTabRef = useRef<VolumesTabRef>(null)
+  const networksTabRef = useRef<NetworksTabRef>(null)
   const [hosts, setHosts] = useState<HostEntry[]>([])
   const [refreshSignal, setRefreshSignal] = useState(0)
-  const [activeTab, setActiveTab] = useState<
-    'overview' | 'containers' | 'images' | 'volumes' | 'networks' | 'compose'
-  >('overview')
+  const [activeTab, setActiveTab] = useState<DockerTabId>('overview')
   const [containerFilter, setContainerFilter] = useState('')
   const [containerFilterNames, setContainerFilterNames] = useState<string[]>([])
+  const [volumeFilterNames, setVolumeFilterNames] = useState<string[]>([])
   const [composeFilter, setComposeFilter] = useState('')
+  const [imagesFilter, setImagesFilter] = useState('')
+  const [imagesUsageFilter, setImagesUsageFilter] = useState<'all' | 'used' | 'unused'>('all')
+  const [imagesPage, setImagesPage] = useState(1)
+  const [imagesPageSize, setImagesPageSize] = useState<25 | 50 | 100>(loadGlobalPageSize)
+  const [imagesSummary, setImagesSummary] = useState<{
+    totalItems: number
+    totalPages: number
+    usedItems: number
+    unusedItems: number
+  } | null>(null)
+  const [imagesPullActivity, setImagesPullActivity] = useState<{
+    activeCount: number
+    recentFailedCount: number
+    hasRecentHistory: boolean
+  }>({
+    activeCount: 0,
+    recentFailedCount: 0,
+    hasRecentHistory: false,
+  })
+  const [volumesFilter, setVolumesFilter] = useState('')
+  const [volumesPage, setVolumesPage] = useState(1)
+  const [volumesPageSize, setVolumesPageSize] = useState<25 | 50 | 100>(loadGlobalPageSize)
+  const [volumesSummary, setVolumesSummary] = useState<{
+    totalItems: number
+    totalPages: number
+  } | null>(null)
+  const [networksFilter, setNetworksFilter] = useState('')
+  const [networksPage, setNetworksPage] = useState(1)
+  const [networksPageSize, setNetworksPageSize] = useState<25 | 50 | 100>(loadGlobalPageSize)
+  const [networksSummary, setNetworksSummary] = useState<{
+    totalItems: number
+    totalPages: number
+  } | null>(null)
+  const [composePage, setComposePage] = useState(1)
+  const [composePageSize, setComposePageSize] = useState<25 | 50 | 100>(loadGlobalPageSize)
+  const [composeStatusFilter, setComposeStatusFilter] = useState('all')
+  const [composeSummary, setComposeSummary] = useState<ComposeTabSummary | null>(null)
   const [containerPage, setContainerPage] = useState(1)
   const [containerPageSize, setContainerPageSize] = useState<ContainerPageSize>(loadGlobalPageSize)
+  const [containerStateFilter, setContainerStateFilter] = useState<ContainerStateFilter>('all')
+  const [containerSummary, setContainerSummary] = useState<{
+    totalItems: number
+    totalPages: number
+    stateCounts: Record<ContainerStateFilter, number>
+  }>({
+    totalItems: 0,
+    totalPages: 1,
+    stateCounts: { all: 0, running: 0, exited: 0, paused: 0, created: 0 },
+  })
   const [containerVisibleColumns, setContainerVisibleColumns] = useState<ContainerVisibleColumns>(
     DEFAULT_CONTAINER_VISIBLE_COLUMNS
   )
@@ -487,15 +658,82 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
   const [terminalContainerId, setTerminalContainerId] = useState<string | null>(null)
   const [terminalShell, setTerminalShell] = useState<string>('/bin/sh')
   const [manualShell, setManualShell] = useState(false)
+  const [terminalResumeSession, setTerminalResumeSession] = useState<{
+    key: string
+    sessionId: string
+  } | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshError, setRefreshError] = useState<string | null>(null)
 
+  const overviewContainersFetching = useIsFetching({ queryKey: ['docker', 'containers', serverId] })
+  const overviewImagesFetching = useIsFetching({ queryKey: ['docker', 'images', serverId] })
+  const overviewVolumesFetching = useIsFetching({ queryKey: ['docker', 'volumes', serverId] })
+  const overviewNetworksFetching = useIsFetching({ queryKey: ['docker', 'networks', serverId] })
+  const overviewComposeFetching = useIsFetching({ queryKey: ['docker', 'compose', serverId] })
+  const volumeContainersFetching = useIsFetching({
+    queryKey: ['docker', 'volumes', 'containers', serverId],
+  })
+  const imageContainersFetching = useIsFetching({
+    queryKey: ['docker', 'containers', 'for-images', serverId],
+  })
+  const containerTelemetryFetching = useIsFetching({
+    queryKey: ['monitor', 'container-telemetry', serverId],
+  })
+
+  const activeTerminalSessionKey =
+    terminalContainerId == null
+      ? null
+      : `${serverId}:${terminalContainerId}:${manualShell ? terminalShell : 'auto'}`
+
+  const activeTabFetching = useMemo(() => {
+    switch (activeTab) {
+      case 'containers':
+        return overviewContainersFetching + containerTelemetryFetching
+      case 'images':
+        return overviewImagesFetching + imageContainersFetching
+      case 'volumes':
+        return overviewVolumesFetching + volumeContainersFetching
+      case 'networks':
+        return overviewNetworksFetching
+      case 'compose':
+        return overviewComposeFetching
+      default:
+        return (
+          overviewContainersFetching +
+          overviewImagesFetching +
+          overviewVolumesFetching +
+          overviewNetworksFetching +
+          overviewComposeFetching
+        )
+    }
+  }, [
+    activeTab,
+    containerTelemetryFetching,
+    imageContainersFetching,
+    overviewComposeFetching,
+    overviewContainersFetching,
+    overviewImagesFetching,
+    overviewNetworksFetching,
+    overviewVolumesFetching,
+    volumeContainersFetching,
+  ])
+
+  const refreshFeedbackActive = refreshing || activeTabFetching > 0
+
   useEffect(() => {
-    pb.send('/api/ext/docker/servers', { method: 'GET' })
+    pb.send(dockerTargetsPath(), { method: 'GET' })
       .then(res => {
         if (Array.isArray(res)) setHosts(res as HostEntry[])
       })
       .catch(() => setHosts([]))
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (refreshFeedbackTimerRef.current != null) {
+        window.clearTimeout(refreshFeedbackTimerRef.current)
+      }
+    }
   }, [])
 
   const activeHost = hosts.find(h => h.id === serverId)
@@ -505,33 +743,27 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
     return {
       overview: {
         label: 'Overview',
-        description: 'Dashboard summary across containers, compose stacks, and storage objects.',
-        icon: LayoutDashboard,
+        description: 'Fast scan of Docker resources and issues needing attention.',
       },
       containers: {
         label: 'Containers',
         description: 'Inspect runtime containers, status, ports, and container-level actions.',
-        icon: Container,
       },
       images: {
         label: 'Images',
         description: 'Manage cached images and review image usage.',
-        icon: Box,
       },
       volumes: {
         label: 'Volumes',
         description: 'Track persistent storage and linked containers.',
-        icon: HardDrive,
       },
       networks: {
         label: 'Networks',
         description: 'Review Docker networks and connectivity surface.',
-        icon: Network,
       },
       compose: {
         label: 'Compose',
         description: 'Manage compose projects and open linked containers.',
-        icon: Boxes,
       },
     }[activeTab]
   }, [activeTab])
@@ -553,48 +785,62 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
   }, [containerPageSize])
 
   useEffect(() => {
+    localStorage.setItem(DOCKER_PAGE_SIZE_KEY, String(imagesPageSize))
+  }, [imagesPageSize])
+
+  useEffect(() => {
+    localStorage.setItem(DOCKER_PAGE_SIZE_KEY, String(volumesPageSize))
+  }, [volumesPageSize])
+
+  useEffect(() => {
+    localStorage.setItem(DOCKER_PAGE_SIZE_KEY, String(networksPageSize))
+  }, [networksPageSize])
+
+  useEffect(() => {
+    localStorage.setItem(DOCKER_PAGE_SIZE_KEY, String(composePageSize))
+  }, [composePageSize])
+
+  useEffect(() => {
     setContainerPage(1)
   }, [serverId])
 
+  useEffect(() => {
+    setComposeStatusFilter('all')
+  }, [serverId])
+
+  useEffect(() => {
+    setContainerPage(1)
+  }, [containerStateFilter])
+
   const refreshDockerData = async () => {
+    const startedAt = Date.now()
+    if (refreshFeedbackTimerRef.current != null) {
+      window.clearTimeout(refreshFeedbackTimerRef.current)
+      refreshFeedbackTimerRef.current = null
+    }
     setRefreshing(true)
     setRefreshError(null)
+    setRefreshSignal(signal => signal + 1)
     try {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['docker', 'containers', serverId] }),
         queryClient.invalidateQueries({
-          queryKey: ['docker', 'containers', 'details', serverId],
+          queryKey: ['docker', 'containers', 'for-images', serverId],
         }),
+        queryClient.invalidateQueries({ queryKey: ['monitor', 'container-telemetry', serverId] }),
         queryClient.invalidateQueries({ queryKey: ['docker', 'images', serverId] }),
         queryClient.invalidateQueries({ queryKey: ['docker', 'networks', serverId] }),
         queryClient.invalidateQueries({ queryKey: ['docker', 'volumes', serverId] }),
         queryClient.invalidateQueries({ queryKey: ['docker', 'compose', serverId] }),
-        queryClient.refetchQueries(
-          { queryKey: ['docker', 'containers', serverId], type: 'active' },
-          { throwOnError: true }
-        ),
-        queryClient.refetchQueries(
-          { queryKey: ['docker', 'images', serverId], type: 'active' },
-          { throwOnError: true }
-        ),
-        queryClient.refetchQueries(
-          { queryKey: ['docker', 'networks', serverId], type: 'active' },
-          { throwOnError: true }
-        ),
-        queryClient.refetchQueries(
-          { queryKey: ['docker', 'volumes', serverId], type: 'active' },
-          { throwOnError: true }
-        ),
-        queryClient.refetchQueries(
-          { queryKey: ['docker', 'compose', serverId], type: 'active' },
-          { throwOnError: true }
-        ),
       ])
     } catch (err) {
       setRefreshError(getApiErrorMessage(err, 'Failed to refresh Docker data'))
     } finally {
-      setRefreshSignal(signal => signal + 1)
-      setRefreshing(false)
+      const remaining = Math.max(0, MIN_DOCKER_REFRESH_SPIN_MS - (Date.now() - startedAt))
+      refreshFeedbackTimerRef.current = window.setTimeout(() => {
+        setRefreshing(false)
+        refreshFeedbackTimerRef.current = null
+      }, remaining)
     }
   }
 
@@ -606,56 +852,71 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
   }, [activeTab])
 
   return (
-    <div
-      ref={rootRef}
-      className={cn('flex h-full min-h-0 min-w-0 flex-col gap-3 overflow-hidden', className)}
-    >
-      <Tabs
-        value={activeTab}
-        onValueChange={value =>
-          setActiveTab(
-            value as 'overview' | 'containers' | 'images' | 'volumes' | 'networks' | 'compose'
-          )
-        }
-        orientation="vertical"
-        className="flex flex-1 min-h-0 min-w-0 overflow-hidden"
-      >
-        <div className="flex flex-1 min-h-0 min-w-0 flex-col gap-3 md:flex-row">
-          <div
-            className={cn(
-              'relative shrink-0 rounded-xl border bg-muted/20 p-2 transition-all md:min-h-0 md:self-stretch',
-              navCollapsed ? 'md:w-14' : 'md:w-48'
-            )}
-          >
-            <div
-              className={cn(
-                'relative mb-2 flex h-10 items-center text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground',
-                navCollapsed ? 'justify-center px-2' : 'justify-start px-3 pr-8'
-              )}
-            >
-              <div className="flex items-center gap-2">
-                <Box className="h-4 w-4 shrink-0" />
-                {!navCollapsed && <span>Docker</span>}
-              </div>
+    <div ref={rootRef} className={cn('flex h-full min-h-0 min-w-0 flex-col gap-4', className)}>
+      {showWorkspaceHeader ? (
+        <div className="shrink-0 space-y-1">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-1 min-w-0">
+              <h2 className="text-sm font-semibold">Docker</h2>
+              <p className="text-sm text-muted-foreground">
+                Inspect containers, compose projects, images, volumes, and networks on this server.
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
               <Button
+                size="sm"
                 variant="ghost"
-                size="icon"
-                className="absolute right-0 top-1/2 hidden h-5 w-5 -translate-y-1/2 translate-x-1/2 p-0 hover:bg-transparent md:inline-flex"
-                onClick={() => setNavCollapsed(value => !value)}
-                aria-label={navCollapsed ? 'Expand Docker tabs' : 'Collapse Docker tabs'}
-                title={navCollapsed ? 'Expand Docker tabs' : 'Collapse Docker tabs'}
+                className="shrink-0"
+                onClick={refreshDockerData}
+                disabled={dockerDisabled || refreshFeedbackActive}
+                title={refreshFeedbackActive ? 'Refreshing Docker data' : 'Refresh Docker data'}
+                aria-label="Refresh Docker data"
               >
-                {navCollapsed ? (
-                  <ChevronRight className="h-3.5 w-3.5" />
+                {refreshFeedbackActive ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
                 ) : (
-                  <ChevronLeft className="h-3.5 w-3.5" />
+                  <RefreshCw className="h-4 w-4" />
                 )}
               </Button>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      <Tabs
+        value={activeTab}
+        onValueChange={value => setActiveTab(value as DockerTabId)}
+        orientation="vertical"
+        className="flex h-full flex-1 min-h-0 min-w-0"
+      >
+        <div className="flex h-full flex-1 min-h-0 min-w-0 flex-col gap-4 md:flex-row">
+          <div
+            className={cn(
+              'relative shrink-0 overflow-y-auto rounded-xl border bg-muted/20 p-2 transition-all md:h-full md:min-h-0 md:self-stretch',
+              navCollapsed ? 'md:w-14' : 'md:w-48'
+            )}
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                'absolute top-3 hidden h-5 w-5 p-0 hover:bg-transparent md:inline-flex',
+                navCollapsed ? 'right-0' : 'right-3'
+              )}
+              onClick={() => setNavCollapsed(value => !value)}
+              aria-label={navCollapsed ? 'Expand Docker tabs' : 'Collapse Docker tabs'}
+              title={navCollapsed ? 'Expand Docker tabs' : 'Collapse Docker tabs'}
+            >
+              {navCollapsed ? (
+                <ChevronRight className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronLeft className="h-3.5 w-3.5" />
+              )}
+            </Button>
 
             <TabsList
               variant="line"
-              className="flex w-full flex-col items-stretch gap-1 bg-transparent p-0"
+              className="flex w-full flex-col items-stretch gap-1 bg-transparent p-0 pr-6"
             >
               {tabItems.map(item => {
                 const Icon = item.icon
@@ -665,8 +926,9 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
                     value={item.value}
                     disabled={dockerDisabled}
                     className={cn(
-                      'h-10 rounded-lg border px-3 text-sm after:hidden',
-                      navCollapsed && 'justify-center px-2'
+                      'h-10 rounded-lg px-3 text-sm after:hidden',
+                      navCollapsed && 'justify-center px-2',
+                      !navCollapsed && 'pr-8'
                     )}
                     aria-label={item.label}
                     title={item.label}
@@ -679,70 +941,638 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
             </TabsList>
           </div>
 
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border bg-background">
-            {activeTab === 'containers' ? null : (
-              <div className="flex shrink-0 flex-col gap-3 p-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <activeTabMeta.icon className="h-4 w-4 text-muted-foreground" />
-                    <div className="text-sm font-medium">{activeTabMeta.label}</div>
-                    {activeTab === 'overview' && !dockerDisabled ? (
-                      <Badge variant="outline" className="text-[11px]">
-                        {activeHost?.label ?? 'Docker host'}
-                      </Badge>
-                    ) : null}
+          <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border bg-background">
+            <div className="shrink-0 border-b bg-muted/10 px-4 py-3">
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-sm font-semibold text-foreground">{activeTabMeta.label}</h3>
                   </div>
-                  <p className="mt-1 text-sm text-muted-foreground">{activeTabMeta.description}</p>
-                </div>
-
-                <div className="flex min-w-0 flex-col gap-2 sm:items-end">
-                  <div className="flex items-center gap-2 self-end sm:self-auto">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={refreshDockerData}
-                      disabled={dockerDisabled || refreshing}
-                      title="Refresh Docker data"
-                      aria-label="Refresh Docker data"
-                    >
-                      <RotateCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
-                    </Button>
-                  </div>
+                  {activeTab === 'containers' ? (
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <input
+                        value={containerFilter}
+                        onChange={event => setContainerFilter(event.target.value)}
+                        placeholder="Search containers"
+                        className="h-8 w-full min-w-[12rem] rounded-md border bg-background px-3 text-sm sm:w-[20ch]"
+                      />
+                      <select
+                        value={containerStateFilter}
+                        onChange={event =>
+                          setContainerStateFilter(event.target.value as ContainerStateFilter)
+                        }
+                        className="h-8 rounded-md border bg-background px-2 text-sm"
+                      >
+                        <option value="all">All states ({containerSummary.stateCounts.all})</option>
+                        <option value="running">
+                          Running ({containerSummary.stateCounts.running})
+                        </option>
+                        <option value="exited">
+                          Exited ({containerSummary.stateCounts.exited})
+                        </option>
+                        <option value="paused">
+                          Paused ({containerSummary.stateCounts.paused})
+                        </option>
+                        <option value="created">
+                          Created ({containerSummary.stateCounts.created})
+                        </option>
+                      </select>
+                      <div className="ml-4 flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>{containerSummary.totalItems} total</span>
+                        <div className="flex items-center gap-0 text-xs text-foreground">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-5 px-0"
+                            onClick={() => setContainerPage(Math.max(1, containerPage - 1))}
+                            disabled={containerPage <= 1}
+                            aria-label="Previous containers page"
+                          >
+                            <ChevronLeft className="h-3.5 w-3.5" />
+                          </Button>
+                          <span className="min-w-[2rem] text-center font-medium tabular-nums">
+                            {containerPage}/{containerSummary.totalPages}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-5 px-0"
+                            onClick={() =>
+                              setContainerPage(
+                                Math.min(containerSummary.totalPages, containerPage + 1)
+                              )
+                            }
+                            disabled={containerPage >= containerSummary.totalPages}
+                            aria-label="Next containers page"
+                          >
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                      <Link
+                        to="/deploy/create"
+                        search={{
+                          entry: undefined,
+                          prefillMode: undefined,
+                          prefillSource: undefined,
+                          prefillAppId: undefined,
+                          prefillAppKey: undefined,
+                          prefillAppName: undefined,
+                          prefillServerId: undefined,
+                        }}
+                        className="inline-flex h-8 items-center px-2 text-xs font-medium text-primary hover:underline"
+                      >
+                        <Plus className="mr-1 h-4 w-4" /> Create
+                      </Link>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            aria-label="Container display settings"
+                            title="Container display settings"
+                          >
+                            <Settings2 className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                          <DropdownMenuLabel>Rows Per Page</DropdownMenuLabel>
+                          <DropdownMenuRadioGroup
+                            value={String(containerPageSize)}
+                            onValueChange={value => {
+                              setContainerPageSize(Number(value) as ContainerPageSize)
+                              setContainerPage(1)
+                            }}
+                          >
+                            <DropdownMenuRadioItem value="25">25 / page</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="50">50 / page</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="100">100 / page</DropdownMenuRadioItem>
+                          </DropdownMenuRadioGroup>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuLabel>Visible Columns</DropdownMenuLabel>
+                          <DropdownMenuCheckboxItem
+                            checked={containerVisibleColumns.ports}
+                            onCheckedChange={checked =>
+                              setContainerVisibleColumns({
+                                ...containerVisibleColumns,
+                                ports: checked === true,
+                              })
+                            }
+                          >
+                            Ports
+                          </DropdownMenuCheckboxItem>
+                          <DropdownMenuCheckboxItem
+                            checked={containerVisibleColumns.status}
+                            onCheckedChange={checked =>
+                              setContainerVisibleColumns({
+                                ...containerVisibleColumns,
+                                status: checked === true,
+                              })
+                            }
+                          >
+                            Lifecycle
+                          </DropdownMenuCheckboxItem>
+                          <DropdownMenuCheckboxItem
+                            checked={containerVisibleColumns.created}
+                            onCheckedChange={checked =>
+                              setContainerVisibleColumns({
+                                ...containerVisibleColumns,
+                                created: checked === true,
+                              })
+                            }
+                          >
+                            Created
+                          </DropdownMenuCheckboxItem>
+                          <DropdownMenuCheckboxItem
+                            checked={containerVisibleColumns.cpu}
+                            onCheckedChange={checked =>
+                              setContainerVisibleColumns({
+                                ...containerVisibleColumns,
+                                cpu: checked === true,
+                              })
+                            }
+                          >
+                            CPU
+                          </DropdownMenuCheckboxItem>
+                          <DropdownMenuCheckboxItem
+                            checked={containerVisibleColumns.mem}
+                            onCheckedChange={checked =>
+                              setContainerVisibleColumns({
+                                ...containerVisibleColumns,
+                                mem: checked === true,
+                              })
+                            }
+                          >
+                            Memory
+                          </DropdownMenuCheckboxItem>
+                          <DropdownMenuCheckboxItem
+                            checked={containerVisibleColumns.network}
+                            onCheckedChange={checked =>
+                              setContainerVisibleColumns({
+                                ...containerVisibleColumns,
+                                network: checked === true,
+                              })
+                            }
+                          >
+                            Network
+                          </DropdownMenuCheckboxItem>
+                          <DropdownMenuCheckboxItem
+                            checked={containerVisibleColumns.compose}
+                            onCheckedChange={checked =>
+                              setContainerVisibleColumns({
+                                ...containerVisibleColumns,
+                                compose: checked === true,
+                              })
+                            }
+                          >
+                            Compose
+                          </DropdownMenuCheckboxItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  ) : activeTab === 'images' ? (
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <input
+                        value={imagesFilter}
+                        onChange={e => setImagesFilter(e.target.value)}
+                        placeholder="Filter images..."
+                        className="h-8 w-full min-w-0 rounded-md border bg-background px-3 text-sm sm:mr-[5ch] sm:w-[20ch]"
+                      />
+                      <select
+                        value={imagesUsageFilter}
+                        onChange={e =>
+                          setImagesUsageFilter(e.target.value as 'all' | 'used' | 'unused')
+                        }
+                        className="h-8 shrink-0 rounded-md border bg-background px-2 text-sm"
+                      >
+                        <option value="all">All images</option>
+                        <option value="used">Used ({imagesSummary?.usedItems ?? 0})</option>
+                        <option value="unused">Unused ({imagesSummary?.unusedItems ?? 0})</option>
+                      </select>
+                      <div className="ml-4 flex items-center gap-2 text-xs text-muted-foreground">
+                        {imagesSummary && <span>{imagesSummary.totalItems} total</span>}
+                        <div className="flex items-center gap-0 text-xs text-foreground">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-5 px-0"
+                            onClick={() => setImagesPage(p => Math.max(1, p - 1))}
+                            disabled={imagesPage <= 1}
+                            aria-label="Previous images page"
+                          >
+                            <ChevronLeft className="h-3.5 w-3.5" />
+                          </Button>
+                          <span className="min-w-[2rem] text-center font-medium tabular-nums">
+                            {imagesPage}/{imagesSummary?.totalPages ?? 1}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-5 px-0"
+                            onClick={() =>
+                              setImagesPage(p => Math.min(imagesSummary?.totalPages ?? 1, p + 1))
+                            }
+                            disabled={imagesPage >= (imagesSummary?.totalPages ?? 1)}
+                            aria-label="Next images page"
+                          >
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 shrink-0 px-2 text-xs"
+                        onClick={() =>
+                          imagesPullActivity.activeCount > 0
+                            ? imagesTabRef.current?.openPullHistory('pulling')
+                            : imagesTabRef.current?.openPullDialog()
+                        }
+                        title="Pull image"
+                      >
+                        {imagesPullActivity.activeCount > 0 ? (
+                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                        ) : (
+                          <Download className="h-4 w-4 mr-1" />
+                        )}
+                        {imagesPullActivity.activeCount > 0
+                          ? `Pulling (${imagesPullActivity.activeCount})`
+                          : 'Pull'}
+                      </Button>
+                      {imagesPullActivity.recentFailedCount > 0 ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 shrink-0 gap-1.5 px-2 text-xs"
+                          onClick={() => imagesTabRef.current?.openPullHistory('recents')}
+                          title="View failed image pulls"
+                        >
+                          <Badge
+                            variant="outline"
+                            className="h-5 rounded-sm border-destructive/30 px-1.5 text-[10px] text-destructive"
+                          >
+                            {imagesPullActivity.recentFailedCount}
+                          </Badge>
+                          Failed
+                        </Button>
+                      ) : imagesPullActivity.hasRecentHistory ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 shrink-0 px-2 text-xs"
+                          onClick={() => imagesTabRef.current?.openPullHistory('recents')}
+                          title="View pull history"
+                        >
+                          History
+                        </Button>
+                      ) : null}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 shrink-0 px-2 text-xs"
+                        onClick={() => imagesTabRef.current?.openPruneDialog()}
+                        title="Prune unused images"
+                      >
+                        <Eraser className="h-4 w-4 mr-1" /> Prune
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            aria-label="Images display settings"
+                            title="Images display settings"
+                          >
+                            <Settings2 className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuLabel>Rows Per Page</DropdownMenuLabel>
+                          <DropdownMenuRadioGroup
+                            value={String(imagesPageSize)}
+                            onValueChange={value => {
+                              const s = Number(value) as 25 | 50 | 100
+                              setImagesPageSize(s)
+                              setImagesPage(1)
+                            }}
+                          >
+                            <DropdownMenuRadioItem value="25">25 / page</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="50">50 / page</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="100">100 / page</DropdownMenuRadioItem>
+                          </DropdownMenuRadioGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  ) : activeTab === 'volumes' ? (
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <input
+                        value={volumesFilter}
+                        onChange={e => setVolumesFilter(e.target.value)}
+                        placeholder="Filter volumes..."
+                        className="h-8 w-full min-w-0 rounded-md border bg-background px-3 text-sm sm:mr-[5ch] sm:w-[20ch]"
+                      />
+                      <div className="ml-4 flex items-center gap-2 text-xs text-muted-foreground">
+                        {volumesSummary && <span>{volumesSummary.totalItems} total</span>}
+                        <div className="flex items-center gap-0 text-xs text-foreground">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-5 px-0"
+                            onClick={() => setVolumesPage(p => Math.max(1, p - 1))}
+                            disabled={volumesPage <= 1}
+                            aria-label="Previous volumes page"
+                          >
+                            <ChevronLeft className="h-3.5 w-3.5" />
+                          </Button>
+                          <span className="min-w-[2rem] text-center font-medium tabular-nums">
+                            {volumesPage}/{volumesSummary?.totalPages ?? 1}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-5 px-0"
+                            onClick={() =>
+                              setVolumesPage(p => Math.min(volumesSummary?.totalPages ?? 1, p + 1))
+                            }
+                            disabled={volumesPage >= (volumesSummary?.totalPages ?? 1)}
+                            aria-label="Next volumes page"
+                          >
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 shrink-0 px-2 text-xs"
+                        onClick={() => volumesTabRef.current?.openPruneDialog()}
+                        title="Prune unused volumes"
+                      >
+                        <Eraser className="h-4 w-4 mr-1" /> Prune
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            aria-label="Volumes display settings"
+                            title="Volumes display settings"
+                          >
+                            <Settings2 className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuLabel>Rows Per Page</DropdownMenuLabel>
+                          <DropdownMenuRadioGroup
+                            value={String(volumesPageSize)}
+                            onValueChange={value => {
+                              const size = Number(value) as 25 | 50 | 100
+                              setVolumesPageSize(size)
+                              setVolumesPage(1)
+                            }}
+                          >
+                            <DropdownMenuRadioItem value="25">25 / page</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="50">50 / page</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="100">100 / page</DropdownMenuRadioItem>
+                          </DropdownMenuRadioGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  ) : activeTab === 'networks' ? (
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <input
+                        value={networksFilter}
+                        onChange={e => setNetworksFilter(e.target.value)}
+                        placeholder="Search networks"
+                        className="h-8 w-full min-w-0 rounded-md border bg-background px-3 text-sm sm:mr-[5ch] sm:w-[20ch]"
+                      />
+                      <div className="ml-4 flex items-center gap-2 text-xs text-muted-foreground">
+                        {networksSummary && <span>{networksSummary.totalItems} total</span>}
+                        <div className="flex items-center gap-0 text-xs text-foreground">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-5 px-0"
+                            onClick={() => setNetworksPage(p => Math.max(1, p - 1))}
+                            disabled={networksPage <= 1}
+                            aria-label="Previous networks page"
+                          >
+                            <ChevronLeft className="h-3.5 w-3.5" />
+                          </Button>
+                          <span className="min-w-[2rem] text-center font-medium tabular-nums">
+                            {networksPage}/{networksSummary?.totalPages ?? 1}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-5 px-0"
+                            onClick={() =>
+                              setNetworksPage(p =>
+                                Math.min(networksSummary?.totalPages ?? 1, p + 1)
+                              )
+                            }
+                            disabled={networksPage >= (networksSummary?.totalPages ?? 1)}
+                            aria-label="Next networks page"
+                          >
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 shrink-0 px-2 text-xs"
+                        onClick={() => networksTabRef.current?.openCreateDialog()}
+                        title="Create network"
+                      >
+                        <Plus className="mr-1 h-4 w-4" /> Create
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            aria-label="Networks display settings"
+                            title="Networks display settings"
+                          >
+                            <Settings2 className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuLabel>Rows Per Page</DropdownMenuLabel>
+                          <DropdownMenuRadioGroup
+                            value={String(networksPageSize)}
+                            onValueChange={value => {
+                              const size = Number(value) as 25 | 50 | 100
+                              setNetworksPageSize(size)
+                              setNetworksPage(1)
+                            }}
+                          >
+                            <DropdownMenuRadioItem value="25">25 / page</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="50">50 / page</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="100">100 / page</DropdownMenuRadioItem>
+                          </DropdownMenuRadioGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  ) : activeTab === 'compose' ? (
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <input
+                        value={composeFilter}
+                        onChange={e => setComposeFilter(e.target.value)}
+                        placeholder="Search projects"
+                        className="h-8 w-full min-w-0 rounded-md border bg-background px-3 text-sm sm:mr-[5ch] sm:w-[20ch]"
+                      />
+                      <select
+                        value={composeStatusFilter}
+                        onChange={e => setComposeStatusFilter(e.target.value)}
+                        className="h-8 shrink-0 rounded-md border bg-background px-2 text-sm"
+                        aria-label="Filter compose status"
+                      >
+                        <option value="all">All status</option>
+                        {(composeSummary?.statusCounts ?? []).map(({ status, count }) => (
+                          <option key={status} value={status}>
+                            {status} ({count})
+                          </option>
+                        ))}
+                      </select>
+                      <div className="ml-4 flex items-center gap-2 text-xs text-muted-foreground">
+                        {composeSummary && <span>{composeSummary.totalItems} total</span>}
+                        <div className="flex items-center gap-0 text-xs text-foreground">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-5 px-0"
+                            onClick={() => setComposePage(p => Math.max(1, p - 1))}
+                            disabled={composePage <= 1}
+                            aria-label="Previous compose page"
+                          >
+                            <ChevronLeft className="h-3.5 w-3.5" />
+                          </Button>
+                          <span className="min-w-[2rem] text-center font-medium tabular-nums">
+                            {composePage}/{composeSummary?.totalPages ?? 1}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-5 px-0"
+                            onClick={() =>
+                              setComposePage(p => Math.min(composeSummary?.totalPages ?? 1, p + 1))
+                            }
+                            disabled={composePage >= (composeSummary?.totalPages ?? 1)}
+                            aria-label="Next compose page"
+                          >
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                      <Link
+                        to="/deploy/create"
+                        search={{
+                          entry: undefined,
+                          prefillMode: undefined,
+                          prefillSource: undefined,
+                          prefillAppId: undefined,
+                          prefillAppKey: undefined,
+                          prefillAppName: undefined,
+                          prefillServerId: undefined,
+                        }}
+                        className="inline-flex h-8 shrink-0 items-center px-2 text-xs font-medium text-primary hover:underline"
+                      >
+                        <Plus className="mr-1 h-4 w-4" /> Create
+                      </Link>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            aria-label="Compose display settings"
+                            title="Compose display settings"
+                          >
+                            <Settings2 className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuLabel>Rows Per Page</DropdownMenuLabel>
+                          <DropdownMenuRadioGroup
+                            value={String(composePageSize)}
+                            onValueChange={value => {
+                              const size = Number(value) as 25 | 50 | 100
+                              setComposePageSize(size)
+                              setComposePage(1)
+                            }}
+                          >
+                            <DropdownMenuRadioItem value="25">25 / page</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="50">50 / page</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="100">100 / page</DropdownMenuRadioItem>
+                          </DropdownMenuRadioGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  ) : null}
                 </div>
               </div>
-            )}
-
-            {activeTab === 'containers' ? null : <div className="border-t" />}
+            </div>
 
             {dockerDisabled && (
-              <div className="mx-3 mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <div className="mx-4 mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 Docker is disabled for current server: {dockerDisabledReason}
               </div>
             )}
 
             {refreshError && (
-              <Alert variant="destructive" className="mx-3 mt-3">
+              <Alert variant="destructive" className="mx-4 mt-4">
                 <AlertDescription>{refreshError}</AlertDescription>
               </Alert>
             )}
 
-            <div className="min-h-0 flex-1 overflow-hidden">
+            <div className="min-h-0 flex-1">
               <TabsContent
                 value="overview"
-                className="mt-0 min-h-0 min-w-0 overflow-y-auto p-4 data-[state=active]:block"
+                className="mt-0 min-h-0 min-w-0 h-full overflow-y-auto p-4 data-[state=active]:flex data-[state=active]:flex-col"
                 data-docker-active-panel={activeTab === 'overview' ? 'true' : 'false'}
               >
-                <OverviewTab serverId={serverId} disabled={dockerDisabled} />
+                <OverviewTab
+                  serverId={serverId}
+                  disabled={dockerDisabled}
+                  embeddedInWorkspace
+                  onSelectTab={setActiveTab}
+                  onFilterContainersByNames={names => {
+                    setContainerFilter('')
+                    setContainerFilterNames(names)
+                    setContainerStateFilter('all')
+                    setActiveTab('containers')
+                  }}
+                  onOpenPullImage={() => {
+                    setActiveTab('images')
+                    window.setTimeout(() => imagesTabRef.current?.openPullDialog(), 0)
+                  }}
+                  onOpenPruneImages={() => {
+                    setActiveTab('images')
+                    window.setTimeout(() => imagesTabRef.current?.openPruneDialog(), 0)
+                  }}
+                  onOpenPruneVolumes={() => {
+                    setActiveTab('volumes')
+                    window.setTimeout(() => volumesTabRef.current?.openPruneDialog(), 0)
+                  }}
+                />
               </TabsContent>
               <TabsContent
                 value="containers"
-                className="mt-0 min-h-0 min-w-0 overflow-y-auto data-[state=active]:block"
+                className="mt-0 min-h-0 min-w-0 h-full overflow-y-auto p-4 data-[state=active]:flex data-[state=active]:flex-col"
                 data-docker-active-panel={activeTab === 'containers' ? 'true' : 'false'}
               >
                 <ContainersTab
                   serverId={serverId}
+                  refreshSignal={refreshSignal}
                   searchQuery={containerFilter}
+                  stateFilter={containerStateFilter}
+                  onStateFilterChange={setContainerStateFilter}
                   onSearchQueryChange={setContainerFilter}
                   filterPreset={containerFilter}
                   includeNames={containerFilterNames}
@@ -750,69 +1580,125 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
                   pageSize={containerPageSize}
                   visibleColumns={containerVisibleColumns}
                   refreshDisabled={dockerDisabled}
-                  refreshing={refreshing}
+                  refreshing={refreshFeedbackActive}
                   onClearFilterPreset={() => setContainerFilter('')}
                   onClearIncludeNames={() => setContainerFilterNames([])}
                   onPageChange={setContainerPage}
-                  onPageSizeChange={next => {
-                    setContainerPageSize(next)
-                    setContainerPage(1)
-                  }}
-                  onVisibleColumnsChange={setContainerVisibleColumns}
+                  onPageSizeChange={() => {}}
+                  onVisibleColumnsChange={() => {}}
+                  onSummaryChange={setContainerSummary}
                   onRefresh={refreshDockerData}
-                  onOpenComposeFilter={name => {
-                    if (!name || name === '-') return
-                    setComposeFilter(name)
-                    setActiveTab('compose')
+                  onOpenVolumeFilter={volumeNames => {
+                    if (!volumeNames || volumeNames.length === 0) return
+                    setVolumesFilter('')
+                    setVolumeFilterNames(volumeNames)
+                    setActiveTab('volumes')
+                  }}
+                  onOpenImageFilter={imageName => {
+                    if (!imageName) return
+                    setImagesFilter(imageName)
+                    setImagesUsageFilter('all')
+                    setActiveTab('images')
+                  }}
+                  onOpenNetworkFilter={networkName => {
+                    if (!networkName) return
+                    setNetworksFilter(networkName)
+                    setActiveTab('networks')
                   }}
                   onOpenTerminal={id => setTerminalContainerId(id)}
+                  showPanelChrome={false}
                 />
               </TabsContent>
               <TabsContent
                 value="images"
-                className="mt-0 min-h-0 min-w-0 overflow-y-auto p-4 data-[state=active]:block"
+                className="mt-0 min-h-0 min-w-0 h-full overflow-y-auto p-4 data-[state=active]:flex data-[state=active]:flex-col"
                 data-docker-active-panel={activeTab === 'images' ? 'true' : 'false'}
               >
-                <ImagesTab serverId={serverId} />
+                <ImagesTab
+                  ref={imagesTabRef}
+                  serverId={serverId}
+                  refreshSignal={refreshSignal}
+                  embeddedInWorkspace
+                  externalFilter={imagesFilter}
+                  externalUsageFilter={imagesUsageFilter}
+                  page={imagesPage}
+                  pageSize={imagesPageSize}
+                  onPageChange={setImagesPage}
+                  onOpenContainerFilter={(_imageName, containerNames) => {
+                    setContainerFilter('')
+                    setContainerFilterNames(containerNames)
+                    setActiveTab('containers')
+                  }}
+                  onPullActivityChange={setImagesPullActivity}
+                  onSummaryChange={setImagesSummary}
+                />
               </TabsContent>
               <TabsContent
                 value="volumes"
-                className="mt-0 min-h-0 min-w-0 overflow-y-auto p-4 data-[state=active]:block"
+                className="mt-0 min-h-0 min-w-0 h-full overflow-y-auto p-4 data-[state=active]:flex data-[state=active]:flex-col"
                 data-docker-active-panel={activeTab === 'volumes' ? 'true' : 'false'}
               >
                 <VolumesTab
+                  ref={volumesTabRef}
                   serverId={serverId}
                   refreshSignal={refreshSignal}
+                  embeddedInWorkspace
+                  externalFilter={volumesFilter}
+                  includeNames={volumeFilterNames}
+                  page={volumesPage}
+                  pageSize={volumesPageSize}
+                  onPageChange={setVolumesPage}
+                  onSummaryChange={setVolumesSummary}
+                  onClearIncludeNames={() => setVolumeFilterNames([])}
                   onOpenContainerFilter={(_name, containerNames) => {
                     setContainerFilter('')
                     setContainerFilterNames(containerNames)
                     setActiveTab('containers')
                   }}
-                  onOpenVolumePath={(targetPath, lockedRootPath) => {
-                    onOpenFilesAtPath?.(targetPath, lockedRootPath)
-                  }}
                 />
               </TabsContent>
               <TabsContent
                 value="networks"
-                className="mt-0 min-h-0 min-w-0 overflow-y-auto p-4 data-[state=active]:block"
+                className="mt-0 min-h-0 min-w-0 h-full overflow-y-auto p-4 data-[state=active]:flex data-[state=active]:flex-col"
                 data-docker-active-panel={activeTab === 'networks' ? 'true' : 'false'}
               >
-                <NetworksTab serverId={serverId} refreshSignal={refreshSignal} />
+                <NetworksTab
+                  ref={networksTabRef}
+                  serverId={serverId}
+                  refreshSignal={refreshSignal}
+                  embeddedInWorkspace
+                  externalFilter={networksFilter}
+                  page={networksPage}
+                  pageSize={networksPageSize}
+                  onPageChange={setNetworksPage}
+                  onSummaryChange={setNetworksSummary}
+                />
               </TabsContent>
               <TabsContent
                 value="compose"
-                className="mt-0 min-h-0 min-w-0 overflow-y-auto p-4 data-[state=active]:block"
+                className="mt-0 min-h-0 min-w-0 h-full overflow-y-auto p-4 data-[state=active]:flex data-[state=active]:flex-col"
                 data-docker-active-panel={activeTab === 'compose' ? 'true' : 'false'}
               >
                 <ComposeTab
                   serverId={serverId}
-                  filterPreset={composeFilter}
-                  onClearFilterPreset={() => setComposeFilter('')}
+                  refreshSignal={refreshSignal}
+                  embeddedInWorkspace
+                  externalFilter={composeFilter}
+                  externalStatusFilter={composeStatusFilter}
+                  page={composePage}
+                  pageSize={composePageSize}
+                  onPageChange={setComposePage}
+                  onSummaryChange={setComposeSummary}
+                  onStatusFilterChange={setComposeStatusFilter}
                   onOpenContainerFilter={containerName => {
                     if (!containerName) return
                     setContainerFilter(containerName)
                     setContainerFilterNames([])
+                    setActiveTab('containers')
+                  }}
+                  onOpenContainerNames={containerNames => {
+                    setContainerFilter('')
+                    setContainerFilterNames(containerNames)
                     setActiveTab('containers')
                   }}
                 />
@@ -868,13 +1754,44 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
           </DialogHeader>
           <div className="flex-1 min-h-0">
             {terminalContainerId && (
-              <TerminalPanel
-                key={`${terminalContainerId}-${manualShell ? terminalShell : 'auto'}`}
-                containerId={terminalContainerId}
-                dockerServerId={serverId}
-                shell={manualShell ? terminalShell : undefined}
-                className="h-full"
-              />
+              <Suspense
+                fallback={
+                  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                    Loading terminal...
+                  </div>
+                }
+              >
+                <LazyTerminalPanel
+                  key={`${terminalContainerId}-${manualShell ? terminalShell : 'auto'}`}
+                  containerId={terminalContainerId}
+                  sessionId={
+                    activeTerminalSessionKey != null &&
+                    terminalResumeSession?.key === activeTerminalSessionKey
+                      ? terminalResumeSession.sessionId
+                      : undefined
+                  }
+                  dockerServerId={serverId}
+                  shell={manualShell ? terminalShell : undefined}
+                  onSessionEstablished={sessionId => {
+                    if (activeTerminalSessionKey) {
+                      setTerminalResumeSession({ key: activeTerminalSessionKey, sessionId })
+                    }
+                  }}
+                  onSessionInvalidated={sessionId => {
+                    setTerminalResumeSession(current => {
+                      if (
+                        current &&
+                        current.sessionId === sessionId &&
+                        current.key === activeTerminalSessionKey
+                      ) {
+                        return null
+                      }
+                      return current
+                    })
+                  }}
+                  className="h-full"
+                />
+              </Suspense>
             )}
           </div>
         </DialogContent>

@@ -71,7 +71,7 @@ import type {
   LogState,
   PendingStatusKind,
 } from './tunnel-types'
-import { PAGE_SIZE_OPTIONS, DEFAULT_QUERY_STATE } from './tunnel-types'
+import { DEFAULT_QUERY_STATE, TUNNELS_PAGE_SIZE } from './tunnel-types'
 export type { TunnelsPageQueryState } from './tunnel-types'
 import {
   normalizeTunnelOverviewResponse,
@@ -217,7 +217,6 @@ export function TunnelsPage({
   const sortField = currentQueryState.sort
   const sortDir = currentQueryState.dir
   const page = currentQueryState.page
-  const pageSize = currentQueryState.pageSize
 
   function updateQueryState(patch: Partial<TunnelsPageQueryState>) {
     if (onQueryStateChange) {
@@ -428,7 +427,7 @@ export function TunnelsPage({
     if (page !== 1) {
       updateQueryState({ page: 1 })
     }
-  }, [search, statusFilter, pageSize])
+  }, [search, statusFilter])
 
   async function handleCheckStatus(item: TunnelItem) {
     setBusyId(item.id)
@@ -603,7 +602,7 @@ export function TunnelsPage({
     )
   }, [items])
 
-  const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize))
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / TUNNELS_PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
 
   useEffect(() => {
@@ -613,9 +612,9 @@ export function TunnelsPage({
   }, [page, safePage])
 
   const pagedItems = useMemo(() => {
-    const start = (safePage - 1) * pageSize
-    return filteredItems.slice(start, start + pageSize)
-  }, [filteredItems, pageSize, safePage])
+    const start = (safePage - 1) * TUNNELS_PAGE_SIZE
+    return filteredItems.slice(start, start + TUNNELS_PAGE_SIZE)
+  }, [filteredItems, safePage])
 
   async function handleSaveForwards() {
     if (!portForwardTarget) return
@@ -730,6 +729,31 @@ export function TunnelsPage({
               </div>
             ) : null}
           </div>
+          <div className="flex items-center justify-end gap-0.5 self-end lg:self-auto">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              aria-label="Previous page"
+              disabled={safePage <= 1}
+              onClick={() => updateQueryState({ page: Math.max(1, safePage - 1) })}
+            >
+              {'<'}
+            </Button>
+            <span className="min-w-[3rem] text-center text-sm text-muted-foreground">
+              {safePage}/{totalPages}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              aria-label="Next page"
+              disabled={safePage >= totalPages}
+              onClick={() => updateQueryState({ page: Math.min(totalPages, safePage + 1) })}
+            >
+              {'>'}
+            </Button>
+          </div>
         </div>
 
         <div className="overflow-hidden bg-background">
@@ -759,6 +783,7 @@ export function TunnelsPage({
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Tunnel ID</TableHead>
                       <TableHead>
                         <SortableHeader
                           label="Server"
@@ -812,6 +837,9 @@ export function TunnelsPage({
                       return (
                         <Fragment key={item.id}>
                           <TableRow className="[&>td]:py-3 [&>td]:align-middle">
+                            <TableCell className="font-mono text-sm text-muted-foreground">
+                              {item.id}
+                            </TableCell>
                             <TableCell className="whitespace-normal text-sm">
                               <button
                                 type="button"
@@ -912,7 +940,7 @@ export function TunnelsPage({
                           </TableRow>
                           {isExpanded ? (
                             <TableRow className="bg-muted/20">
-                              <TableCell colSpan={7} className="py-3">
+                              <TableCell colSpan={8} className="py-3">
                                 <div className="space-y-3 rounded-lg border bg-muted/10 px-4 py-3 text-sm">
                                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b pb-2">
                                     <span className="font-medium text-foreground">
@@ -987,47 +1015,6 @@ export function TunnelsPage({
                     })}
                   </TableBody>
                 </Table>
-              </div>
-
-              <div className="flex justify-end px-4 py-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Rows</span>
-                  <select
-                    aria-label="Rows per page"
-                    value={pageSize}
-                    onChange={event =>
-                      updateQueryState({
-                        pageSize: Number(event.target.value) as (typeof PAGE_SIZE_OPTIONS)[number],
-                      })
-                    }
-                    className="h-9 rounded-md border bg-background px-3 text-sm text-foreground"
-                  >
-                    {PAGE_SIZE_OPTIONS.map(option => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={safePage <= 1}
-                    onClick={() => updateQueryState({ page: Math.max(1, safePage - 1) })}
-                  >
-                    Previous
-                  </Button>
-                  <span className="px-2 text-sm text-muted-foreground">
-                    {safePage} / {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={safePage >= totalPages}
-                    onClick={() => updateQueryState({ page: Math.min(totalPages, safePage + 1) })}
-                  >
-                    Next
-                  </Button>
-                </div>
               </div>
             </>
           )}

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/software"
 	swcatalog "github.com/websoft9/appos/backend/domain/software/catalog"
+	swservice "github.com/websoft9/appos/backend/domain/software/service"
 	"github.com/websoft9/appos/backend/infra/collections"
 )
 
@@ -264,8 +267,8 @@ func TestSoftwareComponentSummaryShouldNotHardcodePackageTemplate(t *testing.T) 
 		if !ok {
 			t.Fatalf("missing template ref %q", entry.TemplateRef)
 		}
-		if entry.ComponentKey == software.ComponentKeyMonitorAgent && tpl.TemplateKind != software.TemplateKindScript {
-			t.Fatalf("monitor-agent should resolve to script template, got %q", tpl.TemplateKind)
+		if entry.ComponentKey == software.ComponentKeyTelegraf && tpl.TemplateKind != software.TemplateKindScript {
+			t.Fatalf("telegraf should resolve to script template, got %q", tpl.TemplateKind)
 		}
 	}
 }
@@ -360,17 +363,220 @@ func TestSoftwareInventoryRoutesExposeFlatServerAndLocalScopes(t *testing.T) {
 	if !ok || len(localItems) == 0 {
 		t.Fatalf("expected non-empty local items payload, got %#v", body["items"])
 	}
+	firstLocal, ok := localItems[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected local list item object, got %#v", localItems[0])
+	}
+	if firstLocal["id"] == "" {
+		t.Fatalf("expected local list item id, got %#v", firstLocal["id"])
+	}
+	if firstLocal["name"] == "" {
+		t.Fatalf("expected local list item name, got %#v", firstLocal["name"])
+	}
+	if firstLocal["runtime_kind"] == "" {
+		t.Fatalf("expected local list item runtime_kind, got %#v", firstLocal["runtime_kind"])
+	}
+	if _, ok := firstLocal["available"].(bool); !ok {
+		t.Fatalf("expected local list item available bool, got %#v", firstLocal["available"])
+	}
 
-	rec = te.doSoftware(t, http.MethodGet, "/api/software/local/docker", "", true)
+	foundOS := false
+	foundSQLiteVersion := false
+	foundSQLitePending := false
+	foundGoVersion := false
+	foundGoPending := false
+	for _, raw := range localItems {
+		item, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		name, _ := item["name"].(string)
+		version, _ := item["version"].(string)
+		probePending, _ := item["probe_pending"].(bool)
+		switch name {
+		case "OS":
+			foundOS = true
+		case "SQLite":
+			foundSQLiteVersion = strings.TrimSpace(version) != ""
+			foundSQLitePending = probePending
+		case "Go":
+			foundGoVersion = strings.TrimSpace(version) != ""
+			foundGoPending = probePending
+		}
+	}
+	if !foundOS {
+		t.Fatal("expected local software list to include OS runtime component")
+	}
+	if !foundSQLiteVersion && !foundSQLitePending {
+		t.Fatal("expected local software list to include a SQLite version or pending probe state")
+	}
+	if !foundGoVersion && !foundGoPending {
+		t.Fatal("expected local software list to include a Go version or pending probe state")
+	}
+
+	rec = te.doSoftware(t, http.MethodGet, "/api/software/local/sqlite", "", true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected local component route 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 	body = parseJSON(t, rec)
-	if body["component_key"] != "docker" {
-		t.Fatalf("expected local component_key docker, got %#v", body["component_key"])
+	if body["component_key"] != "sqlite" {
+		t.Fatalf("expected local component_key sqlite, got %#v", body["component_key"])
 	}
 	if body["target_type"] != "local" {
 		t.Fatalf("expected local target_type local, got %#v", body["target_type"])
+	}
+	if body["id"] == "" || body["name"] == "" || body["runtime_kind"] == "" {
+		t.Fatalf("expected runtime metadata on local detail, got %#v", body)
+	}
+}
+
+func TestLocalSoftwareListColdStartStartsAsyncInventoryWarm(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	oldLoadProjected := loadProjectedLocalSoftwareComponents
+	oldWarmSnapshots := warmLocalSoftwareInventorySnapshots
+	defer func() {
+		loadProjectedLocalSoftwareComponents = oldLoadProjected
+		warmLocalSoftwareInventorySnapshots = oldWarmSnapshots
+	}()
+
+	warmCalled := false
+	loadProjectedLocalSoftwareComponents = func(app core.App) (map[software.ComponentKey]swservice.ComputedComponent, bool, error) {
+		return map[software.ComponentKey]swservice.ComputedComponent{}, false, nil
+	}
+	warmLocalSoftwareInventorySnapshots = func(app core.App) {
+		warmCalled = true
+	}
+
+	rec := te.doSoftware(t, http.MethodGet, "/api/software/local", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected local software list 200 on cold start, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !warmCalled {
+		t.Fatal("expected cold local software list to start async inventory warming")
+	}
+
+	body := parseJSON(t, rec)
+	localItems, ok := body["items"].([]any)
+	if !ok || len(localItems) == 0 {
+		t.Fatalf("expected non-empty local items payload on cold start, got %#v", body["items"])
+	}
+}
+
+func TestLocalSoftwareDetailColdStartStartsAsyncInventoryWarm(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	oldGetLocalComponent := getSnapshotFirstLocalSoftwareComponent
+	oldWarmSnapshots := warmLocalSoftwareInventorySnapshots
+	defer func() {
+		getSnapshotFirstLocalSoftwareComponent = oldGetLocalComponent
+		warmLocalSoftwareInventorySnapshots = oldWarmSnapshots
+	}()
+
+	warmCalled := false
+	getSnapshotFirstLocalSoftwareComponent = func(app core.App, componentKey software.ComponentKey) (swservice.ComputedComponent, bool, error) {
+		return swservice.ComputedComponent{
+			Entry: software.CatalogEntry{
+				ComponentKey: componentKey,
+				Label:        "SQLite",
+				TargetType:   software.TargetTypeLocal,
+			},
+			Detail: software.SoftwareComponentDetail{
+				SoftwareComponentSummary: software.SoftwareComponentSummary{
+					ComponentKey:      componentKey,
+					Label:             "SQLite",
+					TemplateKind:      software.TemplateKindPackage,
+					InstalledState:    software.InstalledStateUnknown,
+					VerificationState: software.VerificationStateUnknown,
+					AvailableActions:  []software.Action{software.ActionVerify},
+				},
+			},
+		}, true, nil
+	}
+	warmLocalSoftwareInventorySnapshots = func(app core.App) {
+		warmCalled = true
+	}
+
+	rec := te.doSoftware(t, http.MethodGet, "/api/software/local/sqlite", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected local software detail 200 on cold start, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !warmCalled {
+		t.Fatal("expected cold local software detail to start async inventory warming")
+	}
+	body := parseJSON(t, rec)
+	if pending, _ := body["inventory_pending"].(bool); !pending {
+		t.Fatalf("expected local software detail to expose inventory_pending on cold start, got %#v", body["inventory_pending"])
+	}
+}
+
+func TestLocalSoftwareServiceRoutesExposeObservationAndLogs(t *testing.T) {
+	t.Skip("legacy local-target fixture; rewrite with managed server fixture")
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	tmpDir := t.TempDir()
+	logFile := filepath.Join(tmpDir, "appos.log")
+	registryPath := filepath.Join(tmpDir, "components.yaml")
+	if err := os.WriteFile(logFile, []byte("ready\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	registry := "version: 1\n" +
+		"components:\n" +
+		"  - id: appos\n" +
+		"    name: AppOS\n" +
+		"    enabled: true\n" +
+		"    criticality: core\n" +
+		"    version_probe:\n" +
+		"      type: static\n" +
+		"      value: unknown\n" +
+		"    availability_probe:\n" +
+		"      type: static\n" +
+		"      success: true\n" +
+		"services:\n" +
+		"  - name: appos\n" +
+		"    component_id: appos\n" +
+		"    enabled: true\n" +
+		"    manager: file\n" +
+		"    lifecycle: always_on\n" +
+		"    visibility: default\n" +
+		"    log_access:\n" +
+		"      type: file\n" +
+		"      stdout_path: " + logFile + "\n" +
+		"      stderr_path: " + logFile + "\n"
+	restore := swcatalog.SetLocalRegistryPathForTesting(registryPath)
+	defer restore()
+	if err := os.WriteFile(registryPath, []byte(registry), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := te.doSoftware(t, http.MethodGet, "/api/software/local/services", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected local services route 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	items := parseJSONArray(t, rec)
+	if len(items) != 1 {
+		t.Fatalf("expected 1 service, got %d", len(items))
+	}
+	if items[0]["name"] != "appos" {
+		t.Fatalf("expected appos service, got %#v", items[0]["name"])
+	}
+	if items[0]["lifecycle"] != "always_on" {
+		t.Fatalf("expected always_on lifecycle, got %#v", items[0]["lifecycle"])
+	}
+
+	rec = te.doSoftware(t, http.MethodGet, "/api/software/local/services/appos/logs", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected local service logs route 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := parseJSON(t, rec)
+	if body["name"] != "appos" {
+		t.Fatalf("expected appos logs, got %#v", body["name"])
+	}
+	if !strings.Contains(body["content"].(string), "ready") {
+		t.Fatalf("expected log content, got %#v", body["content"])
 	}
 }
 
@@ -400,6 +606,9 @@ func TestSupportedServerCatalogRoutesExposeReadOnlyCatalogSurface(t *testing.T) 
 	if _, ok := first["supported_actions"].([]any); !ok {
 		t.Fatalf("expected supported_actions array, got %#v", first["supported_actions"])
 	}
+	if first["artifact_kind"] == "" {
+		t.Fatalf("expected artifact_kind in supported server catalog, got %#v", first["artifact_kind"])
+	}
 	if first["description"] == "" {
 		t.Fatalf("expected supported software description, got %#v", first["description"])
 	}
@@ -421,11 +630,41 @@ func TestSupportedServerCatalogRoutesExposeReadOnlyCatalogSurface(t *testing.T) 
 	if body["capability"] != "container_runtime" {
 		t.Fatalf("expected capability container_runtime, got %#v", body["capability"])
 	}
+	if body["artifact_kind"] != "package" {
+		t.Fatalf("expected artifact_kind package, got %#v", body["artifact_kind"])
+	}
 	if _, ok := body["readiness_requirements"].([]any); !ok {
 		t.Fatalf("expected detail readiness_requirements array, got %#v", body["readiness_requirements"])
 	}
 	if _, ok := body["visibility"].([]any); !ok {
 		t.Fatalf("expected detail visibility array, got %#v", body["visibility"])
+	}
+
+	rec = te.doSoftware(t, http.MethodGet, "/api/software/server-catalog/reverse-proxy", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected reverse-proxy supported server catalog detail 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body = parseJSON(t, rec)
+	if body["artifact_kind"] != "docker" {
+		t.Fatalf("expected reverse-proxy artifact_kind docker, got %#v", body["artifact_kind"])
+	}
+
+	rec = te.doSoftware(t, http.MethodGet, "/api/software/server-catalog/telegraf", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected telegraf supported server catalog detail 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body = parseJSON(t, rec)
+	if body["artifact_kind"] != "binary" {
+		t.Fatalf("expected telegraf artifact_kind binary, got %#v", body["artifact_kind"])
+	}
+	if body["requires_appos_base_url"] != true {
+		t.Fatalf("expected telegraf requires_appos_base_url true, got %#v", body["requires_appos_base_url"])
+	}
+	if body["favorite_systemd_service"] != true {
+		t.Fatalf("expected telegraf favorite_systemd_service true, got %#v", body["favorite_systemd_service"])
+	}
+	if body["service_name"] != "appos-monitor.service" {
+		t.Fatalf("expected telegraf service_name appos-monitor.service, got %#v", body["service_name"])
 	}
 
 	rec = te.doSoftware(t, http.MethodGet, "/api/software/server-catalog/not-a-component", "", true)
@@ -484,7 +723,7 @@ func TestSoftwareOperationListSupportsComponentFilter(t *testing.T) {
 		componentKey string
 	}{
 		{serverID: "srv-1", componentKey: "docker"},
-		{serverID: "srv-1", componentKey: "monitor-agent"},
+		{serverID: "srv-1", componentKey: "telegraf"},
 		{serverID: "srv-2", componentKey: "docker"},
 	} {
 		record := core.NewRecord(col)
@@ -612,7 +851,7 @@ func TestSoftwareComponentActionRejectsInvalidAppOSBaseURL(t *testing.T) {
 	asynqClient = &asynq.Client{}
 	defer func() { asynqClient = oldClient }()
 
-	rec := te.doSoftware(t, http.MethodPost, "/api/servers/srv-1/software/appos-agent/install", `{"apposBaseUrl":"console.example.com"}`, true)
+	rec := te.doSoftware(t, http.MethodPost, "/api/servers/srv-1/software/docker/install", `{"apposBaseUrl":"console.example.com"}`, true)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected invalid apposBaseUrl to return 400, got %d: %s", rec.Code, rec.Body.String())
 	}

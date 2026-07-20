@@ -68,9 +68,12 @@ func createConnectorRecord(t *testing.T, app core.App, spec connectors.SaveInput
 		t.Fatal(err)
 	}
 	rec := core.NewRecord(col)
+	persistedKind := spec.Kind
+	if spec.Kind == connectors.KindProxy {
+		persistedKind = connectors.KindRegistry
+	}
 	rec.Set("name", spec.Name)
-	rec.Set("kind", spec.Kind)
-	rec.Set("is_default", spec.IsDefault)
+	rec.Set("kind", persistedKind)
 	rec.Set("template_id", spec.TemplateID)
 	rec.Set("endpoint", spec.Endpoint)
 	rec.Set("auth_scheme", spec.AuthScheme)
@@ -80,10 +83,19 @@ func createConnectorRecord(t *testing.T, app core.App, spec connectors.SaveInput
 	if err := app.Save(rec); err != nil {
 		t.Fatal(err)
 	}
+	if spec.Kind == connectors.KindProxy {
+		if _, err := app.DB().NewQuery("UPDATE " + collections.Connectors + " SET kind = {:kind} WHERE id = {:id}").Bind(map[string]any{
+			"kind": connectors.KindProxy,
+			"id":   rec.Id,
+		}).Execute(); err != nil {
+			t.Fatal(err)
+		}
+		rec.Set("kind", connectors.KindProxy)
+	}
 	return rec
 }
 
-func TestLoadSMTPUsesDefaultNamedConnector(t *testing.T) {
+func TestLoadSMTPUsesEarliestConnector(t *testing.T) {
 	app := newRuntimeTestApp(t)
 	defer app.Cleanup()
 
@@ -92,7 +104,6 @@ func TestLoadSMTPUsesDefaultNamedConnector(t *testing.T) {
 	createConnectorRecord(t, app, connectors.SaveInput{
 		Name:         "Marketing SMTP",
 		Kind:         connectors.KindSMTP,
-		IsDefault:    false,
 		TemplateID:   "generic-smtp",
 		Endpoint:     "smtp://smtp.alt.example.com:587",
 		AuthScheme:   connectors.AuthSchemeBasic,
@@ -100,9 +111,8 @@ func TestLoadSMTPUsesDefaultNamedConnector(t *testing.T) {
 		Config:       map[string]any{"username": "mailer", "fromAddress": "alt@example.com", "tls": false},
 	})
 	createConnectorRecord(t, app, connectors.SaveInput{
-		Name:         "default",
+		Name:         "Secondary SMTP",
 		Kind:         connectors.KindSMTP,
-		IsDefault:    true,
 		TemplateID:   "generic-smtp",
 		Endpoint:     "smtps://smtp.example.com:465",
 		AuthScheme:   connectors.AuthSchemeBasic,
@@ -118,36 +128,45 @@ func TestLoadSMTPUsesDefaultNamedConnector(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Name != "default" {
-		t.Fatalf("expected default connector, got %q", cfg.Name)
+	if cfg.Name != "Marketing SMTP" {
+		t.Fatalf("expected earliest connector, got %q", cfg.Name)
 	}
-	if cfg.Host != "smtp.example.com" || cfg.Port != 465 {
+	if cfg.Host != "smtp.alt.example.com" || cfg.Port != 587 {
 		t.Fatalf("unexpected smtp endpoint: %+v", cfg)
 	}
-	if !cfg.ImplicitTLS {
-		t.Fatal("expected implicit TLS for smtps endpoint")
+	if cfg.ImplicitTLS {
+		t.Fatal("expected plain SMTP connector to avoid implicit TLS")
 	}
 	if cfg.Username != "mailer" || cfg.Password != "s3cr3t" {
 		t.Fatalf("unexpected smtp credential payload: %+v", cfg)
 	}
-	if cfg.FromAddress != "noreply@example.com" || cfg.LocalName != "appos.local" {
+	if cfg.FromAddress != "alt@example.com" {
 		t.Fatalf("unexpected smtp config mapping: %+v", cfg)
 	}
+	if cfg.LocalName != "" {
+		t.Fatalf("expected empty local name for earliest connector, got %q", cfg.LocalName)
+	}
 	if cfg.TLS {
-		t.Fatal("expected STARTTLS flag to stay false for implicit TLS connector")
+		t.Fatal("expected STARTTLS flag to stay false for earliest connector")
 	}
 }
 
-func TestLoadSMTPFailsForAmbiguousConnectors(t *testing.T) {
+func TestLoadSMTPFallsBackToEarliestCreatedConnector(t *testing.T) {
 	app := newRuntimeTestApp(t)
 	defer app.Cleanup()
 
-	createConnectorRecord(t, app, connectors.SaveInput{Name: "One", Kind: connectors.KindSMTP, IsDefault: false, TemplateID: "generic-smtp", Endpoint: "smtp://one.example.com:587"})
-	createConnectorRecord(t, app, connectors.SaveInput{Name: "Two", Kind: connectors.KindSMTP, IsDefault: false, TemplateID: "generic-smtp", Endpoint: "smtp://two.example.com:587"})
+	createConnectorRecord(t, app, connectors.SaveInput{Name: "One", Kind: connectors.KindSMTP, TemplateID: "generic-smtp", Endpoint: "smtp://one.example.com:587"})
+	createConnectorRecord(t, app, connectors.SaveInput{Name: "Two", Kind: connectors.KindSMTP, TemplateID: "generic-smtp", Endpoint: "smtp://two.example.com:587"})
 
-	_, err := connectors.LoadSMTPWith(persistence.NewConnectorRepository(app), connectors.NewSecretResolver(app))
-	if err == nil {
-		t.Fatal("expected ambiguous smtp connectors to fail")
+	cfg, err := connectors.LoadSMTPWith(persistence.NewConnectorRepository(app), connectors.NewSecretResolver(app))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Name != "One" {
+		t.Fatalf("expected earliest-created connector to be selected, got %q", cfg.Name)
+	}
+	if cfg.Host != "one.example.com" || cfg.Port != 587 {
+		t.Fatalf("unexpected smtp endpoint after fallback: %+v", cfg)
 	}
 }
 
@@ -160,7 +179,6 @@ func TestListRegistryResolvesBasicAuthAndFlags(t *testing.T) {
 	createConnectorRecord(t, app, connectors.SaveInput{
 		Name:         "GHCR",
 		Kind:         connectors.KindRegistry,
-		IsDefault:    true,
 		TemplateID:   "ghcr",
 		Endpoint:     "https://ghcr.io",
 		AuthScheme:   connectors.AuthSchemeBasic,
@@ -197,7 +215,6 @@ func TestLoadSMTPRejectsUnsupportedScheme(t *testing.T) {
 	createConnectorRecord(t, app, connectors.SaveInput{
 		Name:       "Broken SMTP",
 		Kind:       connectors.KindSMTP,
-		IsDefault:  true,
 		TemplateID: "generic-smtp",
 		Endpoint:   "http://smtp.example.com",
 	})
@@ -229,7 +246,6 @@ func TestLoadSMTPFailsForRevokedSecret(t *testing.T) {
 	createConnectorRecord(t, app, connectors.SaveInput{
 		Name:         "SMTP",
 		Kind:         connectors.KindSMTP,
-		IsDefault:    true,
 		TemplateID:   "generic-smtp",
 		Endpoint:     "smtp://smtp.example.com:587",
 		AuthScheme:   connectors.AuthSchemeBasic,
@@ -256,7 +272,6 @@ func TestLoadSMTPFailsForDeletedSecret(t *testing.T) {
 	createConnectorRecord(t, app, connectors.SaveInput{
 		Name:         "SMTP",
 		Kind:         connectors.KindSMTP,
-		IsDefault:    true,
 		TemplateID:   "generic-smtp",
 		Endpoint:     "smtp://smtp.example.com:587",
 		AuthScheme:   connectors.AuthSchemeBasic,
@@ -271,5 +286,128 @@ func TestLoadSMTPFailsForDeletedSecret(t *testing.T) {
 	_, err := connectors.LoadSMTPWith(persistence.NewConnectorRepository(app), connectors.NewSecretResolver(app))
 	if err == nil {
 		t.Fatal("expected deleted secret to fail smtp resolution")
+	}
+}
+
+func TestBuildProxyEnvWithUsesSelectedProxyConnectors(t *testing.T) {
+	app := newRuntimeTestApp(t)
+	defer app.Cleanup()
+
+	secret := createSecretRecord(t, app, "single_value", map[string]any{"value": "proxy-secret"})
+	httpConnector := createConnectorRecord(t, app, connectors.SaveInput{
+		Name:         "HTTP Proxy",
+		Kind:         connectors.KindProxy,
+		TemplateID:   "generic-proxy",
+		Endpoint:     "http://proxy.example.com:3128",
+		AuthScheme:   connectors.AuthSchemeBasic,
+		CredentialID: secret.Id,
+		Config: map[string]any{
+			"protocol":  "http",
+			"username":  "alice",
+			"no_proxy":  "localhost,.svc",
+			"auth_mode": "username_password",
+		},
+	})
+	httpsConnector := createConnectorRecord(t, app, connectors.SaveInput{
+		Name:       "HTTPS Proxy",
+		Kind:       connectors.KindProxy,
+		TemplateID: "generic-proxy",
+		Endpoint:   "https://secure.example.com:4443",
+		AuthScheme: connectors.AuthSchemeNone,
+		Config: map[string]any{
+			"protocol": "https",
+			"no_proxy": "127.0.0.1,.svc",
+		},
+	})
+
+	env, err := connectors.BuildProxyEnvWith(
+		persistence.NewConnectorRepository(app),
+		connectors.NewSecretResolver(app),
+		true,
+		"",
+		httpConnector.Id,
+		httpsConnector.Id,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env["HTTP_PROXY"] != "http://alice:proxy-secret@proxy.example.com:3128" {
+		t.Fatalf("unexpected HTTP_PROXY: %q", env["HTTP_PROXY"])
+	}
+	if env["HTTPS_PROXY"] != "https://secure.example.com:4443" {
+		t.Fatalf("unexpected HTTPS_PROXY: %q", env["HTTPS_PROXY"])
+	}
+	if env["NO_PROXY"] != "localhost,.svc,127.0.0.1" {
+		t.Fatalf("unexpected NO_PROXY: %q", env["NO_PROXY"])
+	}
+}
+
+func TestBuildProxyEnvWithDisabledProxyReturnsNil(t *testing.T) {
+	app := newRuntimeTestApp(t)
+	defer app.Cleanup()
+
+	env, err := connectors.BuildProxyEnvWith(
+		persistence.NewConnectorRepository(app),
+		connectors.NewSecretResolver(app),
+		false,
+		"",
+		"",
+		"",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env != nil {
+		t.Fatalf("expected nil env when proxy is disabled, got %#v", env)
+	}
+}
+
+func TestBuildProxyEnvWithPrefersSocks5Connector(t *testing.T) {
+	app := newRuntimeTestApp(t)
+	defer app.Cleanup()
+
+	secret := createSecretRecord(t, app, "single_value", map[string]any{"value": "proxy-secret"})
+	socks5Connector := createConnectorRecord(t, app, connectors.SaveInput{
+		Name:         "SOCKS5 Proxy",
+		Kind:         connectors.KindProxy,
+		TemplateID:   "socks5-proxy",
+		Endpoint:     "socks5://socks.example.com:1080",
+		AuthScheme:   connectors.AuthSchemeBasic,
+		CredentialID: secret.Id,
+		Config: map[string]any{
+			"protocol":  "socks5",
+			"username":  "alice",
+			"no_proxy":  "localhost,.svc",
+			"auth_mode": "username_password",
+		},
+	})
+	httpConnector := createConnectorRecord(t, app, connectors.SaveInput{
+		Name:       "HTTP Proxy",
+		Kind:       connectors.KindProxy,
+		TemplateID: "http-proxy",
+		Endpoint:   "http://proxy.example.com:3128",
+		Config:     map[string]any{"protocol": "http"},
+	})
+
+	env, err := connectors.BuildProxyEnvWith(
+		persistence.NewConnectorRepository(app),
+		connectors.NewSecretResolver(app),
+		true,
+		socks5Connector.Id,
+		httpConnector.Id,
+		"",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "socks5://alice:proxy-secret@socks.example.com:1080"
+	if env["ALL_PROXY"] != want {
+		t.Fatalf("unexpected ALL_PROXY: %q", env["ALL_PROXY"])
+	}
+	if env["HTTP_PROXY"] != want || env["HTTPS_PROXY"] != want {
+		t.Fatalf("expected HTTP/HTTPS env to use SOCKS5, got %#v", env)
+	}
+	if env["NO_PROXY"] != "localhost,.svc" {
+		t.Fatalf("unexpected NO_PROXY: %q", env["NO_PROXY"])
 	}
 }

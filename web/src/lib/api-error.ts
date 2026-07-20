@@ -28,7 +28,7 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
   const detail = normalizeString(err?.response?.data?.error || err?.data?.error)
   const statusText = normalizeString(err?.status)
 
-  const baseMessage = responseMessage || responseDataMessage || dataMessage || topMessage
+  const baseMessage = responseDataMessage || dataMessage || responseMessage || topMessage
 
   if (baseMessage && detail && !baseMessage.includes(detail)) {
     return `${baseMessage}: ${detail}`
@@ -45,4 +45,27 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
   }
 
   return fallback
+}
+
+export function isRequestCancellation(error: unknown): boolean {
+  const err = error as {
+    isAbort?: unknown
+    message?: unknown
+    response?: { message?: unknown; data?: { message?: unknown } }
+  }
+  if (err?.isAbort === true) return true
+
+  const messages = [err?.message, err?.response?.message, err?.response?.data?.message]
+    .filter((value): value is string => typeof value === 'string')
+    .map(value => value.trim().toLowerCase())
+
+  return messages.some(
+    message =>
+      message === 'context canceled' ||
+      message === 'context cancelled' ||
+      message.includes('autocancel') ||
+      message.includes('auto cancel') ||
+      message.includes('request was cancelled') ||
+      message.includes('request was canceled')
+  )
 }

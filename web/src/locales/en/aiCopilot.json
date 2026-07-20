@@ -1,0 +1,94 @@
+{
+  "nav": {
+    "label": "AI Copilot"
+  },
+  "page": {
+    "title": "AI Copilot",
+    "subtitle": "Resolve tasks faster with context-aware operational guidance.",
+    "loading": "Loading...",
+    "emptyTitle": "Start a conversation",
+    "emptyDescription": "Ask about operations or upload a file for context.",
+    "defaultSessionTitle": "New chat",
+    "conversationList": "Conversations"
+  },
+  "actions": {
+    "refresh": "Refresh conversations",
+    "newChat": "New chat",
+    "createConversation": "Create conversation",
+    "shrinkConversationList": "Shrink conversation list",
+    "expandConversationList": "Expand conversation list",
+    "save": "Save",
+    "cancel": "Cancel",
+    "editName": "Edit name",
+    "delete": "Delete",
+    "selectAll": "Select all",
+    "batchDelete": "Batch delete",
+    "deleteSelected": "Delete ({{count}})",
+    "uploadFiles": "Upload files",
+    "uploadFilesHelp": "Supported for reading: text files, PDF, DOCX, XLSX, XLSM, CSV",
+    "sendMessage": "Send message",
+    "copyMarkdown": "Copy markdown",
+    "configureModels": "Configure models",
+    "stopGeneration": "Stop generation",
+    "tokenUsage": "Token usage"
+  },
+  "fields": {
+    "conversationTitle": "Conversation title",
+    "messagePlaceholder": "Ask any things...",
+    "fileUpload": "Chat file upload",
+    "modelSearchPlaceholder": "Search models...",
+    "noModelsAvailable": "No AI models available",
+    "noModelsMatchSearch": "No models match your search"
+  },
+  "messages": {
+    "loadError": "Failed to load AI Copilot",
+    "renameError": "Failed to rename conversation",
+    "deleteError": "Failed to delete conversation",
+    "sendError": "Failed to send message",
+    "thinking": "Thinking...",
+    "attachedFiles": "Attached files",
+    "justNow": "just now",
+    "textPreviewSkipped": "Text preview skipped: file exceeds {{limit}}.",
+    "textPreviewUnavailable": "Text preview unavailable for this file.",
+    "binaryDocumentTooLarge": "Document too large: file exceeds {{limit}}.",
+    "conversationCount": "{{count}} conversation(s)",
+    "unsupportedAttachmentType": "Only text, PDF, DOCX, XLSX, XLSM, and CSV uploads can be read here.",
+    "readingAttachments": "Reading {{count}} attachment(s)...",
+    "attachmentsReady": "Read {{count}} attachment(s). Ready to send to the AI model.",
+    "attachmentsUnreadable": "The selected attachment(s) could not be read. Fix or remove them before sending.",
+    "attachmentsPartialReady": "Read {{count}} attachment(s). {{failed}} attachment(s) will be skipped.",
+    "attachmentsNeedReadableContent": "No readable attachment content is available yet. Remove the failed files or add a new message before sending.",
+    "submittingAttachments": "Submitting {{count}} attachment(s) to the AI model..."
+  },
+  "dialog": {
+    "deleteTitle": "Delete conversation?",
+    "deleteDescriptionPrefix": "This will permanently delete",
+    "deleteDescriptionSuffix": "and its message history. This action cannot be undone."
+  },
+  "tokens": {
+    "title": "Token usage estimate",
+    "description": "Approximate budget for the next request with the selected model.",
+    "currentModel": "Current model",
+    "contextWindow": "Context window",
+    "maxOutput": "Max output",
+    "inputBudget": "Input budget",
+    "visibleConversation": "Visible conversation",
+    "currentDraft": "Current draft",
+    "nextRequestEstimate": "Next request estimate",
+    "remainingInput": "Remaining input",
+    "note": "This is an estimate based on visible chat content and attachments. The server may further summarize or trim history before sending the final request."
+  },
+  "prompts": {
+    "selectSystemPrompt": "Choose a system prompt for this conversation",
+    "systemPromptGroup": "System Prompt",
+    "systemPromptNone": "None (no system prompt)",
+    "taskInstruction": "Task",
+    "taskInstructionTitle": "Task instruction — fill into message draft",
+    "taskInstructionGroup": "Task Instruction",
+    "noTaskInstructions": "No task instructions available"
+  },
+  "aria": {
+    "conversationActions": "Conversation actions for {{title}}",
+    "removeAttachment": "Remove {{name}}"
+  }
+}

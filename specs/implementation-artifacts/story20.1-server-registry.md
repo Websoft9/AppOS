@@ -38,13 +38,14 @@ As a superuser, I can add, view, edit, and delete server records, so that SSH ta
 
 ### UI Ownership Note
 
-The canonical UI contract for the server form, list page, and detail page now lives in [story20.6-server-ui.md](story20.6-server-ui.md).
+The canonical UI contract for the server form, list page, and detail page now lives in [story20.6-server-ui.md](story20.6-server-ui.md) and [story20.10-detail-overview.md](story20.10-detail-overview.md).
 
 Story 20.1 keeps ownership of:
 
 - server registry data model
 - PocketBase CRUD contract
 - field-level dependencies such as `tunnel_server` visibility and credential filtering
+- backend/read-model fields that feed Server Detail `Overview`, including identity, credential reference, creator metadata, timestamps, collected facts, and future normalized cloud-provider facts
 
 Story 20.6 owns:
 
@@ -52,6 +53,12 @@ Story 20.6 owns:
 - list information architecture
 - list/detail navigation model
 - detail page UI structure
+
+Story 20.10 owns:
+
+- the frontend `Overview` tab contract
+- `Overview` section structure and read-only presentation
+- the `Edit Connection` entry shown from `Overview`
 
 > Collection migration originated in Epic 8; ownership transferred to Epic 20 as of the Epic 8 refactor.
 

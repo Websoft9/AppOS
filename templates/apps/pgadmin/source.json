@@ -1,0 +1,12 @@
+{
+  "contractVersion": "0.1",
+  "origin_kind": "official",
+  "origin_ref": "https://www.pgadmin.org/docs/pgadmin4/latest/container_deployment.html",
+  "upstream_version": "latest",
+  "template_revision": "v0-initial",
+  "adapter_version": "v0",
+  "compatibility": {
+    "templateContract": "0.1",
+    "adapterStatus": "sample"
+  }
+}

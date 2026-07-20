@@ -42,7 +42,7 @@ dashboard/src/
 ### TerminalPanel
 
 - Renders `xterm.js` + `xterm-addon-fit`
-- Opens `WS /api/servers/:serverId/shell` (or `/api/servers/containers/:containerId/shell`)
+- Opens `WS /api/servers/:serverId/shell` (or `/api/terminal/docker/:containerId?server_id=:serverId`)
 - Sends resize control frame on container resize (ResizeObserver)
 - Displays error overlay with **Reconnect** button on disconnect
 - Reads `connect.terminal.font_size` and `connect.terminal.scrollback` from localStorage

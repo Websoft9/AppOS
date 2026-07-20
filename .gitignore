@@ -1,14 +1,15 @@
 # Build artifacts
 backend/appos
-dashboard/dist/
 
-# Dependencies
+# Web
 node_modules/
-dashboard/node_modules/
+web/dist/
+web/node_modules/
 
 # Environment
 build/.env
 .env
+.environments/*.env
 
 # Logs
 *.log
@@ -19,3 +20,17 @@ sbom.spdx.json
 
 # other
 session
+
+.bmad-loop/runs/
+.bmad-loop/cache/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+/tests/test-results/
+/tests/playwright-report/
+/tests/blob-report/
+/tests/.playwright/

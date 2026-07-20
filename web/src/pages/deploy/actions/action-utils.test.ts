@@ -16,7 +16,7 @@ vi.mock('@/lib/pb', () => ({
 describe('buildActionWebSocketUrl', () => {
   beforeEach(() => {
     authStore.token = ''
-    window.history.replaceState({}, '', '/actions/demo')
+    window.history.replaceState({}, '', '/activity/demo')
   })
 
   it('uses the current browser host and protocol', () => {

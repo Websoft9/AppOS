@@ -12,16 +12,64 @@ export interface SpaceQuota {
 }
 
 export interface ProxyNetwork {
-  httpProxy: string
-  httpsProxy: string
-  noProxy: string
-  username: string
-  password: string
+  source: ProxySource
+  enabled: boolean
+  socks5ConnectorId: string
+  httpConnectorId: string
+  httpsConnectorId: string
+}
+
+export type ProxySource = 'none' | 'external' | 'self'
+
+export interface ProxyNetworkErrors {
+  form?: string
+  consumers?: string
+  socks5ConnectorId?: string
+  httpConnectorId?: string
+  httpsConnectorId?: string
+}
+
+export type ProxyConsumerMode = 'disabled' | 'always'
+
+export interface ProxyConsumerItem {
+  consumerKey: string
+  mode: ProxyConsumerMode
+}
+
+export interface ProxyConsumerDefinition {
+  key: string
+  title: string
+  description?: string
+  location: 'local' | 'remote'
+  moduleKey?: string
+  scope: string
+  adapter: string
+  trafficClass: string
+  support: string
+  defaultMode: ProxyConsumerMode
+  allowedModes: ProxyConsumerMode[]
+  enrollable: boolean
+  tags?: string[]
+}
+
+export interface ProxyConsumersSettings {
+  items: ProxyConsumerItem[]
+  definitions: ProxyConsumerDefinition[]
+  serverOverrides?: ProxyRemoteShellOverride[]
+}
+
+export interface ProxyRemoteShellOverride {
+  serverId: string
+  mode: ProxyConsumerMode
+}
+
+export interface ProxyRemoteShellSettings {
+  items: ProxyRemoteShellOverride[]
 }
 
 export interface DockerMirror {
   mirrors: string[]
-  insecureRegistries: string[]
+  allowInsecureRegistries: boolean
 }
 
 export interface ConnectTerminalGroup {
@@ -33,13 +81,46 @@ export interface ConnectSftpGroup {
   maxUploadFiles: number
 }
 
+export interface TopicShare {
+  shareMaxMinutes: number
+  shareDefaultMinutes: number
+}
+
+export interface TopicCommentPolicy {
+  allowGuestComments: boolean
+  defaultGuestName: string
+  maxGuestNameLength: number
+  maxCommentBodyLength: number
+}
+
+export interface TopicImportPolicy {
+  maxDescriptionImportKB: number
+  textOnly: boolean
+}
+
 export interface TunnelPortRange {
   start: number
   end: number
 }
 
 export interface DeployPreflightGroup {
-  minFreeDiskBytes: number
+  minFreeDiskGiB: number
+}
+
+export interface DeployRuntimeGroup {
+  imagePullTimeoutSeconds: number
+  composeUpTimeoutSeconds: number
+  healthCheckTimeoutSeconds: number
+  runtimePullIdleHeartbeatSeconds: number
+  operationProgressHeartbeatSeconds: number
+  sameAppConflictMode: string
+  defaultRuleProfileCompose: string
+  defaultRuleProfileBuild: string
+}
+
+export interface DeployGitDefaultsGroup {
+  defaultRef: string
+  defaultComposePath: string
 }
 
 export interface IacFilesGroup {
@@ -60,11 +141,20 @@ export const DEFAULT_SPACE_QUOTA: SpaceQuota = {
 }
 
 export const EMPTY_PROXY: ProxyNetwork = {
-  httpProxy: '',
-  httpsProxy: '',
-  noProxy: '',
-  username: '',
-  password: '',
+  source: 'none',
+  enabled: false,
+  socks5ConnectorId: '',
+  httpConnectorId: '',
+  httpsConnectorId: '',
+}
+
+export const EMPTY_PROXY_CONSUMERS: ProxyConsumersSettings = {
+  items: [],
+  definitions: [],
+}
+
+export const EMPTY_PROXY_REMOTE_SHELL: ProxyRemoteShellSettings = {
+  items: [],
 }
 
 export const DEFAULT_CONNECT_TERMINAL: ConnectTerminalGroup = {
@@ -76,13 +166,46 @@ export const DEFAULT_CONNECT_SFTP: ConnectSftpGroup = {
   maxUploadFiles: 10,
 }
 
+export const DEFAULT_TOPIC_SHARE: TopicShare = {
+  shareMaxMinutes: 60,
+  shareDefaultMinutes: 30,
+}
+
+export const DEFAULT_TOPIC_COMMENT_POLICY: TopicCommentPolicy = {
+  allowGuestComments: true,
+  defaultGuestName: 'Guest',
+  maxGuestNameLength: 100,
+  maxCommentBodyLength: 10000,
+}
+
+export const DEFAULT_TOPIC_IMPORT_POLICY: TopicImportPolicy = {
+  maxDescriptionImportKB: 2,
+  textOnly: true,
+}
+
 export const DEFAULT_TUNNEL_PORT_RANGE: TunnelPortRange = {
   start: 40000,
   end: 49999,
 }
 
 export const DEFAULT_DEPLOY_PREFLIGHT: DeployPreflightGroup = {
-  minFreeDiskBytes: 512 * 1024 * 1024,
+  minFreeDiskGiB: 1,
+}
+
+export const DEFAULT_DEPLOY_RUNTIME: DeployRuntimeGroup = {
+  imagePullTimeoutSeconds: 180,
+  composeUpTimeoutSeconds: 600,
+  healthCheckTimeoutSeconds: 120,
+  runtimePullIdleHeartbeatSeconds: 20,
+  operationProgressHeartbeatSeconds: 20,
+  sameAppConflictMode: 'suggest_force_fail',
+  defaultRuleProfileCompose: 'compose_standard',
+  defaultRuleProfileBuild: 'source_build',
+}
+
+export const DEFAULT_DEPLOY_GIT_DEFAULTS: DeployGitDefaultsGroup = {
+  defaultRef: 'main',
+  defaultComposePath: 'docker-compose.yml',
 }
 
 export const DEFAULT_IAC_FILES: IacFilesGroup = {

@@ -1,0 +1,42 @@
+{
+  "contractVersion": "0.1",
+  "fields": [
+    {
+      "key": "app_id",
+      "type": "string",
+      "label": "App ID",
+      "required": true,
+      "default": "mysql",
+      "visibility": "system",
+      "storage_mode": "system_managed"
+    },
+    {
+      "key": "version",
+      "type": "select",
+      "label": "Version",
+      "required": true,
+      "default": "9.5",
+      "visibility": "basic",
+      "storage_mode": "operator_editable",
+      "options": ["9.5", "8.2", "8.0", "5.7"]
+    },
+    {
+      "key": "db_port",
+      "type": "port",
+      "label": "Database Port",
+      "required": true,
+      "default": 3306,
+      "visibility": "basic",
+      "storage_mode": "operator_editable"
+    },
+    {
+      "key": "db_password",
+      "type": "secret_ref",
+      "label": "Root Password",
+      "required": true,
+      "default": null,
+      "visibility": "basic",
+      "storage_mode": "secret_backed"
+    }
+  ]
+}

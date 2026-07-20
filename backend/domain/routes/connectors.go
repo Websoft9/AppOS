@@ -4,10 +4,12 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/audit"
+	monitorchecks "github.com/websoft9/appos/backend/domain/monitor/signals/checks"
 	"github.com/websoft9/appos/backend/domain/resource/accounts"
 	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	"github.com/websoft9/appos/backend/domain/secrets"
@@ -17,7 +19,7 @@ import (
 type connectorUpsertRequest struct {
 	Name              string         `json:"name"`
 	Kind              string         `json:"kind"`
-	IsDefault         bool           `json:"is_default"`
+	IsEnabled         *bool          `json:"is_enabled,omitempty"`
 	TemplateID        string         `json:"template_id"`
 	Endpoint          string         `json:"endpoint"`
 	AuthScheme        string         `json:"auth_scheme"`
@@ -33,7 +35,7 @@ type connectorResponseDocument struct {
 	Updated           string         `json:"updated"`
 	Name              string         `json:"name"`
 	Kind              string         `json:"kind"`
-	IsDefault         bool           `json:"is_default"`
+	IsEnabled         bool           `json:"is_enabled"`
 	TemplateID        string         `json:"template_id"`
 	Endpoint          string         `json:"endpoint"`
 	AuthScheme        string         `json:"auth_scheme"`
@@ -45,6 +47,20 @@ type connectorResponseDocument struct {
 
 var _ = connectorResponseDocument{}
 
+type connectorReachabilityItem struct {
+	ID            string `json:"id"`
+	Status        string `json:"status"`
+	LatencyMS     int64  `json:"latency_ms,omitempty"`
+	Reason        string `json:"reason,omitempty"`
+	Host          string `json:"host,omitempty"`
+	Port          int    `json:"port,omitempty"`
+	LastCheckedAt string `json:"lastCheckedAt,omitempty"`
+}
+
+type connectorReachabilityResponse struct {
+	Items []connectorReachabilityItem `json:"items"`
+}
+
 // registerConnectorRoutes registers authenticated read routes and superuser-only
 // mutation routes for connector resources.
 
@@ -54,6 +70,7 @@ func registerConnectorRoutes(se *core.ServeEvent) {
 	group.GET("/templates", handleConnectorTemplateList)
 	group.GET("/templates/{id}", handleConnectorTemplateGet)
 	group.GET("", handleConnectorList)
+	group.GET("/reachability", handleConnectorReachability)
 	group.GET("/{id}", handleConnectorGet)
 
 	mutations := se.Router.Group("/api/connectors")
@@ -62,6 +79,57 @@ func registerConnectorRoutes(se *core.ServeEvent) {
 	mutations.POST("", handleConnectorCreate)
 	mutations.PUT("/{id}", handleConnectorUpdate)
 	mutations.DELETE("/{id}", handleConnectorDelete)
+}
+
+// handleConnectorReachability probes network reachability from AppOS to one or more external services.
+//
+// @Summary Probe connector reachability
+// @Description Probes TCP reachability for one or more external services visible to the authenticated user.
+// @Tags Resource
+// @Security BearerAuth
+// @Param ids query string false "comma-separated connector ids"
+// @Success 200 {object} connectorReachabilityResponse
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/connectors/reachability [get]
+func handleConnectorReachability(e *core.RequestEvent) error {
+	filterIDs := make(map[string]struct{})
+	for _, id := range strings.Split(e.Request.URL.Query().Get("ids"), ",") {
+		normalized := strings.TrimSpace(id)
+		if normalized == "" {
+			continue
+		}
+		filterIDs[normalized] = struct{}{}
+	}
+
+	items, err := connectors.List(persistence.NewConnectorRepository(e.App), parseConnectorKindFilter(e.Request.URL.Query().Get("kind")))
+	if err != nil {
+		return e.InternalServerError("failed to list connectors", err)
+	}
+
+	result := make([]connectorReachabilityItem, 0, len(items))
+	now := time.Now().UTC()
+	timeout := monitorchecks.LoadReachabilityProbeTimeout(e.App)
+	for _, snapshot := range monitorchecks.ProbeConnectorBatchWithTimeout(items, timeout) {
+		item := snapshot.Item
+		if len(filterIDs) > 0 {
+			if _, ok := filterIDs[item.ID()]; !ok {
+				continue
+			}
+		}
+		row := connectorReachabilityResponseItem(item, snapshot.Result, now)
+		if err := monitorchecks.ProjectConnectorReachability(e.App, item, monitorchecks.ReachabilityResult{
+			Status:    row.Status,
+			LatencyMS: row.LatencyMS,
+			Reason:    row.Reason,
+			Host:      row.Host,
+			Port:      row.Port,
+		}, now); err != nil {
+			return e.InternalServerError("failed to project connector reachability", err)
+		}
+		result = append(result, row)
+	}
+	return e.JSON(http.StatusOK, connectorReachabilityResponse{Items: result})
 }
 
 // handleConnectorTemplateList lists built-in connector templates.
@@ -74,7 +142,10 @@ func registerConnectorRoutes(se *core.ServeEvent) {
 // @Failure 401 {object} map[string]any
 // @Router /api/connectors/templates [get]
 func handleConnectorTemplateList(e *core.RequestEvent) error {
-	templates := connectors.Templates()
+	templates, err := connectors.TemplatesWithError()
+	if err != nil {
+		return e.InternalServerError("failed to load connector templates", err)
+	}
 	return e.JSON(http.StatusOK, templates)
 }
 
@@ -90,7 +161,10 @@ func handleConnectorTemplateList(e *core.RequestEvent) error {
 // @Failure 404 {object} map[string]any
 // @Router /api/connectors/templates/{id} [get]
 func handleConnectorTemplateGet(e *core.RequestEvent) error {
-	template, ok := connectors.FindTemplate(e.Request.PathValue("id"))
+	template, ok, err := connectors.FindTemplate(e.Request.PathValue("id"))
+	if err != nil {
+		return e.InternalServerError("failed to load connector template", err)
+	}
 	if !ok {
 		return e.NotFoundError("connector template not found", nil)
 	}
@@ -156,7 +230,7 @@ func handleConnectorGet(e *core.RequestEvent) error {
 // @Failure 500 {object} map[string]any
 // @Router /api/connectors [post]
 func handleConnectorCreate(e *core.RequestEvent) error {
-	input, err := bindConnectorUpsertRequest(e)
+	input, err := bindConnectorUpsertRequest(e, nil)
 	if err != nil {
 		return err
 	}
@@ -191,10 +265,6 @@ func handleConnectorCreate(e *core.RequestEvent) error {
 // @Failure 500 {object} map[string]any
 // @Router /api/connectors/{id} [put]
 func handleConnectorUpdate(e *core.RequestEvent) error {
-	input, err := bindConnectorUpsertRequest(e)
-	if err != nil {
-		return err
-	}
 	repo := persistence.NewConnectorRepository(e.App)
 	before, getErr := repo.Get(e.Request.PathValue("id"))
 	if getErr != nil {
@@ -202,6 +272,10 @@ func handleConnectorUpdate(e *core.RequestEvent) error {
 			return e.NotFoundError("connector not found", getErr)
 		}
 		return e.InternalServerError("failed to load connector", getErr)
+	}
+	input, err := bindConnectorUpsertRequest(e, before)
+	if err != nil {
+		return err
 	}
 	beforeSnap := before.Snapshot()
 	userID, _ := authInfo(e)
@@ -249,7 +323,7 @@ func handleConnectorDelete(e *core.RequestEvent) error {
 	return e.NoContent(http.StatusNoContent)
 }
 
-func bindConnectorUpsertRequest(e *core.RequestEvent) (connectors.SaveInput, error) {
+func bindConnectorUpsertRequest(e *core.RequestEvent, existing *connectors.Connector) (connectors.SaveInput, error) {
 	var body connectorUpsertRequest
 	if err := e.BindBody(&body); err != nil {
 		return connectors.SaveInput{}, e.BadRequestError("invalid JSON body", err)
@@ -257,10 +331,17 @@ func bindConnectorUpsertRequest(e *core.RequestEvent) (connectors.SaveInput, err
 	if strings.TrimSpace(body.Kind) == connectors.KindLLM {
 		return connectors.SaveInput{}, e.BadRequestError("llm connectors are no longer supported on /api/connectors; use /api/ai-providers instead", nil)
 	}
+	isEnabled := true
+	if existing != nil {
+		isEnabled = existing.IsEnabled()
+	}
+	if body.IsEnabled != nil {
+		isEnabled = *body.IsEnabled
+	}
 	return connectors.SaveInput{
 		Name:              body.Name,
 		Kind:              body.Kind,
-		IsDefault:         body.IsDefault,
+		IsEnabled:         isEnabled,
 		TemplateID:        body.TemplateID,
 		Endpoint:          body.Endpoint,
 		AuthScheme:        body.AuthScheme,
@@ -298,7 +379,7 @@ func connectorResponse(item *connectors.Connector) map[string]any {
 		"updated":          item.Updated(),
 		"name":             item.Name(),
 		"kind":             item.Kind(),
-		"is_default":       item.IsDefault(),
+		"is_enabled":       item.IsEnabled(),
 		"template_id":      item.TemplateID(),
 		"endpoint":         item.Endpoint(),
 		"auth_scheme":      item.AuthScheme(),
@@ -328,6 +409,23 @@ func parseConnectorKindFilter(raw string) []string {
 func isConnectorNotFound(err error) bool {
 	var notFoundErr *connectors.NotFoundError
 	return errors.As(err, &notFoundErr)
+}
+
+func connectorReachabilityResponseItem(
+	item *connectors.Connector,
+	reachability monitorchecks.ReachabilityResult,
+	checkedAt time.Time,
+) connectorReachabilityItem {
+	result := connectorReachabilityItem{
+		ID:            item.ID(),
+		Status:        reachability.Status,
+		LatencyMS:     reachability.LatencyMS,
+		Reason:        reachability.Reason,
+		Host:          reachability.Host,
+		Port:          reachability.Port,
+		LastCheckedAt: checkedAt.Format(time.RFC3339),
+	}
+	return result
 }
 
 type connectorCredentialValidator struct {
@@ -407,7 +505,7 @@ func connectorInputMap(input connectors.SaveInput) map[string]any {
 	return map[string]any{
 		"name":             input.Name,
 		"kind":             input.Kind,
-		"is_default":       input.IsDefault,
+		"is_enabled":       input.IsEnabled,
 		"template_id":      input.TemplateID,
 		"endpoint":         input.Endpoint,
 		"auth_scheme":      input.AuthScheme,
@@ -423,7 +521,7 @@ func connectorSnapshotMap(snap *connectors.Snapshot) map[string]any {
 		"id":               snap.ID,
 		"name":             snap.Name,
 		"kind":             snap.Kind,
-		"is_default":       snap.IsDefault,
+		"is_enabled":       snap.IsEnabled,
 		"template_id":      snap.TemplateID,
 		"endpoint":         snap.Endpoint,
 		"auth_scheme":      snap.AuthScheme,

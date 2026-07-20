@@ -36,7 +36,7 @@
 //	Monitor owns (for the same software, only its runtime observation):
 //	  - is it currently alive (active state via supervisord / systemd)
 //	  - runtime health trend, uptime, CPU, memory, logs
-//	  - heartbeat, active checks, and health summaries
+//	  - active checks and health summaries
 //	  - operator-facing status timelines and degraded-state visibility
 //
 // The split is: Software Delivery answers "what is installed and at what version",
@@ -49,8 +49,9 @@
 //
 // Existing code material maps to subdomains as follows:
 //
-//	backend/domain/components     → inventory  (installed state per server)
-//	backend/domain/software     → catalog, provisioning, target-readiness
+//	backend/domain/software/catalog   -> catalog
+//	backend/domain/software/inventory -> inventory
+//	backend/domain/software           -> provisioning, target-readiness
 //
 // # Audit Migration Note
 //
@@ -86,14 +87,16 @@ const (
 // subdomain. This map encodes the boundary decision from Story 29.2 so it can be
 // verified by tests and referenced during implementation.
 //
-// NOTE: components.Service type (supervisord service records) is intentionally
-// ABSENT from this map. Active service observation belongs to Monitor, not Software Delivery.
+// NOTE: local service definitions live under software/catalog. Active local service
+// observation belongs to Monitor and is intentionally ABSENT from this map.
 var MaterialSubdomainMap = map[string]Subdomain{
-	// backend/domain/components — Component type: registry metadata and version/
-	// availability detection output. Covers both local (AppOS runtime) and server targets.
-	// components.Service type is NOT mapped here — it belongs to Monitor.
-	"components.registry":         SubdomainCatalog,
-	"components.inventory_output": SubdomainInventory,
+	// backend/domain/software/catalog — local platform registry metadata and
+	// built-in service definitions for AppOS-owned software.
+	"software.local_registry": SubdomainCatalog,
+
+	// backend/domain/software/inventory — local platform version and availability
+	// detection output for AppOS-owned software.
+	"software.local_inventory_output": SubdomainInventory,
 
 	// backend/domain/software — install/upgrade/verify actions and preflight checks
 	"software.install_upgrade_verify": SubdomainProvisioning,
@@ -105,7 +108,6 @@ var MaterialSubdomainMap = map[string]Subdomain{
 // they must not depend on component_key directly.
 var CapabilityComponentMap = map[Capability]ComponentKey{
 	CapabilityContainerRuntime: ComponentKeyDocker,
-	CapabilityMonitorAgent:     ComponentKeyMonitorAgent,
-	CapabilityControlPlane:     ComponentKeyAppOSAgent,
+	CapabilityMonitorAgent:     ComponentKeyTelegraf,
 	CapabilityReverseProxy:     ComponentKeyReverseProxy,
 }

@@ -18,6 +18,7 @@ In scope:
 - keyword / tag extraction
 - operator query and judgment workflow
 - binding feed items to apps and topics
+- one special `Bookmark` view inside `Feeds` for manual link collection entry and site-oriented browsing
 
 Out of scope:
 
@@ -75,6 +76,11 @@ The user comes here to answer one question:
 - topic conversation threads
 - app upgrade execution
 - incident workflow
+
+Implementation note for evolution:
+
+- `Bookmark` is a special view inside the Feeds workspace, not a new polling source type.
+- Upstream sites shown in `Bookmark` are browsing/grouping aids only and must not inherit source polling fields such as status or interval.
 
 ## Minimal States
 
@@ -135,8 +141,11 @@ Unique meaning: `item_id + target_type + target_id`
 
 Independent page is required.
 
-- Navigation: `Collaboration -> Feeds`
+- Navigation: `Collaboration -> Topics -> Feeds` in sidebar order, with `Feeds` rendered as the entry immediately below `Topics`
+- Sources list starts with special view entries `All`, `Bookmark`, and `Starred`, followed by actual feed sources
+- `Bookmark` is a special entry in the Sources list, not a regular source record
 - Default view: list of ingested items with source, tags, time, and current judgment
+- `Bookmark` view: first shows upstream site cards derived from existing feed sources plus one clear `Add Bookmark` entry for manual saved-link input
 - Primary actions: filter, inspect, mark relevance, bind to app, bind to topic
 - Reading stays external: item click opens original link
 
@@ -148,27 +157,19 @@ Create `feed_sources` management and polling baseline.
 
 See `story27.1-feed-source-registry.md`.
 
-### Story 27.2 Feed Item Ingestion and Query
+### Story 27.2 Feed Ingestion Query
 
 Create normalized `feed_items`, dedupe, extraction, and the first Feeds page.
 
-See `story27.2-feed-item-ingestion-and-query.md`.
+See `story27.2-feed-ingestion-query.md`.
 
-### Story 27.3 Judgment and Binding
-
-Allow users to mark relevance and bind items to apps or topics.
-
-See `story27.3-judgment-and-binding.md`.
+Future follow-up work may add AI-oriented source analysis, but it is not currently defined as an implementation story.
 
 ## Recommended Delivery Order
 
 1. `27.1` source registry and collection setup
 2. `27.2` ingestion pipeline, dedupe, and first query page
-3. `27.3` judgment and binding workflow
-
-Backend-first technical direction:
-
-- See `story27.1-27.2-feeds-backend-technical-direction.md`.
+3. define a separate follow-up story only after the AI analysis workflow is clarified
 
 Implementation note:
 
@@ -180,7 +181,9 @@ Implementation note:
 
 - Users can create, pause, and archive feed sources.
 - System ingests RSS / Atom entries into normalized feed items with dedupe.
-- Users can query items by source, tag, keyword, and time.
+- Users can query items by source, state, and time in MVP.
+- System stores extracted tags and keywords on feed items in MVP; tag and keyword filtering may follow once the native records query path proves insufficient.
+- Feeds information architecture may include a special `Bookmark` view entry for manual saved-link evolution without turning bookmarks into feed sources.
 - Users can mark an item as `relevant`, `ignore`, or `watch`.
 - Users can bind an item to an app or a topic.
 - The page remains a signal workbench, not a full reading product.

@@ -1,0 +1,8 @@
+{
+  "id": "linode-dns",
+  "title": "Linode DNS",
+  "vendor": "Linode",
+  "description": "Linode DNS API profile.",
+  "defaultEndpoint": "https://api.linode.com/v4",
+  "aliases": ["linode", "linode-dns"]
+}

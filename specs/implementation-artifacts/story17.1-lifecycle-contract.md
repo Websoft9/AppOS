@@ -16,6 +16,7 @@ so that every lifecycle action enters one deterministic, auditable execution mod
 4. Persist normalized operation data in `app_operations` and keep raw adapter payloads out of worker tasks.
 5. Enforce one conflicting active operation per `server_id` while still allowing cross-server parallelism.
 6. Define cancellation and orphaned-operation recovery semantics for non-terminal jobs.
+7. Define one MVP operator-control matrix for non-terminal lifecycle actions: `queued` supports direct cancel, `executing` supports `force_fail`, and `delete` remains terminal-only.
 
 ## Delivered Now
 
@@ -31,12 +32,23 @@ so that every lifecycle action enters one deterministic, auditable execution mod
 - [ ] Rich compensation policy beyond the first install slice.
 - [ ] Broader transition-matrix coverage for future operation families.
 - [ ] Advanced manual-gate semantics for later high-risk operations.
+- [ ] Rich role differentiation for lifecycle control actions beyond the MVP shared operator policy.
 
 ## Dev Notes
 
 - This story is the contract anchor for Epic 17. It is not a UI story.
 - The shared queue boundary is already normalized around operation records, not Store or Git payloads.
 - Legacy deploy-era compatibility remains out of scope.
+- Companion planning artifact: `story17.3-instance-state-matrix.md` freezes the product-facing AppInstance state vocabulary and projection precedence that later execution and management stories must consume.
+
+### MVP Control Semantics
+
+- Keep the first control matrix intentionally small: `queued -> cancel`, `executing -> force_fail`.
+- For MVP, both controls are available to ordinary authenticated operators; do not introduce a richer role split yet.
+- `cancel` is the user-facing control for work that has not started meaningful execution and should converge to `terminal_status=cancelled`.
+- `force_fail` is the user-facing control for in-flight execution that must be terminated and released as failed; it is not a promise of rollback or runtime cleanup success.
+- `delete` stays terminal-only and is not part of the non-terminal control matrix.
+- Audit semantics must distinguish `operation.cancel` from `operation.force_fail`.
 
 ### References
 
@@ -48,6 +60,7 @@ so that every lifecycle action enters one deterministic, auditable execution mod
 - [Source: specs/adr/app-lifecycle-pocketbase-collections.md#Decisions]
 - [Source: specs/adr/app-lifecycle-pipeline-execution-engine.md]
 - [Source: specs/adr/app-lifecycle-install-resolution.md]
+- [Source: specs/implementation-artifacts/story17.3-instance-state-matrix.md]
 
 ## Dev Agent Record
 

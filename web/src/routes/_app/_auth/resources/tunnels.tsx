@@ -10,7 +10,6 @@ export const Route = createFileRoute('/_app/_auth/resources/tunnels')({
         sort: 'connected_at',
         dir: 'desc',
         page: 1,
-        pageSize: 15,
       },
     })
   },

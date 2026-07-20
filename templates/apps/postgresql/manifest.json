@@ -1,0 +1,38 @@
+{
+  "contractVersion": "0.1",
+  "key": "postgresql",
+  "name": "postgresql",
+  "trademark": "PostgreSQL",
+  "category": "database",
+  "docs": {
+    "website": "https://www.postgresql.org/",
+    "installRequirements": "https://hub.docker.com/_/postgres",
+    "upstream": "https://hub.docker.com/_/postgres"
+  },
+  "capabilities": {
+    "web": false,
+    "requiresDomain": false,
+    "hasBuiltinDatabase": true,
+    "supportsPublish": false
+  },
+  "requirements": {
+    "cpu": 1,
+    "memoryGb": 2,
+    "diskGb": 1
+  },
+  "versions": {
+    "default": {
+      "edition": "community",
+      "version": "17"
+    },
+    "supported": [
+      { "edition": "community", "version": "17" },
+      { "edition": "community", "version": "16" },
+      { "edition": "community", "version": "15" },
+      { "edition": "community", "version": "14" }
+    ]
+  },
+  "serviceRoles": {
+    "postgresql": "primary"
+  }
+}

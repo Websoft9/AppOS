@@ -1,0 +1,36 @@
+{
+  "contractVersion": "0.1",
+  "key": "clickhouse",
+  "name": "clickhouse",
+  "trademark": "ClickHouse",
+  "category": "database",
+  "docs": {
+    "website": "https://clickhouse.com/",
+    "installRequirements": "https://clickhouse.com/docs/install/docker",
+    "upstream": "https://hub.docker.com/r/clickhouse/clickhouse-server"
+  },
+  "capabilities": {
+    "web": true,
+    "requiresDomain": false,
+    "hasBuiltinDatabase": true,
+    "supportsPublish": true
+  },
+  "requirements": {
+    "cpu": 1,
+    "memoryGb": 1,
+    "diskGb": 2
+  },
+  "versions": {
+    "default": {
+      "edition": "community",
+      "version": "latest"
+    },
+    "supported": [
+      { "edition": "community", "version": "latest" },
+      { "edition": "community", "version": "25.11" }
+    ]
+  },
+  "serviceRoles": {
+    "clickhouse": "primary"
+  }
+}

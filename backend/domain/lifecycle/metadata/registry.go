@@ -19,8 +19,8 @@ var (
 	allowedDomainObjects        = sliceSet(model.DomainObjects)
 	allowedProjectionTargets    = sliceSet(model.ProjectionTargets)
 	allowedOperationTypes       = sliceSet(model.OperationTypes)
-	allowedOperationSources     = sliceSet(model.OperationTriggerSources)
-	allowedOperationAdapters    = sliceSet(model.OperationAdapters)
+	allowedExecutionModes       = sliceSet(model.OperationExecutionModes)
+	allowedRuleProfiles         = sliceSet(model.RuleProfileKeys)
 	defaultRegistryOnce         sync.Once
 	defaultRegistry             *Registry
 	defaultRegistryErr          error
@@ -296,8 +296,8 @@ func normalizeDefinition(definition model.Definition) model.Definition {
 	definition.Family = strings.TrimSpace(definition.Family)
 	definition.InitialPhase = strings.TrimSpace(definition.InitialPhase)
 	definition.OperationTypes = normalizeTokens(definition.OperationTypes)
-	definition.Sources = normalizeTokens(definition.Sources)
-	definition.Adapters = normalizeTokens(definition.Adapters)
+	definition.ExecutionModes = normalizeTokens(definition.ExecutionModes)
+	definition.RuleProfiles = normalizeTokens(definition.RuleProfiles)
 	for index := range definition.Nodes {
 		definition.Nodes[index].Key = strings.TrimSpace(definition.Nodes[index].Key)
 		definition.Nodes[index].NodeType = strings.TrimSpace(definition.Nodes[index].NodeType)
@@ -331,14 +331,14 @@ func validateDefinition(definition model.Definition) error {
 			return fmt.Errorf("pipeline definition %q has unsupported operation type %q", definition.Key, operationType)
 		}
 	}
-	for _, source := range definition.Sources {
-		if _, ok := allowedOperationSources[source]; !ok {
-			return fmt.Errorf("pipeline definition %q has unsupported source %q", definition.Key, source)
+	for _, executionMode := range definition.ExecutionModes {
+		if _, ok := allowedExecutionModes[executionMode]; !ok {
+			return fmt.Errorf("pipeline definition %q has unsupported execution_mode %q", definition.Key, executionMode)
 		}
 	}
-	for _, adapter := range definition.Adapters {
-		if _, ok := allowedOperationAdapters[adapter]; !ok {
-			return fmt.Errorf("pipeline definition %q has unsupported adapter %q", definition.Key, adapter)
+	for _, ruleProfile := range definition.RuleProfiles {
+		if _, ok := allowedRuleProfiles[ruleProfile]; !ok {
+			return fmt.Errorf("pipeline definition %q has unsupported rule_profile %q", definition.Key, ruleProfile)
 		}
 	}
 	if len(definition.Nodes) == 0 {
@@ -407,8 +407,8 @@ func normalizeTokens(values []string) []string {
 
 func selectDefinition(candidates []model.Definition, selector model.DefinitionSelector) (model.Definition, error) {
 	normalizedOperation := normalizeToken(selector.OperationType)
-	normalizedSource := normalizeToken(selector.Source)
-	normalizedAdapter := normalizeToken(selector.Adapter)
+	normalizedExecutionMode := normalizeToken(selector.ExecutionMode)
+	normalizedRuleProfile := normalizeToken(selector.RuleProfile)
 
 	type scoredDefinition struct {
 		definition model.Definition
@@ -417,25 +417,25 @@ func selectDefinition(candidates []model.Definition, selector model.DefinitionSe
 
 	matches := make([]scoredDefinition, 0, len(candidates))
 	for _, definition := range candidates {
-		if !matchesSelectorValue(definition.Sources, normalizedSource) {
+		if !matchesSelectorValue(definition.ExecutionModes, normalizedExecutionMode) {
 			continue
 		}
-		if !matchesSelectorValue(definition.Adapters, normalizedAdapter) {
+		if !matchesSelectorValue(definition.RuleProfiles, normalizedRuleProfile) {
 			continue
 		}
 
 		score := 0
-		if len(definition.Sources) > 0 && normalizedSource != "" {
+		if len(definition.ExecutionModes) > 0 && normalizedExecutionMode != "" {
 			score += 1
 		}
-		if len(definition.Adapters) > 0 && normalizedAdapter != "" {
+		if len(definition.RuleProfiles) > 0 && normalizedRuleProfile != "" {
 			score += 2
 		}
 		matches = append(matches, scoredDefinition{definition: definition, score: score})
 	}
 
 	if len(matches) == 0 {
-		return model.Definition{}, fmt.Errorf("pipeline definition not found for operation type %q with source %q and adapter %q", normalizedOperation, normalizedSource, normalizedAdapter)
+		return model.Definition{}, fmt.Errorf("pipeline definition not found for operation type %q with execution_mode %q and rule_profile %q", normalizedOperation, normalizedExecutionMode, normalizedRuleProfile)
 	}
 
 	best := matches[0]
@@ -452,7 +452,7 @@ func selectDefinition(candidates []model.Definition, selector model.DefinitionSe
 	}
 
 	if ambiguous {
-		return model.Definition{}, fmt.Errorf("pipeline definition is ambiguous for operation type %q with source %q and adapter %q", normalizedOperation, normalizedSource, normalizedAdapter)
+		return model.Definition{}, fmt.Errorf("pipeline definition is ambiguous for operation type %q with execution_mode %q and rule_profile %q", normalizedOperation, normalizedExecutionMode, normalizedRuleProfile)
 	}
 
 	return best.definition, nil

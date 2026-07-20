@@ -24,6 +24,8 @@ func (r *pocketBaseAIProviderRepository) List() ([]*domainaiproviders.AIProvider
 		return nil, err
 	}
 
+	enrichTimestamps(r.app, collections.AIProviders, records)
+
 	items := make([]*domainaiproviders.AIProvider, 0, len(records))
 	for _, record := range records {
 		items = append(items, aiProviderFromRecord(record))
@@ -36,6 +38,7 @@ func (r *pocketBaseAIProviderRepository) Get(id string) (*domainaiproviders.AIPr
 	if err != nil {
 		return nil, wrapAIProviderLookupError(id, err)
 	}
+	enrichTimestamps(r.app, collections.AIProviders, []*core.Record{record})
 	return aiProviderFromRecord(record), nil
 }
 
@@ -65,6 +68,7 @@ func (r *pocketBaseAIProviderRepository) Save(provider *domainaiproviders.AIProv
 	if err := r.app.Save(record); err != nil {
 		return wrapAIProviderSaveError(provider, err)
 	}
+	enrichTimestamps(r.app, collections.AIProviders, []*core.Record{record})
 	copyAIProviderState(provider, aiProviderFromRecord(record))
 	return nil
 }
@@ -83,6 +87,8 @@ func (r *pocketBaseAIProviderRepository) ListByKind(kind string) ([]*domainaipro
 		return nil, err
 	}
 
+	enrichTimestamps(r.app, collections.AIProviders, records)
+
 	items := make([]*domainaiproviders.AIProvider, 0, len(records))
 	for _, record := range records {
 		items = append(items, aiProviderFromRecord(record))
@@ -90,13 +96,13 @@ func (r *pocketBaseAIProviderRepository) ListByKind(kind string) ([]*domainaipro
 	return items, nil
 }
 
-func (r *pocketBaseAIProviderRepository) ClearDefaultsByKind(kind string, excludeID string) error {
-	kind = strings.TrimSpace(kind)
-	if kind == "" {
+func (r *pocketBaseAIProviderRepository) ClearDefaultsByTemplate(templateID string, excludeID string) error {
+	templateID = strings.TrimSpace(templateID)
+	if templateID == "" {
 		return nil
 	}
-	query := "UPDATE " + collections.AIProviders + " SET is_default = false WHERE kind = {:kind} AND is_default = true"
-	params := map[string]any{"kind": kind}
+	query := "UPDATE " + collections.AIProviders + " SET is_default = false WHERE template_id = {:templateId} AND is_default = true"
+	params := map[string]any{"templateId": templateID}
 	if strings.TrimSpace(excludeID) != "" {
 		query += " AND id != {:excludeId}"
 		params["excludeId"] = excludeID
@@ -133,10 +139,11 @@ func (r *pocketBaseAIProviderRepository) recordForSave(provider *domainaiprovide
 func aiProviderFromRecord(record *core.Record) *domainaiproviders.AIProvider {
 	return domainaiproviders.RestoreAIProvider(domainaiproviders.Snapshot{
 		ID:                record.Id,
-		Created:           record.GetString("created"),
-		Updated:           record.GetString("updated"),
+		Created:           recordDateTimeString(record, "created"),
+		Updated:           recordDateTimeString(record, "updated"),
 		Name:              record.GetString("name"),
 		Kind:              record.GetString("kind"),
+		IsEnabled:         recordEnabledValue(record),
 		IsDefault:         record.GetBool("is_default"),
 		TemplateID:        record.GetString("template_id"),
 		Endpoint:          record.GetString("endpoint"),
@@ -152,6 +159,7 @@ func applyAIProviderToRecord(record *core.Record, provider *domainaiproviders.AI
 	snapshot := provider.Snapshot()
 	record.Set("name", snapshot.Name)
 	record.Set("kind", snapshot.Kind)
+	record.Set("is_enabled", snapshot.IsEnabled)
 	record.Set("is_default", snapshot.IsDefault)
 	record.Set("template_id", snapshot.TemplateID)
 	record.Set("endpoint", snapshot.Endpoint)

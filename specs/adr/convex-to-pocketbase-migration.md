@@ -72,12 +72,10 @@ During Story 1.1 implementation (Container Build & Deployment), we encountered c
    + command=/usr/local/bin/pocketbase serve --dir /appos/data/pocketbase --http 127.0.0.1:8090
    ```
 
-2. **build/nginx.conf**:
+2. **Console ingress compatibility routes**:
    ```diff
-   - location /convex/ {
-   -     proxy_pass http://127.0.0.1:3210/;
-   + location /pb/ {
-   +     proxy_pass http://127.0.0.1:8090/;
+   - /convex/*
+   + /pb/*
    ```
 
 3. **build/entrypoint.sh**:

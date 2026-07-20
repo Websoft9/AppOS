@@ -1,0 +1,62 @@
+{
+  "templateKey": "wordpress",
+  "requiredFiles": [
+    "manifest.json",
+    "inputs.schema.json",
+    "render.json",
+    "source.json",
+    "compose/base.yml",
+    "env/defaults.env"
+  ],
+  "manifest": {
+    "contractVersion": "0.1",
+    "key": "wordpress",
+    "category": "cms",
+    "serviceRoles": {
+      "wordpress": "primary",
+      "mysql": "database",
+      "init": "init"
+    }
+  },
+  "inputs": {
+    "fieldKeys": [
+      "app_id",
+      "version",
+      "http_port",
+      "site_url",
+      "admin_path",
+      "db_password"
+    ],
+    "secretBacked": [
+      "db_password"
+    ],
+    "systemManaged": [
+      "app_id"
+    ]
+  },
+  "render": {
+    "exposures": [
+      {
+        "label": "Web",
+        "service": "wordpress",
+        "port": 80,
+        "protocol": "http",
+        "default": true
+      }
+    ],
+    "primaryService": "wordpress",
+    "databaseService": "mysql",
+    "secretRefs": [
+      "db_password"
+    ]
+  },
+  "source": {
+    "originKind": "official",
+    "templateRevision": "v0-initial",
+    "adapterVersion": "v0"
+  },
+  "adapter": {
+    "primaryService": "wordpress",
+    "publishKind": "http"
+  }
+}

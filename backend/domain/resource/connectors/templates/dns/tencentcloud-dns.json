@@ -1,0 +1,8 @@
+{
+  "id": "tencentcloud-dns",
+  "title": "Tencent Cloud DNS",
+  "vendor": "Tencent Cloud",
+  "description": "Tencent Cloud DNS API profile.",
+  "defaultEndpoint": "https://dnspod.tencentcloudapi.com",
+  "aliases": ["tencentcloud", "dnspod", "tencent-dns"]
+}

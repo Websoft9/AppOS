@@ -1,5 +1,7 @@
 # Epic 2: Configuration Management
 
+> Historical note (2026-06-23): References here to supervisord-based internal process reload are outdated for the current container runtime. Current in-container process control is `runit`; bundled publication ingress is Traefik rather than an internal Nginx layer.
+
 ## Overview
 **Objective**: Centralized configuration management for microservices in containerized environment
 
@@ -106,7 +108,7 @@ Cockpit Container
   - inotify-based config.ini watcher (watchdog library)
   - Config transformation engine (INI → service-specific format)
   - Service reload capability:
-    - External containers: Docker API restart (via docker.sock)
+    - External containers: Docker runtime restart through the selected server execution path
     - Internal processes: supervisord XML-RPC API restart
     - Graceful reload via service HTTP APIs (zero downtime)
   - Thread-safe implementation with proper locking

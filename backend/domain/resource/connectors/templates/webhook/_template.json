@@ -2,7 +2,10 @@
   "kind": "webhook",
   "category": "Integration",
   "description": "Reusable webhook connector profile.",
-  "defaultAuthScheme": "none",
+  "authPresentation": "token",
+  "endpointShape": "url",
+  "endpointScheme": "https",
+  "defaultAuthScheme": "bearer",
   "capabilities": ["webhook"],
   "fields": [
     {
@@ -16,6 +19,7 @@
       "id": "credential",
       "label": "Credential",
       "type": "secret_ref",
+      "required": true,
       "secretTemplate": "single_value",
       "placeholder": "secretRef:..."
     }

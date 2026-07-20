@@ -7,8 +7,11 @@ import type { RelationOption } from './resource-page-types'
 interface ReferenceSelectProps {
   id: string
   value: string
+  values?: string[]
   options: RelationOption[]
   onSelect: (value: string) => void
+  onToggleOption?: (value: string, checked: boolean) => void
+  onOpenChange?: (open: boolean) => void
   placeholder?: string
   searchPlaceholder?: string
   emptyMessage?: string
@@ -21,13 +24,18 @@ interface ReferenceSelectProps {
   maxVisibleItems?: number
   editLabel?: string
   onEditSelected?: (value: string) => void
+  triggerClassName?: string
+  multiple?: boolean
 }
 
 export function ReferenceSelect({
   id,
   value,
+  values,
   options,
   onSelect,
+  onToggleOption,
+  onOpenChange,
   placeholder = 'Select a reference',
   searchPlaceholder = 'Search...',
   emptyMessage = 'No options available',
@@ -40,6 +48,8 @@ export function ReferenceSelect({
   maxVisibleItems = 6,
   editLabel,
   onEditSelected,
+  triggerClassName,
+  multiple = false,
 }: ReferenceSelectProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -51,7 +61,12 @@ export function ReferenceSelect({
     }
   }, [autoOpen])
 
+  useEffect(() => {
+    onOpenChange?.(open)
+  }, [onOpenChange, open])
+
   const selected = options.find(option => option.id === value)
+  const selectedValues = values ?? []
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase()
     if (!normalized) {
@@ -60,6 +75,13 @@ export function ReferenceSelect({
     return options.filter(option => option.label.toLowerCase().includes(normalized))
   }, [options, query])
   const menuMaxHeight = `${Math.max(1, maxVisibleItems) * 42}px`
+  const selectedSummary = multiple
+    ? selectedValues.length === 0
+      ? placeholder
+      : selectedValues.length === 1
+        ? (options.find(option => option.id === selectedValues[0])?.label ?? placeholder)
+        : `${selectedValues.length} selected`
+    : (selected?.label ?? placeholder)
 
   return (
     <div className="flex items-start gap-2">
@@ -83,11 +105,17 @@ export function ReferenceSelect({
           <button
             id={id}
             type="button"
-            className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-left text-sm shadow-xs"
+            className={`flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-left text-sm shadow-xs ${triggerClassName ?? ''}`}
             onClick={() => setOpen(true)}
           >
-            <span className={selected ? 'text-foreground' : 'text-muted-foreground'}>
-              {selected?.label ?? placeholder}
+            <span
+              className={
+                (multiple ? selectedValues.length > 0 : Boolean(selected))
+                  ? 'truncate text-foreground'
+                  : 'truncate text-muted-foreground'
+              }
+            >
+              {selectedSummary}
             </span>
             <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform" />
           </button>
@@ -104,29 +132,40 @@ export function ReferenceSelect({
               {showNoneOption && (
                 <button
                   type="button"
-                  className={`flex w-full items-center justify-between px-3 py-2.5 text-left text-sm ${optionDividerClass} ${!value ? 'bg-accent/60 font-medium' : 'hover:bg-muted/60'}`}
+                  className={`flex w-full items-center justify-between px-3 py-2.5 text-left text-sm ${optionDividerClass} ${(!multiple && !value) || (multiple && selectedValues.length === 0) ? 'bg-accent/60 font-medium' : 'hover:bg-muted/60'}`}
                   onClick={() => {
-                    onSelect('')
-                    setOpen(false)
+                    if (multiple) {
+                      for (const selectedValue of selectedValues) {
+                        onToggleOption?.(selectedValue, false)
+                      }
+                    } else {
+                      onSelect('')
+                      setOpen(false)
+                    }
                   }}
                 >
-                  <span>None</span>
-                  {!value && showSelectedIndicator && (
-                    <span className="text-xs text-muted-foreground">Selected</span>
-                  )}
+                  <span>{multiple ? 'Clear selection' : 'None'}</span>
+                  {((!multiple && !value) || (multiple && selectedValues.length === 0)) &&
+                    showSelectedIndicator && (
+                      <span className="text-xs text-muted-foreground">Selected</span>
+                    )}
                 </button>
               )}
               {filtered.length === 0 ? (
                 <p className="px-3 py-4 text-sm text-muted-foreground">{emptyMessage}</p>
               ) : (
                 filtered.map(option => {
-                  const active = option.id === value
+                  const active = multiple ? selectedValues.includes(option.id) : option.id === value
                   return (
                     <button
                       key={option.id}
                       type="button"
                       className={`flex w-full items-center justify-between px-3 py-2.5 text-left text-sm ${optionDividerClass} last:border-b-0 ${active ? 'bg-accent/60 font-medium' : 'hover:bg-muted/60'}`}
                       onClick={() => {
+                        if (multiple) {
+                          onToggleOption?.(option.id, !active)
+                          return
+                        }
                         onSelect(option.id)
                         setOpen(false)
                       }}

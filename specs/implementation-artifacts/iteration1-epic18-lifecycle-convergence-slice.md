@@ -141,7 +141,7 @@ Iteration 1 should be considered complete when all of the following are true:
 ## References
 
 - [Source: specs/implementation-artifacts/epic18-app-management.md]
-- [Source: specs/implementation-artifacts/story18.1a-app-detail-boundary-classification.md]
-- [Source: specs/implementation-artifacts/story18.2a-local-action-convergence.md]
-- [Source: specs/implementation-artifacts/story18.4a-app-detail-action-handoff.md]
+- [Source: specs/implementation-artifacts/story18.1a-app-detail-boundary.md]
+- [Source: specs/implementation-artifacts/story18.2a-lifecycle-action-convergence.md]
+- [Source: specs/implementation-artifacts/story18.4a-app-action-handoff.md]
 - [Source: specs/adr/appos-ddd-architecture.md]

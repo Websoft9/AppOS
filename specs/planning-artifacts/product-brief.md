@@ -110,6 +110,8 @@ Supporting Domains
 │   │   ├── Topology Status
 │   │   └── Diagnostic Views
 │   └── Platform Self-Observation
+
+In restricted local runtime mode, Platform Self-Observation covers AppOS control-plane roles plus AppOS-container-self runtime telemetry only. Host metrics and peer-container telemetry are outside that boundary unless extra runtime privileges are provided. `platform/appos-core` may still show container-self `cpu`, `memory`, `disk_usage`, `disk`, and `network` trends when those values are observable from inside the AppOS container.
 ├── Operations Management
 │   ├── Resource Inventory & Topology
 │   ├── Operational Knowledge

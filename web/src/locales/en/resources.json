@@ -1,0 +1,1471 @@
+{
+  "hub": {
+    "title": "Resources",
+    "subtitle": "Shared platform resources for where applications run, what they depend on, and how AppOS connects outward.",
+    "groupCount": "{{count}} groups",
+    "addResource": "Add Resource",
+    "addNow": "Add now",
+    "refresh": "Refresh",
+    "dialogDescription": "Search for the resource you want, then jump into its list page with the create dialog open.",
+    "resourceSearchPlaceholder": "Search resources like mysql, webhook, OpenAI, or server...",
+    "noResourceMatches": "No matching resources found.",
+    "openFamily": "Open family",
+    "refreshingCount": "Refreshing count",
+    "itemsCount": "{{count}} items",
+    "cancel": "Cancel"
+  },
+  "sections": {
+    "runtimeInfrastructure": {
+      "title": "Runtime Infrastructure",
+      "description": "Where applications run and the startup-critical dependencies they cannot run without."
+    },
+    "externalIntegrations": {
+      "title": "External Integrations",
+      "description": "How platform connects to AI providers, external platforms, APIs, and cloud services."
+    }
+  },
+  "resources": {
+    "servers": {
+      "title": "Servers",
+      "description": "Linux hosts, SSH targets, and deployment nodes where workloads run.",
+      "createDescription": "Linux hosts, SSH targets, and deployment nodes."
+    },
+    "serviceInstances": {
+      "title": "Runtime Instances",
+      "description": "Runtime dependencies required for application startup, including DB, middleware, and storage instances such as Postgres, Kafka, and S3.",
+      "createDescription": "Runtime dependencies such as Postgres, Kafka, and S3-backed services.",
+      "examples": {
+        "database": "Database",
+        "cache": "Cache",
+        "queue": "Queue",
+        "objectStorage": "Object Storage"
+      }
+    },
+    "aiProviders": {
+      "title": "AI Providers",
+      "description": "Hosted and local AI capability sources such as OpenAI, Anthropic, OpenRouter, and Ollama endpoints.",
+      "createDescription": "OpenAI, Anthropic, OpenRouter, Ollama, and similar AI providers.",
+      "examples": {
+        "openai": "OpenAI",
+        "anthropic": "Anthropic",
+        "openrouter": "OpenRouter",
+        "ollama": "Ollama"
+      }
+    },
+    "connectors": {
+      "title": "External Services",
+      "description": "SMTP, DNS, webhook, MCP server, HTTP gateway, outbound proxy, registry, and other reusable external service connections.",
+      "createDescription": "SMTP, DNS, webhook, MCP server, HTTP gateway, outbound proxy, registry, and other reusable external services.",
+      "examples": {
+        "restApi": "REST API",
+        "webhook": "Webhook",
+        "mcp": "MCP Server",
+        "proxy": "Outbound Proxy",
+        "smtp": "SMTP",
+        "registry": "Registry",
+        "dns": "DNS"
+      }
+    },
+    "platformAccounts": {
+      "title": "Platform Accounts",
+      "description": "AWS, Azure, Google Cloud, GitHub, Cloudflare, and similar platform identities.",
+      "createDescription": "AWS, Azure, Google Cloud, GitHub, Cloudflare, and similar platforms.",
+      "examples": {
+        "cloudAccount": "Cloud Account",
+        "subscription": "Subscription",
+        "tenant": "Tenant",
+        "installation": "Installation"
+      }
+    }
+  },
+  "dialog": {
+    "title": "Add Resource",
+    "sectionDescriptionAria": "{{title}} description"
+  },
+  "serviceInstances": {
+    "page": {
+      "title": "Runtime Instances",
+      "description": "Runtime dependency contracts required for application startup, including database, cache, messaging, and storage instances.",
+      "favoritesOnly": "Favorites only",
+      "addInstance": "Add Instance",
+      "searchPlaceholder": "Search any instances",
+      "cancel": "Cancel",
+      "totalItems": "Total {{count}} items"
+    },
+    "selection": {
+      "title": "Choose a Runtime Kind",
+      "description": "Choose the runtime kind directly. Profile remains a property of that kind inside the form.",
+      "searchPlaceholder": "Search MySQL, Redis, Kafka, or MinIO...",
+      "emptyMessage": "No matching runtime kinds found.",
+      "profileCount": "{{count}} profiles"
+    },
+    "fields": {
+      "category": "Category",
+      "kind": "Kind",
+      "template": "Profile",
+      "selectedProduct": "Selected Product",
+      "selectedProductMeta": "Selected Product Meta",
+      "selectedProductDescription": "Selected Product Description",
+      "name": "Name",
+      "enableIt": "Enable it",
+      "username": "Username",
+      "connectionTimeout": "Connection Timeout",
+      "titleNameEditing": "Title Name Editing",
+      "endpoint": "Endpoint",
+      "host": "Host",
+      "port": "Port",
+      "platformAccount": "Platform Account",
+      "password": "Password",
+      "credential": "Credential",
+      "credentialUsesSecret": "Credential Uses Secret",
+      "passwordValue": "Password Value",
+      "useSsl": "Use SSL",
+      "sslCertificate": "SSL Certificate",
+      "description": "Description",
+      "groups": "Groups"
+    },
+    "placeholders": {
+      "name": "db-prod",
+      "username": "appuser",
+      "endpoint": "db.example.com:3306 or https://service.example.com",
+      "host": "db.example.com"
+    },
+    "help": {
+      "connectionTimeout": "How many seconds to wait before the first connection attempt times out.",
+      "sslCertificatePostgres": "Choose a certificate only when your PostgreSQL connection requires mutual SSL.",
+      "sslCertificateMysql": "Choose a certificate only when your MySQL connection requires mutual SSL."
+    },
+    "categories": {
+      "database": "Database",
+      "cache": "Cache",
+      "message-queue": "MQ",
+      "storage": "Storage",
+      "traffic-gateway": "Traffic Gateway",
+      "search": "Search",
+      "application-service": "Application Service",
+      "other": "Other"
+    },
+    "kinds": {
+      "mysql-compatible": "MySQL-Compatible",
+      "postgres-compatible": "PostgreSQL-Compatible",
+      "redis-compatible": "Redis-Compatible",
+      "kafka-compatible": "Kafka-Compatible",
+      "amqp-compatible": "AMQP-Compatible",
+      "nats-compatible": "NATS-Compatible",
+      "mqtt-compatible": "MQTT-Compatible",
+      "s3-compatible": "S3-Compatible",
+      "mongodb-compatible": "MongoDB-Compatible",
+      "clickhouse-compatible": "ClickHouse-Compatible",
+      "neo4j-compatible": "Neo4j-Compatible",
+      "influxdb-compatible": "InfluxDB-Compatible",
+      "elasticsearch-compatible": "Elasticsearch-Compatible",
+      "onlyoffice-compatible": "ONLYOFFICE-Compatible",
+      "unknown": "Unknown"
+    },
+    "product": {
+      "standardTemplate": "Standard template",
+      "profileDescription": "{{vendorPrefix}}{{category}} profile."
+    },
+    "templateFields": {
+      "accessKeyId": "Access Key ID",
+      "database": "Database",
+      "bucket": "Bucket",
+      "callbackPath": "Callback Path",
+      "clientId": "Client ID",
+      "cluster": "Cluster",
+      "region": "Region",
+      "clusterIdentifier": "Cluster Identifier",
+      "clusterId": "Cluster ID",
+      "documentPath": "Document Path",
+      "forcePathStyle": "Force Path-Style Addressing",
+      "indexPrefix": "Index Prefix",
+      "jwtHeader": "JWT Header",
+      "organization": "Organization",
+      "resourceGroup": "Resource Group",
+      "gatewayName": "Gateway Name",
+      "accountId": "Account ID",
+      "saslMechanism": "SASL Mechanism",
+      "securityProtocol": "Security Protocol",
+      "vhost": "Virtual Host"
+    },
+    "columns": {
+      "name": "Name",
+      "enabled": "Enabled",
+      "kind": "Kind",
+      "host": "Host",
+      "port": "Port",
+      "reachability": "Reachability",
+      "monitor": "Monitor",
+      "lastChecked": "Last Checked",
+      "created": "Created",
+      "updated": "Updated"
+    },
+    "lastCheckedSources": {
+      "liveReachability": "Live reachability check",
+      "scheduledMonitor": "Scheduled monitor check"
+    },
+    "actions": {
+      "enable": "Enable",
+      "disable": "Disable",
+      "check": "Check it"
+    },
+    "enabled": {
+      "yes": "Yes",
+      "no": "No"
+    },
+    "status": {
+      "reachable": "Reachable",
+      "healthy": "Healthy",
+      "offline": "Offline",
+      "unreachable": "Unreachable",
+      "unknown": "Unknown",
+      "credential_invalid": "Credential Invalid",
+      "degraded": "Degraded"
+    },
+    "ssl": {
+      "oneWay": "One-way SSL",
+      "mutual": "Mutual SSL"
+    },
+    "credential": {
+      "enterPassword": "Enter password",
+      "showPassword": "Show password",
+      "hidePassword": "Hide password",
+      "enterCredential": "Enter credential",
+      "showCredential": "Show credential",
+      "hideCredential": "Hide credential",
+      "generateCredentialTitle": "Generate Credential",
+      "generateCredentialDescription": "Choose the credential length before filling the field.",
+      "generateCredentialLengthLabel": "Credential Length",
+      "generateCredentialConfirmLabel": "Fill Credential"
+    },
+    "dialog": {
+      "instanceTitle": "Instance title",
+      "applyTitle": "Apply title",
+      "newInstance": "New Service Instance",
+      "editTitle": "Edit title",
+      "createKind": "Create {{kind}} instance",
+      "updateKind": "Update {{kind}} instance",
+      "create": "Create",
+      "update": "Update",
+      "suffix": "Runtime Instance"
+    },
+    "secret": {
+      "singleValueTemplate": "Password / Single Value",
+      "newTitle": "New Secret",
+      "newDescription": "Create a reusable password secret and attach it to this service instance.",
+      "editTitle": "Edit Secret",
+      "editDescription": "Update the selected Secret without leaving service instance editing.",
+      "loading": "Loading secret...",
+      "save": "Save Secret",
+      "generatedDescription": "Password for {{name}}",
+      "errors": {
+        "load": "Failed to load secret",
+        "nameRequired": "Name is required",
+        "update": "Failed to update secret"
+      }
+    },
+    "errors": {
+      "instanceProfileRequired": "Instance profile is required",
+      "passwordRequired": "Password is required",
+      "passwordSecretRequired": "Password Secret is required",
+      "sslCertificateRequired": "SSL certificate is required for mutual SSL"
+    }
+  },
+  "servers": {
+    "page": {
+      "title": "Servers",
+      "description": "SSH deployment targets",
+      "favoritesOnly": "Favorites only",
+      "addServer": "Add Server",
+      "searchPlaceholder": "Search server",
+      "totalItems": "Total {{count}} items",
+      "detailDrawerTitle": "Server Detail"
+    },
+    "fields": {
+      "connectionType": "Connection Type",
+      "enableIt": "Enable it",
+      "enabled": "Enabled",
+      "name": "Name",
+      "host": "Host",
+      "useLocalHost": "The same host with AppOS",
+      "port": "Port",
+      "user": "User",
+      "credentialSecret": "Credential (Secret)",
+      "description": "Description"
+    },
+    "placeholders": {
+      "name": "my-server",
+      "host": "192.168.1.1",
+      "user": "root"
+    },
+    "connection": {
+      "directSsh": "Direct SSH",
+      "reverseTunnel": "Reverse Tunnel",
+      "tunnelShort": "Tunnel",
+      "directDescription": "AppOS reaches this server over SSH.",
+      "tunnelDescription": "Server connects back from a private network."
+    },
+    "help": {
+      "connectionTypeLabel": "Connection type help",
+      "connectionTypeBody": "Choose how the managed server connects to AppOS.",
+      "hostLabel": "Host help",
+      "hostBody": "Enter the IP address or domain name of the server managed by AppOS."
+    },
+    "localHost": {
+      "label": "The same host with AppOS",
+      "errors": {
+        "loadCurrentHostname": "Failed to resolve the current AppOS hostname"
+      }
+    },
+    "secret": {
+      "newCredential": "New credential",
+      "editSecret": "Edit Secret",
+      "errors": {
+        "load": "Failed to load secret",
+        "nameRequired": "Name is required",
+        "update": "Failed to update secret"
+      }
+    },
+    "columns": {
+      "name": "Name",
+      "enabled": "Enabled",
+      "mode": "Mode",
+      "connection": "Connection",
+      "monitor": "Monitor",
+      "host": "Host",
+      "user": "User",
+      "secretType": "Secret Type",
+      "lastActivity": "Last Activity"
+    },
+    "connectionStates": {
+      "notConfigured": "Not Configured",
+      "awaitingConnection": "Awaiting Connection",
+      "online": "Online",
+      "paused": "Paused",
+      "needsAttention": "Needs Attention",
+      "configurationReady": "Configuration is ready for verification."
+    },
+    "actions": {
+      "overviewAlreadyOpen": "Overview already open",
+      "openOverview": "Open overview",
+      "openConnectionDetails": "Open connection details",
+      "openMonitorFor": "Open monitor for {{name}}",
+      "serverActions": "Server actions",
+      "openTerminal": "Open Terminal",
+      "testConnection": "Test Connection",
+      "enable": "Enable",
+      "disable": "Disable",
+      "tunnelSetup": "Tunnel Setup",
+      "duplicateServer": "Duplicate Server"
+    },
+    "enabled": {
+      "yes": "Yes",
+      "no": "No"
+    },
+    "detail": {
+      "restoreWidth": "Restore detail width",
+      "expandWidth": "Expand detail width",
+      "titleWithName": "Server Detail | {{name}}",
+      "unnamedServer": "Unnamed Server",
+      "backToConnection": "Back to Connection"
+    },
+    "tabs": {
+      "overview": "Overview",
+      "connection": "Connection",
+      "components": "Components",
+      "monitor": "Monitor",
+      "docker": "Docker",
+      "runtime": "Runtime",
+      "ports": "Ports",
+      "crontab": "Crontab",
+      "systemd": "Systemd"
+    },
+    "monitorTab": {
+      "heading": "Monitor",
+      "description": "Review current resource signals, trend history, and compact server conclusions.",
+      "currentValuesRegion": "Monitor current values and trend history",
+      "errors": {
+        "collectorStatusUnavailable": "Unable to read monitor collector service status"
+      },
+      "state": {
+        "ok": "OK",
+        "attention": "Action needed",
+        "checking": "Checking",
+        "review": "Review"
+      },
+      "time": {
+        "updatedUnknown": "Updated —",
+        "updatedAt": "Updated {{time}}"
+      },
+      "empty": {
+        "noDataYet": "No monitoring data available yet for {{name}}. Current connectivity status is {{status}}."
+      },
+      "hints": {
+        "checking": "Checking monitoring",
+        "awaitingFirstSample": "Monitoring active · waiting for first sample",
+        "active": "Monitoring active{{subState}}",
+        "notConnected": "Monitoring not connected"
+      },
+      "alert": {
+        "notConnectedTitle": "Monitoring is not connected on this server.",
+        "notConnectedBody": "Install or repair the Monitor Agent addon from Components before relying on monitor data."
+      },
+      "actions": {
+        "refreshStatus": "Refresh monitor status",
+        "openComponents": "Open Components",
+        "installMonitorAgent": "Install monitor agent",
+        "fixMonitorAgent": "Fix monitor agent",
+        "repairMonitorAgent": "Repair monitor agent",
+        "repairMonitorAgentDescription": "Reissues monitor write credentials, rewrites the callback address when needed, and restarts the AppOS monitor collector.",
+        "openComponentsDescription": "Use Repair on the Monitor Agent addon to reissue credentials and refresh the callback address."
+      },
+      "conclusions": {
+        "regionLabel": "Monitor conclusions",
+        "title": "Conclusions",
+        "subtitle": "Compact server insights from usable monitor signals.",
+        "emptyTitle": "No conclusions yet.",
+        "emptyBody": "Monitoring data is required before AppOS can analyze this server.",
+        "dismissedTitle": "All conclusions dismissed.",
+        "dismissedBody": "Refresh monitor data to rebuild the conclusion list.",
+        "listLabel": "Monitor conclusion list",
+        "openItem": "Open conclusion {{label}}",
+        "deleteItem": "Delete conclusion {{label}}",
+        "deleteTitle": "Delete conclusion",
+        "controlReachable": {
+          "label": "Control reachable",
+          "summaryOk": "AppOS can reach this server.",
+          "summaryAttention": "Server access needs attention.",
+          "detailOk": "{{name}} is reachable through the current server connection.",
+          "detailAttention": "{{name}} may not be reachable. Repair the connection before relying on live operations.",
+          "nextOk": "No action needed.",
+          "nextAttention": "Open the Connection tab and fix access."
+        },
+        "trendDataAvailable": {
+          "label": "Trend data available",
+          "summaryChecking": "Checking monitor data path.",
+          "summaryReady": "Use charts to confirm freshness.",
+          "detailChecking": "AppOS is checking whether the monitor collector can provide usable trend data.",
+          "detailReady": "Trend cards on the left are the source of truth for whether data is current and complete.",
+          "nextStep": "If charts stay empty or stale, open Components to verify the Monitor Agent addon."
+        },
+        "resourcePressure": {
+          "label": "Resource pressure",
+          "summary": "Review current values and trends.",
+          "detail": "CPU, memory, disk, and network cards show the current pressure and recent direction.",
+          "nextStep": "Investigate only when values are high, rising, or missing unexpectedly."
+        }
+      }
+    },
+    "overview": {
+      "sections": {
+        "metadata": "Server Metadata",
+        "systemInformation": "System Information",
+        "cloudProvider": "Cloud Provider"
+      },
+      "actions": {
+        "refresh": "Refresh overview data",
+        "edit": "Edit"
+      },
+      "fields": {
+        "id": "ID",
+        "name": "Name",
+        "connectionType": "Connection Type",
+        "host": "Host",
+        "port": "Port",
+        "user": "User",
+        "access": "Access",
+        "tunnelState": "Tunnel State",
+        "credentialType": "Credential type",
+        "createdBy": "Created by",
+        "description": "Description",
+        "created": "Created",
+        "updated": "Updated",
+        "operatingSystem": "Operating System",
+        "kernel": "Kernel",
+        "architecture": "Architecture",
+        "cpuCores": "CPU Cores",
+        "memory": "Memory",
+        "factsObserved": "Facts Observed",
+        "provider": "Provider",
+        "region": "Region",
+        "zone": "Zone",
+        "source": "Source"
+      },
+      "connection": {
+        "direct": "Direct"
+      },
+      "credentialTypes": {
+        "password": "Password",
+        "sshKey": "SSH key"
+      },
+      "cloudSources": {
+        "cloudInit": "Cloud-init",
+        "metadata": "Metadata service",
+        "manual": "Manual override"
+      },
+      "fallback": {
+        "unavailable": "Unavailable"
+      },
+      "empty": {
+        "noFacts": "No host facts have been collected for this server yet."
+      }
+    },
+    "connectionTab": {
+      "state": {
+        "connected": "Connected",
+        "connecting": "Connecting",
+        "needsAttention": "Needs Attention"
+      },
+      "reason": {
+        "tunnelActive": "Tunnel active",
+        "lastHeartbeat": "Last heartbeat {{time}}",
+        "sshVerified": "SSH verified",
+        "waitingFirstConnection": "Waiting for first connection",
+        "readyToTest": "Ready to test connection",
+        "tunnelSetupRequired": "Tunnel setup required",
+        "completeSetup": "Complete connection setup",
+        "connectionPaused": "Connection paused",
+        "connectionLost": "Connection lost",
+        "connectionUnavailable": "Connection unavailable"
+      },
+      "hero": {
+        "tunnelLive": "Tunnel connection is live",
+        "directReady": "Direct SSH is ready",
+        "waitingFirstTunnelCallback": "Waiting for the first tunnel callback",
+        "setupInProgress": "Connection setup is in progress",
+        "tunnelNeedsAttention": "Tunnel connection needs attention",
+        "connectionNeedsAttention": "Connection needs attention"
+      },
+      "subline": {
+        "remoteAccessAvailable": "Remote access is available now.",
+        "serverReachable": "The server is reachable now.",
+        "restoreAccess": "Take the next action to restore access."
+      },
+      "modeSummary": {
+        "tunnelRelay": "Tunnel via AppOS relay",
+        "directSsh": "Direct SSH"
+      },
+      "sessions": {
+        "none": "None",
+        "oneActive": "1 active session",
+        "manyActive": "{{count}} active sessions"
+      },
+      "fields": {
+        "connectionStatus": "Connection Status",
+        "mode": "Mode",
+        "interactiveSession": "Interactive Session",
+        "lastActivity": "Last Activity",
+        "recommendedAction": "Recommended Action"
+      },
+      "activity": {
+        "serverRegistered": "Server registered",
+        "connectionUpdated": "Connection updated",
+        "tunnelSetupStarted": "Tunnel setup started",
+        "connected": "Connected",
+        "sshVerified": "SSH verified",
+        "heartbeatReceived": "Heartbeat received",
+        "lastHealthyCheck": "Last healthy check",
+        "pauseUpdated": "Pause updated",
+        "connectionFailed": "Connection failed",
+        "settingsUpdated": "Settings updated"
+      },
+      "activityLog": {
+        "title": "Activity Log",
+        "empty": "No recent activity is available yet.",
+        "mostRecent": "Most recent event"
+      }
+    },
+    "componentsTab": {
+      "sections": {
+        "prerequisites": "Prerequisites",
+        "prerequisitesRegion": "Prerequisites section",
+        "prerequisiteTargets": "Prerequisite targets",
+        "addons": "Optional Addons",
+        "addonsRegion": "Addons section",
+        "addonInventory": "Addon inventory"
+      },
+      "help": {
+        "prerequisitesLabel": "Prerequisites help",
+        "prerequisitesBody": "Core platform requirements that should be ready before AppOS manages workloads on this server.",
+        "addonsLabel": "Addons help",
+        "addonsBody": "Optional server-side components that AppOS can inspect, verify, install, or repair after the baseline is ready."
+      },
+      "actions": {
+        "refresh": "Refresh",
+        "refreshComponents": "Refresh components"
+      },
+      "columns": {
+        "name": "Name",
+        "version": "Version",
+        "health": "Health",
+        "actions": "Actions"
+      },
+      "actionLabels": {
+        "default": "Action",
+        "verify": "Check",
+        "recheck": "Recheck",
+        "reinstall": "Repair",
+        "uninstall": "Remove",
+        "install": "Install",
+        "upgrade": "Upgrade",
+        "start": "Start",
+        "restart": "Restart",
+        "stop": "Stop"
+      },
+      "groups": {
+        "recommended": "Recommended",
+        "secondary": "Secondary",
+        "dangerous": "Dangerous"
+      },
+      "guidance": {
+        "stoppedWithStart": "This addon is stopped. Use Start to bring it back online.",
+        "stoppedWithoutStart": "This addon is stopped. Bring the service back online, then run Check to verify health."
+      },
+      "installSources": {
+        "managed": "Managed",
+        "foreignPackage": "Foreign package",
+        "manual": "Manual",
+        "unknown": "Unknown"
+      },
+      "installSource": {
+        "summary": "Install source: {{label}}",
+        "summaryWithEvidence": "Install source: {{label}} ({{evidence}})"
+      },
+      "status": {
+        "running": "Running",
+        "stopped": "Stopped",
+        "installed": "Installed",
+        "notInstalled": "Not Installed",
+        "needsAttention": "Needs Attention",
+        "unknown": "Unknown"
+      },
+      "apposConnection": {
+        "connected": "Connected",
+        "stale": "Stale",
+        "connecting": "Connecting",
+        "notConnected": "Not Connected",
+        "authFailed": "Auth Failed",
+        "misconfigured": "Misconfigured",
+        "unknown": "Unknown"
+      },
+      "prerequisiteStatus": {
+        "needsAttention": "Needs Attention",
+        "verified": "Verified",
+        "detected": "Detected",
+        "notReady": "Not Ready",
+        "unknown": "Unknown"
+      },
+      "prerequisiteChecks": {
+        "osSupport": "OS Support",
+        "privilegedAccess": "Privileged Access",
+        "networkAccess": "Network Access",
+        "dependencyReadiness": "Dependency Readiness"
+      },
+      "detailRows": {
+        "serviceStatus": "Service Status",
+        "guidance": "Guidance",
+        "apposConnection": "AppOS Connection",
+        "installed": "Installed",
+        "latest": "Latest",
+        "artifact": "Artifact",
+        "installSource": "Install Source",
+        "lastAction": "Last Action",
+        "updated": "Updated",
+        "issues": "Issues",
+        "verification": "Verification",
+        "healthReasons": "Health Reasons"
+      },
+      "inventory": {
+        "installed": "Installed",
+        "latest": "Latest",
+        "service": "Service",
+        "appos": "AppOS",
+        "operation": "Operation",
+        "moreActionsFor": "More actions for {{name}}"
+      },
+      "checklist": {
+        "checkDockerEngineInstallation": "Check Docker Engine installation",
+        "checkDockerEngineVersion": "Check Docker Engine version",
+        "checkDockerComposeAvailability": "Check Docker Compose availability",
+        "checkDockerComposeVersion": "Check Docker Compose version",
+        "checkItem": "Check {{label}}"
+      },
+      "operationHistory": {
+        "title": "Operation History ({{count}})",
+        "loading": "Loading operation history...",
+        "empty": "No operation history yet.",
+        "badges": {
+          "current": "Current"
+        },
+        "errors": {
+          "load": "Failed to load operation history",
+          "delete": "Failed to delete operation history record"
+        },
+        "actions": {
+          "refresh": "Refresh operation history",
+          "deleteRecord": "Delete history record",
+          "deleteBlocked": "In-flight operations cannot be deleted",
+          "deleteRecordFor": "Delete {{action}} operation history record"
+        }
+      },
+      "panelTabs": {
+        "checklist": "Checklist",
+        "details": "Details",
+        "liveLog": "Live Log",
+        "history": "History"
+      },
+      "panelTitles": {
+        "actionLog": "{{action}} Log",
+        "operationHistory": "Operation History",
+        "verificationChecklist": "Verification Checklist",
+        "addonDetails": "Addon Details"
+      },
+      "badges": {
+        "streaming": "Streaming",
+        "inProgress": "In progress"
+      },
+      "errors": {
+        "loadPrerequisiteComponents": "Failed to load prerequisite components",
+        "loadAddonComponents": "Failed to load addon components"
+      },
+      "actionFeedback": {
+        "accepted": "{{action}} accepted",
+        "acceptedWithId": "{{action}} accepted ({{operationId}})",
+        "acceptedForComponent": "{{action}} accepted for {{component}}",
+        "acceptedForComponentWithId": "{{action}} accepted for {{component}} ({{operationId}})",
+        "waitingForFirstMetricsSample": "Waiting for the first metrics sample from this server.",
+        "waitingForFirstMetricsSampleWithConnection": "Waiting for the first metrics sample; AppOS Connection will show Connecting until trend data arrives.",
+        "logEntry": "{{time}} · {{action}}: {{phase}}",
+        "now": "Now"
+      },
+      "phase": {
+        "accepted": "Accepted",
+        "preflight": "Preflight check...",
+        "executing": "Executing...",
+        "verifying": "Verifying...",
+        "succeeded": "Succeeded",
+        "failed": "Failed",
+        "failedWithReason": "Failed: {{reason}}",
+        "attentionRequired": "Attention required",
+        "attentionRequiredWithReason": "Attention required: {{reason}}",
+        "timeout": "Timed out, status unknown",
+        "timeoutWithReason": "Timed out, status unknown: {{reason}}",
+        "timedOut": "Timed out"
+      },
+      "dockerFocus": {
+        "title": "Opened from Docker > {{source}}",
+        "sources": {
+          "compose": "Compose",
+          "containers": "Containers",
+          "images": "Images",
+          "volumes": "Volumes",
+          "networks": "Networks",
+          "overview": "Overview"
+        },
+        "history": {
+          "daemonUnavailable": "Docker prerequisite recovery was opened from the Docker {{source}} view. Review recent checks and repair history first, then verify the Docker daemon is running before retrying there.",
+          "permissionDenied": "Docker prerequisite recovery was opened from the Docker {{source}} view. Review recent checks and repair history first, then fix Docker socket access or privilege setup before retrying there.",
+          "default": "Docker prerequisite recovery was opened from the Docker {{source}} view. Review recent checks and repair history before retrying there."
+        },
+        "checks": {
+          "composeMissing": "Docker prerequisite checks were opened from the Docker {{source}} view. Start by checking Docker Compose availability here, then return to that Docker screen and retry.",
+          "dockerMissing": "Docker prerequisite checks were opened from the Docker {{source}} view. Start by checking Docker Engine installation here, then return to that Docker screen and retry.",
+          "default": "Docker prerequisite checks were opened from the Docker {{source}} view. Fix the baseline requirement here, then return to that Docker screen and retry."
+        }
+      },
+      "logRegions": {
+        "prerequisiteActionLogEntries": "Prerequisite action log entries",
+        "addonActionLogEntries": "Addon action log entries"
+      },
+      "dialogs": {
+        "confirmDanger": {
+          "title": "Confirm {{action}}",
+          "description": "{{action}} may {{consequence}} on this server. Continue only if you are ready to interrupt the current runtime.",
+          "upgradeConsequence": "upgrade or replace Docker components",
+          "reinstallConsequence": "reinstall or replace Docker components",
+          "cancel": "Cancel",
+          "continue": "Continue"
+        },
+        "monitorAddress": {
+          "title": "Choose monitor callback address",
+          "description": "The monitor agent will send metrics back to AppOS. The address detected from this browser session differs from the configured App URL. Choose the address that the target server can reach.",
+          "close": "Close monitor callback address dialog",
+          "detectedAddress": "Detected address",
+          "appUrl": "App URL",
+          "useDetectedAddress": "Use detected address",
+          "useAppUrl": "Use App URL",
+          "errors": {
+            "loadAppUrl": "Failed to load App URL",
+            "detectCallback": "Cannot detect the AppOS callback address from this browser session."
+          }
+        }
+      },
+      "alerts": {
+        "operationAlreadyInProgress": {
+          "title": "Operation already in progress",
+          "description": "{{name}} already has an active {{action}} request.",
+          "currentPhase": "Current phase",
+          "lastUpdated": "Last updated",
+          "openOperationHistory": "Open operation history"
+        }
+      },
+      "selectedAddon": {
+        "title": "Selected Addon",
+        "selectFromInventory": "Select one addon from the inventory.",
+        "empty": "Choose a component to inspect status, activity, readiness issues, and available actions.",
+        "inProgress": {
+          "title": "Operation in progress",
+          "isStill": "is still",
+          "lastUpdated": "Last updated"
+        }
+      },
+      "prerequisiteCard": {
+        "summary": {
+          "checksPassed": "Checks passed",
+          "openDetails": "Open details for verification and recovery actions"
+        },
+        "fields": {
+          "status": "Status",
+          "version": "Version",
+          "dockerCompose": "Docker Compose",
+          "updated": "Updated"
+        },
+        "fallback": {
+          "unavailable": "Unavailable",
+          "missing": "Missing"
+        },
+        "detailsFor": "{{name}} details"
+      },
+      "empty": {
+        "loadingPrerequisites": "Loading prerequisites...",
+        "noPrerequisites": "No prerequisite components are defined for this server.",
+        "loadingAddons": "Loading addons...",
+        "noAddons": "No addon components found for this server.",
+        "waitingForOperationUpdates": "Waiting for operation updates...",
+        "noLiveLogYet": "No live log yet. Run an action to stream updates here."
+      }
+    },
+    "cronTab": {
+      "title": "Crontab",
+      "description": "Manage AppOS-owned crontab entries for this server.",
+      "loading": "Loading cron entries...",
+      "status": {
+        "yes": "Yes",
+        "no": "No"
+      },
+      "actions": {
+        "refresh": "Refresh crontab entries",
+        "newEntry": "New Entry",
+        "edit": "Edit",
+        "test": "Test",
+        "takeEffective": "Take Effective",
+        "removeEffect": "Remove Effect",
+        "delete": "Delete",
+        "actionsFor": "Crontab actions for {{name}}"
+      },
+      "empty": {
+        "title": "No managed crontab entries yet",
+        "description": "This list only shows AppOS-managed crontab entries for this server."
+      },
+      "inventory": {
+        "ariaLabel": "Crontab inventory",
+        "summary": "Total {{count}} entries, {{failed}} failed."
+      },
+      "search": {
+        "placeholder": "Search"
+      },
+      "pagination": {
+        "previous": "Previous page",
+        "next": "Next page"
+      },
+      "sort": {
+        "asc": "ascending",
+        "desc": "descending"
+      },
+      "columns": {
+        "name": "Name",
+        "nameSorted": "Name sorted {{direction}}",
+        "schedule": "Schedule",
+        "path": "Path",
+        "takeEffective": "Take Effective",
+        "singleRunOnly": "Single Run Only",
+        "actions": "Actions"
+      },
+      "filters": {
+        "noResults": "No crontab entries match the current filters."
+      },
+      "selected": {
+        "title": "Selected Entry",
+        "selectPrompt": "Select one entry from the inventory.",
+        "empty": "Choose a crontab entry to inspect its schedule, path, and command details."
+      },
+      "detailRows": {
+        "name": "Name:",
+        "schedule": "Schedule:",
+        "path": "Path:",
+        "takeEffective": "Take Effective:",
+        "singleRunOnly": "Single Run Only:",
+        "command": "Command"
+      },
+      "tabs": {
+        "liveLog": "Live log",
+        "logs": "Logs"
+      },
+      "liveLog": {
+        "empty": "No operation log yet. Trigger Test, Edit, enable/disable, or delete actions to see live updates here."
+      },
+      "logsPanel": {
+        "empty": "Entry historical logs are reserved here. Backend log API is not available yet."
+      },
+      "hints": {
+        "created": "Cron entry created.",
+        "updated": "Cron entry updated.",
+        "deleted": "Cron entry deleted.",
+        "effectApplied": "Crontab entry is now effective.",
+        "effectRemoved": "Crontab entry removed from effect.",
+        "tested": "Crontab entry tested."
+      },
+      "errors": {
+        "load": "Failed to load cron entries",
+        "save": "Failed to save cron entry",
+        "update": "Failed to update cron entry",
+        "delete": "Failed to delete cron entry",
+        "test": "Failed to test crontab entry"
+      },
+      "logs": {
+        "savingChanges": "Saving entry changes...",
+        "entryCreated": "Entry created successfully.",
+        "entryUpdated": "Entry updated successfully.",
+        "saveFailed": "Save failed: {{message}}",
+        "removingEffect": "Removing effect from entry...",
+        "applyingEffect": "Applying entry to crontab...",
+        "entryEffective": "Entry is now effective.",
+        "entryEffectRemoved": "Entry removed from effect.",
+        "toggleFailed": "Toggle failed: {{message}}",
+        "deleting": "Deleting entry...",
+        "entryDeleted": "Entry deleted.",
+        "deleteFailed": "Delete failed: {{message}}",
+        "runningTest": "Running test for entry...",
+        "tested": "Crontab entry tested.",
+        "testOutput": "Test output:\n{{output}}",
+        "testFailed": "Test failed: {{message}}"
+      },
+      "validation": {
+        "nameRequired": "Name is required",
+        "scheduleInvalid": "Schedule must be a valid five-field cron expression",
+        "commandRequired": "Command is required"
+      },
+      "dialogs": {
+        "editor": {
+          "createTitle": "New Entry",
+          "editTitle": "Edit Entry",
+          "description": "Generate a five-field cron schedule with frequency-specific controls.",
+          "cancel": "Cancel",
+          "save": "Save"
+        },
+        "delete": {
+          "title": "Delete Cron Entry",
+          "descriptionWithName": "Entry: {{name}}. This permanently removes the managed cron row.",
+          "descriptionFallback": "Confirm deletion.",
+          "cancel": "Cancel",
+          "confirm": "Delete"
+        }
+      },
+      "editor": {
+        "sections": {
+          "name": "Name",
+          "command": "Command",
+          "optional": "Optional",
+          "frequencySet": "Frequency Set",
+          "cronExpression": "Cron Expression"
+        },
+        "fields": {
+          "name": "Name",
+          "command": "Command",
+          "takeEffective": "Take Effective",
+          "singleRunOnly": "Single Run Only",
+          "frequency": "Frequency",
+          "every": "Every",
+          "atTime": "At time",
+          "hour": "Hour",
+          "minute": "Minute",
+          "daysOfWeek": "Days of week",
+          "dayOfMonth": "Day of month",
+          "customCronFields": "Custom cron fields",
+          "dayOfMonthShort": "Day (M)",
+          "month": "Month",
+          "dayOfWeekShort": "Day (W)",
+          "cronExpression": "Your cron expression"
+        },
+        "actions": {
+          "copy": "Copy",
+          "copied": "Copied"
+        },
+        "frequencyOptions": {
+          "minute": "Every minute",
+          "hour": "Every hour",
+          "day": "Every day",
+          "week": "Every week",
+          "month": "Every month",
+          "custom": "Custom"
+        },
+        "units": {
+          "minutes": "minute(s)",
+          "hours": "hour(s)"
+        }
+      },
+      "weekdays": {
+        "sun": { "short": "Sun", "label": "Sunday" },
+        "mon": { "short": "Mon", "label": "Monday" },
+        "tue": { "short": "Tue", "label": "Tuesday" },
+        "wed": { "short": "Wed", "label": "Wednesday" },
+        "thu": { "short": "Thu", "label": "Thursday" },
+        "fri": { "short": "Fri", "label": "Friday" },
+        "sat": { "short": "Sat", "label": "Saturday" }
+      }
+    },
+    "servicesTab": {
+      "title": "Systemd",
+      "description": "Inspect service status, open logs, and work with unit files from a single view.",
+      "loading": "Loading services...",
+      "loadingDetails": "Loading details...",
+      "inventory": {
+        "ariaLabel": "Systemd inventory",
+        "summary": "Total {{count}} services, {{failed}} failed.",
+        "focusService": "AppOS focus service"
+      },
+      "search": {
+        "placeholder": "Search"
+      },
+      "filters": {
+        "status": "Status filter"
+      },
+      "filterOptions": {
+        "all": "All status ({{count}})",
+        "running": "Running ({{count}})",
+        "exited": "Exited ({{count}})",
+        "failed": "Failed ({{count}})",
+        "inactive": "Inactive ({{count}})"
+      },
+      "pagination": {
+        "previous": "Previous page",
+        "next": "Next page"
+      },
+      "sort": {
+        "asc": "ascending",
+        "desc": "descending"
+      },
+      "columns": {
+        "name": "Name",
+        "nameSorted": "Name sorted {{direction}}",
+        "nameSortable": "Name sortable",
+        "status": "Status",
+        "summary": "Summary",
+        "summarySorted": "Summary sorted {{direction}}",
+        "summarySortable": "Summary sortable",
+        "actions": "Actions"
+      },
+      "selected": {
+        "title": "Selected Service",
+        "selectPrompt": "Select one service from the inventory.",
+        "empty": "Choose a service to inspect its status, logs, and unit details."
+      },
+      "detailRows": {
+        "name": "Name",
+        "description": "Description",
+        "status": "Status",
+        "path": "Path",
+        "pid": "PID",
+        "loadState": "Load State",
+        "activeState": "Active State",
+        "subState": "Sub State",
+        "unitFileState": "Unit File State",
+        "stateChange": "State Change"
+      },
+      "status": {
+        "running": "running",
+        "exited": "exited",
+        "dead": "dead",
+        "failed": "failed",
+        "inactive": "inactive",
+        "unknown": "unknown"
+      },
+      "tabs": {
+        "overview": "Overview",
+        "logs": "Logs"
+      },
+      "logs": {
+        "title": "Logs",
+        "entries": "{{count}} entries",
+        "empty": "No logs."
+      },
+      "unit": {
+        "title": "Unit",
+        "empty": "No unit content.",
+        "placeholder": "[Unit]\nDescription=...",
+        "validatePassed": "Validate passed.",
+        "applyCompleted": "Apply completed."
+      },
+      "actions": {
+        "refresh": "Refresh systemd data",
+        "serviceActionsFor": "Service actions for {{name}}",
+        "openOverview": "Open overview",
+        "openLogs": "Open logs",
+        "openUnit": "Open unit",
+        "editUnit": "Edit unit",
+        "start": "Start",
+        "restart": "Restart",
+        "stop": "Stop",
+        "enable": "Enable",
+        "disable": "Disable",
+        "copy": "Copy",
+        "validate": "Validate",
+        "apply": "Apply",
+        "cancelEdit": "Cancel edit"
+      },
+      "empty": {
+        "noMatches": "No services match the current filters."
+      },
+      "hints": {
+        "logsCopied": "Logs copied.",
+        "actionApplied": "Action {{action}} applied. Next: check status or logs."
+      },
+      "errors": {
+        "loadServices": "Failed to load services",
+        "operationFailed": "Operation failed",
+        "copyLogs": "Failed to copy logs",
+        "validateUnit": "Failed to validate unit file",
+        "applyUnit": "Failed to apply unit file"
+      },
+      "confirm": {
+        "validateTitle": "Validate unit file?",
+        "applyTitle": "Apply unit changes?",
+        "actionTitle": "Confirm service action?",
+        "validateDescription": "Service: {{service}}\nThis will run systemd-analyze verify.",
+        "applyDescription": "Service: {{service}}\nThis will save current editor content, then run daemon-reload and try-restart.",
+        "actionDescription": "Service: {{service}}\nAction: {{action}}",
+        "cancel": "Cancel",
+        "confirm": "Confirm"
+      }
+    },
+    "runtime": {
+      "placeholder": "Runtime details can later include active sessions, deployed workloads, and process information for {{name}}."
+    },
+    "summary": {
+      "viaTunnel": "via AppOS tunnel"
+    },
+    "monitor": {
+      "tooltipWithReason": "Observed monitor target status: {{status}}. {{reason}}",
+      "tooltipWithoutReason": "Observed monitor target status: {{status}}",
+      "tooltipSuffix": "{{prefix}}. This reflects the latest monitoring evidence for the server target and may lag behind addon status."
+    },
+    "sessions": {
+      "oneActive": "1 active terminal session",
+      "manyActive": "{{count}} active terminal sessions"
+    },
+    "listSettings": {
+      "title": "List settings",
+      "rowsPerPage": "Rows per page",
+      "rowsPerPageOption": "{{count}} / page",
+      "columns": "Columns"
+    },
+    "validation": {
+      "nameRequired": "Name is required",
+      "userRequired": "User is required",
+      "hostRequiredForDirect": "Host is required for Direct SSH connections",
+      "portRequiredForDirect": "Port is required for Direct SSH connections"
+    }
+  },
+  "platformAccounts": {
+    "page": {
+      "title": "Platform Accounts",
+      "description": "AWS, Azure, Google Cloud, GitHub, Cloudflare, and similar platform identities with profile-based templates.",
+      "totalItems": "Total {{count}} items"
+    },
+    "selection": {
+      "title": "Choose a Product",
+      "description": "Choose a product, then enter account details.",
+      "searchPlaceholder": "Search products like AWS, GitHub, Azure, Cloudflare...",
+      "emptyMessage": "No matching products found."
+    },
+    "fields": {
+      "platform": "Platform",
+      "template": "Template",
+      "selectedProduct": "Selected Product",
+      "selectedProductMeta": "Selected Product Meta",
+      "selectedProductDescription": "Selected Product Description",
+      "name": "Name",
+      "credential": "Credential",
+      "description": "Description",
+      "groups": "Groups"
+    },
+    "placeholders": {
+      "name": "aws-prod"
+    },
+    "categories": {
+      "cloud": "Cloud Platforms",
+      "developer-platform": "Developer Platforms",
+      "edge": "Edge Platforms",
+      "other": "Other"
+    },
+    "kinds": {
+      "aws": "AWS",
+      "aliyun": "Aliyun",
+      "azure": "Azure",
+      "gcp": "Google Cloud",
+      "github": "GitHub",
+      "cloudflare": "Cloudflare",
+      "unknown": "Unknown"
+    },
+    "product": {
+      "standardTemplate": "Standard template",
+      "profileDescription": "{{vendorPrefix}}{{category}} profile."
+    },
+    "columns": {
+      "name": "Name",
+      "enabled": "Enabled",
+      "platform": "Platform",
+      "profile": "Profile",
+      "identifier": "Identifier",
+      "created": "Created",
+      "updated": "Updated"
+    },
+    "actions": {
+      "enable": "Enable",
+      "disable": "Disable"
+    },
+    "enabled": {
+      "yes": "Yes",
+      "no": "No"
+    }
+  },
+  "connectors": {
+    "page": {
+      "title": "External Services",
+      "description": "Reusable API, webhook, MCP, HTTP gateway, outbound proxy, SMTP, registry, and DNS services backed by grouped profiles",
+      "addConnector": "Add External Service",
+      "searchPlaceholder": "Search external services",
+      "totalItems": "Total {{count}} items"
+    },
+    "selection": {
+      "endpoint": {
+        "defaultSchemeHint": "If no protocol is entered, {{scheme}} will be added automatically.",
+        "schemeMismatchWarning": "The typed protocol {{actual}} differs from the default {{expected}}. You can still save this value."
+      },
+      "title": "Choose an External Service Type",
+      "description": "Start with the service type, then choose a vendor profile to prefill the shared schema.",
+      "searchPlaceholder": "Search service types like SMTP, DNS, outbound proxy, or HTTP gateway...",
+      "emptyMessage": "No matching external service types found."
+    },
+    "fields": {
+      "name": "Name",
+      "profile": "Profile",
+      "enableIt": "Enable it",
+      "description": "Description",
+      "advancedConfig": "Advanced Config (JSON)",
+      "groups": "Groups"
+    },
+    "placeholders": {
+      "name": "my-connector",
+      "advancedConfig": "{\"headers\": {\"X-Custom\": \"value\"}}"
+    },
+    "columns": {
+      "name": "Name",
+      "enabled": "Enabled",
+      "default": "Default",
+      "kind": "Kind",
+      "url": "URL",
+      "port": "Port",
+      "auth": "Auth",
+      "reachability": "Reachability",
+      "lastChecked": "Last Checked",
+      "created": "Created",
+      "updated": "Updated"
+    },
+    "lastCheckedSources": {
+      "liveReachability": "Live reachability check",
+      "scheduledMonitor": "Scheduled monitor check"
+    },
+    "actions": {
+      "enable": "Enable",
+      "disable": "Disable",
+      "check": "Check it"
+    },
+    "enabled": {
+      "yes": "Yes",
+      "no": "No"
+    },
+    "badges": {
+      "default": "Default"
+    },
+    "kinds": {
+      "rest_api": "REST API",
+      "webhook": "Webhook",
+      "mcp": "MCP Server",
+      "http-gateway": "HTTP Gateway",
+      "proxy": "Outbound Proxy",
+      "smtp": "SMTP",
+      "registry": "Registry",
+      "dns": "DNS"
+    },
+    "auth": {
+      "none": "No authentication",
+      "usernamePassword": "Username + Password",
+      "noneValue": "none"
+    },
+    "authValues": {
+      "none": "No authentication",
+      "basic": "Username + Password",
+      "bearer": "API Key / Token",
+      "api_key": "API Key / Token",
+      "token": "API Key / Token"
+    },
+    "secret": {
+      "new": "New Secret",
+      "edit": "Edit Secret",
+      "newTitle": "New Secret",
+      "newDescription": "Create a reusable secret and attach it to this external service.",
+      "generatedDescription": "{{field}} for {{name}}",
+      "directPlaceholder": "Enter a secret value",
+      "show": "Show secret",
+      "hide": "Hide secret"
+    },
+    "dialog": {
+      "externalServiceTitle": "External service title",
+      "applyTitle": "Apply title",
+      "newExternalService": "New External Service",
+      "editTitle": "Edit title",
+      "createDescription": "Add a {{kind}} service{{profile}}",
+      "createDescriptionWithProfile": "Add a {{kind}} service using {{profile}}"
+    },
+    "secretTemplates": {
+      "single_value": "Token / Single Value"
+    },
+    "errors": {
+      "profileRequired": "Connector profile is required",
+      "fieldRequired": "{{field}} is required"
+    }
+  },
+  "aiProviders": {
+    "page": {
+      "title": "AI Providers",
+      "description": "Hosted and local AI provider definitions such as OpenAI, Anthropic, OpenRouter, and Ollama endpoints.",
+      "emptyState": "No AI Providers found",
+      "searchPlaceholder": "Search any AI providers",
+      "addProvider": "Add AI Provider",
+      "refresh": "Refresh",
+      "totalItems": "Total {{count}} items"
+    },
+    "selection": {
+      "title": "Choose a Product",
+      "description": "Choose a provider product, then enter connection details.",
+      "searchPlaceholder": "Search products like OpenAI, Ollama, Anthropic, OpenRouter...",
+      "emptyMessage": "No matching products found.",
+      "loading": "Loading products...",
+      "help": "Help",
+      "groups": {
+        "singleProvider": "Single Provider",
+        "cloudGateway": "LLM Gateway",
+        "selfHosted": "Self-Hosted LLM Gateway"
+      }
+    },
+    "columns": {
+      "name": "Name",
+      "enabled": "Enabled",
+      "provider": "Provider",
+      "enabledModels": "Enabled Model(s)",
+      "profile": "Profile",
+      "availability": "Availability",
+      "reachability": "Reachability",
+      "endpoint": "Endpoint",
+      "lastChecked": "Last Checked",
+      "created": "Created",
+      "updated": "Updated"
+    },
+    "lastCheckedSources": {
+      "liveAvailability": "Live availability check",
+      "liveReachability": "Live reachability check",
+      "scheduledMonitor": "Scheduled monitor check"
+    },
+    "actions": {
+      "enable": "Enable",
+      "disable": "Disable",
+      "testConnection": "Test it",
+      "editEndpoint": "Edit endpoint",
+      "finishEditingEndpoint": "Finish editing endpoint"
+    },
+    "enabled": {
+      "yes": "Yes",
+      "no": "No"
+    },
+    "status": {
+      "available": "Available",
+      "reachable": "Reachable",
+      "unavailable": "Unavailable",
+      "unreachable": "Unreachable",
+      "unknown": "Unknown"
+    },
+    "fields": {
+      "name": "Name",
+      "provider": "Provider",
+      "profile": "Profile",
+      "description": "Description",
+      "enableIt": "Enable it",
+      "authScheme": "Auth Scheme",
+      "enabledModels": "Enabled Models",
+      "apiEndpoint": "API Endpoint",
+      "openaiCompatibleUrl": "OpenAI Compatible URL",
+      "selectedProduct": "Selected Product",
+      "selectedProductMeta": "Selected Product Meta",
+      "selectedProductDescription": "Selected Product Description",
+      "titleNameEditing": "Title Name Editing",
+      "credentialUseSecret": "Credential Use Secret",
+      "apiKeyValue": "API Key Value",
+      "advancedConfig": "Advanced Config (JSON)",
+      "groups": "Groups",
+      "apiKey": "API Key"
+    },
+    "authSchemes": {
+      "bearer": "Bearer token",
+      "api_key": "API key header",
+      "basic": "Basic auth",
+      "none": "No auth"
+    },
+    "placeholders": {
+      "name": "my-ai-provider",
+      "advancedConfig": "{\"temperature\": 0.2}",
+      "groups": "Select groups"
+    },
+    "credential": {
+      "enterField": "Enter {{field}}",
+      "showField": "Show {{field}}",
+      "hideField": "Hide {{field}}",
+      "generateTitle": "Generate API Key",
+      "generateDescription": "Choose the API key length before filling the field.",
+      "generateLengthLabel": "API Key Length",
+      "generateConfirmLabel": "Fill API Key"
+    },
+    "dialog": {
+      "providerTitle": "AI provider title",
+      "applyTitle": "Apply title",
+      "newProvider": "New AI Provider",
+      "editTitle": "Edit title",
+      "add": "Add",
+      "cancel": "Cancel",
+      "update": "Update",
+      "suffix": "AI Provider"
+    },
+    "secret": {
+      "new": "New Secret",
+      "edit": "Edit Secret",
+      "newTitle": "New Secret",
+      "newDescription": "Create a reusable secret and attach it to this AI Provider.",
+      "singleValueTemplate": "Token / Single Value",
+      "generatedDescription": "API key for {{name}}"
+    },
+    "errors": {
+      "profileRequired": "AI Provider profile is required",
+      "fieldRequired": "{{field}} is required"
+    }
+  }
+}

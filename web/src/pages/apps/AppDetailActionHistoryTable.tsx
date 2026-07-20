@@ -1,6 +1,11 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
+  canCancelAction,
+  canForceFailAction,
+  canResumeAction,
+} from '@/pages/deploy/actions/action-utils'
+import {
   Table,
   TableBody,
   TableCell,
@@ -16,11 +21,17 @@ import { getActionLabel } from '@/pages/apps/app-detail-utils'
 type AppDetailActionHistoryTableProps = {
   actions: ActionRecord[]
   buildActionDetailHref: (actionId: string) => string
+  onRequestCancel?: (action: ActionRecord) => void
+  onRequestForceFail?: (action: ActionRecord) => void
+  onRequestResume?: (action: ActionRecord) => void
 }
 
 export function AppDetailActionHistoryTable({
   actions,
   buildActionDetailHref,
+  onRequestCancel,
+  onRequestForceFail,
+  onRequestResume,
 }: AppDetailActionHistoryTableProps) {
   return (
     <Table containerClassName="rounded-xl border">
@@ -34,7 +45,7 @@ export function AppDetailActionHistoryTable({
           <TableHead>Server</TableHead>
           <TableHead>Source</TableHead>
           <TableHead>Project</TableHead>
-          <TableHead className="text-right">Detail</TableHead>
+          <TableHead className="text-right">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -60,11 +71,32 @@ export function AppDetailActionHistoryTable({
               {action.compose_project_name || '-'}
             </TableCell>
             <TableCell className="text-right">
-              <Button variant="outline" size="sm" asChild>
-                <a href={buildActionDetailHref(action.id)} target="_blank" rel="noreferrer">
-                  Open Detail
-                </a>
-              </Button>
+              <div className="flex flex-wrap justify-end gap-2">
+                {onRequestCancel && canCancelAction(action) ? (
+                  <Button variant="outline" size="sm" onClick={() => onRequestCancel(action)}>
+                    Cancel
+                  </Button>
+                ) : null}
+                {onRequestForceFail && canForceFailAction(action) ? (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => onRequestForceFail(action)}
+                  >
+                    Force Fail
+                  </Button>
+                ) : null}
+                {onRequestResume && canResumeAction(action) ? (
+                  <Button variant="outline" size="sm" onClick={() => onRequestResume(action)}>
+                    Resume
+                  </Button>
+                ) : null}
+                <Button variant="outline" size="sm" asChild>
+                  <a href={buildActionDetailHref(action.id)} target="_blank" rel="noreferrer">
+                    Open Detail
+                  </a>
+                </Button>
+              </div>
             </TableCell>
           </TableRow>
         ))}

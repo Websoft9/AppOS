@@ -1,0 +1,6 @@
+{
+  "app_id": "metabase-demo",
+  "version": "v0.55.9",
+  "http_port": 3300,
+  "site_url": "bi.example.com"
+}

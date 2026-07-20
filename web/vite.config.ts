@@ -26,11 +26,14 @@ export default defineConfig({
           if (!id.includes('node_modules')) return
           if (id.includes('/react/') || id.includes('/react-dom/')) return 'react-vendor'
           if (id.includes('/@tanstack/')) return 'tanstack-vendor'
+          if (id.includes('/lucide-react/')) return 'icons-vendor'
           if (id.includes('/@xterm/')) return 'xterm-vendor'
           if (id.includes('/@monaco-editor/') || id.includes('/monaco-editor/')) return 'monaco-vendor'
           if (id.includes('/react-markdown/')) return 'markdown-vendor'
           if (id.includes('/i18next/') || id.includes('/react-i18next/')) return 'i18n-vendor'
           if (id.includes('/pocketbase/')) return 'pb-vendor'
+          if (id.includes('/pdfjs-dist/')) return 'pdf-vendor'
+          if (id.includes('/mammoth/')) return 'mammoth-vendor'
         },
       },
     },

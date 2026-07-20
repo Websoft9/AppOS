@@ -94,6 +94,16 @@ The server form remains owned by Story 20.1 from a data-contract perspective, bu
 - Host, port, and user remain visible configuration fields for direct servers.
 - Tunnel-specific runtime or mapped-service details must not be collected in the create/edit form.
 
+### Duplicate Flow
+
+- `Duplicate Server` is a create shortcut, not an immediate copy action.
+- Triggering duplicate opens the standard `Add Server` dialog with prefilled values copied from the source server.
+- The duplicated draft must start with a new generated `name` so the operator does not overwrite or collide with the source record by default.
+- Copy configuration inputs that help recreate access intent, such as mode, host, port, user, shell, credential, and tunnel server when applicable.
+- Do not copy runtime or derived state such as connection status, diagnostics, last activity, monitoring state, or any server-scoped live session facts.
+- The duplicated draft is not persisted until the operator explicitly confirms create.
+- V1 should reuse the existing server create flow and PocketBase create API rather than introducing a dedicated duplicate backend route.
+
 ## List Page Information Model
 
 The recommended default columns are:
@@ -221,6 +231,7 @@ The overflow menu holds secondary actions such as:
 
 - `View Details`
 - `Edit Server`
+- `Duplicate Server`
 - `View Connection`
 - `Test Connection`
 - `View Diagnostics`
@@ -264,35 +275,32 @@ Reasons:
 
 ## Detail Page Information Architecture
 
-The server detail surface should have a stable tab model.
-
 Recommended tabs:
 
 1. `Overview`
 2. `Connection`
 3. `Monitor`
 4. `Runtime`
-5. `Software`
+5. `Components`
+6. `Cron`
 
 ### Tab responsibilities
 
 #### `Overview`
 
-Default descriptive summary for the server record.
+`Overview` remains the default descriptive tab for one server.
 
-It should include:
+Its frontend information architecture now lives in [story20.10-detail-overview.md](story20.10-detail-overview.md).
 
-- identity
-- host/user/port
-- credential reference
-- created/updated metadata
-- non-lifecycle descriptive notes
+Story 20.6 only keeps ownership of:
+
+- `Overview` as the default detail-tab landing surface
+- the separation between `Overview` and `Connection`
+- list-to-detail navigation behavior such as `Name -> Overview`
 
 #### `Connection`
 
-The authoritative lifecycle tab.
-
-It owns:
+The authoritative lifecycle tab. It owns:
 
 - current status
 - reason
@@ -301,125 +309,39 @@ It owns:
 - diagnostics summary
 - activity timeline
 
-It must not be named `Setup`, because setup is only one part of the lifecycle.
+It must not be renamed to `Setup`.
 
-Tunnel-specific runtime details, including mapped services, should live inside `Connection` rather than in a separate tab.
+Tunnel-specific runtime details, including mapped services, stay inside `Connection` rather than a separate tab.
 
-#### `Monitor`, `Runtime`, `Software`
+#### `Monitor`, `Runtime`, `Components`, `Cron`
 
 These remain domain tabs. They must not duplicate the core `Connection` diagnosis or next-step guidance.
 
+`Components` naming and information architecture are further refined in Story 20.7. This story only defines its position in the stable tab model.
+
+`Cron` naming and information architecture are refined in Story 20.13. This story only defines `Cron` as a first-class server detail tab when the backend exposes managed Linux cron capability for the selected server.
+
 ## Connection Tab Information Architecture
 
-The `Connection` tab should answer, in order:
+Detailed ownership for the Connection tab now lives in Story 20.12.
 
-1. what mode this server uses
-2. whether it is usable now
-3. why it is or is not usable
-4. what the operator should do next
-5. what evidence supports that recommendation
+This story keeps only the outer-shell rule:
 
-Recommended top-to-bottom structure:
+- `Connection` remains a first-class server detail tab
+- it is the authoritative place for connection judgment and next action
+- other tabs must not duplicate its primary connection recovery guidance
 
-1. `Connection Summary`
-2. `Primary Next Step`
-3. `Mode-Specific Setup or Recovery`
-4. `Diagnostics`
-5. `Activity Timeline`
+See:
 
-### `Connection Summary`
+- `specs/implementation-artifacts/story20.12-detail-connection.md`
 
-This is the persistent top card.
+In summary, the default `Connection` experience should now be reduced to:
 
-It should always show:
+1. `Status`
+2. `Primary Action`
+3. `Recent Activity`
 
-- `Mode`
-- `Connection Status`
-- `Reason`
-- `Last Check or Last Seen`
-- `Current Endpoint`
-- `Primary Action`
-
-Rules:
-
-1. status and reason must always appear together
-2. `Open Terminal` is available only when the effective state is usable
-3. if the server is blocked, the primary action must be lifecycle-forwarding, not workspace-entry
-
-### `Primary Next Step`
-
-This block explains the recommendation in plain language.
-
-It contains:
-
-- action title
-- one-sentence explanation
-- one primary button
-- optional one or two secondary links
-
-This block should mirror the list-row primary action.
-
-### `Mode-Specific Setup or Recovery`
-
-For Direct SSH:
-
-- `Configuration`
-- `Verification`
-- `Recovery`
-
-For Tunnel:
-
-- `Setup`
-- `Runtime Session`
-- `Recovery`
-
-### `Diagnostics`
-
-Evidence-oriented support section.
-
-It should include:
-
-- latest connectivity check result
-- latest tunnel callback or heartbeat
-- latest failure reason
-- relevant system hint
-- timestamped evidence
-
-### `Activity Timeline`
-
-Compact lifecycle timeline rather than raw logs.
-
-Recommended events:
-
-- server created
-- credential attached or changed
-- setup started
-- verification passed
-- tunnel paused or resumed
-- last failure observed
-- last healthy seen
-
-## State-Based Rendering Rules
-
-### `Not Configured`
-
-Emphasize missing prerequisites and setup CTA. De-emphasize diagnostics history.
-
-### `Awaiting Connection`
-
-Emphasize what is already prepared, what external step is pending, and how success is confirmed.
-
-### `Online`
-
-Emphasize healthy summary, recent evidence, and `Open Terminal`.
-
-### `Paused`
-
-Emphasize intentional pause state and resume action.
-
-### `Needs Attention`
-
-Emphasize latest failure reason, reinstall action, and evidence. The error reason must be visible above the fold.
+The heavier diagnostics-first structure previously described here is superseded.
 
 ## Server Ops Placement in This UI Model
 
@@ -428,6 +350,8 @@ Story 20.5 still owns the backend and terminal workspace operations. Within the 
 - `Restart` and `Shutdown` are secondary actions on the server list/detail surface
 - they belong in the overflow menu, not as competing inline primary buttons
 - connectivity check entry for the list/detail surface must follow the same primary-action rules defined here
+- `Cron` is a detail-tab surface, not a top-level resource page or terminal modal shortcut
+- detailed `Cron` tab UX, reduced field set, and CRUD interaction contract live in Story 20.13
 
 ## Acceptance Criteria
 
@@ -493,13 +417,13 @@ Do not begin by polishing secondary visuals before the list/detail interaction c
 	- [ ] 2.1 Ensure detail opens to `Overview` from `Name`
 	- [ ] 2.2 Ensure detail opens to `Connection` from the `Connection` cell
 	- [ ] 2.3 Ensure `Tunnel` tab appears only for tunnel-backed servers
-	- [ ] 2.4 Ensure `Overview`, `Connection`, and domain tabs do not duplicate responsibilities
+	- [ ] 2.4 Keep `Overview`, `Connection`, and domain tabs responsibility-separated
 - [ ] Task 3: Implement `Connection` tab information architecture
 	- [ ] 3.1 Add `Connection Summary` block
 	- [ ] 3.2 Add `Primary Next Step` block
-	- [ ] 3.3 Add mode-specific setup/recovery sections for Direct SSH and Tunnel
+	- [ ] 3.3 Add mode-specific setup/recovery sections
 	- [ ] 3.4 Add diagnostics evidence section
-	- [ ] 3.5 Add compact lifecycle activity timeline
+	- [ ] 3.5 Add compact lifecycle timeline
 - [ ] Task 4: Align create/edit form UX
 	- [ ] 4.1 Present `Connection Type` as decision cards instead of a low-context dropdown
 	- [ ] 4.2 Keep conditional fields aligned with Story 20.1 data dependencies
@@ -686,6 +610,7 @@ If user-facing labels change, translation coverage must be updated alongside the
 
 - Story 20.1 remains the source of truth for registry data shape and form field dependencies.
 - Story 20.5 remains the source of truth for server ops APIs and terminal workspace ops flows.
+- Story 20.10 remains the source of truth for the frontend `Overview` tab contract.
 - `/api/servers/connection` should expose `connection.state_code`, `connection.reason_code`, and `connection.config_ready` as the primary lifecycle aggregate. `access` and `tunnel` remain supporting diagnostics for evidence, timeline, and fallback behavior.
 - This story becomes the UI contract the frontend should follow when implementing `/resources/servers` list and detail surfaces.
 

@@ -3,12 +3,12 @@ package metrics
 import (
 	"context"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"time"
 
 	monitortsdb "github.com/websoft9/appos/backend/domain/monitor/metrics/tsdb"
+	"github.com/websoft9/appos/backend/domain/runtimecfg"
 )
 
 var (
@@ -47,13 +47,16 @@ func WriteMetricPoints(ctx context.Context, points []MetricPoint) error {
 }
 
 func defaultMetricWriter() metricWriter {
-	baseURL := strings.TrimSpace(os.Getenv(EnvVictoriaMetricsURL))
+	baseURL := strings.TrimSpace(runtimecfg.TSDBURL())
 	if baseURL == "" {
 		return noopMetricWriter{}
 	}
 	return &victoriaMetricsWriter{
 		service: monitortsdb.NewService(&http.Client{
 			Timeout: 5 * time.Second,
+			Transport: &http.Transport{
+				Proxy: nil,
+			},
 		}, baseURL),
 	}
 }

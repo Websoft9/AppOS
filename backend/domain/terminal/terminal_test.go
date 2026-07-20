@@ -4,9 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 // mockSession implements Session for testing the session registry.
@@ -53,6 +57,199 @@ func TestSessionRegistryUnregister(t *testing.T) {
 
 	if ok {
 		t.Fatal("session should have been removed after Unregister")
+	}
+}
+
+func TestListSummariesByUserFiltersAndSorts(t *testing.T) {
+	registry.mu.Lock()
+	registry.sessions = make(map[string]*registeredSession)
+	registry.mu.Unlock()
+	defer func() {
+		registry.mu.Lock()
+		registry.sessions = make(map[string]*registeredSession)
+		registry.mu.Unlock()
+	}()
+
+	first := &mockSession{}
+	second := &mockSession{}
+	third := &mockSession{}
+
+	RegisterDetailed("s-1", first, "user-a", "server", "srv-1", "ssh")
+	RegisterDetailed("s-2", second, "user-b", "server", "srv-2", "ssh")
+	RegisterDetailed("s-3", third, "user-a", "container", "ctr-1", "docker")
+	Touch("s-3")
+
+	summaries := ListSummariesByUser("user-a")
+	if len(summaries) != 2 {
+		t.Fatalf("expected 2 summaries, got %d", len(summaries))
+	}
+	if summaries[0].ID != "s-3" {
+		t.Fatalf("expected most recent session first, got %s", summaries[0].ID)
+	}
+	if summaries[1].ID != "s-1" {
+		t.Fatalf("expected older session second, got %s", summaries[1].ID)
+	}
+	if summaries[0].UserID != "user-a" || summaries[1].UserID != "user-a" {
+		t.Fatal("expected summaries to be filtered by user")
+	}
+}
+
+func TestUpdateWorkspaceUpdatesOwnedSession(t *testing.T) {
+	registry.mu.Lock()
+	registry.sessions = make(map[string]*registeredSession)
+	registry.mu.Unlock()
+	defer func() {
+		registry.mu.Lock()
+		registry.sessions = make(map[string]*registeredSession)
+		registry.mu.Unlock()
+	}()
+
+	RegisterDetailed("s-1", &mockSession{}, "user-a", "server", "srv-1", "ssh")
+	split := 0.35
+	err := UpdateWorkspace("s-1", "user-a", TerminalWorkspaceSnapshot{
+		ActiveServerID: "srv-1",
+		SidePanel:      "files",
+		FilePath:       "/var/log",
+		LockedRoot:     "/var",
+		SplitRatio:     &split,
+	})
+	if err != nil {
+		t.Fatalf("unexpected update error: %v", err)
+	}
+
+	summaries := ListSummariesByUser("user-a")
+	if len(summaries) != 1 {
+		t.Fatalf("expected 1 summary, got %d", len(summaries))
+	}
+	if summaries[0].Workspace.FilePath != "/var/log" || summaries[0].Workspace.SidePanel != "files" {
+		t.Fatalf("unexpected workspace snapshot: %+v", summaries[0].Workspace)
+	}
+	if summaries[0].Workspace.SplitRatio == nil || *summaries[0].Workspace.SplitRatio != split {
+		t.Fatalf("unexpected split ratio: %+v", summaries[0].Workspace.SplitRatio)
+	}
+}
+
+func TestCloseOwnedRemovesOwnedSession(t *testing.T) {
+	registry.mu.Lock()
+	registry.sessions = make(map[string]*registeredSession)
+	registry.mu.Unlock()
+	defer func() {
+		registry.mu.Lock()
+		registry.sessions = make(map[string]*registeredSession)
+		registry.mu.Unlock()
+	}()
+
+	sess := &mockSession{}
+	RegisterDetailed("s-close", sess, "user-a", "server", "srv-1", "ssh")
+
+	if err := CloseOwned("s-close", "user-a"); err != nil {
+		t.Fatalf("unexpected close error: %v", err)
+	}
+	if !sess.closed {
+		t.Fatal("expected session to be closed")
+	}
+	if summaries := ListSummariesByUser("user-a"); len(summaries) != 0 {
+		t.Fatalf("expected registry to be empty, got %d summary items", len(summaries))
+	}
+}
+
+func TestAppendReplayBufferRetainsRecentOutput(t *testing.T) {
+	prefix := make([]byte, sessionReplayBufferLimit/2)
+	for index := range prefix {
+		prefix[index] = 'a'
+	}
+	suffix := make([]byte, sessionReplayBufferLimit)
+	for index := range suffix {
+		suffix[index] = 'b'
+	}
+
+	buffer := appendReplayBuffer(nil, prefix)
+	buffer = appendReplayBuffer(buffer, suffix)
+
+	if len(buffer) != sessionReplayBufferLimit {
+		t.Fatalf("expected replay buffer len %d, got %d", sessionReplayBufferLimit, len(buffer))
+	}
+	if buffer[0] != 'b' || buffer[len(buffer)-1] != 'b' {
+		t.Fatalf("expected buffer to retain newest payload tail, got first=%q last=%q", buffer[0], buffer[len(buffer)-1])
+	}
+}
+
+func TestWrapCommandWithEnvWrapsCompoundCommandInShell(t *testing.T) {
+	wrapped := WrapCommandWithEnv("(sudo -n shutdown -h +5 || shutdown -h +5)", map[string]string{
+		"HTTP_PROXY": "http://proxy.example.com:8080",
+	})
+	want := "env HTTP_PROXY='http://proxy.example.com:8080' sh -lc '(sudo -n shutdown -h +5 || shutdown -h +5)'"
+	if wrapped != want {
+		t.Fatalf("unexpected wrapped command:\nwant: %s\n got: %s", want, wrapped)
+	}
+	if strings.Contains(wrapped, " HTTP_PROXY='http://proxy.example.com:8080' (sudo") {
+		t.Fatalf("expected compound command to be wrapped by sh -lc, got %q", wrapped)
+	}
+}
+
+func TestAttachResumableReplaysBufferedOutput(t *testing.T) {
+	registry.mu.Lock()
+	registry.sessions = make(map[string]*registeredSession)
+	registry.mu.Unlock()
+	defer func() {
+		registry.mu.Lock()
+		registry.sessions = make(map[string]*registeredSession)
+		registry.mu.Unlock()
+	}()
+
+	upgrader := websocket.Upgrader{}
+	serverConnCh := make(chan *websocket.Conn, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Errorf("upgrade failed: %v", err)
+			return
+		}
+		serverConnCh <- conn
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + server.URL[len("http"):]
+	clientConn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial failed: %v", err)
+	}
+	defer clientConn.Close()
+
+	serverConn := <-serverConnCh
+	defer serverConn.Close()
+
+	registry.mu.Lock()
+	registry.sessions["replay-1"] = &registeredSession{
+		id:           "replay-1",
+		session:      &mockSession{},
+		userID:       "user-a",
+		resourceType: "server",
+		resourceID:   "srv-1",
+		sessionType:  "ssh",
+		startedAt:    time.Now(),
+		lastMsg:      time.Now(),
+		state:        SessionStateDetached,
+		outputBuffer: []byte("prompt$ ls\r\nfile.txt\r\nprompt$ "),
+	}
+	registry.mu.Unlock()
+
+	if err := AttachResumable("replay-1", "user-a", "server", "srv-1", "ssh", serverConn); err != nil {
+		t.Fatalf("attach failed: %v", err)
+	}
+
+	if err := clientConn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		t.Fatalf("set deadline failed: %v", err)
+	}
+	msgType, payload, err := clientConn.ReadMessage()
+	if err != nil {
+		t.Fatalf("read failed: %v", err)
+	}
+	if msgType != websocket.BinaryMessage {
+		t.Fatalf("expected binary message, got %d", msgType)
+	}
+	if string(payload) != "prompt$ ls\r\nfile.txt\r\nprompt$ " {
+		t.Fatalf("unexpected replay payload: %q", string(payload))
 	}
 }
 
@@ -154,54 +351,6 @@ func TestConnectorConfigFields(t *testing.T) {
 	}
 	if cfg.Shell != "bash" {
 		t.Fatal("shell mismatch")
-	}
-}
-
-func TestDockerExecDefaultShell(t *testing.T) {
-	if defaultDockerShell != "/bin/sh" {
-		t.Fatalf("defaultDockerShell: got %q, want /bin/sh", defaultDockerShell)
-	}
-}
-
-func TestDockerExecDefaultSocket(t *testing.T) {
-	if defaultDockerSocket != "/var/run/docker.sock" {
-		t.Fatalf("defaultDockerSocket: got %q, want /var/run/docker.sock", defaultDockerSocket)
-	}
-}
-
-func TestDockerExecConnectorImplementsInterface(t *testing.T) {
-	// Compile-time check that DockerExecConnector implements Connector
-	var _ Connector = &DockerExecConnector{}
-}
-
-func TestDockerShellAutoFallbackOrder(t *testing.T) {
-	origCreate := dockerCreateExecFn
-	origStart := dockerStartExecFn
-	defer func() {
-		dockerCreateExecFn = origCreate
-		dockerStartExecFn = origStart
-	}()
-
-	attempts := make([]string, 0)
-	dockerCreateExecFn = func(_ string, shell string) (string, error) {
-		attempts = append(attempts, shell)
-		if shell == "/bin/sh" {
-			return "ok", nil
-		}
-		return "", fmt.Errorf("unsupported shell")
-	}
-	dockerStartExecFn = func(execID string) (net.Conn, error) {
-		return nil, fmt.Errorf("stop after shell selection: %s", execID)
-	}
-
-	conn := &DockerExecConnector{}
-	_, _ = conn.Connect(context.Background(), ConnectorConfig{Host: "container-1"})
-
-	if len(attempts) < 2 {
-		t.Fatalf("expected multiple shell attempts, got %v", attempts)
-	}
-	if attempts[0] != "/bin/bash" || attempts[1] != "/bin/sh" {
-		t.Fatalf("unexpected fallback order: %v", attempts)
 	}
 }
 

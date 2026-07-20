@@ -1,0 +1,45 @@
+{
+  "id": "aws-bedrock",
+  "title": "AWS Bedrock",
+  "vendor": "Amazon Web Services",
+  "uiGroup": "cloud_gateway",
+  "hostingMode": "cloud",
+  "serviceMode": "maas_platform",
+  "endpointMode": "customizable",
+  "providerMode": "gateway",
+  "supportsClosedModels": true,
+  "supportsMultiVendorModels": true,
+  "description": "Amazon Bedrock gateway for foundation models from multiple vendors.",
+  "helpUrl": "https://docs.aws.amazon.com/bedrock/latest/userguide/endpoints.html",
+  "defaultEndpoint": "https://bedrock-mantle.{region}.api.aws/v1",
+  "defaultEnabledModels": [
+    "openai.gpt-5.4",
+    "openai.gpt-5.5",
+    "anthropic.claude-opus-4-8"
+  ],
+  "capabilities": ["chat", "routing", "streaming"],
+  "protocols": [
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "default": true
+    }
+  ],
+  "aliases": ["aws bedrock", "bedrock", "aws-bedrock"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "placeholder": "https://bedrock-mantle.us-east-1.api.aws/v1"
+    },
+    {
+      "id": "region",
+      "label": "Region Code",
+      "type": "string",
+      "required": true,
+      "default": "us-east-1",
+      "placeholder": "us-east-1",
+      "helpUrl": "https://docs.aws.amazon.com/global-infrastructure/latest/regions/aws-regions.html",
+      "helpText": "Use an AWS region code such as us-east-1."
+    }
+  ]
+}

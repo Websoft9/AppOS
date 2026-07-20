@@ -1,0 +1,21 @@
+{
+  "originKind": "official",
+  "sourceRepo": "Websoft9/docker-library",
+  "sourcePath": "apps/odoo",
+  "sourceBranch": "main",
+  "observedFiles": [
+    ".env",
+    "docker-compose.yml",
+    "variables.json"
+  ],
+  "references": {
+    "directory": "https://github.com/Websoft9/docker-library/tree/main/apps/odoo",
+    "env": "https://raw.githubusercontent.com/Websoft9/docker-library/main/apps/odoo/.env",
+    "compose": "https://raw.githubusercontent.com/Websoft9/docker-library/main/apps/odoo/docker-compose.yml",
+    "variables": "https://raw.githubusercontent.com/Websoft9/docker-library/main/apps/odoo/variables.json"
+  },
+  "notes": [
+    "This sample preserves upstream identity for Epic 32 adaptation work.",
+    "The first pass stores source metadata rather than a full upstream file mirror."
+  ]
+}

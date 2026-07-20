@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import { ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Fragment } from 'react'
@@ -24,9 +25,12 @@ export function Breadcrumbs({ items, className }: BreadcrumbsProps) {
         <Fragment key={i}>
           {i > 0 && <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
           {item.href ? (
-            <a href={item.href} className="hover:text-foreground transition-colors truncate">
+            <Link
+              to={item.href as never}
+              className="hover:text-foreground transition-colors truncate"
+            >
               {item.label}
-            </a>
+            </Link>
           ) : (
             <span className="text-foreground font-medium truncate">{item.label}</span>
           )}

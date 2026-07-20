@@ -11,17 +11,35 @@ import {
 import {
   DEFAULT_CONNECT_SFTP,
   DEFAULT_CONNECT_TERMINAL,
+  DEFAULT_DEPLOY_GIT_DEFAULTS,
   DEFAULT_DEPLOY_PREFLIGHT,
+  DEFAULT_DEPLOY_RUNTIME,
   DEFAULT_IAC_FILES,
   DEFAULT_SPACE_QUOTA,
+  DEFAULT_TOPIC_COMMENT_POLICY,
+  DEFAULT_TOPIC_IMPORT_POLICY,
+  DEFAULT_TOPIC_SHARE,
   DEFAULT_TUNNEL_PORT_RANGE,
   EMPTY_PROXY,
+  EMPTY_PROXY_CONSUMERS,
+  EMPTY_PROXY_REMOTE_SHELL,
   type ConnectSftpGroup,
   type ConnectTerminalGroup,
+  type DeployGitDefaultsGroup,
   type DeployPreflightGroup,
+  type DeployRuntimeGroup,
   type IacFilesGroup,
+  type ProxyConsumerDefinition,
+  type ProxyConsumerItem,
+  type ProxyConsumersSettings,
   type ProxyNetwork,
+  type ProxyRemoteShellOverride,
+  type ProxyRemoteShellSettings,
+  type ProxySource,
   type SpaceQuota,
+  type TopicCommentPolicy,
+  type TopicImportPolicy,
+  type TopicShare,
   type TunnelPortRange,
 } from './-settings-sections/types'
 import {
@@ -54,11 +72,48 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     Partial<Record<keyof ConnectSftpGroup, string>>
   >({})
 
+  const [topicShareForm, setTopicShareForm] = useState<TopicShare>(DEFAULT_TOPIC_SHARE)
+  const [topicShareSaving, setTopicShareSaving] = useState(false)
+  const [topicShareErrors, setTopicShareErrors] = useState<
+    Partial<Record<keyof TopicShare, string>>
+  >({})
+
+  const [topicCommentPolicyForm, setTopicCommentPolicyForm] = useState<TopicCommentPolicy>(
+    DEFAULT_TOPIC_COMMENT_POLICY
+  )
+  const [topicCommentPolicySaving, setTopicCommentPolicySaving] = useState(false)
+  const [topicCommentPolicyErrors, setTopicCommentPolicyErrors] = useState<
+    Partial<Record<keyof TopicCommentPolicy, string>>
+  >({})
+
+  const [topicImportPolicyForm, setTopicImportPolicyForm] = useState<TopicImportPolicy>(
+    DEFAULT_TOPIC_IMPORT_POLICY
+  )
+  const [topicImportPolicySaving, setTopicImportPolicySaving] = useState(false)
+  const [topicImportPolicyErrors, setTopicImportPolicyErrors] = useState<
+    Partial<Record<keyof TopicImportPolicy, string>>
+  >({})
+
   const [deployPreflightForm, setDeployPreflightForm] =
     useState<DeployPreflightGroup>(DEFAULT_DEPLOY_PREFLIGHT)
   const [deployPreflightSaving, setDeployPreflightSaving] = useState(false)
   const [deployPreflightErrors, setDeployPreflightErrors] = useState<
     Partial<Record<keyof DeployPreflightGroup, string>>
+  >({})
+
+  const [deployRuntimeForm, setDeployRuntimeForm] =
+    useState<DeployRuntimeGroup>(DEFAULT_DEPLOY_RUNTIME)
+  const [deployRuntimeSaving, setDeployRuntimeSaving] = useState(false)
+  const [deployRuntimeErrors, setDeployRuntimeErrors] = useState<
+    Partial<Record<keyof DeployRuntimeGroup, string>>
+  >({})
+
+  const [deployGitDefaultsForm, setDeployGitDefaultsForm] = useState<DeployGitDefaultsGroup>(
+    DEFAULT_DEPLOY_GIT_DEFAULTS
+  )
+  const [deployGitDefaultsSaving, setDeployGitDefaultsSaving] = useState(false)
+  const [deployGitDefaultsErrors, setDeployGitDefaultsErrors] = useState<
+    Partial<Record<keyof DeployGitDefaultsGroup, string>>
   >({})
 
   const [iacFilesForm, setIacFilesForm] = useState<IacFilesGroup>(DEFAULT_IAC_FILES)
@@ -82,7 +137,135 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
 
   const [proxyNetwork, setProxyNetwork] = useState<ProxyNetwork>(EMPTY_PROXY)
   const [proxyForm, setProxyForm] = useState<ProxyNetwork>(EMPTY_PROXY)
-  const [proxySaving, setProxySaving] = useState(false)
+  const [proxyConsumers, setProxyConsumers] = useState<ProxyConsumerItem[]>(
+    EMPTY_PROXY_CONSUMERS.items
+  )
+  const [proxyConsumerDefinitions, setProxyConsumerDefinitions] = useState<
+    ProxyConsumerDefinition[]
+  >(EMPTY_PROXY_CONSUMERS.definitions)
+  const [proxyRemoteShellOverrides, setProxyRemoteShellOverrides] = useState<
+    ProxyRemoteShellOverride[]
+  >(EMPTY_PROXY_REMOTE_SHELL.items)
+  const [proxySavingSection, setProxySavingSection] = useState<'network' | 'consumers' | null>(null)
+  const [proxyErrors, setProxyErrors] = useState<
+    Partial<Record<'form' | 'consumers' | 'remoteShell' | keyof ProxyNetwork, string>>
+  >({})
+
+  const normalizeProxySource = (value: unknown): ProxySource | null => {
+    if (value === 'external' || value === 'self' || value === 'none') {
+      return value
+    }
+    return null
+  }
+
+  const normalizeProxyConsumerItem = (value: unknown): ProxyConsumerItem | null => {
+    if (!value || typeof value !== 'object') return null
+    const item = value as Record<string, unknown>
+    const consumerKey = typeof item.consumerKey === 'string' ? item.consumerKey.trim() : ''
+    const mode = typeof item.mode === 'string' ? item.mode.trim() : ''
+    if (consumerKey === '' || (mode !== 'disabled' && mode !== 'always')) {
+      return null
+    }
+    return { consumerKey, mode }
+  }
+
+  const normalizeProxyConsumerDefinition = (value: unknown): ProxyConsumerDefinition | null => {
+    if (!value || typeof value !== 'object') return null
+    const item = value as Record<string, unknown>
+    const key = typeof item.key === 'string' ? item.key.trim() : ''
+    const title = typeof item.title === 'string' ? item.title.trim() : ''
+    if (key === '' || title === '') return null
+    const allowedModes = Array.isArray(item.allowedModes)
+      ? item.allowedModes.filter(
+          (entry): entry is 'disabled' | 'always' => entry === 'disabled' || entry === 'always'
+        )
+      : []
+    return {
+      key,
+      title,
+      description: typeof item.description === 'string' ? item.description : undefined,
+      location: item.location === 'remote' ? 'remote' : 'local',
+      moduleKey: typeof item.moduleKey === 'string' ? item.moduleKey : undefined,
+      scope: typeof item.scope === 'string' ? item.scope : 'action',
+      adapter: typeof item.adapter === 'string' ? item.adapter : 'http_client',
+      trafficClass: typeof item.trafficClass === 'string' ? item.trafficClass : 'public_egress',
+      support: typeof item.support === 'string' ? item.support : 'proxy_capable',
+      defaultMode:
+        item.defaultMode === 'disabled' || item.defaultMode === 'always'
+          ? item.defaultMode
+          : 'disabled',
+      allowedModes,
+      enrollable: Boolean(item.enrollable),
+      tags: Array.isArray(item.tags)
+        ? item.tags.filter((tag): tag is string => typeof tag === 'string')
+        : undefined,
+    }
+  }
+
+  const normalizeProxyRemoteShellOverride = (value: unknown): ProxyRemoteShellOverride | null => {
+    if (!value || typeof value !== 'object') return null
+    const item = value as Record<string, unknown>
+    const serverId = typeof item.serverId === 'string' ? item.serverId.trim() : ''
+    const mode = typeof item.mode === 'string' ? item.mode.trim() : ''
+    if (serverId === '' || (mode !== 'disabled' && mode !== 'always')) {
+      return null
+    }
+    return { serverId, mode }
+  }
+
+  const inferProxySource = ({
+    network,
+    consumers,
+    definitions,
+    remoteShellOverrides,
+  }: {
+    network: ProxyNetwork
+    consumers: ProxyConsumerItem[]
+    definitions: ProxyConsumerDefinition[]
+    remoteShellOverrides: ProxyRemoteShellOverride[]
+  }): ProxySource => {
+    const explicit = normalizeProxySource((network as Partial<ProxyNetwork>).source)
+    if (explicit) {
+      return explicit
+    }
+
+    if (
+      network.enabled ||
+      network.socks5ConnectorId !== '' ||
+      network.httpConnectorId !== '' ||
+      network.httpsConnectorId !== '' ||
+      consumers.some(item => item.consumerKey !== 'remote_shell.global' && item.mode !== 'disabled')
+    ) {
+      return 'external'
+    }
+
+    const remoteShellDefinition = definitions.find(
+      definition => definition.key === 'remote_shell.global'
+    )
+    const savedRemoteShellMode = consumers.find(
+      item => item.consumerKey === 'remote_shell.global'
+    )?.mode
+    const effectiveRemoteShellMode =
+      savedRemoteShellMode ?? remoteShellDefinition?.defaultMode ?? 'disabled'
+    if (remoteShellOverrides.length > 0 || effectiveRemoteShellMode !== 'disabled') {
+      return 'self'
+    }
+
+    return 'none'
+  }
+
+  const buildProxyNetworkPayload = (source: ProxyNetwork): ProxyNetwork => ({
+    source: source.source,
+    enabled:
+      source.source === 'external'
+        ? [source.socks5ConnectorId, source.httpConnectorId, source.httpsConnectorId].some(
+            value => value.trim() !== ''
+          )
+        : false,
+    socks5ConnectorId: source.source === 'external' ? source.socks5ConnectorId.trim() : '',
+    httpConnectorId: source.source === 'external' ? source.httpConnectorId.trim() : '',
+    httpsConnectorId: source.source === 'external' ? source.httpsConnectorId.trim() : '',
+  })
 
   const hydrateWorkspaceSimpleEntries = useCallback((entryMap: Map<string, unknown>) => {
     const quota = (entryMap.get('space-quota') as Partial<SpaceQuota>) ?? {}
@@ -123,13 +306,134 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
           : DEFAULT_CONNECT_SFTP.maxUploadFiles,
     })
 
+    const topicShare = (entryMap.get('topic-share') as Partial<TopicShare>) ?? {}
+    const topicShareMaxMinutes = Number(topicShare.shareMaxMinutes)
+    const topicShareDefaultMinutes = Number(topicShare.shareDefaultMinutes)
+    setTopicShareForm({
+      shareMaxMinutes:
+        Number.isFinite(topicShareMaxMinutes) && topicShareMaxMinutes >= 1
+          ? Math.floor(topicShareMaxMinutes)
+          : DEFAULT_TOPIC_SHARE.shareMaxMinutes,
+      shareDefaultMinutes:
+        Number.isFinite(topicShareDefaultMinutes) && topicShareDefaultMinutes >= 1
+          ? Math.floor(topicShareDefaultMinutes)
+          : DEFAULT_TOPIC_SHARE.shareDefaultMinutes,
+    })
+
+    const topicCommentPolicy =
+      (entryMap.get('topic-comment-policy') as Partial<TopicCommentPolicy>) ?? {}
+    const maxGuestNameLength = Number(topicCommentPolicy.maxGuestNameLength)
+    const maxCommentBodyLength = Number(topicCommentPolicy.maxCommentBodyLength)
+    setTopicCommentPolicyForm({
+      allowGuestComments:
+        typeof topicCommentPolicy.allowGuestComments === 'boolean'
+          ? topicCommentPolicy.allowGuestComments
+          : DEFAULT_TOPIC_COMMENT_POLICY.allowGuestComments,
+      defaultGuestName:
+        typeof topicCommentPolicy.defaultGuestName === 'string' &&
+        topicCommentPolicy.defaultGuestName.trim().length > 0
+          ? topicCommentPolicy.defaultGuestName
+          : DEFAULT_TOPIC_COMMENT_POLICY.defaultGuestName,
+      maxGuestNameLength:
+        Number.isFinite(maxGuestNameLength) && maxGuestNameLength >= 1
+          ? Math.floor(maxGuestNameLength)
+          : DEFAULT_TOPIC_COMMENT_POLICY.maxGuestNameLength,
+      maxCommentBodyLength:
+        Number.isFinite(maxCommentBodyLength) && maxCommentBodyLength >= 1
+          ? Math.floor(maxCommentBodyLength)
+          : DEFAULT_TOPIC_COMMENT_POLICY.maxCommentBodyLength,
+    })
+
+    const topicImportPolicy =
+      (entryMap.get('topic-import-policy') as Partial<TopicImportPolicy>) ?? {}
+    const maxDescriptionImportKB = Number(topicImportPolicy.maxDescriptionImportKB)
+    const legacyMaxDescriptionImportBytes = Number(
+      (topicImportPolicy as { maxDescriptionImportBytes?: number }).maxDescriptionImportBytes
+    )
+    setTopicImportPolicyForm({
+      maxDescriptionImportKB:
+        Number.isFinite(maxDescriptionImportKB) && maxDescriptionImportKB >= 1
+          ? Math.floor(maxDescriptionImportKB)
+          : Number.isFinite(legacyMaxDescriptionImportBytes) &&
+              legacyMaxDescriptionImportBytes >= 1024
+            ? Math.ceil(legacyMaxDescriptionImportBytes / 1024)
+            : DEFAULT_TOPIC_IMPORT_POLICY.maxDescriptionImportKB,
+      textOnly:
+        typeof topicImportPolicy.textOnly === 'boolean'
+          ? topicImportPolicy.textOnly
+          : DEFAULT_TOPIC_IMPORT_POLICY.textOnly,
+    })
+
     const preflight = (entryMap.get('deploy-preflight') as Partial<DeployPreflightGroup>) ?? {}
-    const minFreeDiskBytes = Number(preflight.minFreeDiskBytes)
+    const minFreeDiskGiB = Number(preflight.minFreeDiskGiB)
+    const legacyMinFreeDiskBytes = Number(
+      (preflight as { minFreeDiskBytes?: number }).minFreeDiskBytes
+    )
     setDeployPreflightForm({
-      minFreeDiskBytes:
-        Number.isFinite(minFreeDiskBytes) && minFreeDiskBytes >= 0
-          ? Math.floor(minFreeDiskBytes)
-          : DEFAULT_DEPLOY_PREFLIGHT.minFreeDiskBytes,
+      minFreeDiskGiB:
+        Number.isFinite(minFreeDiskGiB) && minFreeDiskGiB >= 0.5
+          ? minFreeDiskGiB
+          : Number.isFinite(legacyMinFreeDiskBytes) && legacyMinFreeDiskBytes >= 0
+            ? Math.max(0.5, legacyMinFreeDiskBytes / (1024 * 1024 * 1024))
+            : DEFAULT_DEPLOY_PREFLIGHT.minFreeDiskGiB,
+    })
+
+    const runtime = (entryMap.get('deploy-runtime') as Partial<DeployRuntimeGroup>) ?? {}
+    const imagePullTimeoutSeconds = Number(runtime.imagePullTimeoutSeconds)
+    const composeUpTimeoutSeconds = Number(runtime.composeUpTimeoutSeconds)
+    const healthCheckTimeoutSeconds = Number(runtime.healthCheckTimeoutSeconds)
+    const runtimePullIdleHeartbeatSeconds = Number(runtime.runtimePullIdleHeartbeatSeconds)
+    const operationProgressHeartbeatSeconds = Number(runtime.operationProgressHeartbeatSeconds)
+    setDeployRuntimeForm({
+      imagePullTimeoutSeconds:
+        Number.isFinite(imagePullTimeoutSeconds) && imagePullTimeoutSeconds >= 1
+          ? Math.floor(imagePullTimeoutSeconds)
+          : DEFAULT_DEPLOY_RUNTIME.imagePullTimeoutSeconds,
+      composeUpTimeoutSeconds:
+        Number.isFinite(composeUpTimeoutSeconds) && composeUpTimeoutSeconds >= 1
+          ? Math.floor(composeUpTimeoutSeconds)
+          : DEFAULT_DEPLOY_RUNTIME.composeUpTimeoutSeconds,
+      healthCheckTimeoutSeconds:
+        Number.isFinite(healthCheckTimeoutSeconds) && healthCheckTimeoutSeconds >= 1
+          ? Math.floor(healthCheckTimeoutSeconds)
+          : DEFAULT_DEPLOY_RUNTIME.healthCheckTimeoutSeconds,
+      runtimePullIdleHeartbeatSeconds:
+        Number.isFinite(runtimePullIdleHeartbeatSeconds) && runtimePullIdleHeartbeatSeconds >= 1
+          ? Math.floor(runtimePullIdleHeartbeatSeconds)
+          : DEFAULT_DEPLOY_RUNTIME.runtimePullIdleHeartbeatSeconds,
+      operationProgressHeartbeatSeconds:
+        Number.isFinite(operationProgressHeartbeatSeconds) && operationProgressHeartbeatSeconds >= 1
+          ? Math.floor(operationProgressHeartbeatSeconds)
+          : DEFAULT_DEPLOY_RUNTIME.operationProgressHeartbeatSeconds,
+      sameAppConflictMode:
+        typeof runtime.sameAppConflictMode === 'string' &&
+        runtime.sameAppConflictMode.trim().length > 0
+          ? runtime.sameAppConflictMode
+          : DEFAULT_DEPLOY_RUNTIME.sameAppConflictMode,
+      defaultRuleProfileCompose:
+        typeof runtime.defaultRuleProfileCompose === 'string' &&
+        runtime.defaultRuleProfileCompose.trim().length > 0
+          ? runtime.defaultRuleProfileCompose
+          : DEFAULT_DEPLOY_RUNTIME.defaultRuleProfileCompose,
+      defaultRuleProfileBuild:
+        typeof runtime.defaultRuleProfileBuild === 'string' &&
+        runtime.defaultRuleProfileBuild.trim().length > 0
+          ? runtime.defaultRuleProfileBuild
+          : DEFAULT_DEPLOY_RUNTIME.defaultRuleProfileBuild,
+    })
+
+    const gitDefaults =
+      (entryMap.get('deploy-git-defaults') as Partial<DeployGitDefaultsGroup>) ?? {}
+    setDeployGitDefaultsForm({
+      defaultRef:
+        typeof gitDefaults.defaultRef === 'string' && gitDefaults.defaultRef.trim().length > 0
+          ? gitDefaults.defaultRef
+          : DEFAULT_DEPLOY_GIT_DEFAULTS.defaultRef,
+      defaultComposePath:
+        typeof gitDefaults.defaultComposePath === 'string' &&
+        gitDefaults.defaultComposePath.trim().length > 0
+          ? gitDefaults.defaultComposePath
+          : DEFAULT_DEPLOY_GIT_DEFAULTS.defaultComposePath,
     })
 
     const iacFiles = (entryMap.get('iac-files') as Partial<IacFilesGroup>) ?? {}
@@ -161,9 +465,71 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
 
     setSecretPolicy(normalizeSecretPolicy(entryMap.get('secrets-policy')))
 
-    const network = (entryMap.get('proxy-network') as ProxyNetwork) ?? EMPTY_PROXY
-    setProxyNetwork(network)
-    setProxyForm(network)
+    const network = (entryMap.get('proxy-network') as Partial<ProxyNetwork>) ?? {}
+    const consumersEntry =
+      (entryMap.get('proxy-policies') as Partial<ProxyConsumersSettings> | undefined) ??
+      EMPTY_PROXY_CONSUMERS
+    const normalizedDefinitions = Array.isArray(consumersEntry.definitions)
+      ? consumersEntry.definitions
+          .map(normalizeProxyConsumerDefinition)
+          .filter((definition): definition is ProxyConsumerDefinition => definition !== null)
+      : []
+    const normalizedItems = Array.isArray(consumersEntry.items)
+      ? consumersEntry.items
+          .map(normalizeProxyConsumerItem)
+          .filter((item): item is ProxyConsumerItem => item !== null)
+      : []
+    const normalizedConsumerRemoteShellItems = Array.isArray(consumersEntry.serverOverrides)
+      ? consumersEntry.serverOverrides
+          .map(normalizeProxyRemoteShellOverride)
+          .filter((item): item is ProxyRemoteShellOverride => item !== null)
+      : []
+
+    const remoteShellEntry =
+      (entryMap.get('proxy-remote-shell') as Partial<ProxyRemoteShellSettings> | undefined) ??
+      EMPTY_PROXY_REMOTE_SHELL
+    const normalizedRemoteShellItems = Array.isArray(remoteShellEntry.items)
+      ? remoteShellEntry.items
+          .map(normalizeProxyRemoteShellOverride)
+          .filter((item): item is ProxyRemoteShellOverride => item !== null)
+      : []
+    const effectiveRemoteShellItems =
+      normalizedConsumerRemoteShellItems.length > 0
+        ? normalizedConsumerRemoteShellItems
+        : normalizedRemoteShellItems
+
+    const mergedProxyBase = {
+      ...EMPTY_PROXY,
+      ...network,
+      source: normalizeProxySource(network.source) ?? EMPTY_PROXY.source,
+      enabled: Boolean(network.enabled),
+      socks5ConnectorId:
+        typeof network.socks5ConnectorId === 'string'
+          ? network.socks5ConnectorId
+          : EMPTY_PROXY.socks5ConnectorId,
+      httpConnectorId:
+        typeof network.httpConnectorId === 'string'
+          ? network.httpConnectorId
+          : EMPTY_PROXY.httpConnectorId,
+      httpsConnectorId:
+        typeof network.httpsConnectorId === 'string'
+          ? network.httpsConnectorId
+          : EMPTY_PROXY.httpsConnectorId,
+    }
+    const mergedProxy = {
+      ...mergedProxyBase,
+      source: inferProxySource({
+        network: mergedProxyBase,
+        consumers: normalizedItems,
+        definitions: normalizedDefinitions,
+        remoteShellOverrides: effectiveRemoteShellItems,
+      }),
+    }
+    setProxyNetwork(mergedProxy)
+    setProxyForm(mergedProxy)
+    setProxyConsumerDefinitions(normalizedDefinitions)
+    setProxyConsumers(normalizedItems)
+    setProxyRemoteShellOverrides(effectiveRemoteShellItems)
   }, [])
 
   const validateSpaceQuota = (): boolean => {
@@ -227,21 +593,157 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     } finally {
       setSpaceQuotaSaving(false)
     }
+    setProxyErrors({})
   }
 
-  const saveProxy = async () => {
-    setProxySaving(true)
+  const parseProxyApiErrors = (
+    payload: unknown,
+    scope: 'network' | 'consumers' | 'remoteShell' = 'network'
+  ): Partial<Record<'form' | 'consumers' | 'remoteShell' | keyof ProxyNetwork, string>> => {
+    const parsed: Partial<
+      Record<'form' | 'consumers' | 'remoteShell' | keyof ProxyNetwork, string>
+    > = {}
+    if (!payload || typeof payload !== 'object') {
+      return parsed
+    }
+
+    const root = payload as Record<string, unknown>
+    const bag =
+      root.errors && typeof root.errors === 'object'
+        ? (root.errors as Record<string, unknown>)
+        : root
+
+    const formError = extractFieldError(root.message) ?? extractFieldError(root.data)
+    if (formError) {
+      parsed.form = formError
+    }
+
+    const socks5Error = extractFieldError(bag.socks5ConnectorId)
+    if (socks5Error) {
+      parsed.socks5ConnectorId = socks5Error
+    }
+    const httpError = extractFieldError(bag.httpConnectorId)
+    if (httpError) {
+      parsed.httpConnectorId = httpError
+    }
+    const httpsError = extractFieldError(bag.httpsConnectorId)
+    if (httpsError) {
+      parsed.httpsConnectorId = httpsError
+    }
+    const consumersError = extractFieldError(bag.items)
+    if (consumersError) {
+      if (scope === 'remoteShell') {
+        parsed.remoteShell = consumersError
+      } else {
+        parsed.consumers = consumersError
+      }
+    }
+    const remoteShellOverridesError = extractFieldError(bag.serverOverrides)
+    if (remoteShellOverridesError) {
+      parsed.remoteShell = remoteShellOverridesError
+    }
+
+    return parsed
+  }
+
+  const saveProxyNetwork = async (draft?: ProxyNetwork) => {
+    setProxySavingSection('network')
+    setProxyErrors({})
     try {
-      await pb.send(settingsEntryPath('proxy-network'), {
+      const payload = buildProxyNetworkPayload(draft ?? proxyForm)
+      if (payload.source === 'external' && !payload.enabled) {
+        setProxyErrors({
+          form: 'Select at least one external proxy connector before saving External Proxy.',
+        })
+        showToast('Please select at least one external proxy connector.', false)
+        return
+      }
+
+      const res = (await pb.send(settingsEntryPath('proxy-network'), {
         method: 'PATCH',
-        body: proxyForm,
-      })
-      setProxyNetwork(proxyForm)
-      showToast('Proxy settings saved')
+        body: payload,
+      })) as { value?: Partial<ProxyNetwork> }
+      const savedNetwork = {
+        ...payload,
+        ...res.value,
+        source: normalizeProxySource(res.value?.source) ?? payload.source,
+        enabled: Boolean(res.value?.enabled ?? payload.enabled),
+        socks5ConnectorId: String(res.value?.socks5ConnectorId ?? payload.socks5ConnectorId),
+        httpConnectorId: String(res.value?.httpConnectorId ?? payload.httpConnectorId),
+        httpsConnectorId: String(res.value?.httpsConnectorId ?? payload.httpsConnectorId),
+      }
+
+      setProxyNetwork(savedNetwork)
+      setProxyForm(savedNetwork)
+      setProxyErrors({})
+      showToast('Proxy resource settings saved')
     } catch (err) {
+      if (err instanceof ClientResponseError && (err.status === 400 || err.status === 422)) {
+        const inlineErrors = parseProxyApiErrors(err.response, 'network')
+        if (Object.keys(inlineErrors).length > 0) {
+          setProxyErrors(inlineErrors)
+          showToast('Please fix validation errors and try again.', false)
+          return
+        }
+      }
       showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
     } finally {
-      setProxySaving(false)
+      setProxySavingSection(null)
+    }
+  }
+
+  const saveProxyConsumers = async () => {
+    setProxySavingSection('consumers')
+    setProxyErrors(current => ({ ...current, consumers: undefined }))
+    try {
+      const consumerPayload = {
+        items: proxyConsumers.map(item => ({
+          consumerKey: item.consumerKey.trim(),
+          mode: item.mode,
+        })),
+        serverOverrides: proxyRemoteShellOverrides.map(item => ({
+          serverId: item.serverId.trim(),
+          mode: item.mode,
+        })),
+      }
+      const consumerRes = (await pb.send(settingsEntryPath('proxy-policies'), {
+        method: 'PATCH',
+        body: consumerPayload,
+      })) as { value?: Partial<ProxyConsumersSettings> }
+      const savedConsumers = Array.isArray(consumerRes.value?.items)
+        ? consumerRes.value.items
+            .map(normalizeProxyConsumerItem)
+            .filter((item): item is ProxyConsumerItem => item !== null)
+        : consumerPayload.items
+      const savedRemoteShellOverrides = Array.isArray(consumerRes.value?.serverOverrides)
+        ? consumerRes.value.serverOverrides
+            .map(normalizeProxyRemoteShellOverride)
+            .filter((item): item is ProxyRemoteShellOverride => item !== null)
+        : consumerPayload.serverOverrides
+
+      setProxyConsumers(savedConsumers)
+      setProxyRemoteShellOverrides(savedRemoteShellOverrides)
+      if (Array.isArray(consumerRes.value?.definitions)) {
+        setProxyConsumerDefinitions(
+          consumerRes.value.definitions
+            .map(normalizeProxyConsumerDefinition)
+            .filter((definition): definition is ProxyConsumerDefinition => definition !== null)
+        )
+      }
+      setProxyErrors(current => ({ ...current, consumers: undefined, remoteShell: undefined }))
+      showToast('Proxy policy settings saved')
+    } catch (err) {
+      if (err instanceof ClientResponseError && (err.status === 400 || err.status === 422)) {
+        const inlineErrors = parseProxyApiErrors(err.response, 'consumers')
+        if (Object.keys(inlineErrors).length > 0) {
+          setProxyErrors(current => ({ ...current, ...inlineErrors }))
+          showToast('Please fix validation errors and try again.', false)
+          return
+        }
+      }
+      showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
+    } finally {
+      setProxySavingSection(null)
     }
   }
 
@@ -336,13 +838,212 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     }
   }
 
+  const validateTopicShare = (): boolean => {
+    const errors: Partial<Record<keyof TopicShare, string>> = {}
+    if (
+      !Number.isInteger(topicShareForm.shareDefaultMinutes) ||
+      topicShareForm.shareDefaultMinutes < 1
+    ) {
+      errors.shareDefaultMinutes = 'Must be an integer ≥ 1'
+    }
+    if (!Number.isInteger(topicShareForm.shareMaxMinutes) || topicShareForm.shareMaxMinutes < 1) {
+      errors.shareMaxMinutes = 'Must be an integer ≥ 1'
+    }
+    if (
+      !errors.shareDefaultMinutes &&
+      !errors.shareMaxMinutes &&
+      topicShareForm.shareDefaultMinutes > topicShareForm.shareMaxMinutes
+    ) {
+      errors.shareDefaultMinutes = 'Cannot exceed max duration'
+    }
+    setTopicShareErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const saveTopicShare = async () => {
+    if (!validateTopicShare()) return
+    setTopicShareSaving(true)
+    setTopicShareErrors({})
+    try {
+      const res = (await pb.send(settingsEntryPath('topic-share'), {
+        method: 'PATCH',
+        body: {
+          shareMaxMinutes: topicShareForm.shareMaxMinutes,
+          shareDefaultMinutes: topicShareForm.shareDefaultMinutes,
+        },
+      })) as { value?: Partial<TopicShare> }
+      const next = res.value ?? topicShareForm
+      setTopicShareForm({
+        shareMaxMinutes: Number(next.shareMaxMinutes ?? topicShareForm.shareMaxMinutes),
+        shareDefaultMinutes: Number(next.shareDefaultMinutes ?? topicShareForm.shareDefaultMinutes),
+      })
+      showToast('Topic share settings saved')
+    } catch (err) {
+      if (err instanceof ClientResponseError && (err.status === 400 || err.status === 422)) {
+        const root = err.response as Record<string, unknown>
+        const bag =
+          root.errors && typeof root.errors === 'object'
+            ? (root.errors as Record<string, unknown>)
+            : root
+        const nextErrors = {
+          shareMaxMinutes: extractFieldError(bag.shareMaxMinutes) ?? undefined,
+          shareDefaultMinutes: extractFieldError(bag.shareDefaultMinutes) ?? undefined,
+        }
+        if (Object.values(nextErrors).some(Boolean)) {
+          setTopicShareErrors(nextErrors)
+          showToast('Please fix validation errors and try again.', false)
+          return
+        }
+      }
+      showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
+    } finally {
+      setTopicShareSaving(false)
+    }
+  }
+
+  const validateTopicCommentPolicy = (): boolean => {
+    const errors: Partial<Record<keyof TopicCommentPolicy, string>> = {}
+    const trimmedDefaultGuestName = topicCommentPolicyForm.defaultGuestName.trim()
+
+    if (trimmedDefaultGuestName.length === 0) {
+      errors.defaultGuestName = 'Must not be empty'
+    }
+    if (
+      !Number.isInteger(topicCommentPolicyForm.maxGuestNameLength) ||
+      topicCommentPolicyForm.maxGuestNameLength < 1
+    ) {
+      errors.maxGuestNameLength = 'Must be an integer ≥ 1'
+    }
+    if (
+      !Number.isInteger(topicCommentPolicyForm.maxCommentBodyLength) ||
+      topicCommentPolicyForm.maxCommentBodyLength < 1
+    ) {
+      errors.maxCommentBodyLength = 'Must be an integer ≥ 1'
+    }
+    if (
+      !errors.defaultGuestName &&
+      !errors.maxGuestNameLength &&
+      trimmedDefaultGuestName.length > topicCommentPolicyForm.maxGuestNameLength
+    ) {
+      errors.defaultGuestName = 'Must be within Max Guest Name Length'
+    }
+
+    setTopicCommentPolicyErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const saveTopicCommentPolicy = async () => {
+    if (!validateTopicCommentPolicy()) return
+    setTopicCommentPolicySaving(true)
+    setTopicCommentPolicyErrors({})
+    try {
+      const payload: TopicCommentPolicy = {
+        ...topicCommentPolicyForm,
+        defaultGuestName: topicCommentPolicyForm.defaultGuestName.trim(),
+      }
+      const res = (await pb.send(settingsEntryPath('topic-comment-policy'), {
+        method: 'PATCH',
+        body: payload,
+      })) as { value?: Partial<TopicCommentPolicy> }
+      const next = res.value ?? payload
+      setTopicCommentPolicyForm({
+        allowGuestComments: Boolean(next.allowGuestComments ?? payload.allowGuestComments),
+        defaultGuestName:
+          typeof next.defaultGuestName === 'string'
+            ? next.defaultGuestName
+            : payload.defaultGuestName,
+        maxGuestNameLength: Number(next.maxGuestNameLength ?? payload.maxGuestNameLength),
+        maxCommentBodyLength: Number(next.maxCommentBodyLength ?? payload.maxCommentBodyLength),
+      })
+      showToast('Topic comment policy saved')
+    } catch (err) {
+      if (err instanceof ClientResponseError && (err.status === 400 || err.status === 422)) {
+        const root = err.response as Record<string, unknown>
+        const bag =
+          root.errors && typeof root.errors === 'object'
+            ? (root.errors as Record<string, unknown>)
+            : root
+        const nextErrors = {
+          allowGuestComments: extractFieldError(bag.allowGuestComments) ?? undefined,
+          defaultGuestName: extractFieldError(bag.defaultGuestName) ?? undefined,
+          maxGuestNameLength: extractFieldError(bag.maxGuestNameLength) ?? undefined,
+          maxCommentBodyLength: extractFieldError(bag.maxCommentBodyLength) ?? undefined,
+        }
+        if (Object.values(nextErrors).some(Boolean)) {
+          setTopicCommentPolicyErrors(nextErrors)
+          showToast('Please fix validation errors and try again.', false)
+          return
+        }
+      }
+      showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
+    } finally {
+      setTopicCommentPolicySaving(false)
+    }
+  }
+
+  const validateTopicImportPolicy = (): boolean => {
+    const errors: Partial<Record<keyof TopicImportPolicy, string>> = {}
+    if (
+      !Number.isInteger(topicImportPolicyForm.maxDescriptionImportKB) ||
+      topicImportPolicyForm.maxDescriptionImportKB < 1 ||
+      topicImportPolicyForm.maxDescriptionImportKB > 10 * 1024
+    ) {
+      errors.maxDescriptionImportKB = 'Must be an integer between 1 and 10240'
+    }
+    setTopicImportPolicyErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const saveTopicImportPolicy = async () => {
+    if (!validateTopicImportPolicy()) return
+    setTopicImportPolicySaving(true)
+    setTopicImportPolicyErrors({})
+    try {
+      const payload: TopicImportPolicy = {
+        ...topicImportPolicyForm,
+      }
+      const res = (await pb.send(settingsEntryPath('topic-import-policy'), {
+        method: 'PATCH',
+        body: payload,
+      })) as { value?: Partial<TopicImportPolicy> }
+      const next = res.value ?? payload
+      setTopicImportPolicyForm({
+        maxDescriptionImportKB: Number(
+          next.maxDescriptionImportKB ?? payload.maxDescriptionImportKB
+        ),
+        textOnly: Boolean(next.textOnly ?? payload.textOnly),
+      })
+      showToast('Topic import policy saved')
+    } catch (err) {
+      if (err instanceof ClientResponseError && (err.status === 400 || err.status === 422)) {
+        const root = err.response as Record<string, unknown>
+        const bag =
+          root.errors && typeof root.errors === 'object'
+            ? (root.errors as Record<string, unknown>)
+            : root
+        const nextErrors = {
+          maxDescriptionImportKB: extractFieldError(bag.maxDescriptionImportKB) ?? undefined,
+          textOnly: extractFieldError(bag.textOnly) ?? undefined,
+        }
+        if (Object.values(nextErrors).some(Boolean)) {
+          setTopicImportPolicyErrors(nextErrors)
+          showToast('Please fix validation errors and try again.', false)
+          return
+        }
+      }
+      showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
+    } finally {
+      setTopicImportPolicySaving(false)
+    }
+  }
+
   const validateDeployPreflight = (): boolean => {
     const errors: Partial<Record<keyof DeployPreflightGroup, string>> = {}
     if (
-      !Number.isInteger(deployPreflightForm.minFreeDiskBytes) ||
-      deployPreflightForm.minFreeDiskBytes < 0
+      !Number.isFinite(deployPreflightForm.minFreeDiskGiB) ||
+      deployPreflightForm.minFreeDiskGiB < 0.5
     ) {
-      errors.minFreeDiskBytes = 'Must be an integer ≥ 0 bytes'
+      errors.minFreeDiskGiB = 'Must be at least 0.5 GiB'
     }
     setDeployPreflightErrors(errors)
     return Object.keys(errors).length === 0
@@ -356,16 +1057,14 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
       const res = (await pb.send(settingsEntryPath('deploy-preflight'), {
         method: 'PATCH',
         body: {
-          minFreeDiskBytes: deployPreflightForm.minFreeDiskBytes,
+          minFreeDiskGiB: deployPreflightForm.minFreeDiskGiB,
         },
       })) as { value?: Partial<DeployPreflightGroup> }
       const preflight = res.value ?? deployPreflightForm
       setDeployPreflightForm({
-        minFreeDiskBytes: Number(
-          preflight.minFreeDiskBytes ?? deployPreflightForm.minFreeDiskBytes
-        ),
+        minFreeDiskGiB: Number(preflight.minFreeDiskGiB ?? deployPreflightForm.minFreeDiskGiB),
       })
-      showToast('Deploy preflight settings saved')
+      showToast('Deploy checks saved')
     } catch (err) {
       if (err instanceof ClientResponseError && (err.status === 400 || err.status === 422)) {
         const root = err.response as Record<string, unknown>
@@ -374,7 +1073,7 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
             ? (root.errors as Record<string, unknown>)
             : root
         const nextErrors = {
-          minFreeDiskBytes: extractFieldError(bag.minFreeDiskBytes) ?? undefined,
+          minFreeDiskGiB: extractFieldError(bag.minFreeDiskGiB) ?? undefined,
         }
         if (Object.values(nextErrors).some(Boolean)) {
           setDeployPreflightErrors(nextErrors)
@@ -385,6 +1084,156 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
       showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
     } finally {
       setDeployPreflightSaving(false)
+    }
+  }
+
+  const validateDeployRuntime = (): boolean => {
+    const errors: Partial<Record<keyof DeployRuntimeGroup, string>> = {}
+    const integerFields: Array<keyof DeployRuntimeGroup> = [
+      'imagePullTimeoutSeconds',
+      'composeUpTimeoutSeconds',
+      'healthCheckTimeoutSeconds',
+      'runtimePullIdleHeartbeatSeconds',
+      'operationProgressHeartbeatSeconds',
+    ]
+    for (const field of integerFields) {
+      const value = Number(deployRuntimeForm[field])
+      if (!Number.isInteger(value) || value < 1) {
+        errors[field] = 'Must be an integer ≥ 1 second'
+      }
+    }
+    setDeployRuntimeErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const saveDeployRuntime = async () => {
+    if (!validateDeployRuntime()) return
+    setDeployRuntimeSaving(true)
+    setDeployRuntimeErrors({})
+    try {
+      const res = (await pb.send(settingsEntryPath('deploy-runtime'), {
+        method: 'PATCH',
+        body: { ...deployRuntimeForm },
+      })) as { value?: Partial<DeployRuntimeGroup> }
+      const runtime = res.value ?? deployRuntimeForm
+      setDeployRuntimeForm({
+        imagePullTimeoutSeconds: Number(
+          runtime.imagePullTimeoutSeconds ?? deployRuntimeForm.imagePullTimeoutSeconds
+        ),
+        composeUpTimeoutSeconds: Number(
+          runtime.composeUpTimeoutSeconds ?? deployRuntimeForm.composeUpTimeoutSeconds
+        ),
+        healthCheckTimeoutSeconds: Number(
+          runtime.healthCheckTimeoutSeconds ?? deployRuntimeForm.healthCheckTimeoutSeconds
+        ),
+        runtimePullIdleHeartbeatSeconds: Number(
+          runtime.runtimePullIdleHeartbeatSeconds ??
+            deployRuntimeForm.runtimePullIdleHeartbeatSeconds
+        ),
+        operationProgressHeartbeatSeconds: Number(
+          runtime.operationProgressHeartbeatSeconds ??
+            deployRuntimeForm.operationProgressHeartbeatSeconds
+        ),
+        sameAppConflictMode:
+          typeof runtime.sameAppConflictMode === 'string'
+            ? runtime.sameAppConflictMode
+            : deployRuntimeForm.sameAppConflictMode,
+        defaultRuleProfileCompose:
+          typeof runtime.defaultRuleProfileCompose === 'string'
+            ? runtime.defaultRuleProfileCompose
+            : deployRuntimeForm.defaultRuleProfileCompose,
+        defaultRuleProfileBuild:
+          typeof runtime.defaultRuleProfileBuild === 'string'
+            ? runtime.defaultRuleProfileBuild
+            : deployRuntimeForm.defaultRuleProfileBuild,
+      })
+      showToast('Deploy runtime settings saved')
+    } catch (err) {
+      if (err instanceof ClientResponseError && (err.status === 400 || err.status === 422)) {
+        const root = err.response as Record<string, unknown>
+        const bag =
+          root.errors && typeof root.errors === 'object'
+            ? (root.errors as Record<string, unknown>)
+            : root
+        const nextErrors = {
+          imagePullTimeoutSeconds: extractFieldError(bag.imagePullTimeoutSeconds) ?? undefined,
+          composeUpTimeoutSeconds: extractFieldError(bag.composeUpTimeoutSeconds) ?? undefined,
+          healthCheckTimeoutSeconds: extractFieldError(bag.healthCheckTimeoutSeconds) ?? undefined,
+          runtimePullIdleHeartbeatSeconds:
+            extractFieldError(bag.runtimePullIdleHeartbeatSeconds) ?? undefined,
+          operationProgressHeartbeatSeconds:
+            extractFieldError(bag.operationProgressHeartbeatSeconds) ?? undefined,
+          sameAppConflictMode: extractFieldError(bag.sameAppConflictMode) ?? undefined,
+          defaultRuleProfileCompose: extractFieldError(bag.defaultRuleProfileCompose) ?? undefined,
+          defaultRuleProfileBuild: extractFieldError(bag.defaultRuleProfileBuild) ?? undefined,
+        }
+        if (Object.values(nextErrors).some(Boolean)) {
+          setDeployRuntimeErrors(nextErrors)
+          showToast('Please fix validation errors and try again.', false)
+          return
+        }
+      }
+      showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
+    } finally {
+      setDeployRuntimeSaving(false)
+    }
+  }
+
+  const validateDeployGitDefaults = (): boolean => {
+    const errors: Partial<Record<keyof DeployGitDefaultsGroup, string>> = {}
+    if (deployGitDefaultsForm.defaultRef.trim().length === 0) {
+      errors.defaultRef = 'Must not be empty'
+    }
+    if (deployGitDefaultsForm.defaultComposePath.trim().length === 0) {
+      errors.defaultComposePath = 'Must not be empty'
+    }
+    setDeployGitDefaultsErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const saveDeployGitDefaults = async () => {
+    if (!validateDeployGitDefaults()) return
+    setDeployGitDefaultsSaving(true)
+    setDeployGitDefaultsErrors({})
+    try {
+      const payload: DeployGitDefaultsGroup = {
+        defaultRef: deployGitDefaultsForm.defaultRef.trim(),
+        defaultComposePath: deployGitDefaultsForm.defaultComposePath.trim(),
+      }
+      const res = (await pb.send(settingsEntryPath('deploy-git-defaults'), {
+        method: 'PATCH',
+        body: payload,
+      })) as { value?: Partial<DeployGitDefaultsGroup> }
+      const gitDefaults = res.value ?? payload
+      setDeployGitDefaultsForm({
+        defaultRef:
+          typeof gitDefaults.defaultRef === 'string' ? gitDefaults.defaultRef : payload.defaultRef,
+        defaultComposePath:
+          typeof gitDefaults.defaultComposePath === 'string'
+            ? gitDefaults.defaultComposePath
+            : payload.defaultComposePath,
+      })
+      showToast('Deploy Git defaults saved')
+    } catch (err) {
+      if (err instanceof ClientResponseError && (err.status === 400 || err.status === 422)) {
+        const root = err.response as Record<string, unknown>
+        const bag =
+          root.errors && typeof root.errors === 'object'
+            ? (root.errors as Record<string, unknown>)
+            : root
+        const nextErrors = {
+          defaultRef: extractFieldError(bag.defaultRef) ?? undefined,
+          defaultComposePath: extractFieldError(bag.defaultComposePath) ?? undefined,
+        }
+        if (Object.values(nextErrors).some(Boolean)) {
+          setDeployGitDefaultsErrors(nextErrors)
+          showToast('Please fix validation errors and try again.', false)
+          return
+        }
+      }
+      showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
+    } finally {
+      setDeployGitDefaultsSaving(false)
     }
   }
 
@@ -574,11 +1423,36 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     connectSftpErrors,
     setConnectSftpForm,
     saveConnectSftp,
+    topicShareForm,
+    topicShareSaving,
+    topicShareErrors,
+    setTopicShareForm,
+    saveTopicShare,
+    topicCommentPolicyForm,
+    topicCommentPolicySaving,
+    topicCommentPolicyErrors,
+    setTopicCommentPolicyForm,
+    saveTopicCommentPolicy,
+    topicImportPolicyForm,
+    topicImportPolicySaving,
+    topicImportPolicyErrors,
+    setTopicImportPolicyForm,
+    saveTopicImportPolicy,
     deployPreflightForm,
     deployPreflightSaving,
     deployPreflightErrors,
     setDeployPreflightForm,
     saveDeployPreflight,
+    deployRuntimeForm,
+    deployRuntimeSaving,
+    deployRuntimeErrors,
+    setDeployRuntimeForm,
+    saveDeployRuntime,
+    deployGitDefaultsForm,
+    deployGitDefaultsSaving,
+    deployGitDefaultsErrors,
+    setDeployGitDefaultsForm,
+    saveDeployGitDefaults,
     iacFilesForm,
     iacFilesSaving,
     iacFilesErrors,
@@ -596,9 +1470,18 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
     saveSecretPolicy,
     proxyNetwork,
     proxyForm,
-    proxySaving,
+    proxyConsumers,
+    proxyConsumerDefinitions,
+    proxyRemoteShellOverrides,
+    proxySaving: proxySavingSection !== null,
+    proxyNetworkSaving: proxySavingSection === 'network',
+    proxyConsumersSaving: proxySavingSection === 'consumers',
+    proxyErrors,
     setProxyForm,
-    saveProxy,
+    setProxyConsumers,
+    setProxyRemoteShellOverrides,
+    saveProxyNetwork,
+    saveProxyConsumers,
     hydrateWorkspaceSimpleEntries,
   }
 }

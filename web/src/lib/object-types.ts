@@ -119,10 +119,12 @@ export const OBJECT_TYPES: ObjectTypeDef[] = [
   {
     type: 'script',
     label: 'Script',
-    collection: 'scripts',
+    collection: 'assets',
     nameField: 'name',
-    summaryField: undefined,
-    detailRoute: '/scripts/$id',
+    summaryField: 'kind',
+    detailRoute: '/ai-assets/scripts',
+    listSearchKey: 'id',
+    createRoute: '/ai-assets/scripts',
   },
 ]
 

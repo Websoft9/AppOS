@@ -7,14 +7,21 @@ const LazyAppsPage = lazy(() =>
 
 function AppsRoutePage() {
   const location = useLocation()
+  const search = Route.useSearch()
   const isListRoute = location.pathname === '/apps' || location.pathname === '/apps/'
   return (
     <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading Apps...</div>}>
-      {isListRoute ? <LazyAppsPage /> : <Outlet />}
+      {isListRoute ? <LazyAppsPage catalogAppKey={search.catalogAppKey} /> : <Outlet />}
     </Suspense>
   )
 }
 
 export const Route = createFileRoute('/_app/_auth/apps')({
   component: AppsRoutePage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    catalogAppKey:
+      typeof search.catalogAppKey === 'string' && search.catalogAppKey.trim()
+        ? search.catalogAppKey
+        : undefined,
+  }),
 })

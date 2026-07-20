@@ -2,27 +2,35 @@
   "id": "openai",
   "title": "OpenAI",
   "vendor": "OpenAI",
+  "uiGroup": "single_provider",
+  "hostingMode": "cloud",
+  "serviceMode": "official_provider",
+  "endpointMode": "customizable",
+  "supportsClosedModels": true,
+  "supportsMultiVendorModels": false,
   "description": "OpenAI-compatible hosted LLM access using an API key.",
+  "helpUrl": "https://platform.openai.com/docs/overview",
   "contextSize": 128000,
   "defaultEndpoint": "https://api.openai.com/v1",
+  "protocols": [
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "default": true
+    }
+  ],
   "capabilities": ["chat", "embeddings", "tools", "streaming"],
   "aliases": ["openai"],
   "fields": [
     {
-      "id": "endpoint",
-      "default": "https://api.openai.com/v1"
+      "id": "endpoint"
     },
     {
       "id": "organization",
       "label": "Organization",
+      "advanced": true,
       "type": "string",
       "placeholder": "org_..."
-    },
-    {
-      "id": "defaultModel",
-      "label": "Default Model",
-      "type": "string",
-      "placeholder": "gpt-4.1-mini"
     }
   ]
 }

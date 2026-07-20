@@ -1,0 +1,23 @@
+{
+  "originKind": "official",
+  "sourceRepo": "phpmyadmin/docker",
+  "sourcePath": "docker-compose.yml",
+  "sourceBranch": "master",
+  "observedFiles": [
+    "docker-compose.yml"
+  ],
+  "references": {
+    "docs": "https://hub.docker.com/_/phpmyadmin",
+    "image": "https://hub.docker.com/_/phpmyadmin",
+    "envVars": "https://github.com/phpmyadmin/docker#environment-variables-summary",
+    "secondary": "https://github.com/Websoft9/docker-library/tree/main/apps/phpmyadmin"
+  },
+  "notes": [
+    "This sample preserves upstream identity for Epic 32 adaptation work.",
+    "The compose shape is derived from the official phpMyAdmin Docker image documentation; the Websoft9 docker-library entry is used as a secondary reference only.",
+    "phpMyAdmin is a stateless web client for external MySQL/MariaDB servers and has no built-in database.",
+    "PMA_ARBITRARY=1 lets the user connect to any server; login credentials are supplied at runtime, so no contract-level secret is modeled.",
+    "The Websoft9 reference includes a throwaway mariadb container for testing; it is intentionally omitted from the normalized template.",
+    "The first pass stores source metadata rather than a full upstream file mirror."
+  ]
+}

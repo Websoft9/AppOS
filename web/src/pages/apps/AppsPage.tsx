@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import {
   ArrowDown,
   ArrowUp,
+  ChevronLeft,
+  ChevronRight,
   ExternalLink,
-  Filter,
   LayoutGrid,
   List,
   MoreVertical,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { getApiErrorMessage } from '@/lib/api-error'
+import { isSessionExpiredError } from '@/lib/auth-session'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -53,9 +55,15 @@ import {
   type AppOperationResponse,
   appIconClass,
   appInitials,
+  effectiveInstanceStateVariant,
+  formatEffectiveInstanceStateLabel,
+  formatServerConnectionLabel,
   formatTime,
   formatUptime,
-  runtimeVariant,
+  formatInstanceStateLabel,
+  getServerConnectionReason,
+  hasBlockingServerConnectionIssue,
+  instanceStateVariant,
 } from '@/pages/apps/types'
 
 type AppAction = 'start' | 'stop' | 'restart' | 'uninstall'
@@ -64,6 +72,72 @@ type SortField = 'name' | 'created' | 'updated'
 type SortDir = 'asc' | 'desc'
 
 const PAGE_SIZE = 12
+const TEMPLATE_FILTER_ALL = '__all__'
+const TEMPLATE_FILTER_UNTEMPLATED = '__untemplated__'
+const noAutoCancel = { requestKey: null }
+
+type AppListHealthState =
+  | 'unavailable'
+  | 'running'
+  | 'stopped'
+  | 'degraded'
+  | 'attention_required'
+  | 'updating'
+  | 'unknown'
+
+function normalizeTemplateKey(value?: string | null): string | null {
+  const trimmed = value?.trim()
+  if (!trimmed) return null
+  const lowered = trimmed.toLowerCase()
+  if (lowered === 'nil' || lowered === '<nil>' || lowered === 'null' || lowered === 'none')
+    return null
+  return trimmed
+}
+
+function appListHealthState(app: AppInstance): AppListHealthState {
+  if (hasBlockingServerConnectionIssue(app)) return 'unavailable'
+  switch ((app.instance_state || '').trim().toLowerCase()) {
+    case 'running':
+      return 'running'
+    case 'stopped':
+      return 'stopped'
+    case 'degraded':
+      return 'degraded'
+    case 'attention_required':
+      return 'attention_required'
+    case 'updating':
+    case 'installing':
+    case 'uninstalling':
+      return 'updating'
+    default:
+      return 'unknown'
+  }
+}
+
+function getListActionAvailability(app: AppInstance) {
+  const normalizedInstanceState = (app.instance_state || '').toLowerCase()
+  const blockedByServer = hasBlockingServerConnectionIssue(app)
+
+  return {
+    blockedByServer,
+    start:
+      !blockedByServer &&
+      (normalizedInstanceState
+        ? ['stopped', 'attention_required'].includes(normalizedInstanceState)
+        : false),
+    stop:
+      !blockedByServer &&
+      (normalizedInstanceState
+        ? ['running', 'degraded', 'attention_required'].includes(normalizedInstanceState)
+        : false),
+    restart:
+      !blockedByServer &&
+      (normalizedInstanceState ? ['running', 'degraded'].includes(normalizedInstanceState) : false),
+    redeploy: !blockedByServer,
+    upgrade: !blockedByServer,
+    uninstall: !blockedByServer,
+  }
+}
 
 function SortableHeader({
   label,
@@ -99,60 +173,73 @@ function SortableHeader({
   )
 }
 
-function FilterHeader({
-  label,
-  options,
-  excluded,
-  onChange,
+function formatCardSourceLabel(app: AppInstance): string {
+  const templateKey = normalizeTemplateKey(app.catalog_app_key)
+  if (templateKey) return templateKey
+
+  switch (app.source) {
+    case 'manualops':
+      return 'Manual deployment'
+    case 'docker':
+      return 'Docker runtime'
+    case 'catalog':
+      return 'Catalog app'
+    default:
+      return app.source
+        ? app.source
+            .split(/[^a-zA-Z0-9]+/)
+            .filter(Boolean)
+            .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(' ')
+        : 'App instance'
+  }
+}
+
+function appServerLabel(app: AppInstance): string {
+  return app.server_name?.trim() || app.server_id || 'Local'
+}
+
+function AppAvatar({
+  app,
+  sizeClass,
+  radiusClass,
 }: {
-  label: string
-  options: Array<{ value: string; label: string }>
-  excluded: Set<string>
-  onChange: (next: Set<string>) => void
+  app: AppInstance
+  sizeClass: string
+  radiusClass: string
 }) {
-  const active = excluded.size > 0
+  const [imgError, setImgError] = useState(false)
+  const templateIconURL = app.template_icon_url?.trim()
+  const showTemplateIcon = Boolean(templateIconURL) && !imgError
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button type="button" className="flex items-center gap-1 hover:text-foreground">
-          {label}
-          <Filter className={cn('h-3.5 w-3.5', active ? 'text-primary' : 'opacity-40')} />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-[150px] space-y-1 p-2">
-        {options.map(option => (
-          <label
-            key={option.value}
-            className="flex cursor-pointer items-center gap-2 px-1 py-0.5 text-sm"
-          >
-            <input
-              type="checkbox"
-              checked={!excluded.has(option.value)}
-              onChange={event => {
-                const next = new Set(excluded)
-                if (event.target.checked) next.delete(option.value)
-                else next.add(option.value)
-                onChange(next)
-              }}
-            />
-            {option.label}
-          </label>
-        ))}
-        {active ? (
-          <button
-            type="button"
-            className="mt-1 w-full text-center text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => onChange(new Set())}
-          >
-            Reset
-          </button>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div
+      className={cn(
+        'flex shrink-0 items-center justify-center overflow-hidden text-sm font-semibold shadow-sm',
+        sizeClass,
+        radiusClass,
+        showTemplateIcon
+          ? 'bg-background ring-1 ring-border/60 dark:bg-muted/40'
+          : appIconClass(app.name)
+      )}
+    >
+      {showTemplateIcon ? (
+        <img
+          src={templateIconURL}
+          alt={`${app.name} template icon`}
+          className="h-full w-full object-contain"
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        appInitials(app.name)
+      )}
+    </div>
   )
 }
 
-export function AppsPage() {
+export function AppsPage({ catalogAppKey }: { catalogAppKey?: string }) {
   const navigate = useNavigate()
   const [apps, setApps] = useState<AppInstance[]>([])
   const [loading, setLoading] = useState(true)
@@ -161,10 +248,11 @@ export function AppsPage() {
   const [success, setSuccess] = useState('')
   const [view, setView] = useState<'grid' | 'list'>('grid')
   const [search, setSearch] = useState('')
+  const [selectedTemplate, setSelectedTemplate] = useState<string>(TEMPLATE_FILTER_ALL)
+  const [selectedServer, setSelectedServer] = useState<string | null>(null)
   const [sortField, setSortField] = useState<SortField | null>('updated')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
-  const [excludeRuntime, setExcludeRuntime] = useState<Set<string>>(new Set())
-  const [excludeServer, setExcludeServer] = useState<Set<string>>(new Set())
+  const [selectedInstanceState, setSelectedInstanceState] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [actionLoading, setActionLoading] = useState('')
   const [deployLoading, setDeployLoading] = useState('')
@@ -181,10 +269,17 @@ export function AppsPage() {
   async function fetchApps(showRefresh = false) {
     if (showRefresh) setRefreshing(true)
     try {
-      const response = await pb.send<AppInstance[]>('/api/apps', { method: 'GET' })
+      const response = await pb.send<AppInstance[]>('/api/apps', {
+        method: 'GET',
+        ...noAutoCancel,
+      })
       setApps(Array.isArray(response) ? response : [])
       setError('')
     } catch (err) {
+      if (isSessionExpiredError(err)) {
+        setError('')
+        return
+      }
       setError(getApiErrorMessage(err, 'Failed to load my apps'))
     } finally {
       setLoading(false)
@@ -194,13 +289,26 @@ export function AppsPage() {
 
   function navigateToActionDetail(actionId: string) {
     void navigate({
-      to: '/actions/$actionId' as never,
+      to: '/activity/$actionId' as never,
       params: { actionId } as never,
       search: { returnTo: 'list' } as never,
     })
   }
 
+  function navigateToAppDetail(appId: string) {
+    void navigate({
+      to: '/apps/$appId' as never,
+      params: { appId } as never,
+      search: { catalogAppKey: undefined } as never,
+    })
+  }
+
   async function runAction(app: AppInstance, action: AppAction) {
+    const serverConnectionReason = getServerConnectionReason(app)
+    if (hasBlockingServerConnectionIssue(app)) {
+      setError(serverConnectionReason || 'Server runtime status is unavailable.')
+      return
+    }
     if (action === 'uninstall') {
       setPendingUninstall(app)
       return
@@ -220,6 +328,9 @@ export function AppsPage() {
       setSuccess(`${app.name} ${action} operation created`)
       await fetchApps()
     } catch (err) {
+      if (isSessionExpiredError(err)) {
+        return
+      }
       setError(getApiErrorMessage(err, `Failed to ${action} ${app.name}`))
     } finally {
       setActionLoading('')
@@ -229,6 +340,12 @@ export function AppsPage() {
   async function confirmUninstall() {
     if (!pendingUninstall) return
     const app = pendingUninstall
+    const serverConnectionReason = getServerConnectionReason(app)
+    if (hasBlockingServerConnectionIssue(app)) {
+      setError(serverConnectionReason || 'Server runtime status is unavailable.')
+      setPendingUninstall(null)
+      return
+    }
     const actionKey = `${app.id}:uninstall`
     setActionLoading(actionKey)
     setError('')
@@ -245,6 +362,9 @@ export function AppsPage() {
       setSuccess(`${app.name} uninstall operation created`)
       await fetchApps()
     } catch (err) {
+      if (isSessionExpiredError(err)) {
+        return
+      }
       setError(getApiErrorMessage(err, `Failed to uninstall ${app.name}`))
     } finally {
       setActionLoading('')
@@ -254,36 +374,68 @@ export function AppsPage() {
   const summary = useMemo(
     () => ({
       total: apps.length,
-      running: apps.filter(item => item.runtime_status === 'running').length,
-      stopped: apps.filter(item => item.runtime_status === 'stopped').length,
-      error: apps.filter(item => item.runtime_status === 'error').length,
+      unavailable: apps.filter(item => appListHealthState(item) === 'unavailable').length,
+      running: apps.filter(item => appListHealthState(item) === 'running').length,
+      stopped: apps.filter(item => appListHealthState(item) === 'stopped').length,
+      updating: apps.filter(item => appListHealthState(item) === 'updating').length,
+      degraded: apps.filter(item => appListHealthState(item) === 'degraded').length,
+      attentionRequired: apps.filter(item => appListHealthState(item) === 'attention_required')
+        .length,
+      unknown: apps.filter(item => appListHealthState(item) === 'unknown').length,
     }),
     [apps]
   )
 
-  const filterOptions = useMemo(
-    () => ({
-      runtime: Array.from(new Set(apps.map(item => item.runtime_status).filter(Boolean)))
-        .sort()
-        .map(value => ({ value, label: value })),
-      server: Array.from(new Set(apps.map(item => item.server_id || 'local').filter(Boolean)))
-        .sort()
-        .map(value => ({ value, label: value })),
-    }),
-    [apps]
-  )
+  const filterOptions = useMemo(() => {
+    const templateCounts = apps.reduce<Record<string, number>>((counts, item) => {
+      const templateKey = normalizeTemplateKey(item.catalog_app_key)
+      if (!templateKey) return counts
+      counts[templateKey] = (counts[templateKey] ?? 0) + 1
+      return counts
+    }, {})
+
+    const noTemplateCount = apps.filter(item => !normalizeTemplateKey(item.catalog_app_key)).length
+    return {
+      server: Array.from(
+        new Map(apps.map(item => [item.server_id || 'local', appServerLabel(item)])).entries()
+      )
+        .sort((left, right) => left[1].localeCompare(right[1]))
+        .map(([value, label]) => {
+          const count = apps.filter(item => (item.server_id || 'local') === value).length
+          return { value, label, count }
+        }),
+      template: Object.entries(templateCounts)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([value, count]) => ({ value, label: value, count })),
+      noTemplateCount,
+    }
+  }, [apps])
+
+  const routeTemplate = normalizeTemplateKey(catalogAppKey)
+  const effectiveTemplate = routeTemplate ?? selectedTemplate
 
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase()
     return apps.filter(item => {
-      if (excludeRuntime.has(item.runtime_status)) return false
-      if (excludeServer.has(item.server_id || 'local')) return false
+      const templateKey = normalizeTemplateKey(item.catalog_app_key)
+      if (selectedInstanceState && appListHealthState(item) !== selectedInstanceState) {
+        return false
+      }
+      if (selectedServer && (item.server_id || 'local') !== selectedServer) return false
+      if (effectiveTemplate === TEMPLATE_FILTER_UNTEMPLATED && templateKey) return false
+      if (
+        effectiveTemplate !== TEMPLATE_FILTER_ALL &&
+        effectiveTemplate !== TEMPLATE_FILTER_UNTEMPLATED &&
+        templateKey !== effectiveTemplate
+      ) {
+        return false
+      }
       if (!query) return true
-      return [item.id, item.name, item.project_dir, item.server_id]
+      return [item.id, item.name, item.project_dir, item.server_id, templateKey]
         .filter(Boolean)
         .some(value => String(value).toLowerCase().includes(query))
     })
-  }, [apps, excludeRuntime, excludeServer, search])
+  }, [apps, effectiveTemplate, search, selectedInstanceState, selectedServer])
 
   const sortedItems = useMemo(() => {
     if (!sortField) return filteredItems
@@ -299,10 +451,26 @@ export function AppsPage() {
     () => sortedItems.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
     [page, sortedItems]
   )
+  const hasResults = pagedItems.length > 0
 
   useEffect(() => {
     setPage(1)
-  }, [excludeRuntime, excludeServer, search, sortDir, sortField, view])
+  }, [effectiveTemplate, search, selectedInstanceState, selectedServer, sortDir, sortField, view])
+
+  function handleTemplateFilterChange(value: string) {
+    setSelectedTemplate(value || TEMPLATE_FILTER_ALL)
+    if (catalogAppKey) {
+      void navigate({ to: '/apps', search: { catalogAppKey: undefined } })
+    }
+  }
+
+  function handleInstanceStateSummaryClick(instanceState: string | null) {
+    setSelectedInstanceState(current => (current === instanceState ? null : instanceState))
+  }
+
+  function renderAppAvatar(app: AppInstance, sizeClass: string, radiusClass: string) {
+    return <AppAvatar app={app} sizeClass={sizeClass} radiusClass={radiusClass} />
+  }
 
   function handleSort(field: SortField) {
     if (sortField === field) {
@@ -314,6 +482,11 @@ export function AppsPage() {
   }
 
   async function triggerOperation(app: AppInstance, action: 'redeploy' | 'upgrade') {
+    const serverConnectionReason = getServerConnectionReason(app)
+    if (hasBlockingServerConnectionIssue(app)) {
+      setError(serverConnectionReason || 'Server runtime status is unavailable.')
+      return
+    }
     const key = `${app.id}:${action}`
     setDeployLoading(key)
     setError('')
@@ -337,22 +510,37 @@ export function AppsPage() {
     navigateToActionDetail(app.last_operation)
   }
 
+  function renderEmptyState() {
+    return (
+      <div className="rounded-xl border p-8 text-center text-sm text-muted-foreground">
+        No apps found.
+      </div>
+    )
+  }
+
   function renderActionMenu(app: AppInstance) {
     const currentAction = actionLoading.startsWith(`${app.id}:`) ? actionLoading.split(':')[1] : ''
     const currentOperationAction = deployLoading.startsWith(`${app.id}:`)
       ? deployLoading.split(':')[1]
       : ''
+    const availability = getListActionAvailability(app)
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon" className="h-8 w-8" disabled={Boolean(actionLoading)}>
             <MoreVertical className="h-4 w-4" />
-            <span className="sr-only">Open actions for {app.name}</span>
+            <span className="sr-only">Open activity for {app.name}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-44">
           <DropdownMenuItem
-            onSelect={() => void navigate({ to: '/apps/$appId', params: { appId: app.id } })}
+            onSelect={() =>
+              void navigate({
+                to: '/apps/$appId',
+                params: { appId: app.id },
+                search: { catalogAppKey: undefined },
+              })
+            }
           >
             <ExternalLink className="h-4 w-4" />
             Open detail
@@ -360,20 +548,20 @@ export function AppsPage() {
           {app.last_operation ? (
             <DropdownMenuItem onSelect={() => openOperationStatus(app)}>
               <ExternalLink className="h-4 w-4" />
-              View execution status
+              Open latest action detail
             </DropdownMenuItem>
           ) : null}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={() => void triggerOperation(app, 'redeploy')}
-            disabled={Boolean(deployLoading || actionLoading)}
+            disabled={Boolean(deployLoading || actionLoading) || !availability.redeploy}
           >
             <RotateCcw className="h-4 w-4" />
             {currentOperationAction === 'redeploy' ? 'Redeploying...' : 'Redeploy'}
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => void triggerOperation(app, 'upgrade')}
-            disabled={Boolean(deployLoading || actionLoading)}
+            disabled={Boolean(deployLoading || actionLoading) || !availability.upgrade}
           >
             <ArrowUp className="h-4 w-4" />
             {currentOperationAction === 'upgrade' ? 'Upgrading...' : 'Upgrade'}
@@ -381,21 +569,21 @@ export function AppsPage() {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={() => void runAction(app, 'start')}
-            disabled={Boolean(actionLoading)}
+            disabled={Boolean(actionLoading) || !availability.start}
           >
             <Play className="h-4 w-4" />
             {currentAction === 'start' ? 'Starting...' : 'Start'}
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => void runAction(app, 'stop')}
-            disabled={Boolean(actionLoading)}
+            disabled={Boolean(actionLoading) || !availability.stop}
           >
             <Square className="h-4 w-4" />
             {currentAction === 'stop' ? 'Stopping...' : 'Stop'}
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => void runAction(app, 'restart')}
-            disabled={Boolean(actionLoading)}
+            disabled={Boolean(actionLoading) || !availability.restart}
           >
             <RotateCcw className="h-4 w-4" />
             {currentAction === 'restart' ? 'Restarting...' : 'Restart'}
@@ -403,7 +591,7 @@ export function AppsPage() {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={() => void runAction(app, 'uninstall')}
-            disabled={Boolean(actionLoading)}
+            disabled={Boolean(actionLoading) || !availability.uninstall}
             variant="destructive"
           >
             <Trash2 className="h-4 w-4" />
@@ -414,28 +602,236 @@ export function AppsPage() {
     )
   }
 
+  function renderAppsSurface() {
+    if (loading) {
+      return (
+        <div className="rounded-2xl bg-background/80 p-6 text-sm text-muted-foreground shadow-sm ring-1 ring-border/60">
+          Loading apps...
+        </div>
+      )
+    }
+
+    if (view === 'grid') {
+      if (!hasResults) {
+        return renderEmptyState()
+      }
+
+      return (
+        <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {pagedItems.map(app => (
+            <Card
+              key={app.id}
+              className="overflow-hidden rounded-[24px] border-border/70 bg-card/95 shadow-[0_10px_30px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_18px_36px_rgba(15,23,42,0.10)] dark:bg-card/92 dark:shadow-[0_16px_34px_rgba(2,6,23,0.42)]"
+            >
+              <CardContent
+                role="link"
+                tabIndex={0}
+                className="relative flex h-full min-h-[214px] cursor-pointer flex-col justify-between gap-4 p-4"
+                onClick={() => navigateToAppDetail(app.id)}
+                onKeyDown={event => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    navigateToAppDetail(app.id)
+                  }
+                }}
+              >
+                <div className="absolute right-0 top-0 h-20 w-20 rounded-full bg-primary/10 blur-2xl dark:bg-primary/15" />
+                <div className="relative flex flex-col gap-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-3">
+                      {renderAppAvatar(app, 'h-11 w-11', 'rounded-2xl')}
+                      <div className="min-w-0">
+                        <div className="truncate text-[15px] font-semibold leading-5">
+                          {app.name}
+                        </div>
+                        <div className="truncate pt-0.5 text-[11px] text-muted-foreground">
+                          {formatCardSourceLabel(app)}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge
+                        variant={
+                          hasBlockingServerConnectionIssue(app)
+                            ? effectiveInstanceStateVariant(app)
+                            : instanceStateVariant(app.instance_state)
+                        }
+                      >
+                        {hasBlockingServerConnectionIssue(app)
+                          ? formatEffectiveInstanceStateLabel(app)
+                          : formatInstanceStateLabel(app.instance_state)}
+                      </Badge>
+                      {hasBlockingServerConnectionIssue(app) ? (
+                        <span className="max-w-[170px] text-right text-[10px] text-destructive">
+                          {getServerConnectionReason(app) ||
+                            formatServerConnectionLabel(app.server_connection_status)}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl bg-muted/55 px-3 py-3 ring-1 ring-border/70 dark:bg-muted/35 dark:ring-border/60">
+                    <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-xs text-muted-foreground">
+                      <span>Server</span>
+                      <span className="truncate text-right text-foreground">
+                        {appServerLabel(app)}
+                      </span>
+                      <span>Uptime</span>
+                      <span className="text-right text-foreground">{formatUptime(app)}</span>
+                      <span>Updated</span>
+                      <span className="truncate text-right text-foreground">
+                        {formatTime(app.updated)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="relative mt-auto flex items-end justify-between gap-3 border-t border-border/75 pt-3">
+                  {app.last_operation ? (
+                    <div className="min-w-0 flex-1 text-[11px] text-muted-foreground">
+                      <div className="truncate text-[10px] uppercase tracking-[0.12em] text-muted-foreground/80">
+                        Latest action
+                      </div>
+                      <div className="truncate font-mono text-[11px] text-muted-foreground">
+                        {app.last_operation}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-[11px] text-muted-foreground">No action recorded yet</div>
+                  )}
+                  <div
+                    className="flex items-center gap-1"
+                    onClick={event => event.stopPropagation()}
+                  >
+                    {renderActionMenu(app)}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )
+    }
+
+    return (
+      <div className="overflow-hidden rounded-2xl bg-background/88 shadow-sm ring-1 ring-border/60">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="pl-6">
+                <SortableHeader
+                  label="Name"
+                  field="name"
+                  current={sortField}
+                  dir={sortDir}
+                  onSort={handleSort}
+                />
+              </TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Server</TableHead>
+              <TableHead>Uptime</TableHead>
+              <TableHead>Latest Action</TableHead>
+              <TableHead>
+                <SortableHeader
+                  label="Updated"
+                  field="updated"
+                  current={sortField}
+                  dir={sortDir}
+                  onSort={handleSort}
+                />
+              </TableHead>
+              <TableHead className="w-[72px]" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {pagedItems.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                  No apps found.
+                </TableCell>
+              </TableRow>
+            ) : (
+              pagedItems.map(item => (
+                <TableRow key={item.id} className="h-14">
+                  <TableCell className="pl-6">
+                    <div className="flex items-center gap-3">
+                      {renderAppAvatar(item, 'h-10 w-10', 'rounded-xl')}
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{item.name}</div>
+                        <div className="font-mono text-xs text-muted-foreground">{item.id}</div>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col items-start gap-1">
+                      <Badge
+                        variant={
+                          hasBlockingServerConnectionIssue(item)
+                            ? effectiveInstanceStateVariant(item)
+                            : instanceStateVariant(item.instance_state)
+                        }
+                      >
+                        {hasBlockingServerConnectionIssue(item)
+                          ? formatEffectiveInstanceStateLabel(item)
+                          : formatInstanceStateLabel(item.instance_state)}
+                      </Badge>
+                      {hasBlockingServerConnectionIssue(item) ? (
+                        <span className="max-w-[220px] text-xs text-destructive">
+                          {getServerConnectionReason(item) ||
+                            formatServerConnectionLabel(item.server_connection_status)}
+                        </span>
+                      ) : null}
+                    </div>
+                  </TableCell>
+                  <TableCell>{appServerLabel(item)}</TableCell>
+                  <TableCell>{formatUptime(item)}</TableCell>
+                  <TableCell>
+                    {item.last_operation ? (
+                      <div className="space-y-0.5">
+                        <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                          Latest action detail
+                        </div>
+                        <button
+                          type="button"
+                          className="font-mono text-xs text-primary underline-offset-4 hover:underline"
+                          onClick={() => openOperationStatus(item)}
+                        >
+                          {item.last_operation}
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell>{formatTime(item.updated)}</TableCell>
+                  <TableCell className="text-right">{renderActionMenu(item)}</TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <h1 className="text-2xl font-bold">My Apps</h1>
           <p className="text-sm text-muted-foreground">
-            Your app workspace stays focused on management summary. Lifecycle requests hand
-            execution tracking off to the canonical Actions detail surface.
+            Unified entry to manage your installed & shared apps.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant={view === 'grid' ? 'default' : 'outline'} onClick={() => setView('grid')}>
-            <LayoutGrid className="mr-2 h-4 w-4" />
-            Grid
-          </Button>
-          <Button variant={view === 'list' ? 'default' : 'outline'} onClick={() => setView('list')}>
-            <List className="mr-2 h-4 w-4" />
-            List
-          </Button>
-          <Button variant="outline" onClick={() => void fetchApps(true)} disabled={refreshing}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
+        <div className="flex items-center gap-2 self-end md:self-auto">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => void fetchApps(true)}
+            disabled={refreshing}
+            aria-label="Refresh apps"
+          >
+            <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
           </Button>
         </div>
       </div>
@@ -450,220 +846,263 @@ export function AppsPage() {
           <AlertDescription>{success}</AlertDescription>
         </Alert>
       ) : null}
-      <Alert>
-        <AlertTitle>Execution Handoff</AlertTitle>
-        <AlertDescription>
-          <p>
-            Start, stop, restart, uninstall, redeploy, and upgrade all create or resume shared
-            lifecycle operations.
-          </p>
-          <p>
-            This page shows app summary. Timeline, node progress, and final execution detail live in
-            Actions.
-          </p>
-        </AlertDescription>
-      </Alert>
-
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={event => setSearch(event.target.value)}
-            placeholder="Search by id, name, path, or server"
-            className="pl-9"
-          />
-        </div>
-        <div className="text-sm text-muted-foreground">
-          Running {summary.running} · Stopped {summary.stopped} · Error {summary.error}
-        </div>
-        <div className="text-sm text-muted-foreground">Total {summary.total}</div>
-      </div>
-
-      {loading ? (
-        <div className="rounded-xl border p-6 text-sm text-muted-foreground">Loading apps...</div>
-      ) : view === 'grid' ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {pagedItems.map(app => (
-            <Card key={app.id} className="overflow-hidden">
-              <CardContent className="flex h-full flex-col gap-4 p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={cn(
-                        'flex h-12 w-12 items-center justify-center rounded-2xl text-sm font-semibold',
-                        appIconClass(app.name)
-                      )}
-                    >
-                      {appInitials(app.name)}
-                    </div>
-                    <div>
-                      <div className="font-medium">{app.name}</div>
-                      <div className="font-mono text-xs text-muted-foreground">{app.id}</div>
-                    </div>
-                  </div>
-                  <Badge variant={runtimeVariant(app.runtime_status)}>{app.runtime_status}</Badge>
-                </div>
-                <div className="grid gap-2 text-sm text-muted-foreground">
-                  <div>Uptime: {formatUptime(app)}</div>
-                  <div>Created: {formatTime(app.created)}</div>
-                  <div>Server: {app.server_id || 'local'}</div>
-                  <div>Last Operation: {app.last_operation || '-'}</div>
-                  <div className="truncate">{app.project_dir}</div>
-                </div>
-                <div className="mt-auto flex items-center justify-between gap-2 pt-2">
-                  <Badge variant="outline">{app.status}</Badge>
-                  <div className="flex items-center gap-1">
-                    <Button asChild variant="outline">
-                      <Link to="/apps/$appId" params={{ appId: app.id }}>
-                        Open Detail
-                      </Link>
-                    </Button>
-                    {renderActionMenu(app)}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-xl border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>
-                  <SortableHeader
-                    label="Name"
-                    field="name"
-                    current={sortField}
-                    dir={sortDir}
-                    onSort={handleSort}
-                  />
-                </TableHead>
-                <TableHead>
-                  <FilterHeader
-                    label="Runtime"
-                    options={filterOptions.runtime}
-                    excluded={excludeRuntime}
-                    onChange={setExcludeRuntime}
-                  />
-                </TableHead>
-                <TableHead>
-                  <FilterHeader
-                    label="Server"
-                    options={filterOptions.server}
-                    excluded={excludeServer}
-                    onChange={setExcludeServer}
-                  />
-                </TableHead>
-                <TableHead>Uptime</TableHead>
-                <TableHead>Last Operation</TableHead>
-                <TableHead>
-                  <SortableHeader
-                    label="Created"
-                    field="created"
-                    current={sortField}
-                    dir={sortDir}
-                    onSort={handleSort}
-                  />
-                </TableHead>
-                <TableHead>
-                  <SortableHeader
-                    label="Updated"
-                    field="updated"
-                    current={sortField}
-                    dir={sortDir}
-                    onSort={handleSort}
-                  />
-                </TableHead>
-                <TableHead className="w-[96px]" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pagedItems.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
-                    No apps found.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                pagedItems.map(item => (
-                  <TableRow key={item.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={cn(
-                            'flex h-10 w-10 items-center justify-center rounded-xl text-sm font-semibold',
-                            appIconClass(item.name)
-                          )}
-                        >
-                          {appInitials(item.name)}
-                        </div>
-                        <div>
-                          <div className="font-medium">{item.name}</div>
-                          <div className="font-mono text-xs text-muted-foreground">{item.id}</div>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={runtimeVariant(item.runtime_status)}>
-                          {item.runtime_status}
-                        </Badge>
-                        <Badge variant="outline">{item.status}</Badge>
-                      </div>
-                    </TableCell>
-                    <TableCell>{item.server_id || 'local'}</TableCell>
-                    <TableCell>{formatUptime(item)}</TableCell>
-                    <TableCell>
-                      {item.last_operation ? (
-                        <button
-                          type="button"
-                          className="font-mono text-xs text-primary underline-offset-4 hover:underline"
-                          onClick={() => openOperationStatus(item)}
-                        >
-                          {item.last_operation}
-                        </button>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>{formatTime(item.created)}</TableCell>
-                    <TableCell>{formatTime(item.updated)}</TableCell>
-                    <TableCell className="text-right">{renderActionMenu(item)}</TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-
-      {totalPages > 1 ? (
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">
-            {sortedItems.length} total · Page {page} of {totalPages}
-          </span>
-          <div className="flex gap-2">
+      {catalogAppKey ? (
+        <Alert>
+          <AlertTitle>Store Filter Active</AlertTitle>
+          <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              Showing installed instances for catalog app{' '}
+              <span className="font-mono">{catalogAppKey}</span>.
+            </span>
             <Button
               variant="outline"
               size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage(current => current - 1)}
+              onClick={() => void navigate({ to: '/apps', search: { catalogAppKey: undefined } })}
             >
-              Previous
+              Clear filter
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => setPage(current => current + 1)}
-            >
-              Next
-            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      <section className="overflow-hidden rounded-[28px] bg-gradient-to-b from-muted/35 via-background to-background px-4 py-3 md:px-5 md:py-4">
+        <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:gap-3">
+            <div className="inline-flex h-8.5 flex-wrap items-center rounded-xl bg-background/88 px-1 text-sm text-muted-foreground shadow-sm backdrop-blur-sm">
+              <button
+                type="button"
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
+                  !selectedInstanceState ? 'bg-muted/55 text-foreground' : 'hover:bg-muted/70'
+                )}
+                onClick={() => handleInstanceStateSummaryClick(null)}
+              >
+                <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                  Total
+                </span>
+                <span className="font-semibold text-foreground underline-offset-2 hover:underline">
+                  {summary.total}
+                </span>
+              </button>
+              <span className="mx-0.5 hidden h-4 w-px bg-border/55 md:block" aria-hidden="true" />
+              <button
+                type="button"
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
+                  selectedInstanceState === 'unavailable'
+                    ? 'bg-muted/55 text-foreground'
+                    : 'hover:bg-muted/70'
+                )}
+                onClick={() => handleInstanceStateSummaryClick('unavailable')}
+              >
+                <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                  Unavailable
+                </span>
+                <span className="font-semibold text-foreground underline-offset-2 hover:underline">
+                  {summary.unavailable}
+                </span>
+              </button>
+              <span className="mx-0.5 hidden h-4 w-px bg-border/55 md:block" aria-hidden="true" />
+              <button
+                type="button"
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
+                  selectedInstanceState === 'running'
+                    ? 'bg-muted/55 text-foreground'
+                    : 'hover:bg-muted/70'
+                )}
+                onClick={() => handleInstanceStateSummaryClick('running')}
+              >
+                <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                  Running
+                </span>
+                <span className="font-semibold text-foreground underline-offset-2 hover:underline">
+                  {summary.running}
+                </span>
+              </button>
+              <span className="mx-0.5 hidden h-4 w-px bg-border/55 md:block" aria-hidden="true" />
+              <button
+                type="button"
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
+                  selectedInstanceState === 'stopped'
+                    ? 'bg-muted/55 text-foreground'
+                    : 'hover:bg-muted/70'
+                )}
+                onClick={() => handleInstanceStateSummaryClick('stopped')}
+              >
+                <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                  Stopped
+                </span>
+                <span className="font-semibold text-foreground underline-offset-2 hover:underline">
+                  {summary.stopped}
+                </span>
+              </button>
+              <span className="mx-0.5 hidden h-4 w-px bg-border/55 md:block" aria-hidden="true" />
+              <button
+                type="button"
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
+                  selectedInstanceState === 'degraded'
+                    ? 'bg-muted/55 text-foreground'
+                    : 'hover:bg-muted/70'
+                )}
+                onClick={() => handleInstanceStateSummaryClick('degraded')}
+              >
+                <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                  Degraded
+                </span>
+                <span className="font-semibold text-foreground underline-offset-2 hover:underline">
+                  {summary.degraded}
+                </span>
+              </button>
+              <span className="mx-0.5 hidden h-4 w-px bg-border/55 md:block" aria-hidden="true" />
+              <button
+                type="button"
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
+                  selectedInstanceState === 'attention_required'
+                    ? 'bg-muted/55 text-foreground'
+                    : 'hover:bg-muted/70'
+                )}
+                onClick={() => handleInstanceStateSummaryClick('attention_required')}
+              >
+                <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                  Attention Required
+                </span>
+                <span className="font-semibold text-foreground underline-offset-2 hover:underline">
+                  {summary.attentionRequired}
+                </span>
+              </button>
+              <span className="mx-0.5 hidden h-4 w-px bg-border/55 md:block" aria-hidden="true" />
+              <button
+                type="button"
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
+                  selectedInstanceState === 'updating'
+                    ? 'bg-muted/55 text-foreground'
+                    : 'hover:bg-muted/70'
+                )}
+                onClick={() => handleInstanceStateSummaryClick('updating')}
+              >
+                <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                  Updating
+                </span>
+                <span className="font-semibold text-foreground underline-offset-2 hover:underline">
+                  {summary.updating}
+                </span>
+              </button>
+              <span className="mx-0.5 hidden h-4 w-px bg-border/55 md:block" aria-hidden="true" />
+              <button
+                type="button"
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors',
+                  selectedInstanceState === 'unknown'
+                    ? 'bg-muted/55 text-foreground'
+                    : 'hover:bg-muted/70'
+                )}
+                onClick={() => handleInstanceStateSummaryClick('unknown')}
+              >
+                <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                  Unknown
+                </span>
+                <span className="font-semibold text-foreground underline-offset-2 hover:underline">
+                  {summary.unknown}
+                </span>
+              </button>
+            </div>
+
+            <div className="relative min-w-0 w-full sm:w-[156px]">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={event => setSearch(event.target.value.slice(0, 15))}
+                placeholder="Search apps"
+                className="h-8.5 border-transparent bg-background/90 pl-9 shadow-sm ring-1 ring-border/55"
+                maxLength={15}
+                aria-label="Search apps"
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center xl:justify-end">
+            <label className="min-w-0 sm:w-[150px]">
+              <select
+                className="h-9 w-full rounded-md border-transparent bg-background/90 px-3 text-sm shadow-sm ring-1 ring-border/60 outline-none focus:ring-2 focus:ring-ring"
+                value={effectiveTemplate}
+                onChange={event => handleTemplateFilterChange(event.target.value)}
+                aria-label="Filter by app template"
+              >
+                <option value={TEMPLATE_FILTER_ALL}>By template</option>
+                <option value={TEMPLATE_FILTER_UNTEMPLATED}>
+                  No-template ({filterOptions.noTemplateCount})
+                </option>
+                {filterOptions.template.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label} ({option.count})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="min-w-0 sm:w-[150px]">
+              <select
+                className="h-9 w-full rounded-md border-transparent bg-background/90 px-3 text-sm shadow-sm ring-1 ring-border/60 outline-none focus:ring-2 focus:ring-ring"
+                value={selectedServer ?? ''}
+                onChange={event => setSelectedServer(event.target.value || null)}
+                aria-label="Filter by server"
+              >
+                <option value="">By server</option>
+                {filterOptions.server.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label} ({option.count})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="flex items-center justify-between gap-1.5 sm:justify-end">
+              <div className="inline-flex items-center gap-0.5 rounded-full bg-background/90 px-1 py-0.5 text-sm text-muted-foreground">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 rounded-full"
+                  disabled={page <= 1}
+                  onClick={() => setPage(current => current - 1)}
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="px-0.5 text-center font-mono text-xs text-foreground">
+                  {page}/{totalPages}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 rounded-full"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage(current => current + 1)}
+                  aria-label="Next page"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-7 w-7 rounded-full border-transparent bg-background/90 shadow-sm ring-1 ring-border/60"
+                onClick={() => setView(current => (current === 'grid' ? 'list' : 'grid'))}
+                aria-label={view === 'grid' ? 'Switch to list view' : 'Switch to grid view'}
+              >
+                {view === 'grid' ? (
+                  <List className="h-4 w-4" />
+                ) : (
+                  <LayoutGrid className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
           </div>
         </div>
-      ) : null}
+
+        <div className="mt-4 md:mt-5">{renderAppsSurface()}</div>
+      </section>
 
       <AlertDialog
         open={Boolean(pendingUninstall)}

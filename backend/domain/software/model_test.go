@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 )
 
 // ── Constant value tests ──────────────────────────────────────────────────────
@@ -30,9 +31,8 @@ func TestComponentKeyConstants(t *testing.T) {
 	}{
 		// Only server-target keys are constants; local keys live in catalog YAML.
 		{ComponentKeyDocker, "docker"},
-		{ComponentKeyMonitorAgent, "monitor-agent"},
-		{ComponentKeyAppOSAgent, "appos-agent"},
 		{ComponentKeyReverseProxy, "reverse-proxy"},
+		{ComponentKeyTelegraf, "telegraf"},
 	}
 	for _, c := range cases {
 		if string(c.got) != c.want {
@@ -66,7 +66,6 @@ func TestCapabilityConstants(t *testing.T) {
 	}{
 		{CapabilityContainerRuntime, "container_runtime"},
 		{CapabilityMonitorAgent, "monitor_agent"},
-		{CapabilityControlPlane, "control_plane"},
 		{CapabilityReverseProxy, "reverse_proxy"},
 	}
 	for _, c := range cases {
@@ -129,6 +128,44 @@ func TestActionConstants(t *testing.T) {
 	}
 }
 
+func TestActionTimeoutsSpecDurationFor(t *testing.T) {
+	timeouts := ActionTimeoutsSpec{
+		InstallSeconds:   300,
+		RestartSeconds:   45,
+		ReinstallSeconds: 360,
+	}
+
+	if got := timeouts.DurationFor(ActionInstall); got != 5*time.Minute {
+		t.Fatalf("install timeout = %s, want 5m0s", got)
+	}
+	if got := timeouts.DurationFor(ActionRestart); got != 45*time.Second {
+		t.Fatalf("restart timeout = %s, want 45s", got)
+	}
+	if got := timeouts.DurationFor(ActionVerify); got != 0 {
+		t.Fatalf("verify timeout = %s, want 0", got)
+	}
+	if got := timeouts.DurationFor(ActionReinstall); got != 6*time.Minute {
+		t.Fatalf("reinstall timeout = %s, want 6m0s", got)
+	}
+}
+
+func TestActionTimeoutPolicySpecResultFor(t *testing.T) {
+	policy := ActionTimeoutPolicySpec{
+		Install: TimeoutPolicyFailed,
+		Verify:  TimeoutPolicyAttentionRequired,
+	}
+
+	if got := policy.ResultFor(ActionInstall); got != TimeoutPolicyFailed {
+		t.Fatalf("install timeout policy = %q, want %q", got, TimeoutPolicyFailed)
+	}
+	if got := policy.ResultFor(ActionVerify); got != TimeoutPolicyAttentionRequired {
+		t.Fatalf("verify timeout policy = %q, want %q", got, TimeoutPolicyAttentionRequired)
+	}
+	if got := policy.ResultFor(ActionRestart); got != TimeoutPolicyAttentionRequired {
+		t.Fatalf("restart timeout policy default = %q, want %q", got, TimeoutPolicyAttentionRequired)
+	}
+}
+
 func TestOperationPhaseConstants(t *testing.T) {
 	cases := []struct {
 		got  OperationPhase
@@ -175,8 +212,10 @@ func TestFailureCodeConstants(t *testing.T) {
 		{FailureCodePreflightError, "preflight_error"},
 		{FailureCodePreflightBlocked, "preflight_blocked"},
 		{FailureCodeExecutionError, "execution_error"},
+		{FailureCodeExecutionTimeout, "execution_timeout"},
 		{FailureCodeVerificationDegraded, "verification_degraded"},
 		{FailureCodeVerificationError, "verification_error"},
+		{FailureCodeVerificationTimeout, "verification_timeout"},
 		{FailureCodeUninstallTruthMismatch, "uninstall_truth_mismatch"},
 	}
 	for _, c := range cases {
@@ -221,6 +260,9 @@ func TestSoftwareComponentSummaryJSON(t *testing.T) {
 		SourceEvidence:    "apt:docker-ce",
 		PackagedVersion:   "26.1.4",
 		VerificationState: VerificationStateHealthy,
+		ServiceStatus:     ServiceStatusRunning,
+		AppOSConnection:   AppOSConnectionNotApplicable,
+		HealthReasons:     []string{"verification_state:healthy", "appos_connection:not_applicable"},
 		AvailableActions:  []Action{ActionUpgrade, ActionVerify},
 		LastAction: &SoftwareDeliveryLastAction{
 			Action: "verify",
@@ -254,6 +296,9 @@ func TestSoftwareComponentSummaryJSON(t *testing.T) {
 	mustHaveKey("source_evidence")
 	mustHaveKey("packaged_version")
 	mustHaveKey("verification_state")
+	mustHaveKey("service_status")
+	mustHaveKey("appos_connection")
+	mustHaveKey("health_reasons")
 	mustHaveKey("available_actions")
 	mustHaveKey("last_action")
 
@@ -262,6 +307,12 @@ func TestSoftwareComponentSummaryJSON(t *testing.T) {
 	}
 	if m["installed_state"] != "installed" {
 		t.Errorf("installed_state: got %v, want installed", m["installed_state"])
+	}
+	if m["service_status"] != "running" {
+		t.Errorf("service_status: got %v, want running", m["service_status"])
+	}
+	if m["appos_connection"] != "not_applicable" {
+		t.Errorf("appos_connection: got %v, want not_applicable", m["appos_connection"])
 	}
 }
 

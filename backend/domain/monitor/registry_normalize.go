@@ -11,6 +11,7 @@ func normalizeTargetRegistryEntry(entry TargetRegistryEntry) (TargetRegistryEntr
 	entry.ID = strings.TrimSpace(entry.ID)
 	entry.TargetType = strings.TrimSpace(strings.ToLower(entry.TargetType))
 	entry.Kind = strings.TrimSpace(strings.ToLower(entry.Kind))
+	entry.Traits = normalizeStringSlice(entry.Traits)
 	entry.SignalSources = normalizeStringSlice(entry.SignalSources)
 	entry.EnabledChecks = normalizeStringSlice(entry.EnabledChecks)
 	entry.TemplateIDs = normalizeTemplateIDs(entry.TemplateIDs)
@@ -24,11 +25,6 @@ func normalizeTargetRegistryEntry(entry TargetRegistryEntry) (TargetRegistryEntr
 		entry.Checks.Credential.StatusMap = normalizeStatusMap(entry.Checks.Credential.StatusMap)
 		entry.Checks.Credential.ReasonMap = normalizeReasonMap(entry.Checks.Credential.ReasonMap)
 		entry.Checks.Credential.ReasonCodeMap = normalizeReasonMap(entry.Checks.Credential.ReasonCodeMap)
-	}
-	if entry.Checks.Heartbeat != nil {
-		entry.Checks.Heartbeat.StatusMap = normalizeStatusMap(entry.Checks.Heartbeat.StatusMap)
-		entry.Checks.Heartbeat.ReasonMap = normalizeReasonMap(entry.Checks.Heartbeat.ReasonMap)
-		entry.Checks.Heartbeat.ReasonCodeMap = normalizeReasonMap(entry.Checks.Heartbeat.ReasonCodeMap)
 	}
 	if entry.Checks.AppHealth != nil {
 		entry.Checks.AppHealth.StatusMap = normalizeStatusMap(entry.Checks.AppHealth.StatusMap)

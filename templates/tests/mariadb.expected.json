@@ -1,0 +1,57 @@
+{
+  "templateKey": "mariadb",
+  "requiredFiles": [
+    "manifest.json",
+    "inputs.schema.json",
+    "render.json",
+    "source.json",
+    "compose/base.yml",
+    "env/defaults.env"
+  ],
+  "manifest": {
+    "contractVersion": "0.1",
+    "key": "mariadb",
+    "category": "database",
+    "serviceRoles": {
+      "mariadb": "primary"
+    }
+  },
+  "inputs": {
+    "fieldKeys": [
+      "app_id",
+      "version",
+      "db_port",
+      "db_password"
+    ],
+    "secretBacked": [
+      "db_password"
+    ],
+    "systemManaged": [
+      "app_id"
+    ]
+  },
+  "render": {
+    "exposures": [
+      {
+        "label": "MariaDB",
+        "service": "mariadb",
+        "port": 3306,
+        "protocol": "tcp",
+        "default": true
+      }
+    ],
+    "primaryService": "mariadb",
+    "secretRefs": [
+      "db_password"
+    ]
+  },
+  "source": {
+    "originKind": "official",
+    "templateRevision": "v0-initial",
+    "adapterVersion": "v0"
+  },
+  "adapter": {
+    "primaryService": "mariadb",
+    "publishKind": "tcp"
+  }
+}

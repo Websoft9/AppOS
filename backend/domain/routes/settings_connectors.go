@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"net/mail"
 	"net/smtp"
+	"net/url"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/domodwyer/mailyak/v3"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
+	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	persistence "github.com/websoft9/appos/backend/infra/persistence"
 )
@@ -35,7 +38,7 @@ type testEmailRequest struct {
 func loadConnectorBackedSettingsEntryValue(app core.App, entryID string) (map[string]any, bool, error) {
 	switch entryID {
 	case "smtp":
-		cfg, err := connectors.LoadSMTPWith(persistence.NewConnectorRepository(app), connectors.NewSecretResolver(app))
+		cfg, err := loadDisplayedSMTPConfig(app)
 		if err != nil {
 			if connectors.IsRuntimeReason(err, connectors.RuntimeReasonNoConnectorConfigured) {
 				return nil, false, nil
@@ -74,6 +77,131 @@ func loadConnectorBackedSettingsEntryValue(app core.App, entryID string) (map[st
 	}
 }
 
+func loadDisplayedSMTPConfig(app core.App) (*connectors.SMTPConfig, error) {
+	items, err := persistence.NewConnectorRepository(app).ListByKind(connectors.KindSMTP)
+	if err != nil {
+		return nil, err
+	}
+	item, err := selectDisplayedConnector(items, connectors.KindSMTP)
+	if err != nil {
+		return nil, err
+	}
+	return smtpConfigFromDisplayedConnector(item)
+}
+
+func selectDisplayedConnector(items []*connectors.Connector, kind string) (*connectors.Connector, error) {
+	if len(items) == 0 {
+		return nil, &connectors.RuntimeConfigError{Kind: kind, Reason: connectors.RuntimeReasonNoConnectorConfigured}
+	}
+	return earliestDisplayedConnector(items), nil
+}
+
+func earliestDisplayedConnector(items []*connectors.Connector) *connectors.Connector {
+	if len(items) == 0 {
+		return nil
+	}
+	candidates := append([]*connectors.Connector(nil), items...)
+	sort.SliceStable(candidates, func(i, j int) bool {
+		leftCreated := strings.TrimSpace(candidates[i].Created())
+		rightCreated := strings.TrimSpace(candidates[j].Created())
+		switch {
+		case leftCreated == "" && rightCreated != "":
+			return false
+		case leftCreated != "" && rightCreated == "":
+			return true
+		case leftCreated != rightCreated:
+			return leftCreated < rightCreated
+		}
+		leftName := strings.TrimSpace(candidates[i].Name())
+		rightName := strings.TrimSpace(candidates[j].Name())
+		if leftName != rightName {
+			return leftName < rightName
+		}
+		return candidates[i].ID() < candidates[j].ID()
+	})
+	return candidates[0]
+}
+
+func smtpConfigFromDisplayedConnector(connector *connectors.Connector) (*connectors.SMTPConfig, error) {
+	if connector == nil {
+		return nil, &connectors.RuntimeConfigError{Kind: connectors.KindSMTP, Reason: connectors.RuntimeReasonNoConnectorConfigured}
+	}
+	config := connector.Config()
+	host, port, implicitTLS := parseDisplayedSMTPEndpoint(strings.TrimSpace(connector.Endpoint()))
+	result := &connectors.SMTPConfig{
+		ConnectorID: connector.ID(),
+		Name:        connector.Name(),
+		TemplateID:  connector.TemplateID(),
+		Endpoint:    strings.TrimSpace(connector.Endpoint()),
+		Host:        host,
+		Port:        port,
+		Username:    stringConfigValue(config, "username", "user"),
+		Password:    "",
+		FromAddress: stringConfigValue(config, "fromAddress", "from_address"),
+		AuthScheme:  connector.AuthScheme(),
+		LocalName:   stringConfigValue(config, "localName", "local_name"),
+		TLS:         boolConfigValue(config, "tls", false),
+		ImplicitTLS: implicitTLS,
+	}
+	return result, nil
+}
+
+func parseDisplayedSMTPEndpoint(raw string) (host string, port int, implicitTLS bool) {
+	port = 587
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", port, false
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return "", port, false
+	}
+	host = strings.TrimSpace(parsed.Hostname())
+	if parsed.Port() != "" {
+		if parsedPort, portErr := strconv.Atoi(parsed.Port()); portErr == nil && parsedPort > 0 {
+			port = parsedPort
+		}
+	}
+	implicitTLS = strings.EqualFold(parsed.Scheme, "smtps") || port == 465
+	return host, port, implicitTLS
+}
+
+func stringConfigValue(config map[string]any, keys ...string) string {
+	for _, key := range keys {
+		value, ok := config[key]
+		if !ok {
+			continue
+		}
+		if text := strings.TrimSpace(fmt.Sprintf("%v", value)); text != "" && text != "<nil>" {
+			return text
+		}
+	}
+	return ""
+}
+
+func boolConfigValue(config map[string]any, key string, fallback bool) bool {
+	value, ok := config[key]
+	if !ok {
+		return fallback
+	}
+	switch typed := value.(type) {
+	case bool:
+		return typed
+	case string:
+		trimmed := strings.TrimSpace(typed)
+		if trimmed == "" {
+			return fallback
+		}
+		parsed, err := strconv.ParseBool(trimmed)
+		if err != nil {
+			return fallback
+		}
+		return parsed
+	default:
+		return fallback
+	}
+}
+
 func loadRuntimeSMTPConfig(app core.App) (*connectors.SMTPConfig, error) {
 	if cfg, err := connectors.LoadSMTPWith(persistence.NewConnectorRepository(app), connectors.NewSecretResolver(app)); err == nil {
 		return cfg, nil
@@ -84,7 +212,7 @@ func loadRuntimeSMTPConfig(app core.App) (*connectors.SMTPConfig, error) {
 }
 
 func loadLegacySMTPConfig(app core.App) (*connectors.SMTPConfig, error) {
-	entry, ok := settingscatalog.FindEntry("smtp")
+	entry, ok := settingsschema.FindEntry("smtp")
 	if !ok {
 		return nil, fmt.Errorf("smtp settings entry not found")
 	}

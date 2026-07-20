@@ -16,13 +16,28 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/websoft9/appos/backend/domain/audit"
-	"github.com/websoft9/appos/backend/domain/deploy"
+	appcatalog "github.com/websoft9/appos/backend/domain/catalog"
+	"github.com/websoft9/appos/backend/domain/iac"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
+	"github.com/websoft9/appos/backend/domain/lifecycle/projection"
+	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
+	"github.com/websoft9/appos/backend/domain/monitor"
+	monitorstore "github.com/websoft9/appos/backend/domain/monitor/status/store"
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
 	"github.com/websoft9/appos/backend/domain/terminal"
+	"github.com/websoft9/appos/backend/infra/collections"
 )
 
 const appComposeConfigMaxBytes int64 = 2 << 20
+
+var appConfigBasePath string
+
+func resolvedAppConfigBasePath() string {
+	if strings.TrimSpace(appConfigBasePath) != "" {
+		return appConfigBasePath
+	}
+	return iac.WorkspaceBasePath()
+}
 
 type composeProjectStatus struct {
 	Name        string `json:"Name"`
@@ -32,8 +47,23 @@ type composeProjectStatus struct {
 
 type appRuntimeContext struct {
 	ProjectDir         string
-	Source             string
+	Channel            string
+	Trigger            string
+	ExecutionMode      string
 	ComposeProjectName string
+}
+
+type appRuntimeServerState struct {
+	RuntimeIndex     map[string]string
+	RuntimeReason    string
+	ServerName       string
+	ConnectionStatus string
+	ConnectionReason string
+}
+
+type appServerConnectionState struct {
+	Status string
+	Reason string
 }
 
 func registerAppsRoutes(g *router.RouterGroup[*core.RequestEvent]) {
@@ -60,7 +90,7 @@ func registerAppsRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 }
 
 // @Summary List installed apps
-// @Description Returns installed app inventory with normalized runtime status. Superuser only.
+// @Description Returns installed app inventory with canonical instance_state and normalized runtime status. Superuser only.
 // @Tags Apps
 // @Security BearerAuth
 // @Success 200 {object} map[string]any
@@ -78,25 +108,21 @@ func handleAppInstanceList(e *core.RequestEvent) error {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "failed to list apps"})
 	}
 
-	runtimeByServer := map[string]map[string]string{}
-	runtimeErrByServer := map[string]string{}
+	runtimeByServer := map[string]appRuntimeServerState{}
+	catalogIconByKey := appCatalogIconIndex()
 	for _, record := range records {
 		serverID := normalizeAppServerID(record.GetString("server_id"))
-		if _, ok := runtimeByServer[serverID]; ok || runtimeErrByServer[serverID] != "" {
+		if _, ok := runtimeByServer[serverID]; ok {
 			continue
 		}
-		index, runtimeErr := composeStatusIndex(e.App, serverID)
-		if runtimeErr != nil {
-			runtimeErrByServer[serverID] = runtimeErr.Error()
-			continue
-		}
-		runtimeByServer[serverID] = index
+		runtimeByServer[serverID] = resolveAppRuntimeServerState(e.App, serverID)
 	}
 
 	result := make([]map[string]any, 0, len(records))
 	for _, record := range records {
 		serverID := normalizeAppServerID(record.GetString("server_id"))
-		result = append(result, appInstanceResponse(e.App, record, runtimeByServer[serverID], runtimeErrByServer[serverID]))
+		serverState := runtimeByServer[serverID]
+		result = append(result, appInstanceResponse(e.App, record, serverState, catalogIconByKey))
 	}
 
 	sort.SliceStable(result, func(i, j int) bool {
@@ -107,7 +133,7 @@ func handleAppInstanceList(e *core.RequestEvent) error {
 }
 
 // @Summary Get app detail
-// @Description Returns one installed app with normalized runtime status. Superuser only.
+// @Description Returns one installed app with canonical instance_state and normalized runtime status. Superuser only.
 // @Tags Apps
 // @Security BearerAuth
 // @Param id path string true "app instance ID"
@@ -123,13 +149,9 @@ func handleAppInstanceDetail(e *core.RequestEvent) error {
 	}
 
 	serverID := normalizeAppServerID(record.GetString("server_id"))
-	runtimeIndex, runtimeErr := composeStatusIndex(e.App, serverID)
-	runtimeReason := ""
-	if runtimeErr != nil {
-		runtimeReason = runtimeErr.Error()
-	}
+	serverState := resolveAppRuntimeServerState(e.App, serverID)
 
-	return e.JSON(http.StatusOK, appInstanceResponse(e.App, record, runtimeIndex, runtimeReason))
+	return e.JSON(http.StatusOK, appInstanceResponse(e.App, record, serverState, appCatalogIconIndex()))
 }
 
 // @Summary Get app logs
@@ -153,8 +175,11 @@ func handleAppInstanceLogs(e *core.RequestEvent) error {
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 	}
+	if reason, blocked := requireManagedServerRuntimeAccess(e.App, record); blocked {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": reason})
+	}
 
-	client, err := servers.NewDockerClient(e.App, normalizeAppServerID(record.GetString("server_id")), localDockerClient)
+	client, err := servers.NewDockerClient(e.App, normalizeAppServerID(record.GetString("server_id")))
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 	}
@@ -181,7 +206,7 @@ func handleAppInstanceLogs(e *core.RequestEvent) error {
 }
 
 // @Summary Get app compose config
-// @Description Returns docker-compose.yml content for one installed app. Supports local and remote servers. Superuser only.
+// @Description Returns docker-compose.yml content for one installed app on a managed server. Superuser only.
 // @Tags Apps
 // @Security BearerAuth
 // @Param id path string true "app instance ID"
@@ -202,6 +227,12 @@ func handleAppInstanceConfigGet(e *core.RequestEvent) error {
 	}
 
 	serverID := normalizeAppServerID(record.GetString("server_id"))
+	if serverID == "" || serverID == "local" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "managed server is required for app compose config"})
+	}
+	if reason, blocked := requireManagedServerRuntimeAccess(e.App, record); blocked {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": reason})
+	}
 	content, err := readAppComposeConfig(e, serverID, runtimeContext.ProjectDir)
 	if err != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": err.Error()})
@@ -255,7 +286,7 @@ func handleAppInstanceAccessUpdate(e *core.RequestEvent) error {
 }
 
 // @Summary Validate app compose config
-// @Description Validates draft docker-compose.yml content for one installed app before saving. Supports local and remote servers. Superuser only.
+// @Description Validates draft docker-compose.yml content for one installed app on a managed server before saving. Superuser only.
 // @Tags Apps
 // @Security BearerAuth
 // @Param id path string true "app instance ID"
@@ -286,6 +317,12 @@ func handleAppInstanceConfigValidate(e *core.RequestEvent) error {
 	}
 
 	serverID := normalizeAppServerID(record.GetString("server_id"))
+	if serverID == "" || serverID == "local" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "managed server is required for app compose config"})
+	}
+	if reason, blocked := requireManagedServerRuntimeAccess(e.App, record); blocked {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": reason})
+	}
 	if err := validateAppComposeConfig(e, serverID, runtimeContext.ProjectDir, content); err != nil {
 		return e.JSON(http.StatusOK, withMapFields(map[string]any{
 			"id":       record.Id,
@@ -303,7 +340,7 @@ func handleAppInstanceConfigValidate(e *core.RequestEvent) error {
 }
 
 // @Summary Write app compose config
-// @Description Overwrites docker-compose.yml for one installed app. Supports local and remote servers. Superuser only.
+// @Description Overwrites docker-compose.yml for one installed app on a managed server. Superuser only.
 // @Tags Apps
 // @Security BearerAuth
 // @Param id path string true "app instance ID"
@@ -334,6 +371,12 @@ func handleAppInstanceConfigWrite(e *core.RequestEvent) error {
 	}
 
 	serverID := normalizeAppServerID(record.GetString("server_id"))
+	if serverID == "" || serverID == "local" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "managed server is required for app compose config"})
+	}
+	if reason, blocked := requireManagedServerRuntimeAccess(e.App, record); blocked {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": reason})
+	}
 	if err := validateAppComposeConfig(e, serverID, runtimeContext.ProjectDir, content); err != nil {
 		writeAppAudit(e, record, "app.config.validate", audit.StatusFailed, map[string]any{"errorMessage": err.Error()})
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
@@ -374,7 +417,7 @@ func handleAppInstanceConfigWrite(e *core.RequestEvent) error {
 }
 
 // @Summary Roll back app compose config
-// @Description Restores the latest saved docker-compose rollback point for one installed app. Supports local and remote servers. Superuser only.
+// @Description Restores the latest saved docker-compose rollback point for one installed app on a managed server. Superuser only.
 // @Tags Apps
 // @Security BearerAuth
 // @Param id path string true "app instance ID"
@@ -400,6 +443,12 @@ func handleAppInstanceConfigRollback(e *core.RequestEvent) error {
 	}
 
 	serverID := normalizeAppServerID(record.GetString("server_id"))
+	if serverID == "" || serverID == "local" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "managed server is required for app compose config"})
+	}
+	if reason, blocked := requireManagedServerRuntimeAccess(e.App, record); blocked {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": reason})
+	}
 	currentContent, err := readAppComposeConfig(e, serverID, runtimeContext.ProjectDir)
 	if err != nil {
 		writeAppAudit(e, record, "app.config.rollback", audit.StatusFailed, map[string]any{"errorMessage": err.Error()})
@@ -479,6 +528,10 @@ func handleAppInstanceLifecycleOperationWithMetadata(e *core.RequestEvent, actio
 	}
 
 	serverID := normalizeAppServerID(record.GetString("server_id"))
+	if reason, blocked := requireManagedServerRuntimeAccess(e.App, record); blocked {
+		writeAppAudit(e, record, "app."+action+".create", audit.StatusFailed, map[string]any{"errorMessage": reason, "requestedAction": action})
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": reason})
+	}
 	content, err := readAppComposeConfig(e, serverID, runtimeContext.ProjectDir)
 	if err != nil {
 		writeAppAudit(e, record, "app."+action+".create", audit.StatusFailed, map[string]any{"errorMessage": err.Error(), "requestedAction": action})
@@ -490,8 +543,9 @@ func handleAppInstanceLifecycleOperationWithMetadata(e *core.RequestEvent, actio
 		serverID,
 		record.GetString("name"),
 		content,
-		normalizeInstalledDeploySource(runtimeContext.Source),
-		deploy.AdapterManualCompose,
+		runtimeContext.Channel,
+		string(model.TriggerManual),
+		string(model.ExecutionModeCompose),
 		map[string]any{
 			"installed_app_id": record.Id,
 			"requested_action": action,
@@ -591,50 +645,365 @@ func findAppInstance(e *core.RequestEvent, id string) (*core.Record, error) {
 	return record, nil
 }
 
-func appInstanceResponse(app core.App, record *core.Record, runtimeIndex map[string]string, runtimeReason string) map[string]any {
+func appInstanceResponse(app core.App, record *core.Record, serverState appRuntimeServerState, catalogIconByKey map[string]string) map[string]any {
 	name := record.GetString("name")
+	serverID := normalizeAppServerID(record.GetString("server_id"))
 	runtimeContext, _ := resolveAppRuntimeContext(app, record)
 	currentPipeline, _ := appCurrentPipelineResponse(app, record)
-	runtimeStatus := appRuntimeStatus(record)
-	if runtimeIndex != nil {
-		if live, ok := runtimeIndex[name]; ok && strings.TrimSpace(live) != "" {
-			runtimeStatus = normalizeComposeRuntimeStatus(live)
+	currentProjection := projection.ReadAppInstanceProjection(record)
+	runtimeReason := serverState.RuntimeReason
+	liveRuntimeStatus := ""
+	if serverState.RuntimeIndex != nil {
+		if live, ok := serverState.RuntimeIndex[name]; ok && strings.TrimSpace(live) != "" {
+			liveRuntimeStatus = live
 			runtimeReason = ""
 		}
 	}
+	effective := projection.ResolveEffectiveAppProjectionFromSources(currentProjection, loadAppProjectionSources(app, record, currentPipeline, liveRuntimeStatus, runtimeReason))
+	effectiveProjection := effective.Projection
+	runtimeStatus := string(effective.RuntimeStatus)
 	if runtimeStatus == "" {
 		runtimeStatus = "unknown"
 	}
 
 	result := map[string]any{
-		"id":                      record.Id,
-		"iac_path":                appInstanceIACPath(record.Id, name),
-		"server_id":               normalizeAppServerID(record.GetString("server_id")),
-		"name":                    name,
-		"project_dir":             runtimeContext.ProjectDir,
-		"source":                  runtimeContext.Source,
-		"status":                  appInstallStatus(record),
-		"runtime_status":          runtimeStatus,
-		"lifecycle_state":         record.GetString("lifecycle_state"),
-		"health_summary":          record.GetString("health_summary"),
-		"publication_summary":     record.GetString("publication_summary"),
-		"state_reason":            record.GetString("state_reason"),
-		"access_username":         record.GetString("access_username"),
-		"access_secret_hint":      record.GetString("access_secret_hint"),
-		"access_retrieval_method": record.GetString("access_retrieval_method"),
-		"access_notes":            record.GetString("access_notes"),
-		"last_operation":          record.GetString("last_operation"),
-		"current_pipeline":        currentPipeline,
-		"created":                 record.GetDateTime("created").String(),
-		"updated":                 record.GetDateTime("updated").String(),
+		"id":                       record.Id,
+		"iac_path":                 appInstanceIACPath(record.Id, name),
+		"server_id":                serverID,
+		"server_name":              serverState.ServerName,
+		"name":                     name,
+		"project_dir":              runtimeContext.ProjectDir,
+		"trigger":                  runtimeContext.Trigger,
+		"channel":                  runtimeContext.Channel,
+		"execution_mode":           runtimeContext.ExecutionMode,
+		"server_connection_status": normalizeServerConnectionStatus(serverState.ConnectionStatus),
+		"status":                   appInstallStatus(record),
+		"instance_state":           string(effective.InstanceState),
+		"runtime_status":           runtimeStatus,
+		"health_summary":           string(effectiveProjection.HealthSummary),
+		"publication_summary":      string(effectiveProjection.PublicationSummary),
+		"state_reason":             effectiveProjection.StateReason,
+		"access_username":          record.GetString("access_username"),
+		"access_secret_hint":       record.GetString("access_secret_hint"),
+		"access_retrieval_method":  record.GetString("access_retrieval_method"),
+		"access_notes":             record.GetString("access_notes"),
+		"access_endpoints":         appAccessEndpoints(app, record),
+		"last_operation":           record.GetString("last_operation"),
+		"current_pipeline":         currentPipeline,
+		"created":                  record.GetDateTime("created").String(),
+		"updated":                  record.GetDateTime("updated").String(),
 	}
-	if strings.TrimSpace(runtimeReason) != "" && runtimeStatus == "unknown" {
+	if catalogAppKey := appInstanceCatalogAppKey(app, record); catalogAppKey != "" {
+		result["catalog_app_key"] = catalogAppKey
+		if iconURL := strings.TrimSpace(catalogIconByKey[catalogAppKey]); iconURL != "" {
+			result["template_icon_url"] = iconURL
+		}
+	}
+	if strings.TrimSpace(runtimeReason) != "" {
 		result["runtime_reason"] = runtimeReason
+	}
+	if strings.TrimSpace(serverState.ConnectionReason) != "" {
+		result["server_connection_reason"] = serverState.ConnectionReason
 	}
 	if value := record.GetDateTime("installed_at"); !value.IsZero() {
 		result["installed_at"] = value.String()
 	}
 	return result
+}
+
+func appAccessEndpoints(app core.App, record *core.Record) any {
+	if record == nil {
+		return []any{}
+	}
+	if endpoints := decodeAccessEndpointItems(record.Get("access_endpoints")); len(endpoints) > 0 {
+		return endpoints
+	}
+	if endpoints := appAccessEndpointsFromLatestOperation(app, record.Id); endpoints != nil {
+		return endpoints
+	}
+	return []any{}
+}
+
+func appAccessEndpointsFromLatestOperation(app core.App, appID string) []map[string]any {
+	if app == nil || strings.TrimSpace(appID) == "" {
+		return nil
+	}
+	records, err := app.FindRecordsByFilter("app_operations", "app = {:appID}", "-updated", 1, 0, map[string]any{"appID": appID})
+	if err != nil || len(records) == 0 {
+		return nil
+	}
+	operation := records[0]
+	spec := decodeMapValue(operation.Get("spec_json"))
+	metadata := decodeMapValue(spec["metadata"])
+	exposureIntent := lifecyclesvc.ParseExposureIntentMap(decodeMapValue(spec["exposure_intent"]))
+	return lifecyclesvc.ResolveAccessEndpointsFromArtifacts(metadata, operation.GetString("rendered_compose"), exposureIntent)
+}
+
+func decodeAccessEndpointItems(raw any) []map[string]any {
+	data, err := json.Marshal(raw)
+	if err != nil || len(data) == 0 || string(data) == "null" {
+		return nil
+	}
+	var items []map[string]any
+	if err := json.Unmarshal(data, &items); err != nil {
+		return nil
+	}
+	return items
+}
+
+func decodeMapValue(raw any) map[string]any {
+	data, err := json.Marshal(raw)
+	if err != nil || len(data) == 0 || string(data) == "null" {
+		return nil
+	}
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil
+	}
+	return result
+}
+
+func appServerName(app core.App, serverID string) string {
+	if strings.TrimSpace(serverID) == "local" {
+		return "Local"
+	}
+	if strings.TrimSpace(serverID) == "" {
+		return "Unavailable"
+	}
+	server, err := app.FindRecordById("servers", serverID)
+	if err != nil {
+		return serverID
+	}
+	if name := strings.TrimSpace(server.GetString("name")); name != "" {
+		return name
+	}
+	return serverID
+}
+
+func resolveAppRuntimeServerState(app core.App, serverID string) appRuntimeServerState {
+	state := appRuntimeServerState{ServerName: appServerName(app, serverID)}
+	trimmedServerID := strings.TrimSpace(serverID)
+	if trimmedServerID == "" {
+		state.RuntimeReason = "app server is not assigned"
+		state.ConnectionStatus = "unknown"
+		state.ConnectionReason = "App server is not assigned."
+		return state
+	}
+	if trimmedServerID == "local" {
+		state.ConnectionStatus = "online"
+		return state
+	}
+
+	serverRecord, err := app.FindRecordById("servers", trimmedServerID)
+	if err != nil {
+		state.RuntimeReason = "managed server record is unavailable"
+		state.ConnectionStatus = "unknown"
+		state.ConnectionReason = "Managed server record is unavailable."
+		return state
+	}
+	if serverName := strings.TrimSpace(serverRecord.GetString("name")); serverName != "" {
+		state.ServerName = serverName
+	}
+	connection := resolveAppServerConnectionState(app, serverRecord)
+	state.ConnectionStatus = normalizeServerConnectionStatus(connection.Status)
+	state.ConnectionReason = connection.Reason
+	if strings.TrimSpace(connection.Reason) != "" {
+		state.RuntimeReason = connection.Reason
+		return state
+	}
+
+	runtimeIndex, runtimeErr := composeStatusIndex(app, trimmedServerID)
+	if runtimeErr != nil {
+		state.RuntimeReason = runtimeErr.Error()
+		return state
+	}
+	state.RuntimeIndex = runtimeIndex
+	return state
+}
+
+func requireManagedServerRuntimeAccess(app core.App, record *core.Record) (string, bool) {
+	if app == nil || record == nil {
+		return "app instance is unavailable", true
+	}
+	serverID := normalizeAppServerID(record.GetString("server_id"))
+	if serverID == "" || serverID == "local" {
+		return "", false
+	}
+	serverRecord, err := app.FindRecordById("servers", serverID)
+	if err != nil {
+		return "Managed server record is unavailable.", true
+	}
+	connection := resolveAppServerConnectionState(app, serverRecord)
+	if normalizeServerConnectionStatus(connection.Status) == "online" {
+		return "", false
+	}
+	if strings.TrimSpace(connection.Reason) != "" {
+		return connection.Reason, true
+	}
+	return "Server runtime status is unavailable.", true
+}
+
+func resolveAppServerConnectionState(app core.App, serverRecord *core.Record) appServerConnectionState {
+	if serverRecord == nil {
+		return appServerConnectionState{Status: "unknown", Reason: "Managed server record is unavailable."}
+	}
+	connectType := strings.ToLower(strings.TrimSpace(serverRecord.GetString("connect_type")))
+	if connectType == "tunnel" {
+		tunnelStatus := strings.ToLower(strings.TrimSpace(serverRecord.GetString("tunnel_status")))
+		if tunnelStatus != "" && tunnelStatus != string(servers.TunnelStatusOnline) {
+			return appServerConnectionState{
+				Status: "tunnel_disconnected",
+				Reason: describeAppRuntimeFallbackReason(tunnelStatus, strings.TrimSpace(serverRecord.GetString("tunnel_disconnect_reason"))),
+			}
+		}
+	}
+
+	accessStatus := strings.ToLower(strings.TrimSpace(serverRecord.GetString("access_status")))
+	if accessStatus == "unavailable" {
+		return appServerConnectionState{
+			Status: "unreachable",
+			Reason: describeAppRuntimeFallbackReason(accessStatus, strings.TrimSpace(serverRecord.GetString("access_reason"))),
+		}
+	}
+
+	monitorRecord, err := app.FindFirstRecordByFilter(
+		collections.MonitorLatestStatus,
+		"target_type = {:targetType} && target_id = {:targetID}",
+		map[string]any{"targetType": monitor.TargetTypeServer, "targetID": serverRecord.Id},
+	)
+	if err != nil {
+		return appServerConnectionState{Status: "online"}
+	}
+	monitorStatus := strings.TrimSpace(monitorRecord.GetString("status"))
+	switch monitorStatus {
+	case monitor.StatusOffline, monitor.StatusUnreachable, monitor.StatusCredentialInvalid:
+		return appServerConnectionState{
+			Status: normalizeServerConnectionStatus(monitorStatus),
+			Reason: describeAppRuntimeFallbackReason(monitorStatus, strings.TrimSpace(monitorRecord.GetString("reason"))),
+		}
+	default:
+		return appServerConnectionState{Status: "online"}
+	}
+}
+
+func normalizeServerConnectionStatus(status string) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "", "online", "healthy", "available":
+		return "online"
+	case monitor.StatusOffline:
+		return "offline"
+	case monitor.StatusCredentialInvalid:
+		return "credential_invalid"
+	case "tunnel_disconnected":
+		return "tunnel_disconnected"
+	case "unknown":
+		return "unknown"
+	default:
+		return "unreachable"
+	}
+}
+
+func describeAppRuntimeFallbackReason(status string, reason string) string {
+	normalizedStatus := strings.ToLower(strings.TrimSpace(status))
+	normalizedReason := strings.ToLower(strings.TrimSpace(reason))
+	switch normalizedReason {
+	case "control_unreachable":
+		return "Server is unreachable from the control plane."
+	case "credential_auth_failed":
+		return "Server credentials are invalid."
+	case "tcp_connect_failed":
+		return "Server TCP connectivity failed."
+	}
+	switch normalizedStatus {
+	case monitor.StatusOffline:
+		return "Server is offline."
+	case monitor.StatusUnreachable, "unavailable":
+		return "Server is unreachable."
+	case monitor.StatusCredentialInvalid:
+		return "Server credentials are invalid."
+	}
+	if strings.TrimSpace(reason) != "" {
+		return strings.TrimSpace(reason)
+	}
+	if strings.TrimSpace(status) != "" {
+		return strings.TrimSpace(status)
+	}
+	return "Server runtime status is unavailable."
+}
+
+func appCatalogIconIndex() map[string]string {
+	bundle, err := appcatalog.LoadBundle("en")
+	if err != nil || bundle == nil {
+		return map[string]string{}
+	}
+	result := make(map[string]string, len(bundle.Products))
+	for _, product := range bundle.Products {
+		key := strings.TrimSpace(product.Key)
+		iconURL := strings.TrimSpace(product.Logo.ImageURL)
+		if key == "" || iconURL == "" {
+			continue
+		}
+		result[key] = iconURL
+	}
+	return result
+}
+
+func appInstanceCatalogAppKey(app core.App, record *core.Record) string {
+	if record == nil {
+		return ""
+	}
+	if templateKey := strings.TrimSpace(record.GetString("template_key")); templateKey != "" {
+		return templateKey
+	}
+	operationID := strings.TrimSpace(record.GetString("last_operation"))
+	if operationID == "" {
+		return ""
+	}
+	operationRecord, err := app.FindRecordById("app_operations", operationID)
+	if err != nil {
+		return ""
+	}
+	spec, ok := operationSpecMap(operationRecord.Get("spec_json"))
+	if !ok {
+		return ""
+	}
+	metadata, ok := operationSpecMap(spec["metadata"])
+	if !ok {
+		return ""
+	}
+	prefillContext, ok := operationSpecMap(metadata["prefill_context"])
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprint(prefillContext["app_key"]))
+}
+
+func operationSpecMap(value any) (map[string]any, bool) {
+	switch typed := value.(type) {
+	case map[string]any:
+		return typed, true
+	case string:
+		return decodeOperationSpecJSON([]byte(typed))
+	case []byte:
+		return decodeOperationSpecJSON(typed)
+	default:
+		raw, err := json.Marshal(value)
+		if err != nil {
+			return nil, false
+		}
+		return decodeOperationSpecJSON(raw)
+	}
+}
+
+func decodeOperationSpecJSON(raw []byte) (map[string]any, bool) {
+	if len(raw) == 0 {
+		return nil, false
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return nil, false
+	}
+	return parsed, true
 }
 
 func appCurrentPipelineResponse(app core.App, record *core.Record) (map[string]any, error) {
@@ -660,29 +1029,12 @@ func appCurrentPipelineResponse(app core.App, record *core.Record) (map[string]a
 	return buildPipelineResponse(app, pipelineRunID, operationRecord, stepRuns)
 }
 
-func normalizeComposeRuntimeStatus(raw string) string {
-	value := strings.ToLower(strings.TrimSpace(raw))
-	switch {
-	case strings.Contains(value, "running"):
-		return "running"
-	case strings.Contains(value, "exited"), strings.Contains(value, "stopped"):
-		return "stopped"
-	case strings.Contains(value, "dead"), strings.Contains(value, "error"):
-		return "error"
-	default:
-		return value
-	}
-}
-
 func normalizeAppServerID(serverID string) string {
-	if strings.TrimSpace(serverID) == "" {
-		return "local"
-	}
-	return serverID
+	return strings.TrimSpace(serverID)
 }
 
 func composeStatusIndex(app core.App, serverID string) (map[string]string, error) {
-	client, err := servers.NewDockerClient(app, serverID, localDockerClient)
+	client, err := servers.NewDockerClient(app, serverID)
 	if err != nil {
 		return nil, err
 	}
@@ -725,17 +1077,34 @@ func resolveAppRuntimeContext(app core.App, record *core.Record) (appRuntimeCont
 		return context, fmt.Errorf("app runtime context operation not found")
 	}
 	context.ProjectDir = strings.TrimSpace(operationRecord.GetString("project_dir"))
-	context.Source = strings.TrimSpace(operationRecord.GetString("trigger_source"))
+	context.Trigger = model.NormalizeOperationTrigger(operationRecord.GetString("trigger"))
+	context.Channel = model.NormalizeOperationChannel(record.GetString("channel"))
+	context.ExecutionMode = model.NormalizeOperationExecutionMode(operationRecord.GetString("execution_mode"))
+	if context.Channel == "" && strings.TrimSpace(record.GetString("template_key")) != "" {
+		context.Channel = string(model.ChannelStore)
+	}
 	if composeProjectName := strings.TrimSpace(operationRecord.GetString("compose_project_name")); composeProjectName != "" {
 		context.ComposeProjectName = composeProjectName
 	}
 	if context.ProjectDir == "" {
 		if spec, ok := operationRecord.Get("spec_json").(map[string]any); ok {
 			context.ProjectDir = strings.TrimSpace(fmt.Sprint(spec["project_dir"]))
-			if context.Source == "" {
-				context.Source = strings.TrimSpace(fmt.Sprint(spec["source"]))
+			if context.Trigger == "" {
+				context.Trigger = model.NormalizeOperationTrigger(fmt.Sprint(spec["trigger"]))
+			}
+			if context.Channel == "" {
+				context.Channel = model.NormalizeOperationChannel(fmt.Sprint(spec["channel"]))
+			}
+			if context.ExecutionMode == "" {
+				context.ExecutionMode = model.NormalizeOperationExecutionMode(fmt.Sprint(spec["execution_mode"]))
 			}
 		}
+	}
+	if context.Channel == "" {
+		context.Channel = string(model.ChannelCustom)
+	}
+	if context.ExecutionMode == "" {
+		context.ExecutionMode = string(model.ExecutionModeCompose)
 	}
 	if context.ProjectDir == "" {
 		return context, fmt.Errorf("app runtime context is missing project_dir")
@@ -753,16 +1122,40 @@ func appInstallStatus(record *core.Record) string {
 }
 
 func appRuntimeStatus(record *core.Record) string {
-	switch strings.TrimSpace(record.GetString("lifecycle_state")) {
-	case string(model.AppStateRunningHealthy), string(model.AppStateRunningDegraded):
-		return "running"
-	case string(model.AppStateStopped), string(model.AppStateRetired):
-		return "stopped"
-	case string(model.AppStateAttentionRequired):
-		return "error"
-	default:
-		return "unknown"
+	return string(projection.RuntimeStatusFromProjection(projection.ReadAppInstanceProjection(record)))
+}
+
+func loadAppProjectionSources(app core.App, record *core.Record, currentPipeline map[string]any, liveRuntimeStatus string, runtimeReason string) projection.AppProjectionSources {
+	sources := projection.AppProjectionSources{
+		CurrentPipeline:   currentPipeline,
+		LiveRuntimeStatus: liveRuntimeStatus,
+		RuntimeReason:     runtimeReason,
 	}
+	if app == nil || record == nil {
+		return sources
+	}
+	primaryPublicationState := ""
+	primaryHealthState := ""
+	if exposureID := strings.TrimSpace(record.GetString("primary_exposure")); exposureID != "" {
+		if exposureRecord, err := app.FindRecordById("app_exposures", exposureID); err == nil {
+			primaryPublicationState = exposureRecord.GetString("publication_state")
+			primaryHealthState = exposureRecord.GetString("health_state")
+		}
+	}
+	sources.PrimaryExposurePublicationState = primaryPublicationState
+	sources.PrimaryExposureHealthState = primaryHealthState
+	if monitorRecord, err := app.FindFirstRecordByFilter(
+		collections.MonitorLatestStatus,
+		"target_type = {:targetType} && target_id = {:targetID}",
+		map[string]any{"targetType": monitor.TargetTypeApp, "targetID": record.Id},
+	); err == nil {
+		sources.MonitorStatus = strings.TrimSpace(monitorRecord.GetString("status"))
+		sources.MonitorReason = strings.TrimSpace(monitorRecord.GetString("reason"))
+		sources.MonitorSummary = monitorstore.LoadExistingSummary(app, monitor.TargetTypeApp, record.Id)
+	} else {
+		sources.MonitorSummary = monitorstore.LoadExistingSummary(app, monitor.TargetTypeApp, record.Id)
+	}
+	return sources
 }
 
 func writeAppAudit(e *core.RequestEvent, record *core.Record, action string, status string, detail map[string]any) {
@@ -782,7 +1175,7 @@ func writeAppAudit(e *core.RequestEvent, record *core.Record, action string, sta
 }
 
 func validateAppComposeConfig(e *core.RequestEvent, serverID string, projectDir string, content string) error {
-	client, err := servers.NewDockerClient(e.App, serverID, localDockerClient)
+	client, err := servers.NewDockerClient(e.App, serverID)
 	if err != nil {
 		return err
 	}
@@ -793,26 +1186,17 @@ func validateAppComposeConfig(e *core.RequestEvent, serverID string, projectDir 
 	tempName := fmt.Sprintf(".appos-validate-%d.yml", time.Now().UnixNano())
 	tempPath := filepath.Join(projectDir, tempName)
 
-	if serverID == "local" {
-		if err := os.WriteFile(tempPath, []byte(content), 0o600); err != nil {
-			return fmt.Errorf("write temp compose file: %w", err)
-		}
-		defer func() {
-			_ = os.Remove(tempPath)
-		}()
-	} else {
-		sftpClient, err := openAppSFTPClient(e, serverID)
-		if err != nil {
-			return err
-		}
-		defer sftpClient.Close()
-		if err := sftpClient.WriteFile(tempPath, content); err != nil {
-			return fmt.Errorf("write remote temp compose file: %w", err)
-		}
-		defer func() {
-			_ = sftpClient.Delete(tempPath)
-		}()
+	sftpClient, err := openAppSFTPClient(e, serverID)
+	if err != nil {
+		return err
 	}
+	defer sftpClient.Close()
+	if err := sftpClient.WriteFile(tempPath, content); err != nil {
+		return fmt.Errorf("write remote temp compose file: %w", err)
+	}
+	defer func() {
+		_ = sftpClient.Delete(tempPath)
+	}()
 
 	_, err = client.Exec(ctx, "compose", "-f", tempPath, "config", "-q")
 	if err != nil {
@@ -822,10 +1206,6 @@ func validateAppComposeConfig(e *core.RequestEvent, serverID string, projectDir 
 }
 
 func readAppComposeConfig(e *core.RequestEvent, serverID string, projectDir string) (string, error) {
-	if serverID == "local" {
-		return localDockerClient.ComposeConfigRead(projectDir)
-	}
-
 	client, err := openAppSFTPClient(e, serverID)
 	if err != nil {
 		return "", err
@@ -836,10 +1216,6 @@ func readAppComposeConfig(e *core.RequestEvent, serverID string, projectDir stri
 }
 
 func writeAppComposeConfig(e *core.RequestEvent, serverID string, projectDir string, content string) error {
-	if serverID == "local" {
-		return localDockerClient.ComposeConfigWrite(projectDir, content)
-	}
-
 	client, err := openAppSFTPClient(e, serverID)
 	if err != nil {
 		return err
@@ -866,7 +1242,7 @@ func saveAppComposeToIAC(id string, name string, content string) error {
 		return nil
 	}
 	rel := appInstanceIACPath(id, name)
-	abs := filepath.Join(filesBasePath, filepath.FromSlash(rel))
+	abs := filepath.Join(resolvedAppConfigBasePath(), filepath.FromSlash(rel))
 	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
 		return fmt.Errorf("prepare iac directory: %w", err)
 	}
@@ -916,7 +1292,7 @@ type appConfigRollbackSnapshot struct {
 }
 
 func getAppConfigRollbackSnapshot(record *core.Record) (appConfigRollbackSnapshot, bool) {
-	abs := filepath.Join(filesBasePath, filepath.FromSlash(appConfigRollbackPath(record.Id, record.GetString("name"))))
+	abs := filepath.Join(resolvedAppConfigBasePath(), filepath.FromSlash(appConfigRollbackPath(record.Id, record.GetString("name"))))
 	raw, err := os.ReadFile(abs)
 	if err != nil {
 		return appConfigRollbackSnapshot{}, false
@@ -936,7 +1312,7 @@ func getAppConfigRollbackSnapshot(record *core.Record) (appConfigRollbackSnapsho
 }
 
 func setAppConfigRollbackSnapshot(record *core.Record, content string, sourceAction string) error {
-	abs := filepath.Join(filesBasePath, filepath.FromSlash(appConfigRollbackPath(record.Id, record.GetString("name"))))
+	abs := filepath.Join(resolvedAppConfigBasePath(), filepath.FromSlash(appConfigRollbackPath(record.Id, record.GetString("name"))))
 	if strings.TrimSpace(content) == "" {
 		if err := os.Remove(abs); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("remove rollback snapshot: %w", err)
@@ -981,12 +1357,4 @@ func withMapFields(base map[string]any, extra map[string]any) map[string]any {
 		base[key] = value
 	}
 	return base
-}
-
-func normalizeInstalledDeploySource(source string) string {
-	source = strings.TrimSpace(source)
-	if source == "" {
-		return deploy.SourceManualOps
-	}
-	return source
 }

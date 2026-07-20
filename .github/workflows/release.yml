@@ -1,4 +1,4 @@
-name: Release
+name: Release Gate
 
 on:
   push:
@@ -9,12 +9,19 @@ permissions:
   contents: write
 
 jobs:
+  gate:
+    name: Run Release Gate
+    uses: ./.github/workflows/_quality-gate.yml
+    with:
+      gate_stage: release
+
   release:
-    name: Validate And Draft Release
+    name: Draft Release
     runs-on: ubuntu-latest
+    needs: [gate]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -31,15 +38,15 @@ jobs:
           echo "CHANNEL=$channel" >> "$GITHUB_OUTPUT"
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Validate version metadata
         run: node .github/scripts/validate-version.mjs "${GITHUB_REF_NAME}"
@@ -57,42 +64,27 @@ jobs:
       - name: Build release notes
         run: node .github/scripts/build-release-notes.mjs "${GITHUB_REF_NAME}"
 
-      - name: Build appos-agent artifact
+      - name: Write release gate manifest
         run: |
-          set -euo pipefail
-          mkdir -p artifacts/agent
-          cd backend
-          for arch in amd64 arm64; do
-            output="../artifacts/agent/appos-agent-linux-${arch}"
-            CGO_ENABLED=0 GOOS=linux GOARCH="${arch}" \
-              go build -ldflags="-w -s -X main.version=${{ steps.convert_version.outputs.VERSION }}" \
-              -o "${output}" ./cmd/appos-agent
-            chmod +x "${output}"
-          done
-          cp ../artifacts/agent/appos-agent-linux-amd64 ../artifacts/agent/appos-agent
-          chmod +x ../artifacts/agent/appos-agent
-
-      - name: Generate appos-agent installer
-        run: |
-          set -euo pipefail
-          installer_base_url="https://artifact.websoft9.com/${{ steps.convert_version.outputs.CHANNEL }}/appos/agent"
-          sed \
-            -e "s|__APPOS_AGENT_BINARY_URL_AMD64__|${installer_base_url}/appos-agent-linux-amd64|g" \
-            -e "s|__APPOS_AGENT_BINARY_URL_ARM64__|${installer_base_url}/appos-agent-linux-arm64|g" \
-            backend/domain/software/scripts/appos-agent-install.sh > artifacts/agent/appos-agent-install.sh
-          chmod +x artifacts/agent/appos-agent-install.sh
+          cat > release-gate.json <<EOF
+          {
+            "tag": "${GITHUB_REF_NAME}",
+            "commit": "${GITHUB_SHA}",
+            "workflow": "${GITHUB_WORKFLOW}",
+            "run_id": "${GITHUB_RUN_ID}",
+            "gate": "release"
+          }
+          EOF
 
       - name: Upload release review artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: release-review-${{ github.ref_name }}
           path: |
             CHANGELOG.md
             release-notes.md
+            release-gate.json
             docs/version-compatibility-matrix.md
-            artifacts/agent/appos-agent-linux-amd64
-            artifacts/agent/appos-agent-linux-arm64
-            artifacts/agent/appos-agent-install.sh
           if-no-files-found: error
 
       - name: Upload release assets
@@ -103,7 +95,5 @@ jobs:
           body_path: release-notes.md
           files: |
             CHANGELOG.md
+            release-gate.json
             docs/version-compatibility-matrix.md
-            artifacts/agent/appos-agent-linux-amd64
-            artifacts/agent/appos-agent-linux-arm64
-            artifacts/agent/appos-agent-install.sh

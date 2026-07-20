@@ -2,7 +2,9 @@
 
 ## Overview
 
-**Platform-level shared resource management** — Resources is the shared platform entry for runtime infrastructure, shared assets, software delivery visibility, and external integrations. Resources are platform-defined (not user-extensible); apps and workflows consume them by reference instead of owning them.
+**Platform-level shared resource container** — Resources is the shared platform container for long-lived, reusable resource objects. Resources are platform-defined (not user-extensible); apps, settings, deploy, and workflows consume them by reference instead of owning them.
+
+Resources is not a business workflow surface. It owns stable object identity, taxonomy, CRUD, reference semantics, and navigation entry points for shared resource objects. App install flows, deployment flows, lifecycle execution, and other business workflows remain outside the Resources domain.
 
 > Env Groups detail spec: see [Epic 24](epic24-shared-envs.md)
 
@@ -17,14 +19,14 @@ This epic now covers both:
 
 The current frontend presents `Resources` as a grouped hub, not as a flat inventory list.
 
-| Section | Current families |
+| Section | Current entries |
 | --- | --- |
 | `Runtime Infrastructure` | `Servers`, `Service Instances` |
 | `Shared Assets` | `Shared Envs`, `Scripts` |
 | `Software Delivery` | `Supported Software` |
 | `External Integrations` | `AI Providers`, `Connectors`, `Platform Accounts` |
 
-This presentation is intentionally user-facing. It groups platform-shared objects by operator intent, not by backend package layout.
+This presentation is intentionally user-facing. It groups platform-shared objects by operator intent, not by backend package layout. Not every hub entry is a canonical resource family; some entries may remain auxiliary discovery surfaces linked from the hub.
 
 Companion ADR for the next-stage taxonomy: [specs/adr/resource-taxonomy-instance-connector.md](specs/adr/resource-taxonomy-instance-connector.md)
 
@@ -47,6 +49,25 @@ Phase 2 evolves the original resource-store taxonomy into five canonical resourc
 5. `Connectors`
 
 This phase does not require full operational depth for every instance kind on day one. Its first goal is to stabilize ownership, naming, references, and migration direction.
+
+## Phase 2 Positioning
+
+Phase 2 treats `Resources` as a resource container, not as a workflow center.
+
+It is responsible for:
+
+1. canonical resource-family boundaries
+2. stable object identity and persistence
+3. route and navigation naming
+4. reference semantics across settings, apps, deploy, and workflows
+5. lightweight orientation for operators entering resource pages
+
+It is not responsible for:
+
+1. app install or deployment workflow orchestration
+2. software lifecycle execution surfaces
+3. turning the Resources homepage into a business-process dashboard
+4. owning domain-specific flows that merely consume resources by reference
 
 ## Phase 2 Problem Statement
 
@@ -77,6 +98,7 @@ Phase 2 is not responsible for:
 2. fully modeling every possible provider account integration in one release
 3. rewriting all existing resource UIs in one iteration
 4. provisioning cloud services directly
+5. introducing app, deploy, or software-delivery business workflows under `Resources`
 
 ## Phase 2 Canonical Resource Families
 
@@ -146,6 +168,24 @@ Product/UI label uses `Platform Accounts`, while backend domain terminology rema
 3. each migrated object family must end with one canonical owner only
 4. backward-compatible transition routes are acceptable during the migration window
 5. settings should reference resources, not own them
+
+## Phase 2 Risks
+
+1. ambiguous technologies such as `llm`, `mcp`, `s3`, and `registry` may regress into inconsistent classification if new work skips the ADR rules
+2. frontend taxonomy changes may outpace backend ownership migration and create temporary duplication
+3. auxiliary catalog or visibility pages may be mistaken for canonical resource families if the hub mixes object containers and discovery surfaces without explicit labeling
+4. existing `endpoint` semantics may resist a clean connector split if legacy clients depend on the old shape too long
+
+## Phase 2 Acceptance Conditions
+
+Phase 2 is considered successful when:
+
+1. the canonical five-family taxonomy is documented and applied consistently in new work
+2. resource pages are treated as shared object containers and reference surfaces, not as business workflow owners
+3. AI provider ownership is no longer canonical in `settings`
+4. `instances` exists as a first-class resource family, even if initially registration-only
+5. the migration path from `endpoints` to `connectors` is defined and actively used by new features
+6. settings entries that still reference business resources do so by resource identity rather than owning the full object payload
 
 ## Phase 1 Legacy Reference
 
@@ -410,11 +450,11 @@ New resource types → new collection + migration + route group. No changes to e
 
 Define canonical route names, resource family language, and classification rules for `instance`, `connector`, and `provider_account`.
 
-### [Story 8.2: LLM Ownership Extraction](story8.2-llm-ownership-extraction.md)
+### [Story 8.2: AI Provider Foundation](story8.2-ai-provider-foundation.md)
 
-Finish extraction of LLM provider ownership from `settings` and place it under the `connectors` resource family. Self-hosted model services remain future `instance` work and are not part of this migration story.
+Move AI provider ownership out of `settings` and establish `ai_providers` as a first-class canonical resource family.
 
-### Story 8.3: Instance Backend Foundation
+### Story 8.3: Instance Foundation
 
 Introduce `instances` collection, domain model, CRUD API, and minimal validation for registration-only instance objects.
 
@@ -422,25 +462,21 @@ Introduce `instances` collection, domain model, CRUD API, and minimal validation
 
 Update dashboard resource navigation to expose `Service Instances`, `AI Providers`, `Connectors`, and `Platform Accounts` using the canonical product labels.
 
-### [Story 8.5: Endpoints to Connectors Refactor](story8.5-endpoints-to-connectors-refactor.md)
+### [Story 8.5: Connector Foundation](story8.5-connector-foundation.md)
 
-Refactor `endpoints` into `connectors`, preserving existing generic target use cases while tightening connector semantics.
+Refactor `endpoints` into `connectors` and establish the canonical connector domain while preserving existing generic target use cases.
 
 ### Story 8.6: Settings Reference Migration
 
 Replace settings-owned business resources with resource references where appropriate.
 
-### [Story 8.7: Connector Domain Foundation](story8.7-connector-domain-foundation.md)
-
-Introduce the minimal reusable connector domain model so current LLM resources and future endpoint migrations share one canonical backend shape.
-
-### [Story 8.8: Provider Account Backend Foundation](story8.8-provider-account-backend-foundation.md)
+### [Story 8.8: Provider Account Foundation](story8.8-provider-account-foundation.md)
 
 Introduce the minimal clean-slate `provider_accounts` backend domain so AppOS can model platform identity scopes without depending on legacy `cloud_accounts`.
 
-### [Story 8.9: Resource Hub Information Architecture Alignment](story8.9-resource-hub-information-architecture-alignment.md)
+### [Story 8.9: Resource Hub](story8.9-resource-hub.md)
 
-Define the unified resource-entry information architecture so `Servers` remain part of the canonical resource center while being positioned as host infrastructure rather than just another dependency card.
+Define the Resource Hub information architecture, canonical homepage structure, `Add Resource` chooser, and baseline usability/accessibility rules.
 
 ## Phase 2 Target Route Direction
 
@@ -480,7 +516,7 @@ Phase 2 does not require all target routes to exist immediately, but new stories
 ### Navigation structure
 Resources is a single sidebar entry (no sub-items). Clicking it opens the **Resource Hub** at `/resources` — a card grid showing all 8 resource types with live counts. Each card is fully clickable and navigates to the resource list page (`/resources/servers`, etc.). No action buttons on the Hub; `[+ Create]` lives only on the list page.
 
-This describes the delivered legacy hub baseline. Phase 2 taxonomy-aware IA changes should follow [story8.9-resource-hub-information-architecture-alignment.md](story8.9-resource-hub-information-architecture-alignment.md), which may replace the flat card grouping and raw type-picker create affordance with a canonical-family and intent-led entry model.
+This describes the delivered legacy hub baseline. Phase 2 taxonomy-aware IA changes should follow [story8.9-resource-hub.md](story8.9-resource-hub.md), which may replace the flat card grouping and raw type-picker create affordance with a canonical-family and intent-led entry model.
 
 ```
 Sidebar: Resources  →  /resources (Hub: 8 cards with counts)

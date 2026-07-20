@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { ClientResponseError } from 'pocketbase'
 import {
+  Activity,
   Maximize,
   Minimize,
   Server,
@@ -16,12 +16,8 @@ import {
   FolderOpen,
   ScrollText,
   Plus,
-  Container,
   SquareTerminal,
-  PanelsLeftRight,
   Search,
-  Network,
-  AlertTriangle,
   Loader2,
   ChevronLeft,
   X,
@@ -57,17 +53,12 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Checkbox } from '@/components/ui/checkbox'
 import { TerminalPanel, type TerminalPanelHandle } from '@/components/connect/TerminalPanel'
 import { FileManagerPanel } from '@/components/connect/FileManagerPanel'
-import { DockerPanel } from '@/components/connect/DockerPanel'
 import {
   listServers,
-  listScripts,
   checkServerStatus,
   listSystemdServices,
-  listServerPorts,
-  releaseServerPort,
   getSystemdStatus,
   getSystemdLogs,
   getSystemdContent,
@@ -77,15 +68,20 @@ import {
   applySystemdUnit,
   controlSystemdService,
   getConnectTerminalSettings,
+  updateTerminalSessionWorkspace,
   type SystemdControlAction,
   type ConnectTerminalSettings,
   type Server as ServerType,
-  type Script,
   type SystemdService,
-  type ServerPortItem,
-  type ServerPortProtocol,
 } from '@/lib/connect-api'
-import { clearConnectSession, loadConnectSession, saveConnectSession } from '@/lib/connect-session'
+import { getAssetContent, listAssets, type AssetRecord } from '@/lib/assets-api'
+import {
+  clearConnectSession,
+  loadConnectSession,
+  type RestoreWorkspaceSession,
+  saveConnectSession,
+  saveConnectWorkspaceSnapshot,
+} from '@/lib/connect-session'
 import { cn } from '@/lib/utils'
 
 const CONNECT_SPLIT_KEY = 'connect.split.ratio'
@@ -114,36 +110,158 @@ function loadSplitRatio(): number {
   return 0.5
 }
 
+function SplitRectangleIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <rect x="2.5" y="3" width="11" height="10" rx="1.5" />
+      <path d="M8 3v10" />
+    </svg>
+  )
+}
+
+function normalizeSystemdServiceUnitName(value: string): string {
+  const trimmed = value.trim().replace(/^[●○*•\s]+/, '')
+  return trimmed.toLowerCase().endsWith('.service') ? trimmed : ''
+}
+
+function getSystemdServiceDisplayName(value: string): string {
+  return normalizeSystemdServiceUnitName(value).replace(/\.service$/i, '')
+}
+
+function openServerDetailTab(
+  serverId: string,
+  tab: 'overview' | 'systemd' | 'docker' | 'ports' | 'monitor'
+) {
+  window.open(
+    `/resources/servers?server=${encodeURIComponent(serverId)}&tab=${encodeURIComponent(tab)}`,
+    '_blank',
+    'noopener,noreferrer'
+  )
+}
+
+function shouldHideSystemdService(service: SystemdService): boolean {
+  return !normalizeSystemdServiceUnitName(service.name)
+}
+
 interface TerminalConnectionTab {
   id: string
   serverId: string
   title: string
   reconnectNonce: number
+  sessionId?: string
 }
 
-function buildDefaultTerminalTabs(serverId: string): TerminalConnectionTab[] {
+interface RestoredTabWorkspaceSeed {
+  sidePanel: 'none' | 'files'
+  path?: string
+  lockedRoot?: string | null
+  splitRatio?: number
+}
+
+interface InitialTerminalSessionState {
+  tabs: TerminalConnectionTab[]
+  activeTabId: string
+  initialSidePanel: 'none' | 'files'
+  initialSplitRatio?: number
+  initialFilePanelPresets: Record<
+    string,
+    { path: string; lockedRoot: string | null; nonce: number }
+  >
+  restoredWorkspaceByTabId: Record<string, RestoredTabWorkspaceSeed>
+}
+
+function buildRestoreTabId(seed: RestoreWorkspaceSession) {
+  return `${seed.serverId}-${seed.sessionId}`
+}
+
+function buildDefaultTerminalTabs(serverId: string, sessionId?: string): TerminalConnectionTab[] {
   return [
     {
       id: `${serverId}-primary`,
       serverId,
       title: serverId,
       reconnectNonce: 0,
+      sessionId,
     },
   ]
 }
 
-function loadInitialTerminalSession(serverId: string): {
-  tabs: TerminalConnectionTab[]
-  activeTabId: string
-} {
+function loadInitialTerminalSession(
+  serverId: string,
+  sessionId?: string,
+  restoreSessions?: RestoreWorkspaceSession[],
+  activeRestoreSessionId?: string
+): InitialTerminalSessionState {
+  if (restoreSessions && restoreSessions.length > 0) {
+    const tabs = restoreSessions.map(seed => ({
+      id: buildRestoreTabId(seed),
+      serverId: seed.serverId,
+      title: seed.title,
+      reconnectNonce: 0,
+      sessionId: seed.sessionId,
+    }))
+    const activeSeed =
+      restoreSessions.find(seed => seed.sessionId === activeRestoreSessionId) ??
+      restoreSessions.find(seed => seed.serverId === serverId) ??
+      restoreSessions[0]
+    const activeTabId = buildRestoreTabId(activeSeed)
+    const restoredWorkspaceByTabId = restoreSessions.reduce<
+      Record<string, RestoredTabWorkspaceSeed>
+    >((acc, seed) => {
+      acc[buildRestoreTabId(seed)] = {
+        sidePanel: seed.panel === 'files' ? 'files' : 'none',
+        path: seed.path,
+        lockedRoot: seed.lockedRoot ?? null,
+        splitRatio: seed.split,
+      }
+      return acc
+    }, {})
+    const initialFilePanelPresets = restoreSessions.reduce<
+      Record<string, { path: string; lockedRoot: string | null; nonce: number }>
+    >((acc, seed) => {
+      if (!seed.path && !seed.lockedRoot) return acc
+      acc[seed.serverId] = {
+        path: seed.path || '/',
+        lockedRoot: seed.lockedRoot || null,
+        nonce: 0,
+      }
+      return acc
+    }, {})
+    const activeWorkspace = restoredWorkspaceByTabId[activeTabId]
+    return {
+      tabs,
+      activeTabId,
+      initialSidePanel: activeWorkspace?.sidePanel ?? 'none',
+      initialSplitRatio: activeWorkspace?.splitRatio,
+      initialFilePanelPresets,
+      restoredWorkspaceByTabId,
+    }
+  }
+
   const saved = loadConnectSession()
   if (!saved || saved.tabs.length === 0) {
-    const defaults = buildDefaultTerminalTabs(serverId)
-    return { tabs: defaults, activeTabId: defaults[0].id }
+    const defaults = buildDefaultTerminalTabs(serverId, sessionId)
+    return {
+      tabs: defaults,
+      activeTabId: defaults[0].id,
+      initialSidePanel: 'none',
+      initialFilePanelPresets: {},
+      restoredWorkspaceByTabId: {},
+    }
   }
   // Ensure the URL serverId has a tab in the restored session
-  let tabs = saved.tabs
-  const hasUrlServer = tabs.some(tab => tab.serverId === serverId)
+  let tabs: TerminalConnectionTab[] = saved.tabs.map(tab => ({ ...tab }))
+  const existingUrlServerTabIndex = tabs.findIndex(tab => tab.serverId === serverId)
+  const hasUrlServer = existingUrlServerTabIndex >= 0
   if (!hasUrlServer) {
     tabs = [
       ...tabs,
@@ -152,17 +270,30 @@ function loadInitialTerminalSession(serverId: string): {
         serverId,
         title: serverId,
         reconnectNonce: 0,
+        sessionId,
       },
     ]
+  } else if (sessionId) {
+    tabs = tabs.map((tab, index) =>
+      index === existingUrlServerTabIndex ? { ...tab, sessionId } : tab
+    )
   }
   // Prefer active tab for the URL serverId when session didn't contain it
   // (tabs.find is safe: we just pushed serverId above when !hasUrlServer)
-  const activeTabId = hasUrlServer
-    ? tabs.some(tab => tab.id === saved.activeTabId)
-      ? saved.activeTabId
-      : tabs[0].id
-    : (tabs.find(tab => tab.serverId === serverId) ?? tabs[tabs.length - 1]).id
-  return { tabs, activeTabId }
+  const activeTabId = sessionId
+    ? (tabs.find(tab => tab.serverId === serverId) ?? tabs[tabs.length - 1]).id
+    : hasUrlServer
+      ? tabs.some(tab => tab.id === saved.activeTabId)
+        ? saved.activeTabId
+        : tabs[0].id
+      : (tabs.find(tab => tab.serverId === serverId) ?? tabs[tabs.length - 1]).id
+  return {
+    tabs,
+    activeTabId,
+    initialSidePanel: 'none',
+    initialFilePanelPresets: {},
+    restoredWorkspaceByTabId: {},
+  }
 }
 
 const DEFAULT_CONNECT_SETTINGS: ConnectTerminalSettings = {
@@ -172,23 +303,39 @@ const DEFAULT_CONNECT_SETTINGS: ConnectTerminalSettings = {
 
 type ConnectServerPageProps = {
   serverId: string
-  initialSidePanel?: 'files' | 'docker'
+  initialSessionId?: string
+  initialRestoreSessions?: RestoreWorkspaceSession[]
+  initialActiveRestoreSessionId?: string
+  initialSidePanel?: 'files'
   initialFilePath?: string
   initialLockedRootPath?: string
+  initialSplitRatio?: number
 }
 
 export function ConnectServerPage({
   serverId,
+  initialSessionId,
+  initialRestoreSessions,
+  initialActiveRestoreSessionId,
   initialSidePanel,
   initialFilePath,
   initialLockedRootPath,
+  initialSplitRatio,
 }: ConnectServerPageProps) {
-  const initialSessionRef = useRef(loadInitialTerminalSession(serverId))
+  const initialSessionRef = useRef(
+    loadInitialTerminalSession(
+      serverId,
+      initialSessionId,
+      initialRestoreSessions,
+      initialActiveRestoreSessionId
+    )
+  )
   const initialSession = initialSessionRef.current
+  const restoredWorkspaceByTabIdRef = useRef(initialSession.restoredWorkspaceByTabId)
   const opButtonClass = 'h-8 w-[116px] justify-start'
   const navigate = useNavigate()
   const [servers, setServers] = useState<ServerType[]>([])
-  const [scripts, setScripts] = useState<Script[]>([])
+  const [scripts, setScripts] = useState<AssetRecord[]>([])
   const [serverQuery, setServerQuery] = useState('')
   const [serverMenuOpen, setServerMenuOpen] = useState(false)
   const [connectingOpen, setConnectingOpen] = useState(false)
@@ -201,17 +348,21 @@ export function ConnectServerPage({
     useState<ConnectTerminalSettings>(DEFAULT_CONNECT_SETTINGS)
   const [duplicateConnectConfirmOpen, setDuplicateConnectConfirmOpen] = useState(false)
   const [duplicateConnectTarget, setDuplicateConnectTarget] = useState<ServerType | null>(null)
-  const [tabRailCollapsed, setTabRailCollapsed] = useState(false)
+  const [tabRailCollapsed, setTabRailCollapsed] = useState(
+    initialSession.initialSidePanel === 'files'
+  )
   const [safeExitingTabId, setSafeExitingTabId] = useState<string | null>(null)
   const [lastActivityAt, setLastActivityAt] = useState<number>(Date.now())
   const [terminalTabs, setTerminalTabs] = useState<TerminalConnectionTab[]>(initialSession.tabs)
   const [activeTabId, setActiveTabId] = useState<string>(initialSession.activeTabId)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [sidePanel, setSidePanel] = useState<'none' | 'files' | 'docker'>('none')
+  const [sidePanel, setSidePanel] = useState<'none' | 'files'>(initialSession.initialSidePanel)
   const [filePanelPresets, setFilePanelPresets] = useState<
     Record<string, { path: string; lockedRoot: string | null; nonce: number }>
-  >({})
-  const [splitRatio, setSplitRatio] = useState(loadSplitRatio)
+  >(initialSession.initialFilePanelPresets)
+  const [splitRatio, setSplitRatio] = useState(
+    () => initialSession.initialSplitRatio ?? initialSplitRatio ?? loadSplitRatio()
+  )
   const [isResizing, setIsResizing] = useState(false)
   const [systemdOpen, setSystemdOpen] = useState(false)
   const [systemdQuery, setSystemdQuery] = useState('')
@@ -233,33 +384,35 @@ export function ConnectServerPage({
     SystemdControlAction | 'verify-unit' | 'apply-unit' | null
   >(null)
   const [systemdActionLoading, setSystemdActionLoading] = useState(false)
-  const [portsOpen, setPortsOpen] = useState(false)
-  const [portsLoading, setPortsLoading] = useState(false)
-  const [portsReleasingPort, setPortsReleasingPort] = useState<number | null>(null)
-  const [portsReleaseConfirmOpen, setPortsReleaseConfirmOpen] = useState(false)
-  const [portsReleaseForce, setPortsReleaseForce] = useState(false)
-  const [portsReleaseSubmitting, setPortsReleaseSubmitting] = useState(false)
-  const [portsError, setPortsError] = useState('')
-  const [portsHint, setPortsHint] = useState('')
-  const [portsRows, setPortsRows] = useState<ServerPortItem[]>([])
-  const [portsDetectedAt, setPortsDetectedAt] = useState('')
-  const [portsProtocol, setPortsProtocol] = useState<ServerPortProtocol>('tcp')
-  const [portsSortBy, setPortsSortBy] = useState<'port' | 'status' | 'sources'>('port')
-  const [portsSortDirection, setPortsSortDirection] = useState<'asc' | 'desc'>('asc')
-  const [portsContainerProbe, setPortsContainerProbe] = useState<string>('')
   const terminalRefs = useRef<Record<string, TerminalPanelHandle | null>>({})
   const safeExitTimerRef = useRef<number | null>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const serverSearchRef = useRef<HTMLInputElement>(null)
   const systemdSelectRequestSeq = useRef(0)
   const saveSessionTimerRef = useRef<number | null>(null)
+  const saveWorkspaceTimerRef = useRef<number | null>(null)
+
+  const handleCreateScript = useCallback(() => {
+    void navigate({ to: '/ai-assets' as never })
+  }, [navigate])
+
+  const handleCreateServer = useCallback(() => {
+    void navigate({ to: '/resources/servers', search: { create: '1' } as never })
+  }, [navigate])
 
   useEffect(() => {
     listServers()
       .then(setServers)
       .catch(() => {})
-    listScripts()
-      .then(setScripts)
+    listAssets()
+      .then(items =>
+        setScripts(
+          items.filter(
+            item =>
+              item.kind === 'script' && item.storage_kind === 'file' && item.source_kind === 'local'
+          )
+        )
+      )
       .catch(() => {})
     getConnectTerminalSettings()
       .then(setConnectSettings)
@@ -267,21 +420,38 @@ export function ConnectServerPage({
   }, [])
 
   useEffect(() => {
+    let nextActiveTabId: string | null = null
     setTerminalTabs(prev => {
-      if (prev.some(tab => tab.serverId === serverId)) {
-        return prev
+      const existingIndex = prev.findIndex(tab => tab.serverId === serverId)
+      if (existingIndex >= 0) {
+        if (!initialSessionId || prev[existingIndex].sessionId === initialSessionId) {
+          if (initialSessionId) {
+            nextActiveTabId = prev[existingIndex].id
+          }
+          return prev
+        }
+        nextActiveTabId = prev[existingIndex].id
+        return prev.map((tab, index) =>
+          index === existingIndex ? { ...tab, sessionId: initialSessionId } : tab
+        )
       }
+      nextActiveTabId = `${serverId}-${Date.now()}`
       return [
         ...prev,
         {
-          id: `${serverId}-${Date.now()}`,
+          id: nextActiveTabId,
           serverId,
           title: serverId,
           reconnectNonce: 0,
+          sessionId: initialSessionId,
         },
       ]
     })
-  }, [serverId])
+
+    if (initialSessionId && nextActiveTabId) {
+      setActiveTabId(nextActiveTabId)
+    }
+  }, [initialSessionId, serverId])
 
   useEffect(() => {
     setLastActivityAt(Date.now())
@@ -299,7 +469,12 @@ export function ConnectServerPage({
         ? activeTabId
         : terminalTabs[0].id
       saveConnectSession({
-        tabs: terminalTabs,
+        tabs: terminalTabs.map(({ id, serverId, title, reconnectNonce }) => ({
+          id,
+          serverId,
+          title,
+          reconnectNonce,
+        })),
         activeTabId: normalizedActiveTabId,
         updatedAt: Date.now(),
       })
@@ -308,6 +483,49 @@ export function ConnectServerPage({
       if (saveSessionTimerRef.current) window.clearTimeout(saveSessionTimerRef.current)
     }
   }, [activeTabId, terminalTabs])
+
+  useEffect(() => {
+    const tabs = terminalTabs.flatMap(tab =>
+      tab.sessionId
+        ? [
+            {
+              id: tab.id,
+              sessionId: tab.sessionId,
+              serverId: tab.serverId,
+              title: tab.title,
+            },
+          ]
+        : []
+    )
+    if (tabs.length === 0) {
+      return
+    }
+
+    const activeSessionId = terminalTabs.find(tab => tab.id === activeTabId)?.sessionId
+    const workspaceBySessionId = tabs.reduce<
+      Record<string, { panel?: 'files'; path?: string; lockedRoot?: string; split?: number }>
+    >((acc, tab) => {
+      const workspace = restoredWorkspaceByTabIdRef.current[tab.id]
+      if (!workspace) {
+        acc[tab.sessionId] = {}
+        return acc
+      }
+      acc[tab.sessionId] = {
+        panel: workspace.sidePanel === 'files' ? 'files' : undefined,
+        path: workspace.path,
+        lockedRoot: workspace.lockedRoot || undefined,
+        split: workspace.splitRatio,
+      }
+      return acc
+    }, {})
+
+    saveConnectWorkspaceSnapshot({
+      tabs: tabs.map(({ sessionId, serverId, title }) => ({ sessionId, serverId, title })),
+      activeSessionId,
+      workspaceBySessionId,
+      updatedAt: Date.now(),
+    })
+  }, [activeTabId, filePanelPresets, sidePanel, splitRatio, terminalTabs])
 
   useEffect(() => {
     const touchActivity = () => setLastActivityAt(Date.now())
@@ -326,6 +544,10 @@ export function ConnectServerPage({
       if (safeExitTimerRef.current) {
         window.clearTimeout(safeExitTimerRef.current)
       }
+      if (saveWorkspaceTimerRef.current) {
+        window.clearTimeout(saveWorkspaceTimerRef.current)
+      }
+      clearConnectSession()
     }
   }, [])
 
@@ -340,11 +562,42 @@ export function ConnectServerPage({
   )
 
   useEffect(() => {
-    if (initialSidePanel === 'docker') {
+    const workspace = restoredWorkspaceByTabIdRef.current[activeTabId]
+    if (!workspace) return
+
+    setSidePanel(workspace.sidePanel)
+    if (workspace.sidePanel === 'files') {
       setTabRailCollapsed(true)
-      setSidePanel('docker')
-      return
     }
+    if (typeof workspace.splitRatio === 'number' && Number.isFinite(workspace.splitRatio)) {
+      setSplitRatio(workspace.splitRatio)
+    }
+
+    if (workspace.path || workspace.lockedRoot) {
+      setFilePanelPresets(state => {
+        const current = state[activeServerId] || {
+          path: '/',
+          lockedRoot: null,
+          nonce: 0,
+        }
+        const nextPath = workspace.path || current.path || '/'
+        const nextLockedRoot = workspace.lockedRoot || null
+        if (current.path === nextPath && current.lockedRoot === nextLockedRoot) {
+          return state
+        }
+        return {
+          ...state,
+          [activeServerId]: {
+            path: nextPath,
+            lockedRoot: nextLockedRoot,
+            nonce: current.nonce,
+          },
+        }
+      })
+    }
+  }, [activeServerId, activeTabId])
+
+  useEffect(() => {
     if (initialSidePanel === 'files' && initialFilePath) {
       setFilePanelPresets(state => {
         const current = state[serverId] || {
@@ -393,9 +646,10 @@ export function ConnectServerPage({
     return map
   }, [servers])
   const filteredServers = useMemo(() => {
+    const enabled = servers.filter(s => s.is_enabled !== false)
     const keyword = serverQuery.trim().toLowerCase()
-    if (!keyword) return servers
-    return servers.filter(server => {
+    if (!keyword) return enabled
+    return enabled.filter(server => {
       const connectType = String(server.connect_type || 'direct')
       const label =
         `${server.name || ''} ${server.host || ''} ${server.id} ${connectType}`.toLowerCase()
@@ -501,6 +755,7 @@ export function ConnectServerPage({
         window.clearTimeout(safeExitTimerRef.current)
       }
       safeExitTimerRef.current = window.setTimeout(() => {
+        terminalRefs.current[tabId]?.disconnect()
         setTerminalTabs(prev => {
           const next = prev.filter(tab => tab.id !== tabId)
           const fallback = next[0]
@@ -519,6 +774,89 @@ export function ConnectServerPage({
     },
     [activeTabId, navigate, terminalTabs]
   )
+
+  const handleSessionEstablished = useCallback((tabId: string, sessionId: string) => {
+    setTerminalTabs(prev =>
+      prev.map(tab =>
+        tab.id === tabId && tab.sessionId !== sessionId ? { ...tab, sessionId } : tab
+      )
+    )
+  }, [])
+
+  const handleSessionInvalidated = useCallback((tabId: string, sessionId: string) => {
+    setTerminalTabs(prev =>
+      prev.map(tab =>
+        tab.id === tabId && tab.sessionId === sessionId ? { ...tab, sessionId: undefined } : tab
+      )
+    )
+  }, [])
+
+  const handleFileLocationChange = useCallback(
+    (targetServerId: string, location: { path: string; lockedRoot: string | null }) => {
+      setFilePanelPresets(state => {
+        const current = state[targetServerId]
+        if (
+          current &&
+          current.path === location.path &&
+          current.lockedRoot === location.lockedRoot
+        ) {
+          return state
+        }
+        return {
+          ...state,
+          [targetServerId]: {
+            path: location.path,
+            lockedRoot: location.lockedRoot,
+            nonce: current?.nonce ?? 0,
+          },
+        }
+      })
+    },
+    []
+  )
+
+  useEffect(() => {
+    const activeSessionId = activeTab?.sessionId
+    if (!activeSessionId) {
+      if (saveWorkspaceTimerRef.current) {
+        window.clearTimeout(saveWorkspaceTimerRef.current)
+      }
+      return
+    }
+
+    const preset = filePanelPresets[activeServerId]
+    const workspace = {
+      active_server_id: activeServerId,
+      side_panel: sidePanel,
+      file_path: preset?.path,
+      locked_root: preset?.lockedRoot || undefined,
+      split_ratio: splitRatio,
+    }
+
+    if (saveWorkspaceTimerRef.current) {
+      window.clearTimeout(saveWorkspaceTimerRef.current)
+    }
+    saveWorkspaceTimerRef.current = window.setTimeout(() => {
+      void updateTerminalSessionWorkspace(activeSessionId, workspace)
+    }, CONNECT_SESSION_SAVE_DEBOUNCE_MS)
+
+    return () => {
+      if (saveWorkspaceTimerRef.current) {
+        window.clearTimeout(saveWorkspaceTimerRef.current)
+      }
+    }
+  }, [activeServerId, activeTab?.sessionId, filePanelPresets, sidePanel, splitRatio])
+
+  useEffect(() => {
+    if (!activeTabId) return
+    const preset = filePanelPresets[activeServerId]
+    restoredWorkspaceByTabIdRef.current[activeTabId] = {
+      sidePanel,
+      path: preset?.path,
+      lockedRoot: preset?.lockedRoot || null,
+      splitRatio,
+    }
+  }, [activeServerId, activeTabId, filePanelPresets, sidePanel, splitRatio])
 
   useEffect(() => {
     if (!activeTabId || safeExitingTabId) return
@@ -559,37 +897,18 @@ export function ConnectServerPage({
   }, [])
 
   const handleRunScript = useCallback(
-    (script: Script) => {
+    async (script: AssetRecord) => {
       if (!activeTabId) return
       const terminal = terminalRefs.current[activeTabId]
       if (!terminal) return
-      terminal.sendData(script.code + '\n')
+      try {
+        const content = await getAssetContent(script.id)
+        if (content.storage_kind !== 'file') return
+        terminal.sendData(content.content + '\n')
+      } catch {}
     },
     [activeTabId]
   )
-
-  const openPortsDialog = useCallback(() => {
-    setPortsOpen(true)
-    setPortsError('')
-    setPortsHint('')
-  }, [])
-
-  const openSystemdDialog = useCallback(() => {
-    setSystemdOpen(true)
-    setSystemdQuery('')
-    setSystemdServices([])
-    setSystemdSelected('')
-    setSystemdView('none')
-    setSystemdError('')
-    setSystemdHint('')
-    setSystemdStatusDetails({})
-    setSystemdContentText('')
-    setSystemdLogs([])
-    setSystemdUnitPath('')
-    setSystemdUnitContent('')
-    setSystemdUnitResult('')
-    setSystemdEditMode(false)
-  }, [])
 
   useEffect(() => {
     if (!isResizing) return
@@ -657,7 +976,7 @@ export function ConnectServerPage({
       try {
         const services = await listSystemdServices(activeServerId, keyword)
         if (cancelled) return
-        setSystemdServices(services)
+        setSystemdServices(services.filter(service => !shouldHideSystemdService(service)))
       } catch (error) {
         if (cancelled) return
         setSystemdError(error instanceof Error ? error.message : 'Failed to load services')
@@ -673,131 +992,6 @@ export function ConnectServerPage({
       window.clearTimeout(timer)
     }
   }, [activeServerId, systemdOpen, systemdQuery])
-
-  const loadPorts = useCallback(async () => {
-    setPortsLoading(true)
-    setPortsError('')
-    try {
-      const response = await listServerPorts(activeServerId, 'all', portsProtocol)
-      setPortsRows(Array.isArray(response.ports) ? response.ports : [])
-      setPortsDetectedAt(response.detected_at || '')
-      const probe = response.reservation_meta?.container_probe
-      if (probe) {
-        setPortsContainerProbe(`Docker probe: ${probe.status}`)
-      } else {
-        setPortsContainerProbe('')
-      }
-    } catch (error) {
-      setPortsError(error instanceof Error ? error.message : 'Failed to load ports')
-    } finally {
-      setPortsLoading(false)
-    }
-  }, [activeServerId, portsProtocol])
-
-  const releaseOccupiedPort = useCallback(
-    async (port: number) => {
-      setPortsReleaseConfirmOpen(false)
-      setPortsReleaseSubmitting(true)
-      setPortsReleasingPort(port)
-      setPortsError('')
-      setPortsHint('')
-      try {
-        const mode = portsReleaseForce ? 'force' : 'graceful'
-        const result = await releaseServerPort(activeServerId, port, portsProtocol, mode)
-        if (!result.released) {
-          setPortsError(`Port ${port} is still occupied after ${mode} release.`)
-        } else {
-          setPortsHint(`Port ${port} released by ${result.action_taken}.`)
-        }
-        await loadPorts()
-      } catch (error) {
-        if (error instanceof ClientResponseError && error.status === 409) {
-          const forceHint = !portsReleaseForce ? ' Try enabling force mode.' : ''
-          setPortsError(`Port ${port} is still occupied after release.${forceHint}`)
-          await loadPorts()
-        } else {
-          setPortsError(error instanceof Error ? error.message : 'Failed to release port')
-        }
-      } finally {
-        setPortsReleaseSubmitting(false)
-        setPortsReleaseForce(false)
-        setPortsReleasingPort(null)
-      }
-    },
-    [activeServerId, loadPorts, portsProtocol, portsReleaseForce]
-  )
-
-  const requestReleaseOccupiedPort = useCallback((port: number) => {
-    setPortsReleasingPort(port)
-    setPortsReleaseForce(false)
-    setPortsReleaseConfirmOpen(true)
-    setPortsError('')
-    setPortsHint('')
-  }, [])
-
-  const sortedPortsRows = useMemo(() => {
-    const rows = [...portsRows]
-    const direction = portsSortDirection === 'asc' ? 1 : -1
-    const statusRank = (row: ServerPortItem) => {
-      const occupied = !!row.occupancy?.occupied
-      const reserved = !!row.reservation?.reserved
-      if (occupied) return 0
-      if (reserved) return 1
-      return 2
-    }
-    rows.sort((left, right) => {
-      if (portsSortBy === 'status') {
-        const rankDiff = statusRank(left) - statusRank(right)
-        if (rankDiff !== 0) return rankDiff * direction
-        return (left.port - right.port) * direction
-      }
-      if (portsSortBy === 'sources') {
-        const leftCount = left.reservation?.sources?.length || 0
-        const rightCount = right.reservation?.sources?.length || 0
-        if (leftCount !== rightCount) return (leftCount - rightCount) * direction
-        return (left.port - right.port) * direction
-      }
-      return (left.port - right.port) * direction
-    })
-    return rows
-  }, [portsRows, portsSortBy, portsSortDirection])
-
-  const portsSummary = useMemo(() => {
-    let occupied = 0
-    let reservedOnly = 0
-    for (const row of portsRows) {
-      const isOccupied = !!row.occupancy?.occupied
-      const isReserved = !!row.reservation?.reserved
-      if (isOccupied) {
-        occupied += 1
-        continue
-      }
-      if (isReserved) {
-        reservedOnly += 1
-      }
-    }
-    return {
-      occupied,
-      reserved: reservedOnly,
-      total: portsRows.length,
-    }
-  }, [portsRows])
-
-  const togglePortsSort = useCallback((column: 'port' | 'status' | 'sources') => {
-    setPortsSortBy(current => {
-      if (current === column) {
-        setPortsSortDirection(direction => (direction === 'asc' ? 'desc' : 'asc'))
-        return current
-      }
-      setPortsSortDirection('asc')
-      return column
-    })
-  }, [])
-
-  useEffect(() => {
-    if (!portsOpen) return
-    void loadPorts()
-  }, [loadPorts, portsOpen])
 
   const runSystemdAction = useCallback(
     async (mode: 'status' | 'cat' | 'logs') => {
@@ -970,70 +1164,61 @@ export function ConnectServerPage({
     >
       <div className="flex items-start gap-2 px-3 py-2 border-b shrink-0">
         <div className="mr-1">
-          <h1 className="text-2xl font-bold tracking-tight leading-none">Connect Servers</h1>
+          <h1 className="text-2xl font-bold tracking-tight leading-none">Server Terminal</h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Manage terminal sessions, files, and containers for selected servers
+            Work with this server's shell and files in one place.
           </p>
         </div>
 
         <div className="flex-1" />
 
-        <Button
-          variant={sidePanel === 'none' ? 'secondary' : 'ghost'}
-          size="sm"
-          className="gap-1.5 h-7"
-          onClick={() => setSidePanel('none')}
-        >
-          <SquareTerminal className="h-4 w-4" />
-          Shell
-        </Button>
+        <div className="inline-flex h-8 items-center rounded-md border bg-muted/40 p-0.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              'gap-1.5 h-7 rounded-sm px-2.5 hover:bg-background/80',
+              sidePanel === 'none' && 'bg-background text-foreground shadow-sm hover:bg-background'
+            )}
+            onClick={() => setSidePanel('none')}
+          >
+            <SquareTerminal className="h-4 w-4" />
+            Shell
+          </Button>
 
-        <Button
-          variant={sidePanel === 'files' ? 'secondary' : 'ghost'}
-          size="sm"
-          className="gap-1.5 h-7"
-          onClick={() => {
-            if (sidePanel === 'files') {
-              setSidePanel('none')
-              return
-            }
-            setTabRailCollapsed(true)
-            setFilePanelPresets(state => {
-              if (state[activeServerId]) return state
-              return {
-                ...state,
-                [activeServerId]: { path: '/', lockedRoot: null, nonce: 0 },
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              'gap-1.5 h-7 rounded-sm px-2.5 hover:bg-background/80',
+              sidePanel === 'files' && 'bg-background text-foreground shadow-sm hover:bg-background'
+            )}
+            onClick={() => {
+              if (sidePanel === 'files') {
+                setSidePanel('none')
+                return
               }
-            })
-            setSidePanel('files')
-          }}
-        >
-          <FolderOpen className="h-4 w-4" />
-          Files
-        </Button>
-
-        <Button
-          variant={sidePanel === 'docker' ? 'secondary' : 'ghost'}
-          size="sm"
-          className="gap-1.5 h-7"
-          onClick={() => {
-            setSidePanel(value => {
-              const next = value === 'docker' ? 'none' : 'docker'
-              if (next !== 'none') {
-                setTabRailCollapsed(true)
-              }
-              return next
-            })
-          }}
-        >
-          <Container className="h-4 w-4" />
-          Docker
-        </Button>
+              setTabRailCollapsed(true)
+              setFilePanelPresets(state => {
+                if (state[activeServerId]) return state
+                return {
+                  ...state,
+                  [activeServerId]: { path: '/', lockedRoot: null, nonce: 0 },
+                }
+              })
+              setSplitRatio(0.5)
+              setSidePanel('files')
+            }}
+          >
+            <FolderOpen className="h-4 w-4" />
+            Files
+          </Button>
+        </div>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-1.5 h-7">
-              Action
+              Tools
               <ChevronDown className="h-3 w-3 opacity-50" />
             </Button>
           </DropdownMenuTrigger>
@@ -1064,23 +1249,41 @@ export function ConnectServerPage({
                 ))}
                 {scripts.length === 0 && <DropdownMenuItem disabled>No scripts</DropdownMenuItem>}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <a href="/resources/scripts?create=1">
-                    <Plus className="h-4 w-4 mr-2" />
-                    New Script
-                  </a>
+                <DropdownMenuItem onClick={handleCreateScript}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Script
                 </DropdownMenuItem>
               </DropdownMenuSubContent>
             </DropdownMenuSub>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={openPortsDialog}>
-              <Network className="h-4 w-4 mr-2" />
-              Inspect Ports
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={openSystemdDialog}>
-              <Cog className="h-4 w-4 mr-2" />
-              Manage Services
-            </DropdownMenuItem>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Server className="h-4 w-4 mr-2" />
+                Server Detail
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem onClick={() => openServerDetailTab(activeServerId, 'overview')}>
+                  <Server className="h-4 w-4 mr-2" />
+                  Overview
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => openServerDetailTab(activeServerId, 'systemd')}>
+                  <Cog className="h-4 w-4 mr-2" />
+                  Systemd
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => openServerDetailTab(activeServerId, 'docker')}>
+                  <SquareTerminal className="h-4 w-4 mr-2" />
+                  Docker
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => openServerDetailTab(activeServerId, 'ports')}>
+                  <Search className="h-4 w-4 mr-2" />
+                  Ports
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => openServerDetailTab(activeServerId, 'monitor')}>
+                  <Activity className="h-4 w-4 mr-2" />
+                  Monitor
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -1095,7 +1298,7 @@ export function ConnectServerPage({
                     className="h-7 w-7 relative"
                     aria-label="Layout presets"
                   >
-                    <PanelsLeftRight className="h-4 w-4" />
+                    <SplitRectangleIcon className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
               </TooltipTrigger>
@@ -1240,7 +1443,7 @@ export function ConnectServerPage({
       <div
         ref={contentRef}
         className={cn(
-          'flex-1 flex min-h-0 overflow-hidden',
+          'flex-1 flex min-h-0 overflow-hidden p-2 gap-2',
           isResizing && 'select-none cursor-col-resize'
         )}
       >
@@ -1321,11 +1524,9 @@ export function ConnectServerPage({
                   <DropdownMenuItem disabled>No servers</DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <a href="/resources/servers?create=1">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Server
-                  </a>
+                <DropdownMenuItem onClick={handleCreateServer}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Server
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1433,6 +1634,9 @@ export function ConnectServerPage({
                     terminalRefs.current[tab.id] = instance
                   }}
                   serverId={tab.serverId}
+                  sessionId={tab.sessionId}
+                  onSessionEstablished={sessionId => handleSessionEstablished(tab.id, sessionId)}
+                  onSessionInvalidated={sessionId => handleSessionInvalidated(tab.id, sessionId)}
                   className="h-full"
                   isActive={isActive}
                 />
@@ -1455,295 +1659,31 @@ export function ConnectServerPage({
               className="h-full min-h-0 min-w-0 overflow-hidden"
               style={{ width: `${Math.round((1 - splitRatio) * 100)}%` }}
             >
-              {sidePanel === 'files'
-                ? tabServerIds.map(tabServerId => {
-                    const preset = filePanelPresets[tabServerId]
-                    return (
-                      <div
-                        key={`files-wrap-${tabServerId}`}
-                        className={cn(
-                          'h-full min-h-0',
-                          tabServerId === activeServerId ? 'block' : 'hidden'
-                        )}
-                      >
-                        <FileManagerPanel
-                          key={`files-${tabServerId}-${preset?.nonce ?? 0}`}
-                          serverId={tabServerId}
-                          initialPath={preset?.path || '/'}
-                          lockedRootPath={preset?.lockedRoot || undefined}
-                          className="h-full"
-                        />
-                      </div>
-                    )
-                  })
-                : tabServerIds.map(tabServerId => (
-                    <div
-                      key={`docker-wrap-${tabServerId}`}
-                      className={cn(
-                        'h-full min-h-0',
-                        tabServerId === activeServerId ? 'block' : 'hidden'
-                      )}
-                    >
-                      <DockerPanel
-                        serverId={tabServerId}
-                        className="h-full p-3"
-                        onOpenFilesAtPath={(targetPath, lockedRootPath) => {
-                          setFilePanelPresets(state => {
-                            const current = state[tabServerId] || {
-                              path: '/',
-                              lockedRoot: null,
-                              nonce: 0,
-                            }
-                            return {
-                              ...state,
-                              [tabServerId]: {
-                                path: targetPath,
-                                lockedRoot: lockedRootPath,
-                                nonce: current.nonce + 1,
-                              },
-                            }
-                          })
-                          setTabRailCollapsed(true)
-                          setSidePanel('files')
-                        }}
-                      />
-                    </div>
-                  ))}
+              {tabServerIds.map(tabServerId => {
+                const preset = filePanelPresets[tabServerId]
+                return (
+                  <div
+                    key={`files-wrap-${tabServerId}`}
+                    className={cn(
+                      'h-full min-h-0',
+                      tabServerId === activeServerId ? 'block' : 'hidden'
+                    )}
+                  >
+                    <FileManagerPanel
+                      key={`files-${tabServerId}-${preset?.nonce ?? 0}`}
+                      serverId={tabServerId}
+                      initialPath={preset?.path || '/'}
+                      lockedRootPath={preset?.lockedRoot || undefined}
+                      onLocationChange={location => handleFileLocationChange(tabServerId, location)}
+                      className="h-full"
+                    />
+                  </div>
+                )
+              })}
             </div>
           </>
         )}
       </div>
-
-      <Dialog open={portsOpen} onOpenChange={setPortsOpen}>
-        <DialogContent className="sm:max-w-4xl h-[85vh] flex flex-col overflow-hidden">
-          <DialogHeader>
-            <DialogTitle>Port Inspector</DialogTitle>
-            <DialogDescription>List occupied and reserved ports.</DialogDescription>
-          </DialogHeader>
-
-          <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-hidden">
-            <div className="shrink-0 border rounded-md p-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  value={portsProtocol}
-                  onChange={event => setPortsProtocol(event.target.value as ServerPortProtocol)}
-                  className="h-8 rounded-md border bg-background px-2 text-sm"
-                >
-                  <option value="tcp">TCP</option>
-                  <option value="udp">UDP</option>
-                </select>
-                <Button size="sm" variant="outline" onClick={() => void loadPorts()}>
-                  Refresh
-                </Button>
-                {portsDetectedAt && (
-                  <span className="text-xs text-muted-foreground">
-                    Detected at: {portsDetectedAt}
-                  </span>
-                )}
-              </div>
-              {portsContainerProbe && (
-                <div className="mt-2 text-xs text-muted-foreground">{portsContainerProbe}</div>
-              )}
-              <div className="mt-2 text-xs text-muted-foreground">
-                Status rule: Occupied = already in use; Reserved = reserved but not currently
-                occupied.
-              </div>
-              <div className="mt-2 text-xs text-muted-foreground">
-                Total: {portsSummary.total} · Occupied: {portsSummary.occupied} · Reserved:{' '}
-                {portsSummary.reserved}
-              </div>
-              {portsHint && <div className="mt-2 text-xs text-emerald-600">{portsHint}</div>}
-            </div>
-
-            <div className="flex-1 min-h-0 border rounded-md overflow-auto">
-              {portsLoading ? (
-                <div className="p-3 text-sm text-muted-foreground inline-flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading ports...
-                </div>
-              ) : portsRows.length === 0 ? (
-                <div className="p-3 text-sm text-muted-foreground">
-                  No occupied or reserved ports.
-                </div>
-              ) : (
-                <div className="w-full">
-                  <div className="grid grid-cols-[64px_88px_minmax(0,1fr)_120px_minmax(0,1fr)_84px] gap-2 px-2 py-2 text-xs font-medium border-b bg-muted/20">
-                    <button
-                      type="button"
-                      className="text-left hover:underline"
-                      onClick={() => togglePortsSort('port')}
-                    >
-                      Port{' '}
-                      {portsSortBy === 'port' ? (portsSortDirection === 'asc' ? '↑' : '↓') : ''}
-                    </button>
-                    <button
-                      type="button"
-                      className="text-left hover:underline"
-                      onClick={() => togglePortsSort('status')}
-                    >
-                      Status{' '}
-                      {portsSortBy === 'status' ? (portsSortDirection === 'asc' ? '↑' : '↓') : ''}
-                    </button>
-                    <span>Process</span>
-                    <span>PID</span>
-                    <button
-                      type="button"
-                      className="text-left hover:underline"
-                      onClick={() => togglePortsSort('sources')}
-                    >
-                      Sources{' '}
-                      {portsSortBy === 'sources' ? (portsSortDirection === 'asc' ? '↑' : '↓') : ''}
-                    </button>
-                    <span>Action</span>
-                  </div>
-                  <div className="divide-y">
-                    {sortedPortsRows.map(row => {
-                      const process = row.occupancy?.process
-                      const pidList = row.occupancy?.pids || []
-                      const processLabel = process?.name || '-'
-                      const pidLabel = pidList.length
-                        ? pidList.join(',')
-                        : process?.pid
-                          ? String(process.pid)
-                          : '-'
-                      const sourceLabel =
-                        row.reservation?.sources?.map(source => source.type).join(', ') || '-'
-                      const occupied = !!row.occupancy?.occupied
-                      const reserved = !!row.reservation?.reserved
-                      const statusLabel = occupied ? 'Occupied' : reserved ? 'Reserved' : '-'
-                      const statusClass = occupied
-                        ? 'text-emerald-600'
-                        : reserved
-                          ? 'text-amber-600'
-                          : 'text-muted-foreground'
-                      return (
-                        <div
-                          key={`${row.port}`}
-                          className="grid grid-cols-[64px_88px_minmax(0,1fr)_120px_minmax(0,1fr)_84px] gap-2 px-2 py-2 text-sm"
-                        >
-                          <span className="font-medium">{row.port}</span>
-                          <span className={statusClass}>{statusLabel}</span>
-                          <span className="truncate" title={processLabel}>
-                            {processLabel}
-                          </span>
-                          <span className="truncate" title={pidLabel}>
-                            {pidLabel}
-                          </span>
-                          <span className="truncate" title={sourceLabel}>
-                            {sourceLabel}
-                          </span>
-                          <div>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={
-                                !occupied ||
-                                portsLoading ||
-                                portsReleaseSubmitting ||
-                                portsReleasingPort === row.port
-                              }
-                              onClick={() => requestReleaseOccupiedPort(row.port)}
-                              className="h-7 px-2 text-xs"
-                            >
-                              {portsReleaseSubmitting && portsReleasingPort === row.port ? (
-                                <>
-                                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                  Releasing...
-                                </>
-                              ) : (
-                                'Release'
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {portsError && <div className="text-sm text-destructive">{portsError}</div>}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPortsOpen(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog
-        open={portsReleaseConfirmOpen}
-        onOpenChange={open => {
-          if (portsReleaseSubmitting) return
-          setPortsReleaseConfirmOpen(open)
-          if (!open) {
-            setPortsReleasingPort(null)
-            setPortsReleaseForce(false)
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Release port {portsReleasingPort ?? '-'}</AlertDialogTitle>
-            <AlertDialogDescription>
-              This operation stops the current owner of this port. Use with caution.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-
-          <div className="space-y-3">
-            <label className="flex items-start gap-2 text-sm">
-              <Checkbox
-                checked={portsReleaseForce}
-                disabled={portsReleaseSubmitting}
-                onCheckedChange={checked => setPortsReleaseForce(checked === true)}
-              />
-              <span>
-                Force release (non-graceful). This may terminate processes or containers
-                immediately.
-              </span>
-            </label>
-
-            {portsReleaseForce && (
-              <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive inline-flex items-start gap-2">
-                <AlertTriangle className="h-4 w-4 mt-0.5" />
-                <span>
-                  Dangerous operation: force mode may cause service interruption or data loss.
-                </span>
-              </div>
-            )}
-
-            {portsReleaseSubmitting && (
-              <div className="text-sm text-muted-foreground inline-flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Releasing port owner... please wait.
-              </div>
-            )}
-          </div>
-
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={portsReleaseSubmitting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={portsReleaseSubmitting || portsReleasingPort == null}
-              onClick={() => {
-                if (portsReleasingPort == null) return
-                void releaseOccupiedPort(portsReleasingPort)
-              }}
-            >
-              {portsReleaseSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Releasing...
-                </>
-              ) : (
-                'Confirm Release'
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <Dialog open={systemdOpen} onOpenChange={setSystemdOpen}>
         <DialogContent className="sm:max-w-4xl h-[85vh] flex flex-col overflow-hidden">
@@ -1815,7 +1755,9 @@ export function ConnectServerPage({
                           systemdSelected === service.name && 'bg-accent'
                         )}
                       >
-                        <div className="font-medium truncate">{service.name}</div>
+                        <div className="font-medium truncate">
+                          {getSystemdServiceDisplayName(service.name) || service.name}
+                        </div>
                         <div className="text-xs text-muted-foreground truncate">
                           {service.description}
                         </div>

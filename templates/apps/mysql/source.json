@@ -1,0 +1,12 @@
+{
+  "contractVersion": "0.1",
+  "origin_kind": "official",
+  "origin_ref": "https://hub.docker.com/_/mysql",
+  "upstream_version": "9.5",
+  "template_revision": "v0-initial",
+  "adapter_version": "v0",
+  "compatibility": {
+    "templateContract": "0.1",
+    "adapterStatus": "sample"
+  }
+}

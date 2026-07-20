@@ -1,157 +1,110 @@
-# ===========================
-# Stage 1: Build Web App
-# ===========================
-FROM node:24-alpine AS web-builder
+FROM alpine:3.24
 
-WORKDIR /build
-COPY web/package.json web/package-lock.json* ./
-RUN npm ci --silent
-COPY web/ .
-RUN npm run build
-
-# ===========================
-# Node.js 24 Runtime Provider
-# ===========================
-FROM node:24-bookworm-slim AS node-provider
-
-# ===========================
-# Docker CLI Provider
-# ===========================
-FROM docker:28-cli AS docker-cli-provider
-
-# ===========================
-# VictoriaMetrics Binary
-# ===========================
-FROM victoriametrics/victoria-metrics:v1.124.0 AS victoriametrics-bin
-
-# ===========================
-# Stage 2: Build Backend (PocketBase Framework)
-# ===========================
-FROM golang:1.26-alpine AS backend-builder
-
-WORKDIR /build
-COPY backend/go.mod backend/go.sum ./
-RUN go mod download
-COPY backend/ .
-RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
-RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o appos-agent ./cmd/appos-agent
-
-# ===========================
-# Stage 3: Runtime
-# ===========================
-FROM netdata/netdata:stable
+ARG VICTORIAMETRICS_VERSION=v1.147.0
+ARG TRAEFIK_VERSION=v3.7.8
+ARG TARGETARCH
 
 LABEL maintainer="Websoft9<help@websoft9.com>" \
       org.opencontainers.image.title="AppOS" \
-    org.opencontainers.image.description="All-in-One container: Web app + PocketBase Framework (AppOS) + Redis + VictoriaMetrics + optional Netdata" \
+      org.opencontainers.image.description="All-in-One container: pre-built AppOS + Redis + VictoriaMetrics + Traefik" \
       org.opencontainers.image.vendor="Websoft9" \
       org.opencontainers.image.url="https://www.websoft9.com" \
       org.opencontainers.image.source="https://github.com/websoft9/websoft9"
 
-# Install runtime dependencies on top of the official Netdata runtime.
-RUN apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        supervisor \
-        redis-server \
-        unzip \
-        ca-certificates \
-        tzdata \
-        bash \
-        nginx \
-    && rm -rf /var/lib/apt/lists/*
+RUN addgroup -S appos && adduser -S -D -H -h /appos -s /sbin/nologin -G appos appos
 
-# Copy Node.js 24 from node-provider
-COPY --from=node-provider /usr/local/bin/node /usr/local/bin/node
-COPY --from=node-provider /usr/local/lib/node_modules /usr/local/lib/node_modules
-COPY --from=docker-cli-provider /usr/local/bin/docker /usr/local/bin/docker
-COPY --from=docker-cli-provider /usr/local/libexec/docker/cli-plugins/docker-compose /usr/local/libexec/docker/cli-plugins/docker-compose
-RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
-    && ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+# Install runtime dependencies.
+RUN apk add --no-cache \
+		ca-certificates \
+		curl \
+		nodejs \
+		npm \
+		redis \
+		runit \
+		tzdata
 
-RUN npm install -g @mariozechner/pi-coding-agent \
-    && npm cache clean --force \
-    && rm -rf /root/.npm
+RUN npm install -g opencode-ai@1.17.18
+
+# Download external binaries from GitHub releases (bypasses registry mirrors).
+RUN set -eux; \
+        arch="$TARGETARCH"; \
+        case "$arch" in \
+                amd64|arm64) ;; \
+                *) echo "unsupported TARGETARCH: $arch" >&2; exit 1 ;; \
+        esac; \
+        vm_archive="/tmp/victoria-metrics.tar.gz"; \
+        curl -fL --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30 --max-time 600 \
+            -o "$vm_archive" \
+            "https://github.com/VictoriaMetrics/VictoriaMetrics/releases/download/${VICTORIAMETRICS_VERSION}/victoria-metrics-linux-${arch}-${VICTORIAMETRICS_VERSION}.tar.gz"; \
+        tar xzf "$vm_archive" -C /tmp; \
+        mv /tmp/victoria-metrics-prod /usr/local/bin/victoria-metrics-prod; \
+        rm -f "$vm_archive"; \
+        traefik_archive="/tmp/traefik.tar.gz"; \
+        curl -fL --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30 --max-time 600 \
+            -o "$traefik_archive" \
+            "https://github.com/traefik/traefik/releases/download/${TRAEFIK_VERSION}/traefik_${TRAEFIK_VERSION}_linux_${arch}.tar.gz"; \
+        tar xzf "$traefik_archive" -C /tmp; \
+        mv /tmp/traefik /usr/local/bin/traefik; \
+        rm -f "$traefik_archive"; \
+        chmod 755 /usr/local/bin/victoria-metrics-prod /usr/local/bin/traefik
 
 # Copy build artifacts
-COPY --from=web-builder /build/dist /usr/share/nginx/html/web
-COPY --from=backend-builder /build/appos /usr/local/bin/appos
-COPY --from=backend-builder /build/appos-agent /usr/local/bin/appos-agent
-COPY --from=victoriametrics-bin /victoria-metrics-prod /usr/local/bin/victoria-metrics-prod
+COPY backend/appos /usr/local/bin/appos
+COPY web/dist /appos/web
+COPY templates/apps /appos/data/templates/apps
 
-# Download Store Library plugin at build time
-ARG WEBSOFT9_ARTIFACT="https://artifact.websoft9.com/release/websoft9"
-RUN set -eux; \
-    curl -fsSL --retry 3 -o /tmp/library.zip ${WEBSOFT9_ARTIFACT}/plugin/library/library-latest.zip; \
-    mkdir -p /appos; \
-    unzip -q /tmp/library.zip -d /appos; \
-    rm /tmp/library.zip
-
-RUN rm -f \
-    /usr/libexec/netdata/plugins.d/otel-plugin \
-    /usr/libexec/netdata/plugins.d/otel-signal-viewer-plugin \
-    /usr/libexec/netdata/plugins.d/network-viewer.plugin \
-    /usr/libexec/netdata/plugins.d/systemd-journal.plugin \
-    /usr/libexec/netdata/plugins.d/systemd-units.plugin \
-    /usr/libexec/netdata/plugins.d/freeipmi.plugin \
-    /usr/libexec/netdata/plugins.d/perf.plugin \
-    /usr/libexec/netdata/plugins.d/slabinfo.plugin \
-    /usr/libexec/netdata/plugins.d/python.d.plugin \
-    /usr/libexec/netdata/plugins.d/charts.d.plugin \
-    /usr/libexec/netdata/plugins.d/ioping.plugin \
-    /usr/libexec/netdata/plugins.d/local-listeners
-
-# Create data directories
-RUN mkdir -p \
-    /appos/data/pb/pb_data \
-    /appos/data/pb/pb_migrations \
-    /appos/data/redis \
-    /appos/data/apps \
-    /appos/data/pi \
-    /appos/data/netdata \
-    /appos/data/victoriametrics \
-    /appos/data/workflows \
-    /appos/data/templates/apps \
-    /appos/data/templates/workflows \
-    /appos/data/templates/custom \
-    /var/log/supervisor \
-    /var/log/netdata \
-    /var/log/nginx \
-    /usr/local/libexec/docker/cli-plugins \
-    /etc/nginx/conf.d \
-    /run/nginx
-
-RUN touch /etc/netdata/.opt-out-from-anonymous-statistics
-
-# Copy configuration files
-COPY build/supervisord.conf /etc/supervisor/supervisord.conf
-COPY build/nginx.conf /etc/nginx/nginx.conf
-COPY build/netdata/netdata.conf /etc/netdata/netdata.conf
-COPY build/netdata/exporting.conf /etc/netdata/exporting.conf
+# Copy configuration files and set up runit services
+COPY --chmod=755 build/runit/appos/run /etc/sv/appos/run
+COPY --chmod=755 build/runit/opencode/run /etc/sv/opencode/run
+COPY --chmod=755 build/runit/redis/run /etc/sv/redis/run
+COPY --chmod=755 build/runit/victoriametrics/run /etc/sv/victoriametrics/run
+COPY --chmod=755 build/runit/traefik/run /etc/sv/traefik/run
+COPY build/runit/traefik/down /etc/sv/traefik/down
+COPY build/traefik.yml /etc/traefik/traefik.yml
+COPY build/traefik-dashboard.yml /etc/traefik/dynamic/dashboard.yml
 COPY --chmod=755 build/entrypoint.sh /entrypoint.sh
 
-RUN mkdir -p /usr/local/share/appos/netdata-defaults \
-    && cp -a /etc/netdata/. /usr/local/share/appos/netdata-defaults/
+RUN mkdir -p \
+    /etc/service \
+    /etc/sv \
+    /etc/traefik/dynamic \
+    && ln -s /etc/sv/appos /etc/service/appos \
+    && ln -s /etc/sv/opencode /etc/service/opencode \
+    && ln -s /etc/sv/redis /etc/service/redis \
+    && ln -s /etc/sv/victoriametrics /etc/service/victoriametrics \
+    && ln -s /etc/sv/traefik /etc/service/traefik \
+    && chown -R appos:appos /appos /etc/sv /etc/traefik/dynamic
 
 # Verify critical files
 RUN set -eux; \
     test -x /usr/local/bin/appos || { echo "ERROR: appos binary not found"; exit 1; }; \
-    test -x /usr/local/bin/appos-agent || { echo "ERROR: appos-agent binary not found"; exit 1; }; \
     test -x /usr/local/bin/victoria-metrics-prod || { echo "ERROR: victoria-metrics-prod binary not found"; exit 1; }; \
-    test -x /usr/local/bin/pi || { echo "ERROR: pi binary not found"; exit 1; }; \
+    test -x /usr/local/bin/traefik || { echo "ERROR: traefik binary not found"; exit 1; }; \
+	command -v runsvdir >/dev/null 2>&1 || { echo "ERROR: runsvdir binary not found"; exit 1; }; \
+	command -v sv >/dev/null 2>&1 || { echo "ERROR: sv binary not found"; exit 1; }; \
+	command -v redis-server >/dev/null 2>&1 || { echo "ERROR: redis-server binary not found"; exit 1; }; \
+    command -v opencode >/dev/null 2>&1 || { echo "ERROR: opencode binary not found"; exit 1; }; \
     test -x /entrypoint.sh || { echo "ERROR: entrypoint.sh not executable"; exit 1; }; \
-    nginx -t || { echo "ERROR: nginx config invalid"; exit 1; }
+    traefik version >/dev/null 2>&1 || { echo "ERROR: traefik binary invalid"; exit 1; }; \
+    test -w /etc/sv/appos || { echo "ERROR: /etc/sv/appos must be writable for runsv supervise state"; exit 1; }; \
+    test -w /etc/sv/opencode || { echo "ERROR: /etc/sv/opencode must be writable for runsv supervise state"; exit 1; }; \
+    test -w /etc/sv/redis || { echo "ERROR: /etc/sv/redis must be writable for runsv supervise state"; exit 1; }; \
+    test -w /etc/sv/victoriametrics || { echo "ERROR: /etc/sv/victoriametrics must be writable for runsv supervise state"; exit 1; }; \
+    test -w /etc/sv/traefik || { echo "ERROR: /etc/sv/traefik must be writable for runsv supervise state"; exit 1; }
 
-ENV PI_CODING_AGENT_DIR=/appos/data/pi \
-    TSDB_ADDR=http://127.0.0.1:8428 \
-    DISABLE_TELEMETRY=1 \
-    DO_NOT_TRACK=1
+ENV DISABLE_TELEMETRY=1 \
+    DO_NOT_TRACK=1 \
+    HOME=/appos
 
-EXPOSE 80
+# Expose ports for Proxy Gateway(Traefik http/https), AppOS Console and SSH Tunnel
+EXPOSE 8081 8443 9000 2222
 
 VOLUME ["/appos/data"]
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost/api/health || exit 1
+    CMD curl -f http://localhost:9000/api/health || exit 1
+
+USER appos
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["supervisord", "-n", "-c", "/etc/supervisor/supervisord.conf"]
+CMD ["runsvdir", "-P", "/etc/service"]

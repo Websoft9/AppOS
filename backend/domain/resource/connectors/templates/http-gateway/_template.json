@@ -1,0 +1,33 @@
+{
+  "kind": "http-gateway",
+  "category": "Gateway",
+  "description": "Reusable externally managed HTTP gateway connector profile.",
+  "authPresentation": "token",
+  "endpointShape": "url",
+  "endpointScheme": "https",
+  "defaultAuthScheme": "bearer",
+  "capabilities": ["http-gateway"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "label": "Gateway Endpoint",
+      "type": "url",
+      "required": true,
+      "placeholder": "https://gateway.example.com"
+    },
+    {
+      "id": "provider",
+      "label": "Provider",
+      "type": "string",
+      "placeholder": "cloudflare"
+    },
+    {
+      "id": "credential",
+      "label": "Access Token Secret",
+      "type": "secret_ref",
+      "required": true,
+      "secretTemplate": "single_value",
+      "placeholder": "secretRef:..."
+    }
+  ]
+}

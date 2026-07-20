@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
@@ -18,6 +19,7 @@ import (
 type instanceUpsertRequest struct {
 	Name              string         `json:"name"`
 	Kind              string         `json:"kind"`
+	IsEnabled         *bool          `json:"is_enabled,omitempty"`
 	TemplateID        string         `json:"template_id"`
 	Endpoint          string         `json:"endpoint"`
 	ProviderAccountID string         `json:"provider_account"`
@@ -32,6 +34,8 @@ type instanceResponseDocument struct {
 	Updated           string         `json:"updated"`
 	Name              string         `json:"name"`
 	Kind              string         `json:"kind"`
+	Traits            []string       `json:"traits,omitempty"`
+	IsEnabled         bool           `json:"is_enabled"`
 	TemplateID        string         `json:"template_id"`
 	Endpoint          string         `json:"endpoint"`
 	ProviderAccountID string         `json:"provider_account"`
@@ -160,13 +164,19 @@ func handleInstanceReachability(e *core.RequestEvent) error {
 	}
 
 	result := make([]map[string]any, 0, len(items))
+	now := time.Now().UTC()
+	timeout := monitorchecks.LoadReachabilityProbeTimeout(e.App)
 	for _, item := range items {
 		if len(filterIDs) > 0 {
 			if _, ok := filterIDs[item.ID()]; !ok {
 				continue
 			}
 		}
-		result = append(result, instanceReachabilityResponse(item))
+		probe := monitorchecks.ProbeInstanceReachabilityWithTimeout(item, timeout)
+		if err := monitorchecks.ProjectInstanceReachability(e.App, item, probe, now); err != nil {
+			return e.InternalServerError("failed to project instance reachability", err)
+		}
+		result = append(result, instanceReachabilityResponse(item, probe, now))
 	}
 	return e.JSON(http.StatusOK, result)
 }
@@ -203,7 +213,7 @@ func handleInstanceGet(e *core.RequestEvent) error {
 // @Failure 500 {object} map[string]any
 // @Router /api/instances [post]
 func handleInstanceCreate(e *core.RequestEvent) error {
-	input, err := bindInstanceUpsertRequest(e)
+	input, err := bindInstanceUpsertRequest(e, nil)
 	if err != nil {
 		return err
 	}
@@ -235,10 +245,6 @@ func handleInstanceCreate(e *core.RequestEvent) error {
 // @Failure 500 {object} map[string]any
 // @Router /api/instances/{id} [put]
 func handleInstanceUpdate(e *core.RequestEvent) error {
-	input, err := bindInstanceUpsertRequest(e)
-	if err != nil {
-		return err
-	}
 	repo := persistence.NewInstanceRepository(e.App)
 	before, getErr := repo.Get(e.Request.PathValue("id"))
 	if getErr != nil {
@@ -246,6 +252,10 @@ func handleInstanceUpdate(e *core.RequestEvent) error {
 			return e.NotFoundError("instance not found", getErr)
 		}
 		return e.InternalServerError("failed to load instance", getErr)
+	}
+	input, err := bindInstanceUpsertRequest(e, before)
+	if err != nil {
+		return err
 	}
 	beforeSnap := before.Snapshot()
 	userID, _ := authInfo(e)
@@ -291,14 +301,22 @@ func handleInstanceDelete(e *core.RequestEvent) error {
 	return e.NoContent(http.StatusNoContent)
 }
 
-func bindInstanceUpsertRequest(e *core.RequestEvent) (instances.SaveInput, error) {
+func bindInstanceUpsertRequest(e *core.RequestEvent, existing *instances.Instance) (instances.SaveInput, error) {
 	var body instanceUpsertRequest
 	if err := e.BindBody(&body); err != nil {
 		return instances.SaveInput{}, e.BadRequestError("invalid JSON body", err)
 	}
+	isEnabled := true
+	if existing != nil {
+		isEnabled = existing.IsEnabled()
+	}
+	if body.IsEnabled != nil {
+		isEnabled = *body.IsEnabled
+	}
 	return instances.SaveInput{
 		Name:              body.Name,
 		Kind:              body.Kind,
+		IsEnabled:         isEnabled,
 		TemplateID:        body.TemplateID,
 		Endpoint:          body.Endpoint,
 		ProviderAccountID: body.ProviderAccountID,
@@ -423,12 +441,18 @@ func writeInstanceAudit(e *core.RequestEvent, action string, beforeSnap *instanc
 }
 
 func instanceResponse(item *instances.Instance) map[string]any {
+	traits, err := instances.ResolveTraits(item)
+	if err != nil {
+		traits = nil
+	}
 	return map[string]any{
 		"id":               item.ID(),
 		"created":          item.Created(),
 		"updated":          item.Updated(),
 		"name":             item.Name(),
 		"kind":             item.Kind(),
+		"traits":           traits,
+		"is_enabled":       item.IsEnabled(),
 		"template_id":      item.TemplateID(),
 		"endpoint":         item.Endpoint(),
 		"provider_account": item.ProviderAccountID(),
@@ -442,6 +466,7 @@ func instanceInputMap(input instances.SaveInput) map[string]any {
 	return map[string]any{
 		"name":             input.Name,
 		"kind":             input.Kind,
+		"is_enabled":       input.IsEnabled,
 		"template_id":      input.TemplateID,
 		"endpoint":         input.Endpoint,
 		"provider_account": input.ProviderAccountID,
@@ -452,10 +477,16 @@ func instanceInputMap(input instances.SaveInput) map[string]any {
 }
 
 func instanceSnapshotMap(snap *instances.Snapshot) map[string]any {
+	traits, err := instances.ResolveTraits(instances.RestoreInstance(*snap))
+	if err != nil {
+		traits = nil
+	}
 	return map[string]any{
 		"id":               snap.ID,
 		"name":             snap.Name,
 		"kind":             snap.Kind,
+		"traits":           traits,
+		"is_enabled":       snap.IsEnabled,
 		"template_id":      snap.TemplateID,
 		"endpoint":         snap.Endpoint,
 		"provider_account": snap.ProviderAccountID,
@@ -465,11 +496,11 @@ func instanceSnapshotMap(snap *instances.Snapshot) map[string]any {
 	}
 }
 
-func instanceReachabilityResponse(item *instances.Instance) map[string]any {
-	result := monitorchecks.ProbeInstanceReachability(item)
+func instanceReachabilityResponse(item *instances.Instance, result monitorchecks.ReachabilityResult, checkedAt time.Time) map[string]any {
 	response := map[string]any{
-		"id":     item.ID(),
-		"status": result.Status,
+		"id":         item.ID(),
+		"status":     result.Status,
+		"checked_at": checkedAt.Format(time.RFC3339),
 	}
 	if result.LatencyMS > 0 {
 		response["latency_ms"] = result.LatencyMS

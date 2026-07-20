@@ -68,7 +68,13 @@ func UpsertSystemSingleValue(app core.App, secret *Secret, name, secretType, pla
 func UpsertSystemPayloadSecret(app core.App, secret *Secret, name, templateID string, payload map[string]any) (*Secret, error) {
 	tpl, ok := FindTemplate(templateID)
 	if !ok {
-		return nil, fmt.Errorf("invalid template_id")
+		if err := LoadTemplatesFromDefaultPath(); err != nil {
+			return nil, err
+		}
+		tpl, ok = FindTemplate(templateID)
+		if !ok {
+			return nil, fmt.Errorf("invalid template_id")
+		}
 	}
 	if err := ValidatePayload(payload, tpl); err != nil {
 		return nil, err
@@ -100,6 +106,8 @@ func UpsertSystemPayloadSecret(app core.App, secret *Secret, name, templateID st
 	record.Set("payload_encrypted", enc)
 	record.Set("payload_meta", meta)
 	record.Set("status", StatusActive)
+	record.Set("scope", ScopeGlobal)
+	record.Set("access_mode", AccessModeUseOnly)
 	record.Set("created_source", CreatedSourceSystem)
 	record.Set("created_by", "")
 	record.Set("payload", nil)

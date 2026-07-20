@@ -1,0 +1,10 @@
+{
+  "page": {
+    "title": "AI Agent",
+    "subtitle": "Operate OpenCode inside AppOS with shared skills and server-side model credentials.",
+    "frameTitle": "OpenCode AI Agent"
+  },
+  "actions": {
+    "openNewTab": "Open in new tab"
+  }
+}

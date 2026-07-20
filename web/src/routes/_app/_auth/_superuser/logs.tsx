@@ -273,7 +273,7 @@ export function LogsPage() {
       </div>
 
       {/* Filter bar */}
-      <div className="flex flex-wrap gap-3 mb-4">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <select
           className={selectClass}
           value={filterLevel}
@@ -314,6 +314,44 @@ export function LogsPage() {
             setPage(1)
           }}
         />
+
+        <div className="ml-auto flex items-center gap-2">
+          <select
+            className={selectClass}
+            value={pageSize}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+              setPageSize(Number(e.target.value))
+              setPage(1)
+            }}
+          >
+            {PAGE_SIZE_OPTIONS.map(n => (
+              <option key={n} value={n}>
+                {n} / page
+              </option>
+            ))}
+          </select>
+          <Button
+            variant="outline"
+            className="h-9 px-3 text-sm"
+            disabled={page <= 1}
+            onClick={() => setPage(p => p - 1)}
+            aria-label="Previous page"
+          >
+            ‹
+          </Button>
+          <span className="min-w-14 text-center text-sm font-medium text-foreground">
+            {page}/{totalPages}
+          </span>
+          <Button
+            variant="outline"
+            className="h-9 px-3 text-sm"
+            disabled={page >= totalPages}
+            onClick={() => setPage(p => p + 1)}
+            aria-label="Next page"
+          >
+            ›
+          </Button>
+        </div>
       </div>
 
       {/* Error */}
@@ -334,7 +372,7 @@ export function LogsPage() {
           <TableHeader>
             <TableRow>
               <TableHead className="w-8 pr-0 pl-3" />
-              <TableHead className="whitespace-nowrap">
+              <TableHead className="whitespace-nowrap pl-2">
                 <SortableHeader
                   label="Time"
                   field="created"
@@ -345,15 +383,14 @@ export function LogsPage() {
               </TableHead>
               <TableHead className="w-24">Level</TableHead>
               <TableHead>Message / URL</TableHead>
-              <TableHead className="w-20 text-right">Status</TableHead>
-              <TableHead className="w-24 text-right">
+              <TableHead className="w-20">Status</TableHead>
+              <TableHead className="w-24">
                 <SortableHeader
                   label="Exec"
                   field="execTime"
                   sortField={sortField}
                   sortDir={sortDir}
                   onToggle={toggleSort}
-                  className="justify-end"
                 />
               </TableHead>
             </TableRow>
@@ -391,14 +428,14 @@ export function LogsPage() {
                           <ChevronRight className="h-4 w-4 text-muted-foreground" />
                         ))}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                    <TableCell className="pl-2 text-sm text-muted-foreground whitespace-nowrap">
                       {formatDate(log.created)}
                     </TableCell>
                     <TableCell>{levelBadge(log.level)}</TableCell>
                     <TableCell className="font-mono text-xs max-w-md truncate" title={primaryText}>
                       {primaryText}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell>
                       {status != null ? (
                         <span
                           className={`font-mono text-xs ${status >= 400 ? 'text-destructive' : 'text-muted-foreground'}`}
@@ -409,7 +446,7 @@ export function LogsPage() {
                         '—'
                       )}
                     </TableCell>
-                    <TableCell className="text-right font-mono text-xs text-muted-foreground">
+                    <TableCell className="font-mono text-xs text-muted-foreground">
                       {execTime != null ? execTime.toFixed(2) : '—'}
                     </TableCell>
                   </TableRow>
@@ -432,45 +469,6 @@ export function LogsPage() {
             })}
           </TableBody>
         </Table>
-      </div>
-
-      {/* Pagination */}
-      <div className="flex items-center justify-between mt-4">
-        <span className="text-sm text-muted-foreground">
-          Page {page} of {totalPages}
-        </span>
-        <div className="flex items-center gap-2">
-          <select
-            className={selectClass}
-            value={pageSize}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-              setPageSize(Number(e.target.value))
-              setPage(1)
-            }}
-          >
-            {PAGE_SIZE_OPTIONS.map(n => (
-              <option key={n} value={n}>
-                {n} / page
-              </option>
-            ))}
-          </select>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page <= 1}
-            onClick={() => setPage(p => p - 1)}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page >= totalPages}
-            onClick={() => setPage(p => p + 1)}
-          >
-            Next
-          </Button>
-        </div>
       </div>
     </div>
   )

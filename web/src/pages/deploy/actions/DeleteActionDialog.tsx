@@ -27,14 +27,14 @@ export function DeleteActionDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            {operations.length > 1 ? 'Delete Actions' : 'Delete Action'}
+            {operations.length > 1 ? 'Delete Activity Records' : 'Delete Activity Record'}
           </AlertDialogTitle>
           <AlertDialogDescription>
             {operations.length > 1
-              ? `Delete ${operations.length} selected actions? This removes their action records from history.`
+              ? `Delete ${operations.length} selected activity records? This removes them from history.`
               : singleOperation
-                ? `Delete ${singleOperation.compose_project_name || singleOperation.id}? This removes the action record from history.`
-                : 'Delete this action record?'}
+                ? `Delete ${singleOperation.compose_project_name || singleOperation.id}? This removes the activity record from history.`
+                : 'Delete this activity record?'}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

@@ -1,0 +1,34 @@
+{
+  "templateKey": "clickhouse",
+  "upstreamRef": "templates/upstream/clickhouse/source.json",
+  "normalizedTemplateRef": "templates/apps/clickhouse",
+  "adapterVersion": "v0",
+  "automaticNormalization": [
+    "service inventory",
+    "image and tag extraction",
+    "env and env-file references",
+    "port exposure extraction",
+    "volume and network extraction",
+    "basic service-role candidate mapping"
+  ],
+  "reviewRequired": [
+    "primary service identity",
+    "secret-backed value classification",
+    "publish semantics",
+    "backup-critical data paths"
+  ],
+  "currentDecisions": {
+    "primaryService": "clickhouse",
+    "databaseService": null,
+    "publishKind": "http",
+    "secretBackedInputs": [
+      "db_password"
+    ]
+  },
+  "notes": [
+    "This is sample adapter metadata for Epic 32 story work.",
+    "ClickHouse is a single-service application with a built-in datastore, so there is no separate database service.",
+    "db_password maps to CLICKHOUSE_PASSWORD, the initial password for the created default user on first start.",
+    "It describes adaptation intent before a full adapter engine exists."
+  ]
+}

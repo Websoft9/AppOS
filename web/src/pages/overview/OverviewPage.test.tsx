@@ -5,6 +5,22 @@ import { OverviewPage } from './OverviewPage'
 const sendMock = vi.fn()
 const getFullListMock = vi.fn()
 let currentUserCollectionName = '_superusers'
+let warnSpy: ReturnType<typeof vi.spyOn>
+
+function expectAppOSCorePlatformSeriesRequests() {
+  const platformSeriesCalls = sendMock.mock.calls
+    .map(call => String(call[0]))
+    .filter(path => path.includes('/api/monitor/targets/platform/appos-core/series?'))
+
+  for (const path of platformSeriesCalls) {
+    const decoded = decodeURIComponent(path)
+    expect(decoded).toContain('disk_usage')
+    expect(decoded).toContain(',network')
+    expect(decoded).not.toContain('&series=network_traffic')
+    expect(decoded).toContain(',disk')
+    expect(decoded).toContain(',network')
+  }
+}
 
 vi.mock('@/lib/pb', () => ({
   pb: {
@@ -27,15 +43,17 @@ vi.mock('@tanstack/react-router', () => ({
     to,
     params,
     className,
+    ...props
   }: {
     children: React.ReactNode
     to: string
     params?: Record<string, string>
     className?: string
+    [key: string]: unknown
   }) => {
     const resolvedTo = params?.appId ? to.replace('$appId', params.appId) : to
     return (
-      <a href={resolvedTo} className={className}>
+      <a href={resolvedTo} className={className} {...props}>
         {children}
       </a>
     )
@@ -51,9 +69,11 @@ describe('OverviewPage', () => {
     sendMock.mockReset()
     getFullListMock.mockReset()
     currentUserCollectionName = '_superusers'
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
   })
 
   afterEach(() => {
+    warnSpy.mockRestore()
     cleanup()
   })
 
@@ -143,7 +163,7 @@ describe('OverviewPage', () => {
       }
       if (
         path ===
-        '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cnetwork'
+        '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic'
       ) {
         return Promise.resolve({
           targetType: 'platform',
@@ -185,15 +205,35 @@ describe('OverviewPage', () => {
                 {
                   name: 'used',
                   points: [
-                    [1713096000, 75161927680],
-                    [1713096060, 76235669504],
+                    [1713096000, 8589934592],
+                    [1713096060, 9663676416],
                   ],
                 },
                 {
                   name: 'free',
                   points: [
-                    [1713096000, 32212254720],
-                    [1713096060, 31138512896],
+                    [1713096000, 21474836480],
+                    [1713096060, 20401094656],
+                  ],
+                },
+              ],
+            },
+            {
+              name: 'disk',
+              unit: 'bytes/s',
+              segments: [
+                {
+                  name: 'read',
+                  points: [
+                    [1713096000, 4096],
+                    [1713096060, 8192],
+                  ],
+                },
+                {
+                  name: 'write',
+                  points: [
+                    [1713096000, 2048],
+                    [1713096060, 4096],
                   ],
                 },
               ],
@@ -205,15 +245,35 @@ describe('OverviewPage', () => {
                 {
                   name: 'in',
                   points: [
-                    [1713096000, 2048],
-                    [1713096060, 4096],
+                    [1713096000, 1024],
+                    [1713096060, 1536],
                   ],
                 },
                 {
                   name: 'out',
                   points: [
-                    [1713096000, 1024],
-                    [1713096060, 2048],
+                    [1713096000, 768],
+                    [1713096060, 1280],
+                  ],
+                },
+              ],
+            },
+            {
+              name: 'network_traffic',
+              unit: 'bytes',
+              segments: [
+                {
+                  name: 'in',
+                  points: [
+                    [1713096000, 8192],
+                    [1713096060, 9728],
+                  ],
+                },
+                {
+                  name: 'out',
+                  points: [
+                    [1713096000, 6144],
+                    [1713096060, 7424],
                   ],
                 },
               ],
@@ -228,7 +288,7 @@ describe('OverviewPage', () => {
       .mockResolvedValueOnce([
         { id: 'srv-1', name: 'server-a', connect_type: 'tunnel', tunnel_status: 'online' },
         { id: 'srv-2', name: 'server-b', connect_type: 'tunnel', tunnel_status: 'offline' },
-        { id: 'srv-3', name: 'server-c', connect_type: 'direct' },
+        { id: 'srv-3', name: 'local', connect_type: 'direct' },
       ])
       .mockResolvedValueOnce([
         {
@@ -260,17 +320,23 @@ describe('OverviewPage', () => {
     expect(await screen.findByText('Applications')).toBeInTheDocument()
     expect(await screen.findByText('Attention Needed')).toBeInTheDocument()
     expect(await screen.findByText('Needs Attention')).toBeInTheDocument()
-    expect((await screen.findAllByText('AppOS Core')).length).toBeGreaterThan(0)
-    expect(await screen.findByText('AppOS Core Trends')).toBeInTheDocument()
-    expect(await screen.findByLabelText('cpu time series chart')).toBeInTheDocument()
-    expect(await screen.findByLabelText('memory time series chart')).toBeInTheDocument()
-    expect(await screen.findByLabelText('disk_usage time series chart')).toBeInTheDocument()
-    expect(await screen.findByLabelText('network time series chart')).toBeInTheDocument()
-    expect(await screen.findByText('Recent App Changes')).toBeInTheDocument()
-    expect(await screen.findByRole('link', { name: /System Monitor/i })).toHaveAttribute(
+    expect(await screen.findByText('1H Trends')).toBeInTheDocument()
+    expect(
+      await screen.findByText(
+        'AppOS control-plane CPU, memory usage versus limit, disk, and network over the last hour.'
+      )
+    ).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'View system status' })).toHaveAttribute(
       'href',
       '/status'
     )
+    expect(await screen.findByLabelText('cpu time series chart')).toBeInTheDocument()
+    expect(await screen.findByLabelText('memory time series chart')).toBeInTheDocument()
+    expect(await screen.findByLabelText('disk_usage time series chart')).toBeInTheDocument()
+    expect(await screen.findByLabelText('disk time series chart')).toBeInTheDocument()
+    expect(await screen.findByLabelText('network time series chart')).toBeInTheDocument()
+    expect(await screen.findByLabelText('network_traffic time series chart')).toBeInTheDocument()
+    expect(await screen.findByText('Recent App Changes')).toBeInTheDocument()
     expect(await screen.findByRole('link', { name: /Manage Servers/i })).toHaveAttribute(
       'href',
       '/resources/servers'
@@ -285,14 +351,21 @@ describe('OverviewPage', () => {
     ).toBeGreaterThan(0)
 
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith('/api/apps', { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith('/api/monitor/overview', { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith('/api/tunnel/overview', { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith('/api/apps', { method: 'GET', requestKey: null })
+      expect(sendMock).toHaveBeenCalledWith('/api/monitor/overview', {
+        method: 'GET',
+        requestKey: null,
+      })
+      expect(sendMock).toHaveBeenCalledWith('/api/tunnel/overview', {
+        method: 'GET',
+        requestKey: null,
+      })
       expect(sendMock).toHaveBeenCalledWith(
-        '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cnetwork',
-        { method: 'GET' }
+        '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
+        { method: 'GET', requestKey: null }
       )
     })
+    expectAppOSCorePlatformSeriesRequests()
   })
 
   it('skips admin-only collection requests for non-superusers and still renders overview content', async () => {
@@ -324,6 +397,48 @@ describe('OverviewPage', () => {
     expect(await screen.findByText('No applications deployed yet.')).toBeInTheDocument()
     await waitFor(() => {
       expect(getFullListMock).not.toHaveBeenCalled()
+    })
+  })
+
+  it('logs degraded overview sources when optional requests fail', async () => {
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/apps') {
+        return Promise.resolve([])
+      }
+      if (path === '/api/monitor/overview') {
+        return Promise.resolve({
+          counts: { healthy: 1 },
+          unhealthyItems: [],
+          platformItems: [],
+        })
+      }
+      if (path === '/api/tunnel/overview') {
+        return Promise.resolve({
+          summary: { total: 0, online: 0, offline: 0, waiting_for_first_connect: 0 },
+          items: [],
+        })
+      }
+      return Promise.reject(new Error(`Unexpected path ${path}`))
+    })
+
+    getFullListMock
+      .mockRejectedValueOnce(new Error('servers unavailable'))
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+
+    render(<OverviewPage />)
+
+    expect(
+      await screen.findByText('Some overview sections are temporarily unavailable.')
+    ).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Overview degraded data sources',
+        expect.arrayContaining([
+          expect.objectContaining({ section: 'servers', message: 'servers unavailable' }),
+        ])
+      )
     })
   })
 })

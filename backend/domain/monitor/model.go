@@ -5,11 +5,13 @@ import (
 )
 
 const (
-	TargetTypeServer    = "server"
-	TargetTypeApp       = "app"
-	TargetTypeContainer = "container"
-	TargetTypeResource  = "resource"
-	TargetTypePlatform  = "platform"
+	TargetTypeServer     = "server"
+	TargetTypeApp        = "app"
+	TargetTypeContainer  = "container"
+	TargetTypeResource   = "resource"
+	TargetTypePlatform   = "platform"
+	TargetTypeAIProvider = "ai_provider"
+	TargetTypeConnector  = "connector"
 )
 
 const (
@@ -22,25 +24,19 @@ const (
 )
 
 const (
-	SignalSourceAgent     = "agent"
-	SignalSourceAppOS     = "appos_active_check"
-	SignalSourceSelf      = "appos_self"
-	SignalSourceInventory = "appos_inventory"
-	HeartbeatStateFresh   = "fresh"
-	HeartbeatStateStale   = "stale"
-	HeartbeatStateOffline = "offline"
+	SignalSourceCollector   = "monitor_collector"
+	SignalSourceAppOS       = "appos_active_check"
+	SignalSourceSelf        = "appos_self"
+	SignalSourceInventory   = "appos_inventory"
+	MetricsFreshnessFresh   = "fresh"
+	MetricsFreshnessStale   = "stale"
+	MetricsFreshnessMissing = "missing"
+	MetricsFreshnessUnknown = "unknown"
 )
 
 const (
-	AgentTokenSecretType   = "token"
-	AgentTokenSecretPrefix = "monitor-agent-token-"
-)
-
-const (
-	ExpectedHeartbeatInterval = 30 * time.Second
-	StaleHeartbeatThreshold   = 90 * time.Second
-	OfflineHeartbeatThreshold = 180 * time.Second
-	RuntimeStatusBatchLimit   = 100
+	MetricsStaleThreshold   = 90 * time.Second
+	MetricsMissingThreshold = 180 * time.Second
 )
 
 type CanonicalSignalEvent struct {

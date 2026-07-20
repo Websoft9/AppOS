@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Heart } from 'lucide-react'
+import { Star } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { AppIcon } from './AppIcon'
@@ -10,10 +10,17 @@ interface AppCardProps {
   product: ProductWithCategories
   primaryCategories: PrimaryCategory[]
   onSelectApp: (product: ProductWithCategories) => void
+  onDeploy?: (product: ProductWithCategories) => void
   userApps?: UserApp[]
 }
 
-export function AppCard({ product, primaryCategories, onSelectApp, userApps = [] }: AppCardProps) {
+export function AppCard({
+  product,
+  primaryCategories,
+  onSelectApp,
+  onDeploy,
+  userApps = [],
+}: AppCardProps) {
   const { t } = useTranslation('store')
 
   const primaryCat = primaryCategories.find(c => c.key === product.primaryCategoryKey)
@@ -29,7 +36,7 @@ export function AppCard({ product, primaryCategories, onSelectApp, userApps = []
       {/* Favorite indicator — shown only if already favorited */}
       {isFavorite && (
         <div className="absolute top-2 right-2 pointer-events-none">
-          <Heart className="h-4 w-4 fill-red-500 text-red-500" />
+          <Star className="h-4 w-4 fill-amber-500 text-amber-500" />
         </div>
       )}
 
@@ -62,7 +69,11 @@ export function AppCard({ product, primaryCategories, onSelectApp, userApps = []
         className="w-full mt-auto"
         onClick={e => {
           e.stopPropagation()
-          onSelectApp(product)
+          if (onDeploy) {
+            onDeploy(product)
+          } else {
+            onSelectApp(product)
+          }
         }}
       >
         {t('card.deploy')}

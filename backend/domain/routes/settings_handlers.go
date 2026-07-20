@@ -2,14 +2,17 @@ package routes
 
 import (
 	"net/http"
+	"strings"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/forms"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
+	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
+	"github.com/websoft9/appos/backend/domain/monitor"
 	"github.com/websoft9/appos/backend/domain/secrets"
+	"github.com/websoft9/appos/backend/infra/egress"
 )
 
 type connectorManagedSettingsError struct {
@@ -46,9 +49,9 @@ func RegisterSettings(se *core.ServeEvent) {
 // @Failure 401 {object} map[string]any
 // @Router /api/settings/schema [get]
 func handleSettingsSchema(e *core.RequestEvent) error {
-	entries := settingscatalog.Entries()
+	entries := settingsschema.Entries()
 
-	actions := settingscatalog.Actions()
+	actions := settingsschema.Actions()
 
 	return e.JSON(http.StatusOK, map[string]any{
 		"entries": entries,
@@ -67,12 +70,18 @@ func handleSettingsSchema(e *core.RequestEvent) error {
 // @Failure 500 {object} map[string]any
 // @Router /api/settings/entries [get]
 func handleSettingsEntriesList(e *core.RequestEvent) error {
-	entries := settingscatalog.Entries()
+	entries := filterSettingsEntriesByIDs(settingsschema.Entries(), parseSettingsEntryIDs(e.Request.URL.Query().Get("ids")))
 	items := make([]map[string]any, 0, len(entries))
 	for _, entry := range entries {
 		value, err := loadSettingsEntryValue(e.App, entry)
 		if err != nil {
-			return e.InternalServerError("failed to load settings entry "+entry.ID, err)
+			e.App.Logger().Warn("settings entry load degraded", "entryId", entry.ID, "error", err)
+			items = append(items, map[string]any{
+				"id":    entry.ID,
+				"value": nil,
+				"error": err.Error(),
+			})
+			continue
 		}
 		items = append(items, map[string]any{
 			"id":    entry.ID,
@@ -80,6 +89,38 @@ func handleSettingsEntriesList(e *core.RequestEvent) error {
 		})
 	}
 	return e.JSON(http.StatusOK, map[string]any{"items": items})
+}
+
+func parseSettingsEntryIDs(raw string) map[string]struct{} {
+	parts := strings.Split(raw, ",")
+	ids := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		id := strings.TrimSpace(part)
+		if id == "" {
+			continue
+		}
+		ids[id] = struct{}{}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	return ids
+}
+
+func filterSettingsEntriesByIDs(
+	entries []settingsschema.EntrySchema,
+	allowedIDs map[string]struct{},
+) []settingsschema.EntrySchema {
+	if len(allowedIDs) == 0 {
+		return entries
+	}
+	filtered := make([]settingsschema.EntrySchema, 0, len(allowedIDs))
+	for _, entry := range entries {
+		if _, ok := allowedIDs[entry.ID]; ok {
+			filtered = append(filtered, entry)
+		}
+	}
+	return filtered
 }
 
 // handleSettingsEntryGet returns one settings entry by its unified identifier.
@@ -197,11 +238,11 @@ func handleSettingsAction(e *core.RequestEvent) error {
 
 // ─── Entry adapters ────────────────────────────────────────────────────────
 
-func getSettingsEntrySchema(entryID string) (settingscatalog.EntrySchema, bool) {
-	return settingscatalog.FindEntry(entryID)
+func getSettingsEntrySchema(entryID string) (settingsschema.EntrySchema, bool) {
+	return settingsschema.FindEntry(entryID)
 }
 
-func loadSettingsEntryValue(app core.App, entry settingscatalog.EntrySchema) (map[string]any, error) {
+func loadSettingsEntryValue(app core.App, entry settingsschema.EntrySchema) (map[string]any, error) {
 	if value, handled, err := loadConnectorBackedSettingsEntryValue(app, entry.ID); handled || err != nil {
 		if err != nil {
 			return nil, err
@@ -209,7 +250,7 @@ func loadSettingsEntryValue(app core.App, entry settingscatalog.EntrySchema) (ma
 		return maskValue(value), nil
 	}
 
-	if entry.Source == settingscatalog.SourceNative {
+	if entry.Source == settingsschema.SourceNative {
 		value, err := sysconfig.LoadPocketBaseEntry(app, entry)
 		if err != nil {
 			return nil, err
@@ -219,12 +260,12 @@ func loadSettingsEntryValue(app core.App, entry settingscatalog.EntrySchema) (ma
 	return getCustomSettingsEntryValue(app, entry.Module, entry.Key)
 }
 
-func patchSettingsEntryValue(e *core.RequestEvent, entry settingscatalog.EntrySchema, value map[string]any) (map[string]any, error) {
+func patchSettingsEntryValue(e *core.RequestEvent, entry settingsschema.EntrySchema, value map[string]any) (map[string]any, error) {
 	if entry.ID == "smtp" || entry.ID == "docker-registries" {
 		return nil, &connectorManagedSettingsError{message: "this settings entry is connector-managed; update it in Resources > Connectors"}
 	}
 
-	if entry.Source == settingscatalog.SourceNative {
+	if entry.Source == settingsschema.SourceNative {
 		// Load existing native values to preserve "***" sentinels on sensitive fields.
 		existing, err := sysconfig.LoadPocketBaseEntry(e.App, entry)
 		if err != nil {
@@ -241,6 +282,21 @@ func patchSettingsEntryValue(e *core.RequestEvent, entry settingscatalog.EntrySc
 }
 
 func getCustomSettingsEntryValue(app core.App, module, key string) (map[string]any, error) {
+	if module == "proxy" && key == "policies" {
+		value, err := egress.SettingsEntryValue(app)
+		if err != nil {
+			return nil, err
+		}
+		return maskValue(value), nil
+	}
+	if module == "proxy" && key == "servers" {
+		value, err := sysconfig.GetGroup(app, module, key, egress.DefaultRemoteShellSettingsMap())
+		if err != nil {
+			app.Logger().Debug("settings fallback used", "module", module, "key", key, "error", err)
+		}
+		return maskValue(egress.NormalizeRemoteShellSettingsValue(value)), nil
+	}
+
 	fallback := fallbackForKey(module, key)
 	value, err := sysconfig.GetGroup(app, module, key, fallback)
 	if err != nil {
@@ -249,11 +305,21 @@ func getCustomSettingsEntryValue(app core.App, module, key string) (map[string]a
 	if module == secrets.SettingsModule && key == secrets.PolicySettingsKey {
 		value = secrets.NormalizePolicy(value).ToMap()
 	}
+	if module == monitor.SettingsModule && key == monitor.SchedulingSettingsKey {
+		value = monitor.NormalizeSchedulingMap(value)
+	}
 	return maskValue(value), nil
 }
 
 func patchCustomSettingsEntry(e *core.RequestEvent, module, key string, value map[string]any) (map[string]any, error) {
 	fallback := fallbackForKey(module, key)
+	if module == "proxy" && key == "policies" {
+		fallback = egress.DefaultConsumerSettingsMap()
+	}
+	if module == "proxy" && key == "servers" {
+		fallback = egress.DefaultRemoteShellSettingsMap()
+		value = egress.NormalizeRemoteShellSettingsValue(value)
+	}
 	existing, _ := sysconfig.GetGroup(e.App, module, key, fallback)
 	merged := preserveSensitive(value, existing)
 
@@ -261,8 +327,25 @@ func patchCustomSettingsEntry(e *core.RequestEvent, module, key string, value ma
 		return nil, &settingsValidationError{Fields: validationErrors}
 	}
 
+	if module == "proxy" && key == "policies" {
+		policyGroup := map[string]any{"items": merged["items"]}
+		if err := sysconfig.SetGroup(e.App, module, key, policyGroup); err != nil {
+			return nil, err
+		}
+		if serverOverrides, ok := merged["serverOverrides"]; ok {
+			if err := sysconfig.SetGroup(e.App, module, "servers", map[string]any{"items": serverOverrides}); err != nil {
+				return nil, err
+			}
+		}
+		stored, _ := getCustomSettingsEntryValue(e.App, module, key)
+		return stored, nil
+	}
+
 	if err := sysconfig.SetGroup(e.App, module, key, merged); err != nil {
 		return nil, err
+	}
+	if module == "proxy" && key == "servers" {
+		return maskValue(egress.NormalizeRemoteShellSettingsValue(merged)), nil
 	}
 
 	stored, _ := getCustomSettingsEntryValue(e.App, module, key)
@@ -281,8 +364,30 @@ func (e *settingsValidationError) Error() string {
 
 func validateCustomSettingsEntry(e *core.RequestEvent, module, key string, value map[string]any) map[string]string {
 	switch module + "/" + key {
+	case "branding/identity":
+		return validateBranding(value)
 	case "space/quota":
 		return validateSpaceQuota(value)
+	case "proxy/network":
+		return validateProxyNetwork(e.App, value)
+	case "proxy/policies":
+		return validateProxyConsumers(e.App, value)
+	case "proxy/servers":
+		return validateProxyRemoteShellServers(e.App, value)
+	case "monitor/scheduling":
+		return validateMonitorScheduling(value)
+	case "monitor/policy":
+		return validateMonitorPolicy(value)
+	case "monitor/platform-self-observation":
+		return validateMonitorPlatformSelfObservation(e.App, value)
+	case "monitor/managed-collector-policy":
+		return validateMonitorManagedCollectorPolicy(value)
+	case "feeds/policy":
+		return validateFeedsPolicy(value)
+	case "topic/comment-policy":
+		return validateTopicCommentPolicy(value)
+	case "topic/import-policy":
+		return validateTopicImportPolicy(value)
 	case "connect/terminal":
 		return validateConnectTerminal(value)
 	case "connect/sftp":
@@ -291,6 +396,10 @@ func validateCustomSettingsEntry(e *core.RequestEvent, module, key string, value
 		return validateTunnelPortRange(value)
 	case "deploy/preflight":
 		return validateDeployPreflight(value)
+	case "deploy/runtime":
+		return validateDeployRuntime(value)
+	case "deploy/git-defaults":
+		return validateDeployGitDefaults(value)
 	case "files/limits":
 		return validateIacFiles(value)
 	case "secrets/policy":

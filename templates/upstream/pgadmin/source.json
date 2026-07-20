@@ -1,0 +1,22 @@
+{
+  "originKind": "official",
+  "sourceRepo": "postgres/pgadmin4",
+  "sourcePath": "docker-compose.yml",
+  "sourceBranch": "master",
+  "observedFiles": [
+    "docker-compose.yml"
+  ],
+  "references": {
+    "docs": "https://www.pgadmin.org/docs/pgadmin4/latest/container_deployment.html",
+    "image": "https://hub.docker.com/r/dpage/pgadmin4",
+    "envVars": "https://www.pgadmin.org/docs/pgadmin4/latest/container_deployment.html",
+    "secondary": "https://github.com/Websoft9/docker-library/tree/main/apps/pgadmin"
+  },
+  "notes": [
+    "This sample preserves upstream identity for Epic 32 adaptation work.",
+    "The compose shape is derived from the official pgAdmin container deployment documentation; the Websoft9 docker-library entry is used as a secondary reference only.",
+    "pgAdmin is a stateless web client for external PostgreSQL servers and has no built-in database.",
+    "The Websoft9 reference includes a throwaway postgres container for testing; it is intentionally omitted from the normalized template.",
+    "The first pass stores source metadata rather than a full upstream file mirror."
+  ]
+}

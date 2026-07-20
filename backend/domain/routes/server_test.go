@@ -1,17 +1,32 @@
 package routes
 
 import (
-	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/hibiken/asynq"
 	"github.com/pocketbase/pocketbase/apis"
-	servers "github.com/websoft9/appos/backend/domain/resource/servers"
+	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/config/sysconfig"
+	"github.com/websoft9/appos/backend/domain/resource/connectors"
+	"github.com/websoft9/appos/backend/domain/software"
+	"github.com/websoft9/appos/backend/domain/terminal"
+	"github.com/websoft9/appos/backend/infra/egress"
 	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
 )
+
+type terminalTestSession struct{}
+
+func (terminalTestSession) Write(p []byte) (int, error) { return len(p), nil }
+func (terminalTestSession) Read(_ []byte) (int, error)  { return 0, nil }
+func (terminalTestSession) Resize(_, _ uint16) error    { return nil }
+func (terminalTestSession) Close() error                { return nil }
 
 // doServer performs a server route request using the testEnv helper from resources_test.go.
 func (te *testEnv) doServer(t *testing.T, method, url, body string, authenticated bool) *httptest.ResponseRecorder {
@@ -40,16 +55,6 @@ func (te *testEnv) doServer(t *testing.T, method, url, body string, authenticate
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	return rec
-}
-
-func TestLocalDockerBridgeRequiresAuth(t *testing.T) {
-	te := newTestEnv(t)
-	defer te.cleanup()
-
-	rec := te.doServer(t, http.MethodGet, "/api/servers/local/docker-bridge", "", false)
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401, got %d: %s", rec.Code, rec.Body.String())
-	}
 }
 
 func TestAllowWebSocketOriginAllowsEmptyOrigin(t *testing.T) {
@@ -86,115 +91,49 @@ func TestAllowWebSocketOriginUsesForwardedProxyHostAndProto(t *testing.T) {
 	}
 }
 
-func TestLocalDockerBridgeReturnsAddress(t *testing.T) {
+func TestServerConnectivityOnlineEnqueuesSnapshotWarm(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	originalLookup := dockerBridgeIPv4Lookup
-	originalGatewayLookup := dockerBridgeGatewayLookup
-	dockerBridgeIPv4Lookup = func(name string) (string, error) {
-		if name != "docker0" {
-			t.Fatalf("expected docker0 lookup, got %s", name)
-		}
-		return "172.17.0.1", nil
-	}
-	defer func() {
-		dockerBridgeIPv4Lookup = originalLookup
-		dockerBridgeGatewayLookup = originalGatewayLookup
-	}()
-	dockerBridgeGatewayLookup = func(_ context.Context) (string, error) {
-		t.Fatal("gateway lookup should not run when docker0 succeeds")
-		return "", nil
-	}
+	server := createTunnelServerRecord(t, te, "warm-edge")
+	oldSessions := tunnelSessions
+	tunnelSessions = tunnelcore.NewRegistry()
+	tunnelSessions.Register(server.Id, &tunnelcore.Session{ClientID: server.Id, ConnectedAt: time.Now().UTC()})
+	defer func() { tunnelSessions = oldSessions }()
 
-	rec := te.doServer(t, http.MethodGet, "/api/servers/local/docker-bridge", "", true)
+	oldClient := asynqClient
+	asynqClient = &asynq.Client{}
+	defer func() { asynqClient = oldClient }()
+
+	oldEnqueue := enqueueSoftwareSnapshotWarmTask
+	called := false
+	var gotServerID string
+	var gotUserID string
+	var gotComponents []software.ComponentKey
+	enqueueSoftwareSnapshotWarmTask = func(client *asynq.Client, serverID, userID string, componentKeys []software.ComponentKey) error {
+		called = true
+		gotServerID = serverID
+		gotUserID = userID
+		gotComponents = append([]software.ComponentKey(nil), componentKeys...)
+		return nil
+	}
+	defer func() { enqueueSoftwareSnapshotWarmTask = oldEnqueue }()
+
+	rec := te.doServer(t, http.MethodGet, "/api/servers/"+server.Id+"/ops/connectivity?mode=tunnel", "", true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
-
-	var payload struct {
-		Interface string `json:"interface"`
-		Address   string `json:"address"`
+	if !called {
+		t.Fatal("expected connectivity online check to enqueue snapshot warming")
 	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("unmarshal response: %v", err)
+	if gotServerID != server.Id {
+		t.Fatalf("expected server id %q, got %q", server.Id, gotServerID)
 	}
-	if payload.Interface != "docker0" || payload.Address != "172.17.0.1" {
-		t.Fatalf("unexpected payload: %+v", payload)
+	if gotUserID == "" {
+		t.Fatal("expected authenticated user id to be forwarded to snapshot warming")
 	}
-}
-
-func TestLocalDockerBridgeFallsBackToBridgeGateway(t *testing.T) {
-	te := newTestEnv(t)
-	defer te.cleanup()
-
-	originalLookup := dockerBridgeIPv4Lookup
-	originalGatewayLookup := dockerBridgeGatewayLookup
-	dockerBridgeIPv4Lookup = func(name string) (string, error) {
-		if name != "docker0" {
-			t.Fatalf("expected docker0 lookup, got %s", name)
-		}
-		return "", http.ErrNoLocation
-	}
-	defer func() {
-		dockerBridgeIPv4Lookup = originalLookup
-		dockerBridgeGatewayLookup = originalGatewayLookup
-	}()
-	dockerBridgeGatewayLookup = func(_ context.Context) (string, error) {
-		return "172.17.0.1", nil
-	}
-
-	rec := te.doServer(t, http.MethodGet, "/api/servers/local/docker-bridge", "", true)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	var payload struct {
-		Interface string `json:"interface"`
-		Address   string `json:"address"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("unmarshal response: %v", err)
-	}
-	if payload.Interface != "bridge" || payload.Address != "172.17.0.1" {
-		t.Fatalf("unexpected bridge fallback payload: %+v", payload)
-	}
-}
-
-func TestLocalDockerBridgeFallsBackToLoopback(t *testing.T) {
-	te := newTestEnv(t)
-	defer te.cleanup()
-
-	originalLookup := dockerBridgeIPv4Lookup
-	originalGatewayLookup := dockerBridgeGatewayLookup
-	dockerBridgeIPv4Lookup = func(name string) (string, error) {
-		if name != "docker0" {
-			t.Fatalf("expected docker0 lookup, got %s", name)
-		}
-		return "", http.ErrNoLocation
-	}
-	defer func() {
-		dockerBridgeIPv4Lookup = originalLookup
-		dockerBridgeGatewayLookup = originalGatewayLookup
-	}()
-	dockerBridgeGatewayLookup = func(_ context.Context) (string, error) {
-		return "", http.ErrUseLastResponse
-	}
-
-	rec := te.doServer(t, http.MethodGet, "/api/servers/local/docker-bridge", "", true)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	var payload struct {
-		Interface string `json:"interface"`
-		Address   string `json:"address"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("unmarshal response: %v", err)
-	}
-	if payload.Interface != "loopback" || payload.Address != "127.0.0.1" {
-		t.Fatalf("unexpected loopback fallback payload: %+v", payload)
+	if len(gotComponents) != 3 {
+		t.Fatalf("expected 3 default warm components, got %#v", gotComponents)
 	}
 }
 
@@ -213,33 +152,6 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	originalProbe := directServerAccessProbe
-	directServerAccessProbe = func(host string, port int) directAccessProbeResult {
-		if host == "10.0.0.1" && port == 22 {
-			return directAccessProbeResult{
-				Access: servers.AccessView{
-					Status:    "available",
-					Reason:    "",
-					CheckedAt: "2026-04-22T10:00:00Z",
-					Source:    "tcp_probe",
-				},
-				LatencyMS: 12,
-			}
-		}
-		return directAccessProbeResult{
-			Access: servers.AccessView{
-				Status:    "unavailable",
-				Reason:    "tcp_connect_failed",
-				CheckedAt: "2026-04-22T10:00:00Z",
-				Source:    "tcp_probe",
-			},
-			Detail: "dial tcp failed",
-		}
-	}
-	t.Cleanup(func() {
-		directServerAccessProbe = originalProbe
-	})
-
 	secret := createRouteSecret(t, te, "global", "")
 	owner, err := te.app.FindFirstRecordByData("_superusers", "email", "admin@test.com")
 	if err != nil {
@@ -248,6 +160,7 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 
 	direct := createServerRecord(t, te, "direct-a", "10.0.0.1", 22, "root", "password")
 	direct.Set("connect_type", "direct")
+	direct.Set("is_local", true)
 	direct.Set("credential", secret.Id)
 	direct.Set("created_by", owner.Id)
 	direct.Set("facts_json", map[string]any{
@@ -266,8 +179,20 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 		"memory": map[string]any{
 			"total_bytes": float64(8589934592),
 		},
+		"cloud": map[string]any{
+			"provider": "aws",
+			"region":   "cn-northwest-1",
+			"zone":     "cn-northwest-1a",
+			"source":   "cloud-init",
+		},
 	})
 	direct.Set("facts_observed_at", "2026-04-22 10:30:00.000Z")
+	// Simulate a previously successful probe persisted to the DB (the new
+	// connectivity-check write-back path). The list endpoint reads this cached
+	// value instead of running a live TCP probe.
+	direct.Set("access_status", "available")
+	direct.Set("access_reason", "")
+	direct.Set("access_checked_at", "2026-04-22 10:00:00.000Z")
 	if err := te.app.Save(direct); err != nil {
 		t.Fatal(err)
 	}
@@ -296,8 +221,16 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 		Items []struct {
 			ID              string         `json:"id"`
 			Name            string         `json:"name"`
+			IsEnabled       bool           `json:"is_enabled"`
+			Created         string         `json:"created"`
+			Updated         string         `json:"updated"`
 			CreatedByName   string         `json:"created_by_name"`
+			IsLocal         bool           `json:"is_local"`
 			CredentialType  string         `json:"credential_type"`
+			CloudProvider   string         `json:"cloud_provider_name"`
+			CloudRegion     string         `json:"cloud_region"`
+			CloudZone       string         `json:"cloud_zone"`
+			CloudSource     string         `json:"cloud_provider_source"`
 			FactsJSON       map[string]any `json:"facts_json"`
 			FactsObservedAt string         `json:"facts_observed_at"`
 			Connection      struct {
@@ -326,7 +259,11 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 
 	byName := make(map[string]struct {
 		ID               string
+		IsEnabled        bool
+		Created          string
+		Updated          string
 		CreatedByName    string
+		IsLocal          bool
 		CredentialType   string
 		ConnectionState  string
 		ConnectionReason string
@@ -341,7 +278,11 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 	for _, item := range payload.Items {
 		entry := struct {
 			ID               string
+			IsEnabled        bool
+			Created          string
+			Updated          string
 			CreatedByName    string
+			IsLocal          bool
 			CredentialType   string
 			ConnectionState  string
 			ConnectionReason string
@@ -354,7 +295,11 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 			TunnelWaiting    bool
 		}{
 			ID:               item.ID,
+			IsEnabled:        item.IsEnabled,
+			Created:          item.Created,
+			Updated:          item.Updated,
 			CreatedByName:    item.CreatedByName,
+			IsLocal:          item.IsLocal,
 			CredentialType:   item.CredentialType,
 			ConnectionState:  item.Connection.StateCode,
 			ConnectionReason: item.Connection.ReasonCode,
@@ -371,7 +316,7 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 		byName[item.Name] = entry
 	}
 
-	if got := byName["direct-a"]; got.AccessStatus != "available" || got.AccessSource != "tcp_probe" {
+	if got := byName["direct-a"]; got.AccessStatus != "available" || got.AccessSource != "cached" {
 		t.Fatalf("unexpected direct access payload: %#v", got)
 	}
 	if got := byName["direct-a"]; got.ConnectionState != "online" || got.ConnectionReason != "" || !got.ConfigReady {
@@ -382,6 +327,15 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 	}
 	if got := byName["direct-a"]; got.CreatedByName != "admin@test.com" {
 		t.Fatalf("expected direct created_by_name admin@test.com, got %#v", got)
+	}
+	if got := byName["direct-a"]; !got.IsEnabled {
+		t.Fatalf("expected direct server enabled by default, got %#v", got)
+	}
+	if got := byName["direct-a"]; !got.IsLocal {
+		t.Fatalf("expected direct is_local true, got %#v", got)
+	}
+	if got := byName["direct-a"]; got.Created == "" || got.Updated == "" {
+		t.Fatalf("expected direct created and updated timestamps, got %#v", got)
 	}
 	if got := byName["direct-a"]; got.TunnelState != "" {
 		t.Fatalf("expected no tunnel payload for direct server, got %#v", got)
@@ -395,6 +349,9 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 		}
 		if item.FactsJSON["architecture"] != "amd64" {
 			t.Fatalf("expected direct facts_json architecture, got %#v", item.FactsJSON)
+		}
+		if item.CloudProvider != "aws" || item.CloudRegion != "cn-northwest-1" || item.CloudZone != "cn-northwest-1a" || item.CloudSource != "cloud-init" {
+			t.Fatalf("expected projected cloud fields, got provider=%q region=%q zone=%q source=%q", item.CloudProvider, item.CloudRegion, item.CloudZone, item.CloudSource)
 		}
 		osFacts, ok := item.FactsJSON["os"].(map[string]any)
 		if !ok || osFacts["distribution"] != "ubuntu" {
@@ -417,6 +374,178 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 	}
 	if got := byName["tunnel-b"]; got.CredentialType != "Password" {
 		t.Fatalf("expected tunnel credential type Password, got %#v", got)
+	}
+	if got := byName["tunnel-b"]; got.IsLocal {
+		t.Fatalf("expected tunnel is_local false by default, got %#v", got)
+	}
+}
+
+func TestServersViewDerivesCloudRegionFromZone(t *testing.T) {
+	ensureConnectorSecretRuntime(t)
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	secret := createRouteSecret(t, te, "global", "")
+	server := createServerRecord(t, te, "direct-zone-only", "10.0.0.3", 22, "root", "password")
+	server.Set("connect_type", "direct")
+	server.Set("credential", secret.Id)
+	server.Set("facts_json", map[string]any{
+		"os": map[string]any{
+			"family":       "linux",
+			"distribution": "ubuntu",
+			"version":      "24.04",
+		},
+		"kernel": map[string]any{
+			"release": "6.8.0",
+		},
+		"architecture": "amd64",
+		"cpu": map[string]any{
+			"cores": float64(4),
+		},
+		"memory": map[string]any{
+			"total_bytes": float64(8589934592),
+		},
+		"cloud": map[string]any{
+			"provider": "gcp",
+			"zone":     "us-central1-a",
+			"source":   "cloud-init",
+		},
+	})
+	if err := te.app.Save(server); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := te.doServer(t, http.MethodGet, "/api/servers/connection", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Items []struct {
+			Name          string `json:"name"`
+			CloudProvider string `json:"cloud_provider_name"`
+			CloudRegion   string `json:"cloud_region"`
+			CloudZone     string `json:"cloud_zone"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	for _, item := range payload.Items {
+		if item.Name != "direct-zone-only" {
+			continue
+		}
+		if item.CloudProvider != "gcp" || item.CloudRegion != "us-central1" || item.CloudZone != "us-central1-a" {
+			t.Fatalf("expected projected zone-derived region, got %+v", item)
+		}
+		return
+	}
+	t.Fatal("expected direct-zone-only item in response")
+}
+
+func TestServersViewUsesControlReachabilityAccessCache(t *testing.T) {
+	ensureConnectorSecretRuntime(t)
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	secret := createRouteSecret(t, te, "global", "")
+	direct := createServerRecord(t, te, "direct-offline", "10.0.0.99", 22, "root", "password")
+	direct.Set("connect_type", "direct")
+	direct.Set("credential", secret.Id)
+	direct.Set("access_status", "unavailable")
+	direct.Set("access_reason", "control_unreachable")
+	direct.Set("access_checked_at", "2026-05-13 10:00:00.000Z")
+	if err := te.app.Save(direct); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := te.doServer(t, http.MethodGet, "/api/servers/connection", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Items []struct {
+			Name       string `json:"name"`
+			Connection struct {
+				StateCode  string `json:"state_code"`
+				ReasonCode string `json:"reason_code"`
+			} `json:"connection"`
+			Access struct {
+				Status string `json:"status"`
+				Reason string `json:"reason"`
+				Source string `json:"source"`
+			} `json:"access"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if len(payload.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(payload.Items))
+	}
+	item := payload.Items[0]
+	if item.Name != "direct-offline" {
+		t.Fatalf("unexpected server row: %#v", item)
+	}
+	if item.Access.Status != "unavailable" || item.Access.Reason != "control_unreachable" || item.Access.Source != "cached" {
+		t.Fatalf("unexpected access projection: %#v", item.Access)
+	}
+	if item.Connection.StateCode != "needs_attention" || item.Connection.ReasonCode != "control_unreachable" {
+		t.Fatalf("expected needs_attention/control_unreachable connection, got %#v", item.Connection)
+	}
+}
+
+func TestServersViewUsesCredentialAuthFailedAccessCache(t *testing.T) {
+	ensureConnectorSecretRuntime(t)
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	secret := createRouteSecret(t, te, "global", "")
+	direct := createServerRecord(t, te, "direct-auth-failed", "10.0.0.99", 22, "root", "password")
+	direct.Set("connect_type", "direct")
+	direct.Set("credential", secret.Id)
+	direct.Set("access_status", "unavailable")
+	direct.Set("access_reason", "credential_auth_failed")
+	direct.Set("access_checked_at", "2026-05-13 10:00:00.000Z")
+	if err := te.app.Save(direct); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := te.doServer(t, http.MethodGet, "/api/servers/connection", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Items []struct {
+			Name       string `json:"name"`
+			Connection struct {
+				StateCode  string `json:"state_code"`
+				ReasonCode string `json:"reason_code"`
+			} `json:"connection"`
+			Access struct {
+				Status string `json:"status"`
+				Reason string `json:"reason"`
+				Source string `json:"source"`
+			} `json:"access"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if len(payload.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(payload.Items))
+	}
+	item := payload.Items[0]
+	if item.Name != "direct-auth-failed" {
+		t.Fatalf("unexpected server row: %#v", item)
+	}
+	if item.Access.Status != "unavailable" || item.Access.Reason != "credential_auth_failed" || item.Access.Source != "cached" {
+		t.Fatalf("unexpected access projection: %#v", item.Access)
+	}
+	if item.Connection.StateCode != "needs_attention" || item.Connection.ReasonCode != "credential_auth_failed" {
+		t.Fatalf("expected needs_attention/credential_auth_failed connection, got %#v", item.Connection)
 	}
 }
 
@@ -479,6 +608,343 @@ func TestServersViewMarksTunnelSetupRequired(t *testing.T) {
 	}
 }
 
+func TestResolveTerminalExecutionPlanBuildsSelfProxyEnv(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+	ensureConnectorSecretRuntime(t)
+
+	server := createServerRecord(t, te, "self-proxy-shell", "203.0.113.10", 22, "root", "password")
+	server.Set("connect_type", "direct")
+	if err := te.app.Save(server); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := sysconfig.SetGroup(te.app, "proxy", "network", map[string]any{
+		"source":            "self",
+		"enabled":           false,
+		"socks5ConnectorId": "",
+		"httpConnectorId":   "",
+		"httpsConnectorId":  "",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sysconfig.SetGroup(te.app, "proxy", "policies", map[string]any{
+		"items": []map[string]any{{
+			"consumerKey": "remote_shell.global",
+			"mode":        "always",
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	plan, err := resolveTerminalExecutionPlanWithAppOSBaseURL(te.app, nil, server.Id, "https://console.example.com:9443")
+	if err != nil {
+		t.Fatalf("resolve terminal execution plan: %v", err)
+	}
+	if plan.Transport != "direct_ssh" {
+		t.Fatalf("expected direct ssh transport, got %q", plan.Transport)
+	}
+	if plan.Config.Host != "203.0.113.10" || plan.Config.Port != 22 {
+		t.Fatalf("expected original SSH target to remain unchanged, got %s:%d", plan.Config.Host, plan.Config.Port)
+	}
+	if len(plan.Warnings) != 0 {
+		t.Fatalf("expected no self proxy fallback warning, got %#v", plan.Warnings)
+	}
+	proxyURL, err := url.Parse(plan.Env["HTTP_PROXY"])
+	if err != nil {
+		t.Fatalf("parse self proxy env: %v", err)
+	}
+	if proxyURL.Scheme != "https" || proxyURL.Host != "console.example.com:9443" {
+		t.Fatalf("unexpected self proxy target URL: %s", proxyURL.String())
+	}
+	if proxyURL.User == nil || proxyURL.User.Username() != server.Id {
+		t.Fatalf("expected self proxy username %q, got %#v", server.Id, proxyURL.User)
+	}
+	if token, ok := proxyURL.User.Password(); !ok || strings.TrimSpace(token) == "" {
+		t.Fatalf("expected self proxy password token in URL, got %s", proxyURL.String())
+	}
+}
+
+func TestResolveTerminalExecutionPlanWarnsWhenSelfProxyBaseURLUnavailable(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+	ensureConnectorSecretRuntime(t)
+
+	server := createServerRecord(t, te, "self-proxy-fallback", "203.0.113.11", 22, "root", "password")
+	server.Set("connect_type", "direct")
+	if err := te.app.Save(server); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := sysconfig.SetGroup(te.app, "proxy", "network", map[string]any{
+		"source":            "self",
+		"enabled":           false,
+		"socks5ConnectorId": "",
+		"httpConnectorId":   "",
+		"httpsConnectorId":  "",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sysconfig.SetGroup(te.app, "proxy", "policies", map[string]any{
+		"items": []map[string]any{{
+			"consumerKey": "remote_shell.global",
+			"mode":        "always",
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	plan, err := resolveTerminalExecutionPlan(te.app, nil, server.Id)
+	if err != nil {
+		t.Fatalf("resolve terminal execution plan: %v", err)
+	}
+	if plan.Transport != "direct_ssh" {
+		t.Fatalf("expected direct ssh fallback transport, got %q", plan.Transport)
+	}
+	if plan.Config.Host != "203.0.113.11" || plan.Config.Port != 22 {
+		t.Fatalf("expected original SSH target to remain unchanged, got %s:%d", plan.Config.Host, plan.Config.Port)
+	}
+	if len(plan.Warnings) != 1 || !strings.Contains(plan.Warnings[0], "AppOS public URL is unavailable") {
+		t.Fatalf("expected self proxy fallback warning, got %#v", plan.Warnings)
+	}
+}
+
+func TestResolveTerminalExecutionPlanUsesAppOSEndpointForExternalProxyMode(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+	ensureConnectorSecretRuntime(t)
+
+	server := createServerRecord(t, te, "external-proxy-shell", "203.0.113.12", 22, "root", "password")
+	server.Set("connect_type", "direct")
+	if err := te.app.Save(server); err != nil {
+		t.Fatal(err)
+	}
+
+	proxyConnector := createDockerRouteConnector(t, te, connectors.SaveInput{
+		Name:       "office-proxy",
+		Kind:       connectors.KindProxy,
+		TemplateID: "http-proxy",
+		Endpoint:   "http://proxy.example.com:3128",
+		Config:     map[string]any{"protocol": "http", "username": "alice", "password": "secret"},
+	})
+	if err := sysconfig.SetGroup(te.app, "proxy", "network", map[string]any{
+		"source":            "external",
+		"enabled":           true,
+		"socks5ConnectorId": "",
+		"httpConnectorId":   proxyConnector.Id,
+		"httpsConnectorId":  "",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sysconfig.SetGroup(te.app, "proxy", "policies", map[string]any{
+		"items": []map[string]any{{
+			"consumerKey": "remote_shell.global",
+			"mode":        "always",
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	plan, err := resolveTerminalExecutionPlanWithAppOSBaseURL(te.app, nil, server.Id, "https://console.example.com:9443")
+	if err != nil {
+		t.Fatalf("resolve terminal execution plan: %v", err)
+	}
+	if got := plan.Env["HTTP_PROXY"]; !strings.Contains(got, "console.example.com:9443") {
+		t.Fatalf("expected remote shell env to use AppOS endpoint, got %q", got)
+	}
+	if got := plan.Env["HTTP_PROXY"]; strings.Contains(got, "proxy.example.com:3128") {
+		t.Fatalf("expected remote shell env to hide raw external proxy endpoint, got %q", got)
+	}
+	if len(plan.Warnings) != 0 {
+		t.Fatalf("expected no warning when AppOS endpoint is available, got %#v", plan.Warnings)
+	}
+}
+
+func TestResolveTerminalExecutionPlanSkipsProxyEnvWhenExternalProxyIsDisabled(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+	ensureConnectorSecretRuntime(t)
+
+	server := createServerRecord(t, te, "external-proxy-disabled-shell", "203.0.113.13", 22, "root", "password")
+	server.Set("connect_type", "direct")
+	if err := te.app.Save(server); err != nil {
+		t.Fatal(err)
+	}
+
+	proxyConnector := createDockerRouteConnector(t, te, connectors.SaveInput{
+		Name:       "office-proxy-disabled",
+		Kind:       connectors.KindProxy,
+		TemplateID: "http-proxy",
+		Endpoint:   "http://proxy.example.com:3128",
+		Config:     map[string]any{"protocol": "http"},
+	})
+	if err := sysconfig.SetGroup(te.app, "proxy", "network", map[string]any{
+		"source":            "external",
+		"enabled":           false,
+		"socks5ConnectorId": "",
+		"httpConnectorId":   proxyConnector.Id,
+		"httpsConnectorId":  "",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sysconfig.SetGroup(te.app, "proxy", "policies", map[string]any{
+		"items": []map[string]any{{
+			"consumerKey": "remote_shell.global",
+			"mode":        "always",
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	plan, err := resolveTerminalExecutionPlanWithAppOSBaseURL(te.app, nil, server.Id, "https://console.example.com:9443")
+	if err != nil {
+		t.Fatalf("resolve terminal execution plan: %v", err)
+	}
+	if len(plan.Env) != 0 {
+		t.Fatalf("expected no remote shell proxy env when external proxy is disabled, got %#v", plan.Env)
+	}
+	if got := strings.TrimSpace(plan.Config.Shell); strings.Contains(got, "HTTP_PROXY") || strings.Contains(got, "ALL_PROXY") {
+		t.Fatalf("expected shell to remain unwrapped when proxy is disabled, got %q", got)
+	}
+}
+
+func TestSelfProxyMiddlewareForwardsHTTPRequests(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	server := createServerRecord(t, te, "self-proxy-forward", "203.0.113.20", 22, "root", "password")
+	if err := sysconfig.SetGroup(te.app, "proxy", "network", map[string]any{
+		"source":            "self",
+		"enabled":           false,
+		"socks5ConnectorId": "",
+		"httpConnectorId":   "",
+		"httpsConnectorId":  "",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	token, err := egress.GetOrIssueSelfProxyToken(te.app, server.Id)
+	if err != nil {
+		t.Fatalf("issue self proxy token: %v", err)
+	}
+
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Proxy-Authorization"); got != "" {
+			t.Fatalf("expected proxy auth header to be stripped before upstream request, got %q", got)
+		}
+		w.Header().Set("X-Upstream", "ok")
+		_, _ = w.Write([]byte("proxied-through-appos"))
+	}))
+	defer target.Close()
+
+	r, err := apis.NewRouter(te.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	Register(&core.ServeEvent{App: te.app, Router: r})
+	mux, err := r.BuildMux()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, target.URL+"/demo?check=1", nil)
+	req.Header.Set("Proxy-Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(server.Id+":"+token)))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected proxy forward to return 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if rec.Header().Get("X-Upstream") != "ok" {
+		t.Fatalf("expected upstream response header to pass through, got %#v", rec.Header())
+	}
+	if rec.Body.String() != "proxied-through-appos" {
+		t.Fatalf("unexpected proxied response body: %q", rec.Body.String())
+	}
+}
+
+func TestSelfProxyMiddlewareUsesExternalProxyForForwardedHTTPRequests(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	server := createServerRecord(t, te, "self-proxy-external", "203.0.113.21", 22, "root", "password")
+	proxySeen := make(chan *http.Request, 1)
+	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case proxySeen <- r.Clone(r.Context()):
+		default:
+		}
+		w.Header().Set("X-Proxy", "external")
+		_, _ = w.Write([]byte("through-configured-external-proxy"))
+	}))
+	defer proxyServer.Close()
+
+	proxyConnector := createDockerRouteConnector(t, te, connectors.SaveInput{
+		Name:       "route-http-proxy",
+		Kind:       connectors.KindProxy,
+		TemplateID: "http-proxy",
+		Endpoint:   proxyServer.URL,
+		Config:     map[string]any{"protocol": "http"},
+	})
+	if err := sysconfig.SetGroup(te.app, "proxy", "network", map[string]any{
+		"source":            "external",
+		"enabled":           true,
+		"socks5ConnectorId": "",
+		"httpConnectorId":   proxyConnector.Id,
+		"httpsConnectorId":  "",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sysconfig.SetGroup(te.app, "proxy", "policies", map[string]any{
+		"items": []map[string]any{{
+			"consumerKey": "remote_shell.global",
+			"mode":        "always",
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	token, err := egress.GetOrIssueSelfProxyToken(te.app, server.Id)
+	if err != nil {
+		t.Fatalf("issue self proxy token: %v", err)
+	}
+
+	targetURL := "http://example.com/proxied"
+
+	r, err := apis.NewRouter(te.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	Register(&core.ServeEvent{App: te.app, Router: r})
+	mux, err := r.BuildMux()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, targetURL, nil)
+	req.Header.Set("Proxy-Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(server.Id+":"+token)))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected proxy forward to return 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if rec.Header().Get("X-Proxy") != "external" {
+		t.Fatalf("expected response to come from external proxy, got headers %#v", rec.Header())
+	}
+	if rec.Body.String() != "through-configured-external-proxy" {
+		t.Fatalf("unexpected proxied response body: %q", rec.Body.String())
+	}
+	select {
+	case seen := <-proxySeen:
+		if seen.URL == nil || seen.URL.String() != targetURL {
+			t.Fatalf("expected external proxy to receive target URL, got %#v", seen.URL)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected configured external proxy to receive the forwarded request")
+	}
+}
+
 // doTerminal performs a terminal route request using the testEnv helper from resources_test.go.
 func (te *testEnv) doTerminal(t *testing.T, method, url, body string, authenticated bool) *httptest.ResponseRecorder {
 	t.Helper()
@@ -518,6 +984,125 @@ func TestSFTPListRequiresAuth(t *testing.T) {
 	rec := te.doTerminal(t, http.MethodGet, "/api/terminal/sftp/nonexistent/list?path=/", "", false)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestTerminalSessionsReturnsCurrentUsersActiveSessions(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	registryReset := func() {
+		terminal.Unregister("session-user")
+		terminal.Unregister("session-other")
+	}
+	registryReset()
+	defer registryReset()
+
+	admin, err := te.app.FindFirstRecordByData(core.CollectionNameSuperusers, "email", routesTestAdminEmail)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	other := core.NewRecord(admin.Collection())
+	other.Set("email", "other-admin@test.com")
+	other.SetPassword("1234567890")
+	if err := te.app.Save(other); err != nil {
+		t.Fatal(err)
+	}
+
+	terminal.RegisterDetailed("session-user", terminalTestSession{}, admin.Id, "server", "srv-1", "ssh")
+	terminal.RegisterDetailed("session-other", terminalTestSession{}, other.Id, "server", "srv-2", "ssh")
+
+	rec := te.doTerminal(t, http.MethodGet, "/api/terminal/sessions", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Items []terminal.SessionSummary `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(payload.Items))
+	}
+	if payload.Items[0].ID != "session-user" {
+		t.Fatalf("expected current user's session, got %s", payload.Items[0].ID)
+	}
+	if payload.Items[0].ResourceID != "srv-1" || payload.Items[0].SessionType != "ssh" {
+		t.Fatalf("unexpected session payload: %+v", payload.Items[0])
+	}
+}
+
+func TestTerminalSessionWorkspaceUpdatesSnapshot(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	admin, err := te.app.FindFirstRecordByData(core.CollectionNameSuperusers, "email", routesTestAdminEmail)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	terminal.Unregister("session-workspace")
+	defer terminal.Unregister("session-workspace")
+	terminal.RegisterDetailed("session-workspace", terminalTestSession{}, admin.Id, "server", "srv-1", "ssh")
+
+	body := `{"active_server_id":"srv-1","side_panel":"files","file_path":"/var/log","locked_root":"/var","split_ratio":0.4}`
+	rec := te.doTerminal(t, http.MethodPatch, "/api/terminal/sessions/session-workspace/workspace", body, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	listRec := te.doTerminal(t, http.MethodGet, "/api/terminal/sessions", "", true)
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", listRec.Code, listRec.Body.String())
+	}
+
+	var payload struct {
+		Items []terminal.SessionSummary `json:"items"`
+	}
+	if err := json.Unmarshal(listRec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(payload.Items))
+	}
+	if payload.Items[0].Workspace.FilePath != "/var/log" || payload.Items[0].Workspace.LockedRoot != "/var" {
+		t.Fatalf("unexpected workspace payload: %+v", payload.Items[0].Workspace)
+	}
+}
+
+func TestTerminalSessionCloseRemovesOwnedSession(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	admin, err := te.app.FindFirstRecordByData(core.CollectionNameSuperusers, "email", routesTestAdminEmail)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	terminal.Unregister("session-close")
+	terminal.RegisterDetailed("session-close", terminalTestSession{}, admin.Id, "server", "srv-1", "ssh")
+
+	rec := te.doTerminal(t, http.MethodDelete, "/api/terminal/sessions/session-close", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	listRec := te.doTerminal(t, http.MethodGet, "/api/terminal/sessions", "", true)
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", listRec.Code, listRec.Body.String())
+	}
+
+	var payload struct {
+		Items []terminal.SessionSummary `json:"items"`
+	}
+	if err := json.Unmarshal(listRec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.Items) != 0 {
+		t.Fatalf("expected 0 items after close, got %d", len(payload.Items))
 	}
 }
 
@@ -756,26 +1341,6 @@ func TestSystemdUnitApplyRequiresAuth(t *testing.T) {
 	}
 }
 
-func TestMonitorAgentInstallRequiresAuth(t *testing.T) {
-	te := newTestEnv(t)
-	defer te.cleanup()
-
-	rec := te.doServer(t, http.MethodPost, "/api/servers/nonexistent/ops/monitor-agent/install", "", false)
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401, got %d: %s", rec.Code, rec.Body.String())
-	}
-}
-
-func TestMonitorAgentUpdateRequiresAuth(t *testing.T) {
-	te := newTestEnv(t)
-	defer te.cleanup()
-
-	rec := te.doServer(t, http.MethodPost, "/api/servers/nonexistent/ops/monitor-agent/update", "", false)
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401, got %d: %s", rec.Code, rec.Body.String())
-	}
-}
-
 func TestServerPortInspectRequiresAuth(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
@@ -886,120 +1451,5 @@ func TestServerPortReleaseRejectsInvalidProtocol(t *testing.T) {
 	rec := te.doServer(t, http.MethodPost, "/api/servers/nonexistent/ops/ports/8080/release?protocol=sctp", `{"mode":"graceful"}`, true)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
-	}
-}
-
-func TestParseContainerDeclaredReservationsDockerUnavailable(t *testing.T) {
-	matches, probe := parseContainerDeclaredReservations("__DOCKER_NOT_AVAILABLE__", 8080, "tcp")
-	if len(matches) != 0 {
-		t.Fatalf("expected no matches, got %d", len(matches))
-	}
-	available, _ := probe["available"].(bool)
-	if available {
-		t.Fatalf("expected docker probe available=false")
-	}
-	status, _ := probe["status"].(string)
-	if status != "not_available" {
-		t.Fatalf("expected not_available status, got %q", status)
-	}
-}
-
-func TestParseContainerDeclaredReservationsByPortAndProtocol(t *testing.T) {
-	raw := strings.Join([]string{
-		"abc123\tweb\tExited (0) 3 hours ago\t0.0.0.0:8080->80/tcp, [::]:8080->80/tcp",
-		"def456\tdns\tUp 2 hours\t0.0.0.0:5353->53/udp",
-	}, "\n")
-
-	matches, probe := parseContainerDeclaredReservations(raw, 8080, "tcp")
-	if len(matches) != 1 {
-		t.Fatalf("expected one match, got %d", len(matches))
-	}
-	if matches[0]["container_name"] != "web" {
-		t.Fatalf("expected container web, got %#v", matches[0]["container_name"])
-	}
-	available, _ := probe["available"].(bool)
-	if !available {
-		t.Fatalf("expected docker probe available=true")
-	}
-}
-
-func TestParseContainerDeclaredReservationsAllDockerUnavailable(t *testing.T) {
-	all, probe := parseContainerDeclaredReservationsAll("__DOCKER_NOT_AVAILABLE__", "tcp")
-	if len(all) != 0 {
-		t.Fatalf("expected no reservations, got %d", len(all))
-	}
-	available, _ := probe["available"].(bool)
-	if available {
-		t.Fatalf("expected docker probe available=false")
-	}
-}
-
-func TestParseDockerPublishedPorts(t *testing.T) {
-	ports := parseDockerPublishedPorts("0.0.0.0:8080->80/tcp, [::]:8080->80/tcp, 0.0.0.0:5353->53/udp", "tcp")
-	if len(ports) != 1 || ports[0] != 8080 {
-		t.Fatalf("expected [8080], got %#v", ports)
-	}
-}
-
-func TestParseSSPortListenersIncludesPIDs(t *testing.T) {
-	listeners := parseSSPortListeners("LISTEN 0 4096 0.0.0.0:8080 0.0.0.0:* users:((\"nginx\",pid=123,fd=6),(\"nginx\",pid=124,fd=7))")
-	if len(listeners) != 1 {
-		t.Fatalf("expected one listener, got %d", len(listeners))
-	}
-	pids, ok := listeners[0]["pids"].([]int)
-	if !ok {
-		t.Fatalf("expected []int pids, got %#v", listeners[0]["pids"])
-	}
-	if len(pids) != 2 || pids[0] != 123 || pids[1] != 124 {
-		t.Fatalf("expected [123 124], got %#v", pids)
-	}
-}
-
-func TestParseRangePortsEdgeCases(t *testing.T) {
-	// Empty string
-	if len(parseRangePorts("")) != 0 {
-		t.Fatal("expected empty for empty input")
-	}
-
-	// Single port
-	result := parseRangePorts("8080")
-	if len(result) != 1 || result[0] != 8080 {
-		t.Fatalf("expected [8080], got %v", result)
-	}
-
-	// Normal range
-	result = parseRangePorts("100-103")
-	if len(result) != 4 || result[0] != 100 || result[3] != 103 {
-		t.Fatalf("expected [100 101 102 103], got %v", result)
-	}
-
-	// Reversed range
-	result = parseRangePorts("200-198")
-	if len(result) != 3 || result[0] != 198 || result[2] != 200 {
-		t.Fatalf("expected [198 199 200], got %v", result)
-	}
-
-	// Overlapping ranges — deduplication
-	result = parseRangePorts("80,80-82,81")
-	if len(result) != 3 || result[0] != 80 || result[2] != 82 {
-		t.Fatalf("expected [80 81 82], got %v", result)
-	}
-
-	// Range too large (>1024) is skipped
-	result = parseRangePorts("1-2000, 8080")
-	if len(result) != 1 || result[0] != 8080 {
-		t.Fatalf("expected [8080] with large range skipped, got %v", result)
-	}
-
-	// Invalid tokens are skipped
-	result = parseRangePorts("abc, 443, -")
-	if len(result) != 1 || result[0] != 443 {
-		t.Fatalf("expected [443], got %v", result)
-	}
-
-	// Out-of-range values
-	result = parseRangePorts("0, 70000, 22")
-	if len(result) != 1 || result[0] != 22 {
-		t.Fatalf("expected [22], got %v", result)
 	}
 }

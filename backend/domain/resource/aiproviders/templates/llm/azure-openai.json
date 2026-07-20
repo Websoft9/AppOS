@@ -1,11 +1,32 @@
 {
   "id": "azure-openai",
-  "title": "Azure OpenAI",
+  "title": "Azure AI Foundry",
   "vendor": "Microsoft Azure",
-  "description": "Azure-hosted OpenAI deployment with resource- and deployment-scoped endpoint settings.",
+  "uiGroup": "cloud_gateway",
+  "hostingMode": "cloud",
+  "serviceMode": "maas_platform",
+  "endpointMode": "customizable",
+  "providerMode": "gateway",
+  "supportsClosedModels": true,
+  "supportsMultiVendorModels": true,
+  "description": "Azure AI Foundry or Azure-hosted OpenAI deployment with resource- and deployment-scoped endpoint settings.",
+  "helpUrl": "https://learn.microsoft.com/azure/ai-foundry/",
   "defaultEndpoint": "https://{resource}.openai.azure.com/openai/deployments/{deployment}",
+  "defaultEnabledModels": [
+    "gpt-4o",
+    "gpt-4o-mini",
+    "o3-mini",
+    "text-embedding-3-large"
+  ],
   "capabilities": ["chat", "embeddings", "tools", "streaming"],
-  "aliases": ["azure openai", "azure-openai"],
+  "protocols": [
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "default": true
+    }
+  ],
+  "aliases": ["azure openai", "azure-openai", "azure ai foundry", "azure-ai-foundry"],
   "fields": [
     {
       "id": "endpoint",
@@ -15,6 +36,7 @@
       "id": "apiVersion",
       "label": "API Version",
       "type": "string",
+      "advanced": true,
       "placeholder": "2024-10-21"
     }
   ]

@@ -1,4 +1,5 @@
 import { useMemo, type ReactNode } from 'react'
+import { Link } from '@tanstack/react-router'
 import {
   FileCode2,
   GitBranch,
@@ -11,6 +12,7 @@ import {
   X,
 } from 'lucide-react'
 import { getLocale } from '@/lib/i18n'
+import { ActionControlDialog } from '@/pages/deploy/actions/ActionControlDialog'
 import { DeleteActionDialog } from '@/pages/deploy/actions/DeleteActionDialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -23,12 +25,7 @@ import {
 import { AppDetailModal } from '@/components/store/AppDetailModal'
 import { ActionHomeView } from '@/pages/deploy/actions/ActionHomeView'
 import { ActionListView } from '@/pages/deploy/actions/ActionListView'
-import {
-  buildActionListHref,
-  formatTime,
-  isActiveStatus,
-  statusVariant,
-} from '@/pages/deploy/actions/action-utils'
+import { formatTime, isActiveStatus, statusVariant } from '@/pages/deploy/actions/action-utils'
 import type {
   ActionListSearch,
   ActionRecord,
@@ -97,6 +94,9 @@ export function DeployPage({
     prefillReady,
     pendingDelete,
     setPendingDelete,
+    pendingActionControl,
+    setPendingActionControl,
+    actionControlSubmitting,
     handleSort,
     toggleOperationSelection,
     togglePageSelection,
@@ -114,6 +114,11 @@ export function DeployPage({
     getServerLabel,
     getServerHost,
     deleteOperations,
+    openActionControl,
+    submitActionControl,
+    canCancelAction,
+    canForceFailAction,
+    canResumeAction,
     fetchOperations,
   } = useActionsController({
     prefillMode,
@@ -142,7 +147,7 @@ export function DeployPage({
           'Paste or review docker-compose YAML. This is the recommended path for standard app stacks.',
         icon: <FileCode2 className="h-4 w-4" />,
         action: () => openManualDialog('compose'),
-        variant: 'default',
+        variant: 'outline',
       },
       {
         key: 'git-compose',
@@ -174,9 +179,6 @@ export function DeployPage({
     ],
     [openManualDialog]
   )
-
-  const operationListHref = buildActionListHref()
-
   function renderActionMenu(item: ActionRecord) {
     return (
       <DropdownMenu>
@@ -191,6 +193,24 @@ export function DeployPage({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => openOperationDetail(item.id)}>View</DropdownMenuItem>
+          {canCancelAction(item) ? (
+            <DropdownMenuItem onClick={() => openActionControl(item, 'cancel')}>
+              Cancel
+            </DropdownMenuItem>
+          ) : null}
+          {canForceFailAction(item) ? (
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={() => openActionControl(item, 'force-fail')}
+            >
+              Force Fail
+            </DropdownMenuItem>
+          ) : null}
+          {canResumeAction(item) ? (
+            <DropdownMenuItem onClick={() => openActionControl(item, 'resume')}>
+              Resume
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem
             variant="destructive"
             disabled={isActiveStatus(item.status)}
@@ -208,11 +228,11 @@ export function DeployPage({
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-2xl font-bold">
-            {view === 'list' ? 'Action History' : 'Deploy Application'}
+            {view === 'list' ? 'Activity' : 'Deploy Application'}
           </h1>
           <p className="text-sm text-muted-foreground">
             {view === 'list'
-              ? 'Browse lifecycle actions and open execution details.'
+              ? 'Browse deployment activity and open execution details.'
               : 'Choose an application source and start deployment.'}
           </p>
         </div>
@@ -230,21 +250,21 @@ export function DeployPage({
               <Button
                 variant="outline"
                 size="icon"
-                title="View actions"
-                aria-label="View actions"
+                title="View activity"
+                aria-label="View activity"
                 asChild
               >
-                <a href={operationListHref}>
+                <Link to="/activity" params={{} as never} search={{} as never}>
                   <List className="h-4 w-4" />
-                </a>
+                </Link>
               </Button>
             </>
           ) : (
             <>
               <Button size="icon" title="Deploy" aria-label="Deploy" asChild>
-                <a href="/deploy">
+                <Link to="/deploy" search={{} as never}>
                   <Plus className="h-4 w-4" />
-                </a>
+                </Link>
               </Button>
               <Button
                 variant="outline"
@@ -279,11 +299,13 @@ export function DeployPage({
         <Alert>
           <AlertDescription className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <span>
-              Showing actions scoped to app {listSearch.appId}. Search, sorting, and filters apply
+              Showing activity scoped to app {listSearch.appId}. Search, sorting, and filters apply
               within this app only.
             </span>
             <Button variant="outline" size="sm" asChild>
-              <a href="/actions">Clear App Scope</a>
+              <Link to="/activity" params={{} as never} search={{} as never}>
+                Clear App Scope
+              </Link>
             </Button>
           </AlertDescription>
         </Alert>
@@ -365,6 +387,17 @@ export function DeployPage({
         }}
         onConfirm={operations => {
           void deleteOperations(operations.map(item => item.id))
+        }}
+      />
+
+      <ActionControlDialog
+        pending={pendingActionControl}
+        busy={actionControlSubmitting}
+        onOpenChange={open => {
+          if (!open) setPendingActionControl(null)
+        }}
+        onConfirm={pending => {
+          void submitActionControl(pending)
         }}
       />
 

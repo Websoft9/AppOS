@@ -130,7 +130,7 @@ Share `POST` body: `{ "minutes": N }`. Response: `{ "share_token", "share_url", 
 Related documents:
 - `specs/implementation-artifacts/story9.1-space-core-operations.md`
 - `specs/implementation-artifacts/story9.2-space-content-operations.md`
-- `specs/implementation-artifacts/story9.3-space-sharing-and-access.md`
+- `specs/implementation-artifacts/story9.3-space-sharing-access.md`
 - `specs/implementation-artifacts/story9.4-space-lifecycle-management.md`
 
 ### Legacy Capability Mapping (for historical traceability)

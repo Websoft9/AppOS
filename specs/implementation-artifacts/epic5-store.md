@@ -25,6 +25,22 @@ Official catalog (read-only) and user data (writable) are currently separated at
 | Favorites & notes | PocketBase `store_user_apps` | User-private; unique on `(user, app_key)` |
 | Custom apps | PocketBase `store_custom_apps` | Includes compose template; supports private / shared visibility |
 
+### Official Catalog Runtime Packaging Direction
+
+The official catalog should remain file-backed for now, but it should no longer be treated as a frontend-owned asset long term.
+
+- Near-term target: backend-owned seed packaging
+- Official `catalog_{locale}.json` and `product_{locale}.json` should be embedded into the backend binary as release seed data.
+- On first start, the backend should materialize those seed files into a backend-managed runtime catalog directory and read API data from that directory.
+- The runtime directory is the operational source used by `/api/catalog/*`; the embedded seed is the bootstrap source.
+- This keeps binary deployments self-contained while removing the architectural dependency on the web static directory or nginx layout.
+
+Current constraint:
+
+- The release artifact/update pipeline is not ready to manage catalog seed version upgrades yet.
+- A `.version` marker file may be reserved in the runtime directory design, but it is explicitly a future hook and must not be treated as a required part of the current implementation.
+- Until the upgrade pipeline exists, first-start extraction and explicit overwrite rules are enough; full seed-version reconciliation remains deferred.
+
 ### Media Resources (fetched online, not pre-stored in container)
 
 | Resource | URL Pattern | Fallback |
@@ -71,11 +87,11 @@ Unique index on `(user, app_key)`. List/View rule: `@request.auth.id = user`.
 | `visibility` | Select: `private/shared` | |
 | `created_by` | Text | Auth record ID (supports users + _superusers) |
 
-### Catalog Loading Strategy: Stale-While-Revalidate
+### Catalog Loading Strategy: Backend-Owned Seed Source
 
-Serve local JSON immediately (millisecond-level), then silently fetch CDN in the background to update the cache. CDN failures are ignored. Catalog data is decoupled from software releases and always available offline.
+Official catalog data is packaged as backend seed files, embedded into the backend binary, and materialized into the runtime catalog directory by the backend source loader. Browser consumers read normalized catalog data only through `/api/catalog/*`.
 
-**Manual Sync**: "Sync Latest" button in catalog header force-fetches from CDN via `syncLatestFromCdn(locale, queryClient)`, which calls `setQueryData` + `invalidateQueries` to trigger immediate re-render.
+Developer-side seed refresh is handled by `make sync-store`, which refreshes `backend/domain/catalog/seed/*.json` before build. There is no frontend CDN fetch path in the runtime store UI.
 
 ### Backend Transition Direction
 
@@ -84,7 +100,8 @@ The frontend-first Store implementation was acceptable for the first module deli
 - `/api/catalog/categories` becomes the normalized category source
 - `/api/catalog/apps` and `/api/catalog/apps/{key}` become the canonical read model for official + visible custom apps
 - `/api/catalog/me/*` owns favorites and notes instead of exposing raw PocketBase write patterns to the browser
-- `/api/ext/catalog/sources/*` owns catalog sync and projection rebuild
+- future admin sync/rebuild endpoints may own operational refresh flows, but current runtime reads do not depend on browser-side sync
+- official catalog seed packaging and runtime extraction are backend concerns, not frontend static hosting concerns
 
 Source bundles, PocketBase collections, and IAC template files remain implementation details behind the catalog contract.
 
@@ -126,22 +143,9 @@ When **all** screenshots fail to load, the `<ScreenshotCarousel>` component retu
 
 ## Critical Gotchas
 
-### Nginx SPA Routing: Port-Stripping 301 Redirect
+### Legacy Frontend Store Directory
 
-⚠️ **Problem**: `dashboard/public/store/` directory exists in the build → when user navigates to `/store`, nginx detects a real directory and issues a 301 redirect to `/store/` (trailing slash). Because nginx listens on port 80 internally, the `Location` header omits the external port (e.g., `9091`), causing the browser to redirect to `http://161.189.202.177/store/` (port stripped).
-
-**Root Cause**: `try_files $uri $uri/ /index.html` — the `$uri/` check triggers directory detection.
-
-**Solution**: Remove `$uri/` from `try_files` for SPA routes:
-
-```nginx
-# build/nginx.conf
-location / {
-    root /usr/share/nginx/html/dashboard;
-    index index.html;
-    try_files $uri /index.html;  # ← removed $uri/
-}
-```
+The historical frontend static catalog directory is retired. Store routing no longer depends on a catalog directory in the web build output, so this epic should treat official catalog source storage as a backend packaging concern only.
 
 ---
 

@@ -1,7 +1,10 @@
 import { Link } from '@tanstack/react-router'
+import { useBranding } from '@/contexts/BrandingContext'
 import { cn } from '@/lib/utils'
 
 export function Logo({ collapsed = false }: { collapsed?: boolean }) {
+  const branding = useBranding()
+
   return (
     <Link
       to="/overview"
@@ -10,10 +13,12 @@ export function Logo({ collapsed = false }: { collapsed?: boolean }) {
         collapsed ? 'justify-center' : ''
       )}
     >
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-bold">
-        W9
-      </div>
-      {!collapsed && <span className="text-lg">AppOS</span>}
+      <img
+        src={branding.logoUrl}
+        alt={`${branding.appName} logo`}
+        className="h-8 w-8 rounded-lg object-cover"
+      />
+      {!collapsed && <span className="text-lg">{branding.wordmark}</span>}
     </Link>
   )
 }

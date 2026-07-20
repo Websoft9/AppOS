@@ -3,19 +3,24 @@ package service
 import (
 	"context"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
-	"github.com/websoft9/appos/backend/domain/deploy"
+	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	"gopkg.in/yaml.v3"
 )
 
-const defaultMinFreeDiskBytes int64 = 512 * 1024 * 1024
+const (
+	bytesPerGiB               int64   = 1024 * 1024 * 1024
+	defaultMinFreeDiskGiB     float64 = 1
+	minimumAllowedFreeDiskGiB float64 = 0.5
+	maximumAllowedFreeDiskGiB float64 = 1024
+)
 
 type InstallPreflightRequest struct {
 	InstallResolutionRequest
@@ -111,7 +116,7 @@ func CheckInstallFromCompose(app core.App, request InstallPreflightRequest, prob
 		return InstallPreflightResult{}, err
 	}
 
-	checks, warnings, err := buildInstallResourceChecks(context.Background(), app, probe, normalizedSpec.ServerID, normalizedSpec.ProjectDir, normalizedSpec.RenderedCompose, normalizedSpec.Metadata)
+	checks, warnings, err := buildInstallResourceChecks(context.Background(), app, probe, normalizedSpec.ServerID, normalizedSpec.ProjectDir, normalizedSpec.RenderedCompose, normalizedSpec.ExposureIntent, normalizedSpec.Metadata)
 	if err != nil {
 		return InstallPreflightResult{}, err
 	}
@@ -218,11 +223,12 @@ func hasActiveAppName(app core.App, composeProjectName string) (bool, error) {
 	return len(existing) > 0, nil
 }
 
-func buildInstallResourceChecks(ctx context.Context, app core.App, probe InstallPreflightProbe, serverID string, projectDir string, compose string, metadata map[string]any) (InstallPreflightChecks, []string, error) {
+func buildInstallResourceChecks(ctx context.Context, app core.App, probe InstallPreflightProbe, serverID string, projectDir string, compose string, exposureIntent *ExposureIntent, metadata map[string]any) (InstallPreflightChecks, []string, error) {
 	publishedPorts, err := extractComposePublishedPorts(compose)
 	if err != nil {
 		return InstallPreflightChecks{}, nil, err
 	}
+	publishedPorts = mergeInstallPreflightPublishedPorts(publishedPorts, exposureIntent)
 	containerNames, err := extractComposeContainerNames(compose)
 	if err != nil {
 		return InstallPreflightChecks{}, nil, err
@@ -255,6 +261,14 @@ func buildInstallResourceChecks(ctx context.Context, app core.App, probe Install
 	}
 	warnings = append(warnings, diskWarnings...)
 
+	externalNetworks, err := extractComposeExternalNetworkNames(compose)
+	if err != nil {
+		return InstallPreflightChecks{}, nil, err
+	}
+	if len(externalNetworks) > 0 {
+		warnings = append(warnings, fmt.Sprintf("External Docker networks declared by this compose will be created automatically if missing: %s", strings.Join(externalNetworks, ", ")))
+	}
+
 	return InstallPreflightChecks{
 		Compose:            InstallPreflightCheck{OK: true, Status: "ok", Message: "compose config is valid"},
 		Ports:              portsCheck,
@@ -264,14 +278,89 @@ func buildInstallResourceChecks(ctx context.Context, app core.App, probe Install
 	}, warnings, nil
 }
 
-func loadDeployMinFreeDiskBytes(app core.App) int64 {
-	fallback := settingscatalog.DefaultGroup("deploy", "preflight")
-	group, _ := sysconfig.GetGroup(app, "deploy", "preflight", fallback)
-	configured := sysconfig.Int(group, "minFreeDiskBytes", int(defaultMinFreeDiskBytes))
-	if configured < 0 {
-		return 0
+func mergeInstallPreflightPublishedPorts(composePorts []InstallPreflightPublishedPort, exposureIntent *ExposureIntent) []InstallPreflightPublishedPort {
+	if len(composePorts) == 0 && (exposureIntent == nil || strings.TrimSpace(exposureIntent.ExposureType) != "port" || exposureIntent.TargetPort <= 0) {
+		return composePorts
 	}
-	return int64(configured)
+
+	result := make([]InstallPreflightPublishedPort, 0, len(composePorts)+1)
+	seen := make(map[string]struct{}, len(composePorts)+1)
+	appendUnique := func(port InstallPreflightPublishedPort) {
+		protocol := strings.ToLower(strings.TrimSpace(port.Protocol))
+		if protocol == "" {
+			protocol = "tcp"
+		}
+		key := fmt.Sprintf("%d/%s", port.Port, protocol)
+		if _, exists := seen[key]; exists {
+			return
+		}
+		seen[key] = struct{}{}
+		result = append(result, InstallPreflightPublishedPort{Port: port.Port, Protocol: protocol})
+	}
+
+	for _, port := range composePorts {
+		appendUnique(port)
+	}
+	if exposureIntent != nil && strings.TrimSpace(exposureIntent.ExposureType) == "port" && exposureIntent.TargetPort > 0 {
+		appendUnique(InstallPreflightPublishedPort{Port: exposureIntent.TargetPort, Protocol: "tcp"})
+	}
+
+	return result
+}
+
+func loadDeployMinFreeDiskBytes(app core.App) int64 {
+	fallback := settingsschema.DefaultGroup("deploy", "preflight")
+	group, _ := sysconfig.GetGroup(app, "deploy", "preflight", fallback)
+
+	if configuredGiB, ok := parseConfiguredDiskGiB(group["minFreeDiskGiB"]); ok {
+		return diskGiBToBytes(clampDeployMinFreeDiskGiB(configuredGiB))
+	}
+
+	if legacyBytes := sysconfig.Int(group, "minFreeDiskBytes", -1); legacyBytes >= 0 {
+		legacyGiB := float64(legacyBytes) / float64(bytesPerGiB)
+		return diskGiBToBytes(clampDeployMinFreeDiskGiB(legacyGiB))
+	}
+
+	return diskGiBToBytes(defaultMinFreeDiskGiB)
+}
+
+func parseConfiguredDiskGiB(raw any) (float64, bool) {
+	switch value := raw.(type) {
+	case float64:
+		return value, true
+	case float32:
+		return float64(value), true
+	case int:
+		return float64(value), true
+	case int64:
+		return float64(value), true
+	case string:
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			return 0, false
+		}
+		parsed, err := strconv.ParseFloat(trimmed, 64)
+		if err != nil {
+			return 0, false
+		}
+		return parsed, true
+	default:
+		return 0, false
+	}
+}
+
+func clampDeployMinFreeDiskGiB(value float64) float64 {
+	if value < minimumAllowedFreeDiskGiB {
+		return minimumAllowedFreeDiskGiB
+	}
+	if value > maximumAllowedFreeDiskGiB {
+		return maximumAllowedFreeDiskGiB
+	}
+	return value
+}
+
+func diskGiBToBytes(value float64) int64 {
+	return int64(math.Round(value * float64(bytesPerGiB)))
 }
 
 func parseAppRequiredDiskBytes(metadata map[string]any) int64 {
@@ -377,6 +466,61 @@ func ExtractComposePublishedPortsForTest(raw string) ([]InstallPreflightPublishe
 	return extractComposePublishedPorts(raw)
 }
 
+func ExtractComposeExternalNetworkNamesForTest(raw string) ([]string, error) {
+	return extractComposeExternalNetworkNames(raw)
+}
+
+func extractComposeExternalNetworkNames(raw string) ([]string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, nil
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal([]byte(trimmed), &doc); err != nil {
+		return nil, fmt.Errorf("parse compose external networks: %w", err)
+	}
+	rawNetworks, ok := doc["networks"].(map[string]any)
+	if !ok || len(rawNetworks) == 0 {
+		return nil, nil
+	}
+	names := make([]string, 0, len(rawNetworks))
+	seen := map[string]struct{}{}
+	for key, value := range rawNetworks {
+		networkSpec, ok := value.(map[string]any)
+		if !ok {
+			continue
+		}
+		external := false
+		switch typed := networkSpec["external"].(type) {
+		case bool:
+			external = typed
+		case map[string]any:
+			if flag, ok := typed["external"].(bool); ok {
+				external = flag
+			} else {
+				external = true
+			}
+		}
+		if !external {
+			continue
+		}
+		name := strings.TrimSpace(fmt.Sprint(networkSpec["name"]))
+		if name == "" || name == "<nil>" {
+			name = strings.TrimSpace(key)
+		}
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
 func extractComposePortEntries(entry any) []InstallPreflightPublishedPort {
 	switch typed := entry.(type) {
 	case string:
@@ -470,7 +614,7 @@ func parseRangePorts(ranges string) []int {
 }
 
 func normalizeProjectName(value string) string {
-	return deploy.NormalizeProjectName(value)
+	return NormalizeProjectName(value)
 }
 
 func parseComposePublishedPortNumber(value any) int {

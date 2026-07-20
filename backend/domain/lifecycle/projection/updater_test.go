@@ -47,6 +47,55 @@ func TestApplyOperationSucceededForInstall(t *testing.T) {
 	if got := appRecord.GetDateTime("installed_at").String(); got == "" {
 		t.Fatal("expected installed_at to be populated")
 	}
+	if got := appRecord.GetDateTime("last_healthy_at").String(); got == "" {
+		t.Fatal("expected last_healthy_at to be populated for healthy install")
+	}
+}
+
+func TestApplyOperationSucceededPreservesDegradedHealthEvidence(t *testing.T) {
+	appRecord := newProjectionAppRecord()
+	appRecord.Set("lifecycle_state", string(model.AppStateRunningDegraded))
+	appRecord.Set("health_summary", string(model.HealthDegraded))
+	appRecord.Set("publication_summary", string(model.PublicationPublished))
+	appRecord.Set("state_reason", "probe failed")
+	operationRecord := newProjectionOperationRecord(appRecord, string(model.OperationTypeUpgrade))
+	now := time.Date(2026, time.March, 24, 11, 0, 0, 0, time.UTC)
+
+	ApplyOperationSucceeded(appRecord, operationRecord, now)
+
+	if got := appRecord.GetString("lifecycle_state"); got != string(model.AppStateRunningDegraded) {
+		t.Fatalf("expected lifecycle_state running_degraded, got %q", got)
+	}
+	if got := appRecord.GetString("health_summary"); got != string(model.HealthDegraded) {
+		t.Fatalf("expected health_summary degraded to be preserved, got %q", got)
+	}
+	if got := appRecord.GetString("state_reason"); got != "health degraded" {
+		t.Fatalf("expected state_reason rewritten from degraded evidence, got %q", got)
+	}
+	if got := appRecord.GetDateTime("last_healthy_at").String(); got != "" {
+		t.Fatalf("expected last_healthy_at to remain unset for degraded success, got %q", got)
+	}
+}
+
+func TestApplyOperationSucceededPreservesDegradedPublicationEvidence(t *testing.T) {
+	appRecord := newProjectionAppRecord()
+	appRecord.Set("lifecycle_state", string(model.AppStateRunningDegraded))
+	appRecord.Set("health_summary", string(model.HealthHealthy))
+	appRecord.Set("publication_summary", string(model.PublicationDegraded))
+	appRecord.Set("state_reason", "old failure")
+	operationRecord := newProjectionOperationRecord(appRecord, string(model.OperationTypeRedeploy))
+
+	ApplyOperationSucceeded(appRecord, operationRecord, time.Time{})
+
+	if got := appRecord.GetString("lifecycle_state"); got != string(model.AppStateRunningDegraded) {
+		t.Fatalf("expected lifecycle_state running_degraded, got %q", got)
+	}
+	if got := appRecord.GetString("publication_summary"); got != string(model.PublicationDegraded) {
+		t.Fatalf("expected publication_summary degraded to be preserved, got %q", got)
+	}
+	if got := appRecord.GetString("state_reason"); got != "publication degraded" {
+		t.Fatalf("expected state_reason publication degraded, got %q", got)
+	}
 }
 
 func TestApplyOperationFailedMarksAttentionRequired(t *testing.T) {
@@ -71,6 +120,51 @@ func TestApplyOperationFailedMarksAttentionRequired(t *testing.T) {
 	}
 	if got := appRecord.GetString("health_summary"); got != string(model.HealthHealthy) {
 		t.Fatalf("expected health_summary to remain healthy, got %q", got)
+	}
+}
+
+func TestApplyOperationSucceededForUninstall(t *testing.T) {
+	appRecord := newProjectionAppRecord()
+	appRecord.Set("current_release", "rel-1")
+	appRecord.Set("primary_exposure", "exp-1")
+	operationRecord := newProjectionOperationRecord(appRecord, string(model.OperationTypeUninstall))
+	now := time.Date(2026, time.March, 25, 8, 30, 0, 0, time.UTC)
+
+	ApplyOperationSucceeded(appRecord, operationRecord, now)
+
+	if got := appRecord.GetString("lifecycle_state"); got != string(model.AppStateRetired) {
+		t.Fatalf("expected lifecycle_state retired, got %q", got)
+	}
+	if got := appRecord.GetString("health_summary"); got != string(model.HealthStopped) {
+		t.Fatalf("expected health_summary stopped, got %q", got)
+	}
+	if got := appRecord.GetString("current_release"); got != "" {
+		t.Fatalf("expected current_release cleared, got %q", got)
+	}
+	if got := appRecord.GetString("primary_exposure"); got != "" {
+		t.Fatalf("expected primary_exposure cleared, got %q", got)
+	}
+	if got := appRecord.GetDateTime("retired_at").String(); got == "" {
+		t.Fatal("expected retired_at to be populated")
+	}
+}
+
+func TestApplyOperationCancelledFirstInstallReturnsRegistered(t *testing.T) {
+	appRecord := newProjectionAppRecord()
+	appRecord.Set("lifecycle_state", string(model.AppStateInstalling))
+	appRecord.Set("health_summary", "")
+	operationRecord := newProjectionOperationRecord(appRecord, string(model.OperationTypeInstall))
+
+	ApplyOperationCancelled(appRecord, operationRecord)
+
+	if got := appRecord.GetString("lifecycle_state"); got != string(model.AppStateRegistered) {
+		t.Fatalf("expected lifecycle_state registered, got %q", got)
+	}
+	if got := appRecord.GetString("health_summary"); got != string(model.HealthUnknown) {
+		t.Fatalf("expected health_summary unknown, got %q", got)
+	}
+	if got := appRecord.GetString("state_reason"); got != "operation cancelled" {
+		t.Fatalf("expected state_reason operation cancelled, got %q", got)
 	}
 }
 
@@ -133,7 +227,7 @@ func newProjectionOperationRecord(appRecord *core.Record, operationType string) 
 	record.Set("app", appRecord.Id)
 	record.Set("server_id", appRecord.GetString("server_id"))
 	record.Set("operation_type", operationType)
-	record.Set("trigger_source", string(model.TriggerSourceManualOps))
+	record.Set("trigger", string(model.TriggerManual))
 	record.Set("phase", string(model.OperationPhaseQueued))
 	record.Set("queued_at", time.Now())
 

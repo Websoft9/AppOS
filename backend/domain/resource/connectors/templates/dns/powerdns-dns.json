@@ -1,0 +1,8 @@
+{
+  "id": "powerdns-dns",
+  "title": "PowerDNS",
+  "vendor": "PowerDNS",
+  "description": "PowerDNS API profile.",
+  "defaultEndpoint": "https://api.powerdns.example.com",
+  "aliases": ["powerdns", "powerdns-dns"]
+}

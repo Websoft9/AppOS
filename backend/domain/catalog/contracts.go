@@ -21,6 +21,8 @@ type AppSummary struct {
 	Title               string                 `json:"title"`
 	Overview            string                 `json:"overview"`
 	IconURL             string                 `json:"iconUrl,omitempty"`
+	Hot                 int                    `json:"-"`
+	PrimaryCategoryKeys []string               `json:"-"`
 	Source              string                 `json:"source"`
 	Visibility          string                 `json:"visibility"`
 	PrimaryCategory     *CategoryRef           `json:"primaryCategory,omitempty"`
@@ -118,6 +120,10 @@ type PersonalizationDetail struct {
 	Note       *string `json:"note"`
 }
 
+type InstalledAppSummary struct {
+	Count int `json:"count"`
+}
+
 type AuditDetail struct {
 	CreatedAt *string `json:"createdAt"`
 	UpdatedAt *string `json:"updatedAt"`
@@ -137,6 +143,7 @@ type AppDetailResponse struct {
 	Template        TemplateDetail        `json:"template"`
 	Deploy          DeployDetail          `json:"deploy"`
 	Personalization PersonalizationDetail `json:"personalization"`
+	Installed       *InstalledAppSummary  `json:"installed,omitempty"`
 	Audit           AuditDetail           `json:"audit"`
 }
 
@@ -178,6 +185,34 @@ type PersonalizationListResponse struct {
 	Items []PersonalizationRecord `json:"items"`
 }
 
+type CustomAppRecord struct {
+	ID           string   `json:"id"`
+	Key          string   `json:"key"`
+	Trademark    string   `json:"trademark"`
+	LogoURL      *string  `json:"logo_url"`
+	Overview     string   `json:"overview"`
+	Description  *string  `json:"description"`
+	CategoryKeys []string `json:"category_keys"`
+	ComposeYAML  string   `json:"compose_yaml"`
+	EnvText      *string  `json:"env_text"`
+	Visibility   string   `json:"visibility"`
+	CreatedBy    string   `json:"created_by"`
+	Created      string   `json:"created"`
+	Updated      string   `json:"updated"`
+}
+
+type CustomAppUpsert struct {
+	Key          string
+	Trademark    string
+	LogoURL      *string
+	Overview     string
+	Description  *string
+	CategoryKeys []string
+	ComposeYAML  string
+	EnvText      *string
+	Visibility   string
+}
+
 type Query struct {
 	Locale            string
 	PrimaryCategory   string
@@ -188,4 +223,53 @@ type Query struct {
 	Favorite          *bool
 	Limit             int
 	Offset            int
+}
+
+type AdminSourceFileStatus struct {
+	Name       string `json:"name"`
+	Path       string `json:"path"`
+	Exists     bool   `json:"exists"`
+	SizeBytes  int64  `json:"sizeBytes,omitempty"`
+	ModifiedAt string `json:"modifiedAt,omitempty"`
+}
+
+type AdminLocaleStatus struct {
+	Locale        string `json:"locale"`
+	CategoryCount int    `json:"categoryCount"`
+	ProductCount  int    `json:"productCount"`
+	SourceVersion string `json:"sourceVersion,omitempty"`
+}
+
+type AdminSyncCapability struct {
+	Available bool    `json:"available"`
+	Reason    *string `json:"reason,omitempty"`
+}
+
+type AdminVersionMarkerStatus struct {
+	Path   string `json:"path"`
+	Exists bool   `json:"exists"`
+}
+
+type AdminStatusResponse struct {
+	RuntimeDir     string                   `json:"runtimeDir"`
+	Files          []AdminSourceFileStatus  `json:"files"`
+	Locales        []AdminLocaleStatus      `json:"locales"`
+	VersionMarker  AdminVersionMarkerStatus `json:"versionMarker"`
+	SyncCapability AdminSyncCapability      `json:"syncCapability"`
+}
+
+type AdminReindexResponse struct {
+	Ok         bool                `json:"ok"`
+	RuntimeDir string              `json:"runtimeDir"`
+	Locales    []AdminLocaleStatus `json:"locales"`
+}
+
+type AdminRawCategoriesResponse struct {
+	Items []SourceCategory `json:"items"`
+	Meta  ResponseMeta     `json:"meta"`
+}
+
+type AdminRawAppResponse struct {
+	Item SourceProduct `json:"item"`
+	Meta ResponseMeta  `json:"meta"`
 }

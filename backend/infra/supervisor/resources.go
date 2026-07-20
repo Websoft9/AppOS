@@ -1,24 +1,38 @@
 package supervisor
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
+	"syscall"
 	"time"
 )
 
 // ResourceInfo holds CPU and memory usage for a process.
 type ResourceInfo struct {
 	PID    int     `json:"pid"`
-	CPU    float64 `json:"cpu"`    // percentage (two-sample delta over 200ms)
+	CPU    float64 `json:"cpu"`    // percentage (two-sample delta over 5s)
 	Memory int64   `json:"memory"` // RSS in bytes
 }
 
+const cpuSamplingWindow = 5 * time.Second
+
+var (
+	clockTicksPerSecondOnce sync.Once
+	clockTicksPerSecond     float64 = 100
+)
+
+func CPUSamplingWindow() time.Duration {
+	return cpuSamplingWindow
+}
+
 // GetProcessResources returns CPU (two-sample) and RSS memory for given PIDs.
-// Uses BusyBox-compatible ps for memory, /proc for CPU.
+// Uses /proc for both CPU and memory collection.
 func GetProcessResources(pids []int) map[int]ResourceInfo {
 	result := make(map[int]ResourceInfo)
 	if len(pids) == 0 {
@@ -26,12 +40,7 @@ func GetProcessResources(pids []int) map[int]ResourceInfo {
 	}
 
 	// Build lookup set
-	pidSet := make(map[int]bool, len(pids))
-	for _, pid := range pids {
-		if pid > 0 {
-			pidSet[pid] = true
-		}
-	}
+	pidSet := buildPIDSet(pids)
 	if len(pidSet) == 0 {
 		return result
 	}
@@ -44,7 +53,7 @@ func GetProcessResources(pids []int) map[int]ResourceInfo {
 	}
 	sysTicks1 := readSystemTicks()
 
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(cpuSamplingWindow)
 
 	// Sample 2
 	procTicks2 := make(map[int]float64, len(pidSet))
@@ -56,7 +65,7 @@ func GetProcessResources(pids []int) map[int]ResourceInfo {
 	deltaSys := sysTicks2 - sysTicks1
 	numCPU := float64(runtime.NumCPU())
 
-	// ── Memory: from ps ─────────────────────────────────
+	// ── Memory: from /proc ──────────────────────────────
 	rssMap := readRSSMap(pidSet)
 
 	// ── Combine results ─────────────────────────────────
@@ -83,6 +92,32 @@ func GetProcessResources(pids []int) map[int]ResourceInfo {
 	return result
 }
 
+func GetProcessMemory(pids []int) map[int]int64 {
+	pidSet := buildPIDSet(pids)
+	if len(pidSet) == 0 {
+		return map[int]int64{}
+	}
+	return readRSSMap(pidSet)
+}
+
+func GetProcessUptime(pids []int) map[int]int64 {
+	pidSet := buildPIDSet(pids)
+	if len(pidSet) == 0 {
+		return map[int]int64{}
+	}
+	return readUptimeMap(pidSet)
+}
+
+func buildPIDSet(pids []int) map[int]bool {
+	pidSet := make(map[int]bool, len(pids))
+	for _, pid := range pids {
+		if pid > 0 {
+			pidSet[pid] = true
+		}
+	}
+	return pidSet
+}
+
 // readProcTicks reads utime + stime from /proc/<pid>/stat.
 func readProcTicks(pid int) float64 {
 	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
@@ -102,6 +137,25 @@ func readProcTicks(pid int) float64 {
 	utime, _ := strconv.ParseFloat(fields[11], 64)
 	stime, _ := strconv.ParseFloat(fields[12], 64)
 	return utime + stime
+}
+
+func readProcStartTicks(pid int) float64 {
+	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
+	if err != nil {
+		return 0
+	}
+	s := string(data)
+	idx := strings.LastIndex(s, ")")
+	if idx < 0 || idx+2 >= len(s) {
+		return 0
+	}
+	fields := strings.Fields(s[idx+2:])
+	// fields[19] is starttime after the comm/state prefix is removed.
+	if len(fields) < 20 {
+		return 0
+	}
+	startTicks, _ := strconv.ParseFloat(fields[19], 64)
+	return startTicks
 }
 
 // readSystemTicks reads the total CPU ticks from /proc/stat (first "cpu" line).
@@ -127,50 +181,104 @@ func readSystemTicks() float64 {
 	return total
 }
 
-// readRSSMap returns RSS (in bytes) for each PID using BusyBox-compatible ps.
+// readRSSMap returns RSS (in bytes) for each PID via /proc.
 func readRSSMap(pidSet map[int]bool) map[int]int64 {
 	rss := make(map[int]int64)
-	out, err := exec.Command("ps", "-o", "pid,rss").Output()
-	if err != nil {
-		return rss
-	}
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-		pid, err := strconv.Atoi(fields[0])
-		if err != nil || !pidSet[pid] {
-			continue
-		}
-		rss[pid] = parseRSS(fields[1])
+	for pid := range pidSet {
+		rss[pid] = readProcRSS(pid)
 	}
 	return rss
 }
 
-// parseRSS handles BusyBox ps RSS output which may have suffixes like "25m".
-func parseRSS(s string) int64 {
-	s = strings.TrimSpace(s)
-	if s == "" {
+func readProcRSS(pid int) int64 {
+	status, err := os.ReadFile(fmt.Sprintf("/proc/%d/status", pid))
+	if err == nil {
+		for _, line := range strings.Split(string(status), "\n") {
+			if !strings.HasPrefix(line, "VmRSS:") {
+				continue
+			}
+			fields := strings.Fields(line)
+			if len(fields) < 2 {
+				return 0
+			}
+			value, err := strconv.ParseInt(fields[1], 10, 64)
+			if err != nil {
+				return 0
+			}
+			return value * 1024
+		}
+	}
+
+	statm, err := os.ReadFile(fmt.Sprintf("/proc/%d/statm", pid))
+	if err != nil {
 		return 0
 	}
-	// BusyBox may report "25m" (megabytes) or plain KB number
-	multiplier := int64(1024) // default: value in KB → bytes
-	lower := strings.ToLower(s)
-	if strings.HasSuffix(lower, "m") {
-		s = s[:len(s)-1]
-		multiplier = 1024 * 1024 // megabytes → bytes
-	} else if strings.HasSuffix(lower, "g") {
-		s = s[:len(s)-1]
-		multiplier = 1024 * 1024 * 1024
-	} else if strings.HasSuffix(lower, "k") {
-		s = s[:len(s)-1]
-		multiplier = 1024
+	fields := strings.Fields(string(statm))
+	if len(fields) < 2 {
+		return 0
 	}
-	val, _ := strconv.ParseInt(s, 10, 64)
-	return val * multiplier
+	pages, err := strconv.ParseInt(fields[1], 10, 64)
+	if err != nil {
+		return 0
+	}
+	return pages * int64(os.Getpagesize())
+}
+
+func readUptimeMap(pidSet map[int]bool) map[int]int64 {
+	result := make(map[int]int64, len(pidSet))
+	systemUptime := readSystemUptimeSeconds()
+	clockTicks := readClockTicksPerSecond()
+	if systemUptime <= 0 || clockTicks <= 0 {
+		return result
+	}
+	for pid := range pidSet {
+		startTicks := readProcStartTicks(pid)
+		if startTicks <= 0 {
+			continue
+		}
+		uptime := int64(systemUptime - (startTicks / clockTicks))
+		if uptime < 0 {
+			uptime = 0
+		}
+		result[pid] = uptime
+	}
+	return result
+}
+
+func readSystemUptimeSeconds() float64 {
+	var info syscall.Sysinfo_t
+	if err := syscall.Sysinfo(&info); err == nil && info.Uptime > 0 {
+		return float64(info.Uptime)
+	}
+	file, err := os.Open("/proc/uptime")
+	if err != nil {
+		return 0
+	}
+	defer file.Close()
+	reader := bufio.NewReader(file)
+	line, err := reader.ReadString('\n')
+	if err != nil && len(line) == 0 {
+		return 0
+	}
+	fields := strings.Fields(line)
+	if len(fields) == 0 {
+		return 0
+	}
+	value, _ := strconv.ParseFloat(fields[0], 64)
+	return value
+}
+
+func readClockTicksPerSecond() float64 {
+	clockTicksPerSecondOnce.Do(func() {
+		output, err := exec.Command("getconf", "CLK_TCK").Output()
+		if err != nil {
+			return
+		}
+		value, err := strconv.ParseFloat(strings.TrimSpace(string(output)), 64)
+		if err != nil || value <= 0 {
+			return
+		}
+		clockTicksPerSecond = value
+	})
+	return clockTicksPerSecond
 }

@@ -4,7 +4,9 @@
 
 ## Overview
 
-Provides the generic, resource-agnostic Terminal UI framework. This epic owns the shared connector abstraction, the multi-tab connection workspace layout, and the embeddable `<TerminalPanel>` component. It does **not** implement any specific resource type — those live in their own epics (Epic 20 for Servers, future epics for databases, cloud, etc.).
+Provides the Terminal workspace framework. This epic owns the shared session abstraction, the multi-tab workspace layout, and the embeddable `<TerminalPanel>` component used by interactive workspaces.
+
+Terminal currently centers on **Server Workbench**. Inside a server workspace, `Shell (SSH)` and `Files (SFTP)` are two operation surfaces of the same server context, not separate top-level products. A future **Sandbox** workspace may consume the same framework, but it is a sibling workspace, not a capability mixed into Server Workbench.
 
 ---
 
@@ -12,24 +14,27 @@ Provides the generic, resource-agnostic Terminal UI framework. This epic owns th
 
 | In scope | Out of scope |
 |----------|-------------|
-| Connector / Session interfaces | SSH, SFTP, Docker Exec implementations (→ Epic 20) |
+| Session / connector interfaces | SSH, SFTP, Docker Exec implementations (→ Epic 20) |
 | ConnectError classification system | Resource-specific error handling |
-| Connect page layout & routing | Server-specific side panels |
+| Terminal workspace layout & routing | Server-specific side panels |
 | `<TerminalPanel>` generic component | Server Registry, Server Ops APIs |
-| UX conventions (establish, disconnect, split, breadcrumb) | Shared settings delivery (→ Epic 13 Settings Module) |
+| UX conventions (establish, resume, disconnect, split, breadcrumb) | Database consoles, cloud management, API explorers |
+| Workspace model: Server Workbench now, Sandbox later | SSH and SFTP as separate top-level entry points |
 
 ---
 
 ## Architecture
 
 ```
-Resource Store (any collection: servers, databases, …)
+Workspace Type (server today, sandbox later)
         ↓
 Connector Interface  (backend/domain/servers/)
         ↓
-WebSocket / REST  (PocketBase custom route, resource-scoped)
+WebSocket / REST  (PocketBase custom route, workspace-scoped)
         ↓
-<TerminalPanel>  (generic React component, resource-agnostic)
+Terminal Workspace UI
+  ├─ Shell surface
+  └─ Files surface (when supported)
 ```
 
 ### Connector Interface
@@ -90,26 +95,52 @@ REST connectivity responses include `"category"` and `"reason"` fields when `"st
 ### Routing
 
 ```
-/terminal                              → Terminal index (resource hub)
+/terminal                              → Server Workbench landing page
 /terminal/server/:serverId             → server workspace (Epic 20)
 ```
 
 > Sidebar menu item: **Terminal** (`/terminal`), icon `TerminalSquare`.
 
-### Terminal Index Page
+If Sandbox is shipped later, the navigation may become:
+
+```text
+Terminal
+├─ Server Workbench
+└─ Sandbox
+```
+
+Until then, `/terminal` is the Server Workbench landing page.
+
+### Server Workbench Landing Page
 
 Two-zone layout: top header + bottom split.
 
 ```
 ┌──────────────────────────────────────────────┐
-│ Terminal                                     │  ← header (border-b)
-│ Connecting your remote resources at one place│
+│ Server Workbench                             │  ← header (border-b)
+│ Open, resume, and manage server workspaces   │
 ├────────┬─────────────────────────────────────┤
 │[icons] │                                     │  ← collapsible nav + content
-│Overview│  Overview / Servers / Cloud /       │
-│Servers │  Databases / APIs panel             │
-│Cloud…  │                                     │
+│Overview│  Recent / Active + Available Servers│
+│Servers │                                     │
 └────────┴─────────────────────────────────────┘
+```
+
+Minimal layout reference:
+
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│ Server Workbench                                                   │
+│ Open, resume, and manage server workspaces                         │
+├─────────────────────────────────────────────────────────────────────┤
+│ [ Open Workbench ] [ Resume Latest ] [ Browse Servers ] [ Add ]    │
+├───────────────────────┬─────────────────────────────────────────────┤
+│ Active Workspaces     │ Available Servers                           │
+│                       │                                             │
+│ srv-1                 │ srv-2                                       │
+│ Live / Detached       │ host: 10.0.0.2                              │
+│ Resume / Exit         │ Open Workbench                              │
+└───────────────────────┴─────────────────────────────────────────────┘
 ```
 
 **Left nav** (collapsible vertical tab bar):
@@ -122,15 +153,30 @@ Two-zone layout: top header + bottom split.
 
 | Tab | Status | Notes |
 |-----|--------|-------|
-| Overview | ✅ | Capability cards + Connected Resources list |
+| Overview | ✅ | Recent or active workspaces + entry actions |
 | Servers | ✅ | Active Sessions + Available Servers |
-| Cloud | 🔜 Coming Soon | |
-| Databases | 🔜 Coming Soon | |
-| APIs | 🔜 Coming Soon | |
 
-**Overview panel**: capability cards (click Servers card → navigates to Servers tab) + list of resources with an active session.
+**Overview panel**: recent or active workspaces + primary actions such as Resume, Open Workbench, and Add Server.
 
 **Servers panel**: Active Sessions section (from `loadConnectSession()`) + Available Servers section with Add Server shortcut. Connecting triggers a 2-second minimum feedback dialog.
+
+**Server workspace rule**: `Shell (SSH)` and `Files (SFTP)` belong inside the same server workspace. They are not separate top-level Terminal categories.
+
+Server workspace layout:
+
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│ Server Workspace: srv-1                                             │
+├─────────────────────────────────────────────────────────────────────┤
+│ [ Shell ] [ Files ] [ Split ] [ Reconnect ] [ Exit ]               │
+├───────────────────────────────┬─────────────────────────────────────┤
+│ Shell (SSH)                   │ Files (SFTP)                        │
+│                               │                                     │
+│ full-width or split layout    │ optional side panel                 │
+└───────────────────────────────┴─────────────────────────────────────┘
+```
+
+**Sandbox note**: a future sandbox shell may appear as a sibling Terminal workspace, not as another tab inside Server Workbench.
 
 ### UX Conventions
 
@@ -148,7 +194,7 @@ Replace disconnect action with a 2-second "Safely disconnecting…" phase before
 
 ### `<TerminalPanel>` Component
 
-Embeddable, resource-agnostic terminal component. Each resource epic supplies the WebSocket URL.
+Embeddable terminal component for interactive workspaces. Each consuming epic supplies the WebSocket URL.
 
 ```
 dashboard/src/components/connect/TerminalPanel.tsx
@@ -184,7 +230,7 @@ Local browser preferences such as font size and scrollback remain preferences, n
 ```
 dashboard/src/
   routes/_app/_auth/_superuser/
-    terminal.index.tsx                     # /terminal – resource hub
+    terminal.index.tsx                     # /terminal – Server Workbench landing page
     terminal.server.$serverId.tsx          # /terminal/server/:id
   pages/terminal/
     TerminalIndexPage.tsx                  # Terminal index page component
@@ -209,8 +255,8 @@ Post-MVP: session recording/playback, JIT access approval, MFA on connect.
 
 | Role | Terminal access |
 |------|----------------|
-| Superuser | All resources |
-| Member | Phase 2 (per-resource grants) |
+| Superuser | All terminal workspaces |
+| Member | Phase 2 (per-workspace grants) |
 
 ---
 
@@ -221,7 +267,10 @@ Post-MVP: session recording/playback, JIT access approval, MFA on connect.
 - WinRM / RDP (→ deploy Guacamole via app store)
 - Session recording/playback, JIT access, MFA
 - Member-level resource access control (Phase 2)
-- Database / cloud resource connectors (future epics)
+- Database consoles
+- Cloud resource management
+- API explorer / generic remote tooling hub
+- SSH and SFTP as separate landing pages
 
 ---
 
@@ -230,5 +279,6 @@ Post-MVP: session recording/playback, JIT access approval, MFA on connect.
 | Story | Title | Status |
 |-------|-------|--------|
 | 15.1 | Terminal UI | ✅ Complete |
+| 15.2 | Terminal Session Resume | Draft |
 
 All resource-specific stories are tracked in their respective resource epics (e.g. Epic 20 for Servers).

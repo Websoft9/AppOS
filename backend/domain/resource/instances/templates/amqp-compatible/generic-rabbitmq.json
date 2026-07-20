@@ -1,0 +1,6 @@
+{
+  "id": "generic-rabbitmq",
+  "title": "Generic RabbitMQ",
+  "description": "AMQP-compatible message broker instance.",
+  "defaultEndpoint": "amqp://rabbitmq.yourhost.com:5672"
+}

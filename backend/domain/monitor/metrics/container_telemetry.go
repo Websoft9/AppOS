@@ -3,17 +3,16 @@ package metrics
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"os"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	monitortsdb "github.com/websoft9/appos/backend/domain/monitor/metrics/tsdb"
+	"github.com/websoft9/appos/backend/domain/runtimecfg"
 )
 
-type containerTelemetryQueryOverrideFunc func(context.Context, string, []string, string) (*ContainerTelemetryResponse, error)
+type containerTelemetryQueryOverrideFunc func(context.Context, string, []ContainerTelemetryTarget, string) (*ContainerTelemetryResponse, error)
 
 var (
 	containerTelemetryQueryOverrideMu sync.RWMutex
@@ -32,7 +31,7 @@ func SetContainerTelemetryQueryFuncForTest(fn containerTelemetryQueryOverrideFun
 	}
 }
 
-func QueryContainerTelemetry(ctx context.Context, serverID string, containerIDs []string, window string) (*ContainerTelemetryResponse, error) {
+func QueryContainerTelemetry(ctx context.Context, serverID string, targets []ContainerTelemetryTarget, window string) (*ContainerTelemetryResponse, error) {
 	serverID = strings.TrimSpace(serverID)
 	window = strings.TrimSpace(window)
 	if serverID == "" {
@@ -45,50 +44,58 @@ func QueryContainerTelemetry(ctx context.Context, serverID string, containerIDs 
 	override := containerTelemetryQueryOverride
 	containerTelemetryQueryOverrideMu.RUnlock()
 	if override != nil {
-		return override(ctx, serverID, containerIDs, window)
+		return override(ctx, serverID, targets, window)
 	}
-	return queryContainerTelemetryVM(ctx, serverID, containerIDs, window)
+	return queryContainerTelemetryVM(ctx, serverID, targets, window)
 }
 
-func queryContainerTelemetryVM(ctx context.Context, serverID string, containerIDs []string, window string) (*ContainerTelemetryResponse, error) {
+func queryContainerTelemetryVM(ctx context.Context, serverID string, targets []ContainerTelemetryTarget, window string) (*ContainerTelemetryResponse, error) {
 	windowSpec, err := resolveMetricSeriesWindow(window, MetricSeriesQueryOptions{}, time.Now().UTC())
 	if err != nil {
 		return nil, err
 	}
-	requestedIDs := normalizeContainerIDs(containerIDs)
+	requestedTargets := normalizeContainerTelemetryTargets(targets)
 	response := &ContainerTelemetryResponse{
 		ServerID:     serverID,
 		Window:       windowSpec.Label,
 		RangeStartAt: windowSpec.Start.Format(time.RFC3339),
 		RangeEndAt:   windowSpec.End.Format(time.RFC3339),
 		StepSeconds:  int(windowSpec.Step.Seconds()),
-		Items:        make([]ContainerTelemetryItem, 0, max(1, len(requestedIDs))),
+		Items:        make([]ContainerTelemetryItem, 0, max(1, len(requestedTargets))),
 	}
-	itemsByID := make(map[string]*ContainerTelemetryItem, len(requestedIDs))
-	for _, containerID := range requestedIDs {
+	itemsByID := make(map[string]*ContainerTelemetryItem, len(requestedTargets))
+	itemsByAlias := make(map[string]*ContainerTelemetryItem, max(1, len(requestedTargets)))
+	for _, target := range requestedTargets {
 		item := &ContainerTelemetryItem{
-			ContainerID: containerID,
-			Freshness:   ContainerTelemetryFreshness{State: "missing"},
+			ContainerID:   target.ID,
+			ContainerName: target.Name,
+			Freshness:     ContainerTelemetryFreshness{State: "missing"},
 		}
-		itemsByID[containerID] = item
+		itemsByID[target.ID] = item
+		for _, alias := range containerTelemetryTargetAliases(target) {
+			itemsByAlias[alias] = item
+		}
 	}
-	baseURL := strings.TrimSpace(os.Getenv(EnvVictoriaMetricsURL))
+	baseURL := strings.TrimSpace(runtimecfg.TSDBURL())
 	if baseURL == "" {
 		response.Items = flattenContainerTelemetryItems(itemsByID)
 		return response, nil
 	}
-	service := monitortsdb.NewService(&http.Client{Timeout: 5 * time.Second}, baseURL)
-	selector := buildContainerTelemetrySelector(serverID, requestedIDs)
+	service := monitortsdb.NewService(metricsHTTPClient, baseURL)
+	selector := buildContainerTelemetrySelector(serverID, containerTelemetryTargetNames(requestedTargets))
 	queries := []struct {
 		name    string
 		unit    string
 		series  string
 		segment string
 	}{
-		{name: "cpu", unit: "percent", series: "appos_container_cpu_usage"},
-		{name: "memory", unit: "bytes", series: "appos_container_memory_bytes"},
+		{name: "cpu", unit: "percent", series: "appos_container_cpu_usage_percent"},
+		{name: "memory", unit: "bytes", series: "appos_container_memory_usage_bytes", segment: "usage"},
+		{name: "memory", unit: "bytes", series: "appos_container_memory_limit_bytes", segment: "limit"},
 		{name: "network", unit: "bytes/s", series: "appos_container_network_receive_bytes_per_second", segment: "in"},
 		{name: "network", unit: "bytes/s", series: "appos_container_network_transmit_bytes_per_second", segment: "out"},
+		{name: "block", unit: "bytes/s", series: "appos_container_block_read_bytes_per_second", segment: "read"},
+		{name: "block", unit: "bytes/s", series: "appos_container_block_write_bytes_per_second", segment: "write"},
 	}
 	for _, query := range queries {
 		matrix, err := service.ExecuteQueryRangeMatrix(
@@ -102,39 +109,53 @@ func queryContainerTelemetryVM(ctx context.Context, serverID string, containerID
 			return nil, err
 		}
 		for _, series := range matrix {
-			containerID := strings.TrimSpace(series.Metric["container_id"])
+			containerID := normalizeContainerTelemetryAlias(series.Metric["container_id"])
 			if containerID == "" {
 				continue
 			}
-			item := itemsByID[containerID]
+			item := resolveContainerTelemetryItem(itemsByID, itemsByAlias, containerID, series.Metric)
 			if item == nil {
 				item = &ContainerTelemetryItem{
 					ContainerID: containerID,
 					Freshness:   ContainerTelemetryFreshness{State: "missing"},
 				}
 				itemsByID[containerID] = item
+				itemsByAlias[containerID] = item
 			}
+			if item.ContainerID == "" {
+				item.ContainerID = containerID
+			}
+			itemsByAlias[containerID] = item
 			if item.ContainerName == "" {
-				item.ContainerName = strings.TrimSpace(series.Metric["container_name"])
+				item.ContainerName = normalizeContainerTelemetryName(series.Metric["container_name"])
+				if item.ContainerName != "" {
+					itemsByAlias[item.ContainerName] = item
+				}
 			}
 			if item.ComposeProject == "" {
-				item.ComposeProject = strings.TrimSpace(series.Metric["compose_project"])
+				item.ComposeProject = firstNonEmptyMetricLabel(series.Metric, "compose_project", "com_docker_compose_project", "com.docker.compose.project")
 			}
 			if item.ComposeService == "" {
-				item.ComposeService = strings.TrimSpace(series.Metric["compose_service"])
+				item.ComposeService = firstNonEmptyMetricLabel(series.Metric, "compose_service", "com_docker_compose_service", "com.docker.compose.service")
 			}
 			seriesPoints := cloneMetricPoints(series.Values)
 			latestValue, observedAt, hasLatest := latestMetricPoint(seriesPoints)
 			if hasLatest {
 				switch query.series {
-				case "appos_container_cpu_usage":
+				case "appos_container_cpu_usage_percent":
 					item.Latest.CPUPercent = &latestValue
-				case "appos_container_memory_bytes":
-					item.Latest.MemoryBytes = &latestValue
+				case "appos_container_memory_usage_bytes":
+					item.Latest.MemoryUsageBytes = &latestValue
+				case "appos_container_memory_limit_bytes":
+					item.Latest.MemoryLimitBytes = &latestValue
 				case "appos_container_network_receive_bytes_per_second":
 					item.Latest.NetworkRxBytesPerSecond = &latestValue
 				case "appos_container_network_transmit_bytes_per_second":
 					item.Latest.NetworkTxBytesPerSecond = &latestValue
+				case "appos_container_block_read_bytes_per_second":
+					item.Latest.BlockReadBytesPerSecond = &latestValue
+				case "appos_container_block_write_bytes_per_second":
+					item.Latest.BlockWriteBytesPerSecond = &latestValue
 				}
 				mergeTelemetryFreshness(item, observedAt, windowSpec.End, windowSpec.Step)
 			}
@@ -150,24 +171,85 @@ func queryContainerTelemetryVM(ctx context.Context, serverID string, containerID
 	return response, nil
 }
 
-func normalizeContainerIDs(values []string) []string {
-	seen := map[string]struct{}{}
-	normalized := make([]string, 0, len(values))
-	for _, value := range values {
-		for _, part := range strings.Split(value, ",") {
-			part = strings.TrimSpace(part)
-			if part == "" {
-				continue
+func resolveContainerTelemetryItem(itemsByID map[string]*ContainerTelemetryItem, itemsByAlias map[string]*ContainerTelemetryItem, containerID string, metric map[string]string) *ContainerTelemetryItem {
+	if item := itemsByAlias[containerID]; item != nil {
+		return item
+	}
+	containerName := normalizeContainerTelemetryName(metric["container_name"])
+	if containerName != "" {
+		if item := itemsByAlias[containerName]; item != nil {
+			if strings.TrimSpace(item.ContainerID) == "" {
+				item.ContainerID = containerID
 			}
-			if _, ok := seen[part]; ok {
-				continue
-			}
-			seen[part] = struct{}{}
-			normalized = append(normalized, part)
+			itemsByID[containerID] = item
+			return item
 		}
 	}
-	sort.Strings(normalized)
+	return nil
+}
+
+func firstNonEmptyMetricLabel(metric map[string]string, keys ...string) string {
+	for _, key := range keys {
+		if value := strings.TrimSpace(metric[key]); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func normalizeContainerTelemetryTargets(values []ContainerTelemetryTarget) []ContainerTelemetryTarget {
+	seen := map[string]struct{}{}
+	normalized := make([]ContainerTelemetryTarget, 0, len(values))
+	for _, value := range values {
+		for _, idPart := range strings.Split(value.ID, ",") {
+			idPart = strings.TrimSpace(idPart)
+			if idPart == "" {
+				continue
+			}
+			if _, ok := seen[idPart]; ok {
+				continue
+			}
+			seen[idPart] = struct{}{}
+			normalized = append(normalized, ContainerTelemetryTarget{ID: idPart, Name: normalizeContainerTelemetryName(value.Name)})
+		}
+	}
+	sort.Slice(normalized, func(left, right int) bool {
+		return normalized[left].ID < normalized[right].ID
+	})
 	return normalized
+}
+
+func containerTelemetryTargetNames(targets []ContainerTelemetryTarget) []string {
+	seen := map[string]struct{}{}
+	values := make([]string, 0, len(targets))
+	for _, target := range targets {
+		name := normalizeContainerTelemetryName(target.Name)
+		if name == "" {
+			name = normalizeContainerTelemetryAlias(target.ID)
+		}
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		values = append(values, name)
+	}
+	sort.Strings(values)
+	return values
+}
+
+func containerTelemetryTargetAliases(target ContainerTelemetryTarget) []string {
+	aliases := make([]string, 0, 1)
+	if targetName := normalizeContainerTelemetryName(target.Name); targetName != "" {
+		aliases = append(aliases, targetName)
+		return aliases
+	}
+	if targetID := normalizeContainerTelemetryAlias(target.ID); targetID != "" {
+		aliases = append(aliases, targetID)
+	}
+	return aliases
 }
 
 func buildContainerTelemetrySelector(serverID string, containerIDs []string) string {
@@ -182,22 +264,36 @@ func buildContainerTelemetrySelector(serverID string, containerIDs []string) str
 	return fmt.Sprintf(`{server_id=%q,container_id=~"^(%s)$"}`, serverID, strings.Join(escaped, "|"))
 }
 
+func normalizeContainerTelemetryName(value string) string {
+	return normalizeContainerTelemetryAlias(value)
+}
+
+func normalizeContainerTelemetryAlias(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	value = strings.Split(value, ",")[0]
+	value = strings.TrimSpace(strings.TrimPrefix(value, "/"))
+	return value
+}
+
 func regexpEscape(value string) string {
 	replacer := strings.NewReplacer(
 		`\`, `\\`,
-		`.`, `\.`,
-		`+`, `\+`,
-		`*`, `\*`,
-		`?`, `\?`,
-		`(`, `\(`,
-		`)`, `\)`,
-		`[`, `\[`,
-		`]`, `\]`,
-		`{`, `\{`,
-		`}`, `\}`,
-		`^`, `\^`,
-		`$`, `\$`,
-		`|`, `\|`,
+		`.`, `\\.`,
+		`+`, `\\+`,
+		`*`, `\\*`,
+		`?`, `\\?`,
+		`(`, `\\(`,
+		`)`, `\\)`,
+		`[`, `\\[`,
+		`]`, `\\]`,
+		`{`, `\\{`,
+		`}`, `\\}`,
+		`^`, `\\^`,
+		`$`, `\\$`,
+		`|`, `\\|`,
 	)
 	return replacer.Replace(value)
 }

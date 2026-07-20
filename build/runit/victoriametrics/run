@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /usr/local/bin/victoria-metrics-prod -storageDataPath="$DATA_DIR/victoriametrics" -httpListenAddr=0.0.0.0:8428

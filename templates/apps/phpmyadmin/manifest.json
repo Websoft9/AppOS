@@ -1,0 +1,36 @@
+{
+  "contractVersion": "0.1",
+  "key": "phpmyadmin",
+  "name": "phpmyadmin",
+  "trademark": "phpMyAdmin",
+  "category": "database",
+  "docs": {
+    "website": "https://www.phpmyadmin.net/",
+    "installRequirements": "https://hub.docker.com/_/phpmyadmin",
+    "upstream": "https://hub.docker.com/_/phpmyadmin"
+  },
+  "capabilities": {
+    "web": true,
+    "requiresDomain": false,
+    "hasBuiltinDatabase": false,
+    "supportsPublish": true
+  },
+  "requirements": {
+    "cpu": 1,
+    "memoryGb": 2,
+    "diskGb": 1
+  },
+  "versions": {
+    "default": {
+      "edition": "community",
+      "version": "latest"
+    },
+    "supported": [
+      { "edition": "community", "version": "latest" },
+      { "edition": "community", "version": "5.2.1" }
+    ]
+  },
+  "serviceRoles": {
+    "phpmyadmin": "primary"
+  }
+}

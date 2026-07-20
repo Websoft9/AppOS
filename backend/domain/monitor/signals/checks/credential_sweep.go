@@ -1,7 +1,7 @@
 package checks
 
 import (
-	"strings"
+	"errors"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -24,10 +24,12 @@ func RunInstanceCredentialSweep(app core.App, repo instances.Repository, now tim
 	if err != nil {
 		return err
 	}
+	var sweepErrors []error
 	for _, item := range items {
 		target, ok, err := monitor.ResolveInstanceTarget(item)
 		if err != nil {
-			return err
+			sweepErrors = append(sweepErrors, err)
+			continue
 		}
 		if !ok {
 			continue
@@ -38,15 +40,15 @@ func RunInstanceCredentialSweep(app core.App, repo instances.Repository, now tim
 		}
 		result := CheckInstanceCredential(app, target)
 		if err := projectInstanceCredential(app, target, result, now); err != nil {
-			return err
+			sweepErrors = append(sweepErrors, err)
 		}
 	}
-	return nil
+	return errors.Join(sweepErrors...)
 }
 
 func CheckInstanceCredential(app core.App, target monitor.ResolvedInstanceTarget) CredentialCheckResult {
 	item := target.Item
-	if strings.TrimSpace(item.CredentialID()) == "" {
+	if item == nil || item.CredentialID() == "" {
 		return CredentialCheckResult{Status: target.CredentialStatusFor("auth_failed"), Reason: target.CredentialReasonFor("auth_failed", "instance credential is empty")}
 	}
 
@@ -55,12 +57,14 @@ func CheckInstanceCredential(app core.App, target monitor.ResolvedInstanceTarget
 		return CredentialCheckResult{Status: target.CredentialStatusFor("auth_failed"), Reason: target.CredentialReasonFor("auth_failed", err.Error())}
 	}
 
-	switch strings.TrimSpace(item.Kind()) {
-	case instances.KindRedis:
-		return checkRedisInstanceCredential(target, resolved)
-	default:
-		return CredentialCheckResult{Status: target.CredentialStatusFor("unknown"), Reason: target.CredentialReasonFor("unknown", "credential check is not implemented for this resource kind")}
+	hasRedisCredentialCapability, err := instances.HasCapability(item, instances.CapabilityCredentialProbeRedis)
+	if err != nil {
+		return CredentialCheckResult{Status: target.CredentialStatusFor("unknown"), Reason: target.CredentialReasonFor("unknown", err.Error())}
 	}
+	if hasRedisCredentialCapability {
+		return checkRedisInstanceCredential(target, resolved)
+	}
+	return CredentialCheckResult{Status: target.CredentialStatusFor("unknown"), Reason: target.CredentialReasonFor("unknown", "credential check is not implemented for this resource capability")}
 }
 
 func projectInstanceCredential(app core.App, target monitor.ResolvedInstanceTarget, result CredentialCheckResult, now time.Time) error {

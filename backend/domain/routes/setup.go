@@ -2,10 +2,10 @@ package routes
 
 import (
 	"net/http"
-	"os"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/runtimecfg"
 )
 
 // registerSetupRoutes registers unauthenticated setup routes.
@@ -87,9 +87,5 @@ func checkNeedsSetup(e *core.RequestEvent) (bool, error) {
 }
 
 func getInitMode() string {
-	mode := os.Getenv("INIT_MODE")
-	if mode == "" {
-		return "auto"
-	}
-	return mode
+	return runtimecfg.InitMode()
 }

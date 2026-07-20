@@ -1,100 +1,163 @@
 # Epic 4: Docker Operations Layer
 
+> Historical note (2026-06-23): Any references in this artifact to `Dockerfile.local`, runtime Node/npm inside the AppOS container, or duplicated image flows are obsolete. The current container build uses the single Alpine-based [build/Dockerfile](/data/dev/appos/build/Dockerfile).
+
 ## Overview
 
-**Pure Docker CLI abstraction** — PocketBase custom routes wrapping `docker` and `docker compose` commands. Zero business logic. All five Docker resource types (compose, images, containers, networks, volumes) exposed as authenticated REST endpoints.
+**Docker control-plane API** — AppOS exposes authenticated Docker inventory and action routes for one explicit server scope at a time. All five Docker resource types (compose, images, containers, networks, volumes) remain available, but the API should model server scope directly instead of hiding it behind optional query parameters.
 
-All routes use unified `Executor` interface for command execution (local subprocess now, SSH remote later).
+All routes use a unified execution abstraction, and the product contract is managed-server scoped first:
 
-**Status**: Stories 4.1-4.3 Complete, 4.4 Deferred | **Priority**: P0 | **Depends on**: Epic 1, Epic 3
+- every Docker route targets an explicit managed server id
+- execution resolves to SSH or tunnel-backed Docker commands on that managed server
+
+Epic 4 is the Docker control-plane surface for AppOS.
+It answers:
+
+- what Docker objects exist now
+- what their current configuration and inventory are
+- what operator actions AppOS can execute against them
+
+It does not own runtime telemetry trends or health judgment. Those belong to Epic 28 Monitoring.
+
+**Status**: Stories 4.1-4.3 Complete, 4.4 Ready for Dev, 4.5 Deferred, 4.6 Proposed, 4.7 Draft, 4.8 Proposed | **Priority**: P0 | **Depends on**: Epic 1, Epic 3
+
+## API Direction
+
+This epic should converge on one formal route shape:
+
+- `/api/servers/{serverId}/docker/...`
+
+Planning rules:
+
+- remove the legacy `ext` prefix from the product-facing contract
+- do not hide execution scope in optional `server_id` query parameters
+- require an explicit managed `serverId` for every Docker route
+- keep server-discovery or capability-list routes outside the Docker object tree when practical
+
+Current implementation uses `/api/servers/{serverId}/docker/...` and does not keep a local socket-backed control-plane branch.
+
+## Product Boundary
+
+Keep the split minimal and explicit:
+
+| Concern | Epic 4 owns | Epic 28 owns |
+|--------|-------------|--------------|
+| Containers | inventory, inspect, logs, start/stop/restart/remove | CPU, memory, network telemetry; freshness; health/status projection |
+| Images | inventory, inspect, pull, remove, prune, registry checks | not a primary monitoring object in MVP |
+| Volumes | inventory, inspect, remove, prune | not a primary monitoring object in MVP |
+| Networks | inventory, inspect-equivalent list/create/remove | not a primary monitoring object in MVP |
+| Compose | project inventory, config, logs, up/down/start/stop/restart | not a monitor target; may appear only as container labels |
+
+Planning rule:
+
+- Epic 4 owns Docker inventory and actions
+- Epic 28 owns runtime evidence and health judgment
+- UI may show Epic 28 evidence inside Docker views, but Docker actions remain Epic 4-owned
 
 ## Architecture
 
 ```
 Dashboard (PB JS SDK)
-  → pb.send('/api/ext/docker/...', ...)
+  → pb.send('/api/servers/{serverId}/docker/...', ...)
   → PB auth middleware (RequireAuth)
-  → Route handler → docker.Client → Executor.Run()
-      → LocalExecutor: os/exec (default)
-      → RemoteExecutor: SSH (future)
+  → Route handler → server-scoped docker client
+        → SSH/tunnel-backed execution on managed server
 ```
 
-**This epic is a thin CLI wrapper.** No app store, no deployment orchestration, no task queues. Business logic (app management, async deploy) belongs in a future epic that _consumes_ these APIs.
+**This epic is a thin control-plane wrapper.** No app store, no deployment orchestration, no task queues. Business logic (app management, async deploy) belongs in a future epic that _consumes_ these APIs.
+
+## Execution Model
+
+Epic 4 now has one execution substrate:
+
+1. `managed server`
+    - Docker inventory and actions run through SSH or tunnel-backed access to the target server
+    - the server record is the source of truth for host, auth, and tunnel resolution
+
+The UI should expose one server-scoped Docker workspace. There is no local socket-backed control-plane mode.
 
 ## Routes
 
-All routes under `/api/ext/docker/`. All list responses include `host` field identifying the server. Localhost only (remote server support in Story 4.4).
+Target route family:
+
+- `/api/servers/{serverId}/docker/...`
+
+All object and action routes should include `serverId` in the path.
+List responses may still include `host` or `server_id` fields for operator clarity, but routing should not depend on query-time server selection.
 
 ### Compose
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/compose/ls` | `docker compose ls --format json` (returns JSON array) |
-| POST | `/compose/up` | `docker compose up -d` (body: `{projectDir}`) |
-| POST | `/compose/down` | `docker compose down` (body: `{projectDir, removeVolumes?}`) |
-| POST | `/compose/start` | `docker compose start` |
-| POST | `/compose/stop` | `docker compose stop` |
-| POST | `/compose/restart` | `docker compose restart` |
-| GET | `/compose/logs` | `docker compose logs --tail` (query: `projectDir, tail`) |
-| GET | `/compose/config` | Read compose file content |
-| PUT | `/compose/config` | Write compose file content |
+| GET | `/api/servers/{serverId}/docker/compose/ls` | `docker compose ls --format json` (returns JSON array) |
+| POST | `/api/servers/{serverId}/docker/compose/up` | `docker compose up -d` (body: `{projectDir}`) |
+| POST | `/api/servers/{serverId}/docker/compose/down` | `docker compose down` (body: `{projectDir, removeVolumes?}`) |
+| POST | `/api/servers/{serverId}/docker/compose/start` | `docker compose start` |
+| POST | `/api/servers/{serverId}/docker/compose/stop` | `docker compose stop` |
+| POST | `/api/servers/{serverId}/docker/compose/restart` | `docker compose restart` |
+| GET | `/api/servers/{serverId}/docker/compose/logs` | `docker compose logs --tail` (query: `projectDir, tail`) |
+| GET | `/api/servers/{serverId}/docker/compose/config` | Read compose file content |
+| PUT | `/api/servers/{serverId}/docker/compose/config` | Write compose file content |
 
 ### Images
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/images` | `docker image ls --format json` |
-| POST | `/images/pull` | `docker pull <name:tag>` |
-| DELETE | `/images/{id...}` | `docker image rm` (wildcard for `sha256:` prefix) |
-| POST | `/images/prune` | `docker image prune -f` |
-| GET | `/images/inspect/{id...}` | `docker image inspect` |
-| GET | `/images/registry/search` | `docker search` (limit capped at 100) |
-| GET | `/images/registry/status` | Registry connectivity check |
+| GET | `/api/servers/{serverId}/docker/images` | `docker image ls --format json` |
+| POST | `/api/servers/{serverId}/docker/images/pull` | `docker pull <name:tag>` |
+| DELETE | `/api/servers/{serverId}/docker/images/{id...}` | `docker image rm` (wildcard for `sha256:` prefix) |
+| POST | `/api/servers/{serverId}/docker/images/prune` | `docker image prune -f` |
+| GET | `/api/servers/{serverId}/docker/images/{id}/inspect` | `docker image inspect` |
+| GET | `/api/servers/{serverId}/docker/images/registry/search` | `docker search` (limit capped at 100) |
+| GET | `/api/servers/{serverId}/docker/images/registry/status` | Registry connectivity check |
 
 ### Containers
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/containers` | `docker ps -a --format json` |
-| GET | `/containers/:id` | `docker inspect` |
-| POST | `/containers/:id/start` | `docker start` |
-| POST | `/containers/:id/stop` | `docker stop` |
-| POST | `/containers/:id/restart` | `docker restart` |
-| DELETE | `/containers/:id` | `docker rm` (query: `force=true` for force remove) |
+| GET | `/api/servers/{serverId}/docker/containers` | `docker ps -a --format json` |
+| GET | `/api/servers/{serverId}/docker/containers/{id}` | `docker inspect` |
+| GET | `/api/servers/{serverId}/docker/containers/{id}/logs` | `docker logs` |
+| GET | `/api/servers/{serverId}/docker/containers/{id}/stats` | request-time stats compatibility route |
+| POST | `/api/servers/{serverId}/docker/containers/{id}/start` | `docker start` |
+| POST | `/api/servers/{serverId}/docker/containers/{id}/stop` | `docker stop` |
+| POST | `/api/servers/{serverId}/docker/containers/{id}/restart` | `docker restart` |
+| DELETE | `/api/servers/{serverId}/docker/containers/{id}` | `docker rm` (query: `force=true` for force remove) |
 
 ### Networks
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/networks` | `docker network ls --format json` |
-| POST | `/networks` | `docker network create` |
-| DELETE | `/networks/:id` | `docker network rm` |
+| GET | `/api/servers/{serverId}/docker/networks` | `docker network ls --format json` |
+| POST | `/api/servers/{serverId}/docker/networks` | `docker network create` |
+| DELETE | `/api/servers/{serverId}/docker/networks/{id}` | `docker network rm` |
 
 ### Volumes
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/volumes` | `docker volume ls --format json` |
-| DELETE | `/volumes/:id` | `docker volume rm` |
-| POST | `/volumes/prune` | `docker volume prune -f` |
-| GET | `/volumes/inspect/:id` | `docker volume inspect` |
+| GET | `/api/servers/{serverId}/docker/volumes` | `docker volume ls --format json` |
+| DELETE | `/api/servers/{serverId}/docker/volumes/{id}` | `docker volume rm` |
+| POST | `/api/servers/{serverId}/docker/volumes/prune` | `docker volume prune -f` |
+| GET | `/api/servers/{serverId}/docker/volumes/{id}/inspect` | `docker volume inspect` |
 
 ### Command Execution
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/exec` | Execute arbitrary docker command (body: `{command}`) |
+| POST | `/api/servers/{serverId}/docker/exec` | Execute arbitrary docker command (body: `{command}`) |
 
-## Stories (4)
+## Stories (7)
 
 ### 4.1: Executor Interface ✅
 - Define `Executor` interface (`Run`, `RunStream`, `Ping`, `Host`) — wraps any shell command
 - Implement `LocalExecutor` (refactor existing `Client.run()`)
 - Refactor `docker.Client` to delegate all `docker` / `docker compose` commands to Executor
 - Compose routes: **ls**, up, down, start, stop, restart, logs, config read/write (9 endpoints)
-- `Exec()` method + `/exec` endpoint for arbitrary docker commands
-- Register routes under `/api/ext/docker/compose/*`
-- **Replaces current `apps.go` routes** → migrate to `/compose/*`
+- `Exec()` method + command-execution endpoint for arbitrary docker commands
+- Initial implementation may expose compatibility routes before the final server-scoped contract is complete
+- **Replaces current `apps.go` routes** → migrate to explicit Docker control-plane routes
 
 ### 4.2: Resource Management (Images, Containers, Networks, Volumes) ✅
 - Images: list, pull, remove, prune
@@ -102,9 +165,12 @@ All routes under `/api/ext/docker/`. All list responses include `host` field ide
 - Networks: list, create, remove
 - Volumes: list, remove, prune
 - All return JSON (Docker `--format json` output)
-- All list responses include `host` field (preparation for multi-server)
+- All list responses include `host` field (preparation for explicit server scope)
 
 ### 4.3: Frontend — Docker Resource Dashboard ✅
+
+Historical delivery note: the originally implemented standalone `/docker` dashboard remains recorded in `story4.3-history-docker-dashboard.md`, but the current product-facing IA replan for Story 4.3 now lives in `story4.3-docker-workspace-replan.md`.
+
 - Tabbed page: Containers | Images | Volumes | Networks | Compose
 - Single toolbar row: server selector → TabsList → Refresh → Run Command button
 - Refresh triggers `refreshSignal` prop increment; each tab re-fetches on change
@@ -114,27 +180,63 @@ All routes under `/api/ext/docker/`. All list responses include `host` field ide
 - Compose: logs viewer (full tier dialog) + config editor
 - Depends on: Epic 7 (design system, layout), Story 4.1 + 4.2 (API)
 
-### 4.4: Remote Execution (Future)
+### 4.4: Docker Overview Simplification
+- simplify `Server Detail > Docker > Overview` around resource counts and actionable issues
+- replace dense overview dashboard sections with five resource cards, `Needs Attention`, and compact quick actions
+- remove duplicate `Container Health`, `Compose Stacks`, and `Inventory Split` overview sections
+- keep Overview inventory-first, not monitoring-first
+- Depends on: Story 4.3 canonical replan (`story4.3-docker-workspace-replan.md`), Story 4.3 UI supplement (`story4.3-docker-tabs-ui.md`), Story 28.6
+
+### 4.5: Remote Execution (Future)
 - `RemoteExecutor` via `crypto/ssh` with connection pooling
 - PB collection `servers` (host, port, ssh_user, ssh_key_path, is_default), auto-migration
-- Add `?server=<id>` query parameter to all routes (omitted = localhost, backward compatible)
+- converge all Docker routes on `/api/servers/{serverId}/docker/...`
+- treat `local` as the canonical local target instead of omitting server scope
+- retire legacy `/api/ext/docker/...` routing after migration consumers are updated
 - Deferred until local implementation is validated
+
+### 4.6: Docker Image Pull Activity
+- add a minimal list contract for image pull operations under `/api/servers/{serverId}/docker/image-pull-operations`
+- use one `status` filter to cover both `Currently pulling` and `Recent pulls`
+- keep existing submit (`POST /images/pull`) and single-operation detail (`GET /image-pull-operations/{operationId}`) contracts unchanged
+- keep cancellation narrow to queued pull operations only
+
+### 4.7: Docker Volume Files
+- add a minimal `Open files` action in `Server Detail > Docker > Volumes`
+- reuse the existing Files experience for one volume mountpoint instead of creating a Docker-specific editor
+- lock navigation and write operations to the selected volume root
+- prefer existing server file access paths over adding Docker-volume-specific backend APIs
+
+### 4.8: Docker Settings
+- keep Docker settings intentionally narrow and platform-oriented
+- preserve `Docker Mirrors` as the source-routing setting
+- add `Image Pull Network Policy` for pull timeout and retry behavior
+- keep `docker-registries` as a reference-only transitional entry instead of a full editable settings surface
+- avoid broadening Docker settings into proxy, default registry, or daemon expert controls
 
 ## Implementation Order
 
 ```
-4.1 (Executor + Compose) → 4.2 (Resources) → 4.3 (Frontend) → 4.4 (Remote, future)
+4.1 (Executor + Compose) → 4.2 (Resources) → 4.3 (Frontend workspace) → 4.4 (Overview simplification) → 4.5 (Remote, future)
+                                                                                                    ├→ 4.6 (Pull activity)
+                                                                                                    ├→ 4.7 (Volume files)
+                                                                                                    └→ 4.8 (Docker settings)
 ```
 
 ## Definition of Done
 
 ### Story 4.1 ✅
 - [x] Executor interface defined with `Run`, `RunStream`, `Ping`, `Host`
-- [x] 9 compose endpoints functional (including `/compose/ls`)
-- [x] `/exec` endpoint for arbitrary docker commands
+- [x] 9 compose endpoints functional in the current compatibility routing shape
+- [x] command-execution endpoint for arbitrary docker commands
 - [x] Old `/api/ext/apps/*` routes removed
 - [x] Auth middleware enforced on all routes
 - [x] Non-root privilege escalation via `sudo` (local + SSH); password credential reused as sudo password
+
+Target follow-up still pending for Story 4.1 scope:
+
+- [ ] final contract uses `/api/servers/{serverId}/docker/...` instead of legacy `/api/ext/docker/...`
+- [ ] local and remote execution share one explicit server-scoped route family
 
 ### Story 4.2 ✅
 - [x] All resource CRUD endpoints return valid JSON with `host` field
@@ -142,16 +244,55 @@ All routes under `/api/ext/docker/`. All list responses include `host` field ide
 - [x] Container start/stop/restart work for standalone containers
 - [x] Image delete uses `/{id...}` wildcard for `sha256:` prefix
 
+Target follow-up still pending for Story 4.2 scope:
+
+- [ ] all CRUD routes converge on server-scoped path parameters rather than optional query-time server selection
+
 ### Story 4.3 ✅
 - [x] 5-tab resource dashboard — server selector, TabsList, Refresh, Run Command all in one toolbar row
 - [x] Actions (start/stop/remove/prune) trigger API calls
 - [x] Compose logs in full-tier dialog, config editor saves via API
 - [x] Run Command dialog (`sm:max-w-3xl`) with server picker + terminal output history
 
+Target follow-up still pending for Story 4.3 scope:
+
+- [ ] frontend routes and API clients use explicit server-scoped Docker paths consistently
+
 ### Story 4.4
+- [ ] Docker Overview shows five compact resource cards: Containers, Compose, Images, Volumes, Networks
+- [ ] `Needs Attention` becomes the primary Overview section for actionable Docker issues
+- [ ] `Container Health`, `Compose Stacks`, and `Inventory Split` are removed or folded into the simplified Overview model
+- [ ] Quick Actions are compact and reuse existing Docker actions where practical
+- [ ] Overview remains server-scoped and avoids monitoring-console duplication
+
+### Story 4.5
 - [ ] RemoteExecutor connects via SSH key auth
 - [ ] `servers` collection auto-created on migration
 - [ ] All Story 4.1/4.2 tests pass with RemoteExecutor
+- [ ] legacy `/api/ext/docker/...` compatibility routes can be removed after migration
+
+### Story 4.6
+- [x] `GET /api/servers/{serverId}/docker/image-pull-operations` returns newest-first pull activity for one server
+- [x] `status` query supports `in_progress`, `completed`, `failed`, `all`
+- [x] `DELETE /api/servers/{serverId}/docker/image-pull-operations/{operationId}` deletes one terminal pull record
+- [x] `DELETE /api/servers/{serverId}/docker/image-pull-operations` clears terminal pull history for one server
+- [x] `POST /api/servers/{serverId}/docker/image-pull-operations/{operationId}/cancel` cancels one queued pull
+- [x] Images tab shows both current pulls and recent pulls from the shared list contract
+- [x] existing submit/detail contracts remain unchanged
+
+### Story 4.7
+- [ ] Volumes rows expose an `Open files` action for one selected volume
+- [ ] The volume files dialog opens at the volume `Mountpoint`
+- [ ] Navigation and path-based mutations stay locked to the selected volume root
+- [ ] Existing shared file APIs and editor flows are reused where possible
+- [ ] No Docker-volume-specific backend route family is introduced unless shared file access proves insufficient
+
+### Story 4.8
+- [ ] Docker settings remain narrow and contain only `Docker Mirrors` plus `Image Pull Network Policy` as first-class Docker behavior entries
+- [ ] `Image Pull Network Policy` is limited to timeout and retry semantics
+- [ ] `docker-registries` remains a reference-only transitional entry rather than a full editable Docker settings card
+- [ ] No global `default registry` setting is introduced
+- [ ] Docker settings do not absorb proxy or raw daemon expert controls
 
 ## Technical Notes
 
@@ -161,18 +302,21 @@ type Executor interface {
     Run(ctx context.Context, command string, args ...string) (string, error)
     RunStream(ctx context.Context, command string, args ...string) (io.Reader, error)
     Ping(ctx context.Context) error
-    Host() string  // returns server identifier ("local" for LocalExecutor)
+    Host() string  // returns the resolved execution target label
 }
 ```
 
 **Key Decisions & Learnings:**
 - `docker compose ls --format json` returns a JSON **array**, unlike other `--format json` commands which return NDJSON
 - Image IDs with `sha256:` prefix break standard path routing → use PocketBase `/{id...}` wildcard
-- All list endpoints return `host` field in response — anticipates multi-server UI
+- All Docker routes should be server-scoped in the path; `server_id` query support is a compatibility layer, not the target design
+- managed server is the only supported Docker execution scope
+- All list endpoints may still return `host` or `server_id` fields in response — anticipates multi-server UI and audit clarity
 - Frontend UX: command execution via dialog popup (not inline or tab) — cleanest separation of concerns
 - Dialog sizes standardized in `coding-decisions.md#dialog-sizes` (sm/default/md/lg/xl/full tiers)
-- Container image requires `docker-cli` + `docker-cli-compose` packages (both `Dockerfile` and `Dockerfile.local`)
+- Container image requires `docker-cli` + `docker-cli-compose` packages in the current single runtime image
 - **Sudo escalation**: `LocalExecutor.SudoEnabled` set when process uid ≠ 0; `SSHExecutor.SudoEnabled` set when `user ≠ root`. Password-auth servers reuse the same credential as sudo password; key-auth servers require NOPASSWD in sudoers.
+- Docker routes execute through the shared executor abstraction; local socket-backed control-plane access is intentionally unsupported
 
 **What moved OUT of Epic 4:**
 - Asynq async tasks → future business epic (app management)

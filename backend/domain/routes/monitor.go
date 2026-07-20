@@ -1,396 +1,321 @@
 package routes
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/domain/monitor"
 	monitormetrics "github.com/websoft9/appos/backend/domain/monitor/metrics"
-	agentsignals "github.com/websoft9/appos/backend/domain/monitor/signals/agent"
 	monitorstatus "github.com/websoft9/appos/backend/domain/monitor/status"
+	"github.com/websoft9/appos/backend/domain/runtimecfg"
+	"github.com/websoft9/appos/backend/infra/egress"
 )
 
+const maxMonitorWriteBodyBytes int64 = 100 << 20
+const localContainerTelemetryServerID = "local"
+
+var errMonitorWritePayloadTooLarge = errors.New("monitor write payload too large")
+
+// monitorWriteHTTPClient is reused across all monitor write requests to enable
+// TCP connection pooling to the local time-series database.
+var monitorWriteHTTPClient = func() *http.Client {
+	client := egress.NewDirectHTTPClient(30*time.Second, false)
+	return &client
+}()
+
 func registerMonitorRoutes(se *core.ServeEvent) {
+	se.Router.POST("/api/monitor/write", handleMonitorWrite)
+
 	monitorGroup := se.Router.Group("/api/monitor")
 	monitorGroup.Bind(apis.RequireAuth())
 	monitorGroup.GET("/overview", handleMonitorOverview)
 	monitorGroup.GET("/servers/{id}/container-telemetry", handleMonitorServerContainerTelemetry)
 	monitorGroup.GET("/targets/{targetType}/{targetId}", handleMonitorTargetStatus)
+	monitorGroup.GET("/targets/{targetType}/{targetId}/latest", handleMonitorTargetLatest)
 	monitorGroup.GET("/targets/{targetType}/{targetId}/series", handleMonitorTargetSeries)
 
-	bootstrap := se.Router.Group("/api/monitor")
-	bootstrap.Bind(apis.RequireSuperuserAuth())
-	bootstrap.POST("/servers/{id}/agent-token", handleMonitorAgentToken)
-	bootstrap.GET("/servers/{id}/agent-setup", handleMonitorAgentSetup)
-
-	ingest := se.Router.Group("/api/monitor/ingest")
-	ingest.POST("/facts", handleMonitorFacts)
-	ingest.POST("/metrics", handleMonitorMetrics)
-	ingest.POST("/heartbeat", handleMonitorHeartbeat)
-	ingest.POST("/runtime-status", handleMonitorRuntimeStatus)
 }
 
-func handleMonitorFacts(e *core.RequestEvent) error {
-	token, err := monitorBearerToken(e.Request.Header.Get("Authorization"))
+// @Summary Get latest monitor target metrics
+// @Description Returns the most recent observed metric point for a monitor target at the managed-agent collection cadence. targetType accepts server, app, container, or platform. series accepts cpu, memory, disk, disk_usage, network, or network_traffic depending on target type.
+// @Tags Monitoring
+// @Security BearerAuth
+// @Param targetType path string true "monitor target type" Enums(server,app,container,platform)
+// @Param targetId path string true "monitor target ID; platform uses appos-core for AppOS host metrics"
+// @Param series query string false "metric series alias" Enums(cpu,memory,disk,disk_usage,network,network_traffic)
+// @Param networkInterface query string false "network interface for network series; use all or omit for aggregate"
+// @Success 200 {object} MonitorMetricLatestResponse
+// @Failure 400 {object} MonitorErrorResponse
+// @Failure 401 {object} MonitorErrorResponse
+// @Router /api/monitor/targets/{targetType}/{targetId}/latest [get]
+func handleMonitorTargetLatest(e *core.RequestEvent) error {
+	options := monitormetrics.MetricSeriesQueryOptions{
+		NetworkInterface: strings.TrimSpace(e.Request.URL.Query().Get("networkInterface")),
+	}
+	requestedSeries := []string{}
+	if raw := strings.TrimSpace(e.Request.URL.Query().Get("series")); raw != "" {
+		requestedSeries = append(requestedSeries, raw)
+	}
+	response, err := monitormetrics.QueryLatestMetricSeries(
+		e.Request.Context(),
+		e.Request.PathValue("targetType"),
+		e.Request.PathValue("targetId"),
+		requestedSeries,
+		options,
+	)
 	if err != nil {
-		return apis.NewUnauthorizedError("missing monitor token", err)
+		return e.BadRequestError("failed to query latest monitor metrics", err)
 	}
-	authenticatedServerID, err := agentsignals.ValidateAgentToken(e.App, token)
-	if err != nil {
-		return apis.NewUnauthorizedError("invalid monitor token", err)
-	}
-
-	var body struct {
-		ServerID   string `json:"serverId"`
-		ReportedAt string `json:"reportedAt"`
-		Items      []struct {
-			TargetType string         `json:"targetType"`
-			TargetID   string         `json:"targetId"`
-			Facts      map[string]any `json:"facts"`
-			ObservedAt string         `json:"observedAt"`
-		} `json:"items"`
-	}
-	if err := e.BindBody(&body); err != nil {
-		return e.BadRequestError("invalid body", err)
-	}
-	if strings.TrimSpace(body.ServerID) == "" || strings.TrimSpace(body.ReportedAt) == "" || len(body.Items) == 0 {
-		return e.BadRequestError("serverId, reportedAt, and items are required", nil)
-	}
-	if body.ServerID != authenticatedServerID {
-		return apis.NewForbiddenError("server ownership mismatch", nil)
-	}
-	if len(body.Items) > agentsignals.FactsBatchLimit {
-		return e.BadRequestError("facts batch too large", nil)
-	}
-	reportedAt, err := time.Parse(time.RFC3339, body.ReportedAt)
-	if err != nil {
-		return e.BadRequestError("reportedAt must be RFC3339", err)
-	}
-	server, err := findMonitorServer(e.App, body.ServerID)
-	if err != nil {
-		return e.NotFoundError("server not found", err)
-	}
-	items := make([]agentsignals.FactsItem, 0, len(body.Items))
-	for _, item := range body.Items {
-		observedAt := reportedAt
-		if strings.TrimSpace(item.ObservedAt) != "" {
-			observedAt, err = time.Parse(time.RFC3339, item.ObservedAt)
-			if err != nil {
-				return e.BadRequestError("observedAt must be RFC3339", err)
-			}
-		}
-		items = append(items, agentsignals.FactsItem{
-			TargetType: strings.TrimSpace(item.TargetType),
-			TargetID:   strings.TrimSpace(item.TargetID),
-			Facts:      item.Facts,
-			ObservedAt: observedAt,
-		})
-	}
-	accepted, err := agentsignals.IngestFacts(e.App, agentsignals.FactsIngest{
-		ServerID:   body.ServerID,
-		ServerName: server.GetString("name"),
-		ReportedAt: reportedAt,
-		Items:      items,
-	})
-	if err != nil {
-		switch {
-		case errors.Is(err, agentsignals.ErrFactsTargetTypeUnsupported), errors.Is(err, agentsignals.ErrFactsTargetMismatch), errors.Is(err, agentsignals.ErrFactsPayloadInvalid):
-			return e.BadRequestError(err.Error(), nil)
-		default:
-			return e.InternalServerError("failed to persist server facts", err)
-		}
-	}
-	return e.JSON(http.StatusAccepted, map[string]any{"ok": true, "accepted": accepted})
+	return e.JSON(http.StatusOK, response)
 }
 
-func handleMonitorMetrics(e *core.RequestEvent) error {
-	token, err := monitorBearerToken(e.Request.Header.Get("Authorization"))
+// @Summary Write monitoring metrics
+// @Description Receives collector payloads from managed-server monitoring collectors, projects stable AppOS canonical metrics, and forwards the raw payload to the embedded VictoriaMetrics Influx write endpoint. Authenticate with HTTP Basic Auth where username is the server record ID and password is the per-server monitor collector token issued during managed collector setup.
+// @Tags Monitoring Ingest
+// @Param Authorization header string true "Basic base64(serverId:monitorCollectorToken)"
+// @Accept text/plain
+// @Success 204 {object} nil
+// @Failure 401 {object} MonitorErrorResponse
+// @Failure 413 {object} MonitorErrorResponse
+// @Failure 502 {object} MonitorErrorResponse
+// @Router /api/monitor/write [post]
+func handleMonitorWrite(e *core.RequestEvent) error {
+	serverID, token, ok := e.Request.BasicAuth()
+	serverID = strings.TrimSpace(serverID)
+	if !ok || serverID == "" || strings.TrimSpace(token) == "" {
+		return monitorWriteUnauthorized(e)
+	}
+	if _, err := findMonitorServer(e.App, serverID); err != nil {
+		return monitorWriteUnauthorized(e)
+	}
+	expectedToken, err := readMonitorCollectorToken(e.App, serverID)
+	if err != nil || !constantTimeTokenEqual(expectedToken, token) {
+		return monitorWriteUnauthorized(e)
+	}
+	if e.Request.ContentLength > maxMonitorWriteBodyBytes {
+		return monitorWritePayloadTooLarge(e)
+	}
+	endpoint, err := monitorInfluxWriteEndpoint()
 	if err != nil {
-		return apis.NewUnauthorizedError("missing monitor token", err)
+		return e.JSON(http.StatusBadGateway, map[string]any{"error": "tsdb_unavailable", "message": err.Error()})
 	}
-	authenticatedServerID, err := agentsignals.ValidateAgentToken(e.App, token)
+	limitedBody := &monitorWriteLimitReadCloser{body: e.Request.Body, remaining: maxMonitorWriteBodyBytes}
+	defer limitedBody.Close()
+	payload, err := io.ReadAll(limitedBody)
 	if err != nil {
-		return apis.NewUnauthorizedError("invalid monitor token", err)
+		if errors.Is(err, errMonitorWritePayloadTooLarge) {
+			return monitorWritePayloadTooLarge(e)
+		}
+		return e.JSON(http.StatusBadGateway, map[string]any{"error": "tsdb_read_failed", "message": err.Error()})
 	}
-
-	var body struct {
-		ServerID   string `json:"serverId"`
-		ReportedAt string `json:"reportedAt"`
-		Items      []struct {
-			TargetType string            `json:"targetType"`
-			TargetID   string            `json:"targetId"`
-			Series     string            `json:"series"`
-			Value      float64           `json:"value"`
-			Unit       string            `json:"unit"`
-			Labels     map[string]string `json:"labels"`
-			ObservedAt string            `json:"observedAt"`
-		} `json:"items"`
+	points, projectionErr := projectTelegrafMetricPoints(payload, serverID, time.Now().UTC())
+	if projectionErr != nil {
+		slog.Warn("monitor canonical projection skipped", "server_id", serverID, "error", projectionErr)
 	}
-	if err := e.BindBody(&body); err != nil {
-		return e.BadRequestError("invalid body", err)
+	if len(points) > 0 {
+		if err := monitormetrics.WriteMetricPoints(e.Request.Context(), points); err != nil {
+			slog.Warn("monitor canonical metric write failed", "server_id", serverID, "error", err)
+		}
 	}
-	if strings.TrimSpace(body.ServerID) == "" || strings.TrimSpace(body.ReportedAt) == "" || len(body.Items) == 0 {
-		return e.BadRequestError("serverId, reportedAt, and items are required", nil)
-	}
-	if body.ServerID != authenticatedServerID {
-		return apis.NewForbiddenError("server ownership mismatch", nil)
-	}
-	if len(body.Items) > monitormetrics.MetricsBatchLimit {
-		return e.BadRequestError("metrics batch too large", nil)
-	}
-	reportedAt, err := time.Parse(time.RFC3339, body.ReportedAt)
+	req, err := http.NewRequestWithContext(e.Request.Context(), http.MethodPost, endpoint, strings.NewReader(string(payload)))
 	if err != nil {
-		return e.BadRequestError("reportedAt must be RFC3339", err)
+		return e.JSON(http.StatusBadGateway, map[string]any{"error": "tsdb_forward_failed", "message": err.Error()})
 	}
-	points := make([]monitormetrics.MetricPoint, 0, len(body.Items))
-	for _, item := range body.Items {
-		observedAt := reportedAt
-		if strings.TrimSpace(item.ObservedAt) != "" {
-			observedAt, err = time.Parse(time.RFC3339, item.ObservedAt)
-			if err != nil {
-				return e.BadRequestError("observedAt must be RFC3339", err)
-			}
-		}
-		labels := make(map[string]string, len(item.Labels)+3)
-		for key, value := range item.Labels {
-			labels[key] = value
-		}
-		labels["server_id"] = body.ServerID
-		labels["target_type"] = strings.TrimSpace(item.TargetType)
-		labels["target_id"] = strings.TrimSpace(item.TargetID)
-		if labels["target_type"] == "" || labels["target_id"] == "" {
-			return e.BadRequestError("targetType and targetId are required", nil)
-		}
-		if labels["target_type"] == monitor.TargetTypeServer && labels["target_id"] != body.ServerID {
-			return e.BadRequestError("server metric targetId must match serverId", nil)
-		}
-		if monitormetrics.IsContainerMetricSeries(strings.TrimSpace(item.Series)) {
-			if labels["target_type"] != monitor.TargetTypeContainer {
-				return e.BadRequestError("container metric targetType must be container", nil)
-			}
-			labels["container_id"] = labels["target_id"]
-		}
-		points = append(points, monitormetrics.MetricPoint{
-			Series:     strings.TrimSpace(item.Series),
-			Value:      item.Value,
-			Labels:     labels,
-			ObservedAt: observedAt,
-		})
+	req.Header.Set("Content-Type", "text/plain; charset=utf-8")
+	req.Header.Set("Stream-Mode", "1")
+	resp, err := monitorWriteHTTPClient.Do(req)
+	if err != nil {
+		return e.JSON(http.StatusBadGateway, map[string]any{"error": "tsdb_forward_failed", "message": err.Error()})
 	}
-	if err := monitormetrics.WriteMetricPoints(e.Request.Context(), points); err != nil {
-		return e.BadRequestError("failed to ingest metrics", err)
+	defer resp.Body.Close()
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		message, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return e.JSON(http.StatusBadGateway, map[string]any{"error": "tsdb_forward_failed", "message": fmt.Sprintf("victoriametrics influx write failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(message)))})
 	}
-	return e.JSON(http.StatusAccepted, map[string]any{"ok": true, "accepted": len(points)})
+	return e.NoContent(http.StatusNoContent)
 }
 
-func handleMonitorRuntimeStatus(e *core.RequestEvent) error {
-	token, err := monitorBearerToken(e.Request.Header.Get("Authorization"))
-	if err != nil {
-		return apis.NewUnauthorizedError("missing monitor token", err)
-	}
-	authenticatedServerID, err := agentsignals.ValidateAgentToken(e.App, token)
-	if err != nil {
-		return apis.NewUnauthorizedError("invalid monitor token", err)
-	}
-
-	var body struct {
-		ServerID   string `json:"serverId"`
-		ReportedAt string `json:"reportedAt"`
-		Items      []struct {
-			TargetType   string `json:"targetType"`
-			TargetID     string `json:"targetId"`
-			RuntimeState string `json:"runtimeState"`
-			ObservedAt   string `json:"observedAt"`
-			Containers   struct {
-				Running    int `json:"running"`
-				Restarting int `json:"restarting"`
-				Exited     int `json:"exited"`
-			} `json:"containers"`
-			Apps []struct {
-				AppID        string `json:"appId"`
-				RuntimeState string `json:"runtimeState"`
-			} `json:"apps"`
-		} `json:"items"`
-	}
-	if err := e.BindBody(&body); err != nil {
-		return e.BadRequestError("invalid body", err)
-	}
-	if strings.TrimSpace(body.ServerID) == "" || strings.TrimSpace(body.ReportedAt) == "" || len(body.Items) == 0 {
-		return e.BadRequestError("serverId, reportedAt, and items are required", nil)
-	}
-	if body.ServerID != authenticatedServerID {
-		return apis.NewForbiddenError("server ownership mismatch", nil)
-	}
-	if len(body.Items) > monitor.RuntimeStatusBatchLimit {
-		return e.BadRequestError("runtime-status batch too large", nil)
-	}
-	reportedAt, err := time.Parse(time.RFC3339, body.ReportedAt)
-	if err != nil {
-		return e.BadRequestError("reportedAt must be RFC3339", err)
-	}
-	server, err := findMonitorServer(e.App, body.ServerID)
-	if err != nil {
-		return e.NotFoundError("server not found", err)
-	}
-	items := make([]agentsignals.RuntimeStatusItem, 0, len(body.Items))
-	for _, item := range body.Items {
-		observedAt := reportedAt
-		if strings.TrimSpace(item.ObservedAt) != "" {
-			observedAt, err = time.Parse(time.RFC3339, item.ObservedAt)
-			if err != nil {
-				return e.BadRequestError("observedAt must be RFC3339", err)
-			}
-		}
-		apps := make([]agentsignals.RuntimeAppStatus, 0, len(item.Apps))
-		for _, appItem := range item.Apps {
-			apps = append(apps, agentsignals.RuntimeAppStatus{
-				AppID:        strings.TrimSpace(appItem.AppID),
-				RuntimeState: strings.TrimSpace(appItem.RuntimeState),
-			})
-		}
-		items = append(items, agentsignals.RuntimeStatusItem{
-			TargetType:   strings.TrimSpace(item.TargetType),
-			TargetID:     strings.TrimSpace(item.TargetID),
-			RuntimeState: strings.TrimSpace(item.RuntimeState),
-			ObservedAt:   observedAt,
-			Containers: agentsignals.RuntimeContainerSummary{
-				Running:    item.Containers.Running,
-				Restarting: item.Containers.Restarting,
-				Exited:     item.Containers.Exited,
-			},
-			Apps: apps,
-		})
-	}
-	accepted, err := agentsignals.IngestRuntimeStatus(e.App, agentsignals.RuntimeStatusIngest{
-		ServerID:   body.ServerID,
-		ServerName: server.GetString("name"),
-		ReportedAt: reportedAt,
-		Items:      items,
-	})
-	if err != nil {
-		if err == agentsignals.ErrRuntimeStatusTargetMismatch {
-			return e.BadRequestError(err.Error(), nil)
-		}
-		return e.InternalServerError("failed to persist runtime summary", err)
-	}
-	return e.JSON(http.StatusAccepted, map[string]any{"ok": true, "accepted": accepted})
+func monitorWriteUnauthorized(e *core.RequestEvent) error {
+	e.Response.Header().Set("WWW-Authenticate", `Basic realm="AppOS monitor write"`)
+	return e.JSON(http.StatusUnauthorized, map[string]any{"error": "invalid_monitor_write_credentials"})
 }
 
-func handleMonitorAgentToken(e *core.RequestEvent) error {
-	server, err := findMonitorServer(e.App, e.Request.PathValue("id"))
-	if err != nil {
-		return e.NotFoundError("server not found", err)
-	}
-	rotate := strings.EqualFold(strings.TrimSpace(e.Request.URL.Query().Get("rotate")), "true")
-	token, changed, err := agentsignals.GetOrIssueAgentToken(e.App, server.Id, rotate)
-	if err != nil {
-		return e.InternalServerError("failed to issue monitor token", err)
-	}
-	return e.JSON(http.StatusOK, map[string]any{
-		"serverId": server.Id,
-		"token":    token,
-		"rotated":  rotate && changed,
-		"created":  changed && !rotate,
-	})
+func monitorWritePayloadTooLarge(e *core.RequestEvent) error {
+	return e.JSON(http.StatusRequestEntityTooLarge, map[string]any{"error": "monitor_write_payload_too_large", "maxBytes": maxMonitorWriteBodyBytes})
 }
 
-func handleMonitorAgentSetup(e *core.RequestEvent) error {
-	server, err := findMonitorServer(e.App, e.Request.PathValue("id"))
-	if err != nil {
-		return e.NotFoundError("server not found", err)
-	}
-	token, _, err := agentsignals.GetOrIssueAgentToken(e.App, server.Id, false)
-	if err != nil {
-		return e.InternalServerError("failed to load monitor token", err)
-	}
-	baseURL := monitorBaseURL(e)
-	return e.JSON(http.StatusOK, map[string]any{
-		"serverId":      server.Id,
-		"token":         token,
-		"ingestBaseUrl": baseURL + "/api/monitor/ingest",
-		"systemdUnit":   monitorSystemdUnit(),
-		"configYaml":    monitorAgentConfigYAML(server.Id, baseURL, token),
-	})
+type monitorWriteLimitReadCloser struct {
+	body      io.ReadCloser
+	remaining int64
+	exceeded  bool
 }
 
-func handleMonitorHeartbeat(e *core.RequestEvent) error {
-	token, err := monitorBearerToken(e.Request.Header.Get("Authorization"))
-	if err != nil {
-		return apis.NewUnauthorizedError("missing monitor token", err)
+func (r *monitorWriteLimitReadCloser) Read(p []byte) (int, error) {
+	if r.exceeded {
+		return 0, errMonitorWritePayloadTooLarge
 	}
-	authenticatedServerID, err := agentsignals.ValidateAgentToken(e.App, token)
-	if err != nil {
-		return apis.NewUnauthorizedError("invalid monitor token", err)
-	}
-
-	var body struct {
-		ServerID     string `json:"serverId"`
-		AgentVersion string `json:"agentVersion"`
-		ReportedAt   string `json:"reportedAt"`
-		Items        []struct {
-			TargetType string `json:"targetType"`
-			TargetID   string `json:"targetId"`
-			Status     string `json:"status"`
-			Reason     string `json:"reason"`
-			ObservedAt string `json:"observedAt"`
-		} `json:"items"`
-	}
-	if err := e.BindBody(&body); err != nil {
-		return e.BadRequestError("invalid body", err)
-	}
-	if strings.TrimSpace(body.ServerID) == "" || strings.TrimSpace(body.ReportedAt) == "" || len(body.Items) == 0 {
-		return e.BadRequestError("serverId, reportedAt, and items are required", nil)
-	}
-	if body.ServerID != authenticatedServerID {
-		return apis.NewForbiddenError("server ownership mismatch", nil)
-	}
-	server, err := findMonitorServer(e.App, body.ServerID)
-	if err != nil {
-		return e.NotFoundError("server not found", err)
-	}
-	reportedAt, err := time.Parse(time.RFC3339, body.ReportedAt)
-	if err != nil {
-		return e.BadRequestError("reportedAt must be RFC3339", err)
-	}
-	items := make([]agentsignals.HeartbeatItem, 0, len(body.Items))
-	for _, item := range body.Items {
-		observedAt := reportedAt
-		if strings.TrimSpace(item.ObservedAt) != "" {
-			observedAt, err = time.Parse(time.RFC3339, item.ObservedAt)
-			if err != nil {
-				return e.BadRequestError("observedAt must be RFC3339", err)
-			}
+	if r.remaining <= 0 {
+		buf := make([]byte, 1)
+		n, err := r.body.Read(buf)
+		if n > 0 {
+			r.exceeded = true
+			return 0, errMonitorWritePayloadTooLarge
 		}
-		items = append(items, agentsignals.HeartbeatItem{
-			TargetType: strings.TrimSpace(item.TargetType),
-			TargetID:   strings.TrimSpace(item.TargetID),
-			ObservedAt: observedAt,
-		})
+		return 0, err
 	}
-	accepted, err := agentsignals.IngestHeartbeat(e.App, agentsignals.HeartbeatIngest{
-		ServerID:     body.ServerID,
-		ServerName:   server.GetString("name"),
-		AgentVersion: body.AgentVersion,
-		ReportedAt:   reportedAt,
-		ReceivedAt:   time.Now().UTC(),
-		Items:        items,
-	})
-	if err != nil {
-		switch err {
-		case agentsignals.ErrHeartbeatTargetTypeUnsupported, agentsignals.ErrHeartbeatTargetMismatch:
-			return e.BadRequestError(err.Error(), nil)
-		default:
-			return e.InternalServerError("failed to persist latest status", err)
-		}
+	if int64(len(p)) > r.remaining {
+		p = p[:r.remaining]
 	}
-	return e.JSON(http.StatusAccepted, map[string]any{"ok": true, "accepted": accepted})
+	n, err := r.body.Read(p)
+	r.remaining -= int64(n)
+	return n, err
 }
 
+func (r *monitorWriteLimitReadCloser) Close() error {
+	return r.body.Close()
+}
+
+func monitorInfluxWriteEndpoint() (string, error) {
+	baseURL := strings.TrimRight(strings.TrimSpace(runtimecfg.TSDBURL()), "/")
+	if baseURL == "" {
+		return "", fmt.Errorf("%s is not configured", monitormetrics.EnvTSDBURL)
+	}
+	parsed, err := url.Parse(baseURL)
+	if err != nil {
+		return "", err
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return "", fmt.Errorf("%s must include scheme and host", monitormetrics.EnvTSDBURL)
+	}
+	return baseURL + "/write", nil
+}
+
+type MonitorErrorResponse struct {
+	Error    string `json:"error,omitempty"`
+	Message  string `json:"message,omitempty"`
+	MaxBytes int64  `json:"maxBytes,omitempty"`
+}
+
+type MonitorOverviewResponse struct {
+	Counts         map[string]int        `json:"counts"`
+	UnhealthyItems []MonitorOverviewItem `json:"unhealthyItems"`
+	PlatformItems  []MonitorOverviewItem `json:"platformItems"`
+}
+
+type MonitorOverviewItem struct {
+	TargetType       string         `json:"targetType,omitempty"`
+	TargetID         string         `json:"targetId"`
+	DisplayName      string         `json:"displayName"`
+	Status           string         `json:"status"`
+	Reason           any            `json:"reason"`
+	LastTransitionAt string         `json:"lastTransitionAt"`
+	DetailHref       string         `json:"detailHref,omitempty"`
+	Summary          map[string]any `json:"summary,omitempty"`
+}
+
+type MonitorTargetStatusResponse struct {
+	HasData             bool           `json:"hasData"`
+	TargetType          string         `json:"targetType"`
+	TargetID            string         `json:"targetId"`
+	DisplayName         string         `json:"displayName"`
+	Status              string         `json:"status"`
+	Reason              any            `json:"reason"`
+	SignalSource        string         `json:"signalSource"`
+	LastTransitionAt    string         `json:"lastTransitionAt"`
+	LastSuccessAt       any            `json:"lastSuccessAt"`
+	LastFailureAt       any            `json:"lastFailureAt"`
+	LastCheckedAt       any            `json:"lastCheckedAt"`
+	LastReportedAt      any            `json:"lastReportedAt"`
+	ConsecutiveFailures int            `json:"consecutiveFailures"`
+	Summary             map[string]any `json:"summary,omitempty"`
+}
+
+// The following DTOs intentionally mirror monitormetrics response types so the
+// OpenAPI generator emits full schemas for public monitor endpoints.
+type MonitorMetricSeriesResponse struct {
+	TargetType                 string                `json:"targetType"`
+	TargetID                   string                `json:"targetId"`
+	Window                     string                `json:"window"`
+	RangeStartAt               string                `json:"rangeStartAt,omitempty"`
+	RangeEndAt                 string                `json:"rangeEndAt,omitempty"`
+	StepSeconds                int                   `json:"stepSeconds,omitempty"`
+	Series                     []MonitorMetricSeries `json:"series"`
+	AvailableNetworkInterfaces []string              `json:"availableNetworkInterfaces,omitempty"`
+	SelectedNetworkInterface   string                `json:"selectedNetworkInterface,omitempty"`
+}
+
+type MonitorMetricLatestResponse struct {
+	TargetType                 string                `json:"targetType"`
+	TargetID                   string                `json:"targetId"`
+	CadenceSeconds             int                   `json:"cadenceSeconds,omitempty"`
+	Series                     []MonitorMetricSeries `json:"series"`
+	AvailableNetworkInterfaces []string              `json:"availableNetworkInterfaces,omitempty"`
+	SelectedNetworkInterface   string                `json:"selectedNetworkInterface,omitempty"`
+}
+
+type MonitorMetricSeries struct {
+	Name     string                       `json:"name"`
+	Unit     string                       `json:"unit"`
+	Points   [][]float64                  `json:"points,omitempty"`
+	Segments []MonitorMetricSeriesSegment `json:"segments,omitempty"`
+	Metadata map[string]string            `json:"metadata,omitempty"`
+}
+
+type MonitorMetricSeriesSegment struct {
+	Name   string      `json:"name"`
+	Points [][]float64 `json:"points"`
+}
+
+type MonitorContainerTelemetryResponse struct {
+	ServerID     string                          `json:"serverId"`
+	Window       string                          `json:"window"`
+	RangeStartAt string                          `json:"rangeStartAt,omitempty"`
+	RangeEndAt   string                          `json:"rangeEndAt,omitempty"`
+	StepSeconds  int                             `json:"stepSeconds,omitempty"`
+	Items        []MonitorContainerTelemetryItem `json:"items"`
+}
+
+type MonitorContainerTelemetryItem struct {
+	ContainerID    string                             `json:"containerId"`
+	ContainerName  string                             `json:"containerName,omitempty"`
+	ComposeProject string                             `json:"composeProject,omitempty"`
+	ComposeService string                             `json:"composeService,omitempty"`
+	Latest         MonitorContainerTelemetryLatest    `json:"latest"`
+	Freshness      MonitorContainerTelemetryFreshness `json:"freshness"`
+	Series         []MonitorMetricSeries              `json:"series,omitempty"`
+}
+
+type MonitorContainerTelemetryLatest struct {
+	CPUPercent               *float64 `json:"cpuPercent,omitempty"`
+	MemoryUsageBytes         *float64 `json:"memoryUsageBytes,omitempty"`
+	MemoryLimitBytes         *float64 `json:"memoryLimitBytes,omitempty"`
+	NetworkRxBytesPerSecond  *float64 `json:"networkRxBytesPerSecond,omitempty"`
+	NetworkTxBytesPerSecond  *float64 `json:"networkTxBytesPerSecond,omitempty"`
+	BlockReadBytesPerSecond  *float64 `json:"blockReadBytesPerSecond,omitempty"`
+	BlockWriteBytesPerSecond *float64 `json:"blockWriteBytesPerSecond,omitempty"`
+}
+
+type MonitorContainerTelemetryFreshness struct {
+	State      string `json:"state"`
+	ObservedAt string `json:"observedAt,omitempty"`
+}
+
+// @Summary Get monitor overview
+// @Description Returns aggregate status counts plus unhealthy targets and platform monitor items. Status values include healthy, degraded, offline, unreachable, credential_invalid, and unknown.
+// @Tags Monitoring
+// @Security BearerAuth
+// @Success 200 {object} MonitorOverviewResponse
+// @Failure 401 {object} MonitorErrorResponse
+// @Failure 500 {object} MonitorErrorResponse
+// @Router /api/monitor/overview [get]
 func handleMonitorOverview(e *core.RequestEvent) error {
 	overview, err := monitorstatus.BuildOverview(e.App)
 	if err != nil {
@@ -399,26 +324,65 @@ func handleMonitorOverview(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, overview)
 }
 
+// @Summary Get server container telemetry
+// @Description Returns latest and time-series telemetry for containers on one managed server. AppOS reads stable canonical container metrics and matches telemetry primarily by normalized containerName; containerId remains a request correlation key when no name is provided.
+// @Tags Monitoring
+// @Security BearerAuth
+// @Param id path string true "server record ID"
+// @Param window query string false "fixed time window" Enums(1m,5m,15m,0.1h,0.5h,1h,5h,6h,12h,1d,24h,7d)
+// @Param containerId query string false "request correlation key; repeat to request multiple containers"
+// @Param containerName query string false "container name used as the primary telemetry identity; repeat in the same order as containerId"
+// @Success 200 {object} MonitorContainerTelemetryResponse
+// @Failure 400 {object} MonitorErrorResponse
+// @Failure 401 {object} MonitorErrorResponse
+// @Failure 404 {object} MonitorErrorResponse
+// @Router /api/monitor/servers/{id}/container-telemetry [get]
 func handleMonitorServerContainerTelemetry(e *core.RequestEvent) error {
 	serverID := strings.TrimSpace(e.Request.PathValue("id"))
 	if serverID == "" {
 		return e.BadRequestError("server id is required", nil)
 	}
-	if _, err := findMonitorServer(e.App, serverID); err != nil {
-		return e.NotFoundError("server not found", err)
+	if serverID != localContainerTelemetryServerID {
+		if _, err := findMonitorServer(e.App, serverID); err != nil {
+			return e.NotFoundError("server not found", err)
+		}
 	}
 	window := strings.TrimSpace(e.Request.URL.Query().Get("window"))
 	if window == "" {
 		window = "15m"
 	}
 	containerIDs := e.Request.URL.Query()["containerId"]
-	response, err := monitormetrics.QueryContainerTelemetry(e.Request.Context(), serverID, containerIDs, window)
+	containerNames := e.Request.URL.Query()["containerName"]
+	targets := make([]monitormetrics.ContainerTelemetryTarget, 0, len(containerIDs))
+	for index, containerID := range containerIDs {
+		target := monitormetrics.ContainerTelemetryTarget{ID: containerID}
+		if index < len(containerNames) {
+			target.Name = containerNames[index]
+		}
+		targets = append(targets, target)
+	}
+	response, err := monitormetrics.QueryContainerTelemetry(e.Request.Context(), serverID, targets, window)
 	if err != nil {
 		return e.BadRequestError("failed to query container telemetry", err)
 	}
 	return e.JSON(http.StatusOK, response)
 }
 
+// @Summary Get monitor target series
+// @Description Returns metric series for a monitor target. targetType accepts server, app, container, or platform. series accepts cpu, memory, disk, disk_usage, network, or network_traffic depending on target type. Use startAt and endAt together for a custom RFC3339 range.
+// @Tags Monitoring
+// @Security BearerAuth
+// @Param targetType path string true "monitor target type" Enums(server,app,container,platform)
+// @Param targetId path string true "monitor target ID; platform uses appos-core for AppOS host metrics"
+// @Param window query string false "fixed time window; ignored when startAt and endAt are both set" Enums(15m,1h,5h,6h,12h,1d,24h,7d)
+// @Param series query string false "metric series alias" Enums(cpu,memory,disk,disk_usage,network,network_traffic)
+// @Param networkInterface query string false "network interface for network series; use all or omit for aggregate"
+// @Param startAt query string false "custom range start time in RFC3339 format"
+// @Param endAt query string false "custom range end time in RFC3339 format"
+// @Success 200 {object} MonitorMetricSeriesResponse
+// @Failure 400 {object} MonitorErrorResponse
+// @Failure 401 {object} MonitorErrorResponse
+// @Router /api/monitor/targets/{targetType}/{targetId}/series [get]
 func handleMonitorTargetSeries(e *core.RequestEvent) error {
 	window := strings.TrimSpace(e.Request.URL.Query().Get("window"))
 	if window == "" {
@@ -467,6 +431,17 @@ func parseMonitorSeriesTimeParam(value string) (*time.Time, error) {
 	return &parsed, nil
 }
 
+// @Summary Get monitor target status
+// @Description Returns the latest projected status for a monitor target. targetType accepts server, app, container, resource, or platform.
+// @Tags Monitoring
+// @Security BearerAuth
+// @Param targetType path string true "monitor target type" Enums(server,app,container,resource,platform)
+// @Param targetId path string true "monitor target ID"
+// @Success 200 {object} MonitorTargetStatusResponse
+// @Failure 401 {object} MonitorErrorResponse
+// @Failure 404 {object} MonitorErrorResponse
+// @Failure 500 {object} MonitorErrorResponse
+// @Router /api/monitor/targets/{targetType}/{targetId} [get]
 func handleMonitorTargetStatus(e *core.RequestEvent) error {
 	response, err := monitorstatus.GetTargetStatus(
 		e.App,
@@ -474,53 +449,16 @@ func handleMonitorTargetStatus(e *core.RequestEvent) error {
 		e.Request.PathValue("targetId"),
 	)
 	if err != nil {
-		return e.NotFoundError("monitor target not found", err)
+		if errors.Is(err, sql.ErrNoRows) {
+			return e.NotFoundError("monitor target not found", err)
+		}
+		return e.InternalServerError("failed to load monitor target status", err)
 	}
 	return e.JSON(http.StatusOK, response)
 }
 
 func findMonitorServer(app core.App, serverID string) (*core.Record, error) {
 	return app.FindRecordById("servers", strings.TrimSpace(serverID))
-}
-
-func monitorBearerToken(header string) (string, error) {
-	header = strings.TrimSpace(header)
-	if !strings.HasPrefix(strings.ToLower(header), "bearer ") {
-		return "", fmt.Errorf("missing bearer token")
-	}
-	value := strings.TrimSpace(header[7:])
-	if value == "" {
-		return "", fmt.Errorf("missing bearer token")
-	}
-	return value, nil
-}
-
-func monitorBaseURL(e *core.RequestEvent) string {
-	scheme := "http"
-	if strings.EqualFold(strings.TrimSpace(e.Request.Header.Get("X-Forwarded-Proto")), "https") || e.Request.TLS != nil {
-		scheme = "https"
-	}
-	return scheme + "://" + resolveMonitorHTTPHost(e)
-}
-
-func resolveMonitorHTTPHost(e *core.RequestEvent) string {
-	host := firstForwardedHostValue(e.Request.Host)
-	forwardedHost := firstForwardedHostValue(e.Request.Header.Get("X-Forwarded-Host"))
-	if host == "" {
-		host = forwardedHost
-	}
-	if forwardedHost != "" && forwardedHostCarriesPort(host, forwardedHost) {
-		host = forwardedHost
-	}
-	if !hostHasExplicitPort(host) {
-		if forwardedPort := firstForwardedPortValue(e.Request.Header.Get("X-Forwarded-Port")); forwardedPort != "" {
-			host = appendPortIfMissing(host, forwardedPort)
-		}
-	}
-	if host == "" {
-		host = "appos-host"
-	}
-	return host
 }
 
 func firstForwardedHostValue(value string) string {
@@ -589,12 +527,4 @@ func appendPortIfMissing(host string, port string) string {
 		return host + ":" + port
 	}
 	return host + ":" + port
-}
-
-func monitorAgentConfigYAML(serverID string, baseURL string, token string) string {
-	return fmt.Sprintf("server_id: %s\ninterval: %s\ningest_base_url: %s/api/monitor/ingest\ntoken: %s\ntimeout: 10s\n", serverID, monitor.ExpectedHeartbeatInterval, baseURL, token)
-}
-
-func monitorSystemdUnit() string {
-	return "[Unit]\nDescription=AppOS Agent\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=simple\nExecStart=/usr/local/bin/appos-agent --config /etc/appos-agent.yaml\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target\n"
 }

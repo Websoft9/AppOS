@@ -1,0 +1,345 @@
+package egress
+
+import (
+	"errors"
+	"fmt"
+	"regexp"
+	"sort"
+	"strings"
+)
+
+var (
+	ErrDirectUseDenied = errors.New("proxy consumer direct use denied")
+	ErrUnknownConsumer = errors.New("unknown proxy consumer")
+
+	consumerKeyPattern = regexp.MustCompile(`^[a-z0-9]+(?:[._][a-z0-9]+)+$`)
+)
+
+type Scope string
+
+const (
+	ScopeModule Scope = "module"
+	ScopeAction Scope = "action"
+)
+
+type Adapter string
+
+const (
+	AdapterHTTPClient Adapter = "http_client"
+	AdapterEnv        Adapter = "env"
+	AdapterDialer     Adapter = "dialer"
+)
+
+type TrafficClass string
+
+const (
+	TrafficClassPublicEgress   TrafficClass = "public_egress"
+	TrafficClassControlPlane   TrafficClass = "control_plane"
+	TrafficClassLocalOrPrivate TrafficClass = "local_or_private"
+)
+
+type Support string
+
+const (
+	SupportProxyCapable Support = "proxy_capable"
+	SupportBypassOnly   Support = "bypass_only"
+)
+
+type Location string
+
+const (
+	LocationLocal  Location = "local"
+	LocationRemote Location = "remote"
+)
+
+type Mode string
+
+const (
+	ModeDisabled Mode = "disabled"
+	ModeAlways   Mode = "always"
+)
+
+type Workload string
+
+const (
+	WorkloadAPI          Workload = "api"
+	WorkloadFetchStore   Workload = "fetch_store"
+	WorkloadFetchParse   Workload = "fetch_parse"
+	WorkloadFetchProbe   Workload = "fetch_probe"
+	WorkloadFetchExecute Workload = "fetch_execute"
+	WorkloadSubprocess   Workload = "subprocess"
+	WorkloadTunnel       Workload = "tunnel"
+	WorkloadControlPlane Workload = "control_plane"
+)
+
+type Definition struct {
+	Key         string
+	Title       string
+	Description string
+	Location    Location
+	Scope       Scope
+	ModuleKey   string
+	Workload    Workload
+
+	AllowDirectUse bool
+
+	Adapter      Adapter
+	TrafficClass TrafficClass
+	Support      Support
+	DefaultMode  Mode
+	Tags         []string
+}
+
+func (d Definition) Enrollable() bool {
+	return d.Support == SupportProxyCapable
+}
+
+func (d Definition) SupportsMode(mode Mode) bool {
+	switch mode {
+	case ModeDisabled:
+		return true
+	case ModeAlways:
+		return d.Support == SupportProxyCapable
+	default:
+		return false
+	}
+}
+
+func (d Definition) AllowedModes() []Mode {
+	modes := []Mode{ModeDisabled}
+	if d.Support == SupportProxyCapable {
+		modes = append(modes, ModeAlways)
+	}
+	return modes
+}
+
+func (d Definition) DirectUseAllowed() bool {
+	return d.AllowDirectUse
+}
+
+type Registry struct {
+	items map[string]Definition
+	order []string
+}
+
+func NewRegistry(definitions ...Definition) (*Registry, error) {
+	if len(definitions) == 0 {
+		return nil, errors.New("at least one proxy consumer definition is required")
+	}
+
+	items := make(map[string]Definition, len(definitions))
+	order := make([]string, 0, len(definitions))
+	for _, definition := range definitions {
+		normalized, err := normalizeDefinition(definition)
+		if err != nil {
+			return nil, err
+		}
+		if _, exists := items[normalized.Key]; exists {
+			return nil, fmt.Errorf("duplicate proxy consumer key %q", normalized.Key)
+		}
+		items[normalized.Key] = normalized
+		order = append(order, normalized.Key)
+	}
+
+	for _, key := range order {
+		definition := items[key]
+		if definition.Scope != ScopeAction {
+			continue
+		}
+		moduleDef, ok := items[definition.ModuleKey]
+		if !ok {
+			return nil, fmt.Errorf("proxy consumer %q references unknown module key %q", definition.Key, definition.ModuleKey)
+		}
+		if moduleDef.Scope != ScopeModule {
+			return nil, fmt.Errorf("proxy consumer %q references non-module key %q", definition.Key, definition.ModuleKey)
+		}
+	}
+
+	return &Registry{items: items, order: order}, nil
+}
+
+func (r *Registry) List() []Definition {
+	if r == nil || len(r.order) == 0 {
+		return nil
+	}
+	result := make([]Definition, 0, len(r.order))
+	for _, key := range r.order {
+		result = append(result, r.items[key])
+	}
+	return result
+}
+
+func (r *Registry) Enrollable() []Definition {
+	if r == nil {
+		return nil
+	}
+	result := make([]Definition, 0, len(r.order))
+	for _, key := range r.order {
+		definition := r.items[key]
+		if definition.Enrollable() {
+			result = append(result, definition)
+		}
+	}
+	return result
+}
+
+func (r *Registry) DirectUse() []Definition {
+	if r == nil {
+		return nil
+	}
+	result := make([]Definition, 0, len(r.order))
+	for _, key := range r.order {
+		definition := r.items[key]
+		if definition.DirectUseAllowed() {
+			result = append(result, definition)
+		}
+	}
+	return result
+}
+
+func (r *Registry) Get(key string) (Definition, bool) {
+	if r == nil {
+		return Definition{}, false
+	}
+	definition, ok := r.items[strings.TrimSpace(key)]
+	return definition, ok
+}
+
+func (r *Registry) Require(key string) (Definition, error) {
+	definition, ok := r.Get(key)
+	if !ok {
+		return Definition{}, fmt.Errorf("%w: %s", ErrUnknownConsumer, strings.TrimSpace(key))
+	}
+	return definition, nil
+}
+
+func (r *Registry) RequireDirectUse(key string) (Definition, error) {
+	definition, err := r.Require(key)
+	if err != nil {
+		return Definition{}, err
+	}
+	if !definition.DirectUseAllowed() {
+		return Definition{}, fmt.Errorf("%w: %s", ErrDirectUseDenied, definition.Key)
+	}
+	return definition, nil
+}
+
+func normalizeDefinition(definition Definition) (Definition, error) {
+	definition.Key = strings.TrimSpace(definition.Key)
+	definition.Title = strings.TrimSpace(definition.Title)
+	definition.Description = strings.TrimSpace(definition.Description)
+	definition.ModuleKey = strings.TrimSpace(definition.ModuleKey)
+	definition.Workload = Workload(strings.TrimSpace(string(definition.Workload)))
+	definition.Tags = normalizeTags(definition.Tags)
+
+	if definition.Key == "" {
+		return Definition{}, errors.New("proxy consumer key is required")
+	}
+	if !consumerKeyPattern.MatchString(definition.Key) {
+		return Definition{}, fmt.Errorf("proxy consumer key %q is invalid", definition.Key)
+	}
+	if definition.Title == "" {
+		return Definition{}, fmt.Errorf("proxy consumer %q requires a title", definition.Key)
+	}
+	if !isValidScope(definition.Scope) {
+		return Definition{}, fmt.Errorf("proxy consumer %q has invalid scope %q", definition.Key, definition.Scope)
+	}
+	if !isValidLocation(definition.Location) {
+		return Definition{}, fmt.Errorf("proxy consumer %q has invalid location %q", definition.Key, definition.Location)
+	}
+	if !isValidAdapter(definition.Adapter) {
+		return Definition{}, fmt.Errorf("proxy consumer %q has invalid adapter %q", definition.Key, definition.Adapter)
+	}
+	if !isValidTrafficClass(definition.TrafficClass) {
+		return Definition{}, fmt.Errorf("proxy consumer %q has invalid traffic class %q", definition.Key, definition.TrafficClass)
+	}
+	if !isValidSupport(definition.Support) {
+		return Definition{}, fmt.Errorf("proxy consumer %q has invalid support %q", definition.Key, definition.Support)
+	}
+	if !isValidWorkload(definition.Workload) {
+		return Definition{}, fmt.Errorf("proxy consumer %q has invalid workload %q", definition.Key, definition.Workload)
+	}
+	if !definition.SupportsMode(definition.DefaultMode) {
+		return Definition{}, fmt.Errorf("proxy consumer %q has invalid default mode %q", definition.Key, definition.DefaultMode)
+	}
+	if definition.Scope == ScopeModule {
+		if !strings.HasSuffix(definition.Key, ".global") {
+			return Definition{}, fmt.Errorf("module-level proxy consumer %q must end with .global", definition.Key)
+		}
+		if definition.ModuleKey != "" {
+			return Definition{}, fmt.Errorf("module-level proxy consumer %q cannot declare module key", definition.Key)
+		}
+	}
+	if definition.Scope == ScopeAction {
+		if definition.ModuleKey == "" {
+			return Definition{}, fmt.Errorf("action-level proxy consumer %q requires module key", definition.Key)
+		}
+		if strings.SplitN(definition.Key, ".", 2)[0] != strings.SplitN(definition.ModuleKey, ".", 2)[0] {
+			return Definition{}, fmt.Errorf("action-level proxy consumer %q must share family with module key %q", definition.Key, definition.ModuleKey)
+		}
+	}
+	return definition, nil
+}
+
+func normalizeTags(tags []string) []string {
+	if len(tags) == 0 {
+		return nil
+	}
+	normalized := make([]string, 0, len(tags))
+	seen := map[string]struct{}{}
+	for _, tag := range tags {
+		tag = strings.TrimSpace(tag)
+		if tag == "" {
+			continue
+		}
+		if _, ok := seen[tag]; ok {
+			continue
+		}
+		seen[tag] = struct{}{}
+		normalized = append(normalized, tag)
+	}
+	sort.Strings(normalized)
+	if len(normalized) == 0 {
+		return nil
+	}
+	return normalized
+}
+
+func isValidScope(scope Scope) bool {
+	return scope == ScopeModule || scope == ScopeAction
+}
+
+func isValidAdapter(adapter Adapter) bool {
+	switch adapter {
+	case AdapterHTTPClient, AdapterEnv, AdapterDialer:
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidWorkload(workload Workload) bool {
+	switch workload {
+	case WorkloadAPI, WorkloadFetchStore, WorkloadFetchParse, WorkloadFetchProbe, WorkloadFetchExecute, WorkloadSubprocess, WorkloadTunnel, WorkloadControlPlane:
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidTrafficClass(class TrafficClass) bool {
+	switch class {
+	case TrafficClassPublicEgress, TrafficClassControlPlane, TrafficClassLocalOrPrivate:
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidSupport(support Support) bool {
+	return support == SupportProxyCapable || support == SupportBypassOnly
+}
+
+func isValidLocation(location Location) bool {
+	return location == LocationLocal || location == LocationRemote
+}

@@ -1,0 +1,21 @@
+{
+  "originKind": "official",
+  "sourceRepo": "clickhouse/clickhouse-server",
+  "sourcePath": "docs/getting-started/install/docker.md",
+  "sourceBranch": "main",
+  "observedFiles": [
+    "docker.md"
+  ],
+  "references": {
+    "docs": "https://clickhouse.com/docs/install/docker",
+    "image": "https://hub.docker.com/r/clickhouse/clickhouse-server",
+    "envVars": "https://clickhouse.com/docs/install/docker",
+    "secondary": "https://github.com/Websoft9/docker-library/tree/main/apps/clickhouse"
+  },
+  "notes": [
+    "This sample preserves upstream identity for Epic 32 adaptation work.",
+    "The compose shape is derived from the official ClickHouse Docker install docs; the Websoft9 docker-library entry is used as a secondary reference only.",
+    "ClickHouse is a single-service application: the server both serves the HTTP interface (8123) and stores data. No separate database service is modeled.",
+    "The first pass stores source metadata rather than a full upstream file mirror."
+  ]
+}

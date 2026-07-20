@@ -10,14 +10,18 @@ var allowedSeriesWindows = map[string]struct {
 	Duration time.Duration
 	Step     time.Duration
 }{
-	"15m": {Duration: 15 * time.Minute, Step: 30 * time.Second},
-	"1h":  {Duration: time.Hour, Step: time.Minute},
-	"5h":  {Duration: 5 * time.Hour, Step: 5 * time.Minute},
-	"6h":  {Duration: 6 * time.Hour, Step: 5 * time.Minute},
-	"12h": {Duration: 12 * time.Hour, Step: 10 * time.Minute},
-	"1d":  {Duration: 24 * time.Hour, Step: 15 * time.Minute},
-	"24h": {Duration: 24 * time.Hour, Step: 15 * time.Minute},
-	"7d":  {Duration: 7 * 24 * time.Hour, Step: time.Hour},
+	"1m":   {Duration: time.Minute, Step: 5 * time.Second},
+	"5m":   {Duration: 5 * time.Minute, Step: 10 * time.Second},
+	"15m":  {Duration: 15 * time.Minute, Step: 30 * time.Second},
+	"0.1h": {Duration: 6 * time.Minute, Step: 10 * time.Second},
+	"0.5h": {Duration: 30 * time.Minute, Step: 30 * time.Second},
+	"1h":   {Duration: time.Hour, Step: time.Minute},
+	"5h":   {Duration: 5 * time.Hour, Step: 5 * time.Minute},
+	"6h":   {Duration: 6 * time.Hour, Step: 5 * time.Minute},
+	"12h":  {Duration: 12 * time.Hour, Step: 10 * time.Minute},
+	"1d":   {Duration: 24 * time.Hour, Step: 15 * time.Minute},
+	"24h":  {Duration: 24 * time.Hour, Step: 15 * time.Minute},
+	"7d":   {Duration: 7 * 24 * time.Hour, Step: time.Hour},
 }
 
 type metricSeriesWindowSpec struct {
@@ -48,7 +52,7 @@ func resolveMetricSeriesWindow(window string, options MetricSeriesQueryOptions, 
 	if !ok {
 		return metricSeriesWindowSpec{}, fmt.Errorf("window %q is not allowed", window)
 	}
-	end := now.UTC()
+	end := alignTimeToStepBoundary(now.UTC(), windowSpec.Step)
 	start := end.Add(-windowSpec.Duration)
 	return metricSeriesWindowSpec{
 		Label: window,
@@ -56,6 +60,18 @@ func resolveMetricSeriesWindow(window string, options MetricSeriesQueryOptions, 
 		End:   end,
 		Step:  windowSpec.Step,
 	}, nil
+}
+
+func alignTimeToStepBoundary(value time.Time, step time.Duration) time.Time {
+	if step <= 0 {
+		return value
+	}
+	unix := value.Unix()
+	stepSeconds := int64(step / time.Second)
+	if stepSeconds <= 0 {
+		return value
+	}
+	return time.Unix((unix/stepSeconds)*stepSeconds, 0).UTC()
 }
 
 func stepForSeriesDuration(duration time.Duration) time.Duration {
@@ -117,4 +133,13 @@ func normalizeRequestedSeries(seriesNames []string) []string {
 		}
 	}
 	return normalized
+}
+
+// ResolveMetricSeriesWindowForTest exposes fixed-window resolution to external tests.
+func ResolveMetricSeriesWindowForTest(window string, options MetricSeriesQueryOptions, now time.Time) (time.Time, time.Time, time.Duration, error) {
+	spec, err := resolveMetricSeriesWindow(window, options, now)
+	if err != nil {
+		return time.Time{}, time.Time{}, 0, err
+	}
+	return spec.Start, spec.End, spec.Step, nil
 }

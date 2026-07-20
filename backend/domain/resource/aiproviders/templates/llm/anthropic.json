@@ -2,19 +2,34 @@
   "id": "anthropic",
   "title": "Anthropic",
   "vendor": "Anthropic",
+  "uiGroup": "single_provider",
+  "hostingMode": "cloud",
+  "serviceMode": "official_provider",
+  "endpointMode": "customizable",
+  "supportsClosedModels": true,
+  "supportsMultiVendorModels": false,
   "description": "Anthropic hosted LLM access using an API key.",
+  "helpUrl": "https://docs.anthropic.com/en/api/overview",
   "defaultEndpoint": "https://api.anthropic.com",
+  "defaultAuthScheme": "api_key",
+  "protocols": [
+    {
+      "id": "anthropic",
+      "label": "Anthropic",
+      "default": true
+    }
+  ],
   "capabilities": ["chat", "tools", "streaming"],
   "aliases": ["anthropic", "claude"],
   "fields": [
     {
-      "id": "endpoint",
-      "default": "https://api.anthropic.com"
+      "id": "endpoint"
     },
     {
       "id": "version",
       "label": "API Version",
       "type": "string",
+      "advanced": true,
       "placeholder": "2023-06-01"
     }
   ]

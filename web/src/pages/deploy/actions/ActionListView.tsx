@@ -1,11 +1,26 @@
-import { ArrowDown, ArrowUp, Filter, Search, Trash2, X } from 'lucide-react'
+import { useState } from 'react'
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  Search,
+  Settings2,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import {
+  DropdownMenuCheckboxItem,
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -17,7 +32,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
-import { actionDurationLabel } from '@/pages/deploy/actions/action-utils'
+import { actionDurationLabel, actionStatusLabel } from '@/pages/deploy/actions/action-utils'
 import type { ActiveFilterChip } from '@/pages/deploy/actions/action-types'
 
 type SortField = 'compose_project_name' | 'created' | 'started_at' | 'finished_at'
@@ -29,6 +44,7 @@ type ActionListItem = {
   source: string
   status: string
   server_id: string
+  created?: string
   started_at?: string
   finished_at?: string
   pipeline?: {
@@ -221,19 +237,91 @@ export function ActionListView<TOperation extends ActionListItem>({
   onOpenOperation,
   renderActionMenu,
 }: ActionListViewProps<TOperation>) {
+  const [showCreatedColumn, setShowCreatedColumn] = useState(false)
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={event => onSearchChange(event.target.value)}
-            placeholder="Search actions..."
-            className="w-full min-w-[220px] pl-9 lg:w-[280px]"
-          />
+        <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="text-sm text-muted-foreground">
+            Total: <span className="font-semibold text-foreground">{summary.total}</span>, Active (
+            <span className="font-semibold text-sky-600 dark:text-sky-400">{summary.active}</span>
+            ), Completed (
+            <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+              {summary.completed}
+            </span>
+            ), Failed (
+            <span className="font-semibold text-rose-600 dark:text-rose-400">{summary.failed}</span>
+            )
+          </div>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={event => onSearchChange(event.target.value)}
+              placeholder="Search activity..."
+              className="w-full min-w-[220px] pl-9 lg:w-[280px]"
+            />
+          </div>
         </div>
         <div className="flex items-center gap-2 self-start lg:self-auto">
+          <div className="inline-flex items-center gap-0.5 px-1 py-0.5 text-sm text-muted-foreground">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-full"
+              disabled={page <= 1}
+              onClick={onPreviousPage}
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="px-0.5 text-center font-mono text-xs text-foreground">
+              {page}/{totalPages}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-full"
+              disabled={page >= totalPages}
+              onClick={onNextPage}
+              aria-label="Next page"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-full"
+                aria-label="List settings"
+              >
+                <Settings2 className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuLabel>Columns</DropdownMenuLabel>
+              <DropdownMenuCheckboxItem
+                checked={showCreatedColumn}
+                onCheckedChange={checked => setShowCreatedColumn(Boolean(checked))}
+              >
+                Created
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuLabel>Items per page</DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                value={String(pageSize)}
+                onValueChange={value => onPageSizeChange(Number(value))}
+              >
+                {pageSizeOptions.map(option => (
+                  <DropdownMenuRadioItem key={option} value={String(option)}>
+                    {option} / page
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {selectedCount > 0 ? (
             <Button
               variant="destructive"
@@ -247,7 +335,7 @@ export function ActionListView<TOperation extends ActionListItem>({
           ) : null}
           {selectedActiveCount > 0 ? (
             <span className="text-xs text-muted-foreground">
-              Running actions cannot be deleted.
+              Executing activity items cannot be deleted.
             </span>
           ) : null}
         </div>
@@ -287,7 +375,7 @@ export function ActionListView<TOperation extends ActionListItem>({
               <TableHead className="w-10">
                 <Checkbox
                   checked={allPageSelected ? true : somePageSelected ? 'indeterminate' : false}
-                  aria-label="Select visible actions"
+                  aria-label="Select visible activity items"
                   onCheckedChange={checked => onTogglePageSelection(Boolean(checked))}
                 />
               </TableHead>
@@ -325,6 +413,17 @@ export function ActionListView<TOperation extends ActionListItem>({
                 />
               </TableHead>
               <TableHead>Total duration</TableHead>
+              {showCreatedColumn ? (
+                <TableHead>
+                  <SortableHeader
+                    label="Created"
+                    field="created"
+                    current={sortField}
+                    dir={sortDir}
+                    onSort={onSort}
+                  />
+                </TableHead>
+              ) : null}
               <TableHead>
                 <SortableHeader
                   label="Started"
@@ -350,13 +449,19 @@ export function ActionListView<TOperation extends ActionListItem>({
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">
-                  Loading actions...
+                <TableCell
+                  colSpan={showCreatedColumn ? 11 : 10}
+                  className="py-8 text-center text-muted-foreground"
+                >
+                  Loading activity...
                 </TableCell>
               </TableRow>
             ) : pagedItems.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">
+                <TableCell
+                  colSpan={showCreatedColumn ? 11 : 10}
+                  className="py-8 text-center text-muted-foreground"
+                >
                   No action records found.
                 </TableCell>
               </TableRow>
@@ -389,13 +494,16 @@ export function ActionListView<TOperation extends ActionListItem>({
                   </TableCell>
                   <TableCell>{item.source}</TableCell>
                   <TableCell>
-                    <Badge variant={statusVariant(item.status)}>{item.status}</Badge>
+                    <Badge variant={statusVariant(item.status)}>
+                      {actionStatusLabel(item.status)}
+                    </Badge>
                   </TableCell>
                   <TableCell>
                     <div className="font-medium">{getServerLabel(item)}</div>
                     <div className="text-xs text-muted-foreground">{item.server_id || 'local'}</div>
                   </TableCell>
                   <TableCell>{actionDurationLabel(item)}</TableCell>
+                  {showCreatedColumn ? <TableCell>{formatTime(item.created)}</TableCell> : null}
                   <TableCell>{formatTime(item.started_at)}</TableCell>
                   <TableCell>{formatTime(item.finished_at)}</TableCell>
                   <TableCell>{getUserLabel(item)}</TableCell>
@@ -405,38 +513,6 @@ export function ActionListView<TOperation extends ActionListItem>({
             )}
           </TableBody>
         </Table>
-      </div>
-
-      <div className="flex flex-col gap-3 text-sm lg:flex-row lg:items-center lg:justify-between">
-        <div className="text-muted-foreground">
-          Total: <span className="font-semibold text-foreground">{summary.total}</span>, Active (
-          <span className="font-semibold text-sky-600 dark:text-sky-400">{summary.active}</span>),
-          Completed (
-          <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-            {summary.completed}
-          </span>
-          ), Failed (
-          <span className="font-semibold text-rose-600 dark:text-rose-400">{summary.failed}</span>)
-        </div>
-        <div className="flex items-center gap-2 self-start lg:self-auto">
-          <select
-            className="border-input bg-background h-8 rounded-md border px-2 text-sm"
-            value={pageSize}
-            onChange={event => onPageSizeChange(Number(event.target.value))}
-          >
-            {pageSizeOptions.map(option => (
-              <option key={option} value={option}>
-                {option} / page
-              </option>
-            ))}
-          </select>
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={onPreviousPage}>
-            Previous
-          </Button>
-          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={onNextPage}>
-            Next
-          </Button>
-        </div>
       </div>
     </div>
   )

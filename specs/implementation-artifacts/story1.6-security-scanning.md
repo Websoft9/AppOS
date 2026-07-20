@@ -1,6 +1,6 @@
 # Story 1.6: 镜像安全扫描
 
-**Epic**: Epic 1 - 基础架构与构建系统  
+**Epic**: Epic 1 - DevOps  
 **优先级**: P2  
 **状态**: Done
 

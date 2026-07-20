@@ -20,6 +20,7 @@ import { getApiErrorMessage } from '@/lib/api-error'
 import { copyToClipboard } from '@/lib/clipboard'
 import { useAuth } from '@/contexts/AuthContext'
 import { type PBList, formatDate, formatCreator, pbFilterValue } from '@/lib/groups'
+import { TOPIC_COMMENTS_COLLECTION, TOPICS_BATCH_QUERY_PAGE_SIZE } from './-topics-shared'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -67,6 +68,26 @@ interface CommentRecord {
   updated: string
 }
 
+interface TopicImportPolicy {
+  maxDescriptionImportBytes: number
+  textOnly: boolean
+}
+
+interface TopicSharePolicy {
+  shareMaxMinutes: number
+  shareDefaultMinutes: number
+}
+
+const DEFAULT_TOPIC_IMPORT_POLICY: TopicImportPolicy = {
+  maxDescriptionImportBytes: 2 * 1024,
+  textOnly: true,
+}
+
+const DEFAULT_TOPIC_SHARE_POLICY: TopicSharePolicy = {
+  shareMaxMinutes: 60,
+  shareDefaultMinutes: 30,
+}
+
 // ─── Page Component ──────────────────────────────────────
 
 function TopicDetailPage() {
@@ -87,6 +108,7 @@ function TopicDetailPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [formTitle, setFormTitle] = useState('')
   const [formDesc, setFormDesc] = useState('')
+  const [importPolicy, setImportPolicy] = useState<TopicImportPolicy>(DEFAULT_TOPIC_IMPORT_POLICY)
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
 
@@ -110,7 +132,8 @@ function TopicDetailPage() {
   // Share
   const shareUrlInputRef = useRef<HTMLInputElement>(null)
   const [shareOpen, setShareOpen] = useState(false)
-  const [shareMinutes, setShareMinutes] = useState(30)
+  const [sharePolicy, setSharePolicy] = useState<TopicSharePolicy>(DEFAULT_TOPIC_SHARE_POLICY)
+  const [shareMinutes, setShareMinutes] = useState(DEFAULT_TOPIC_SHARE_POLICY.shareDefaultMinutes)
   const [sharing, setSharing] = useState(false)
   const [shareUrl, setShareUrl] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -120,15 +143,48 @@ function TopicDetailPage() {
 
   const fetchTopic = useCallback(async () => {
     try {
-      const [topicRes, commentsRes] = await Promise.all([
+      const [topicRes, commentsRes, importPolicyRes, sharePolicyRes] = await Promise.all([
         pb.send<TopicRecord>(`/api/collections/topics/records/${pbFilterValue(id)}`, {}),
         pb.send<PBList<CommentRecord>>(
-          `/api/collections/topic_comments/records?perPage=500&filter=(topic_id='${pbFilterValue(id)}')&sort=created`,
+          `/api/collections/${TOPIC_COMMENTS_COLLECTION}/records?perPage=${TOPICS_BATCH_QUERY_PAGE_SIZE}&filter=(topic_id='${pbFilterValue(id)}')&sort=created`,
           {}
         ),
+        pb
+          .send<Partial<TopicImportPolicy>>('/api/topics/policy/import', { method: 'GET' })
+          .catch(() => DEFAULT_TOPIC_IMPORT_POLICY),
+        pb
+          .send<Partial<TopicSharePolicy>>('/api/topics/policy/share', { method: 'GET' })
+          .catch(() => DEFAULT_TOPIC_SHARE_POLICY),
       ])
       setTopic(topicRes)
       setComments(commentsRes.items ?? [])
+      setImportPolicy({
+        maxDescriptionImportBytes:
+          Number(importPolicyRes.maxDescriptionImportBytes) >= 1024
+            ? Number(importPolicyRes.maxDescriptionImportBytes)
+            : DEFAULT_TOPIC_IMPORT_POLICY.maxDescriptionImportBytes,
+        textOnly:
+          typeof importPolicyRes.textOnly === 'boolean'
+            ? importPolicyRes.textOnly
+            : DEFAULT_TOPIC_IMPORT_POLICY.textOnly,
+      })
+      const nextSharePolicy = {
+        shareMaxMinutes:
+          Number(sharePolicyRes.shareMaxMinutes) >= 1
+            ? Number(sharePolicyRes.shareMaxMinutes)
+            : DEFAULT_TOPIC_SHARE_POLICY.shareMaxMinutes,
+        shareDefaultMinutes:
+          Number(sharePolicyRes.shareDefaultMinutes) >= 1
+            ? Number(sharePolicyRes.shareDefaultMinutes)
+            : DEFAULT_TOPIC_SHARE_POLICY.shareDefaultMinutes,
+      }
+      setSharePolicy(nextSharePolicy)
+      setShareMinutes(current => {
+        if (current < 1 || current > nextSharePolicy.shareMaxMinutes) {
+          return nextSharePolicy.shareDefaultMinutes
+        }
+        return current
+      })
       setError('')
     } catch (err) {
       setError(getApiErrorMessage(err, 'Failed to load topic'))
@@ -300,7 +356,7 @@ function TopicDetailPage() {
     } else {
       setShareUrl(null)
     }
-    setShareMinutes(30)
+    setShareMinutes(sharePolicy.shareDefaultMinutes)
     setCopied(false)
     setQrDataUrl(null)
     setShareOpen(true)
@@ -381,14 +437,16 @@ function TopicDetailPage() {
     const file = e.target.files?.[0]
     if (!file) return
     e.target.value = ''
-    if (file.size > 1024 * 1024) {
-      setFormError('File too large (max 1 MB)')
+    if (file.size > importPolicy.maxDescriptionImportBytes) {
+      setFormError(
+        `File too large (max ${Math.floor(importPolicy.maxDescriptionImportBytes / 1024)} KB)`
+      )
       return
     }
     const reader = new FileReader()
     reader.onload = () => {
       if (typeof reader.result !== 'string') return
-      if (reader.result.includes('\0')) {
+      if (importPolicy.textOnly && reader.result.includes('\0')) {
         setFormError('Binary file detected, please upload a text file')
         return
       }
@@ -416,7 +474,7 @@ function TopicDetailPage() {
           search={{ returnGroup: undefined, returnType: undefined }}
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
-          <ArrowLeft className="h-4 w-4" /> Topics
+          <ArrowLeft className="h-4 w-4" /> Feed
         </Link>
         <p className="text-destructive">{error || 'Topic not found'}</p>
       </div>
@@ -428,6 +486,10 @@ function TopicDetailPage() {
       {/* Breadcrumb */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Link to={'/feeds' as never} className="hover:text-foreground">
+            Feed
+          </Link>
+          <span>/</span>
           <Link
             to="/topics"
             search={{ returnGroup: undefined, returnType: undefined }}
@@ -619,11 +681,16 @@ function TopicDetailPage() {
                     <input
                       type="file"
                       className="hidden"
-                      accept="text/*,.md,.txt,.log,.json,.yaml,.yml,.xml,.csv,.html,.htm,.css,.js,.ts,.py,.go,.sh,.sql,.toml,.ini,.cfg,.conf,.env"
+                      accept={
+                        importPolicy.textOnly
+                          ? 'text/*,.md,.txt,.log,.json,.yaml,.yml,.xml,.csv,.html,.htm,.css,.js,.ts,.py,.go,.sh,.sql,.toml,.ini,.cfg,.conf,.env'
+                          : undefined
+                      }
                       onChange={handleFileUpload}
                     />
                     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-                      <Upload className="h-3.5 w-3.5" /> Upload text file
+                      <Upload className="h-3.5 w-3.5" />{' '}
+                      {importPolicy.textOnly ? 'Upload text file' : 'Upload file'}
                     </span>
                   </label>
                 </div>
@@ -685,7 +752,7 @@ function TopicDetailPage() {
                 id="share-minutes"
                 type="number"
                 min={1}
-                max={60}
+                max={sharePolicy.shareMaxMinutes}
                 value={shareMinutes}
                 onChange={e => setShareMinutes(Number(e.target.value))}
               />
@@ -761,7 +828,7 @@ function TopicDetailPage() {
             <Button
               type="button"
               onClick={handleGenerateShare}
-              disabled={sharing || shareMinutes < 1 || shareMinutes > 60}
+              disabled={sharing || shareMinutes < 1 || shareMinutes > sharePolicy.shareMaxMinutes}
             >
               {sharing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               {shareUrl ? 'Refresh Link' : 'Generate Link'}

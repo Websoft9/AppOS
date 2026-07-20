@@ -3,6 +3,7 @@ package servers
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
 	sec "github.com/websoft9/appos/backend/domain/secrets"
@@ -34,6 +35,8 @@ type ManagedServer struct {
 	Port           int
 	User           string
 	ConnectType    ConnectionMode
+	IsEnabled      bool
+	IsLocal        bool
 	CredentialID   string
 	Shell          string
 	TunnelForwards string
@@ -83,10 +86,58 @@ func ManagedServerFromRecord(record *core.Record) *ManagedServer {
 		Port:           port,
 		User:           record.GetString("user"),
 		ConnectType:    ct,
+		IsEnabled:      serverEnabledValue(record.Get("is_enabled")),
+		IsLocal:        record.GetBool("is_local"),
 		CredentialID:   record.GetString("credential"),
 		Shell:          record.GetString("shell"),
 		TunnelForwards: record.GetString("tunnel_forwards"),
 		Description:    record.GetString("description"),
+	}
+}
+
+func serverEnabledValue(value any) bool {
+	switch typed := value.(type) {
+	case nil:
+		return true
+	case bool:
+		return typed
+	case string:
+		normalized := strings.TrimSpace(strings.ToLower(typed))
+		if normalized == "" {
+			return true
+		}
+		switch normalized {
+		case "0", "false", "no", "off", "disabled":
+			return false
+		default:
+			return true
+		}
+	case int:
+		return typed != 0
+	case int8:
+		return typed != 0
+	case int16:
+		return typed != 0
+	case int32:
+		return typed != 0
+	case int64:
+		return typed != 0
+	case uint:
+		return typed != 0
+	case uint8:
+		return typed != 0
+	case uint16:
+		return typed != 0
+	case uint32:
+		return typed != 0
+	case uint64:
+		return typed != 0
+	case float32:
+		return typed != 0
+	case float64:
+		return typed != 0
+	default:
+		return true
 	}
 }
 

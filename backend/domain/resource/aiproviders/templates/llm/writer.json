@@ -1,0 +1,29 @@
+{
+  "id": "writer",
+  "title": "Writer",
+  "vendor": "Writer",
+  "uiGroup": "single_provider",
+  "hostingMode": "cloud",
+  "serviceMode": "official_provider",
+  "endpointMode": "customizable",
+  "supportsClosedModels": true,
+  "supportsMultiVendorModels": false,
+  "description": "Writer hosted enterprise LLM API.",
+  "helpUrl": "https://dev.writer.com/home",
+  "defaultEndpoint": "https://api.writer.com/v1/chat",
+  "protocols": [
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "default": true
+    }
+  ],
+  "capabilities": ["chat", "enterprise", "tools", "streaming"],
+  "aliases": ["writer"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "placeholder": "https://api.writer.com/v1/chat"
+    }
+  ]
+}

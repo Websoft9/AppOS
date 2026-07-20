@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"os"
 	"sync"
 
 	"github.com/pocketbase/pocketbase/apis"
@@ -9,6 +8,7 @@ import (
 
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
 	serversvc "github.com/websoft9/appos/backend/domain/resource/servers/service"
+	"github.com/websoft9/appos/backend/domain/runtimecfg"
 	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
 	tunnelpb "github.com/websoft9/appos/backend/infra/tunnelpb"
 )
@@ -22,6 +22,8 @@ import (
 // is set exactly once during startup and is inherently shared singleton state
 // (one SSH server per process).  Tests reinitialize it as needed.
 var tunnelSessions *tunnelcore.Registry
+
+var startTunnelRuntimeHook = startTunnelRuntime
 
 // tunnelTokenCache maps raw token → serverID for O(1) lookup (SEC-3).
 // Populated lazily on first Validate call and kept in sync by handleTunnelToken
@@ -61,13 +63,10 @@ func (a *tokenProviderAdapter) GetOrIssue(managedServerID string, wantRotate boo
 }
 
 // tunnelSSHPort returns the publicly reachable SSH port for the tunnel.
-// Defaults to "2222" (bare-metal). Set TUNNEL_SSH_PORT env var to override
+// Defaults to "2222" (bare-metal). Override with the runtime config
 // (e.g. "9222" when running behind Docker port mapping).
 func tunnelSSHPort() string {
-	if p := os.Getenv("TUNNEL_SSH_PORT"); p != "" {
-		return p
-	}
-	return "2222"
+	return runtimecfg.TunnelPort()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -77,7 +76,7 @@ func tunnelSSHPort() string {
 // registerTunnelRoutes wires the tunnel SSH server and exposes the tunnel API.
 // Called from routes.Register.
 func registerTunnelRoutes(se *core.ServeEvent) {
-	startTunnelRuntime(se)
+	startTunnelRuntimeHook(se)
 	registerAuthenticatedTunnelRoutes(se)
 	registerPublicTunnelRoutes(se)
 }

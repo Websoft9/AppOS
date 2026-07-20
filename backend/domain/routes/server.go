@@ -1,8 +1,6 @@
 package routes
 
 import (
-	"context"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -12,37 +10,10 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/hook"
 	"github.com/pocketbase/pocketbase/tools/router"
-	backenddocker "github.com/websoft9/appos/backend/infra/docker"
-	"github.com/websoft9/appos/backend/infra/netutil"
 )
 
 var wsUpgrader = websocket.Upgrader{
 	CheckOrigin: allowWebSocketOrigin,
-}
-
-var dockerBridgeIPv4Lookup = netutil.LookupInterfaceIPv4
-var dockerBridgeGatewayLookup = lookupDockerBridgeGateway
-
-func lookupDockerBridgeGateway(ctx context.Context) (string, error) {
-	client := backenddocker.New(backenddocker.NewLocalExecutor(""))
-	gateway, err := client.Exec(
-		ctx,
-		"network",
-		"inspect",
-		"bridge",
-		"--format",
-		"{{range .IPAM.Config}}{{.Gateway}}{{end}}",
-	)
-	if err != nil {
-		return "", err
-	}
-
-	gateway = strings.TrimSpace(gateway)
-	if gateway == "" {
-		return "", fmt.Errorf("bridge network has no gateway")
-	}
-
-	return gateway, nil
 }
 
 // wsTokenAuth is a middleware that authenticates WebSocket upgrade requests
@@ -152,38 +123,14 @@ func registerServerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	g.Bind(apis.RequireSuperuserAuth())
 
 	g.GET("/connection", handleServersView)
-	g.GET("/local/docker-bridge", handleLocalDockerBridge)
 	registerServerOpsRoutes(g)
-}
-
-func handleLocalDockerBridge(e *core.RequestEvent) error {
-	address, err := dockerBridgeIPv4Lookup("docker0")
-	if err == nil {
-		return e.JSON(http.StatusOK, map[string]any{
-			"interface": "docker0",
-			"address":   address,
-		})
-	}
-
-	address, err = dockerBridgeGatewayLookup(e.Request.Context())
-	if err == nil {
-		return e.JSON(http.StatusOK, map[string]any{
-			"interface": "bridge",
-			"address":   address,
-		})
-	}
-
-	return e.JSON(http.StatusOK, map[string]any{
-		"interface": "loopback",
-		"address":   "127.0.0.1",
-	})
 }
 
 // registerTerminalRoutes registers all interactive terminal session routes.
 // Mounted at /api/terminal; uses wsTokenAuth for WebSocket handshake support.
 func registerTerminalRoutes(g *router.RouterGroup[*core.RequestEvent]) {
+	registerTerminalSessionRoutes(g)
 	registerServerShellRoutes(g)
 	registerServerFileRoutes(g)
 	registerServerContainerRoutes(g)
-	registerLocalTerminalRoutes(g)
 }

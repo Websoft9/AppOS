@@ -85,19 +85,12 @@ func ApplyOperationQueued(appRecord, operationRecord *core.Record, options Queue
 	projection := ReadAppInstanceProjection(appRecord)
 	projection.LastOperationID = operationRecord.Id
 	projection.StateReason = "operation queued"
-
-	switch normalizeOperationType(operationRecord) {
-	case string(model.OperationTypeRecover), string(model.OperationTypeRollback), string(model.OperationTypeRestore):
-		projection.LifecycleState = model.AppStateRecovering
-	case string(model.OperationTypeMaintain):
-		projection.LifecycleState = model.AppStateMaintenance
-	default:
-		if options.ExistingApp {
-			projection.LifecycleState = model.AppStateUpdating
-		} else {
-			projection.LifecycleState = model.AppStateInstalling
-		}
-	}
+	projection.LifecycleState = DecideAppLifecycleState(AppStateDecisionInput{
+		Current:        projection,
+		ExistingApp:    options.ExistingApp,
+		ActivityAction: model.OperationType(normalizeOperationType(operationRecord)),
+		ActivityStatus: ActivityStatusQueued,
+	})
 
 	ApplyAppInstanceProjection(appRecord, projection)
 }
@@ -111,32 +104,45 @@ func ApplyOperationSucceeded(appRecord, operationRecord *core.Record, now time.T
 	}
 
 	projection := ReadAppInstanceProjection(appRecord)
+	projection.StateReason = ""
 	projection.LastOperationID = operationRecord.Id
-	projection.StateReason = "operation completed"
+	action := model.OperationType(normalizeOperationType(operationRecord))
+	evidence := AppObservedEvidence{}
+	activity := AppProjectionActivity{Action: action, Status: ActivityStatusSucceeded}
 
-	switch normalizeOperationType(operationRecord) {
-	case string(model.OperationTypeStop):
-		projection.LifecycleState = model.AppStateStopped
+	switch action {
+	case model.OperationTypeStop:
 		projection.HealthSummary = model.HealthStopped
-	case string(model.OperationTypeUninstall):
-		projection.LifecycleState = model.AppStateRetired
+		evidence.RuntimeStatus = RuntimeStatusStopped
+	case model.OperationTypeUninstall:
 		projection.HealthSummary = model.HealthStopped
+		evidence.RuntimeStatus = RuntimeStatusStopped
 		projection.CurrentReleaseID = ""
 		projection.PrimaryExposureID = ""
 		projection.RetiredAt = &now
-	case string(model.OperationTypeMaintain):
-		projection.LifecycleState = model.AppStateMaintenance
-	case string(model.OperationTypePublish):
+	case model.OperationTypeMaintain:
+	case model.OperationTypePublish:
 		projection.PublicationSummary = model.PublicationPublished
-	case string(model.OperationTypeUnpublish):
+	case model.OperationTypeUnpublish:
 		projection.PublicationSummary = model.PublicationUnpublished
 	default:
-		projection.LifecycleState = model.AppStateRunningHealthy
-		projection.HealthSummary = model.HealthHealthy
-		projection.LastHealthyAt = &now
-		if normalizeOperationType(operationRecord) == string(model.OperationTypeInstall) && projection.InstalledAt == nil {
+		evidence.RuntimeStatus = RuntimeStatusRunning
+		if projection.HealthSummary == "" || projection.HealthSummary == model.HealthUnknown {
+			evidence.HealthSummary = model.HealthHealthy
+		}
+		if action == model.OperationTypeInstall && projection.InstalledAt == nil {
 			projection.InstalledAt = &now
 		}
+	}
+
+	effective := ResolveEffectiveAppProjection(projection, evidence, activity, "", "")
+	projection = effective.Projection
+	projection.LastOperationID = operationRecord.Id
+	if projection.LifecycleState == model.AppStateRunningHealthy {
+		projection.LastHealthyAt = &now
+	}
+	if strings.TrimSpace(projection.StateReason) == "" {
+		projection.StateReason = "operation completed"
 	}
 
 	ApplyAppInstanceProjection(appRecord, projection)
@@ -150,12 +156,14 @@ func ApplyOperationCancelled(appRecord, operationRecord *core.Record) {
 	projection := ReadAppInstanceProjection(appRecord)
 	projection.LastOperationID = operationRecord.Id
 	projection.StateReason = "operation cancelled"
+	projection.LifecycleState = DecideAppLifecycleState(AppStateDecisionInput{
+		Current:        projection,
+		ActivityAction: model.OperationType(normalizeOperationType(operationRecord)),
+		ActivityStatus: ActivityStatusCancelled,
+	})
 
-	if projection.CurrentReleaseID == "" && normalizeOperationType(operationRecord) == string(model.OperationTypeInstall) {
-		projection.LifecycleState = model.AppStateRegistered
-		if projection.HealthSummary == "" {
-			projection.HealthSummary = model.HealthUnknown
-		}
+	if projection.CurrentReleaseID == "" && normalizeOperationType(operationRecord) == string(model.OperationTypeInstall) && projection.HealthSummary == "" {
+		projection.HealthSummary = model.HealthUnknown
 	}
 
 	ApplyAppInstanceProjection(appRecord, projection)
@@ -168,7 +176,11 @@ func ApplyOperationFailed(appRecord, operationRecord *core.Record) {
 
 	projection := ReadAppInstanceProjection(appRecord)
 	projection.LastOperationID = operationRecord.Id
-	projection.LifecycleState = model.AppStateAttentionRequired
+	projection.LifecycleState = DecideAppLifecycleState(AppStateDecisionInput{
+		Current:        projection,
+		ActivityAction: model.OperationType(normalizeOperationType(operationRecord)),
+		ActivityStatus: ActivityStatusFailed,
+	})
 	projection.StateReason = failureStateReason(operationRecord)
 	if projection.HealthSummary == "" {
 		projection.HealthSummary = model.HealthUnknown

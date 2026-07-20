@@ -21,6 +21,24 @@ templates:
         - openeuler
       service_manager: systemd
       package_manager: native
+    action_timeouts:
+      install_seconds: 300
+      upgrade_seconds: 300
+      start_seconds: 45
+      stop_seconds: 45
+      restart_seconds: 45
+      verify_seconds: 45
+      reinstall_seconds: 360
+      uninstall_seconds: 300
+    timeout_policy:
+      install: attention_required
+      upgrade: attention_required
+      start: attention_required
+      stop: attention_required
+      restart: attention_required
+      verify: attention_required
+      reinstall: attention_required
+      uninstall: attention_required
     install:
       strategy: package
       package_name: "{{package_name}}"
@@ -60,6 +78,24 @@ templates:
         - openeuler
       service_manager: systemd
       package_manager: native
+    action_timeouts:
+      install_seconds: 300
+      upgrade_seconds: 300
+      start_seconds: 45
+      stop_seconds: 45
+      restart_seconds: 45
+      verify_seconds: 45
+      reinstall_seconds: 360
+      uninstall_seconds: 300
+    timeout_policy:
+      install: attention_required
+      upgrade: attention_required
+      start: attention_required
+      stop: attention_required
+      restart: attention_required
+      verify: attention_required
+      reinstall: attention_required
+      uninstall: attention_required
     install:
       strategy: script
       script_path: "{{script_path}}"
@@ -92,17 +128,38 @@ templates:
         - debian
         - rocky
       service_manager: systemd
+    action_timeouts:
+      install_seconds: 300
+      upgrade_seconds: 300
+      start_seconds: 45
+      stop_seconds: 45
+      restart_seconds: 45
+      verify_seconds: 45
+      reinstall_seconds: 360
+      uninstall_seconds: 300
+    timeout_policy:
+      install: attention_required
+      upgrade: attention_required
+      start: attention_required
+      stop: attention_required
+      restart: attention_required
+      verify: attention_required
+      reinstall: attention_required
+      uninstall: attention_required
     install:
       strategy: script
+      script_path: "{{script_path}}"
       script_url: "{{script_url}}"
       args: []
     upgrade:
       strategy: script
+      script_path: "{{script_path}}"
       script_url: "{{script_url}}"
       args:
         - --upgrade
     uninstall:
       strategy: script
+      script_path: "{{script_path}}"
       script_url: "{{script_url}}"
       args:
         - --uninstall
@@ -112,11 +169,72 @@ templates:
     reinstall:
       strategy: reinstall  # re-run install then verify
 
-  # binary-supervisor: pre-installed binary managed by supervisord inside the AppOS container.
-  # Software Delivery detects the version and verifies the supervisord program state.
-  # No install or upgrade — these components are baked into the container image.
-  # Reinstall restarts the supervisord program.
-  binary-supervisor:
+  # script-docker-systemd: installs a Dockerized component via an AppOS-managed
+  # script and verifies it through a systemd unit that manages docker compose.
+  script-docker-systemd:
+    template_kind: script
+    detect:
+      version_command: "{{binary}} --version"
+      installed_hint:
+        - "systemctl cat {{service_name}} >/dev/null 2>&1 && echo installed"
+    preflight:
+      require_root: true
+      require_network: true
+      verified_os:
+        - ubuntu
+        - debian
+        - rocky
+        - almalinux
+        - rhel
+        - centos
+        - amzn
+        - openeuler
+      service_manager: systemd
+    action_timeouts:
+      install_seconds: 300
+      upgrade_seconds: 300
+      start_seconds: 45
+      stop_seconds: 45
+      restart_seconds: 45
+      verify_seconds: 45
+      reinstall_seconds: 360
+      uninstall_seconds: 300
+    timeout_policy:
+      install: attention_required
+      upgrade: attention_required
+      start: attention_required
+      stop: attention_required
+      restart: attention_required
+      verify: attention_required
+      reinstall: attention_required
+      uninstall: attention_required
+    install:
+      strategy: script
+      script_path: "{{script_path}}"
+      script_url: "{{script_url}}"
+      args: []
+    upgrade:
+      strategy: script
+      script_path: "{{script_path}}"
+      script_url: "{{script_url}}"
+      args:
+        - --upgrade
+    uninstall:
+      strategy: script
+      script_path: "{{script_path}}"
+      script_url: "{{script_url}}"
+      args:
+        - --uninstall
+    verify:
+      strategy: systemd
+      service_name: "{{service_name}}"
+    reinstall:
+      strategy: reinstall
+
+  # binary-service: pre-installed binary with an associated local process.
+  # Software Delivery detects the version and verifies that the process is running.
+  # No install, upgrade, or reinstall — these components are baked into the runtime image.
+  binary-service:
     template_kind: binary
     detect:
       version_command: "{{binary}} --version"
@@ -126,6 +244,14 @@ templates:
       require_root: false
       require_network: false
       verified_os: []  # container-internal: OS-agnostic
+    action_timeouts:
+      restart_seconds: 30
+      verify_seconds: 30
+      reinstall_seconds: 30
+    timeout_policy:
+      restart: attention_required
+      verify: attention_required
+      reinstall: attention_required
     install:
       strategy: ""
     upgrade:
@@ -133,10 +259,10 @@ templates:
     uninstall:
       strategy: ""
     verify:
-      strategy: supervisor
-      service_name: "{{service_name}}"  # supervisord program name, e.g., "nginx"
+      strategy: process-running
+      service_name: "{{binary}}"
     reinstall:
-      strategy: supervisor-restart  # supervisorctl restart {{service_name}}
+      strategy: ""
 
   # binary-detect: standalone binary with no associated service (e.g., Docker CLI, Node.js).
   # Software Delivery detects the binary and version only. No service verification or reinstall.
@@ -150,6 +276,10 @@ templates:
       require_root: false
       require_network: false
       verified_os: []  # container-internal: OS-agnostic
+    action_timeouts:
+      verify_seconds: 15
+    timeout_policy:
+      verify: attention_required
     install:
       strategy: ""
     upgrade:

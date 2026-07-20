@@ -127,6 +127,9 @@ export interface CatalogAppDetail {
     isFavorite: boolean
     note?: string | null
   }
+  installed?: {
+    count: number
+  } | null
   audit: {
     createdAt?: string | null
     updatedAt?: string | null
@@ -157,6 +160,39 @@ export interface CatalogDeploySource {
   }
 }
 
+export interface CatalogTemplateField {
+  key: string
+  type: string
+  label: string
+  required: boolean
+  default?: unknown
+  visibility?: string
+  storage_mode: string
+  options?: unknown[]
+}
+
+export interface CatalogAppTemplate {
+  templateKey: string
+  manifest: {
+    key: string
+    name?: string
+    trademark: string
+    category?: string
+    docs?: Record<string, unknown>
+    capabilities?: Record<string, unknown>
+    requirements?: Record<string, unknown>
+    serviceRoles?: Record<string, string>
+  }
+  inputs: CatalogTemplateField[]
+  source: {
+    template_revision?: string
+    origin_kind?: string
+    origin_ref?: string
+  }
+  exposure?: Record<string, unknown>
+  composeValues?: Record<string, unknown>
+}
+
 async function fetchCatalogAppDetail(locale: 'en' | 'zh', key: string): Promise<CatalogAppDetail> {
   return pb.send(`/api/catalog/apps/${encodeURIComponent(key)}?locale=${locale}`, {
     method: 'GET',
@@ -184,6 +220,54 @@ async function fetchCatalogApps(query: CatalogAppsQuery): Promise<CatalogAppList
   return pb.send(`/api/catalog/apps?${params.toString()}`, {
     method: 'GET',
   })
+}
+
+async function fetchAllCatalogApps(query: CatalogAppsQuery): Promise<CatalogAppListResponse> {
+  const pageLimit = query.limit ?? 1000
+  let offset = query.offset ?? 0
+  let items: CatalogAppSummary[] = []
+  let lastPage: CatalogAppListResponse | null = null
+
+  for (;;) {
+    const page = await fetchCatalogApps({
+      ...query,
+      limit: pageLimit,
+      offset,
+    })
+    lastPage = page
+    items = items.concat(page.items)
+
+    if (!page.page.hasMore || items.length >= page.page.total || page.items.length === 0) {
+      return {
+        ...page,
+        items,
+        page: {
+          ...page.page,
+          limit: pageLimit,
+          offset: query.offset ?? 0,
+          hasMore: false,
+        },
+      }
+    }
+
+    offset += page.items.length
+  }
+
+  return (
+    lastPage ?? {
+      items: [],
+      page: {
+        limit: pageLimit,
+        offset: query.offset ?? 0,
+        total: 0,
+        hasMore: false,
+      },
+      meta: {
+        locale: query.locale,
+        sourceVersion: '',
+      },
+    }
+  )
 }
 
 export function toLegacyPrimaryCategories(
@@ -256,6 +340,12 @@ async function fetchCatalogDeploySource(
   })
 }
 
+async function fetchCatalogAppTemplate(key: string): Promise<CatalogAppTemplate> {
+  return pb.send(`/api/catalog/apps/${encodeURIComponent(key)}/template`, {
+    method: 'GET',
+  })
+}
+
 export function useCatalogAppDetail(locale: 'en' | 'zh', key: string | null, enabled = true) {
   return useQuery({
     queryKey: ['catalog', 'app-detail', locale, key],
@@ -274,6 +364,15 @@ export function useCatalogDeploySource(locale: 'en' | 'zh', key: string | null, 
   })
 }
 
+export function useCatalogAppTemplate(key: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ['catalog', 'app-template', key],
+    queryFn: () => fetchCatalogAppTemplate(key as string),
+    enabled: enabled && Boolean(key),
+    staleTime: 60 * 1000,
+  })
+}
+
 export function useCatalogCategories(locale: 'en' | 'zh') {
   return useQuery({
     queryKey: ['catalog', 'categories', locale],
@@ -282,10 +381,22 @@ export function useCatalogCategories(locale: 'en' | 'zh') {
   })
 }
 
-export function useCatalogApps(query: CatalogAppsQuery) {
+export function useCatalogApps(query: CatalogAppsQuery, enabled = true) {
   return useQuery({
     queryKey: ['catalog', 'apps', query],
     queryFn: () => fetchCatalogApps(query),
+    enabled,
+    placeholderData: previousData => previousData,
     staleTime: 60 * 1000,
+  })
+}
+
+export function useCatalogAllApps(query: CatalogAppsQuery, enabled = true) {
+  return useQuery({
+    queryKey: ['catalog', 'apps-all', query],
+    queryFn: () => fetchAllCatalogApps(query),
+    enabled,
+    placeholderData: previousData => previousData,
+    staleTime: 5 * 60 * 1000,
   })
 }

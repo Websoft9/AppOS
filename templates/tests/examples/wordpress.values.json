@@ -1,0 +1,7 @@
+{
+  "app_id": "wordpress-demo",
+  "version": "latest",
+  "http_port": 9012,
+  "site_url": "blog.example.com",
+  "admin_path": "/console"
+}

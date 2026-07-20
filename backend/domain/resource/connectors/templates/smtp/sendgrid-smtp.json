@@ -3,12 +3,14 @@
   "title": "SendGrid SMTP",
   "vendor": "Twilio SendGrid",
   "description": "SendGrid SMTP relay profile.",
+  "helpUrl": "https://docs.sendgrid.com/for-developers/sending-email/getting-started-smtp",
   "defaultEndpoint": "smtp://smtp.sendgrid.net:587",
   "aliases": ["sendgrid", "sendgrid-smtp"],
   "fields": [
     {
       "id": "endpoint",
-      "placeholder": "smtp://smtp.sendgrid.net:587"
+      "placeholder": "smtp://smtp.sendgrid.net:587",
+      "helpUrl": "https://docs.sendgrid.com/for-developers/sending-email/getting-started-smtp"
     }
   ]
 }

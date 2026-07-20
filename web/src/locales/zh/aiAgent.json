@@ -1,0 +1,10 @@
+{
+  "page": {
+    "title": "AI Agent",
+    "subtitle": "在 AppOS 内使用 OpenCode，复用共享技能与服务端模型凭据。",
+    "frameTitle": "OpenCode AI Agent"
+  },
+  "actions": {
+    "openNewTab": "新标签打开"
+  }
+}

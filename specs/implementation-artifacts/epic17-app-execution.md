@@ -23,6 +23,7 @@ Additional references:
 4. For each `server_id`, only one conflicting lifecycle operation may be active at a time.
 5. First install failure performs cleanup and records failure. It does not pretend rollback exists when no baseline exists.
 6. Action history, execution detail, timeline, logs, and audit are part of the MVP closed loop, not optional reporting extras.
+7. MVP non-terminal control policy is intentionally minimal: `queued` supports cancel, `executing` supports `force_fail`, and both are ordinary-operator actions until a richer permission model is introduced.
 
 ## Current Baseline (2026-03-25)
 
@@ -42,6 +43,7 @@ Additional references:
 - Publication-sensitive execution on the shared core.
 - Full convergence of Installed-side lifecycle actions onto Epic 17 for start, stop, uninstall, and later management actions.
 - Rich compensation/manual-gate policy beyond the first closed loop.
+- Rich role segmentation and expanded control-matrix policy beyond the MVP queued-cancel / executing-force-fail rule.
 
 ## Acceptance Criteria
 
@@ -86,14 +88,10 @@ Status: backlog
 ## Recommended Order
 
 1. Keep 17.1, 17.2, 17.4a, 17.4b, and 17.5 as the accepted install-core baseline rather than reopening execution-foundation scope.
-2. 17.4e-A resolver boundary consolidation
-3. 17.4e-B source candidate convergence
-4. 17.4e-C runtime input resolution
-5. 17.4e-D secret and exposure intent normalization
-6. 17.4e-E resolution preview API and create-page consumption
-7. 17.6 create-deployment page refinement on top of the stabilized resolver contract
-8. 17.3 change and recovery
-9. publication operations on the shared core after install-ingress convergence and change/recovery baselines are stable
+2. Finish 17.4e install-ingress convergence on one shared resolver boundary.
+3. Refine 17.6 create-deployment page on top of the stabilized resolver contract.
+4. 17.3 change and recovery.
+5. publication operations on the shared core after install-ingress convergence and change/recovery baselines are stable.
 
 Reason: the first closed loop already exists. The highest-value remaining Epic 17 work is now install-ingress convergence, not more execution-foundation work.
 
@@ -111,6 +109,8 @@ Implement first install end-to-end on the shared lifecycle execution core with v
 
 Implement upgrade, redeploy, reconfigure, recover, and rollback on the shared execution core using release baselines and deterministic failure handling.
 
+Companion planning artifact: `story17.3-instance-state-matrix.md` freezes the product-facing AppInstance state vocabulary and projection rules that change/recovery work must reuse rather than redefining per action.
+
 ### Story 17.4 Input Adapters (MVP Scope)
 
 Add adapter entry slices that normalize into the shared execution contract without redefining runtime behavior.
@@ -119,20 +119,19 @@ Add adapter entry slices that normalize into the shared execution contract witho
 - **17.4b Git Compose Adapter:** fetch git-hosted compose safely and create the same install operation.
 - **17.4c Docker Run Adapter (post-MVP):** parse `docker run` into the normalized contract.
 - **17.4d Source Package Adapter (post-MVP):** resolve source package/build input into the normalized contract.
-- **17.4e Install Input Resolution:** normalize dialog-driven install inputs into one backend-owned lifecycle install payload before operation creation.
-	- **17.4e-A Resolver Boundary Consolidation:** unify create and check flows around one explicit lifecycle resolver boundary.
-	- **17.4e-B Source Candidate Convergence:** treat install entry paths as candidate-input variants rather than separate execution worlds.
-	- **17.4e-C Runtime Input Resolution:** move richer env/default/addon/mount semantics into backend-owned resolution.
-	- **17.4e-D Secret and Exposure Intent Normalization:** preserve sensitive input and publication-related intent as explicit normalized lifecycle data.
-	- **17.4e-E Resolution Preview API and Create-Page Consumption:** expose backend-authored normalized install preview before action creation.
+- **17.4e Install Input Resolution:** normalize dialog-driven install inputs into one backend-owned lifecycle install payload before operation creation, including candidate-input convergence, runtime-input resolution, secret and exposure intent preservation, and previewable normalized output.
 
-### Story 17.5 Action History and Execution Timeline Surface
+### Story 17.5 Action History Timeline
 
 Expose action history, execution detail, timeline, log, and audit surfaces for lifecycle execution so other modules consume one shared execution truth.
 
-### Story 17.6 Create Deployment Page and Install Resolution Surface
+### Story 17.6 Create Deployment Page
 
 Replace modal-based deployment creation with a full-page lifecycle entry surface that collects source-specific inputs, shows normalized install intent, and submits through the shared install resolution boundary.
+
+### Story 17.10 Deploy Settings
+
+Extract platform-owned deploy guardrails and runtime defaults into workspace settings without moving request-scoped install input into global configuration.
 
 ## Story Status
 
@@ -141,37 +140,33 @@ Replace modal-based deployment creation with a full-page lifecycle entry surface
 | 17.1 Lifecycle Contract and Scheduler Core | review |
 | 17.2 First Install Closed Loop (MVP) | review |
 | 17.3 Change and Recovery Operations | backlog |
+| 17.3 Companion: AppInstance State Matrix and Projection Contract | proposed |
 | 17.4a Store Compose Prefill | review |
 | 17.4b Git Compose Adapter | review |
 | 17.4e Install Input Resolution | in-progress |
-| 17.4e-A Resolver Boundary Consolidation | in-progress |
-| 17.4e-B Source Candidate Convergence | in-progress |
-| 17.4e-C Runtime Input Resolution | proposed |
-| 17.4e-D Secret and Exposure Intent Normalization | proposed |
-| 17.4e-E Resolution Preview API and Create-Page Consumption | proposed |
-| 17.5 Action History and Execution Timeline Surface | review |
-| 17.6 Create Deployment Page and Install Resolution Surface | in-progress |
+| 17.5 Action History Timeline | review |
+| 17.6 Create Deployment Page | in-progress |
+| 17.10 Deploy Settings | proposed |
 
 ## Story Artifacts
 
 - `story17.1-lifecycle-contract.md`
 - `story17.2-first-install.md`
-- `story17.4a-store-deploy.md`
-- `story17.4b-git-compose.md`
+- `story17.3-instance-state-matrix.md`
+- `implementation-note-epic17-appinstance-projection-convergence.md`
+- `story17.4a-store-prefill.md`
+- `story17.4b-git-compose-adapter.md`
 - `story17.4e-install-input-resolution.md`
-- `story17.4e-a-resolver-boundary-consolidation.md`
-- `story17.4e-b-source-candidate-convergence.md`
-- `story17.4e-c-runtime-input-resolution.md`
-- `story17.4e-d-secret-and-exposure-intent-normalization.md`
-- `story17.4e-e-resolution-preview-api.md`
-- `story17.5-operation-history-timeline.md`
+- `story17.5-action-history-timeline.md`
 - `story17.6-create-deployment-page.md`
-- `iteration2-epic17-install-resolution-convergence-slice.md`
+- `story17.10-deploy-settings.md`
 
 ## Remaining Work Summary
 
 1. Finish backend-owned install input convergence so adapter-specific install flows resolve through one explicit normalizer and previewable ingress contract.
 2. Continue refining the create-deployment surface only after the install resolver contract is stabilized.
 3. Move change/recovery operations onto the shared core.
-4. Finish Installed-side convergence so lifecycle action entry points stop bypassing Epic 17.
-5. Expand compensation and manual-intervention behavior beyond the first install slice.
+4. Freeze AppInstance projection semantics so change, recovery, runtime, and management surfaces converge on one state contract.
+5. Finish Installed-side convergence so lifecycle action entry points stop bypassing Epic 17.
+6. Expand compensation and manual-intervention behavior beyond the first install slice.
+7. Extract platform-owned deploy settings so preflight and runtime policy no longer depend on scattered hardcoded defaults.

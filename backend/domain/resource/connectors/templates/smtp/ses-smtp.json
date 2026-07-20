@@ -3,18 +3,26 @@
   "title": "Amazon SES SMTP",
   "vendor": "Amazon Web Services",
   "description": "Amazon SES SMTP relay profile.",
+  "helpUrl": "https://docs.aws.amazon.com/ses/latest/dg/send-email-smtp.html",
   "defaultEndpoint": "smtp://email-smtp.us-east-1.amazonaws.com:587",
+  "defaultEndpointTls": "smtps://email-smtp.us-east-1.amazonaws.com:465",
   "aliases": ["ses", "amazon ses", "ses-smtp"],
   "fields": [
     {
       "id": "endpoint",
-      "placeholder": "smtp://email-smtp.us-east-1.amazonaws.com:587"
+      "placeholder": "email-smtp.us-east-1.amazonaws.com",
+      "helpUrl": "https://docs.aws.amazon.com/ses/latest/dg/send-email-smtp.html"
     },
     {
-      "id": "region",
-      "label": "AWS Region",
-      "type": "string",
-      "placeholder": "us-east-1"
+      "id": "port"
+    },
+    {
+      "id": "username",
+      "placeholder": "AKIAIOSFODNN7EXAMPLE"
+    },
+    {
+      "id": "tls",
+      "default": false
     }
   ]
 }

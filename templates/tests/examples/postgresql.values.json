@@ -1,0 +1,7 @@
+{
+  "app_id": "postgresql-demo",
+  "version": "16",
+  "db_port": 15432,
+  "db_user": "appuser",
+  "db_name": "appdb"
+}

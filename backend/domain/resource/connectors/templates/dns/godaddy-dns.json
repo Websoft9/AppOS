@@ -1,0 +1,8 @@
+{
+  "id": "godaddy-dns",
+  "title": "GoDaddy DNS",
+  "vendor": "GoDaddy",
+  "description": "GoDaddy DNS API profile.",
+  "defaultEndpoint": "https://api.godaddy.com",
+  "aliases": ["godaddy", "godaddy-dns"]
+}

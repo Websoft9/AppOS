@@ -2,7 +2,7 @@ package runtime
 
 import (
 	"context"
-	"os"
+	"fmt"
 	"path/filepath"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -35,22 +35,15 @@ type Executor interface {
 
 type localExecutor struct{}
 
-func (e localExecutor) PrepareWorkspace(projectDir string, compose string) error {
-	if err := os.MkdirAll(projectDir, 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join(projectDir, "docker-compose.yml"), []byte(compose), 0o600)
+func (localExecutor) PrepareWorkspace(string, string) error {
+	return fmt.Errorf("local workspace preparation is unsupported for this executor")
 }
 
-func (e localExecutor) DockerClient() (*docker.Client, error) {
-	exec := docker.NewLocalExecutor("")
-	if os.Getuid() != 0 {
-		exec.SudoEnabled = true
-	}
-	return docker.New(exec), nil
+func (localExecutor) DockerClient() (*docker.Client, error) {
+	return nil, fmt.Errorf("docker client is unavailable for local lifecycle executor")
 }
 
-func (e localExecutor) Name() string {
+func (localExecutor) Name() string {
 	return "local"
 }
 
@@ -125,18 +118,29 @@ func (e sshExecutor) factory() sftpClientFactory {
 	return defaultSFTPClientFactory
 }
 
-func executorName(serverID string) string {
-	if serverID == "" || serverID == "local" {
-		return "local"
-	}
-	return "ssh"
-}
-
 func NewDeploymentExecutor(app core.App, serverID string) Executor {
-	if executorName(serverID) == "local" {
-		return localExecutor{}
+	if serverID == "" || serverID == "local" {
+		return unsupportedExecutor{}
 	}
 	return newSSHExecutor(app, serverID)
+}
+
+func NewLocalLifecycleExecutor() Executor {
+	return localExecutor{}
+}
+
+type unsupportedExecutor struct{}
+
+func (unsupportedExecutor) PrepareWorkspace(string, string) error {
+	return fmt.Errorf("managed server is required for deployment execution")
+}
+
+func (unsupportedExecutor) DockerClient() (*docker.Client, error) {
+	return nil, fmt.Errorf("managed server is required for deployment execution")
+}
+
+func (unsupportedExecutor) Name() string {
+	return "unsupported"
 }
 
 func newSSHExecutor(app core.App, serverID string) sshExecutor {

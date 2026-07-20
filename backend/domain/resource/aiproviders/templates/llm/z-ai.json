@@ -1,0 +1,38 @@
+{
+  "id": "z-ai",
+  "title": "Z.AI GLM",
+  "vendor": "Zhipu AI",
+  "uiGroup": "single_provider",
+  "hostingMode": "cloud",
+  "serviceMode": "official_provider",
+  "endpointMode": "customizable",
+  "supportsClosedModels": true,
+  "supportsMultiVendorModels": false,
+  "description": "Z.AI / GLM hosted API for Zhipu foundation models.",
+  "helpUrl": "https://open.bigmodel.cn/dev/howuse/introduction",
+  "defaultEndpoint": "https://open.bigmodel.cn/api/paas/v4",
+  "defaultAuthScheme": "bearer",
+  "protocols": [
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "default": true
+    }
+  ],
+  "capabilities": ["chat", "tools", "streaming"],
+  "aliases": ["z.ai", "z-ai", "zhipu", "glm"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "label": "OpenAI Compatible URL",
+      "placeholder": "https://open.bigmodel.cn/api/paas/v4"
+    },
+    {
+      "id": "credential",
+      "label": "API Key",
+      "type": "secret_ref",
+      "required": true,
+      "secretTemplate": "single_value"
+    }
+  ]
+}

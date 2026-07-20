@@ -1,0 +1,38 @@
+{
+  "contractVersion": "0.1",
+  "key": "mariadb",
+  "name": "mariadb",
+  "trademark": "MariaDB",
+  "category": "database",
+  "docs": {
+    "website": "https://mariadb.org/",
+    "installRequirements": "https://hub.docker.com/_/mariadb",
+    "upstream": "https://hub.docker.com/_/mariadb"
+  },
+  "capabilities": {
+    "web": false,
+    "requiresDomain": false,
+    "hasBuiltinDatabase": true,
+    "supportsPublish": false
+  },
+  "requirements": {
+    "cpu": 1,
+    "memoryGb": 2,
+    "diskGb": 8
+  },
+  "versions": {
+    "default": {
+      "edition": "community",
+      "version": "12.0"
+    },
+    "supported": [
+      { "edition": "community", "version": "12.0" },
+      { "edition": "community", "version": "11.8" },
+      { "edition": "community", "version": "10.11" },
+      { "edition": "community", "version": "10.6" }
+    ]
+  },
+  "serviceRoles": {
+    "mariadb": "primary"
+  }
+}

@@ -1,11 +1,12 @@
 package routes
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"os"
 	"path"
 	"strings"
 	"time"
@@ -16,8 +17,11 @@ import (
 	"github.com/pocketbase/pocketbase/tools/filesystem"
 	sharedshare "github.com/websoft9/appos/backend/domain/share"
 	"github.com/websoft9/appos/backend/domain/space"
-	"github.com/websoft9/appos/backend/infra/safefetch"
+	"github.com/websoft9/appos/backend/infra/egress/fetchstore"
+	"github.com/websoft9/appos/backend/infra/filesvc"
 )
+
+var spaceFetchStoreDownload = fetchstore.Download
 
 // ─── Route registration ────────────────────────────────────────────────────
 
@@ -354,9 +358,9 @@ func handleSpaceFetch(e *core.RequestEvent) error {
 		return e.BadRequestError("url is required", nil)
 	}
 
-	parsed, err := safefetch.ValidateURL(body.URL)
-	if err != nil {
-		return e.BadRequestError(err.Error(), nil)
+	parsed, err := url.ParseRequestURI(body.URL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return e.BadRequestError("only http and https URLs are supported", nil)
 	}
 
 	quota := space.GetQuota(e.App)
@@ -418,64 +422,51 @@ func handleSpaceFetch(e *core.RequestEvent) error {
 		return e.BadRequestError(extErr.Error(), nil)
 	}
 
-	client := safefetch.NewClient()
+	tempBase, err := os.MkdirTemp("", "appos-space-fetch-*")
+	if err != nil {
+		return e.JSON(http.StatusInternalServerError, fileError("failed to prepare download workspace"))
+	}
+	defer os.RemoveAll(tempBase)
 
-	// Optional early rejection via HEAD.
-	headCtx, headCancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer headCancel()
-	if headReq, headErr := http.NewRequestWithContext(headCtx, http.MethodHead, body.URL, nil); headErr == nil {
-		if headResp, err := client.Do(headReq); err == nil {
-			headResp.Body.Close()
-			if headResp.ContentLength > maxBytes {
-				return e.BadRequestError(
-					fmt.Sprintf("remote file is too large (limit %d MB)", quota.MaxSizeMB), nil)
-			}
+	tempService, err := filesvc.NewLocal(filesvc.Config{
+		Name:         "space-fetch",
+		BasePath:     tempBase,
+		AllowedRoots: []string{"downloads"},
+	})
+	if err != nil {
+		return e.JSON(http.StatusInternalServerError, fileError("failed to prepare download workspace"))
+	}
+
+	downloadResult, err := spaceFetchStoreDownload(e.Request.Context(), e.App, tempService, fetchstore.Request{
+		ConsumerKey:     "download.general",
+		URL:             body.URL,
+		DestinationPath: "downloads/payload",
+		Overwrite:       true,
+		MaxBytes:        maxBytes,
+		Timeout:         120 * time.Second,
+		Resume:          true,
+		RetryCount:      2,
+		RetryBackoff:    250 * time.Millisecond,
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "exceeds") {
+			return e.BadRequestError(fmt.Sprintf("remote file exceeds size limit (%d MB)", quota.MaxSizeMB), nil)
 		}
-	}
-
-	// Download with a hard size cap and timeout.
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, body.URL, nil)
-	if err != nil {
-		return e.BadRequestError("failed to build request: "+err.Error(), nil)
-	}
-	getResp, err := client.Do(req)
-	if err != nil {
 		return e.BadRequestError("failed to fetch URL: "+err.Error(), nil)
 	}
-	defer getResp.Body.Close()
-
-	if getResp.StatusCode < 200 || getResp.StatusCode > 299 {
-		return e.BadRequestError(
-			fmt.Sprintf("remote server returned HTTP %d", getResp.StatusCode), nil)
-	}
-
-	data, err := io.ReadAll(io.LimitReader(getResp.Body, maxBytes+1))
+	resolvedPath, err := tempService.Resolve(downloadResult.Path)
 	if err != nil {
-		return e.BadRequestError("failed to read remote content: "+err.Error(), nil)
+		return e.JSON(http.StatusInternalServerError, fileError("failed to access downloaded file"))
 	}
-	if int64(len(data)) > maxBytes {
-		return e.BadRequestError(
-			fmt.Sprintf("remote file exceeds size limit (%d MB)", quota.MaxSizeMB), nil)
-	}
-
-	// Detect MIME type; prefer server's Content-Type header.
-	mimeType := http.DetectContentType(data)
-	if ct := getResp.Header.Get("Content-Type"); ct != "" {
-		if idx := strings.Index(ct, ";"); idx >= 0 {
-			ct = ct[:idx]
-		}
-		ct = strings.TrimSpace(ct)
-		if ct != "" && ct != "application/octet-stream" {
-			mimeType = ct
-		}
-	}
-
-	pbFile, err := filesystem.NewFileFromBytes(data, name)
+	pbFile, err := filesystem.NewFileFromPath(resolvedPath)
 	if err != nil {
 		return e.JSON(http.StatusInternalServerError, fileError("failed to create file object"))
+	}
+	mimeType := downloadResult.ContentType
+	if mimeType == "" || mimeType == "application/octet-stream" {
+		if sniffed, sniffErr := sniffFileContentType(resolvedPath); sniffErr == nil {
+			mimeType = sniffed
+		}
 	}
 
 	col, err := e.App.FindCollectionByNameOrId(space.Collection)
@@ -487,7 +478,7 @@ func handleSpaceFetch(e *core.RequestEvent) error {
 	newRecord.Set("owner", authRecord.Id)
 	newRecord.Set("name", name)
 	newRecord.Set("mime_type", mimeType)
-	newRecord.Set("size", len(data))
+	newRecord.Set("size", downloadResult.BytesWritten)
 	newRecord.Set("parent", body.Parent)
 	newRecord.Set("is_folder", false)
 	newRecord.Set("content", pbFile)
@@ -502,6 +493,23 @@ func handleSpaceFetch(e *core.RequestEvent) error {
 		"size":      newRecord.GetInt("size"),
 		"mime_type": newRecord.GetString("mime_type"),
 	})
+}
+
+func sniffFileContentType(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	buf := make([]byte, 512)
+	n, err := file.Read(buf)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return "", err
+	}
+	if n == 0 {
+		return "application/octet-stream", nil
+	}
+	return http.DetectContentType(buf[:n]), nil
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────

@@ -39,7 +39,7 @@ func TestInstanceRepositorySaveGetDelete(t *testing.T) {
 	}
 	item.ApplySaveInput(domaininstances.SaveInput{
 		Name:              "Primary Redis",
-		Kind:              domaininstances.KindRedis,
+		Kind:              domaininstances.KindRedisCompatible,
 		TemplateID:        "generic-redis",
 		Endpoint:          "redis://cache.internal:6379",
 		ProviderAccountID: providerAccount.Id,
@@ -53,6 +53,9 @@ func TestInstanceRepositorySaveGetDelete(t *testing.T) {
 	if item.ID() == "" {
 		t.Fatal("expected saved instance id")
 	}
+	if item.Created() == "" || item.Updated() == "" {
+		t.Fatalf("expected save to hydrate timestamps, got created=%q updated=%q", item.Created(), item.Updated())
+	}
 
 	loaded, err := repo.Get(item.ID())
 	if err != nil {
@@ -61,11 +64,14 @@ func TestInstanceRepositorySaveGetDelete(t *testing.T) {
 	if loaded.Name() != "Primary Redis" {
 		t.Fatalf("expected saved name, got %q", loaded.Name())
 	}
-	if loaded.Kind() != domaininstances.KindRedis {
-		t.Fatalf("expected kind %q, got %q", domaininstances.KindRedis, loaded.Kind())
+	if loaded.Kind() != domaininstances.KindRedisCompatible {
+		t.Fatalf("expected kind %q, got %q", domaininstances.KindRedisCompatible, loaded.Kind())
 	}
 	if loaded.ProviderAccountID() != providerAccount.Id {
 		t.Fatalf("expected provider_account %q, got %q", providerAccount.Id, loaded.ProviderAccountID())
+	}
+	if loaded.Created() == "" || loaded.Updated() == "" {
+		t.Fatalf("expected get to return timestamps, got created=%q updated=%q", loaded.Created(), loaded.Updated())
 	}
 
 	if err := repo.Delete(item); err != nil {
@@ -87,7 +93,7 @@ func TestInstanceRepositorySaveMapsDuplicateNameToConflict(t *testing.T) {
 	}
 	first.ApplySaveInput(domaininstances.SaveInput{
 		Name:       "Primary Redis",
-		Kind:       domaininstances.KindRedis,
+		Kind:       domaininstances.KindRedisCompatible,
 		TemplateID: "generic-redis",
 	})
 	if err := repo.Save(first); err != nil {
@@ -100,7 +106,7 @@ func TestInstanceRepositorySaveMapsDuplicateNameToConflict(t *testing.T) {
 	}
 	second.ApplySaveInput(domaininstances.SaveInput{
 		Name:       "Primary Redis",
-		Kind:       domaininstances.KindKafka,
+		Kind:       domaininstances.KindKafkaCompatible,
 		TemplateID: "generic-kafka",
 	})
 	err = repo.Save(second)

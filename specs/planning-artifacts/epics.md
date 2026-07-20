@@ -19,12 +19,12 @@ See `README.md` for spec maintenance conventions.
 
 ## Epic Documents
 
-- [Epic 1: Infrastructure & Build System](../implementation-artifacts/epic1-infrastructure.md)
+- [Epic 1: DevOps](../implementation-artifacts/epic1-devops.md)
 - [Epic 2: Configuration Management](../implementation-artifacts/epic2-config.md)
 - [Epic 3: Authentication (Frontend)](../implementation-artifacts/epic3-auth.md)
 - [Epic 4: Docker Operations Layer](../implementation-artifacts/epic4-docker.md)
 - [Epic 5: App Store Module](../implementation-artifacts/epic5-store.md)
-- [Epic 6: Components](../implementation-artifacts/epic6-components.md)
+- [Epic 6: Infra Modules](../implementation-artifacts/epic6-infra.md)
 - [Epic 7: Dashboard Foundation](../implementation-artifacts/epic7-dashboard.md)
 - [Epic 8: Resources](../implementation-artifacts/epic8-resources.md)
 - [Epic 9: User Space](../implementation-artifacts/epic9-space.md)
@@ -47,4 +47,9 @@ See `README.md` for spec maintenance conventions.
 - [Epic 25: System Cron](../implementation-artifacts/epic25-system-cron.md)
 - [Epic 26: Resource Taxonomy Refactor](../implementation-artifacts/epic26-resource-taxonomy-refactor.md)
 - [Epic 27: Feeds](../implementation-artifacts/epic27-feeds.md)
-- [Epic 29: Software Delivery](../implementation-artifacts/epic29-software-delivery.md)
+- [Epic 29: Software](../implementation-artifacts/epic29-software.md)
+- [Epic 30: Assets](../implementation-artifacts/epic30-assets.md)
+- [Epic 31: AI Runtime](../implementation-artifacts/epic31-ai-runtime.md)
+- [Epic 34: Publish](../implementation-artifacts/epic34-publish.md)
+- [Epic 33: App Migration](../implementation-artifacts/epic33-app-migration.md)
+- [Epic 35: Deployment Core Convergence](../implementation-artifacts/epic35-deployment-core-convergence.md)

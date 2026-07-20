@@ -2,35 +2,55 @@ package worker
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/hibiken/asynq"
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
+	"github.com/websoft9/appos/backend/domain/monitor"
+	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/domain/software"
 )
 
 type fakeSoftwareExecutor struct {
-	preflightCalled bool
-	preflight       software.TargetReadinessResult
-	preflightErr    error
-	verifyCalled    int
-	installDetail   software.SoftwareComponentDetail
-	installErr      error
-	startErr        error
-	stopErr         error
-	restartErr      error
-	verifyDetail    software.SoftwareComponentDetail
-	verifyErr       error
-	uninstallDetail software.SoftwareComponentDetail
-	uninstallErr    error
-	detectState     software.InstalledState
-	detectVersion   string
-	detectSource    software.InstallSource
-	detectEvidence  string
-	detectErr       error
+	preflightCalled   bool
+	preflight         software.TargetReadinessResult
+	preflightErr      error
+	preflightFn       func(context.Context, string, software.ResolvedTemplate) (software.TargetReadinessResult, error)
+	verifyCalled      int
+	installTemplate   software.ResolvedTemplate
+	reinstallTemplate software.ResolvedTemplate
+	upgradeTemplate   software.ResolvedTemplate
+	installDetail     software.SoftwareComponentDetail
+	installErr        error
+	startErr          error
+	stopErr           error
+	restartErr        error
+	verifyDetail      software.SoftwareComponentDetail
+	verifyErr         error
+	uninstallDetail   software.SoftwareComponentDetail
+	uninstallErr      error
+	detectState       software.InstalledState
+	detectVersion     string
+	detectSource      software.InstallSource
+	detectEvidence    string
+	detectErr         error
+}
+
+func ensureWorkerSecretRuntime(t *testing.T) {
+	t.Helper()
+	key := base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef"))
+	t.Setenv(secrets.EnvSecretKey, key)
+	if err := secrets.LoadKeyFromEnv(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func (f *fakeSoftwareExecutor) Detect(context.Context, string, software.ResolvedTemplate) (software.DetectionResult, error) {
@@ -48,16 +68,21 @@ func (f *fakeSoftwareExecutor) Detect(context.Context, string, software.Resolved
 	}, nil
 }
 
-func (f *fakeSoftwareExecutor) RunPreflight(context.Context, string, software.ResolvedTemplate) (software.TargetReadinessResult, error) {
+func (f *fakeSoftwareExecutor) RunPreflight(ctx context.Context, serverID string, tpl software.ResolvedTemplate) (software.TargetReadinessResult, error) {
 	f.preflightCalled = true
+	if f.preflightFn != nil {
+		return f.preflightFn(ctx, serverID, tpl)
+	}
 	return f.preflight, f.preflightErr
 }
 
-func (f *fakeSoftwareExecutor) Install(context.Context, string, software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
+func (f *fakeSoftwareExecutor) Install(_ context.Context, _ string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
+	f.installTemplate = tpl
 	return f.installDetail, f.installErr
 }
 
-func (f *fakeSoftwareExecutor) Upgrade(context.Context, string, software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
+func (f *fakeSoftwareExecutor) Upgrade(_ context.Context, _ string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
+	f.upgradeTemplate = tpl
 	return f.installDetail, f.installErr
 }
 
@@ -85,7 +110,8 @@ func (f *fakeSoftwareExecutor) Verify(context.Context, string, software.Resolved
 	return f.installDetail, f.installErr
 }
 
-func (f *fakeSoftwareExecutor) Reinstall(context.Context, string, software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
+func (f *fakeSoftwareExecutor) Reinstall(_ context.Context, _ string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
+	f.reinstallTemplate = tpl
 	return f.installDetail, f.installErr
 }
 
@@ -140,6 +166,92 @@ func TestNewSoftwareActionTask_ReturnsTask(t *testing.T) {
 	}
 	if payload.AppOSBaseURL != "https://console.example.com:8090" {
 		t.Errorf("expected AppOSBaseURL propagated, got %q", payload.AppOSBaseURL)
+	}
+}
+
+func TestPrepareSoftwareOperation_AllowsInstallWhenVerifyInFlight(t *testing.T) {
+	app := newWorkerTestApp(t)
+
+	_, err := createSoftwareOperationRecord(app, SoftwareActionPayload{
+		ServerID:     "srv-prepare-1",
+		ComponentKey: software.ComponentKeyDocker,
+		Action:       software.ActionVerify,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	record, err := PrepareSoftwareOperation(app, "srv-prepare-1", software.ComponentKeyDocker, software.ActionInstall)
+	if err != nil {
+		t.Fatalf("expected install to be allowed when verify is in flight, got error: %v", err)
+	}
+	if record.GetString("action") != string(software.ActionInstall) {
+		t.Fatalf("expected install operation record, got %q", record.GetString("action"))
+	}
+}
+
+func TestPrepareSoftwareOperation_BlocksInstallWhenInstallInFlight(t *testing.T) {
+	app := newWorkerTestApp(t)
+
+	_, err := createSoftwareOperationRecord(app, SoftwareActionPayload{
+		ServerID:     "srv-prepare-2",
+		ComponentKey: software.ComponentKeyDocker,
+		Action:       software.ActionInstall,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = PrepareSoftwareOperation(app, "srv-prepare-2", software.ComponentKeyDocker, software.ActionInstall)
+	if err == nil {
+		t.Fatal("expected install to remain blocked when another install is already in flight")
+	}
+	if !strings.Contains(err.Error(), ErrSoftwareOperationInFlight.Error()) {
+		t.Fatalf("expected in-flight error, got %v", err)
+	}
+}
+
+func TestHandleSoftwareAction_SkipsRetryForTerminalOperation(t *testing.T) {
+	app := newWorkerTestApp(t)
+	ensureWorkerSecretRuntime(t)
+	w, err := New(app)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	record, err := createSoftwareOperationRecord(app, SoftwareActionPayload{
+		ServerID:     "srv-terminal-1",
+		ComponentKey: software.ComponentKeyDocker,
+		Action:       software.ActionRestart,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	record.Set("phase", string(software.OperationPhaseFailed))
+	record.Set("terminal_status", string(software.TerminalStatusFailed))
+	if err := app.Save(record); err != nil {
+		t.Fatal(err)
+	}
+
+	payloadBytes, err := json.Marshal(SoftwareActionPayload{
+		OperationID:  record.Id,
+		ServerID:     "srv-terminal-1",
+		ComponentKey: software.ComponentKeyDocker,
+		Action:       software.ActionRestart,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = w.handleSoftwareAction(context.Background(), asynq.NewTask(TaskSoftwareRestart, payloadBytes))
+	if err == nil {
+		t.Fatal("expected terminal operation replay to be rejected")
+	}
+	if !errors.Is(err, asynq.SkipRetry) {
+		t.Fatalf("expected SkipRetry error, got %v", err)
+	}
+	if !strings.Contains(err.Error(), record.Id) {
+		t.Fatalf("expected error to mention operation id %s, got %v", record.Id, err)
 	}
 }
 
@@ -217,7 +329,7 @@ func TestSoftwareActionPayloadRoundTrip(t *testing.T) {
 	original := SoftwareActionPayload{
 		OperationID:  "op-1",
 		ServerID:     "srv-1",
-		ComponentKey: software.ComponentKeyMonitorAgent,
+		ComponentKey: software.ComponentKeyTelegraf,
 		Action:       software.ActionVerify,
 		UserID:       "user-1",
 		UserEmail:    "user@example.com",
@@ -242,6 +354,25 @@ func TestSoftwareActionPayloadRoundTrip(t *testing.T) {
 	}
 	if decoded.Action != original.Action {
 		t.Errorf("Action mismatch: %q vs %q", decoded.Action, original.Action)
+	}
+}
+
+func TestApplySoftwareActionTimeoutUsesTemplateMetadata(t *testing.T) {
+	ctx, cancel, timeout := applySoftwareActionTimeout(context.Background(), software.ResolvedTemplate{
+		ActionTimeouts: software.ActionTimeoutsSpec{InstallSeconds: 300},
+	}, software.ActionInstall)
+	defer cancel()
+
+	if timeout != 5*time.Minute {
+		t.Fatalf("timeout = %s, want 5m0s", timeout)
+	}
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		t.Fatal("expected derived context deadline")
+	}
+	remaining := time.Until(deadline)
+	if remaining <= 4*time.Minute || remaining > 5*time.Minute {
+		t.Fatalf("remaining deadline = %s, want close to 5m", remaining)
 	}
 }
 
@@ -351,6 +482,24 @@ func TestRunSoftwarePhaseLoopRefreshesSnapshotOnSuccess(t *testing.T) {
 			},
 			ServiceName: "docker",
 		},
+		verifyDetail: software.SoftwareComponentDetail{
+			SoftwareComponentSummary: software.SoftwareComponentSummary{
+				InstalledState:    software.InstalledStateInstalled,
+				DetectedVersion:   "1.2.3",
+				PackagedVersion:   "1.2.3",
+				VerificationState: software.VerificationStateHealthy,
+			},
+			ServiceName: "docker",
+			Verification: &software.SoftwareVerificationResult{
+				State:  software.VerificationStateHealthy,
+				Reason: "",
+				Details: map[string]any{
+					"engine_version":    "1.2.3",
+					"compose_available": true,
+					"compose_version":   "2.27.0",
+				},
+			},
+		},
 	}
 	softwareExecutorFactory = func(app core.App, serverID, userID string) (software.ComponentExecutor, error) {
 		return fakeExecutor, nil
@@ -392,6 +541,20 @@ func TestRunSoftwarePhaseLoopRefreshesSnapshotOnSuccess(t *testing.T) {
 	lastAction := decodeWorkerJSONObject(t, snapshots[0].Get("last_action_json"))
 	if lastAction["result"] != "success" {
 		t.Fatalf("expected successful snapshot action result, got %#v", lastAction)
+	}
+	verification := decodeWorkerJSONObject(t, snapshots[0].Get("verification_json"))
+	if verification["state"] != string(software.VerificationStateHealthy) {
+		t.Fatalf("expected snapshot verification state healthy, got %#v", verification)
+	}
+	details, ok := verification["details"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected snapshot verification details, got %#v", verification)
+	}
+	if details["compose_available"] != true {
+		t.Fatalf("expected compose_available=true in snapshot verification, got %#v", details)
+	}
+	if details["compose_version"] != "2.27.0" {
+		t.Fatalf("expected compose_version=2.27.0 in snapshot verification, got %#v", details)
 	}
 }
 
@@ -477,6 +640,135 @@ func TestRunSoftwarePhaseLoopFailsWhenPostActionVerifyIsDegraded(t *testing.T) {
 	}
 	if audits[0].GetString("status") != "attention_required" {
 		t.Fatalf("expected attention_required audit status, got %q", audits[0].GetString("status"))
+	}
+}
+
+func TestRunSoftwarePhaseLoopMarksExecutionTimeoutAttentionRequired(t *testing.T) {
+	app := newWorkerTestApp(t)
+
+	oldFactory := softwareExecutorFactory
+	defer func() { softwareExecutorFactory = oldFactory }()
+
+	fakeExecutor := &fakeSoftwareExecutor{
+		preflight: software.TargetReadinessResult{
+			OK:              true,
+			OSSupported:     true,
+			PrivilegeOK:     true,
+			NetworkOK:       true,
+			DependencyReady: true,
+		},
+		installErr: context.DeadlineExceeded,
+	}
+	softwareExecutorFactory = func(app core.App, serverID, userID string) (software.ComponentExecutor, error) {
+		return fakeExecutor, nil
+	}
+
+	w := &Worker{app: app}
+	record, err := createSoftwareOperationRecord(app, SoftwareActionPayload{
+		ServerID:     "srv-timeout-1",
+		ComponentKey: software.ComponentKeyDocker,
+		Action:       software.ActionInstall,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := SoftwareActionPayload{
+		OperationID:  record.Id,
+		ServerID:     "srv-timeout-1",
+		ComponentKey: software.ComponentKeyDocker,
+		Action:       software.ActionInstall,
+	}
+
+	w.runSoftwarePhaseLoop(context.Background(), record, payload)
+
+	updated, err := app.FindRecordById("software_operations", record.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.GetString("phase") != string(software.OperationPhaseAttentionRequired) {
+		t.Fatalf("expected attention_required phase, got %q", updated.GetString("phase"))
+	}
+	if updated.GetString("terminal_status") != string(software.TerminalStatusAttentionRequired) {
+		t.Fatalf("expected attention_required terminal_status, got %q", updated.GetString("terminal_status"))
+	}
+	if updated.GetString("failure_phase") != string(software.OperationPhaseExecuting) {
+		t.Fatalf("expected executing failure_phase, got %q", updated.GetString("failure_phase"))
+	}
+	if updated.GetString("failure_code") != string(software.FailureCodeExecutionTimeout) {
+		t.Fatalf("expected execution_timeout failure_code, got %q", updated.GetString("failure_code"))
+	}
+	if !strings.Contains(updated.GetString("failure_reason"), "timed out") {
+		t.Fatalf("expected timeout reason, got %q", updated.GetString("failure_reason"))
+	}
+	audits, err := app.FindRecordsByFilter("audit_logs", "action = 'server.software.install'", "-created", 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(audits) != 1 {
+		t.Fatalf("expected one audit record, got %d", len(audits))
+	}
+	if audits[0].GetString("status") != "attention_required" {
+		t.Fatalf("expected attention_required audit status, got %q", audits[0].GetString("status"))
+	}
+}
+
+func TestClassifyVerificationFailureReturnsTimeoutCode(t *testing.T) {
+	if got := classifyVerificationFailure(software.ActionInstall, context.DeadlineExceeded); got != software.FailureCodeVerificationTimeout {
+		t.Fatalf("verification timeout code = %q, want %q", got, software.FailureCodeVerificationTimeout)
+	}
+}
+
+func TestHandleSoftwareActionTimeoutUsesFailedPolicy(t *testing.T) {
+	app := newWorkerTestApp(t)
+	w := &Worker{app: app}
+	record, err := createSoftwareOperationRecord(app, SoftwareActionPayload{
+		ServerID:     "srv-timeout-policy-1",
+		ComponentKey: software.ComponentKeyDocker,
+		Action:       software.ActionInstall,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := SoftwareActionPayload{
+		OperationID:  record.Id,
+		ServerID:     "srv-timeout-policy-1",
+		ComponentKey: software.ComponentKeyDocker,
+		Action:       software.ActionInstall,
+		UserID:       "user-1",
+		UserEmail:    "user@example.com",
+	}
+
+	w.handleSoftwareActionTimeout(
+		context.Background(),
+		record,
+		payload,
+		software.OperationPhaseExecuting,
+		software.FailureCodeExecutionTimeout,
+		"execute \"install\" timed out: context deadline exceeded",
+		software.CatalogEntry{ComponentKey: software.ComponentKeyDocker, Label: "Docker Engine", SupportedActions: []software.Action{software.ActionInstall}},
+		software.ResolvedTemplate{ActionTimeoutPolicy: software.ActionTimeoutPolicySpec{Install: software.TimeoutPolicyFailed}},
+		nil,
+	)
+
+	updated, err := app.FindRecordById("software_operations", record.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.GetString("phase") != string(software.OperationPhaseFailed) {
+		t.Fatalf("expected failed phase, got %q", updated.GetString("phase"))
+	}
+	if updated.GetString("terminal_status") != string(software.TerminalStatusFailed) {
+		t.Fatalf("expected failed terminal_status, got %q", updated.GetString("terminal_status"))
+	}
+	if updated.GetString("failure_code") != string(software.FailureCodeExecutionTimeout) {
+		t.Fatalf("expected execution_timeout failure_code, got %q", updated.GetString("failure_code"))
+	}
+	audits, err := app.FindRecordsByFilter("audit_logs", "action = 'server.software.install'", "-created", 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(audits) != 1 || audits[0].GetString("status") != "failed" {
+		t.Fatalf("expected failed audit record, got %#v", audits)
 	}
 }
 
@@ -585,6 +877,503 @@ func TestRunSoftwarePhaseLoopMarksVerificationErrorCodeForVerifyErrors(t *testin
 	}
 	if updated.GetString("phase") != string(software.OperationPhaseAttentionRequired) {
 		t.Fatalf("expected attention_required phase, got %q", updated.GetString("phase"))
+	}
+}
+
+func TestRecoverOrphanedSoftwareOperationsKeepsFreshAcceptedRecords(t *testing.T) {
+	app := newWorkerTestApp(t)
+	w := &Worker{app: app}
+	record, err := createSoftwareOperationRecord(app, SoftwareActionPayload{ServerID: "srv-orphan", ComponentKey: software.ComponentKeyDocker, Action: software.ActionInstall})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := w.recoverOrphanedSoftwareOperations(); err != nil {
+		t.Fatal(err)
+	}
+
+	updated, err := app.FindRecordById("software_operations", record.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.GetString("terminal_status") != string(software.TerminalStatusNone) {
+		t.Fatalf("expected accepted operation to remain in-flight, got %q", updated.GetString("terminal_status"))
+	}
+	if updated.GetString("failure_reason") != "" {
+		t.Fatalf("expected no orphan failure reason, got %q", updated.GetString("failure_reason"))
+	}
+}
+
+func TestRecoverOrphanedSoftwareOperationsFailsStaleAcceptedRecords(t *testing.T) {
+	app := newWorkerTestApp(t)
+	w := &Worker{app: app}
+	record, err := createSoftwareOperationRecord(app, SoftwareActionPayload{ServerID: "srv-orphan-stale", ComponentKey: software.ComponentKeyDocker, Action: software.ActionInstall})
+	if err != nil {
+		t.Fatal(err)
+	}
+	staleUpdated := types.NowDateTime().Add(-softwareOperationOrphanThreshold - time.Minute)
+	if _, err := app.DB().NewQuery("UPDATE software_operations SET updated = {:updated} WHERE id = {:id}").Bind(dbx.Params{
+		"updated": staleUpdated.String(),
+		"id":      record.Id,
+	}).Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := w.recoverOrphanedSoftwareOperations(); err != nil {
+		t.Fatal(err)
+	}
+
+	updated, err := app.FindRecordById("software_operations", record.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.GetString("terminal_status") != string(software.TerminalStatusFailed) {
+		t.Fatalf("expected stale accepted operation to fail, got %q", updated.GetString("terminal_status"))
+	}
+	if updated.GetString("failure_phase") != string(software.OperationPhaseAccepted) {
+		t.Fatalf("expected accepted failure_phase, got %q", updated.GetString("failure_phase"))
+	}
+	if updated.GetString("failure_code") != string(software.FailureCodeEnqueueError) {
+		t.Fatalf("expected enqueue_error failure_code, got %q", updated.GetString("failure_code"))
+	}
+	if !strings.Contains(updated.GetString("failure_reason"), "orphaned after worker restart") {
+		t.Fatalf("expected orphan failure reason, got %q", updated.GetString("failure_reason"))
+	}
+}
+
+func TestRecoverOrphanedSoftwareOperationsFailsStalePreflightRecords(t *testing.T) {
+	app := newWorkerTestApp(t)
+	w := &Worker{app: app}
+	record, err := createSoftwareOperationRecord(app, SoftwareActionPayload{ServerID: "srv-orphan-preflight", ComponentKey: software.ComponentKeyDocker, Action: software.ActionInstall})
+	if err != nil {
+		t.Fatal(err)
+	}
+	staleUpdated := types.NowDateTime().Add(-softwareOperationOrphanThreshold - time.Minute)
+	if _, err := app.DB().NewQuery("UPDATE software_operations SET phase = {:phase}, updated = {:updated} WHERE id = {:id}").Bind(dbx.Params{
+		"phase":   string(software.OperationPhasePreflight),
+		"updated": staleUpdated.String(),
+		"id":      record.Id,
+	}).Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := w.recoverOrphanedSoftwareOperations(); err != nil {
+		t.Fatal(err)
+	}
+
+	updated, err := app.FindRecordById("software_operations", record.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.GetString("terminal_status") != string(software.TerminalStatusFailed) {
+		t.Fatalf("expected stale preflight operation to fail, got %q", updated.GetString("terminal_status"))
+	}
+	if updated.GetString("failure_phase") != string(software.OperationPhasePreflight) {
+		t.Fatalf("expected preflight failure_phase, got %q", updated.GetString("failure_phase"))
+	}
+	if updated.GetString("failure_code") != string(software.FailureCodePreflightError) {
+		t.Fatalf("expected preflight_error failure_code, got %q", updated.GetString("failure_code"))
+	}
+}
+
+func TestRunSoftwarePhaseLoopSuccessClearsStaleFailureFields(t *testing.T) {
+	app := newWorkerTestApp(t)
+
+	oldFactory := softwareExecutorFactory
+	defer func() { softwareExecutorFactory = oldFactory }()
+
+	fakeExecutor := &fakeSoftwareExecutor{
+		preflight:     software.TargetReadinessResult{OK: true, OSSupported: true, PrivilegeOK: true, NetworkOK: true, DependencyReady: true},
+		installDetail: software.SoftwareComponentDetail{SoftwareComponentSummary: software.SoftwareComponentSummary{InstalledState: software.InstalledStateInstalled}},
+		verifyDetail:  software.SoftwareComponentDetail{SoftwareComponentSummary: software.SoftwareComponentSummary{InstalledState: software.InstalledStateInstalled, VerificationState: software.VerificationStateHealthy}},
+	}
+	softwareExecutorFactory = func(app core.App, serverID, userID string) (software.ComponentExecutor, error) {
+		return fakeExecutor, nil
+	}
+
+	w := &Worker{app: app}
+	record, err := createSoftwareOperationRecord(app, SoftwareActionPayload{ServerID: "srv-success", ComponentKey: software.ComponentKeyDocker, Action: software.ActionInstall})
+	if err != nil {
+		t.Fatal(err)
+	}
+	record.Set("failure_phase", string(software.OperationPhaseExecuting))
+	record.Set("failure_code", string(software.FailureCodeExecutionError))
+	record.Set("failure_reason", "operation orphaned after worker restart")
+	if err := app.Save(record); err != nil {
+		t.Fatal(err)
+	}
+
+	payload := SoftwareActionPayload{OperationID: record.Id, ServerID: "srv-success", ComponentKey: software.ComponentKeyDocker, Action: software.ActionInstall}
+	w.runSoftwarePhaseLoop(context.Background(), record, payload)
+
+	updated, err := app.FindRecordById("software_operations", record.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.GetString("terminal_status") != string(software.TerminalStatusSuccess) {
+		t.Fatalf("expected success terminal_status, got %q", updated.GetString("terminal_status"))
+	}
+	if updated.GetString("failure_phase") != "" || updated.GetString("failure_code") != "" || updated.GetString("failure_reason") != "" {
+		t.Fatalf("expected stale failure fields to be cleared, got phase=%q code=%q reason=%q", updated.GetString("failure_phase"), updated.GetString("failure_code"), updated.GetString("failure_reason"))
+	}
+}
+
+func TestBuildSoftwareTelegrafConfigIncludesManagedServerTag(t *testing.T) {
+	config, err := buildSoftwareTelegrafConfig(monitor.DefaultManagedCollectorPolicySettings(), "srv-telegraf", "https://console.example.com/api/monitor/write", "srv-telegraf", "secret-token")
+	if err != nil {
+		t.Fatalf("buildSoftwareTelegrafConfig: %v", err)
+	}
+	if !strings.Contains(config, "Managed by AppOS") {
+		t.Fatalf("expected managed config marker, got %q", config)
+	}
+	if !strings.Contains(config, "appos_server_id = \"srv-telegraf\"") {
+		t.Fatalf("expected server tag in config, got %q", config)
+	}
+	if !strings.Contains(config, "[[inputs.docker]]") {
+		t.Fatalf("expected docker input in config, got %q", config)
+	}
+	if !strings.Contains(config, "[[outputs.http]]") {
+		t.Fatalf("expected http output plugin in config, got %q", config)
+	}
+	if !strings.Contains(config, "url = \"https://console.example.com/api/monitor/write\"") {
+		t.Fatalf("expected telegraf output url in config, got %q", config)
+	}
+}
+
+func TestBuildSoftwareTelegrafConfigUsesManagedCollectorSettings(t *testing.T) {
+	config, err := buildSoftwareTelegrafConfig(monitor.ManagedCollectorPolicySettings{
+		CollectionInterval: 15 * time.Second,
+		FlushInterval:      20 * time.Second,
+		MetricBatchSize:    1500,
+		MetricBufferLimit:  6000,
+		CollectionJitter:   2 * time.Second,
+		FlushJitter:        3 * time.Second,
+	}, "srv-telegraf", "https://console.example.com/api/monitor/write", "srv-telegraf", "secret-token")
+	if err != nil {
+		t.Fatalf("buildSoftwareTelegrafConfig: %v", err)
+	}
+	for _, expected := range []string{
+		`interval = "15s"`,
+		`flush_interval = "20s"`,
+		`metric_batch_size = 1500`,
+		`metric_buffer_limit = 6000`,
+		`collection_jitter = "2s"`,
+		`flush_jitter = "3s"`,
+	} {
+		if !strings.Contains(config, expected) {
+			t.Fatalf("expected %q in config, got %q", expected, config)
+		}
+	}
+}
+
+func TestRunSoftwarePhaseLoopInjectsTelegrafRuntimeEnv(t *testing.T) {
+	ensureWorkerSecretRuntime(t)
+	app := newWorkerTestApp(t)
+
+	oldFactory := softwareExecutorFactory
+	defer func() { softwareExecutorFactory = oldFactory }()
+
+	fakeExecutor := &fakeSoftwareExecutor{
+		preflight: software.TargetReadinessResult{
+			OK:              true,
+			OSSupported:     true,
+			PrivilegeOK:     true,
+			NetworkOK:       true,
+			DependencyReady: true,
+			Issues:          []string{},
+		},
+		installDetail: software.SoftwareComponentDetail{
+			SoftwareComponentSummary: software.SoftwareComponentSummary{
+				InstalledState: software.InstalledStateInstalled,
+			},
+		},
+		verifyDetail: software.SoftwareComponentDetail{
+			SoftwareComponentSummary: software.SoftwareComponentSummary{
+				InstalledState:    software.InstalledStateInstalled,
+				VerificationState: software.VerificationStateHealthy,
+			},
+		},
+	}
+	softwareExecutorFactory = func(app core.App, serverID, userID string) (software.ComponentExecutor, error) {
+		return fakeExecutor, nil
+	}
+
+	w := &Worker{app: app}
+	record, err := createSoftwareOperationRecord(app, SoftwareActionPayload{
+		ServerID:     "srv-telegraf",
+		ComponentKey: software.ComponentKeyTelegraf,
+		Action:       software.ActionInstall,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := SoftwareActionPayload{
+		OperationID:  record.Id,
+		ServerID:     "srv-telegraf",
+		ComponentKey: software.ComponentKeyTelegraf,
+		Action:       software.ActionInstall,
+		AppOSBaseURL: "https://console.example.com",
+	}
+
+	w.runSoftwarePhaseLoop(context.Background(), record, payload)
+
+	if fakeExecutor.installTemplate.ComponentKey != software.ComponentKeyTelegraf {
+		t.Fatalf("expected telegraf install template, got %q", fakeExecutor.installTemplate.ComponentKey)
+	}
+	if fakeExecutor.installTemplate.Install.Env["APPOS_SERVICE"] != "appos-monitor.service" {
+		t.Fatalf("expected current service env to be injected, got %q", fakeExecutor.installTemplate.Install.Env["APPOS_SERVICE"])
+	}
+	if fakeExecutor.installTemplate.Install.Env["APPOS_TELEGRAF_VERSION"] != telegrafManagedVersion {
+		t.Fatalf("expected telegraf version env %q, got %q", telegrafManagedVersion, fakeExecutor.installTemplate.Install.Env["APPOS_TELEGRAF_VERSION"])
+	}
+	encoded := fakeExecutor.installTemplate.Install.Env["APPOS_TELEGRAF_CONFIG_B64"]
+	if strings.TrimSpace(encoded) == "" {
+		t.Fatal("expected telegraf config env to be injected")
+	}
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		t.Fatalf("decode telegraf config: %v", err)
+	}
+	config := string(decoded)
+	if !strings.Contains(config, "appos_server_id = \"srv-telegraf\"") {
+		t.Fatalf("expected server tag in telegraf config, got %q", config)
+	}
+	if !strings.Contains(config, "[[inputs.cpu]]") {
+		t.Fatalf("expected cpu input in telegraf config, got %q", config)
+	}
+	if !strings.Contains(config, "[[inputs.diskio]]") {
+		t.Fatalf("expected diskio input in telegraf config, got %q", config)
+	}
+	if !strings.Contains(config, "[[inputs.docker]]") {
+		t.Fatalf("expected docker input in telegraf config, got %q", config)
+	}
+	if !strings.Contains(config, "source_tag = true") {
+		t.Fatalf("expected source_tag in telegraf config, got %q", config)
+	}
+	if !strings.Contains(config, "container_state_include = [\"running\"]") {
+		t.Fatalf("expected running container filter in telegraf config, got %q", config)
+	}
+	if !strings.Contains(config, "docker_label_include = [\"com.docker.compose.project\", \"com.docker.compose.service\"]") {
+		t.Fatalf("expected compose label include in telegraf config, got %q", config)
+	}
+	if !strings.Contains(config, "url = \"https://console.example.com/api/monitor/write\"") {
+		t.Fatalf("expected telegraf output url in config, got %q", config)
+	}
+}
+
+func TestRunSoftwarePhaseLoop_InjectsLegacyServiceCleanupForTelegrafUpgrade(t *testing.T) {
+	ensureWorkerSecretRuntime(t)
+	app := newWorkerTestApp(t)
+
+	col, err := app.FindCollectionByNameOrId("software_inventory_snapshots")
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot := core.NewRecord(col)
+	snapshot.Set("target_type", string(software.TargetTypeServer))
+	snapshot.Set("target_id", "srv-telegraf-upgrade")
+	snapshot.Set("component_key", string(software.ComponentKeyTelegraf))
+	snapshot.Set("label", "Monitor Agent (Native Telegraf)")
+	snapshot.Set("template_kind", string(software.TemplateKindScript))
+	snapshot.Set("installed_state", string(software.InstalledStateInstalled))
+	snapshot.Set("verification_state", string(software.VerificationStateHealthy))
+	snapshot.Set("service_name", "legacy-appos-monitor.service")
+	if err := app.Save(snapshot); err != nil {
+		t.Fatal(err)
+	}
+
+	oldFactory := softwareExecutorFactory
+	defer func() { softwareExecutorFactory = oldFactory }()
+
+	fakeExecutor := &fakeSoftwareExecutor{
+		preflight: software.TargetReadinessResult{
+			OK:              true,
+			OSSupported:     true,
+			PrivilegeOK:     true,
+			NetworkOK:       true,
+			DependencyReady: true,
+			Issues:          []string{},
+		},
+		installDetail: software.SoftwareComponentDetail{
+			SoftwareComponentSummary: software.SoftwareComponentSummary{
+				InstalledState: software.InstalledStateInstalled,
+			},
+		},
+		verifyDetail: software.SoftwareComponentDetail{
+			SoftwareComponentSummary: software.SoftwareComponentSummary{
+				InstalledState:    software.InstalledStateInstalled,
+				VerificationState: software.VerificationStateHealthy,
+			},
+		},
+	}
+	softwareExecutorFactory = func(app core.App, serverID, userID string) (software.ComponentExecutor, error) {
+		return fakeExecutor, nil
+	}
+
+	w := &Worker{app: app}
+	record, err := createSoftwareOperationRecord(app, SoftwareActionPayload{
+		ServerID:     "srv-telegraf-upgrade",
+		ComponentKey: software.ComponentKeyTelegraf,
+		Action:       software.ActionUpgrade,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := SoftwareActionPayload{
+		OperationID:  record.Id,
+		ServerID:     "srv-telegraf-upgrade",
+		ComponentKey: software.ComponentKeyTelegraf,
+		Action:       software.ActionUpgrade,
+		AppOSBaseURL: "https://console.example.com",
+	}
+
+	w.runSoftwarePhaseLoop(context.Background(), record, payload)
+
+	if fakeExecutor.upgradeTemplate.Upgrade.Env["APPOS_SERVICE"] != "appos-monitor.service" {
+		t.Fatalf("expected current service env for upgrade, got %q", fakeExecutor.upgradeTemplate.Upgrade.Env["APPOS_SERVICE"])
+	}
+	if fakeExecutor.upgradeTemplate.Upgrade.Env["APPOS_LEGACY_SERVICE_NAMES"] != "telegraf.service\nlegacy-appos-monitor.service" {
+		t.Fatalf("expected merged legacy service cleanup env, got %q", fakeExecutor.upgradeTemplate.Upgrade.Env["APPOS_LEGACY_SERVICE_NAMES"])
+	}
+}
+
+func TestRunSoftwarePhaseLoop_ReinstallTelegrafRefreshesMonitorWriteCredentials(t *testing.T) {
+	ensureWorkerSecretRuntime(t)
+	app := newWorkerTestApp(t)
+
+	if _, err := secrets.UpsertSystemSingleValue(
+		app,
+		nil,
+		monitorCollectorTokenSecretName("srv-telegraf-repair"),
+		"token",
+		"reset-control-plane-token",
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	oldFactory := softwareExecutorFactory
+	defer func() { softwareExecutorFactory = oldFactory }()
+
+	fakeExecutor := &fakeSoftwareExecutor{
+		preflight: software.TargetReadinessResult{
+			OK:              true,
+			OSSupported:     true,
+			PrivilegeOK:     true,
+			NetworkOK:       true,
+			DependencyReady: true,
+			Issues:          []string{},
+		},
+		installDetail: software.SoftwareComponentDetail{
+			SoftwareComponentSummary: software.SoftwareComponentSummary{
+				InstalledState: software.InstalledStateInstalled,
+			},
+		},
+		verifyDetail: software.SoftwareComponentDetail{
+			SoftwareComponentSummary: software.SoftwareComponentSummary{
+				InstalledState:    software.InstalledStateInstalled,
+				VerificationState: software.VerificationStateHealthy,
+			},
+		},
+	}
+	softwareExecutorFactory = func(app core.App, serverID, userID string) (software.ComponentExecutor, error) {
+		return fakeExecutor, nil
+	}
+
+	w := &Worker{app: app}
+	record, err := createSoftwareOperationRecord(app, SoftwareActionPayload{
+		ServerID:     "srv-telegraf-repair",
+		ComponentKey: software.ComponentKeyTelegraf,
+		Action:       software.ActionReinstall,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := SoftwareActionPayload{
+		OperationID:  record.Id,
+		ServerID:     "srv-telegraf-repair",
+		ComponentKey: software.ComponentKeyTelegraf,
+		Action:       software.ActionReinstall,
+		AppOSBaseURL: "https://reset.example.com",
+	}
+
+	w.runSoftwarePhaseLoop(context.Background(), record, payload)
+
+	if fakeExecutor.reinstallTemplate.ComponentKey != software.ComponentKeyTelegraf {
+		t.Fatalf("expected telegraf reinstall template, got %q", fakeExecutor.reinstallTemplate.ComponentKey)
+	}
+	encoded := fakeExecutor.reinstallTemplate.Install.Env["APPOS_TELEGRAF_CONFIG_B64"]
+	if strings.TrimSpace(encoded) == "" {
+		t.Fatal("expected telegraf config env to be injected for reinstall")
+	}
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		t.Fatalf("decode telegraf config: %v", err)
+	}
+	config := string(decoded)
+	if !strings.Contains(config, "url = \"https://reset.example.com/api/monitor/write\"") {
+		t.Fatalf("expected repaired telegraf config to use refreshed callback url, got %q", config)
+	}
+	if !strings.Contains(config, "username = \"srv-telegraf-repair\"") {
+		t.Fatalf("expected repaired telegraf config to use server id as username, got %q", config)
+	}
+	if !strings.Contains(config, "password = \"reset-control-plane-token\"") {
+		t.Fatalf("expected repaired telegraf config to use current control-plane token, got %q", config)
+	}
+}
+
+func TestRunSoftwarePhaseLoop_InjectsCatalogLegacyServiceCleanupForTelegrafUpgrade(t *testing.T) {
+	ensureWorkerSecretRuntime(t)
+	app := newWorkerTestApp(t)
+
+	oldFactory := softwareExecutorFactory
+	defer func() { softwareExecutorFactory = oldFactory }()
+
+	fakeExecutor := &fakeSoftwareExecutor{
+		preflight: software.TargetReadinessResult{
+			OK:              true,
+			OSSupported:     true,
+			PrivilegeOK:     true,
+			NetworkOK:       true,
+			DependencyReady: true,
+			Issues:          []string{},
+		},
+		installDetail: software.SoftwareComponentDetail{
+			SoftwareComponentSummary: software.SoftwareComponentSummary{
+				InstalledState: software.InstalledStateInstalled,
+			},
+		},
+		verifyDetail: software.SoftwareComponentDetail{
+			SoftwareComponentSummary: software.SoftwareComponentSummary{
+				InstalledState:    software.InstalledStateInstalled,
+				VerificationState: software.VerificationStateHealthy,
+			},
+		},
+	}
+	softwareExecutorFactory = func(app core.App, serverID, userID string) (software.ComponentExecutor, error) {
+		return fakeExecutor, nil
+	}
+
+	w := &Worker{app: app}
+	record, err := createSoftwareOperationRecord(app, SoftwareActionPayload{
+		ServerID:     "srv-telegraf-catalog-upgrade",
+		ComponentKey: software.ComponentKeyTelegraf,
+		Action:       software.ActionUpgrade,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := SoftwareActionPayload{
+		OperationID:  record.Id,
+		ServerID:     "srv-telegraf-catalog-upgrade",
+		ComponentKey: software.ComponentKeyTelegraf,
+		Action:       software.ActionUpgrade,
+		AppOSBaseURL: "https://console.example.com",
+	}
+
+	w.runSoftwarePhaseLoop(context.Background(), record, payload)
+
+	if fakeExecutor.upgradeTemplate.Upgrade.Env["APPOS_LEGACY_SERVICE_NAMES"] != "telegraf.service" {
+		t.Fatalf("expected catalog legacy service cleanup env, got %q", fakeExecutor.upgradeTemplate.Upgrade.Env["APPOS_LEGACY_SERVICE_NAMES"])
 	}
 }
 

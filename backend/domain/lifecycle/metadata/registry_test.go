@@ -17,22 +17,21 @@ func TestDefaultRegistryCoversLifecycleOperations(t *testing.T) {
 		family        string
 		definitionKey string
 	}{
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), Source: string(model.TriggerSourceManualOps), Adapter: string(model.AdapterManualCompose)}, family: model.ProvisionPipeline, definitionKey: "provision.install.manual_compose"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), Source: string(model.TriggerSourceGitOps), Adapter: string(model.AdapterGitCompose)}, family: model.ProvisionPipeline, definitionKey: "provision.install.git_compose"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), Source: string(model.TriggerSourceManualOps), Adapter: string(model.AdapterSourceBuild)}, family: model.ProvisionPipeline, definitionKey: "provision.install.source_build"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeStart)}, family: model.ProvisionPipeline, definitionKey: "provision.start"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeRestart)}, family: model.ProvisionPipeline, definitionKey: "provision.restart"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeUpgrade)}, family: model.ChangePipeline, definitionKey: "change.upgrade"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeRedeploy)}, family: model.ChangePipeline, definitionKey: "change.redeploy"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeReconfigure)}, family: model.ChangePipeline, definitionKey: "change.reconfigure"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypePublish)}, family: model.ExposurePipeline, definitionKey: "exposure.publish"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeUnpublish)}, family: model.ExposurePipeline, definitionKey: "exposure.unpublish"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeRecover)}, family: model.RecoveryPipeline, definitionKey: "recovery.recover"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeRollback)}, family: model.RecoveryPipeline, definitionKey: "recovery.rollback"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeMaintain)}, family: model.MaintenancePipeline, definitionKey: "maintenance.maintain"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeBackup)}, family: model.MaintenancePipeline, definitionKey: "maintenance.backup"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeStop)}, family: model.RetirePipeline, definitionKey: "retire.stop"},
-		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeUninstall)}, family: model.RetirePipeline, definitionKey: "retire.uninstall"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), ExecutionMode: string(model.ExecutionModeCompose), RuleProfile: string(model.RuleProfileComposeStandard)}, family: model.ProvisionPipeline, definitionKey: "provision.install.manual_compose"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), ExecutionMode: string(model.ExecutionModeBuild), RuleProfile: string(model.RuleProfileSourceBuild)}, family: model.ProvisionPipeline, definitionKey: "provision.install.source_build"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeStart), RuleProfile: string(model.RuleProfileRuntimeControl)}, family: model.ProvisionPipeline, definitionKey: "provision.start"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeRestart), RuleProfile: string(model.RuleProfileRuntimeControl)}, family: model.ProvisionPipeline, definitionKey: "provision.restart"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeUpgrade), RuleProfile: string(model.RuleProfileChangeStandard)}, family: model.ChangePipeline, definitionKey: "change.upgrade"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeRedeploy), RuleProfile: string(model.RuleProfileChangeStandard)}, family: model.ChangePipeline, definitionKey: "change.redeploy"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeReconfigure), RuleProfile: string(model.RuleProfileChangeStandard)}, family: model.ChangePipeline, definitionKey: "change.reconfigure"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypePublish), RuleProfile: string(model.RuleProfileExposureSensitive)}, family: model.ExposurePipeline, definitionKey: "exposure.publish"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeUnpublish), RuleProfile: string(model.RuleProfileExposureSensitive)}, family: model.ExposurePipeline, definitionKey: "exposure.unpublish"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeRecover), RuleProfile: string(model.RuleProfileRecoveryStrict)}, family: model.RecoveryPipeline, definitionKey: "recovery.recover"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeRollback), RuleProfile: string(model.RuleProfileRecoveryStrict)}, family: model.RecoveryPipeline, definitionKey: "recovery.rollback"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeMaintain), RuleProfile: string(model.RuleProfileMaintenanceStandard)}, family: model.MaintenancePipeline, definitionKey: "maintenance.maintain"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeBackup), RuleProfile: string(model.RuleProfileMaintenanceStandard)}, family: model.MaintenancePipeline, definitionKey: "maintenance.backup"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeStop), RuleProfile: string(model.RuleProfileRetireStandard)}, family: model.RetirePipeline, definitionKey: "retire.stop"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeUninstall), RuleProfile: string(model.RuleProfileRetireStandard)}, family: model.RetirePipeline, definitionKey: "retire.uninstall"},
 	}
 
 	for _, item := range operations {
@@ -53,7 +52,7 @@ func TestDefaultRegistryCoversLifecycleOperations(t *testing.T) {
 }
 
 func TestDefinitionForOperationNormalizesInput(t *testing.T) {
-	definition, err := DefinitionForSelector(model.DefinitionSelector{OperationType: "  INSTALL ", Source: " manualops ", Adapter: " manual-compose "})
+	definition, err := DefinitionForSelector(model.DefinitionSelector{OperationType: "  INSTALL ", ExecutionMode: " compose ", RuleProfile: " compose_standard "})
 	if err != nil {
 		t.Fatalf("definition lookup failed: %v", err)
 	}
@@ -78,26 +77,26 @@ func TestDefinitionForOperationNormalizesInput(t *testing.T) {
 	}
 }
 
-func TestDefinitionForSelectorChoosesGitComposeInstall(t *testing.T) {
-	definition, err := DefinitionForSelector(model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), Source: string(model.TriggerSourceGitOps), Adapter: string(model.AdapterGitCompose)})
+func TestDefinitionForSelectorChoosesStoreManualComposeInstall(t *testing.T) {
+	definition, err := DefinitionForSelector(model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), ExecutionMode: string(model.ExecutionModeCompose), RuleProfile: string(model.RuleProfileComposeStandard)})
 	if err != nil {
 		t.Fatalf("definition lookup failed: %v", err)
 	}
-	if definition.Key != "provision.install.git_compose" {
-		t.Fatalf("expected git compose install definition, got %s", definition.Key)
+	if definition.Key != "provision.install.manual_compose" {
+		t.Fatalf("expected store-backed manual compose install definition, got %s", definition.Key)
 	}
 }
 
 func TestDefinitionForSelectorChoosesSourceBuildInstall(t *testing.T) {
-	definition, err := DefinitionForSelector(model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), Source: string(model.TriggerSourceManualOps), Adapter: string(model.AdapterSourceBuild)})
+	definition, err := DefinitionForSelector(model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), ExecutionMode: string(model.ExecutionModeBuild), RuleProfile: string(model.RuleProfileSourceBuild)})
 	if err != nil {
 		t.Fatalf("definition lookup failed: %v", err)
 	}
 	if definition.Key != "provision.install.source_build" {
 		t.Fatalf("expected source build install definition, got %s", definition.Key)
 	}
-	if len(definition.Nodes) != 9 {
-		t.Fatalf("expected 9 source build nodes, got %d", len(definition.Nodes))
+	if len(definition.Nodes) != 10 {
+		t.Fatalf("expected 10 source build nodes, got %d", len(definition.Nodes))
 	}
 	if definition.Nodes[0].Key != "validate_source_build_request" {
 		t.Fatalf("expected first source build node validate_source_build_request, got %s", definition.Nodes[0].Key)
@@ -114,6 +113,25 @@ func TestDefinitionForSelectorChoosesSourceBuildInstall(t *testing.T) {
 	if len(definition.Nodes[5].WritesProjection) != 1 || definition.Nodes[5].WritesProjection[0] != string(model.ProjectionTargetReleaseSnapshot) {
 		t.Fatalf("expected create_candidate_release to write ReleaseSnapshot, got %v", definition.Nodes[5].WritesProjection)
 	}
+	if definition.Nodes[7].Key != "pull_release_runtime_images" || definition.Nodes[7].NodeType != "runtime_pull" {
+		t.Fatalf("expected pull_release_runtime_images runtime_pull node, got %+v", definition.Nodes[7])
+	}
+	if len(definition.Nodes[8].DependsOn) != 1 || definition.Nodes[8].DependsOn[0] != "pull_release_runtime_images" {
+		t.Fatalf("expected activate_release_runtime to depend on pull_release_runtime_images, got %v", definition.Nodes[8].DependsOn)
+	}
+}
+
+func TestDefinitionForSelectorChoosesRuleProfileSpecificDefinition(t *testing.T) {
+	definition, err := DefinitionForSelector(model.DefinitionSelector{
+		OperationType: string(model.OperationTypePublish),
+		RuleProfile:   string(model.RuleProfileExposureSensitive),
+	})
+	if err != nil {
+		t.Fatalf("definition lookup failed: %v", err)
+	}
+	if definition.Key != "exposure.publish" {
+		t.Fatalf("expected exposure.publish, got %s", definition.Key)
+	}
 }
 
 func TestDefinitionForOperationRejectsAmbiguousInstall(t *testing.T) {
@@ -124,7 +142,7 @@ func TestDefinitionForOperationRejectsAmbiguousInstall(t *testing.T) {
 }
 
 func TestDefinitionForOperationExposesNodeMetadata(t *testing.T) {
-	definition, err := DefinitionForOperation(string(model.OperationTypeUpgrade))
+	definition, err := DefinitionForSelector(model.DefinitionSelector{OperationType: string(model.OperationTypeUpgrade), RuleProfile: string(model.RuleProfileChangeStandard)})
 	if err != nil {
 		t.Fatalf("definition lookup failed: %v", err)
 	}
@@ -141,6 +159,12 @@ func TestDefinitionForOperationExposesNodeMetadata(t *testing.T) {
 	}
 	if len(definition.Nodes[1].WritesProjection) != 1 || definition.Nodes[1].WritesProjection[0] != string(model.ProjectionTargetReleaseSnapshot) {
 		t.Fatalf("expected create_candidate_release to write ReleaseSnapshot projection, got %v", definition.Nodes[1].WritesProjection)
+	}
+	if definition.Nodes[4].Key != "pull_runtime_images" || definition.Nodes[4].NodeType != "runtime_pull" {
+		t.Fatalf("expected upgrade to expose runtime_pull before runtime_start, got %+v", definition.Nodes[4])
+	}
+	if definition.Nodes[5].Key != "start_runtime" || len(definition.Nodes[5].DependsOn) != 1 || definition.Nodes[5].DependsOn[0] != "pull_runtime_images" {
+		t.Fatalf("expected start_runtime to depend on pull_runtime_images, got %+v", definition.Nodes[5])
 	}
 }
 
@@ -322,31 +346,6 @@ definitions:
 `))
 	if err == nil {
 		t.Fatal("expected writes_projection validation error")
-	}
-}
-
-func TestNewRegistryRejectsUnsupportedSource(t *testing.T) {
-	_, err := NewRegistry([]byte(`family: ProvisionPipeline
-description: Broken catalog
-intent: Broken intent
-touches_domains: [AppInstance]
-default_compensation_policy: best_effort
-applies_to: [install]
-definitions:
-	- key: provision.install
-		version: v1
-		family: ProvisionPipeline
-		operation_types: [install]
-		sources: [unknownsource]
-		initial_phase: validating
-		nodes:
-			- key: validate_spec
-				node_type: validation
-				display_name: Validate Spec
-				phase: validating
-`))
-	if err == nil {
-		t.Fatal("expected source validation error")
 	}
 }
 

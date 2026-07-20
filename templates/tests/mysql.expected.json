@@ -1,0 +1,57 @@
+{
+  "templateKey": "mysql",
+  "requiredFiles": [
+    "manifest.json",
+    "inputs.schema.json",
+    "render.json",
+    "source.json",
+    "compose/base.yml",
+    "env/defaults.env"
+  ],
+  "manifest": {
+    "contractVersion": "0.1",
+    "key": "mysql",
+    "category": "database",
+    "serviceRoles": {
+      "mysql": "primary"
+    }
+  },
+  "inputs": {
+    "fieldKeys": [
+      "app_id",
+      "version",
+      "db_port",
+      "db_password"
+    ],
+    "secretBacked": [
+      "db_password"
+    ],
+    "systemManaged": [
+      "app_id"
+    ]
+  },
+  "render": {
+    "exposures": [
+      {
+        "label": "MySQL",
+        "service": "mysql",
+        "port": 3306,
+        "protocol": "tcp",
+        "default": true
+      }
+    ],
+    "primaryService": "mysql",
+    "secretRefs": [
+      "db_password"
+    ]
+  },
+  "source": {
+    "originKind": "official",
+    "templateRevision": "v0-initial",
+    "adapterVersion": "v0"
+  },
+  "adapter": {
+    "primaryService": "mysql",
+    "publishKind": "tcp"
+  }
+}

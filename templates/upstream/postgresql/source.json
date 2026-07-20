@@ -1,0 +1,22 @@
+{
+  "originKind": "official",
+  "sourceRepo": "docker-library/postgres",
+  "sourcePath": "docker-compose.yml",
+  "sourceBranch": "master",
+  "observedFiles": [
+    "docker-compose.yml"
+  ],
+  "references": {
+    "docs": "https://hub.docker.com/_/postgres",
+    "image": "https://hub.docker.com/_/postgres",
+    "envVars": "https://hub.docker.com/_/postgres",
+    "secondary": "https://github.com/Websoft9/docker-library/tree/main/apps/postgresql"
+  },
+  "notes": [
+    "This sample preserves upstream identity for Epic 32 adaptation work.",
+    "The compose shape is derived from the official PostgreSQL Docker image documentation; the Websoft9 docker-library entry is used as a secondary reference only.",
+    "PostgreSQL is a single-service application: the server serves the TCP wire protocol (5432) and stores data. No separate database service is modeled.",
+    "The Websoft9 reference includes an optional database-backup-service sidecar (profiles: backup); it is intentionally omitted from the normalized template.",
+    "The first pass stores source metadata rather than a full upstream file mirror."
+  ]
+}

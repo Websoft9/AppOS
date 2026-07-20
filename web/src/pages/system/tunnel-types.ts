@@ -65,7 +65,6 @@ export interface TunnelsPageQueryState {
   sort: SortField
   dir: SortDir
   page: number
-  pageSize: (typeof PAGE_SIZE_OPTIONS)[number]
 }
 
 export interface ConfirmTarget {
@@ -81,7 +80,7 @@ export interface LogState {
 
 export type PendingStatusKind = 'restarting' | 'reconnecting'
 
-export const PAGE_SIZE_OPTIONS = [15, 30, 60, 90] as const
+export const TUNNELS_PAGE_SIZE = 15
 
 export const DEFAULT_QUERY_STATE: TunnelsPageQueryState = {
   q: '',
@@ -89,5 +88,4 @@ export const DEFAULT_QUERY_STATE: TunnelsPageQueryState = {
   sort: 'connected_at',
   dir: 'desc',
   page: 1,
-  pageSize: 15,
 }

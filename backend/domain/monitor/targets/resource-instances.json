@@ -1,8 +1,8 @@
 [
   {
-    "id": "resource-mysql-generic",
+    "id": "resource-mysql-compatible-generic",
     "targetType": "resource",
-    "kind": "mysql",
+    "kind": "mysql-compatible",
     "templateIds": ["generic-mysql"],
     "enabledChecks": ["reachability"],
     "statusPriority": {
@@ -33,9 +33,9 @@
     }
   },
   {
-    "id": "resource-postgres-generic",
+    "id": "resource-postgres-compatible-generic",
     "targetType": "resource",
-    "kind": "postgres",
+    "kind": "postgres-compatible",
     "templateIds": ["generic-postgres"],
     "enabledChecks": ["reachability"],
     "statusPriority": {
@@ -66,9 +66,9 @@
     }
   },
   {
-    "id": "resource-redis-generic",
+    "id": "resource-redis-compatible-generic",
     "targetType": "resource",
-    "kind": "redis",
+    "kind": "redis-compatible",
     "templateIds": ["generic-redis"],
     "enabledChecks": ["reachability", "credential"],
     "statusPriority": {
@@ -118,43 +118,10 @@
     }
   },
   {
-    "id": "resource-kafka-generic",
+    "id": "resource-kafka-compatible-generic",
     "targetType": "resource",
-    "kind": "kafka",
+    "kind": "kafka-compatible",
     "templateIds": ["generic-kafka"],
-    "enabledChecks": ["reachability"],
-    "statusPriority": {
-      "credential_invalid": 5,
-      "unreachable": 4,
-      "degraded": 3,
-      "offline": 2,
-      "unknown": 1,
-      "healthy": 0
-    },
-    "checks": {
-      "reachability": {
-        "requireEndpoint": true,
-        "statusMap": {
-          "online": "healthy",
-          "offline": "unreachable",
-          "unknown": "unknown"
-        },
-        "reasonMap": {
-          "offline": "endpoint is unreachable",
-          "unknown": "reachability result is unknown"
-        },
-        "reasonCodeMap": {
-          "offline": "endpoint_unreachable",
-          "unknown": "reachability_unknown"
-        }
-      }
-    }
-  },
-  {
-    "id": "resource-ollama-generic",
-    "targetType": "resource",
-    "kind": "ollama",
-    "templateIds": ["generic-ollama"],
     "enabledChecks": ["reachability"],
     "statusPriority": {
       "credential_invalid": 5,

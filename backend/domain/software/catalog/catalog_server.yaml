@@ -17,6 +17,7 @@ components:
     target_type: server
     label: Docker
     capability: container_runtime
+    artifact_kind: package
     template_ref: script-install-package-systemd
     binary: docker
     service_name: docker.service
@@ -34,6 +35,7 @@ components:
       - verified_os_baseline
       - root_privilege
       - network_access
+      - container_runtime
       - service_manager
       - package_manager
     visibility:
@@ -52,13 +54,15 @@ components:
   # Traffic edge
   - component_key: reverse-proxy
     target_type: server
-    label: Nginx
+    label: Reverse Proxy (Traefik)
     capability: reverse_proxy
-    template_ref: package-systemd
-    binary: nginx
-    service_name: nginx.service
-    package_name: nginx
-    description: Managed reverse proxy service for connected servers.
+    artifact_kind: docker
+    template_ref: script-docker-systemd
+    binary: docker
+    version_command: "awk -F'image: ' '/image:/{print $2}' /opt/websoft9/traefik/docker-compose.yml 2>/dev/null | sed -E 's#^.*:v?##' | head -n 1"
+    service_name: traefik.service
+    script_path: traefik-install.sh
+    description: Native Traefik agent for application public access.
     readiness_requirements:
       - verified_os_baseline
       - root_privilege
@@ -72,23 +76,33 @@ components:
       - install
       - upgrade
       - verify
+      - start
+      - restart
+      - stop
+      - reinstall
       - uninstall
 
   # Observability
-  - component_key: monitor-agent
+  - component_key: telegraf
     target_type: server
-    label: Netdata Agent
+    label: Monitor Agent (Telegraf)
     capability: monitor_agent
+    artifact_kind: binary
     template_ref: script-systemd
-    binary: netdata
-    service_name: netdata.service
-    script_url: https://get.netdata.cloud/kickstart.sh
-    description: Managed monitoring agent installer for connected servers.
+    binary: telegraf
+    version_command: "telegraf version"
+    service_name: appos-monitor.service
+    legacy_service_names:
+      - telegraf.service
+    script_path: telegraf-install.sh
+    description: Native Telegraf agent for AppOS metrics collector.
     readiness_requirements:
       - verified_os_baseline
       - root_privilege
       - network_access
       - service_manager
+    requires_appos_base_url: true
+    favorite_systemd_service: true
     visibility:
       - server_operations
       - supported_software_discovery
@@ -96,31 +110,8 @@ components:
       - install
       - upgrade
       - verify
-      - uninstall
-
-  # Control plane
-  - component_key: appos-agent
-    target_type: server
-    label: AppOS Agent
-    capability: control_plane
-    template_ref: script-systemd
-    binary: appos-agent
-    service_name: appos-agent.service
-    # script_url is resolved at runtime from system settings key: software.appos_agent_installer_url
-    # Do not hardcode a URL here; the executor must read the setting before invoking the template.
-    script_url: ""
-    description: Managed AppOS agent for connected servers.
-    readiness_requirements:
-      - verified_os_baseline
-      - root_privilege
-      - network_access
-      - service_manager
-      - trusted_installer_url
-    visibility:
-      - server_operations
-      - supported_software_discovery
-    supported_actions:
-      - install
-      - upgrade
-      - verify
+      - start
+      - restart
+      - stop
+      - reinstall
       - uninstall

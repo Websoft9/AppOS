@@ -1,0 +1,8 @@
+http:
+  routers:
+    traefik-dashboard:
+      entryPoints:
+        - web
+        - websecure
+      rule: PathPrefix(`/api/settings/public/traefik`)
+      service: api@internal

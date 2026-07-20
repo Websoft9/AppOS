@@ -10,11 +10,30 @@ permissions:
 
 jobs:
   publish-images:
-    name: Publish Docker Images
+    name: Publish Images
     runs-on: ubuntu-latest
     steps:
+      - name: Verify release gate manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/release-gate && mkdir -p /tmp/release-gate
+          gh release download "${{ github.event.release.tag_name }}" --pattern release-gate.json --dir /tmp/release-gate
+          test -f /tmp/release-gate/release-gate.json
+          tag="$(jq -r '.tag' /tmp/release-gate/release-gate.json)"
+          gate="$(jq -r '.gate' /tmp/release-gate/release-gate.json)"
+          if [ "$tag" != "${{ github.event.release.tag_name }}" ]; then
+            echo "release-gate.json tag mismatch: $tag" >&2
+            exit 1
+          fi
+          if [ "$gate" != "release" ]; then
+            echo "release-gate.json gate mismatch: $gate" >&2
+            exit 1
+          fi
+
       - name: Checkout release tag
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.event.release.tag_name }}
 
@@ -25,6 +44,11 @@ jobs:
           tag_name="${{ github.event.release.tag_name }}"
           version="${tag_name#v}"
           commit_sha="$(git rev-parse HEAD)"
+          manifest_commit="$(jq -r '.commit' /tmp/release-gate/release-gate.json)"
+          if [[ "$manifest_commit" != "$commit_sha" ]]; then
+            echo "release-gate.json commit mismatch: manifest=$manifest_commit checkout=$commit_sha" >&2
+            exit 1
+          fi
           owner_lc="$(printf '%s' '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
           docker_image="docker.io/websoft9dev/appos"
           ghcr_image="ghcr.io/${owner_lc}/appos"

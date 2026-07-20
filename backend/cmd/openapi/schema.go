@@ -16,8 +16,9 @@ import (
 )
 
 type swaggerSchemaHint struct {
-	container string
-	dataType  string
+	container   string
+	dataType    string
+	description string
 }
 
 func (h swaggerSchemaHint) normalizedType() string {

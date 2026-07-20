@@ -1,6 +1,6 @@
 # Story 1.7: OpenAPI Contract (Final)
 
-**Epic**: Epic 1 - Infrastructure & Build System  
+**Epic**: Epic 1 - DevOps  
 **Priority**: P1  
 **Status**: Done
 

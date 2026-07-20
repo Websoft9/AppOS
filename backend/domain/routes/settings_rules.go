@@ -7,8 +7,14 @@ import (
 	"strconv"
 	"strings"
 
-	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
+	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/config/sysconfig"
+	settingsschema "github.com/websoft9/appos/backend/domain/config/sysconfig/schema"
+	"github.com/websoft9/appos/backend/domain/monitor"
+	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	"github.com/websoft9/appos/backend/domain/secrets"
+	"github.com/websoft9/appos/backend/infra/egress"
+	persistence "github.com/websoft9/appos/backend/infra/persistence"
 	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
 )
 
@@ -20,7 +26,7 @@ var sensitiveFields = buildSensitiveFieldSet()
 
 func buildSensitiveFieldSet() map[string]bool {
 	m := map[string]bool{}
-	for _, entry := range settingscatalog.Entries() {
+	for _, entry := range settingsschema.Entries() {
 		for _, f := range entry.Fields {
 			if f.Sensitive {
 				m[f.ID] = true
@@ -33,7 +39,7 @@ func buildSensitiveFieldSet() map[string]bool {
 
 const defaultTunnelSSHPort = 2222
 
-var iacDefaultBlacklist = settingscatalog.DefaultGroup("files", "limits")["extensionBlacklist"]
+var iacDefaultBlacklist = settingsschema.DefaultGroup("files", "limits")["extensionBlacklist"]
 
 // ─── Validation functions ──────────────────────────────────────────────────
 
@@ -131,6 +137,65 @@ func parseIntWithDefault(raw any, defaultValue int) (int, error) {
 	}
 }
 
+func parseFloatWithDefault(raw any, defaultValue float64) (float64, error) {
+	if raw == nil {
+		return defaultValue, nil
+	}
+
+	switch value := raw.(type) {
+	case float64:
+		return value, nil
+	case float32:
+		return float64(value), nil
+	case int:
+		return float64(value), nil
+	case int64:
+		return float64(value), nil
+	case json.Number:
+		parsed, err := value.Float64()
+		if err != nil {
+			return 0, fmt.Errorf("must be a number")
+		}
+		return parsed, nil
+	case string:
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			return defaultValue, nil
+		}
+		parsed, err := strconv.ParseFloat(trimmed, 64)
+		if err != nil {
+			return 0, fmt.Errorf("must be a number")
+		}
+		return parsed, nil
+	default:
+		return 0, fmt.Errorf("must be a number")
+	}
+}
+
+func parseBoolWithDefault(raw any, defaultValue bool) (bool, error) {
+	if raw == nil {
+		return defaultValue, nil
+	}
+
+	switch value := raw.(type) {
+	case bool:
+		return value, nil
+	case string:
+		switch strings.ToLower(strings.TrimSpace(value)) {
+		case "":
+			return defaultValue, nil
+		case "true", "1", "yes", "on":
+			return true, nil
+		case "false", "0", "no", "off":
+			return false, nil
+		default:
+			return false, fmt.Errorf("must be a boolean")
+		}
+	default:
+		return false, fmt.Errorf("must be a boolean")
+	}
+}
+
 func validateConnectTerminal(v map[string]any) map[string]string {
 	errors := map[string]string{}
 
@@ -198,15 +263,78 @@ func validateTunnelPortRange(v map[string]any) map[string]string {
 func validateDeployPreflight(v map[string]any) map[string]string {
 	errors := map[string]string{}
 
-	minFreeDiskBytes, err := parseIntWithDefault(v["minFreeDiskBytes"], 512*1024*1024)
+	minFreeDiskGiB, err := parseFloatWithDefault(v["minFreeDiskGiB"], 1)
 	if err != nil {
-		errors["minFreeDiskBytes"] = "must be an integer"
-	} else if minFreeDiskBytes < 0 {
-		errors["minFreeDiskBytes"] = "must be >= 0"
-	} else if minFreeDiskBytes > 1_099_511_627_776 {
-		errors["minFreeDiskBytes"] = "must be <= 1099511627776"
+		errors["minFreeDiskGiB"] = "must be a number"
+	} else if minFreeDiskGiB < 0.5 {
+		errors["minFreeDiskGiB"] = "must be >= 0.5"
+	} else if minFreeDiskGiB > 1024 {
+		errors["minFreeDiskGiB"] = "must be <= 1024"
 	} else {
-		v["minFreeDiskBytes"] = minFreeDiskBytes
+		v["minFreeDiskGiB"] = minFreeDiskGiB
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
+}
+
+func validateDeployRuntime(v map[string]any) map[string]string {
+	errors := map[string]string{}
+
+	fields := []struct {
+		key          string
+		defaultValue int
+	}{
+		{key: "imagePullTimeoutSeconds", defaultValue: 180},
+		{key: "composeUpTimeoutSeconds", defaultValue: 600},
+		{key: "healthCheckTimeoutSeconds", defaultValue: 120},
+		{key: "runtimePullIdleHeartbeatSeconds", defaultValue: 20},
+	}
+
+	for _, field := range fields {
+		value, err := parseIntWithDefault(v[field.key], field.defaultValue)
+		if err != nil {
+			errors[field.key] = "must be an integer"
+			continue
+		}
+		if value < 1 {
+			errors[field.key] = "must be >= 1"
+			continue
+		}
+		v[field.key] = value
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
+}
+
+func validateDeployGitDefaults(v map[string]any) map[string]string {
+	errors := map[string]string{}
+
+	for key, defaultValue := range map[string]string{
+		"defaultRef":         "main",
+		"defaultComposePath": "docker-compose.yml",
+	} {
+		raw, ok := v[key]
+		if !ok || raw == nil {
+			v[key] = defaultValue
+			continue
+		}
+		text, ok := raw.(string)
+		if !ok {
+			errors[key] = "must be a string"
+			continue
+		}
+		text = strings.TrimSpace(text)
+		if text == "" {
+			errors[key] = "must not be empty"
+			continue
+		}
+		v[key] = text
 	}
 
 	if len(errors) == 0 {
@@ -272,11 +400,567 @@ func validateConnectSftp(v map[string]any) map[string]string {
 	return errors
 }
 
+func validateBranding(v map[string]any) map[string]string {
+	logoMediaID, _ := v["logoMediaId"].(string)
+	v["logoMediaId"] = strings.TrimSpace(logoMediaID)
+
+	logoURL, _ := v["logoUrl"].(string)
+	v["logoUrl"] = strings.TrimSpace(logoURL)
+
+	wordmark, _ := v["wordmark"].(string)
+	wordmark = strings.TrimSpace(wordmark)
+	if wordmark == "" {
+		wordmark = "appos"
+	}
+	v["wordmark"] = wordmark
+
+	useLogoAsFavicon, err := parseBoolWithDefault(v["useLogoAsFavicon"], true)
+	if err != nil {
+		return map[string]string{"useLogoAsFavicon": "must be a boolean"}
+	}
+	v["useLogoAsFavicon"] = useLogoAsFavicon
+
+	faviconMediaID, _ := v["faviconMediaId"].(string)
+	v["faviconMediaId"] = strings.TrimSpace(faviconMediaID)
+
+	faviconURL, _ := v["faviconUrl"].(string)
+	v["faviconUrl"] = strings.TrimSpace(faviconURL)
+
+	return nil
+}
+
+func validateProxyNetwork(app core.App, v map[string]any) map[string]string {
+	errors := map[string]string{}
+
+	source := strings.ToLower(strings.TrimSpace(sysconfig.String(v, "source", "none")))
+	switch source {
+	case "", "none":
+		source = "none"
+	case "external", "self":
+	default:
+		errors["source"] = "must be one of none, external, or self"
+	}
+	v["source"] = source
+
+	enabled, err := parseBoolWithDefault(v["enabled"], false)
+	if err != nil {
+		errors["enabled"] = "must be a boolean"
+	} else {
+		v["enabled"] = enabled
+	}
+
+	socks5ConnectorID := strings.TrimSpace(sysconfig.String(v, "socks5ConnectorId", ""))
+	httpConnectorID := strings.TrimSpace(sysconfig.String(v, "httpConnectorId", ""))
+	httpsConnectorID := strings.TrimSpace(sysconfig.String(v, "httpsConnectorId", ""))
+	v["socks5ConnectorId"] = socks5ConnectorID
+	v["httpConnectorId"] = httpConnectorID
+	v["httpsConnectorId"] = httpsConnectorID
+
+	repo := persistence.NewConnectorRepository(app)
+	validateProxyConnectorID := func(field, connectorID string) {
+		if connectorID == "" {
+			return
+		}
+		item, getErr := repo.Get(connectorID)
+		if getErr != nil {
+			errors[field] = "must reference an existing proxy connector"
+			return
+		}
+		if item.Kind() != connectors.KindProxy {
+			errors[field] = "must reference a proxy connector"
+		}
+	}
+	validateProxyConnectorID("socks5ConnectorId", socks5ConnectorID)
+	validateProxyConnectorID("httpConnectorId", httpConnectorID)
+	validateProxyConnectorID("httpsConnectorId", httpsConnectorID)
+
+	if len(errors) == 0 && enabled && socks5ConnectorID == "" && httpConnectorID == "" && httpsConnectorID == "" {
+		errors["socks5ConnectorId"] = "select at least one proxy option when proxy is enabled"
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
+}
+
+func validateProxyConsumers(app core.App, v map[string]any) map[string]string {
+	rawItems, ok := v["items"]
+	if !ok || rawItems == nil {
+		v["items"] = []map[string]any{}
+	} else {
+		list, ok := rawItems.([]any)
+		if !ok {
+			return map[string]string{"items": "must be a list of proxy policy settings"}
+		}
+
+		items := make([]egress.ConsumerEnrollment, 0, len(list))
+		for idx, rawItem := range list {
+			item, ok := rawItem.(map[string]any)
+			if !ok {
+				return map[string]string{"items": fmt.Sprintf("item %d must be an object", idx+1)}
+			}
+			consumerKey := strings.TrimSpace(sysconfig.String(item, "consumerKey", ""))
+			if consumerKey == "" {
+				return map[string]string{"items": fmt.Sprintf("item %d requires consumerKey", idx+1)}
+			}
+			mode := egress.Mode(strings.TrimSpace(sysconfig.String(item, "mode", "")))
+			if mode == "" {
+				return map[string]string{"items": fmt.Sprintf("policy %q requires mode", consumerKey)}
+			}
+			items = append(items, egress.ConsumerEnrollment{ConsumerKey: consumerKey, Mode: mode})
+		}
+
+		normalized, err := egress.PrepareConsumerSettingsValue(map[string]any{"items": itemsToMaps(items)})
+		if err != nil {
+			return map[string]string{"items": err.Error()}
+		}
+		v["items"] = normalized["items"]
+	}
+
+	serverOverridesPayload := map[string]any{"items": []map[string]any{}}
+	if rawServerOverrides, ok := v["serverOverrides"]; ok {
+		serverOverridesPayload["items"] = rawServerOverrides
+	}
+	if errors := validateProxyRemoteShellServers(app, serverOverridesPayload); errors != nil {
+		message := errors["items"]
+		if message == "" {
+			message = "invalid remote shell overrides"
+		}
+		return map[string]string{"serverOverrides": message}
+	}
+	v["serverOverrides"] = serverOverridesPayload["items"]
+	return nil
+}
+
+func validateProxyRemoteShellServers(app core.App, v map[string]any) map[string]string {
+	rawItems, ok := v["items"]
+	if !ok || rawItems == nil {
+		v["items"] = []map[string]any{}
+		return nil
+	}
+	list, ok := rawItems.([]any)
+	if !ok {
+		typed, typedOK := rawItems.([]map[string]any)
+		if !typedOK {
+			return map[string]string{"items": "must be a list of remote shell proxy overrides"}
+		}
+		list = make([]any, 0, len(typed))
+		for _, item := range typed {
+			list = append(list, item)
+		}
+	}
+	seen := map[string]struct{}{}
+	items := make([]map[string]any, 0, len(list))
+	for idx, rawItem := range list {
+		item, ok := rawItem.(map[string]any)
+		if !ok {
+			return map[string]string{"items": fmt.Sprintf("item %d must be an object", idx+1)}
+		}
+		serverID := strings.TrimSpace(sysconfig.String(item, "serverId", ""))
+		if serverID == "" {
+			return map[string]string{"items": fmt.Sprintf("item %d requires serverId", idx+1)}
+		}
+		if _, exists := seen[serverID]; exists {
+			return map[string]string{"items": fmt.Sprintf("server %q is duplicated", serverID)}
+		}
+		seen[serverID] = struct{}{}
+		if _, err := app.FindRecordById("servers", serverID); err != nil {
+			return map[string]string{"items": fmt.Sprintf("server %q does not exist", serverID)}
+		}
+		mode := egress.Mode(strings.TrimSpace(sysconfig.String(item, "mode", "")))
+		if mode != egress.ModeDisabled && mode != egress.ModeAlways {
+			return map[string]string{"items": fmt.Sprintf("server %q has invalid mode", serverID)}
+		}
+		items = append(items, map[string]any{"serverId": serverID, "mode": string(mode)})
+	}
+	v["items"] = egress.NormalizeRemoteShellSettingsValue(map[string]any{"items": items})["items"]
+	return nil
+}
+
+func itemsToMaps(items []egress.ConsumerEnrollment) []map[string]any {
+	out := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		out = append(out, map[string]any{
+			"consumerKey": item.ConsumerKey,
+			"mode":        string(item.Mode),
+		})
+	}
+	return out
+}
+
+func validateMonitorScheduling(v map[string]any) map[string]string {
+	errors := map[string]string{}
+	const maxIntervalMinutes = 1440
+	for _, field := range []string{
+		"reachabilityIntervalMinutes",
+		"metricsFreshnessIntervalMinutes",
+		"controlReachabilityIntervalMinutes",
+		"runtimeSnapshotIntervalMinutes",
+		"credentialSweepIntervalMinutes",
+		"appHealthIntervalMinutes",
+		"factsPullIntervalMinutes",
+	} {
+		value, err := parseIntWithDefault(v[field], 1)
+		if err != nil {
+			errors[field] = "must be an integer"
+		} else if field == "reachabilityIntervalMinutes" && value < monitor.ReachabilityIntervalMinMinutes {
+			errors[field] = "must be >= 60"
+		} else if field == "reachabilityIntervalMinutes" && value%monitor.ReachabilityIntervalStepMinutes != 0 {
+			errors[field] = "must be a multiple of 60"
+		} else if value < 1 {
+			errors[field] = "must be >= 1"
+		} else if value > maxIntervalMinutes {
+			errors[field] = "must be <= 1440"
+		} else {
+			v[field] = value
+		}
+	}
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
+}
+
+func validateMonitorPolicy(v map[string]any) map[string]string {
+	errors := map[string]string{}
+	lookback, err := parseIntWithDefault(v["metricsFreshnessLookbackSeconds"], 300)
+	if err != nil {
+		errors["metricsFreshnessLookbackSeconds"] = "must be an integer"
+	} else if lookback < 1 {
+		errors["metricsFreshnessLookbackSeconds"] = "must be >= 1"
+	} else {
+		v["metricsFreshnessLookbackSeconds"] = lookback
+	}
+
+	stale, err := parseIntWithDefault(v["metricsStaleSeconds"], 90)
+	if err != nil {
+		errors["metricsStaleSeconds"] = "must be an integer"
+	} else if stale < 30 {
+		errors["metricsStaleSeconds"] = "must be >= 30"
+	} else {
+		v["metricsStaleSeconds"] = stale
+	}
+
+	missing, err := parseIntWithDefault(v["metricsMissingSeconds"], 180)
+	if err != nil {
+		errors["metricsMissingSeconds"] = "must be an integer"
+	} else if missing < 31 {
+		errors["metricsMissingSeconds"] = "must be >= 31"
+	} else {
+		v["metricsMissingSeconds"] = missing
+	}
+
+	reachabilityProbeTimeoutMs, err := parseIntWithDefault(v["reachabilityProbeTimeoutMs"], 1500)
+	if err != nil {
+		errors["reachabilityProbeTimeoutMs"] = "must be an integer"
+	} else if reachabilityProbeTimeoutMs < 100 || reachabilityProbeTimeoutMs > 300000 {
+		errors["reachabilityProbeTimeoutMs"] = "must be between 100 and 300000"
+	} else {
+		v["reachabilityProbeTimeoutMs"] = reachabilityProbeTimeoutMs
+	}
+
+	for _, field := range []string{"controlProbeTimeoutSeconds", "factsPullTimeoutSeconds", "runtimePullTimeoutSeconds"} {
+		value, err := parseIntWithDefault(v[field], 1)
+		if err != nil {
+			errors[field] = "must be an integer"
+		} else if value < 1 || value > 300 {
+			errors[field] = "must be between 1 and 300"
+		} else {
+			v[field] = value
+		}
+	}
+
+	for _, field := range []string{"factsPullConcurrency", "runtimePullConcurrency"} {
+		value, err := parseIntWithDefault(v[field], 1)
+		if err != nil {
+			errors[field] = "must be an integer"
+		} else if value < 1 || value > 50 {
+			errors[field] = "must be between 1 and 50"
+		} else {
+			v[field] = value
+		}
+	}
+
+	if len(errors) == 0 {
+		if missing <= stale {
+			errors["metricsMissingSeconds"] = "must be greater than metricsStaleSeconds"
+		}
+		if lookback < missing {
+			errors["metricsFreshnessLookbackSeconds"] = "must be >= metricsMissingSeconds"
+		}
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
+}
+
+func validateMonitorPlatformSelfObservation(app core.App, v map[string]any) map[string]string {
+	errors := map[string]string{}
+
+	observerInterval, err := parseIntWithDefault(v["platformObserverIntervalSeconds"], 30)
+	if err != nil {
+		errors["platformObserverIntervalSeconds"] = "must be an integer"
+	} else if observerInterval < 5 || observerInterval > 300 {
+		errors["platformObserverIntervalSeconds"] = "must be between 5 and 300"
+	} else {
+		v["platformObserverIntervalSeconds"] = observerInterval
+	}
+
+	schedulerThreshold, err := parseIntWithDefault(v["platformSchedulerStaleThresholdSeconds"], 10)
+	if err != nil {
+		errors["platformSchedulerStaleThresholdSeconds"] = "must be an integer"
+	} else if schedulerThreshold < 5 || schedulerThreshold > 300 {
+		errors["platformSchedulerStaleThresholdSeconds"] = "must be between 5 and 300"
+	} else {
+		v["platformSchedulerStaleThresholdSeconds"] = schedulerThreshold
+	}
+
+	for _, field := range []string{"enableHostTelemetry", "enableContainerTelemetry"} {
+		value, err := parseBoolWithDefault(v[field], false)
+		if err != nil {
+			errors[field] = "must be a boolean"
+		} else {
+			v[field] = value
+		}
+	}
+
+	policyGroup, _ := sysconfig.GetGroup(app, monitor.SettingsModule, monitor.PolicySettingsKey, settingsschema.DefaultGroup(monitor.SettingsModule, monitor.PolicySettingsKey))
+	metricsStale := sysconfig.Int(policyGroup, "metricsStaleSeconds", 90)
+	metricsMissing := sysconfig.Int(policyGroup, "metricsMissingSeconds", 180)
+
+	if len(errors) == 0 {
+		if schedulerThreshold >= metricsMissing {
+			errors["platformSchedulerStaleThresholdSeconds"] = "must be less than metricsMissingSeconds"
+		}
+		if metricsStale < observerInterval*2 {
+			errors["platformObserverIntervalSeconds"] = "must allow metricsStaleSeconds >= 2x observer interval"
+		}
+		if metricsMissing < observerInterval*3 {
+			errors["platformObserverIntervalSeconds"] = "must allow metricsMissingSeconds >= 3x observer interval"
+		}
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
+}
+
+func validateMonitorManagedCollectorPolicy(v map[string]any) map[string]string {
+	errors := map[string]string{}
+
+	collectionIntervalSeconds, err := parseIntWithDefault(v["collectionIntervalSeconds"], 10)
+	if err != nil {
+		errors["collectionIntervalSeconds"] = "must be an integer"
+	} else if collectionIntervalSeconds < 5 || collectionIntervalSeconds > 300 {
+		errors["collectionIntervalSeconds"] = "must be between 5 and 300"
+	} else {
+		v["collectionIntervalSeconds"] = collectionIntervalSeconds
+	}
+
+	flushIntervalSeconds, err := parseIntWithDefault(v["flushIntervalSeconds"], 10)
+	if err != nil {
+		errors["flushIntervalSeconds"] = "must be an integer"
+	} else if flushIntervalSeconds < 5 || flushIntervalSeconds > 300 {
+		errors["flushIntervalSeconds"] = "must be between 5 and 300"
+	} else {
+		v["flushIntervalSeconds"] = flushIntervalSeconds
+	}
+
+	metricBatchSize, err := parseIntWithDefault(v["metricBatchSize"], 1000)
+	if err != nil {
+		errors["metricBatchSize"] = "must be an integer"
+	} else if metricBatchSize < 1 || metricBatchSize > 10000 {
+		errors["metricBatchSize"] = "must be between 1 and 10000"
+	} else {
+		v["metricBatchSize"] = metricBatchSize
+	}
+
+	metricBufferLimit, err := parseIntWithDefault(v["metricBufferLimit"], 5000)
+	if err != nil {
+		errors["metricBufferLimit"] = "must be an integer"
+	} else if metricBufferLimit < 1 || metricBufferLimit > 50000 {
+		errors["metricBufferLimit"] = "must be between 1 and 50000"
+	} else {
+		v["metricBufferLimit"] = metricBufferLimit
+	}
+
+	collectionJitterSeconds, err := parseIntWithDefault(v["collectionJitterSeconds"], 1)
+	if err != nil {
+		errors["collectionJitterSeconds"] = "must be an integer"
+	} else if collectionJitterSeconds < 0 || collectionJitterSeconds > 300 {
+		errors["collectionJitterSeconds"] = "must be between 0 and 300"
+	} else {
+		v["collectionJitterSeconds"] = collectionJitterSeconds
+	}
+
+	flushJitterSeconds, err := parseIntWithDefault(v["flushJitterSeconds"], 1)
+	if err != nil {
+		errors["flushJitterSeconds"] = "must be an integer"
+	} else if flushJitterSeconds < 0 || flushJitterSeconds > 300 {
+		errors["flushJitterSeconds"] = "must be between 0 and 300"
+	} else {
+		v["flushJitterSeconds"] = flushJitterSeconds
+	}
+
+	if len(errors) == 0 {
+		if metricBufferLimit < metricBatchSize {
+			errors["metricBufferLimit"] = "must be >= metricBatchSize"
+		}
+		if collectionJitterSeconds > collectionIntervalSeconds {
+			errors["collectionJitterSeconds"] = "must be <= collectionIntervalSeconds"
+		}
+		if flushJitterSeconds > flushIntervalSeconds {
+			errors["flushJitterSeconds"] = "must be <= flushIntervalSeconds"
+		}
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
+}
+
+func validateFeedsPolicy(v map[string]any) map[string]string {
+	errors := map[string]string{}
+
+	pollIntervalHours, err := parseIntWithDefault(v["pollIntervalHours"], 3)
+	if err != nil {
+		errors["pollIntervalHours"] = "must be an integer"
+	} else if pollIntervalHours < 1 || pollIntervalHours > 240 {
+		errors["pollIntervalHours"] = "must be between 1 and 240"
+	} else {
+		v["pollIntervalHours"] = pollIntervalHours
+	}
+
+	failureBackoffMaxHours, err := parseIntWithDefault(v["failureBackoffMaxHours"], 24)
+	if err != nil {
+		errors["failureBackoffMaxHours"] = "must be an integer"
+	} else if failureBackoffMaxHours < 4 || failureBackoffMaxHours > 336 {
+		errors["failureBackoffMaxHours"] = "must be between 4 and 336"
+	} else {
+		v["failureBackoffMaxHours"] = failureBackoffMaxHours
+	}
+
+	perSourceRetentionCap, err := parseIntWithDefault(v["perSourceRetentionCap"], 100)
+	if err != nil {
+		errors["perSourceRetentionCap"] = "must be an integer"
+	} else if perSourceRetentionCap < 20 || perSourceRetentionCap > 1000 {
+		errors["perSourceRetentionCap"] = "must be between 20 and 1000"
+	} else {
+		v["perSourceRetentionCap"] = perSourceRetentionCap
+	}
+
+	globalRetentionCap, err := parseIntWithDefault(v["globalRetentionCap"], 10000)
+	if err != nil {
+		errors["globalRetentionCap"] = "must be an integer"
+	} else if globalRetentionCap < 5000 || globalRetentionCap > 50000 {
+		errors["globalRetentionCap"] = "must be between 5000 and 50000"
+	} else {
+		v["globalRetentionCap"] = globalRetentionCap
+	}
+
+	if len(errors) == 0 {
+		if globalRetentionCap < perSourceRetentionCap {
+			errors["globalRetentionCap"] = "must be >= perSourceRetentionCap"
+		}
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
+}
+
+func validateTopicCommentPolicy(v map[string]any) map[string]string {
+	errors := map[string]string{}
+
+	allowGuestComments, err := parseBoolWithDefault(v["allowGuestComments"], true)
+	if err != nil {
+		errors["allowGuestComments"] = "must be a boolean"
+	} else {
+		v["allowGuestComments"] = allowGuestComments
+	}
+
+	defaultGuestName := strings.TrimSpace(sysconfig.String(v, "defaultGuestName", "Guest"))
+	if defaultGuestName == "" {
+		errors["defaultGuestName"] = "must not be empty"
+	} else {
+		v["defaultGuestName"] = defaultGuestName
+	}
+
+	maxGuestNameLength, err := parseIntWithDefault(v["maxGuestNameLength"], 100)
+	if err != nil {
+		errors["maxGuestNameLength"] = "must be an integer"
+	} else if maxGuestNameLength < 1 || maxGuestNameLength > 500 {
+		errors["maxGuestNameLength"] = "must be between 1 and 500"
+	} else {
+		v["maxGuestNameLength"] = maxGuestNameLength
+	}
+
+	maxCommentBodyLength, err := parseIntWithDefault(v["maxCommentBodyLength"], 10000)
+	if err != nil {
+		errors["maxCommentBodyLength"] = "must be an integer"
+	} else if maxCommentBodyLength < 1 || maxCommentBodyLength > 100000 {
+		errors["maxCommentBodyLength"] = "must be between 1 and 100000"
+	} else {
+		v["maxCommentBodyLength"] = maxCommentBodyLength
+	}
+
+	if len(errors) == 0 && len([]rune(defaultGuestName)) > maxGuestNameLength {
+		errors["defaultGuestName"] = "must be within maxGuestNameLength"
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
+}
+
+func validateTopicImportPolicy(v map[string]any) map[string]string {
+	errors := map[string]string{}
+
+	maxDescriptionImportKB, err := parseIntWithDefault(v["maxDescriptionImportKB"], 2)
+	if err != nil && v["maxDescriptionImportKB"] == nil && v["maxDescriptionImportBytes"] != nil {
+		legacyBytes, legacyErr := parseIntWithDefault(v["maxDescriptionImportBytes"], 2*1024)
+		if legacyErr == nil {
+			maxDescriptionImportKB = legacyBytes / 1024
+			if legacyBytes%1024 != 0 {
+				maxDescriptionImportKB++
+			}
+			err = nil
+		}
+	}
+	if err != nil {
+		errors["maxDescriptionImportKB"] = "must be an integer"
+	} else if maxDescriptionImportKB < 1 || maxDescriptionImportKB > 10*1024 {
+		errors["maxDescriptionImportKB"] = "must be between 1 and 10240"
+	} else {
+		delete(v, "maxDescriptionImportBytes")
+		v["maxDescriptionImportKB"] = maxDescriptionImportKB
+	}
+
+	textOnly, err := parseBoolWithDefault(v["textOnly"], true)
+	if err != nil {
+		errors["textOnly"] = "must be a boolean"
+	} else {
+		v["textOnly"] = textOnly
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
+}
+
 // ─── Defaults ──────────────────────────────────────────────────────────────
 
 // fallbackForKey returns the code-level fallback for a given (module, key) pair.
 func fallbackForKey(module, key string) map[string]any {
-	fallback := settingscatalog.DefaultGroup(module, key)
+	fallback := settingsschema.DefaultGroup(module, key)
 	if len(fallback) != 0 {
 		return fallback
 	}

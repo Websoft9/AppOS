@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { settingsEntryPath, type SettingsEntryResponse } from '@/lib/settings-api'
 import { cn } from '@/lib/utils'
 
 // ─── Route ───────────────────────────────────────────────
@@ -69,11 +70,86 @@ interface CronLogsResponse {
   items: CronLogItem[]
 }
 
+type CronJobType = 'Core' | 'Platform'
+
+type MonitorSchedulingGroup = {
+  reachabilityIntervalMinutes: number
+  metricsFreshnessIntervalMinutes: number
+  controlReachabilityIntervalMinutes: number
+  runtimeSnapshotIntervalMinutes: number
+  credentialSweepIntervalMinutes: number
+  appHealthIntervalMinutes: number
+  factsPullIntervalMinutes: number
+}
+
+function coerceIntervalValue(value: unknown, fallback: number) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
 // ─── Helpers ─────────────────────────────────────────────
 
 function formatDate(iso: string | null | undefined) {
   if (!iso) return '—'
   return new Date(iso).toLocaleString()
+}
+
+function getCronJobType(jobId: string): CronJobType {
+  return jobId.startsWith('__pb') ? 'Core' : 'Platform'
+}
+
+function getMonitorCronSettingMinutes(
+  jobId: string,
+  settings: MonitorSchedulingGroup | null
+): number | null {
+  if (!settings) return null
+  switch (jobId) {
+    case 'monitor_instance_reachability_checks':
+    case 'monitor_ai_provider_reachability_checks':
+    case 'monitor_connector_reachability_checks':
+      return settings.reachabilityIntervalMinutes
+    case 'monitor_server_reachability_checks':
+      return settings.controlReachabilityIntervalMinutes
+    case 'monitor_metrics_freshness':
+      return settings.metricsFreshnessIntervalMinutes
+    case 'monitor_runtime_snapshot_pull':
+      return settings.runtimeSnapshotIntervalMinutes
+    case 'monitor_credential_checks':
+      return settings.credentialSweepIntervalMinutes
+    case 'monitor_app_health_checks':
+      return settings.appHealthIntervalMinutes
+    case 'monitor_facts_pull':
+      return settings.factsPullIntervalMinutes
+    default:
+      return null
+  }
+}
+
+function formatCronExpressionAsInterval(expression: string) {
+  const everyMinutesMatch = expression.match(/^\*\/(\d+) \* \* \* \*$/)
+  if (everyMinutesMatch) {
+    return `${everyMinutesMatch[1]} min`
+  }
+
+  const hourlyMatch = expression.match(/^0 \* \* \* \*$/)
+  if (hourlyMatch) {
+    return '60 min'
+  }
+
+  const everyHoursMatch = expression.match(/^0 \*\/(\d+) \* \* \*$/)
+  if (everyHoursMatch) {
+    return `${Number(everyHoursMatch[1]) * 60} min`
+  }
+
+  return expression
+}
+
+function getEffectiveIntervalLabel(job: CronJob, settings: MonitorSchedulingGroup | null) {
+  const minutes = getMonitorCronSettingMinutes(job.id, settings)
+  if (minutes != null && Number.isFinite(minutes)) {
+    return `${minutes} min`
+  }
+  return formatCronExpressionAsInterval(job.expression)
 }
 
 function levelBadge(level: number) {
@@ -413,6 +489,7 @@ export function SystemCronsContent() {
   const [logSummaries, setLogSummaries] = useState<
     Map<string, { lastStatus: 'success' | 'error' | null; lastRun: string | null }>
   >(new Map())
+  const [monitorScheduling, setMonitorScheduling] = useState<MonitorSchedulingGroup | null>(null)
   const [sortKey, setSortKey] = useState<CronSortKey>('id')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const runningJobsRef = useRef<Set<string>>(new Set())
@@ -460,6 +537,92 @@ export function SystemCronsContent() {
     fetchJobs()
   }, [fetchJobs])
 
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadMonitorScheduling() {
+      try {
+        const result = (await pb.send(settingsEntryPath('monitor-scheduling'), {
+          method: 'GET',
+        })) as SettingsEntryResponse<Partial<MonitorSchedulingGroup>>
+        if (cancelled) return
+        const value = result.value
+        if (!value) return
+        setMonitorScheduling({
+          reachabilityIntervalMinutes: coerceIntervalValue(value.reachabilityIntervalMinutes, 60),
+          metricsFreshnessIntervalMinutes: coerceIntervalValue(
+            value.metricsFreshnessIntervalMinutes,
+            1
+          ),
+          controlReachabilityIntervalMinutes: coerceIntervalValue(
+            value.controlReachabilityIntervalMinutes,
+            1
+          ),
+          runtimeSnapshotIntervalMinutes: coerceIntervalValue(
+            value.runtimeSnapshotIntervalMinutes,
+            1
+          ),
+          credentialSweepIntervalMinutes: coerceIntervalValue(
+            value.credentialSweepIntervalMinutes,
+            5
+          ),
+          appHealthIntervalMinutes: coerceIntervalValue(value.appHealthIntervalMinutes, 1),
+          factsPullIntervalMinutes: coerceIntervalValue(value.factsPullIntervalMinutes, 15),
+        })
+      } catch {
+        if (!cancelled) {
+          setMonitorScheduling(null)
+        }
+      }
+    }
+
+    loadMonitorScheduling()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (jobs.length === 0) return
+
+    let cancelled = false
+    const platformJobs = jobs.filter(job => getCronJobType(job.id) === 'Platform')
+    const missingJobs = platformJobs.filter(job => !logSummaries.has(job.id))
+    if (missingJobs.length === 0) return
+
+    async function preloadSummaries() {
+      const results = await Promise.allSettled(
+        missingJobs.map(async job => {
+          const result = (await pb.send(`/api/crons/${encodeURIComponent(job.id)}/logs`, {
+            method: 'GET',
+          })) as CronLogsResponse
+          return {
+            jobId: job.id,
+            summary: { lastStatus: result.lastStatus, lastRun: result.lastRun },
+          }
+        })
+      )
+      if (cancelled) return
+
+      setLogSummaries(prev => {
+        const next = new Map(prev)
+        results.forEach(result => {
+          if (result.status === 'fulfilled') {
+            next.set(result.value.jobId, result.value.summary)
+          }
+        })
+        return next
+      })
+    }
+
+    preloadSummaries()
+
+    return () => {
+      cancelled = true
+    }
+  }, [jobs, logSummaries])
+
   const openLogs = (jobId: string) => {
     setDrawerJobId(jobId)
     setDrawerOpen(true)
@@ -499,15 +662,15 @@ export function SystemCronsContent() {
     <div>
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">System Crons</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Platform Crons</h1>
           <p className="mt-1 text-muted-foreground">
-            Native cron jobs registered in PocketBase. Manage schedules via PocketBase Admin.
+            Review platform scheduled jobs across PocketBase core tasks and AppOS platform tasks.
           </p>
         </div>
         <Button
           variant="outline"
           size="icon"
-          aria-label="Refresh system crons"
+          aria-label="Refresh platform crons"
           title="Refresh"
           onClick={fetchJobs}
           disabled={loading}
@@ -585,6 +748,8 @@ export function SystemCronsContent() {
                   onSort={handleSort}
                 />
               </TableHead>
+              <TableHead className="w-[110px]">Type</TableHead>
+              <TableHead className="w-[110px]">Effective Interval</TableHead>
               <TableHead className="w-[100px]">Last Status</TableHead>
               <TableHead className="w-[150px] hidden md:table-cell">Last Run</TableHead>
               <TableHead className="w-[60px]">Action</TableHead>
@@ -598,6 +763,12 @@ export function SystemCronsContent() {
                 </TableCell>
                 <TableCell className="font-mono text-sm text-muted-foreground">
                   {job.expression}
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline">{getCronJobType(job.id)}</Badge>
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {getEffectiveIntervalLabel(job, monitorScheduling)}
                 </TableCell>
                 <TableCell>
                   {(() => {

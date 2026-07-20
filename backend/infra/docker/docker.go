@@ -6,16 +6,22 @@ package docker
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Client wraps Docker CLI operations using an Executor.
 type Client struct {
 	exec Executor
 }
+
+const registryStatusProbeImage = "hello-world:latest"
+const composeConfigHelperFallbackImage = "busybox:1.36.1"
+const ContainerStatsStreamBoundary = "__APPOS_DOCKER_STATS_EOF__"
 
 // New creates a new Docker client with the given Executor.
 func New(exec Executor) *Client {
@@ -25,6 +31,16 @@ func New(exec Executor) *Client {
 // Host returns the executor's host label.
 func (c *Client) Host() string {
 	return c.exec.Host()
+}
+
+// SetProxyEnv applies proxy-related environment variables to compatible executors.
+func (c *Client) SetProxyEnv(env map[string]string) {
+	type envSetter interface {
+		SetEnv(map[string]string)
+	}
+	if exec, ok := c.exec.(envSetter); ok {
+		exec.SetEnv(env)
+	}
 }
 
 // Exec runs an arbitrary docker command. The args are passed directly to "docker <args...>".
@@ -75,9 +91,29 @@ func (c *Client) ComposeRestart(ctx context.Context, projectDir string) (string,
 	return c.exec.Run(ctx, "docker", "compose", "-f", c.composeFile(projectDir), "restart")
 }
 
+// ComposePull runs docker compose pull.
+func (c *Client) ComposePull(ctx context.Context, projectDir string) (string, error) {
+	return c.exec.Run(ctx, "docker", "compose", "-f", c.composeFile(projectDir), "pull")
+}
+
+// ComposePullStream streams docker compose pull output as it is produced.
+func (c *Client) ComposePullStream(ctx context.Context, projectDir string) (io.ReadCloser, error) {
+	return c.exec.RunStream(ctx, "docker", "compose", "-f", c.composeFile(projectDir), "pull")
+}
+
 // ComposeLogs returns logs for the given compose project.
 func (c *Client) ComposeLogs(ctx context.Context, projectDir string, tail int) (string, error) {
 	return c.exec.Run(ctx, "docker", "compose", "-f", c.composeFile(projectDir), "logs", "--tail", fmt.Sprintf("%d", tail))
+}
+
+// ComposePs returns compose service status in JSON format for the given project.
+func (c *Client) ComposePs(ctx context.Context, projectName string, projectDir string) (string, error) {
+	args := []string{"compose"}
+	if projectName != "" {
+		args = append(args, "-p", projectName)
+	}
+	args = append(args, "-f", c.composeFile(projectDir), "ps", "--format", "json")
+	return c.exec.Run(ctx, "docker", args...)
 }
 
 // ComposeLogsStream returns a streaming reader for compose logs.
@@ -87,9 +123,17 @@ func (c *Client) ComposeLogsStream(ctx context.Context, projectDir string, tail 
 
 // ComposeConfigRead reads the docker-compose.yml file content.
 func (c *Client) ComposeConfigRead(projectDir string) (string, error) {
-	data, err := os.ReadFile(filepath.Join(projectDir, "docker-compose.yml"))
+	path := filepath.Join(projectDir, "docker-compose.yml")
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return "", fmt.Errorf("read compose config: %w", err)
+		if !os.IsNotExist(err) {
+			return "", fmt.Errorf("read compose config: %w", err)
+		}
+		content, fallbackErr := c.readComposeConfigFromHost(context.Background(), path)
+		if fallbackErr != nil {
+			return "", fmt.Errorf("read compose config: %w", err)
+		}
+		return content, nil
 	}
 	return string(data), nil
 }
@@ -98,9 +142,77 @@ func (c *Client) ComposeConfigRead(projectDir string) (string, error) {
 func (c *Client) ComposeConfigWrite(projectDir string, content string) error {
 	path := filepath.Join(projectDir, "docker-compose.yml")
 	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
-		return fmt.Errorf("write compose config: %w", err)
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("write compose config: %w", err)
+		}
+		if fallbackErr := c.writeComposeConfigToHost(context.Background(), path, content); fallbackErr != nil {
+			return fmt.Errorf("write compose config: %w", err)
+		}
+		return nil
 	}
 	return nil
+}
+
+func (c *Client) readComposeConfigFromHost(ctx context.Context, composePath string) (string, error) {
+	image, err := c.composeConfigHelperImage(ctx)
+	if err != nil {
+		return "", err
+	}
+	output, err := c.exec.Run(
+		ctx,
+		"docker",
+		"run",
+		"--rm",
+		"-v",
+		fmt.Sprintf("%s:/appos-compose/docker-compose.yml:ro", composePath),
+		image,
+		"cat",
+		"/appos-compose/docker-compose.yml",
+	)
+	if err != nil {
+		return "", err
+	}
+	return output, nil
+}
+
+func (c *Client) writeComposeConfigToHost(ctx context.Context, composePath string, content string) error {
+	image, err := c.composeConfigHelperImage(ctx)
+	if err != nil {
+		return err
+	}
+	encoded := base64.StdEncoding.EncodeToString([]byte(content))
+	_, err = c.exec.Run(
+		ctx,
+		"docker",
+		"run",
+		"--rm",
+		"-v",
+		fmt.Sprintf("%s:/appos-compose/docker-compose.yml", composePath),
+		image,
+		"sh",
+		"-lc",
+		fmt.Sprintf("printf %%s %s | base64 -d > /appos-compose/docker-compose.yml", shellQuote(encoded)),
+	)
+	return err
+}
+
+func (c *Client) composeConfigHelperImage(ctx context.Context) (string, error) {
+	output, err := c.exec.Run(
+		ctx,
+		"docker",
+		"ps",
+		"--filter",
+		"label=com.docker.compose.service=appos",
+		"--format",
+		"{{.Image}}",
+	)
+	if err == nil {
+		image := strings.TrimSpace(strings.Split(output, "\n")[0])
+		if image != "" {
+			return image, nil
+		}
+	}
+	return composeConfigHelperFallbackImage, nil
 }
 
 // ComposeLs lists compose projects in JSON format.
@@ -150,7 +262,21 @@ func (c *Client) RegistrySearch(ctx context.Context, keyword string, limit int) 
 
 // RegistryStatus probes whether the default registry is reachable.
 func (c *Client) RegistryStatus(ctx context.Context) (string, error) {
-	return c.exec.Run(ctx, "docker", "search", "hello-world", "--limit", "1", "--format", "json")
+	probeExisted := false
+	if _, err := c.exec.Run(ctx, "docker", "image", "inspect", registryStatusProbeImage); err == nil {
+		probeExisted = true
+	}
+
+	output, err := c.exec.Run(ctx, "docker", "pull", "--quiet", registryStatusProbeImage)
+	if err != nil {
+		return "", err
+	}
+
+	if !probeExisted {
+		_, _ = c.exec.Run(ctx, "docker", "image", "rm", registryStatusProbeImage)
+	}
+
+	return output, nil
 }
 
 // ImageRemove removes an image by ID.
@@ -175,9 +301,27 @@ func (c *Client) ContainerInspect(ctx context.Context, id string) (string, error
 	return c.exec.Run(ctx, "docker", "inspect", id)
 }
 
+// ContainerInspectMany returns detailed info for multiple containers in one inspect call.
+func (c *Client) ContainerInspectMany(ctx context.Context, ids []string) (string, error) {
+	if len(ids) == 0 {
+		return "[]", nil
+	}
+	args := append([]string{"inspect"}, ids...)
+	return c.exec.Run(ctx, "docker", args...)
+}
+
 // ContainerStats returns one-shot stats for all containers in JSON format.
 func (c *Client) ContainerStats(ctx context.Context) (string, error) {
 	return c.exec.Run(ctx, "docker", "stats", "--no-stream", "--format", "json")
+}
+
+// ContainerStatsStream returns a continuous stats stream with a boundary marker after each snapshot.
+func (c *Client) ContainerStatsStream(ctx context.Context) (io.ReadCloser, error) {
+	script := fmt.Sprintf(
+		"while true; do docker stats --no-stream --format json; printf '%s\\n'; sleep 2; done",
+		ContainerStatsStreamBoundary,
+	)
+	return c.exec.RunStream(ctx, "sh", "-lc", script)
 }
 
 // ContainerLogs returns container logs with tail limit.
@@ -213,6 +357,11 @@ func (c *Client) ContainerRemove(ctx context.Context, id string, force bool) (st
 // NetworkList returns networks in JSON format.
 func (c *Client) NetworkList(ctx context.Context) (string, error) {
 	return c.exec.Run(ctx, "docker", "network", "ls", "--format", "json")
+}
+
+// NetworkInspect returns inspect output for a network id or name.
+func (c *Client) NetworkInspect(ctx context.Context, id string) (string, error) {
+	return c.exec.Run(ctx, "docker", "network", "inspect", id)
 }
 
 // NetworkCreate creates a network.
