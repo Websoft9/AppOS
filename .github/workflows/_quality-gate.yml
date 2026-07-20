@@ -65,7 +65,7 @@ jobs:
           GOBIN="$RUNNER_TEMP/bin" go install github.com/rhysd/actionlint/cmd/actionlint@latest
           if [ "${{ inputs.gate_stage }}" != 'pr' ]; then
             GOBIN="$RUNNER_TEMP/bin" go install golang.org/x/vuln/cmd/govulncheck@latest
-            GL_VERSION="8.24.2"
+            GL_VERSION="8.30.0"
             ARCH="$(uname -m)"
             case "$ARCH" in
               x86_64) GL_ARCH="x64" ;;
@@ -91,6 +91,22 @@ jobs:
             "$RUNNER_TEMP/bin/syft" version
           fi
           go version
+
+      - name: Debug security tool context
+        if: inputs.gate_stage != 'pr'
+        run: |
+          set -euo pipefail
+          echo "gitleaks version:"
+          "$RUNNER_TEMP/bin/gitleaks" version
+          echo "repo root: $(pwd)"
+          echo "git sha: $(git rev-parse HEAD)"
+          if [ -f .gitleaks.toml ]; then
+            echo ".gitleaks.toml: present"
+            ls -l .gitleaks.toml
+          else
+            echo ".gitleaks.toml: missing" >&2
+            exit 1
+          fi
 
       - name: Prepare diagnostic dirs
         run: mkdir -p build/reports/e2e build/reports

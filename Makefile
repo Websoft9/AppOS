@@ -29,6 +29,7 @@ GITLEAKS_ARGS := --no-git --redact
 GOLANGCI_LINT_BIN ?= golangci-lint
 GOVULNCHECK_BIN ?= govulncheck
 GITLEAKS_BIN ?= gitleaks
+GITLEAKS_CONFIG ?= .gitleaks.toml
 ACTIONLINT_BIN ?= actionlint
 GITLEAKS_REPORT_PATH ?= build/reports/gitleaks-report.json
 TRIVY_CACHE_DIR ?= $(HOME)/.cache/trivy
@@ -626,9 +627,11 @@ _sec-source:
 	else echo "✓ Check skipped: npm audit (no web/package.json)"; fi; \
 	echo ""; \
 	echo "→ gitleaks (secret / credential leak detection)..."; \
+	echo "  config: $(GITLEAKS_CONFIG)"; \
+	echo "  mode: working tree only ($(GITLEAKS_ARGS))"; \
 	if [ -x "$(GITLEAKS_BIN)" ] || command -v "$(GITLEAKS_BIN)" >/dev/null 2>&1; then \
 		report_path="$(GITLEAKS_REPORT_PATH)"; mkdir -p "$$(dirname "$$report_path")"; \
-		set +e; "$(GITLEAKS_BIN)" detect --source . $(GITLEAKS_ARGS) --report-format json --report-path "$$report_path"; status=$$?; set -e; \
+		set +e; "$(GITLEAKS_BIN)" detect --source . --config "$(GITLEAKS_CONFIG)" $(GITLEAKS_ARGS) --report-format json --report-path "$$report_path"; status=$$?; set -e; \
 		if [ "$$status" -eq 1 ]; then echo "✗ Check failed: gitleaks"; failures="$$failures gitleaks"; elif [ "$$status" -ne 0 ]; then echo "✗ Check failed: gitleaks execution"; failures="$$failures gitleaks-exec"; else echo "✓ Check passed: gitleaks"; fi; \
 	else echo "✗ Check failed: gitleaks missing"; failures="$$failures gitleaks-missing"; fi; \
 	echo ""; \
