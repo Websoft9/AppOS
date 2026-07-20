@@ -95,8 +95,16 @@ jobs:
       - name: Prepare diagnostic dirs
         run: mkdir -p build/reports/e2e build/reports
 
+      - name: Start local test env for e2e gates
+        if: inputs.gate_stage != 'pr'
+        run: make test-env up
+
       - name: Run gate
         run: make gate "${{ inputs.gate_stage }}"
+
+      - name: Stop local test env if present
+        if: always() && inputs.gate_stage != 'pr'
+        run: make test-env down || true
 
       - name: Upload gitleaks report
         if: always()

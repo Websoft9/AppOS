@@ -1,11 +1,11 @@
 
 
 
+
 .PHONY: help install init-env tidy build run test qa gate sec \
-	backend web backend-targeted backend-iac backend-software latest \
-	image start stop restart logs stats delete rm kill-port redo sync-store tl e2e-browser source artifact \
-	e2e runtime smoke pr merge staging release \
-	_test-backend _test-web _test-backend-targeted _test-backend-iac _test-backend-software _test-e2e-runtime _test-e2e-smoke _test-e2e-acceptance _qa-lint _qa-format _qa-openapi _sec-source _sec-artifact \
+	backend web latest test-env image start stop restart logs stats delete rm kill-port redo sync-store tl e2e-browser source artifact \
+	e2e runtime smoke pr merge staging release up down \
+	_test-backend _test-web _test-e2e-runtime _test-e2e-smoke _test-e2e-acceptance _qa-lint _qa-format _qa-openapi _sec-source _sec-artifact \
 	openapi-gen openapi-merge openapi-check openapi-sync opencode opencode-clear
 
 # ============================================================
@@ -14,9 +14,12 @@
 CONTAINER := appos
 COMPOSE_FILE := build/docker-compose.yml
 COMPOSE_CMD := cd build && docker compose
+TEST_ENV_COMPOSE_FILE := tests/env/docker-compose.yml
+TEST_ENV_COMPOSE_CMD := docker compose -f $(TEST_ENV_COMPOSE_FILE)
 LOCAL_ENV_DIR := .environments
 LOCAL_ENV_FILE := $(LOCAL_ENV_DIR)/local.env
 LOCAL_ENV_TEMPLATE := $(LOCAL_ENV_DIR)/local.env.example
+TEST_ENV_IMAGES := linuxserver/openssh-server:latest mysql:8.4 postgres:16-alpine axllent/mailpit:latest
 
 # Support positional args: make kill-port 9091
 ARG2 := $(word 2,$(MAKECMDGOALS))
@@ -28,6 +31,7 @@ GOVULNCHECK_BIN ?= govulncheck
 GITLEAKS_BIN ?= gitleaks
 ACTIONLINT_BIN ?= actionlint
 GITLEAKS_REPORT_PATH ?= build/reports/gitleaks-report.json
+TRIVY_CACHE_DIR ?= $(HOME)/.cache/trivy
 GO_BIN_DIR := $(shell GOBIN="$$(go env GOBIN)"; if [ -n "$$GOBIN" ]; then printf '%s' "$$GOBIN"; else printf '%s/bin' "$$(go env GOPATH)"; fi)
 DEFAULT_GOLANGCI_LINT_BIN := $(GO_BIN_DIR)/golangci-lint
 DEFAULT_GOVULNCHECK_BIN := $(GO_BIN_DIR)/govulncheck
@@ -82,10 +86,14 @@ help:
 	@echo ""
 	@printf "\033[36mTesting & Quality:\033[0m\n"
 	@echo "  make test backend         Backend unit + integration tests"
+	@echo "    example: make test backend TARGET=./domain/iac/..."
+	@echo "    example: make test backend TARGET=./domain/routes RUN=TestIACRoutes"
 	@echo "  make test web             Frontend unit + integration tests"
 	@echo "  make test e2e runtime     Container/runtime smoke"
 	@echo "  make test e2e smoke       Runtime smoke + Playwright browser smoke"
 	@echo "  make test e2e             Smoke + acceptance browser tests"
+	@echo "  make test-env up          Start local external test dependencies"
+	@echo "  make test-env down        Stop local external test dependencies"
 	@echo "  make qa lint              Lint gate (Go lint + actionlint + eslint + web typecheck)"
 	@echo "  make qa format            Format gate (gofmt + prettier)"
 	@echo "  make qa openapi           OpenAPI generation + coverage gate"
@@ -361,15 +369,6 @@ test:
 	  web) \
 	    $(MAKE) --no-print-directory _test-web || failures="$$failures web"; \
 	    ;; \
-	  backend-targeted) \
-	    $(MAKE) --no-print-directory _test-backend-targeted || failures="$$failures backend-targeted"; \
-	    ;; \
-	  backend-iac) \
-	    $(MAKE) --no-print-directory _test-backend-iac || failures="$$failures backend-iac"; \
-	    ;; \
-	  backend-software) \
-	    $(MAKE) --no-print-directory _test-backend-software || failures="$$failures backend-software"; \
-	    ;; \
 	  e2e) \
 	    case "$(ARG3)" in \
 	      runtime) $(MAKE) --no-print-directory _test-e2e-runtime || failures="$$failures e2e-runtime" ;; \
@@ -397,10 +396,14 @@ test:
 
 _test-backend:
 	@echo "Running backend tests..."
-	@cd backend && failures=""; for pkg in $$(go list ./...); do \
+	@cd backend && target="$${TARGET:-./...}"; run_filter="$${RUN:-}"; failures=""; for pkg in $$(go list $$target); do \
 		echo "   - $$pkg"; \
 		log_file=$$(mktemp); \
-		go test $$pkg -v >"$$log_file" 2>&1; status=$$?; \
+		if [ -n "$$run_filter" ]; then \
+			go test $$pkg -run "$$run_filter" -v >"$$log_file" 2>&1; status=$$?; \
+		else \
+			go test $$pkg -v >"$$log_file" 2>&1; status=$$?; \
+		fi; \
 		cat "$$log_file"; \
 		if [ "$$status" -ne 0 ]; then failures="$$failures $$pkg"; fi; \
 		rm -f "$$log_file"; \
@@ -429,22 +432,6 @@ _test-web:
 		fi; \
 		rm -f "$$log_file"
 	@echo "✓ Web tests completed"
-
-_test-backend-targeted:
-	@echo "Running legacy mixed backend integration bundle..."
-	@cd backend && go test ./domain/routes ./domain/secrets ./infra/migrations -v
-	@echo "✓ Legacy mixed backend integration bundle completed"
-
-_test-backend-iac:
-	@echo "Running focused IaC backend tests..."
-	@cd backend && go test ./domain/iac ./domain/routes -run '^(TestService|TestIACRoutes)' -v
-	@echo "✓ Focused IaC backend tests completed"
-
-_test-backend-software:
-	@echo "Running focused software backend tests..."
-	@cd backend && go test ./domain/software/catalog ./domain/software/executor -run '^(TestLoadServerCatalogComponentKeys|TestServerCatalogCanResolveAllEntries|TestResolveTemplateSubstitutesScriptEnv|TestServerCatalogCapabilityComponentMapConsistency|TestBuildManagedScriptCommand_EmbeddedScript|TestBuildManagedScriptCommand_EmbeddedScriptWithEnv)$$' -v
-	@echo "✓ Focused software backend tests completed"
-
 _test-e2e-runtime:
 	@echo "Running E2E runtime smoke..."
 	@failures=""; \
@@ -644,7 +631,22 @@ _sec-source:
 	else failures="$$failures gitleaks-missing"; fi; \
 	echo "→ trivy config (IaC / Docker / workflow misconfiguration scan)..."; \
 	if command -v docker >/dev/null 2>&1; then \
-		log_file=$$(mktemp); set +e; docker run --rm -v "$$(pwd):/workspace" -w /workspace aquasec/trivy:latest config --skip-version-check --timeout 10m --severity HIGH,CRITICAL --exit-code 1 /workspace/build >"$$log_file" 2>&1; status=$$?; set -e; cat "$$log_file"; rm -f "$$log_file"; \
+		log_file=$$(mktemp); trivy_cache_dir="$(TRIVY_CACHE_DIR)"; mkdir -p "$$trivy_cache_dir"; \
+		trivy_args="config --skip-check-update --skip-version-check --timeout 10m --severity HIGH,CRITICAL --exit-code 1"; \
+		proxy_value="$${ALL_PROXY:-$${all_proxy:-$${HTTP_PROXY:-$${http_proxy:-$${HTTPS_PROXY:-$${https_proxy:-}}}}}}"; \
+		no_proxy_value="$${NO_PROXY:-$${no_proxy:-}}"; \
+		docker_proxy_args=""; \
+		if [ -n "$$proxy_value" ]; then \
+			host_proxy="$$(printf '%s' "$$proxy_value" | sed 's/127\.0\.0\.1/host-gateway/g;s/localhost/host-gateway/g')"; \
+			docker_proxy_args="$$docker_proxy_args --add-host=host-gateway:host-gateway"; \
+			docker_proxy_args="$$docker_proxy_args -e ALL_PROXY=$$host_proxy -e all_proxy=$$host_proxy"; \
+			docker_proxy_args="$$docker_proxy_args -e HTTP_PROXY=$$host_proxy -e http_proxy=$$host_proxy"; \
+			docker_proxy_args="$$docker_proxy_args -e HTTPS_PROXY=$$host_proxy -e https_proxy=$$host_proxy"; \
+		fi; \
+		if [ -n "$$no_proxy_value" ]; then \
+			docker_proxy_args="$$docker_proxy_args -e NO_PROXY=$$no_proxy_value -e no_proxy=$$no_proxy_value"; \
+		fi; \
+		set +e; docker run --rm $$docker_proxy_args -v "$$(pwd):/workspace" -v "$$trivy_cache_dir:/root/.cache/trivy" -w /workspace aquasec/trivy:latest $$trivy_args /workspace/build >"$$log_file" 2>&1; status=$$?; set -e; cat "$$log_file"; rm -f "$$log_file"; \
 		if [ "$$status" -ne 0 ]; then failures="$$failures trivy-config"; fi; \
 	else failures="$$failures docker-missing-for-trivy-config"; fi; \
 	if [ -n "$$failures" ]; then echo "✗ Source security failures:"; for item in $$failures; do echo "  - $$item"; done; exit 1; fi
@@ -734,6 +736,25 @@ e2e-browser:
 	set +a; \
 	cd tests && npx playwright test -c playwright.config.ts --project=chromium
 	@echo "✓ Browser E2E tests completed"
+
+test-env:
+ifeq ($(ARG2),up)
+	@echo "Starting local external test dependencies..."
+	@test -f "$(TEST_ENV_COMPOSE_FILE)" || { echo "✗ Missing $(TEST_ENV_COMPOSE_FILE)"; exit 1; }
+	@set -e; \
+	for image in $(TEST_ENV_IMAGES); do \
+		$(MAKE) --no-print-directory image pull IMAGE="$$image"; \
+	done
+	@$(TEST_ENV_COMPOSE_CMD) up -d
+	@echo "✓ Local external test dependencies started"
+else ifeq ($(ARG2),down)
+	@echo "Stopping local external test dependencies..."
+	@$(TEST_ENV_COMPOSE_CMD) down -v --remove-orphans
+	@echo "✓ Local external test dependencies stopped"
+else
+	@echo "Usage: make test-env up"
+	@echo "       make test-env down"
+endif
 
 
 openapi-gen:
@@ -1034,7 +1055,7 @@ opencode-clear:
 		echo "Cancelled."; \
 	fi
 
-backend web backend-targeted backend-iac backend-software latest e2e runtime smoke pr merge staging release source artifact:
+backend web latest e2e runtime smoke pr merge staging release source artifact up down:
 	@:
 
 # Swallow positional args (e.g., make start 9092, make build backend)

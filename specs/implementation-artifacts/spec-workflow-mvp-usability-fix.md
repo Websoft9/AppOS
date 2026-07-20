@@ -87,7 +87,7 @@ For the UI, the key principle is truthfulness over convenience: fields shown out
 
 **Commands:**
 - `make build` -- expected: backend and web build succeed
-- `make test backend-targeted TARGET=TestWorkflow` -- expected: workflow backend regression tests pass
+- `make test backend TARGET=./domain/workflow/... RUN=TestWorkflow` -- expected: workflow backend regression tests pass
 - `cd web && npx vitest run src/routes/_app/_auth/_superuser/-workflows.test.tsx` -- expected: workflow UI regression tests pass
 
 **Manual checks (if no CLI):**

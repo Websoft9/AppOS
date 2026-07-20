@@ -6,8 +6,9 @@
 make build          # backend binary + web dist (always after changes)
 make lint           # golangci-lint + eslint + typecheck (CI: `make lint strict`)
 make test backend   # all Go tests
+make test backend TARGET=./domain/iac/...   # focused Go package/path run
+make test backend TARGET=./domain/routes RUN=TestNewRoute   # focused Go test name run
 make test web       # all Vitest tests
-make test backend-targeted TARGET=TestName   # single Go test
 npx vitest run src/path/to/file.test.tsx     # single web test
 ```
 

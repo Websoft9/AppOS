@@ -302,23 +302,17 @@ make openapi-sync       # generate + merge + validate OpenAPI specs — ALWAYS a
 
 ```bash
 make test backend                # ALL Go tests
+make test backend TARGET=./domain/iac/...   # focused Go package/path run
+make test backend TARGET=./domain/routes RUN=TestNewRoute   # focused Go test name run
 make test web                    # ALL Vitest tests
-make test backend-targeted TARGET=TestName  # single Go test
 npx vitest run src/path/to/file.test.tsx    # single web test
-make test e2e fast               # container smoke tests
-```
-
-#### Focused Regression Targets
-
-```bash
-make test backend-iac        # IaC domain + route regression
-make test backend-software   # software catalog/executor regression
+make test e2e runtime            # container smoke tests
 ```
 
 #### CI Workflows
 
 - **pr-gate.yml**: PR → main triggers full quality gate (lint + test + openapi + sec + e2e)
-- **dev-fast-ci.yml**: Push to non-main branches triggers fast lint + fast tests + focused regression
+- **dev-fast-ci.yml**: Push to non-main branches triggers fast lint + fast tests
 - **main-post-merge.yml**: Push to main triggers quality gate + Docker image build + vulnerability scan
 
 #### Route Development
@@ -326,7 +320,7 @@ make test backend-software   # software catalog/executor regression
 1. Define route in `backend/domain/routes/routes.go` (or sibling `register*` file)
 2. Write an HTTP test in the same package (follow baseline-clone pattern)
 3. Run `make openapi-sync` to update specs
-4. Run `make test backend-targeted TARGET=TestNewRoute` before committing
+4. Run `make test backend TARGET=./domain/routes RUN=TestNewRoute` before committing
 
 ### Critical Don't-Miss Rules
 

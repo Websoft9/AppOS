@@ -18,7 +18,11 @@ The `tests/` directory is the root for integration-style and E2E coverage.
 Common entrypoints:
 
 - `make test backend`
+- `make test backend TARGET=./domain/iac/...`
+- `make test backend TARGET=./domain/routes RUN=TestIACRoutes`
 - `make test web`
+- `make test-env up`
+- `make test-env down`
 - `make test e2e runtime`
 - `make test e2e smoke ENV=tests/e2e/remote.env.example`
 - `make test e2e ENV=tests/e2e/remote.env.example`
@@ -88,47 +92,15 @@ This is the highest-cost layer and should remain narrow.
 
 The heaviest backend integration tests live in `backend/domain/routes`. Those tests depend on PocketBase test apps and route-level HTTP fixtures.
 
-### Legacy mixed backend-targeted entrypoint
+For narrow backend runs, prefer the same package patterns that `go test` already uses instead of maintaining separate named Make targets.
 
-The older narrow backend bundle is still available as:
+Examples:
 
-- `make test backend-targeted`
+- `make test backend TARGET=./domain/iac/...`
+- `make test backend TARGET=./domain/routes RUN=TestIACRoutes`
+- `make test backend TARGET='./domain/software/catalog ./domain/software/executor'`
 
-What it runs:
-
-- `backend/domain/routes`
-- `backend/domain/secrets`
-- `backend/infra/migrations`
-
-Use it when you specifically need the historical mixed integration slice around routes, secrets, and migrations.
-
-Do not treat it as the default home for every subsystem-specific regression need. New narrow suites should prefer explicit focused targets like `backend-iac` and `backend-software`.
-
-### Focused IaC regression entrypoint
-
-The IaC refactor now has a dedicated focused regression target:
-
-- `make test backend-iac`
-
-What it runs:
-
-- `backend/domain/iac` service-level tests
-- `backend/domain/routes` IaC-focused HTTP adapter tests (`TestIACRoutes*`)
-
-Use this target when working specifically on IaC/file-management behavior and you need a fast, high-signal backend check without paying for the entire backend test surface.
-
-### Focused software catalog/executor regression entrypoint
-
-The software contract/execution surface also has a dedicated focused regression target:
-
-- `make test backend-software`
-
-What it runs:
-
-- `backend/domain/software/catalog` contract and catalog-invariant tests
-- `backend/domain/software/executor` embedded-script command construction tests
-
-Use this target when changing software catalog metadata, template resolution, or managed-script command generation and you want a narrow backend validation slice.
+This keeps the Make interface aligned with `go test` and avoids stale subsystem-specific aliases.
 
 ### PocketBase baseline fixture for `backend/domain/routes`
 
@@ -181,3 +153,22 @@ Current browser tags:
 
 - `@smoke` — login, key system pages, workflow page reachability, create drawer
 - `@acceptance` — workflow create/run/detail/approve/reject flows
+
+## Local External Test Environment
+
+Use `make test-env up` to start the full local dependency set used by higher-value acceptance flows.
+
+Current services:
+
+- SSH target on `127.0.0.1:2222`
+- MySQL target on `127.0.0.1:3306`
+- PostgreSQL target on `127.0.0.1:5432`
+- Mailpit SMTP target on `127.0.0.1:1025` with UI on `127.0.0.1:8025`
+
+Use `make test-env down` to destroy them.
+
+Recommended local flow:
+
+1. `make test-env up`
+2. `make test e2e smoke` or `make test e2e`
+3. `make test-env down`
